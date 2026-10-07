@@ -168,6 +168,14 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
     @Input
     public abstract MapProperty<String, String> getCollect();
 
+    /**
+     * Debug information gathered after a build that we want to be published next to the artifact.
+     * Paths are relative to {@link #getWorkingDir()}, mapped to their destination in the debuginfo archive.
+     * Not an input: it never reaches {@link #getOutputDir()}, and is not part of the artifact identity.
+     */
+    @Internal
+    public abstract MapProperty<String, String> getDebugInfoCollect();
+
     /** Environment variables to forward to the build command. */
     @Input
     public abstract MapProperty<String, String> getEnvironment();
@@ -299,8 +307,29 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
         String hash = sourceHash();
         String name = getArtifactName().get();
         byte[] archive = pack(outputDir, getTemporaryDir().toPath().resolve("to-publish.zip"));
+        // Gathered before anything is uploaded, so missing debug info fails the build without
+        // publishing a library that would then never get it.
+        java.util.Optional<byte[]> debugInfo = packDebugInfo();
+        String apiKey = getPublishApiKey().get();
 
-        repository().publish(name, hash, archive, getPublishApiKey().get(), this::checkCorrectness);
+        NativeArtifactRepository repository = repository();
+        if (repository.publish(name, hash, archive, apiKey, this::checkCorrectness)) {
+            debugInfo.ifPresent(debugArchive -> repository.publishDebugInfo(name, hash, debugArchive, apiKey));
+        }
+    }
+
+    private java.util.Optional<byte[]> packDebugInfo() {
+        Map<String, String> debugInfoCollect = getDebugInfoCollect().get();
+        if (debugInfoCollect.isEmpty()) {
+            return java.util.Optional.empty();
+        }
+        File debugInfoDir = new File(getTemporaryDir(), "debuginfo");
+        getFileSystemOperations().delete(spec -> spec.delete(debugInfoDir));
+        Path workingDir = getWorkingDir().get().getAsFile().toPath();
+        debugInfoCollect.forEach(
+            (source, destination) -> copyBuildOutput(workingDir.resolve(source), debugInfoDir.toPath().resolve(destination))
+        );
+        return java.util.Optional.of(pack(debugInfoDir, getTemporaryDir().toPath().resolve("debuginfo-to-publish.zip")));
     }
 
     /** Throws unless {@code archive} unpacks to every supported platform. */
@@ -498,13 +527,21 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
         });
     }
 
+    /** Copies a build output, which can be a directory (such as a macOS {@code .dSYM} bundle), to {@code dest}. */
     static void copyBuildOutput(Path source, Path dest) {
         if (Files.exists(source) == false) {
             throw new GradleException("Expected build output not found: " + source);
         }
-        try {
-            Files.createDirectories(dest.getParent());
-            Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
+        try (var paths = Files.walk(source)) {
+            for (Path path : paths.toList()) {
+                Path target = dest.resolve(source.relativize(path).toString());
+                if (Files.isDirectory(path)) {
+                    Files.createDirectories(target);
+                } else {
+                    Files.createDirectories(target.getParent());
+                    Files.copy(path, target, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to copy " + source + " to " + dest, e);
         }

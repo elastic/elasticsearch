@@ -132,6 +132,12 @@ nativeLibraryBuild {
     'build/libs/vec/shared/amd64/libvec.so'      : 'linux-x64/libvec.so',
     'build/libs/vec/shared/windows-x64/vec.dll'  : 'windows-x64/vec.dll',
   ]
+  debugInfoCollect = [
+    'build/libs/vec/shared/aarch64/libvec.dylib.dSYM' : 'darwin-aarch64/libvec.dylib.dSYM',
+    'build/libs/vec/shared/aarch64/libvec.so.debug'   : 'linux-aarch64/libvec.so.debug',
+    'build/libs/vec/shared/amd64/libvec.so.debug'     : 'linux-x64/libvec.so.debug',
+    'build/libs/vec/shared/windows-x64/vec.pdb'       : 'windows-x64/vec.pdb',
+  ]
 
   hostCommand { outputDir -> ['make', 'local-install', "DEST=${outputDir.asFile}"] }
 }

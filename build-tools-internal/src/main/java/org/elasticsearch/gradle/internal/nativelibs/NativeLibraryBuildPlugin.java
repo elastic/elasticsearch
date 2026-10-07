@@ -71,6 +71,7 @@ public class NativeLibraryBuildPlugin implements Plugin<Project> {
             task.getDockerCommand().set(extension.getDockerCommand());
             task.getHostCommand().set(outputDir.map(extension::hostCommandFor));
             task.getCollect().set(extension.getCollect());
+            task.getDebugInfoCollect().set(extension.getDebugInfoCollect());
             task.getEnvironment().set(forwardedEnvironment(providers, extension));
         });
 

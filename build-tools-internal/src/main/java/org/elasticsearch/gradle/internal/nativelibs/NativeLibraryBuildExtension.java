@@ -74,6 +74,13 @@ public abstract class NativeLibraryBuildExtension {
      */
     public abstract MapProperty<String, String> getCollect();
 
+    /**
+     * Debug information to publish next to the artifact after a build. Paths are relative to
+     * {@link #getWorkingDir()} (files or directories) and are mapped to their destination in the debuginfo
+     * archive. It is not part of the artifact's identity, as it does not change the library itself.
+     */
+    public abstract MapProperty<String, String> getDebugInfoCollect();
+
     /** Environment variables forwarded to the build command when they are set. */
     public abstract ListProperty<String> getForwardedEnvironment();
 

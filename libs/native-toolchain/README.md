@@ -1,8 +1,8 @@
 # Native library cross-compilation toolchain
 
 Every native library under `libs/` (libvec in `libs/simdvec`, libsimdjson in `libs/simdjson`, ...) is
-built with the toolchain in this directory. Each library keeps its own `Makefile` and publish script
-in `libs/<library>/native/`.
+built with the toolchain in this directory. Each library keeps its own `Makefile` in
+`libs/<library>/native/`, and declares how Gradle builds and publishes it in `libs/<library>/build.gradle`.
 
 All four targets — `darwin-aarch64`, `linux-aarch64`, `linux-x64`, `windows-x64` — are
 cross-compiled inside a single toolchain image. Windows uses llvm-mingw (clang, mingw-w64 and UCRT),
@@ -28,7 +28,7 @@ run from the repository root.
 | `darwin-sysroot/assemble.sh` | Assembles the Darwin sysroot. Runs during the image build only.                                             |
 | `darwin-sysroot/probe.cpp` | Declares which system headers the sysroot must support.                                                     |
 | `libs/<library>/native/Makefile` | Compile and link rules for one library.                                                    |
-| `libs/<library>/native/publish_<library>_binaries.sh` | Runs `make all` in the image and uploads the result. Holds the library `VERSION`. |
+| `libs/<library>/build.gradle` | The `nativeLibraryBuild {}` block: hashed sources, toolchain image, build commands, and where the binaries and debug info are collected from. |
 
 `probe.cpp` is the one to know about: `assemble.sh` compiles it to decide which xnu headers to
 keep, so the sysroot contains exactly the system headers reachable from the includes listed
@@ -49,7 +49,7 @@ VEC_NATIVE_BUILD=host ./gradlew --no-daemon :libs:simdvec:test
 ```
 
 The real cross build of all four targets, using the toolchain image and the assembled sysroot.
-This is what CI and `publish` produce:
+This is what CI builds and publishes:
 
 ```sh
 VEC_NATIVE_BUILD=docker ./gradlew --no-daemon :libs:simdvec:test
@@ -69,10 +69,8 @@ NATIVE_TOOLCHAIN_IMAGE=es-native-cross-toolchain:local VEC_NATIVE_BUILD=docker \
 `--no-daemon` avoids a reused Gradle daemon whose environment cannot start `docker` ("A problem
 occurred starting process 'command 'docker''").
 
-To publish, run the library's `publish_<library>_binaries.sh` from its `native/` directory (see
-*Publish a library*). With `--local` it builds with `es-native-cross-toolchain:local` and only
-writes a local zip. Publishing needs `ARTIFACTORY_API_KEY`, and refuses to overwrite an existing
-version.
+Neither command publishes anything without a credential; see *Publish a library* for how CI
+publishes, and how to publish from your own machine.
 
 Useful checks on a Darwin build (libvec, from `libs/simdvec/native`):
 
@@ -106,8 +104,8 @@ Steps 3 and 4 are needed because the sysroot is baked into the image.
 
 ## Add a native library
 
-1. Create `libs/<library>/native/` with a `Makefile` and a `publish_<library>_binaries.sh`,
-   modelled on the existing ones.
+1. Create `libs/<library>/native/` with a `Makefile`, modelled on the existing ones. Have it keep
+   the debug info separate from the stripped binaries (`.dSYM`, `.so.debug`, `.pdb`), as they do.
 2. Copy the Darwin flags verbatim. The `-isystem` order must be kept as is for the C pre-processor to resolve headers correctly:
 
    ```make
@@ -131,7 +129,7 @@ Steps 3 and 4 are needed because the sysroot is baked into the image.
    - `supportedPlatforms`;
    - the repository variables (`artifactRepositoryUrl`, `artifactName`, `publishCredentialEnvironmentVariable`);
    - the docker and host commands;
-   - where each platform's output is collected from.
+   - where each platform's output is collected from (`collect`), and its debug info (`debugInfoCollect`).
 4. Build it with `<LIBRARY>_NATIVE_BUILD=docker`. If a system header is missing, follow
    *Add a system header* above.
 5. Add the library to `libs/native/libraries/build.gradle`:
@@ -169,6 +167,65 @@ the libc++ release Apple ships in that macOS version; `versions.env` documents t
 
 ## Publish a library
 
-1. `./build_cross_toolchain_image.sh` ONLY if the image changed.
-2. Bump `VERSION` in `publish_<library>_binaries.sh`, then run it.
-3. Bump the matching version in `libs/native/libraries/build.gradle`.
+### How it works
+
+A library is published under a hash of the files its `sources` patterns select, together with the
+toolchain image, `supportedPlatforms`, the docker command, the `collect` mapping and the forwarded
+environment variables that are set. There is no version to bump.
+Every CI job runs with `<LIBRARY>_NATIVE_BUILD=docker` and the correct set of parameters (including credentials): when no artifact exists
+for the current hash, the first job to build it uploads `<name>-<hash>.zip` and
+`<name>-<hash>-debuginfo.zip`. Concurrent jobs that build binaries from the same sources (same hash) have their upload refused (the repository refuses to overwrite an artifact).
+
+In this case, they download the published artifact, check that
+it is usable and continue. Normally, pushing a change to the native
+sources is all it takes.
+
+Note: this means that artifacts are "immutable": a hash is final once published. To replace a bad
+artifact, change the sources so that a new hash is generated.
+
+### Build locally without publishing
+
+Without `ARTIFACTORY_API_KEY` in the environment, nothing is ever uploaded:
+
+```sh
+VEC_NATIVE_BUILD=host ./gradlew --no-daemon :libs:simdvec:buildNativeLibrary    # current platform only
+VEC_NATIVE_BUILD=docker ./gradlew --no-daemon :libs:simdvec:buildNativeLibrary  # every platform; logs "Skipping publish"
+```
+
+The binaries land in `libs/<library>/build/native-libs/<os>-<arch>/`, and the debug info stays where
+`make` wrote it, under `libs/<library>/native/build/`.
+
+When the current hash is already published, Gradle downloads it rather than building (the log will read `Using published <name> for hash <hash>`). To build anyway, you can use offline mode (`--offline`), which skips the
+repository entirely.
+
+Note that offline mode means that every other dependency of the build needs to be present locally, e.g. in the local Gradle cache.
+
+### Publish from your machine
+
+Normally you won't need this: you push your changes, and CI will build and publish the new artifact.
+But in cases where you need to publish your locally built artifact (for example while CI credentials are expired) you need:
+
+- docker, and an Artifactory identity token (Artifactory profile, "Generate an Identity Token")
+  with deploy permission on the `elasticsearch-native` repository;
+- the native sources exactly as they will be pushed: the hash is computed from your working tree;
+- `CLANG_CXX` and `NATIVE_TOOLCHAIN_IMAGE` unset: both are part of the hash, so with either one set
+  you would publish under a hash no other build computes.
+
+```sh
+env -u CLANG_CXX -u NATIVE_TOOLCHAIN_IMAGE VEC_NATIVE_BUILD=docker ARTIFACTORY_API_KEY=<token> \
+  ./gradlew --no-daemon :libs:simdvec:buildNativeLibrary --rerun
+```
+
+`--rerun` is there because the credential is not a task input: after a docker build without it,
+the task is up to date and would not run again just because a credential appeared. The log ends
+with one of:
+
+- `Published <name> for hash <hash>` and `Published <name> debug info for hash <hash>`: done.
+- `<name> for hash <hash> was already published by another build`: some other build task published after we started, and was faster; nothing to do.
+- `Using published <name> for hash <hash>`: it was already published, and nothing was built.
+
+### Change the toolchain image
+
+1. `./build_cross_toolchain_image.sh` (see *Add a system header*).
+2. Update `toolchainImage` in each library's `build.gradle`. The image is part of the hash, so the
+   next CI run builds and publishes every library with it.

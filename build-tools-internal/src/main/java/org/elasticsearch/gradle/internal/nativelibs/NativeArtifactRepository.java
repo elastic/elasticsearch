@@ -46,7 +46,7 @@ class NativeArtifactRepository {
      * Fetches the artifact for {@code hash}, or reports its absence. An absent artifact means "needs building".
      */
     Optional<byte[]> download(String artifactName, String hash) {
-        String url = artifactUrl(artifactName, hash);
+        String url = artifactUrl(artifactName, hash, "");
         HttpURLConnection connection = open(url, "GET");
         try {
             int status = connection.getResponseCode();
@@ -72,21 +72,35 @@ class NativeArtifactRepository {
      * as long as the artifact there is correct.
      *
      * @param checkCorrectness throws if a published archive cannot serve as this library's artifact
+     * @return true if this build uploaded the artifact
      */
-    void publish(String artifactName, String hash, byte[] content, String apiKey, Consumer<byte[]> checkCorrectness) {
-        String url = artifactUrl(artifactName, hash);
+    boolean publish(String artifactName, String hash, byte[] content, String apiKey, Consumer<byte[]> checkCorrectness) {
+        String url = artifactUrl(artifactName, hash, "");
         int status = put(url, content, apiKey);
 
         if (status / 100 == 2) {
             requirePublishedCorrect(artifactName, hash, checkCorrectness, "Published " + url);
             LOGGER.lifecycle("Published {} for hash {}", artifactName, hash);
-            return;
+            return true;
         }
 
         // Rather than interpreting the status, check if the published artifact is present and correct.
         LOGGER.lifecycle("Publishing {} for hash {} was refused with status {}; checking what is published", artifactName, hash, status);
         requirePublishedCorrect(artifactName, hash, checkCorrectness, "Failed to publish " + url + ": status " + status);
         LOGGER.lifecycle("{} for hash {} was already published by another build", artifactName, hash);
+        return false;
+    }
+
+    /** Uploads the debug information belonging to the artifact published for {@code hash}. */
+    void publishDebugInfo(String artifactName, String hash, byte[] archive, String apiKey) {
+        String url = artifactUrl(artifactName, hash, "-debuginfo");
+        int status = put(url, archive, apiKey);
+        if (status / 100 != 2) {
+            throw new GradleException(
+                "Published " + artifactName + " for hash " + hash + ", but its debug info was refused with status " + status + ": " + url
+            );
+        }
+        LOGGER.lifecycle("Published {} debug info for hash {}", artifactName, hash);
     }
 
     private void requirePublishedCorrect(String artifactName, String hash, Consumer<byte[]> checkCorrectness, String failure) {
@@ -117,8 +131,8 @@ class NativeArtifactRepository {
         }
     }
 
-    private String artifactUrl(String artifactName, String hash) {
-        return baseUrl + "/org/elasticsearch/" + artifactName + "/" + hash + "/" + artifactName + "-" + hash + ".zip";
+    private String artifactUrl(String artifactName, String hash, String suffix) {
+        return baseUrl + "/org/elasticsearch/" + artifactName + "/" + hash + "/" + artifactName + "-" + hash + suffix + ".zip";
     }
 
     private static HttpURLConnection open(String url, String method) {

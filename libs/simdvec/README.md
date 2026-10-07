@@ -18,9 +18,8 @@ libs/simdvec/
 │   │   ├── aarch64/        #     ARM kernels (NEON baseline, SVE in *_2.cpp)
 │   │   └── amd64/          #     x64 kernels (AVX2 baseline, AVX-512 in *_2.cpp)
 │   ├── src/vec/headers/    #     Shared and platform-specific headers
-│   ├── Makefile            #     Cross-compilation build (all platforms)
-│   └── publish_vec_binaries.sh #  Builds in the toolchain image and publishes to Artifactory
-└── build.gradle            # Gradle build config
+│   └── Makefile            #     Cross-compilation build (all platforms)
+└── build.gradle            # Gradle build config, including how libvec is built and published
 ```
 
 ### Related code in other modules
@@ -101,6 +100,10 @@ In `host` mode that means `libs/native/libraries/build/platform/` holds libvec
 for your platform only. Anything that needs other platforms (e.g. assembling
 a distribution for a different OS or architecture) needs `docker` mode or the
 published artifact.
+
+CI publishes the binaries for new sources on its own. To publish from your machine, or to build
+every platform even though the binaries are already published, see *Publish a library* in
+[`libs/native-toolchain`](../native-toolchain/README.md#publish-a-library).
 
 In the rare case in which your changes require a new `es-native-cross-toolchain`
 docker image (e.g. new clang version, additional build tools, a missing system

@@ -223,6 +223,22 @@ public class BuildNativeLibraryTaskTests {
         assertEquals("updated-binary", Files.readString(dest));
     }
 
+    /** A macOS {@code .dSYM} is a bundle directory, so debug info collection must work on whole trees. */
+    @Test
+    public void testCopyBuildOutputCopiesADirectoryTree() throws IOException {
+        Path source = temporaryFolder.newFolder("src").toPath().resolve("libvec.dylib.dSYM");
+        Path dwarf = source.resolve("Contents/Resources/DWARF/libvec.dylib");
+        Files.createDirectories(dwarf.getParent());
+        Files.writeString(dwarf, "dwarf");
+        Files.writeString(source.resolve("Contents/Info.plist"), "plist");
+        Path dest = temporaryFolder.newFolder("dest").toPath().resolve("darwin-aarch64/libvec.dylib.dSYM");
+
+        BuildNativeLibraryTask.copyBuildOutput(source, dest);
+
+        assertEquals("dwarf", Files.readString(dest.resolve("Contents/Resources/DWARF/libvec.dylib")));
+        assertEquals("plist", Files.readString(dest.resolve("Contents/Info.plist")));
+    }
+
     /**
      * A cached all-platforms entry is trusted to mean the artifact for that hash is published, so every
      * build that uploads nothing has to be recognised and kept out of the cache.

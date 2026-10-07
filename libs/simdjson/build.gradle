@@ -102,6 +102,12 @@ nativeLibraryBuild {
     'build/libs/simdjson/shared/amd64/libsimdjson.so'      : 'linux-x64/libsimdjson.so',
     'build/libs/simdjson/shared/windows-x64/simdjson.dll'  : 'windows-x64/simdjson.dll',
   ]
+  debugInfoCollect = [
+    'build/libs/simdjson/shared/aarch64/libsimdjson.dylib.dSYM' : 'darwin-aarch64/libsimdjson.dylib.dSYM',
+    'build/libs/simdjson/shared/aarch64/libsimdjson.so.debug'   : 'linux-aarch64/libsimdjson.so.debug',
+    'build/libs/simdjson/shared/amd64/libsimdjson.so.debug'     : 'linux-x64/libsimdjson.so.debug',
+    'build/libs/simdjson/shared/windows-x64/simdjson.pdb'       : 'windows-x64/simdjson.pdb',
+  ]
 
   hostCommand { outputDir -> ['make', 'local-install', "DEST=${outputDir.asFile}"] }
 }

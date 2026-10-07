@@ -25,6 +25,7 @@ class NativeArtifactRepositorySpec extends Specification {
     static final String NAME = "vec"
     static final String HASH = "abc123"
     static final byte[] CONTENT = "zip-bytes".getBytes("UTF-8")
+    static final byte[] DEBUG_INFO = "debuginfo-zip-bytes".getBytes("UTF-8")
 
     HttpServer server
 
@@ -66,7 +67,7 @@ class NativeArtifactRepositorySpec extends Specification {
         e.message.contains("500") || e.cause?.message?.contains("500")
     }
 
-    def "publish uploads the content with the credential"() {
+    def "publish with correct credentials correctly uploads the content"() {
         given:
         def received = new ByteArrayOutputStream()
         def apiKeys = []
@@ -81,11 +82,12 @@ class NativeArtifactRepositorySpec extends Specification {
         }
 
         when:
-        repository.publish(NAME, HASH, CONTENT, "secret-key", {})
+        def uploaded = repository.publish(NAME, HASH, CONTENT, "secret-key", {})
 
         then:
         received.toByteArray() == CONTENT
         apiKeys == ["secret-key"]
+        uploaded
     }
 
     def "publish rejects an upload that reads back unusable"() {
@@ -154,10 +156,10 @@ class NativeArtifactRepositorySpec extends Specification {
         }
 
         when:
-        repository.publish(NAME, HASH, CONTENT, "secret-key", {})
+        def uploaded = repository.publish(NAME, HASH, CONTENT, "secret-key", {})
 
         then:
-        noExceptionThrown()
+        uploaded == false
     }
 
     def "publish fails when the artifact already published is unusable"() {
@@ -195,6 +197,41 @@ class NativeArtifactRepositorySpec extends Specification {
 
         then:
         def e = thrown(GradleException)
+        e.message.contains("403")
+    }
+
+    def "publishDebugInfo with correct credentials correctly uploads the debuginfo"() {
+        given:
+        def uploads = [:]
+        def apiKeys = []
+        def repository = repositoryServing { exchange ->
+            apiKeys << exchange.requestHeaders.getFirst("X-JFrog-Art-Api")
+            uploads[exchange.requestURI.path] = exchange.requestBody.bytes
+            respond(exchange, 201, new byte[0])
+        }
+
+        when:
+        repository.publishDebugInfo(NAME, HASH, DEBUG_INFO, "secret-key")
+
+        then:
+        uploads.keySet() == ["/org/elasticsearch/vec/abc123/vec-abc123-debuginfo.zip"] as Set
+        uploads["/org/elasticsearch/vec/abc123/vec-abc123-debuginfo.zip"] == DEBUG_INFO
+        apiKeys == ["secret-key"]
+    }
+
+    def "publishDebugInfo fails when the upload is refused"() {
+        given:
+        def repository = repositoryServing { exchange ->
+            exchange.requestBody.bytes
+            respond(exchange, 403, new byte[0])
+        }
+
+        when:
+        repository.publishDebugInfo(NAME, HASH, DEBUG_INFO, "secret-key")
+
+        then:
+        def e = thrown(GradleException)
+        e.message.contains("debug info")
         e.message.contains("403")
     }
 

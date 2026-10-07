@@ -124,6 +124,13 @@ setup:
 
 ---
 'filter on unmapped field IS NULL via alias':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_unmapped_load_auto_cast_two_legged_punks]
+      reason: "9.4 rejects partially unmapped non-KEYWORD fields outside KEEP/DROP/casts"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -137,6 +144,13 @@ setup:
 
 ---
 'filter on unmapped field IS NOT NULL via alias':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_unmapped_load_auto_cast_two_legged_punks]
+      reason: "9.4 rejects partially unmapped non-KEYWORD fields outside KEEP/DROP/casts"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -151,6 +165,13 @@ setup:
 
 ---
 'stats on unmapped field via alias':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_unmapped_load_auto_cast_two_legged_punks]
+      reason: "9.4 rejects partially unmapped non-KEYWORD fields outside KEEP/DROP/casts"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -180,6 +201,13 @@ setup:
 
 ---
 'eval on unmapped field via alias':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_unmapped_load_auto_cast_two_legged_punks]
+      reason: "9.4 rejects partially unmapped non-KEYWORD fields outside KEEP/DROP/casts"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -411,6 +439,13 @@ setup:
 
 ---
 'multiple stats aggregations on unmapped field via alias':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_unmapped_load_auto_cast_two_legged_punks]
+      reason: "9.4 rejects partially unmapped non-KEYWORD fields outside KEEP/DROP/casts"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"

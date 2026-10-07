@@ -282,6 +282,49 @@ public class SearchServiceTests extends IndexShardTestCase {
         assertThat(SearchService.badRequestIfPatternTooComplex(unrelated), sameInstance(unrelated));
     }
 
+    public void testWrapListenerForErrorHandlingTooComplexPattern() {
+        final String nodeId = "node";
+        final ShardId shardId = new ShardId("index", "index", 0);
+        final long taskId = 123L;
+        final String logMessage = format("[%s]%s: failed to execute search request for task [%d]", nodeId, shardId, taskId);
+        final TooComplexToDeterminizeException tooComplex = new TooComplexToDeterminizeException(Automata.makeEmpty(), 10);
+
+        for (Exception failure : List.of(tooComplex, new ElasticsearchException("wrapped", tooComplex))) {
+            try (var mockLog = MockLog.capture(SearchService.class)) {
+                Configurator.setLevel(SearchService.class, Level.DEBUG);
+                mockLog.addExpectation(
+                    new MockLog.ExceptionSeenEventExpectation(
+                        "converted failure logged at debug",
+                        SearchService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        logMessage,
+                        IllegalArgumentException.class,
+                        "Pattern was too complex to determinize"
+                    )
+                );
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation("no warn log", SearchService.class.getCanonicalName(), Level.WARN, "*")
+                );
+
+                AtomicReference<Exception> received = new AtomicReference<>();
+                ActionListener<SearchPhaseResult> listener = wrapListenerForErrorHandling(
+                    ActionListener.wrap(r -> fail("expected a failure"), received::set),
+                    TransportVersion.current(),
+                    nodeId,
+                    shardId,
+                    taskId,
+                    threadPool,
+                    randomInitializedOrStartedLifecycle()
+                );
+                listener.onFailure(failure);
+
+                assertThat(received.get(), instanceOf(IllegalArgumentException.class));
+                assertThat(received.get().getCause(), sameInstance(failure));
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+    }
+
     public void testWrapListenerForErrorHandlingDebugLog() {
         final String nodeId = "node";
         final String index = "index";

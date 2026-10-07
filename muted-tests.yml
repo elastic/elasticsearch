@@ -222,6 +222,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
   method: testRandomQueries
   issue: https://github.com/elastic/elasticsearch/issues/161094
+- class: org.elasticsearch.xpack.security.authz.microsoft.MicrosoftGraphAuthzPluginIT
+  method: testConcurrentAuthentication
+  issue: https://github.com/elastic/elasticsearch/issues/161197
 
 # Examples:
 #

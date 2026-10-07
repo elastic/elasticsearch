@@ -4289,6 +4289,15 @@ public class EsqlCapabilities {
          */
         FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
 
+        /**
+         * A predicate pushed to Lucene on a dotted field (e.g. {@code category.raw} mapped as a {@code keyword}
+         * multi-field in one index) matches nothing on shards where the name is only a dynamic sub-key of a
+         * {@code flattened} root, consistent with field extraction returning {@code null} there. Previously
+         * {@code LIKE}/{@code RLIKE} failed those shards and {@code ==} matched rows whose value read as {@code null}.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/148190">#148190</a>.
+         */
+        FIX_FLATTENED_SUBKEY_PUSHDOWN,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

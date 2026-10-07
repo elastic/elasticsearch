@@ -176,6 +176,21 @@ public class SingleValueQuery extends Query {
 
         protected abstract AbstractBuilder rewrite(QueryBuilder next);
 
+        /**
+         * The type of {@link #field()} on this shard, or {@code null} if ES|QL treats the field as missing here.
+         * A dotted name under a {@code flattened} root resolves to a keyed sub-field type even though the shard
+         * has no mapping for it. Field caps and field extraction treat that name as unmapped, so the query has to
+         * as well: otherwise it either rejects wildcard/regexp queries or matches documents whose extracted
+         * value is {@code null}.
+         */
+        protected final MappedFieldType mappedFieldType(SearchExecutionContext context) {
+            MappedFieldType ft = context.getFieldType(field);
+            if (ft == null || (field.indexOf('.') > 0 && context.isMappedField(field) == false)) {
+                return null;
+            }
+            return ft;
+        }
+
         @Override
         protected final QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
             QueryBuilder rewritten = next.rewrite(queryRewriteContext);
@@ -255,7 +270,7 @@ public class SingleValueQuery extends Query {
 
         @Override
         protected final org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
-            MappedFieldType ft = context.getFieldType(field());
+            MappedFieldType ft = mappedFieldType(context);
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + field() + "]");
             }
@@ -319,7 +334,7 @@ public class SingleValueQuery extends Query {
 
         @Override
         protected final org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
-            MappedFieldType ft = context.getFieldType(field());
+            MappedFieldType ft = mappedFieldType(context);
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + field() + "]");
             }
@@ -417,7 +432,7 @@ public class SingleValueQuery extends Query {
 
         @Override
         protected final org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
-            MappedFieldType ft = context.getFieldType(field());
+            MappedFieldType ft = mappedFieldType(context);
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + field() + "]");
             }

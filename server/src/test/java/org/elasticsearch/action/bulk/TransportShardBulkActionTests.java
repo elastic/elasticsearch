@@ -161,7 +161,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         DocumentParsingProvider documentParsingProvider = mock();
         XContentMeteringParserDecorator parserDecorator = mock();
-        when(documentParsingProvider.newMeteringParserDecorator(any())).thenReturn(parserDecorator);
+        when(documentParsingProvider.newMeteringParserDecorator()).thenReturn(parserDecorator);
         when(parserDecorator.decorate(any(), any())).then(i -> i.getArgument(0));
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
@@ -228,7 +228,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(failure.getStatus(), equalTo(RestStatus.CONFLICT));
 
         assertThat(replicaRequest, equalTo(primaryRequest));
-        verify(documentParsingProvider).newMeteringParserDecorator(any());
+        verify(documentParsingProvider).newMeteringParserDecorator();
         verify(parserDecorator).decorate(any(), any());
 
         // Assert that the document count is still 1
@@ -726,7 +726,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 assertThat(failure.getCause(), equalTo(err));
                 assertThat(failure.getStatus(), equalTo(RestStatus.CONFLICT));
 
-                verify(documentParsingProvider, times(retries + 1)).newMeteringParserDecorator(any());
+                verify(documentParsingProvider, times(retries + 1)).newMeteringParserDecorator();
             }
         }
     }
@@ -810,7 +810,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 long expectedSize = indexingBytes + maxMemoryOverhead + expectedChange;
                 assertEquals(expectedSize, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
 
-                verify(documentParsingProvider).newMeteringParserDecorator(updateResponse);
+                verify(documentParsingProvider).newMeteringParserDecorator();
             }
         }
     }
@@ -890,7 +890,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 assertThat(context.getLocationToSync(), equalTo(resultLocation));
                 assertThat(bulkShardRequest.items()[0].request(), equalTo(writeRequest));
 
-                verify(documentParsingProvider).newMeteringParserDecorator(updateResponse);
+                verify(documentParsingProvider).newMeteringParserDecorator();
             }
         }
     }

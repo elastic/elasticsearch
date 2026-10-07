@@ -429,12 +429,12 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     /**
-     * The blank must read the same on both sides of the prefetch boundary. An inferred schema is sampled twice
-     * -- {@code schema_sample_size} rows to infer, then another {@code schema_sample_size} as the widening
-     * window ({@code collectWideningWindowAndPrefetch}) -- and every prefetched row is replayed through the
-     * shared conversion before the direct walkers see anything. So with {@code schema_sample_size: 2} the
-     * boundary sits after row 4: the blank in row 2 is decided by the replay and the one in row 5 by the direct
-     * loop. Six rows rather than four is what puts a row past the boundary at all.
+     * The blank must read the same on both sides of the prefetch boundary. An inferred schema samples
+     * {@code schema_sample_size} rows to infer, and every one of those sampled rows is replayed through
+     * the shared conversion before the direct walkers see anything past it. So with
+     * {@code schema_sample_size: 2} the boundary sits after row 2: the blank in row 2 is decided by the
+     * replay and the one in row 5 by the direct loop. Six rows rather than two is what puts a row past
+     * the boundary at all.
      * Both blanks in {@code phrase} read {@code ""} (string column); the trailing blank in {@code tail} also
      * reads {@code ""} because tail infers as keyword too.
      */

@@ -66,11 +66,24 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByPaginatedSearchActi
     public void testRoutingSetFromSliceIfRequested() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         TestAction action = action();
-        action.mainRequest().getDestination().routing("=cat").setRoutingFromSlice(true);
+        // A destination [slice] is a plain slice value that every reindexed document is routed to.
+        action.mainRequest().getDestination().routing("cat").setRoutingFromSlice(true);
         IndexRequest index = new IndexRequest();
         action.copyMetadata(AbstractAsyncBulkByPaginatedSearchAction.wrap(index), doc().setRouting("foo"));
         assertEquals("cat", index.routing());
         assertTrue(index.isRoutingFromSlice());
+    }
+
+    public void testRoutingDiscardedWhenSliceSourceReindexedIntoNonSliceDestination() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        TestAction action = action();
+        // Reading in slice mode into a non-slice-enabled destination (the TestAction uses an empty cluster state) drops the slice value
+        // rather than persisting it as ordinary routing.
+        action.mainRequest().getSearchRequest().searchSlice("tenant-a");
+        IndexRequest index = new IndexRequest();
+        action.copyMetadata(AbstractAsyncBulkByPaginatedSearchAction.wrap(index), doc().setRouting("tenant-a"));
+        assertNull(index.routing());
+        assertFalse(index.isRoutingFromSlice());
     }
 
     @Override

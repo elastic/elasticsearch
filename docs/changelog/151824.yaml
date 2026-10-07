@@ -1,0 +1,6 @@
+area: Highlighting
+issues:
+  - 7416
+pr: 151824
+summary: Return non-matching array entries when highlighting with `no_match_size`
+type: enhancement

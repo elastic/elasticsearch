@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders.DEFAUL
  * copy of one, or a {@code FORK} or {@code UNION ALL} column merged from mapped fields, uses
  * {@link TextEsField#analyzerName}. A {@code TO_TEXT} column uses its declared analyzer, and anything else uses
  * {@code standard}. When the queried indices disagree on a field's analyzer and the row's {@code _index} is available,
- * each index uses its own.
+ * each index uses its own. Without it, see {@link #analyzerMismatch} for when the query fails instead.
  * <p>
  * An expression over a mapped field counts as anything else: {@code standard}, with no warning, even when the field's
  * mapping names another analyzer. {@code EVAL t = title} does not; that copy keeps the mapping.
@@ -47,6 +47,8 @@ public final class HighlightAnalyzers {
 
     private static final String INDEX_LOCAL_REASON = "its analyzer is defined in the index settings, which no node can rebuild by name";
     private static final String NOT_REPORTED_REASON = "its analyzer was not reported under a name any node can rebuild";
+    private static final String CONFLICT_REASON = "the queried indices disagree on the analyzer for this field";
+    private static final String BRANCH_CONFLICT_REASON = "the FORK or UNION ALL branches disagree on the analyzer for this column";
 
     private HighlightAnalyzers() {}
 
@@ -135,6 +137,29 @@ public final class HighlightAnalyzers {
         }
     }
 
+    /**
+     * Why the rows of {@code field} need different analyzers that HIGHLIGHT cannot tell apart, or {@code null} when they
+     * do not. Index-local and unreported analyzers fall back to {@code standard} whether or not the indices disagree, so
+     * only indices that name different analyzers count.
+     *
+     * @param perIndex whether the operator will know each row's index
+     */
+    public static @Nullable String analyzerMismatch(NamedExpression field, Map<String, TextEsField> fieldMappings, boolean perIndex) {
+        TextEsField text = mappingOf(field, fieldMappings);
+        if (text == null) {
+            return null;
+        }
+        return switch (text.unknownAnalyzer()) {
+            case NONE, INDEX_LOCAL, NOT_REPORTED -> null;
+            case CONFLICT -> {
+                List<IndexAnalyzerGroup> groups = text.analyzerGroups();
+                boolean fits = groups != null && (perIndex || groups.stream().filter(g -> g.analyzerName() != null).count() < 2);
+                yield fits ? null : CONFLICT_REASON;
+            }
+            case BRANCH_CONFLICT -> BRANCH_CONFLICT_REASON;
+        };
+    }
+
     /** Which indices use which analyzer when the queried indices disagree on a mapped text field, otherwise {@code null}. */
     public static @Nullable List<IndexAnalyzerGroup> analyzerGroups(NamedExpression field, Map<String, TextEsField> fieldMappings) {
         TextEsField text = mappingOf(field, fieldMappings);
@@ -165,10 +190,10 @@ public final class HighlightAnalyzers {
         if (text != null) {
             String fallbackReason = switch (text.unknownAnalyzer()) {
                 case NONE -> null;
-                case CONFLICT -> "the queried indices disagree on the analyzer for this field";
+                case CONFLICT -> CONFLICT_REASON;
                 case INDEX_LOCAL -> INDEX_LOCAL_REASON;
                 case NOT_REPORTED -> NOT_REPORTED_REASON;
-                case BRANCH_CONFLICT -> "the FORK or UNION ALL branches disagree on the analyzer for this column";
+                case BRANCH_CONFLICT -> BRANCH_CONFLICT_REASON;
             };
             return mappingAnalyzer(
                 field.name(),

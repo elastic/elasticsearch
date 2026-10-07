@@ -532,6 +532,29 @@ public class Highlight extends UnaryPlan
         return false;
     }
 
+    /**
+     * Fails when ON field rows need different analyzers that HIGHLIGHT.
+     */
+    public void verifyAnalyzersAgree(Failures failures) {
+        if (hasAnalyzerOption()) {
+            return;
+        }
+        for (NamedExpression field : fields) {
+            String mismatch = HighlightAnalyzers.analyzerMismatch(field, fieldMappings, indexKey != null);
+            if (mismatch != null) {
+                failures.add(
+                    fail(
+                        field,
+                        "HIGHLIGHT on [{}] cannot resolve an analyzer across inputs."
+                            + "Specify WITH {\"analyzer\": <registered analyzer>} to choose one.",
+                        field.name(),
+                        mismatch
+                    )
+                );
+            }
+        }
+    }
+
     private void verifyFieldTypes(Failures failures) {
         for (NamedExpression field : fields) {
             if (field.resolved() && DataType.isString(field.dataType()) == false) {

@@ -7203,16 +7203,20 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     /**
      * HIGHLIGHT gets no index key when rows have no single source index, when WITH sets the analyzer, or when an older
-     * node is in the cluster.
+     * node is in the cluster. Without the key, indices that disagree fail the query, except with an older node, where
+     * HIGHLIGHT falls back to standard and warns.
      */
     public void testHighlightPerIndexAnalyzerFallsBackWithoutIndexKey() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-        for (String query : List.of(
+        booksWithConflictingTitleAnalyzer().error(
             "FROM books* | STATS c = COUNT(*) BY title | HIGHLIGHT \"ring\" ON title",
-            "ROW title = \"ring\" | HIGHLIGHT \"ring\" ON title"
-        )) {
-            assertNull(soleHighlight(booksWithConflictingTitleAnalyzer().query(query)).indexKey());
-        }
+            containsString(analyzerConflictError("title"))
+        );
+        assertNull(
+            soleHighlight(booksWithConflictingTitleAnalyzer().query("ROW title = \"ring\" | HIGHLIGHT \"ring\" ON title")).indexKey()
+        );
+        assertWarnings();
+
         assertNull(
             soleHighlight(
                 booksWithConflictingTitleAnalyzer().minimumTransportVersion(
@@ -7220,7 +7224,6 @@ public class AnalyzerTests extends AnalyzerTestCase {
                 ).query("FROM books* | HIGHLIGHT \"ring\" ON title")
             ).indexKey()
         );
-        // Response headers keep one copy of a repeated warning.
         assertWarnings(analyzerConflictFallbackWarning("title"));
 
         assertNull(
@@ -7232,18 +7235,19 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * HIGHLIGHT after DEDUP keeps the fallback, because DEDUP would group by the key. INLINE STATS keeps every row, so the
-     * key goes below it.
+     * DEDUP would group by the key, so HIGHLIGHT after it gets none and fails when the indices disagree. INLINE STATS
+     * keeps every row, so the key goes below it.
      */
     public void testHighlightPerIndexAnalyzerThroughDedupAndInlineStats() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
         assumeTrue("requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
-        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("FROM books* | KEEP title | DEDUP | HIGHLIGHT \"ring\" ON title");
-        assertNull(soleHighlight(plan).indexKey());
-        assertWarnings(analyzerConflictFallbackWarning("title"));
+        booksWithConflictingTitleAnalyzer().error(
+            "FROM books* | KEEP title | DEDUP | HIGHLIGHT \"ring\" ON title",
+            containsString(analyzerConflictError("title"))
+        );
 
-        plan = booksWithConflictingTitleAnalyzer().query(
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query(
             "FROM books* | INLINE STATS c = COUNT(*) BY book_no | HIGHLIGHT \"ring\" ON title"
         );
         Attribute key = soleHighlight(plan).indexKey();
@@ -7254,21 +7258,25 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertWarnings();
     }
 
-    /** The key and the added {@code _index} must not become DEDUP grouping columns, or pass through DEDUP to a later HIGHLIGHT. */
+    /**
+     * The key and the added {@code _index} must not become DEDUP grouping columns, or pass through DEDUP to a later
+     * HIGHLIGHT, which therefore fails because the indices disagree.
+     */
     public void testHighlightIndexKeyDoesNotAffectFollowingDedup() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
         for (String metadata : List.of("", " METADATA _index")) {
-            LogicalPlan plan = booksWithConflictingTitleAnalyzer().query(
-                "FROM books*" + metadata + " | HIGHLIGHT \"ring\" ON title | DEDUP | HIGHLIGHT prefix = \"again_\" \"ring\" ON title"
-            );
+            String query = "FROM books*"
+                + metadata
+                + " | HIGHLIGHT \"ring\" ON title | DEDUP | HIGHLIGHT prefix = \"again_\" \"ring\" ON title";
+            booksWithConflictingTitleAnalyzer().error(query, containsString(analyzerConflictError("title")));
+
+            LogicalPlan plan = booksWithConflictingTitleAnalyzer().query(query + " WITH {\"analyzer\": \"standard\"}");
             Dedup dedup = plan.collect(Dedup.class).getFirst();
             assertThat(fieldNames(dedup.child().output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
             assertEquals(metadata.isEmpty() == false, fieldNames(dedup.child().output()).contains(MetadataAttribute.INDEX));
-            List<Highlight> highlights = plan.collect(Highlight.class);
-            assertNull(highlights.getFirst().indexKey());
-            assertNotNull(highlights.getLast().indexKey());
-            assertWarnings(analyzerConflictFallbackWarning("title"));
+            assertNotNull(plan.collect(Highlight.class).getLast().indexKey());
+            assertWarnings();
         }
     }
 
@@ -7297,20 +7305,17 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     /**
      * A LOOKUP JOIN field's analyzer groups name lookup indices, but the key only holds the indices the rows are read from.
-     * HIGHLIGHT gets no key and warns that the indices disagree, on its own and next to a field the key could route.
+     * HIGHLIGHT gets no key, so it fails on the lookup field, and on a field next to it that the key could route.
      */
     public void testHighlightPerIndexAnalyzerSkipsLookupJoinField() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-        for (String on : List.of("review", "title, review")) {
-            LogicalPlan plan = booksWithConflictingTitleAnalyzer().addLookupIndex(reviewsLookup())
-                .query("FROM books* | LOOKUP JOIN reviews_lookup ON book_no | HIGHLIGHT \"ring\" ON " + on);
-            assertNull(on, soleHighlight(plan).indexKey());
-            if (on.contains("title")) {
-                assertWarnings(analyzerConflictFallbackWarning("title"), analyzerConflictFallbackWarning("review"));
-            } else {
-                assertWarnings(analyzerConflictFallbackWarning("review"));
-            }
-        }
+        TestAnalyzer analyzer = booksWithConflictingTitleAnalyzer().addLookupIndex(reviewsLookup());
+        String query = "FROM books* | LOOKUP JOIN reviews_lookup ON book_no | HIGHLIGHT \"ring\" ON ";
+        analyzer.error(query + "review", containsString(analyzerConflictError("review")));
+        analyzer.error(
+            query + "title, review",
+            allOf(containsString(analyzerConflictError("title")), containsString(analyzerConflictError("review")))
+        );
     }
 
     /** A HIGHLIGHT inside a FORK branch gets the key, and the branch's alignment projection keeps it out of FORK's output. */
@@ -7327,22 +7332,16 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     /**
      * After FORK, a LOOKUP JOIN field's merged mapping keeps the conflict but not its groups, which name lookup indices.
-     * HIGHLIGHT gets no key and warns that the indices disagree.
+     * HIGHLIGHT gets no key and fails because the indices disagree.
      */
     public void testHighlightAfterForkSkipsLookupJoinField() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-        LogicalPlan plan = booksWithConflictingTitleAnalyzer().addLookupIndex(reviewsLookup()).query("""
+        booksWithConflictingTitleAnalyzer().addLookupIndex(reviewsLookup()).error("""
             FROM books*
             | LOOKUP JOIN reviews_lookup ON book_no
             | FORK (WHERE book_no == "1") (WHERE book_no == "2")
             | HIGHLIGHT "ring" ON review
-            """);
-        Highlight highlight = soleHighlight(plan);
-        TextEsField review = highlight.fieldMappings().get("review");
-        assertThat(review.unknownAnalyzer(), equalTo(TextEsField.UnknownAnalyzer.CONFLICT));
-        assertNull(review.analyzerGroups());
-        assertNull(highlight.indexKey());
-        assertWarnings(analyzerConflictFallbackWarning("review"));
+            """, containsString(analyzerConflictError("review")));
     }
 
     /**
@@ -7382,32 +7381,23 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * When one branch computes the column and another maps it, no single mapping applies, so HIGHLIGHT falls back and warns
-     * that the branches disagree. A STATS branch agrees on the mapping but has no source index per row, so HIGHLIGHT gets
-     * no key.
+     * When one branch computes the column and another maps it, no single analyzer fits every row, so HIGHLIGHT rejects the
+     * query. A STATS branch agrees on the mapping but has no source index per row, so HIGHLIGHT gets no key and fails
+     * because the indices disagree.
      */
-    public void testHighlightAfterForkFallsBack() {
+    public void testHighlightAfterForkWithoutSharedAnalyzer() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("""
+        booksWithConflictingTitleAnalyzer().error("""
             FROM books*
             | FORK (WHERE book_no == "1") (EVAL title = TO_TEXT(CONCAT(title, "")))
             | HIGHLIGHT "ring" ON title
-            """);
-        Highlight highlight = soleHighlight(plan);
-        assertThat(highlight.fieldMappings().get("title").unknownAnalyzer(), equalTo(TextEsField.UnknownAnalyzer.BRANCH_CONFLICT));
-        assertNull(highlight.indexKey());
-        assertWarnings(highlightFallbackWarning("title", "the FORK or UNION ALL branches disagree on the analyzer for this column"));
+            """, containsString(branchConflictError("title")));
 
-        plan = booksWithConflictingTitleAnalyzer().query("""
+        booksWithConflictingTitleAnalyzer().error("""
             FROM books*
             | FORK (WHERE book_no == "1") (STATS c = COUNT(*) BY title)
             | HIGHLIGHT "ring" ON title
-            """);
-        highlight = soleHighlight(plan);
-        assertThat(highlight.fieldMappings().get("title").unknownAnalyzer(), equalTo(TextEsField.UnknownAnalyzer.CONFLICT));
-        assertNull(highlight.indexKey());
-        assertThat(fieldNames(plan.collect(Fork.class).getFirst().output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
-        assertWarnings(analyzerConflictFallbackWarning("title"));
+            """, containsString(analyzerConflictError("title")));
     }
 
     /**
@@ -7458,8 +7448,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     /**
      * A column every branch computes carries no mapping, so HIGHLIGHT analyzes it like any computed column, without a
-     * warning. Branches that declare different TO_TEXT analyzers do disagree. FORK rejects them, but UNION ALL does not, so
-     * HIGHLIGHT falls back and warns.
+     * warning. Branches that declare different TO_TEXT analyzers do disagree. FORK rejects them, and after UNION ALL,
+     * HIGHLIGHT does.
      */
     public void testHighlightAfterMergeOfComputedColumn() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
@@ -7471,14 +7461,11 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(soleHighlight(plan).fieldMappings(), equalTo(Map.of()));
         assertWarnings();
 
-        plan = booksWithConflictingTitleAnalyzer().query("""
+        booksWithConflictingTitleAnalyzer().error("""
             FROM (FROM books* | EVAL t = TO_TEXT(CONCAT(title, ""), {"analyzer": "whitespace"})),
                  (FROM books* | EVAL t = TO_TEXT(CONCAT(title, ""), {"analyzer": "stop"}))
             | HIGHLIGHT "ring" ON t
-            """);
-        TextEsField mapping = soleHighlight(plan).fieldMappings().get("t");
-        assertThat(mapping.unknownAnalyzer(), equalTo(TextEsField.UnknownAnalyzer.BRANCH_CONFLICT));
-        assertWarnings(highlightFallbackWarning("t", "the FORK or UNION ALL branches disagree on the analyzer for this column"));
+            """, containsString(branchConflictError("t")));
     }
 
     /**
@@ -7544,9 +7531,9 @@ public class AnalyzerTests extends AnalyzerTestCase {
      * Branches that read different fields into one column disagree even over the same index. One case renames another
      * field to the column. Another renames a LOOKUP JOIN field, whose groups name lookup indices. Index-local and
      * unreported analyzers have no name, so when they differ on an index both relations read, that index may still map
-     * the field. HIGHLIGHT falls back and warns in every case.
+     * the field. HIGHLIGHT rejects the query in every case.
      */
-    public void testHighlightAcrossDisagreeingUnionAllBranchesFallsBack() {
+    public void testHighlightAcrossDisagreeingUnionAllBranchesFails() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         TestAnalyzer analyzer = booksWithConflictingTitleAnalyzer().addLookupIndex(reviewsLookup())
             .addIndex(booksIndex("books", Map.of("title", textField("title", "whitespace"), "other", textField("other", "stop")), "books"))
@@ -7572,14 +7559,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                 + "| HIGHLIGHT \"ring\" ON title",
             "FROM (FROM local_a,idx_c), (FROM unreported_b,idx_c) | HIGHLIGHT \"ring\" ON title"
         )) {
-            Highlight highlight = soleHighlight(analyzer.query(query));
-            assertThat(
-                query,
-                highlight.fieldMappings().get("title").unknownAnalyzer(),
-                equalTo(TextEsField.UnknownAnalyzer.BRANCH_CONFLICT)
-            );
-            assertNull(query, highlight.indexKey());
-            assertWarnings(highlightFallbackWarning("title", "the FORK or UNION ALL branches disagree on the analyzer for this column"));
+            analyzer.error(query, containsString(branchConflictError("title")));
         }
     }
 
@@ -7614,7 +7594,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     /**
      * A computed branch that declares the analyzer the mapped branches agree on analyzes its rows the same way. The merged
      * column keeps that mapping, and HIGHLIGHT emits no warning. A computed branch that declares nothing uses standard,
-     * which disagrees with the mapping.
+     * which disagrees with the mapping, so HIGHLIGHT rejects the query.
      */
     public void testHighlightAfterUnionAllOfMappedAndComputedColumn() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
@@ -7627,17 +7607,15 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(mapping.unknownAnalyzer(), equalTo(TextEsField.UnknownAnalyzer.NONE));
         assertWarnings();
 
-        mapping = soleHighlight(analyzer.query("""
+        analyzer.error("""
             FROM (FROM books), (FROM books | EVAL title = TO_TEXT(CONCAT(title, "")))
             | HIGHLIGHT "ring" ON title
-            """)).fieldMappings().get("title");
-        assertThat(mapping.unknownAnalyzer(), equalTo(TextEsField.UnknownAnalyzer.BRANCH_CONFLICT));
-        assertWarnings(highlightFallbackWarning("title", "the FORK or UNION ALL branches disagree on the analyzer for this column"));
+            """, containsString(branchConflictError("title")));
     }
 
     /**
      * A RENAME of a mapped field is analyzed exactly as the field: it gets the field's mapping, and the index key when the
-     * indices disagree, through a chain of RENAMEs and across FORK. A renamed LOOKUP JOIN field keeps the field's fallback.
+     * indices disagree, through a chain of RENAMEs and across FORK. A renamed LOOKUP JOIN field fails like the field.
      */
     public void testHighlightRenamedFieldKeepsMapping() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
@@ -7662,10 +7640,11 @@ public class AnalyzerTests extends AnalyzerTestCase {
         }
         assertWarnings();
 
-        LogicalPlan plan = booksWithConflictingTitleAnalyzer().addLookupIndex(reviewsLookup())
-            .query("FROM books* | LOOKUP JOIN reviews_lookup ON book_no | RENAME review AS r | HIGHLIGHT \"ring\" ON r");
-        assertNull(soleHighlight(plan).indexKey());
-        assertWarnings(analyzerConflictFallbackWarning("r"));
+        booksWithConflictingTitleAnalyzer().addLookupIndex(reviewsLookup())
+            .error(
+                "FROM books* | LOOKUP JOIN reviews_lookup ON book_no | RENAME review AS r | HIGHLIGHT \"ring\" ON r",
+                containsString(analyzerConflictError("r"))
+            );
     }
 
     /**
@@ -7696,6 +7675,14 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     private static String analyzerConflictFallbackWarning(String field) {
         return highlightFallbackWarning(field, "the queried indices disagree on the analyzer for this field");
+    }
+
+    private static String analyzerConflictError(String field) {
+        return "HIGHLIGHT on [" + field + "] cannot pick an analyzer: the queried indices disagree on the analyzer for this field";
+    }
+
+    private static String branchConflictError(String field) {
+        return "HIGHLIGHT on [" + field + "] cannot pick an analyzer: the FORK or UNION ALL branches disagree on the analyzer";
     }
 
     /**

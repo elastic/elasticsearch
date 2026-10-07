@@ -2163,7 +2163,7 @@ Return of the King Being the Third Part of The Lord of the Rings | Return of the
 
 
 # HIGHLIGHT's internal index key must not keep otherwise identical rows apart in DEDUP.
-# A second HIGHLIGHT after DEDUP has no single source index and falls back to standard.
+# A second HIGHLIGHT after DEDUP has no single source index, so it needs WITH to pick one analyzer for title.
 highlightPerIndexAnalyzerBeforeDedup
 required_capability: highlight_mapping_analyzer
 required_capability: dedup_command
@@ -2173,11 +2173,10 @@ FROM books,books_english
 | KEEP title
 | HIGHLIGHT "ring" ON title
 | DEDUP
-| HIGHLIGHT prefix = "again_" "ring" ON title
+| HIGHLIGHT prefix = "again_" "ring" ON title WITH { "analyzer": "standard" }
 | KEEP title, highlight_title, again_title
 ;
 
-warningRegex:HIGHLIGHT on \[title\] falls back to \[standard\]: the queried indices disagree on the analyzer for this field.*
 title:text | highlight_title:keyword | again_title:keyword
 Fellowship of the Ring 2ND Edition | Fellowship of the <em>Ring</em> 2ND Edition | Fellowship of the <em>Ring</em> 2ND Edition
 ;
@@ -2204,9 +2203,9 @@ fork2         | 2936            | Fellowship of the <em>Ring</em> 2ND Edition
 ;
 
 
-# One FORK branch reads title from the index and the other computes it, so the branches disagree on its analyzer.
-# HIGHLIGHT falls back to standard with a warning. standard does not stem "Rings", so HIGHLIGHT matches neither row.
-highlightMappingAnalyzerAfterForkOfMappedAndComputedFallsBack
+# One FORK branch reads title from the index and the other computes it, so the branches disagree on its analyzer, and
+# HIGHLIGHT rejects the query unless WITH picks one. english stems "Rings", so "ring" matches it in both rows.
+highlightAnalyzerOptionAfterForkOfMappedAndComputed
 required_capability: highlight_mapping_analyzer
 required_capability: fork_v9
 
@@ -2214,15 +2213,14 @@ FROM books_english
 | WHERE book_no == "2714"
 | FORK (WHERE book_no == "2714")
        (EVAL title = TO_TEXT(CONCAT(title, "")))
-| HIGHLIGHT "ring" ON title
-| KEEP _fork, highlight_title
+| HIGHLIGHT "ring" ON title WITH { "analyzer": "english" }
+| KEEP _fork, title, highlight_title
 | SORT _fork
 ;
 
-warningRegex:HIGHLIGHT on \[title\] falls back to \[standard\]: the FORK or UNION ALL branches disagree on the analyzer for this column.*
-_fork:keyword | highlight_title:keyword
-fork1         | null
-fork2         | null
+_fork:keyword | title:text                                                       | highlight_title:keyword
+fork1         | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+fork2         | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
 ;
 
 
@@ -2246,7 +2244,8 @@ book_no:keyword | highlight_title:keyword
 
 
 # After FORK over indices that disagree on title's analyzer, each branch still carries its rows' index, so HIGHLIGHT
-# uses each row's own index analyzer. The books_english rows match "Rings", and the books row does not. No warning.
+# uses each row's own index analyzer. fork1 keeps only the books_english row, since standard does not stem "Rings" for
+# MATCH, and fork2 keeps both rows. The books_english rows match "Rings", and the books row does not. No warning.
 highlightPerIndexAnalyzerAfterFork
 required_capability: highlight_mapping_analyzer
 required_capability: fork_v9
@@ -2256,14 +2255,14 @@ FROM books,books_english
 | FORK (WHERE MATCH(title, "ring"))
        (WHERE MATCH(title, "return"))
 | HIGHLIGHT "ring" ON title
-| KEEP _fork, highlight_title
+| KEEP _fork, title, highlight_title
 | SORT _fork, highlight_title
 ;
 
-_fork:keyword | highlight_title:keyword
-fork1         | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
-fork2         | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
-fork2         | null
+_fork:keyword | title:text                                                       | highlight_title:keyword
+fork1         | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+fork2         | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+fork2         | Return of the King Being the Third Part of The Lord of the Rings | null
 ;
 
 
@@ -2275,13 +2274,13 @@ required_capability: subquery_in_from_command
 
 FROM (FROM books | WHERE book_no == "2714"), (FROM books_english | WHERE book_no == "2714")
 | HIGHLIGHT "ring" ON title
-| KEEP highlight_title
+| KEEP title, highlight_title
 | SORT highlight_title
 ;
 
-highlight_title:keyword
-Return of the King Being the Third Part of The Lord of the <em>Rings</em>
-null
+title:text                                                       | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+Return of the King Being the Third Part of The Lord of the Rings | null
 ;
 
 
@@ -2294,32 +2293,31 @@ required_capability: nested_subquery_in_from_command
 FROM (FROM (FROM books | WHERE book_no == "2714"), (FROM books | WHERE book_no == "2714")),
      (FROM books_english | WHERE book_no == "2714")
 | HIGHLIGHT "ring" ON title
-| KEEP highlight_title
+| KEEP title, highlight_title
 | SORT highlight_title
 ;
 
-highlight_title:keyword
-Return of the King Being the Third Part of The Lord of the <em>Rings</em>
-null
-null
+title:text                                                       | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+Return of the King Being the Third Part of The Lord of the Rings | null
+Return of the King Being the Third Part of The Lord of the Rings | null
 ;
 
 
-# After STATS a row has no single source index, so HIGHLIGHT uses standard and emits a warning.
-# "ring" matches "Ring", not "Rings".
-highlightPerIndexAnalyzerAfterStatsFallsBackToStandard
+# After STATS a row has no single source index, and books and books_english disagree on title's analyzer, so
+# HIGHLIGHT needs WITH to pick one. english stems "Rings", so "ring" matches it.
+highlightPerIndexAnalyzerAfterStatsWithAnalyzer
 required_capability: highlight_mapping_analyzer
 
 FROM books,books_english
 | WHERE MATCH(title, "ring") AND book_no == "2714"
 | STATS c = COUNT(*) BY title
-| HIGHLIGHT "ring" ON title
+| HIGHLIGHT "ring" ON title WITH { "analyzer": "english" }
 | KEEP title, highlight_title
 ;
 
-warningRegex:HIGHLIGHT on \[title\] falls back to \[standard\]: the queried indices disagree on the analyzer for this field.*
 title:text | highlight_title:keyword
-Return of the King Being the Third Part of The Lord of the Rings | null
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
 ;
 
 
@@ -2406,19 +2404,20 @@ Return of the King Being the Third Part of The Lord of the <em>Rings</em>
 ;
 
 
-# CONCAT(title, "") is a new column, so it has no mapping analyzer. standard does not stem "Rings". No warning.
+# CONCAT(title, "") is a new column, so it has no mapping analyzer and uses standard. standard keeps "the", which
+# english drops as a stop word, and does not stem "Rings". No warning.
 highlightMappingAnalyzerComputedFromFieldUsesStandard
 required_capability: highlight_mapping_analyzer
 
 FROM books_english
 | WHERE book_no == "2714"
 | EVAL t = TO_TEXT(CONCAT(title, ""))
-| HIGHLIGHT "ring" ON t
+| HIGHLIGHT "the ring" ON t
 | KEEP highlight_t
 ;
 
 highlight_t:keyword
-null
+Return of <em>the</em> King Being <em>the</em> Third Part of <em>The</em> Lord of <em>the</em> Rings
 ;
 
 
@@ -2431,13 +2430,13 @@ FROM books,books_english METADATA _index
 | WHERE book_no == "2714"
 | EVAL t = title
 | HIGHLIGHT "ring" ON t
-| KEEP _index, highlight_t
+| KEEP _index, t, highlight_t
 | SORT _index
 ;
 
-_index:keyword | highlight_t:keyword
-books          | null
-books_english  | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+_index:keyword | t:text                                                           | highlight_t:keyword
+books          | Return of the King Being the Third Part of The Lord of the Rings | null
+books_english  | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
 ;
 
 
@@ -2450,13 +2449,13 @@ FROM books,books_english METADATA _index
 | WHERE book_no == "2714"
 | RENAME title AS t
 | HIGHLIGHT "ring" ON t
-| KEEP _index, highlight_t
+| KEEP _index, t, highlight_t
 | SORT _index
 ;
 
-_index:keyword | highlight_t:keyword
-books          | null
-books_english  | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+_index:keyword | t:text                                                           | highlight_t:keyword
+books          | Return of the King Being the Third Part of The Lord of the Rings | null
+books_english  | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
 ;
 
 
@@ -2470,15 +2469,15 @@ FROM books,books_english METADATA _index
 | FORK (RENAME title AS t)
        (RENAME title AS t)
 | HIGHLIGHT "ring" ON t
-| KEEP _fork, _index, highlight_t
+| KEEP _fork, _index, t, highlight_t
 | SORT _fork, _index
 ;
 
-_fork:keyword | _index:keyword | highlight_t:keyword
-fork1         | books          | null
-fork1         | books_english  | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
-fork2         | books          | null
-fork2         | books_english  | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+_fork:keyword | _index:keyword | t:text                                                           | highlight_t:keyword
+fork1         | books          | Return of the King Being the Third Part of The Lord of the Rings | null
+fork1         | books_english  | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+fork2         | books          | Return of the King Being the Third Part of The Lord of the Rings | null
+fork2         | books_english  | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
 ;
 
 

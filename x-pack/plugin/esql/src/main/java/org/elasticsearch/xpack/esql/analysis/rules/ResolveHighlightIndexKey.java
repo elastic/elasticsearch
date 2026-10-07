@@ -50,8 +50,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
  * projection up to HIGHLIGHT. A projection above HIGHLIGHT restores HIGHLIGHT's original output, so later commands never
  * see the added columns. A user {@code METADATA _index} that was renamed or dropped stays renamed or dropped.
  * <p>
- * STATS and ROW rows have no single source index, and DEDUP would group by the key. Those plans keep the
- * {@code standard} fallback and its warning.
+ * STATS and ROW rows have no single source index, and DEDUP would group by the key. Those plans get no key, so
+ * indices that disagree fail the query: see {@link HighlightAnalyzers#analyzerMismatch}.
  */
 public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
@@ -75,8 +75,8 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
             }
             AttributeMap<Expression> aliases = AliasBindings.of(highlight.child());
             // The key only holds the indices the rows are read from, which a LOOKUP JOIN field's groups do not name.
-            // ponytail: one such field keeps every ON field on the fallback. Routing per field needs HIGHLIGHT to know
-            // which fields the key covers.
+            // ponytail: one such field leaves every ON field without the key, so each one whose indices disagree fails.
+            // Routing per field needs HIGHLIGHT to know which fields the key covers.
             if (grouped.stream()
                 .map(NamedExpression::toAttribute)
                 .allMatch(f -> rowSourceOf(highlight.child(), aliases.resolve(f, f)) != null)) {

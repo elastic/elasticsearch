@@ -250,6 +250,21 @@ computed column like the original field, set the `analyzer` option in `WITH`.
 If the queried indices map a field with different analyzers, each row uses the
 analyzer of the index it comes from.
 
+`HIGHLIGHT` returns an error when it cannot tell which analyzer a row needs:
+
+* Queried indices map the field with different analyzers and `HIGHLIGHT` cannot
+  determine which index supplied the value (for example, after `STATS`, `DEDUP`,
+  or across a `LOOKUP JOIN`). This doesn't apply to indices whose analyzer is
+  defined in index settings or isn't reported. Those fall back to `standard`
+  with a warning, as described later in this section.
+* The branches of `FORK` or subqueries in `FROM` disagree on a column's
+  analyzer. For example, one branch reads the field from an index and another
+  computes the column with a different analyzer than the index uses.
+
+To fix this, set the `analyzer` option in the `WITH` clause. For a computed
+column, you can instead use the `analyzer` option of `TO_TEXT` to give it the
+same analyzer as the index field.
+
 Query terms use the target field's analyzer. An `analyzer` specified on a
 full-text search function, such as
 `MATCH(title, "rings", {"analyzer": "whitespace"})`, applies only to the query
@@ -258,12 +273,6 @@ might not be highlighted.
 
 `HIGHLIGHT` falls back to `standard` and returns a warning when:
 
-* Queried indices map the field with different analyzers and `HIGHLIGHT` cannot
-  determine which index supplied the value (for example, after `STATS`, `DEDUP`,
-  or across a `LOOKUP JOIN`).
-* Branches of `FORK` or subqueries in `FROM` disagree on the column's analyzer
-  (for example, one branch reads the field from an index and another computes
-  the column with a different analyzer than the index uses).
 * The analyzer is defined in index settings (such as a custom analyzer or
   index-level default) rather than globally on the node.
 * The analyzer is not registered on the coordinating node (for example, because

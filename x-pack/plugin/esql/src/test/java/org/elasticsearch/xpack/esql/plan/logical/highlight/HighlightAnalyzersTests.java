@@ -229,6 +229,42 @@ public class HighlightAnalyzersTests extends ESTestCase {
         );
     }
 
+    /**
+     * Indices that name different analyzers are a mismatch unless each row can use its index's own. Index-local and
+     * unreported analyzers, such as {@code semantic_text}'s, fall back to standard either way, so they are not.
+     */
+    public void testAnalyzerMismatch() {
+        String indicesDisagree = "the queried indices disagree on the analyzer for this field";
+        assertThat(mismatch(conflictingField("title"), false), equalTo(indicesDisagree));
+        assertNull(mismatch(conflictingField("title"), true));
+
+        FieldAttribute withUnreported = textFieldWithGroups(
+            "title",
+            new IndexAnalyzerGroup("whitespace", false, DEFAULT_POSITION_INCREMENT_GAP, Set.of("books")),
+            new IndexAnalyzerGroup(null, true, DEFAULT_POSITION_INCREMENT_GAP, Set.of("custom")),
+            new IndexAnalyzerGroup(null, false, DEFAULT_POSITION_INCREMENT_GAP, Set.of("semantic"))
+        );
+        assertNull(mismatch(withUnreported, false));
+
+        // A conflict that names no indices, like a merged LOOKUP JOIN field's, cannot be routed.
+        FieldAttribute noGroups = textField("title", null, DEFAULT_POSITION_INCREMENT_GAP, TextEsField.UnknownAnalyzer.CONFLICT);
+        assertThat(mismatch(noGroups, randomBoolean()), equalTo(indicesDisagree));
+
+        assertThat(
+            mismatch(unknownAnalyzerField(TextEsField.UnknownAnalyzer.BRANCH_CONFLICT), randomBoolean()),
+            equalTo("the FORK or UNION ALL branches disagree on the analyzer for this column")
+        );
+
+        assertNull(mismatch(unknownAnalyzerField(TextEsField.UnknownAnalyzer.INDEX_LOCAL), randomBoolean()));
+        assertNull(mismatch(unknownAnalyzerField(TextEsField.UnknownAnalyzer.NOT_REPORTED), randomBoolean()));
+        assertNull(mismatch(textField("title", "whitespace"), randomBoolean()));
+        assertNull(mismatch(declaredField("note", "simple"), randomBoolean()));
+    }
+
+    private static String mismatch(NamedExpression field, boolean perIndex) {
+        return HighlightAnalyzers.analyzerMismatch(field, Map.of(), perIndex);
+    }
+
     /** A {@code title} field whose analyzer name never reached the coordinator, for the given reason. */
     private static FieldAttribute unknownAnalyzerField(TextEsField.UnknownAnalyzer unknown) {
         return textField("title", null, DEFAULT_POSITION_INCREMENT_GAP, unknown);

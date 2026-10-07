@@ -51,7 +51,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
  * <ul>
  *     <li>the mapping every branch agrees on;</li>
  *     <li>a mapping that names each index's analyzer, when branches over different indices disagree;</li>
- *     <li>a {@link UnknownAnalyzer#BRANCH_CONFLICT}, which falls back to {@code standard} with a warning.</li>
+ *     <li>a {@link UnknownAnalyzer#BRANCH_CONFLICT}, which fails the query unless {@code WITH} picks an analyzer.</li>
  * </ul>
  * An expression over a field has no mapping, and neither does a column no branch maps. HIGHLIGHT analyzes those like
  * any other computed column.
@@ -147,7 +147,7 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
         if (perIndex == null && distinct.size() > 1) {
             return branchConflict(name);
         }
-        // Agreed groups the key cannot route, like a LOOKUP JOIN field's, keep the warning that the indices disagree.
+        // Agreed groups the key cannot route, like a LOOKUP JOIN field's, become a conflict that names no indices and fails.
         return mapping(name, null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, UnknownAnalyzer.CONFLICT, perIndex);
     }
 
@@ -277,13 +277,13 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * Merges the analyzers that branches give each index into one group per analyzer. Returns {@code null} when one
-     * index needs two analyzers.
+     * Merges the analyzers that branches give each index into one group per analyzer. Returns {@code null} when an index
+     * that may map the field gets two different analyzers.
      * <p>
-     * Every index that maps a field reports the same analyzer for it to every relation that reads the index. So if one
-     * branch names an analyzer for a field and another gives that index a different one, the index does not map the
-     * field, and its rows hold {@code null}. Index-local and unreported analyzers have no name, so two of them that
-     * differ do not prove that.
+     * A relation whose indices agree gives their analyzer to all of them, even to indices that don't map the field. An
+     * index that maps the field reports the same name to every relation, so an index that gets two analyzers, one of them
+     * named, doesn't map the field: its rows hold {@code null}, and it is skipped. A relation reports index-local when any
+     * of its indices does, so an index with an unreported analyzer can get both nameless ones; those return {@code null}.
      */
     private static @Nullable List<IndexAnalyzerGroup> byAnalyzer(Map<IndexField, Set<IndexAnalyzerGroup.Analyzer>> claims) {
         Map<String, IndexAnalyzerGroup.Analyzer> analyzerByIndex = new TreeMap<>();

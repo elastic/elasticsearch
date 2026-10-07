@@ -250,20 +250,21 @@ computed column like the original field, set the `analyzer` option in `WITH`.
 If the queried indices map a field with different analyzers, each row uses the
 analyzer of the index it comes from.
 
-`HIGHLIGHT` returns an error when it cannot tell which analyzer a row needs:
+`HIGHLIGHT` returns an error when it cannot choose an analyzer for each row:
 
-* Queried indices map the field with different analyzers and `HIGHLIGHT` cannot
-  determine which index supplied the value (for example, after `STATS`, `DEDUP`,
-  or across a `LOOKUP JOIN`). This doesn't apply to indices whose analyzer is
-  defined in index settings or isn't reported. Those fall back to `standard`
-  with a warning, as described later in this section.
-* The branches of `FORK` or subqueries in `FROM` disagree on a column's
-  analyzer. For example, one branch reads the field from an index and another
-  computes the column with a different analyzer than the index uses.
+* Indices map the field with different analyzers, but `HIGHLIGHT` can no longer
+  tell which index a value came from. This happens after commands that mix rows
+  from those indices, such as `STATS`, `DEDUP`, or `LOOKUP JOIN`.
+* Branches of `FORK`, or subqueries in `FROM`, give the same column different
+  analyzers. For example, one branch reads the field from an index and another
+  computes the column with a different analyzer.
 
-To fix this, set the `analyzer` option in the `WITH` clause. For a computed
-column, you can instead use the `analyzer` option of `TO_TEXT` to give it the
-same analyzer as the index field.
+To choose one analyzer for every row, set the `analyzer` option in the `WITH`
+clause. When a branch computes the column, you can instead set the `analyzer`
+option of `TO_TEXT` so that column uses the same analyzer as the index field.
+
+Analyzers defined in index settings, and analyzers that are not reported, fall
+back to `standard` with a warning, as described later in this section.
 
 Query terms use the target field's analyzer. An `analyzer` specified on a
 full-text search function, such as

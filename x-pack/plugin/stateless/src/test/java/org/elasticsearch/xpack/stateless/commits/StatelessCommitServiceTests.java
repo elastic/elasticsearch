@@ -480,6 +480,35 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     /**
+     * Closing a shard while a copy to a split target is in flight must not double-close the VBCC.
+     */
+    public void testClosingShardDuringSplitTargetCopyDoesNotDoubleCloseVbcc() throws Exception {
+        try (var testHarness = new SplitCopyObservingNode()) {
+            StatelessCommitRef commit1 = testHarness.generateIndexCommits(1).get(0);
+            testHarness.copyBlockedNameRef.set(blobNameFromGeneration(commit1.getGeneration()));
+            ShardId targetShardId = new ShardId(testHarness.shardId.getIndex(), 1);
+            testHarness.commitService.markSplitting(testHarness.shardId, targetShardId);
+
+            testHarness.commitService.onCommitCreation(commit1);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit1.getGeneration());
+
+            try {
+                // Wait until the copy to the split target is blocked inside copyBlob. By this point
+                // the VBCC is published in recentlyUploadedVbccs and the copy runnable is paused mid-copy.
+                safeAwait(testHarness.copyStartedLatch);
+                testHarness.commitService.closeShard(testHarness.shardId);
+            } finally {
+                testHarness.copyBlocker.countDown();
+            }
+
+            // copyBlob returns, then the copy runnable observes isClosed() and calls cleanup() on the
+            // same thread. Wait until copyBlob has returned so cleanup has had a chance to run.
+            safeAwait(testHarness.copyFinishedLatch);
+            testHarness.commitService.unregister(testHarness.shardId);
+        }
+    }
+
+    /**
      * Verifies that a copy failure causes a retry until successful, and the fully-uploaded generation
      * listener fires only after the copy eventually succeeds. This ensures all required files are
      * present at the split target even when early copy attempts fail.
@@ -3557,7 +3586,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
      *   <li>{@link #bccWrittenRef} — set to the blob name to watch; {@link #bccWrittenLatch} counts
      *       down once that blob is written atomically.</li>
      *   <li>{@link #copyBlockedNameRef} — set to the blob name whose copy should block on
-     *       {@link #copyBlocker} until it is counted down.</li>
+     *       {@link #copyBlocker} until it is counted down. {@link #copyStartedLatch} counts down when
+     *       that copy enters {@code copyBlob} (i.e. after the VBCC has been published), and
+     *       {@link #copyFinishedLatch} counts down once it returns.</li>
      * </ul>
      */
     private class SplitCopyObservingNode extends FakeStatelessNode {
@@ -3565,6 +3596,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
         final CountDownLatch bccWrittenLatch = new CountDownLatch(1);
         final AtomicReference<String> copyBlockedNameRef = new AtomicReference<>();
         final CountDownLatch copyBlocker = new CountDownLatch(1);
+        final CountDownLatch copyStartedLatch = new CountDownLatch(1);
+        final CountDownLatch copyFinishedLatch = new CountDownLatch(1);
 
         SplitCopyObservingNode() throws IOException {
             super(
@@ -3616,9 +3649,16 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     @Nullable Executor executor
                 ) throws IOException {
                     if (blobName.equals(copyBlockedNameRef.get())) {
-                        safeAwait(copyBlocker);
+                        copyStartedLatch.countDown();
+                        try {
+                            safeAwait(copyBlocker);
+                            super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
+                        } finally {
+                            copyFinishedLatch.countDown();
+                        }
+                    } else {
+                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
                     }
-                    super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
                 }
             }
             return new WrappedContainer(innerContainer);

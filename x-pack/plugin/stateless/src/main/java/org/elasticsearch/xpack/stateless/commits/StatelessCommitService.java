@@ -930,7 +930,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         copyPermit = objectStoreService.acquireCopyPermit();
                     } catch (Exception e) {
                         // Service is already shutting down; treat the same as a closed shard.
-                        cleanup();
+                        cleanupPublished();
                         return;
                     }
                     // Serialise copies via a per-shard single-slot runner so that
@@ -960,7 +960,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                                         break;
                                     } catch (Exception e) {
                                         if (commitState.isClosed()) {
-                                            cleanup();
+                                            cleanupPublished();
                                             return;
                                         }
                                         final long delayMs = retryDelayMs;
@@ -983,7 +983,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                                     }
                                 }
                                 if (commitState.isClosed()) {
-                                    cleanup();
+                                    cleanupPublished();
                                     return;
                                 }
                             }
@@ -1088,6 +1088,20 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // production fallback for assertion failure
                 commitState.recentlyUploadedVbccs.remove(virtualBcc.primaryTermAndGeneration().generation());
                 IOUtils.closeWhileHandlingException(virtualBcc);
+                blobReference.decRef();
+            }
+
+            /**
+             * Same as {@link #cleanup()}, but used once {@code virtualBcc} may already have been handed off to
+             * {@link ShardCommitState#recentlyUploadedVbccs} to make sure VBCC is closed at most once.
+             */
+            private void cleanupPublished() {
+                VirtualBatchedCompoundCommit vbcc = commitState.recentlyUploadedVbccs.remove(
+                    virtualBcc.primaryTermAndGeneration().generation()
+                );
+                if (vbcc != null) {
+                    IOUtils.closeWhileHandlingException(vbcc);
+                }
                 blobReference.decRef();
             }
         };

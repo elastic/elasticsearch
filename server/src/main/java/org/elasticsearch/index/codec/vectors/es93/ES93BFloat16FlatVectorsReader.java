@@ -70,7 +70,8 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
     private final String vectorDataFN;
     // the search reader, which holds the mapping its merge instances share
     private final ES93BFloat16FlatVectorsReader original;
-    // Several merge instances may be held at once, from any thread, so the merge state is guarded by the original's lock.
+    // As for stored fields, getMergeInstance may be called outside merges, so several merge instances may be held at once:
+    // the merge state is guarded by the original's lock.
     // On the original: the merge mapping and how many merge instances hold it.
     private IndexInput mergeVectorData;
     private int mergeInstances;

@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.TreeSet;
@@ -139,6 +140,41 @@ public class StringAnyOfTests extends ColumnarStringTestCase {
                 randomDoubleBetween(0.5, StringColumnOptions.DEFAULT_DICTIONARY.minCoverage(), true),
                 randomDoubleBetween(0.2, 0.5, true)
             );
+    }
+
+    public void testTermsInOneRunOfOrdinalsSettleFromTheOrdinals() throws IOException {
+        // NOTE: the dictionary is in term order, so terms that sort next to each other take consecutive
+        // ordinals and the window over them needs no per-document verification.
+        final BytesRef[] docValues = repeated(between(600, 2000));
+        final NavigableSet<BytesRef> adjacent = termsOf("alpha", "alpine");
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), dictionaryPolicy(), (m, reader) -> {
+            assertEquals(expectedAnyOf(docValues, adjacent), matched(reader.matchAnyOf(adjacent)));
+            final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(reader.matchAnyOf(adjacent));
+            assertNotNull(twoPhase);
+            assertEquals("one run of ordinals settles it", 0f, twoPhase.matchCost(), 0f);
+        });
+    }
+
+    public void testTermsInManyRunsKeepTheOrdinalBitset() throws IOException {
+        final String[] vocabulary = new String[80];
+        for (int t = 0; t < vocabulary.length; t++) {
+            vocabulary[t] = String.format(Locale.ROOT, "host-%03d", t);
+        }
+        final BytesRef[] docValues = new BytesRef[between(800, 2000)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef(vocabulary[d % vocabulary.length]);
+        }
+        // Every other term, so the ordinals fall into more runs than a window is built for.
+        final NavigableSet<BytesRef> scattered = new TreeSet<>();
+        for (int t = 0; t < vocabulary.length; t += 2) {
+            scattered.add(new BytesRef(vocabulary[t]));
+        }
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), dictionaryPolicy(), (m, reader) -> {
+            assertEquals(expectedAnyOf(docValues, scattered), matched(reader.matchAnyOf(scattered)));
+            final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(reader.matchAnyOf(scattered));
+            assertNotNull(twoPhase);
+            assertEquals("too many runs for a window, so the ordinals are tested per slot", 3f, twoPhase.matchCost(), 0f);
+        });
     }
 
     private static final String[] TERMS = { "alpha", "alpine", "bravo", "charlie", "delta" };

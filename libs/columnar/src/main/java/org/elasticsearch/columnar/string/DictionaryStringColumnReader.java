@@ -52,6 +52,15 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     /** Values between entries in {@link #escapeRanks}, as the column recorded it. */
     private final int escapeRankBlockSize;
 
+    /**
+     * Runs of ordinals a window is still worth building for: it costs one vectorized pass per run on every
+     * block read, while the ordinal bitset costs one probe per value whatever the run count.
+     *
+     * <p>Placed with {@code ColumnarDictionaryStringTermsSlicingBenchmark} against a build that never builds
+     * a window: {@code -p data=POD_NAME -p numDocs=1000000 -p probe=PRESENT -p queryTerms=1,2,3,4,8,16}.
+     */
+    private static final int MAX_WINDOW_RUNS = 2;
+
     private final int dictionarySize;
     /** The ordinal marking a value no term names, one past the last term. */
     private final int escapeOrdinal;
@@ -405,13 +414,13 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             windowRanges(lowOrdinal, highOrdinal, escapeOrdinal, escapesCanMatch)
         );
         final Slots candidates = slotsHeld(window);
+        if (escapesCanMatch == false) {
+            return settledBy(candidates);
+        }
         final BytesRef value = new BytesRef();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(candidates) {
             @Override
             public boolean matches() throws IOException {
-                if (escapesCanMatch == false) {
-                    return true;
-                }
                 final long first = candidates.firstSlot();
                 final long count = candidates.slotCount();
                 for (long i = 0; i < count; i++) {
@@ -433,22 +442,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
 
             @Override
             public float matchCost() {
-                return escapesCanMatch ? 3f : 0f;
-            }
-
-            @Override
-            public int docIDRunEnd() throws IOException {
-                // NOTE: settled by the window, so every document of a run it holds matches.
-                return escapesCanMatch == false ? candidates.docIDRunEnd() : super.docIDRunEnd();
-            }
-
-            @Override
-            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
-                if (escapesCanMatch) {
-                    super.intoBitSet(upTo, bitSet, offset);
-                } else {
-                    candidates.intoBitSet(upTo, bitSet, offset);
-                }
+                return 3f;
             }
         });
     }
@@ -526,6 +520,55 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             : new long[] { lowOrdinal, highOrdinal - 1L };
     }
 
+    private static DocIdSetIterator settledBy(Slots candidates) {
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(candidates) {
+            @Override
+            public boolean matches() {
+                return true;
+            }
+
+            @Override
+            public float matchCost() {
+                return 0f;
+            }
+
+            @Override
+            public int docIDRunEnd() throws IOException {
+                return candidates.docIDRunEnd();
+            }
+
+            @Override
+            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                candidates.intoBitSet(upTo, bitSet, offset);
+            }
+        });
+    }
+
+    /**
+     * The matched ordinals as the inclusive pairs a {@link SlotWindow} takes, or null past {@code maxRuns} of
+     * them. The dictionary is in term order, so a set drawn from one part of the vocabulary collapses into
+     * few runs however many terms it holds.
+     */
+    private static long[] runsOf(FixedBitSet matching, int end, int maxRuns) {
+        final long[] pairs = new long[2 * maxRuns];
+        int count = 0;
+        int at = matching.nextSetBit(0);
+        while (at != DocIdSetIterator.NO_MORE_DOCS) {
+            if (count == maxRuns) {
+                return null;
+            }
+            int stop = at;
+            while (stop + 1 < end && matching.get(stop + 1)) {
+                stop++;
+            }
+            pairs[2 * count] = at;
+            pairs[2 * count + 1] = stop;
+            count++;
+            at = stop + 1 < end ? matching.nextSetBit(stop + 1) : DocIdSetIterator.NO_MORE_DOCS;
+        }
+        return count == 0 ? null : Arrays.copyOf(pairs, 2 * count);
+    }
+
     /** The first ordinal whose term sorts at or after {@code target}, by bisection over the dictionary. */
     private int firstTermAtLeast(BytesRef target, int end) throws IOException {
         final BytesRef term = new BytesRef();
@@ -560,13 +603,13 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             windowRanges(lowOrdinal, highOrdinal, escapeOrdinal, escapesCanMatch)
         );
         final Slots candidates = slotsHeld(window);
+        if (escapesCanMatch == false) {
+            return settledBy(candidates);
+        }
         final BytesRef value = new BytesRef();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(candidates) {
             @Override
             public boolean matches() throws IOException {
-                if (escapesCanMatch == false) {
-                    return true;
-                }
                 final long first = candidates.firstSlot();
                 final long count = candidates.slotCount();
                 for (long i = 0; i < count; i++) {
@@ -587,13 +630,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
 
             @Override
             public float matchCost() {
-                return escapesCanMatch ? 3f : 0f;
-            }
-
-            @Override
-            public int docIDRunEnd() throws IOException {
-                // NOTE: settled by the window, so every document of a run it holds matches.
-                return escapesCanMatch == false ? candidates.docIDRunEnd() : super.docIDRunEnd();
+                return 3f;
             }
         });
     }
@@ -611,6 +648,12 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         }
         if (matching.cardinality() == 0 && escapeCount == 0) {
             return DocIdSetIterator.empty();
+        }
+        if (escapeCount == 0) {
+            final long[] runs = runsOf(matching, end, MAX_WINDOW_RUNS);
+            if (runs != null) {
+                return settledBy(slotsHeld(new SlotWindow(SlotBlocks.of(ordinals), runs)));
+            }
         }
         final ColumnIterator presence = iterator();
         final BytesRef value = new BytesRef();

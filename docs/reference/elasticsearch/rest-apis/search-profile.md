@@ -289,7 +289,7 @@ Because a search request may be executed against one or more shards in an index,
 
 The profile itself may consist of one or more "searches", where a search is a query executed against the underlying Lucene index. Most search requests submitted by the user will only execute a single `search` against the Lucene index. But occasionally multiple searches will be executed, such as including a global aggregation (which needs to execute a secondary "match_all" query for the global context).
 
-Inside each `search` object there will be two arrays of profiled information: a `query` array and a `collector` array. Alongside the `search` object is an `aggregations` object that contains the profile information for the aggregations. In the future, more sections may be added, such as `suggest`, `highlight`, etc.
+Inside each `search` object there will be two arrays of profiled information: a `query` array and a `collector` array. Alongside the `search` object is an `aggregations` object that contains the profile information for the aggregations. If the request has rescorers, there is also a [`rescore`](#profiling-rescore) array that contains the profile information for each rescorer. In the future, more sections may be added, such as `suggest`, `highlight`, etc.
 
 There will also be a `rewrite` metric showing the total time spent rewriting the query (in nanoseconds).
 
@@ -810,6 +810,92 @@ The `breakdown` component lists detailed statistics about low-level execution:
 Each property in the `breakdown` component corresponds to an internal method for the aggregation. For example, the `build_leaf_collector` property measures nanoseconds spent running the aggregation’s `getLeafCollector()` method. Properties ending in `_count` record the number of invocations of the particular method. For example, `"collect_count": 2` means the aggregation called the `collect()` on two different documents. The `reduce` property is reserved for future use and always returns `0`.
 
 Timings are listed in wall-clock nanoseconds and are not normalized at all. All caveats about the overall `time` apply here. The intention of the breakdown is to give you a feel for A) what machinery in {{es}} is actually eating time, and B) the magnitude of differences in times between the various components. Like the overall time, the breakdown is inclusive of all children times.
+
+
+### Profiling rescore [profiling-rescore]
+
+```{applies_to}
+stack: ga 9.6
+```
+
+All shards that ran at least one [rescorer](rescore-search-results.md) will have a `rescore` section in the profile. Let’s execute a small search with a rescorer and have a look at the rescore profile:
+
+```console
+GET /my-index-000001/_search?filter_path=profile.shards.rescore
+{
+  "profile": true,
+  "query": {
+    "term": {
+      "user.id": {
+        "value": "elkbee"
+      }
+    }
+  },
+  "rescore": {
+    "window_size": 2,
+    "query": {
+      "rescore_query": {
+        "match": {
+          "message": "search"
+        }
+      }
+    }
+  }
+}
+```
+% TEST[continued]
+
+And here is the rescore profile:
+
+```console-result
+{
+  "profile": {
+    "shards": [
+      {
+        "rescore": [
+          {
+            "type": "query",
+            "description": "window_size=2",
+            "time_in_nanos": 254826,
+            "breakdown": {
+              "rescore": 254826,
+              "rescore_count": 1
+            },
+            "debug": {
+              "window_size": 2,
+              "docs_before_rescore": 5,
+              "docs_after_rescore": 5,
+              "rewrite_time": 12420
+            },
+            "children": [
+              {
+                "type": "TermQuery",
+                "description": "message:search",
+                "time_in_nanos": 98571,
+                "breakdown": {...}
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+% TESTRESPONSE[s/(?>=[" ])\d+(\.\d+)?/$body.$_path/]
+% TESTRESPONSE[s/"breakdown": \{\.\.\.\}/"breakdown": $body.$_path/]
+
+The `rescore` section is an array with one element per rescorer, in the order the rescorers ran. The `type` is the name of the rescorer, such as `query` or `learning_to_rank`. `time_in_nanos` and the `rescore` property of the `breakdown` measure the total time spent in the rescorer, including the time spent running its queries.
+
+The `debug` section contains:
+
+* `window_size`: the number of top documents the rescorer was configured to rescore on each shard.
+* `docs_before_rescore`: the number of top documents passed to the rescorer.
+* `docs_after_rescore`: the number of top documents returned by the rescorer. The `query` rescorer only rescores the top `window_size` documents but returns all the documents it was given, while the `learning_to_rank` rescorer only returns the top `window_size` documents.
+* `rewrite_time`: the time spent rewriting the queries of the rescorer, in nanoseconds.
+* `timed_out`: only present if the search timed out while the rescorer was running. In that case `docs_after_rescore` is omitted and the top documents of the shard are not rescored.
+
+The `children` section lists the queries run by the rescorer, with the same structure as the [query section](#query-section). For example, the `rescore_query` of a `query` rescorer, or the feature queries of a `learning_to_rank` model. These queries are not part of the `searches` section, and their rewrite time is not part of its `rewrite_time`.
 
 
 ### Profiling fetch [profiling-fetch]

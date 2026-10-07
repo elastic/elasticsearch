@@ -606,3 +606,68 @@ profile includes coordinator request metadata:
   - match: { profile.request.source.profile: true }
   - match: { profile.request.source.size: 3 }
   - match: { profile.request.source.query.term.keyword.value: "a" }
+
+---
+profile rescore:
+  - requires:
+      cluster_features: "search.profile.rescore"
+      reason: rescore profile results require TransportVersion rescore_profile
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test", "_id": "2"}}'
+          - '{"keyword": ["a", "c"]}'
+          - '{"index": {"_index": "test", "_id": "3"}}'
+          - '{"keyword": ["c"]}'
+
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "a"
+          rescore:
+            window_size: 1
+            query:
+              rescore_query:
+                term:
+                  keyword: "c"
+
+  - length: { profile.shards.0.rescore: 1 }
+  - match: { profile.shards.0.rescore.0.type: query }
+  - match: { profile.shards.0.rescore.0.description: "window_size=1" }
+  - gt: { profile.shards.0.rescore.0.time_in_nanos: 0 }
+  - gt: { profile.shards.0.rescore.0.breakdown.rescore: 0 }
+  - match: { profile.shards.0.rescore.0.breakdown.rescore_count: 1 }
+  - match: { profile.shards.0.rescore.0.debug.window_size: 1 }
+  # the query rescorer only rescores the top window_size docs, but returns all the docs it was given
+  - match: { profile.shards.0.rescore.0.debug.docs_before_rescore: 2 }
+  - match: { profile.shards.0.rescore.0.debug.docs_after_rescore: 2 }
+  - gte: { profile.shards.0.rescore.0.debug.rewrite_time: 0 }
+  # the rescore query is a child of the rescore node, not a root of the main query tree
+  - length: { profile.shards.0.rescore.0.children: 1 }
+  - match: { profile.shards.0.rescore.0.children.0.type: TermQuery }
+  - match: { profile.shards.0.rescore.0.children.0.description: "keyword:c" }
+  - length: { profile.shards.0.searches.0.query: 1 }
+  - match: { profile.shards.0.searches.0.query.0.description: "keyword:a" }
+
+---
+profile without rescore has no rescore section:
+  - requires:
+      cluster_features: "search.profile.rescore"
+      reason: rescore profile results require TransportVersion rescore_profile
+
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "a"
+
+  - is_false: profile.shards.0.rescore

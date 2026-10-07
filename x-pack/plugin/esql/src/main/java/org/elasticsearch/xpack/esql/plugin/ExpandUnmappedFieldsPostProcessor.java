@@ -442,7 +442,10 @@ public final class ExpandUnmappedFieldsPostProcessor {
         BooleanSupplier isCancelled
     ) {
         int originalColumnCount = result.schema().size();
-        Set<String> keep = Set.copyOf(expandedFieldsNames);
+        Map<String, Integer> columnOf = HashMap.newHashMap(expandedFieldsNames.size());
+        for (int i = 0; i < expandedFieldsNames.size(); i++) {
+            columnOf.put(expandedFieldsNames.get(i), i);
+        }
         var newPages = new ArrayList<Page>(result.pages().size());
         var success = false;
         try {
@@ -450,7 +453,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
                 newPages.add(
                     rewritePage(
                         unmappedIdx,
-                        keep,
+                        columnOf,
                         expandedFieldsNames,
                         blockOrder,
                         originalColumnCount,
@@ -507,7 +510,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
 
     private static Page rewritePage(
         int unmappedIdx,
-        Set<String> keep,
+        Map<String, Integer> columnOf,
         List<String> expandedFieldsNames,
         int[] blockOrder,
         int originalColumnCount,
@@ -538,7 +541,11 @@ public final class ExpandUnmappedFieldsPostProcessor {
             // and skip the wasted per-row _source re-parse.
             if (expandedFieldsCount > 0) {
                 BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
-                Arrays.setAll(builders, i -> blockFactory.newBytesRefBlockBuilder(page.getPositionCount()));
+                // A column's builder only exists once the column has a value on this page: a page typically holds few of the fields
+                // discovered across all of them, and a builder per column - each reserving room for every position - is what such a page
+                // would otherwise pay for, only to build a block of nothing but nulls. The columns that never get one end up as
+                // constant-null blocks.
+                IntList activeColumns = new IntList();
                 // ------ Naming convention ------
                 // "leaf" = JSON string
                 // "discovered field" = a "leaf" outside of the JSON parsing flow; it's already in the analysis/logical plan land
@@ -550,7 +557,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
                 List<BytesRef> valueScratch = new ArrayList<>();
                 Map<String, Object> fieldNameAndValues = new HashMap<>();
                 BiConsumer<String, Object> leafSink = (name, value) -> {
-                    if (keep.contains(name)) {
+                    if (columnOf.containsKey(name)) {
                         collectLeaf(fieldNameAndValues, name, value);
                     }
                 };
@@ -560,7 +567,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
                         throwIfCancelled(isCancelled);
                     }
                     if (unmappedBlock.isNull(row)) {
-                        appendRow(Map.of(), expandedFieldsNames, builders, valueScratch);
+                        appendRow(row, Map.of(), columnOf, expandedFieldsNames, builders, activeColumns, blockFactory, page, valueScratch);
                         continue;
                     }
                     BytesRef json = getBytesRef(unmappedBlock, row, jsonScratch);
@@ -568,13 +575,25 @@ public final class ExpandUnmappedFieldsPostProcessor {
                     try {
                         fieldNameAndValues.clear();
                         collectLeaves("", parseJson(json), leafSink);
-                        appendRow(fieldNameAndValues, expandedFieldsNames, builders, valueScratch);
+                        appendRow(
+                            row,
+                            fieldNameAndValues,
+                            columnOf,
+                            expandedFieldsNames,
+                            builders,
+                            activeColumns,
+                            blockFactory,
+                            page,
+                            valueScratch
+                        );
                     } finally {
                         breaker.addWithoutBreaking(-reservation);
                     }
                 }
                 for (int i = 0; i < builders.length; i++) {
-                    allBlocks[fieldOutputPos[i]] = builders[i].build();
+                    allBlocks[fieldOutputPos[i]] = builders[i] == null
+                        ? blockFactory.newConstantNullBlock(page.getPositionCount())
+                        : builders[i].build();
                 }
             }
             var result = new Page(page.getPositionCount(), allBlocks);
@@ -593,29 +612,77 @@ public final class ExpandUnmappedFieldsPostProcessor {
      * Appends this row's value for each expanded leaf: {@code null} where the row lacks the leaf or the leaf is an object, a single
      * keyword for a scalar, and a multivalue for an array (see {@link UnmappedKeywordValues}).
      * <p>
+     * Only the columns with a builder - those that already had a value earlier in the page - and the leaves this row actually holds
+     * are visited, so the cost follows what the page contains rather than the number of expanded fields. A column whose first value
+     * is in this row gets its builder here, back-filled with the {@code row} nulls it missed.
+     * <p>
      * TODO each scalar is copied twice: {@link UnmappedKeywordValues} renders and UTF-8 encodes it into a fresh {@link BytesRef} and the
      *  builder copies those bytes again. Values that are already {@code String}s could go straight into the builder's byte array.
      */
     private static void appendRow(
+        int row,
         Map<String, Object> leaves,
+        Map<String, Integer> columnOf,
         List<String> leafNames,
         BytesRefBlock.Builder[] builders,
+        IntList activeColumns,
+        BlockFactory blockFactory,
+        Page page,
         List<BytesRef> valueScratch
     ) {
-        for (int i = 0; i < builders.length; i++) {
+        // Columns that already have a builder: a value, or a null if the row lacks the leaf.
+        int active = activeColumns.size;
+        for (int a = 0; a < active; a++) {
+            int column = activeColumns.values[a];
             valueScratch.clear();
-            UnmappedKeywordValues.collect(leaves.get(leafNames.get(i)), valueScratch);
-            if (valueScratch.isEmpty()) {
-                builders[i].appendNull();
-            } else if (valueScratch.size() == 1) {
-                builders[i].appendBytesRef(valueScratch.get(0));
-            } else {
-                builders[i].beginPositionEntry();
-                for (BytesRef scratched : valueScratch) {
-                    builders[i].appendBytesRef(scratched);
-                }
-                builders[i].endPositionEntry();
+            UnmappedKeywordValues.collect(leaves.get(leafNames.get(column)), valueScratch);
+            appendValues(builders[column], valueScratch);
+        }
+        // Leaves of this row that no column has a builder for yet. One that renders to nothing stays a null for the column.
+        for (Map.Entry<String, Object> leaf : leaves.entrySet()) {
+            int column = columnOf.get(leaf.getKey());
+            if (builders[column] != null) {
+                continue;
             }
+            valueScratch.clear();
+            UnmappedKeywordValues.collect(leaf.getValue(), valueScratch);
+            if (valueScratch.isEmpty()) {
+                continue;
+            }
+            BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(page.getPositionCount());
+            builders[column] = builder;
+            activeColumns.add(column);
+            for (int missed = 0; missed < row; missed++) {
+                builder.appendNull();
+            }
+            appendValues(builder, valueScratch);
+        }
+    }
+
+    private static void appendValues(BytesRefBlock.Builder builder, List<BytesRef> values) {
+        if (values.isEmpty()) {
+            builder.appendNull();
+        } else if (values.size() == 1) {
+            builder.appendBytesRef(values.get(0));
+        } else {
+            builder.beginPositionEntry();
+            for (BytesRef value : values) {
+                builder.appendBytesRef(value);
+            }
+            builder.endPositionEntry();
+        }
+    }
+
+    /** A growable {@code int[]} for the columns that have a builder, in the order they got one. */
+    private static final class IntList {
+        private int[] values = new int[16];
+        private int size = 0;
+
+        void add(int value) {
+            if (size == values.length) {
+                values = Arrays.copyOf(values, size * 2);
+            }
+            values[size++] = value;
         }
     }
 

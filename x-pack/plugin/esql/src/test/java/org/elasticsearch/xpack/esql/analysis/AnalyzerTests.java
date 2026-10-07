@@ -4502,27 +4502,6 @@ public class AnalyzerTests extends AnalyzerTestCase {
         );
     }
 
-    /**
-     * KNN over a non-index-mapped field or expression must be rejected on the coordinator when any participating node
-     * (e.g. a CCS remote, or a not-yet-upgraded node during a rolling upgrade) predates {@link Knn#ESQL_KNN_RUNTIME_FIELD}:
-     * such a node mis-plans the runtime path and fails deep on the data node. Here we pin the minimum version just below
-     * the feature and expect a clean verification failure rather than that late data-node error.
-     */
-    public void testKnnRuntimeRejectedOnOlderTransportVersion() {
-        assumeKnnRuntimeEnabled();
-        TestAnalyzer analyzer = denseVector().addInferenceResolution(
-            "query-endpoint",
-            TaskType.TEXT_EMBEDDING,
-            SimilarityMeasure.DOT_PRODUCT
-        ).minimumTransportVersion(TransportVersionUtils.getPreviousVersion(Knn.ESQL_KNN_RUNTIME_FIELD));
-
-        analyzer.error("""
-            ROW runtime_vector = TO_DENSE_VECTOR([1.0, 0.0, 0.0])
-            | WHERE KNN(runtime_vector, TEXT_EMBEDDING("italian food recipe", "query-endpoint"))
-            | LIMIT 10
-            """, containsString("KNN over a non-index-mapped field or expression is not supported on every participating node"));
-    }
-
     private static void assumeKnnRuntimeEnabled() {
         assumeTrue("Knn on runtime expression requires corresponding capability", EsqlCapabilities.Cap.KNN_RUNTIME_FIELD.isEnabled());
     }

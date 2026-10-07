@@ -260,8 +260,7 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * Registers the {@link RestoreLifecycleListener}, replacing any previous one. The listener runs
-     * inside master-service cluster-state updates and must not block or perform I/O.
+     * Registers the single {@link RestoreLifecycleListener} during node construction.
      */
     public void setLifecycleListener(RestoreLifecycleListener listener) {
         if (lifecycleListener != RestoreLifecycleListener.NOOP) {

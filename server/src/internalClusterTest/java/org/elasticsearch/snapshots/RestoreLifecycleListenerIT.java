@@ -14,10 +14,15 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.snapshots.RestoreService.RestoreCompletionResponse;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -32,6 +37,39 @@ import static org.hamcrest.Matchers.nullValue;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class RestoreLifecycleListenerIT extends AbstractSnapshotIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(LifecyclePlugin.class);
+        return plugins;
+    }
+
+    public static class LifecyclePlugin extends Plugin implements RepositoryPlugin {
+        private volatile RestoreLifecycleListener delegate = RestoreLifecycleListener.NOOP;
+
+        @Override
+        public RestoreLifecycleListener getRestoreLifecycleListener() {
+            return new RestoreLifecycleListener() {
+                @Override
+                public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
+                    return delegate.onRestoreInitialized(entry, state);
+                }
+
+                @Override
+                public ClusterState onRestoreCompleted(RestoreInProgress.Entry entry, ClusterState state) {
+                    return delegate.onRestoreCompleted(entry, state);
+                }
+            };
+        }
+    }
+
+    private void setListener(RestoreLifecycleListener listener) {
+        internalCluster().getInstance(PluginsService.class, internalCluster().getMasterName())
+            .filterPlugins(LifecyclePlugin.class)
+            .findFirst()
+            .orElseThrow().delegate = listener;
+    }
 
     private static final String REPO = "test-repo";
     private static final String SNAP = "test-snap";
@@ -53,23 +91,25 @@ public class RestoreLifecycleListenerIT extends AbstractSnapshotIntegTestCase {
         createFullSnapshot(REPO, SNAP);
         cluster().wipeIndices(IDX);
 
+        var restoreService = internalCluster().getInstance(RestoreService.class, internalCluster().getMasterName());
+        expectThrows(IllegalStateException.class, () -> restoreService.setLifecycleListener(new RestoreLifecycleListener() {}));
+
         AtomicInteger initCount = new AtomicInteger(0);
         AtomicInteger completedCount = new AtomicInteger(0);
 
-        internalCluster().getInstance(RestoreService.class, internalCluster().getMasterName())
-            .setLifecycleListener(new RestoreLifecycleListener() {
-                @Override
-                public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
-                    initCount.incrementAndGet();
-                    return state;
-                }
+        setListener(new RestoreLifecycleListener() {
+            @Override
+            public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
+                initCount.incrementAndGet();
+                return state;
+            }
 
-                @Override
-                public ClusterState onRestoreCompleted(RestoreInProgress.Entry entry, ClusterState state) {
-                    completedCount.incrementAndGet();
-                    return state;
-                }
-            });
+            @Override
+            public ClusterState onRestoreCompleted(RestoreInProgress.Entry entry, ClusterState state) {
+                completedCount.incrementAndGet();
+                return state;
+            }
+        });
 
         clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAP).setIndices(IDX).setWaitForCompletion(true).get();
 
@@ -99,7 +139,7 @@ public class RestoreLifecycleListenerIT extends AbstractSnapshotIntegTestCase {
 
         String masterName = internalCluster().getMasterName();
         RestoreService restoreService = internalCluster().getInstance(RestoreService.class, masterName);
-        restoreService.setLifecycleListener(new RestoreLifecycleListener() {
+        setListener(new RestoreLifecycleListener() {
             @Override
             public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
                 initCount.incrementAndGet();

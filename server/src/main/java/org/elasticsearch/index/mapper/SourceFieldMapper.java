@@ -201,7 +201,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             }, (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)), v -> v.toString().toLowerCase(Locale.ROOT))
                 .setMergeValidator((previous, current, conflicts) -> (previous == current) || current != Mode.STORED)
                 // don't emit if `enabled` is configured
-                .setSerializerCheck((includeDefaults, isConfigured, value) -> serializeMode && value != null);
+                // the field, not the constructor argument of the same name: build() decides that the mode is serialized
+                .setSerializerCheck((includeDefaults, isConfigured, value) -> this.serializeMode && value != null);
         }
 
         public Builder setSynthetic() {
@@ -259,15 +260,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             if (sourceMode == Mode.SYNTHETIC && (includes.getValue().isEmpty() == false || excludes.getValue().isEmpty() == false)) {
                 throw new IllegalArgumentException("filtering the stored _source is incompatible with synthetic source");
             }
-            if (mode.isConfigured() && sourceModeIsNoop == false) {
-                serializeMode = true;
-            }
+            resolveSerializeMode();
             final SourceFieldMapper sourceFieldMapper;
-            if (isDefault() && sourceMode == null) {
-                // Needed for bwc so that "mode" is not serialized in case of a standard index with stored source.
-                sourceFieldMapper = DEFAULT;
-            } else if (isDefault() && serializeMode == false && sourceMode != null) {
-                sourceFieldMapper = resolveStaticInstance(sourceMode);
+            if (isSharedInstance(sourceMode)) {
+                // A null mode needs DEFAULT for bwc, so that "mode" is not serialized in case of a standard index with stored source.
+                sourceFieldMapper = sourceMode == null ? DEFAULT : resolveStaticInstance(sourceMode);
             } else {
                 sourceFieldMapper = new SourceFieldMapper(
                     sourceMode,
@@ -282,6 +279,34 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 indexMode.validateSourceFieldMapper(sourceFieldMapper);
             }
             return sourceFieldMapper;
+        }
+
+        private void resolveSerializeMode() {
+            if (mode.isConfigured() && sourceModeIsNoop == false) {
+                serializeMode = true;
+            }
+        }
+
+        /**
+         * Whether the mapper is one of the shared instances, which hold neither an explicit {@code enabled} nor a mode
+         * to be written.
+         */
+        private boolean isSharedInstance(Mode sourceMode) {
+            return isDefault() && (sourceMode == null || serializeMode == false);
+        }
+
+        // TODO this is overly complex, to handle BWC concerns from static Mapper instance serialization - once serialization
+        // has moved to the Builder completely we can simplify
+        @Override
+        public void normalize(MapperBuilderContext context) {
+            super.normalize(context);
+            resolveSerializeMode();
+            Mode sourceMode = resolveSourceMode();
+            boolean shared = isSharedInstance(sourceMode);
+            if (shared) {
+                enabled.setValue(Explicit.IMPLICIT_TRUE);
+            }
+            mode.setValue(shared == false && serializeMode && enabled.getValue().explicit() == false ? sourceMode : null);
         }
 
         public boolean isSynthetic() {

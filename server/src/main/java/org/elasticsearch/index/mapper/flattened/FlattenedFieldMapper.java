@@ -434,6 +434,15 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             return CONTENT_TYPE;
         }
 
+        @Override
+        public void normalize(MapperBuilderContext context) {
+            super.normalize(context);
+            MapperBuilderContext childContext = context.createChildContext(leafName(), null);
+            for (FieldMapper.Builder propertyBuilder : properties.getValue().values()) {
+                propertyBuilder.normalize(childContext);
+            }
+        }
+
         /**
          * The {@code properties} parameter is never serialized with the others, so that its block follows the
          * multi-fields, as {@link FlattenedFieldMapper#doXContentBody} writes it.

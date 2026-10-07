@@ -586,6 +586,15 @@ public final class TextFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
+        @Override
+        public void normalize(MapperBuilderContext context) {
+            super.normalize(context);
+            if (indexCreatedVersion().isLegacyIndexVersion()) {
+                // Legacy indexes do not have eager global ordinals
+                eagerGlobalOrdinals.setValue(false);
+            }
+        }
+
         /**
          * Writes the same sequence {@link TextFieldMapper#doXContentBody} does, statement for statement: the named
          * parameters are interleaved with multi-fields, {@code copy_to} and {@code synthetic_source_keep} in an order

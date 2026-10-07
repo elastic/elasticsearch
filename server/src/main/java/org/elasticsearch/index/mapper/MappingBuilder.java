@@ -9,20 +9,31 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Predicate;
 
 /**
  * Mutable builder for a {@link Mapping}. Holds a {@link RootObjectMapper.Builder} and metadata field builders,
  * allowing merge operations to happen at the builder level before building the final immutable {@link Mapping}.
  */
-public class MappingBuilder {
+public class MappingBuilder implements ToXContentFragment {
 
     private final RootObjectMapper.Builder rootBuilder;
     private final Map<String, MetadataFieldMapper.Builder> metadataBuilders;
@@ -136,7 +147,63 @@ public class MappingBuilder {
             .stream()
             .map(MetadataFieldMapper.Builder::build)
             .toArray(MetadataFieldMapper[]::new);
-        return new Mapping(root, metadataMappers, meta);
+        Mapping mapping = new Mapping(root, metadataMappers, meta);
+        assert serializesLike(mapping);
+        return mapping;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        normalize(MergeReason.MAPPING_UPDATE);
+        rootBuilder.toXContent(builder, params, (b, params1) -> {
+            if (meta != null) {
+                b.field("_meta", meta);
+            }
+            for (MetadataFieldMapper.Builder metadataBuilder : new TreeMap<>(metadataBuilders).values()) {
+                metadataBuilder.toXContent(b, params1);
+            }
+            return b;
+        });
+        return builder;
+    }
+
+    public CompressedXContent toCompressedXContent() {
+        try {
+            return new CompressedXContent(this);
+        } catch (Exception e) {
+            throw new ElasticsearchGenerationException("failed to serialize source for type [" + rootBuilder.leafName() + "]", e);
+        }
+    }
+
+    /**
+     * Checks that this builder writes the same bytes as the mapping built from it, with and without defaults, for every
+     * mapping the tests build. Both serializers exist side by side until the mapping's is removed, and this keeps the
+     * builder's from drifting in the meantime; it goes with the mapper-side serialization.
+     */
+    private boolean serializesLike(Mapping mapping) {
+        for (Params params : List.of(ToXContent.EMPTY_PARAMS, new ToXContent.MapParams(Map.of("include_defaults", "true")))) {
+            String fromMapping = serialize(mapping, params);
+            String fromBuilder = serialize(this, params);
+            assert fromMapping.equals(fromBuilder)
+                : "builder serialization differs from mapping serialization with params "
+                    + params.param("include_defaults", "false")
+                    + ": mapping "
+                    + fromMapping
+                    + " builder "
+                    + fromBuilder;
+        }
+        return true;
+    }
+
+    private static String serialize(ToXContentFragment fragment, Params params) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            fragment.toXContent(builder, params);
+            builder.endObject();
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**
@@ -145,7 +212,11 @@ public class MappingBuilder {
      * @param reason the merge reason, used to configure the {@link MapperBuilderContext} for normalizing
      */
     public void normalize(MergeReason reason) {
-        rootBuilder.normalize(rootContext(reason));
+        MapperBuilderContext rootContext = rootContext(reason);
+        rootBuilder.normalize(rootContext);
+        for (MetadataFieldMapper.Builder metadataBuilder : metadataBuilders.values()) {
+            metadataBuilder.normalize(rootContext);
+        }
     }
 
     private MapperBuilderContext rootContext(MergeReason reason) {

@@ -1031,6 +1031,12 @@ public abstract class FieldMapper extends Mapper {
                 return hasSyntheticSourceCompatibleKeywordField;
             }
 
+            void normalize(MapperBuilderContext context) {
+                for (FieldMapper.Builder fieldBuilder : fieldBuilders.values()) {
+                    fieldBuilder.normalize(context);
+                }
+            }
+
             /**
              * Writes the {@code fields} block, sorted by name exactly as {@link MultiFields} sorts its built mappers.
              */
@@ -2250,6 +2256,11 @@ public abstract class FieldMapper extends Mapper {
         public Builder addMultiField(FieldMapper.Builder builder) {
             this.multiFieldsBuilder.add(builder);
             return this;
+        }
+
+        @Override
+        public void normalize(MapperBuilderContext context) {
+            multiFieldsBuilder.normalize(context.createChildContext(leafName(), null));
         }
 
         protected BuilderParams builderParams(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {

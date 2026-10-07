@@ -126,7 +126,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         Setting.Property.ServerlessPublic
     );
 
-    public abstract static class Builder {
+    public abstract static class Builder implements ToXContentFragment {
 
         private String leafName;
 
@@ -146,6 +146,14 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
          * collapses object mappers with subobjects:false, propagates nested include directives, etc.
          */
         public void normalize(MapperBuilderContext context) {}
+
+        /**
+         * Writes this builder as {@code "<leafName>": {...}}
+         * <p>
+         * Serializing a child on its own does not normalize it. Serialize through {@link MappingBuilder}, which does.
+         */
+        @Override
+        public abstract XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
 
         /**
          * Returns the total number of fields that this builder will create.

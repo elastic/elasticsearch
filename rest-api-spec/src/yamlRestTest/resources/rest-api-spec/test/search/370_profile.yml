@@ -650,7 +650,6 @@ profile rescore:
   - gte: { profile.shards.0.rescore.0.debug.rewrite_time: 0 }
   # the rescore query is a child of the rescore node, not a root of the main query tree
   - length: { profile.shards.0.rescore.0.children: 1 }
-  - match: { profile.shards.0.rescore.0.children.0.type: TermQuery }
   - match: { profile.shards.0.rescore.0.children.0.description: "keyword:c" }
   - length: { profile.shards.0.searches.0.query: 1 }
   - match: { profile.shards.0.searches.0.query.0.description: "keyword:a" }

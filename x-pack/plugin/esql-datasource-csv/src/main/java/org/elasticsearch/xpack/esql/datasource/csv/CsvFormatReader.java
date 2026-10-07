@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
@@ -1943,7 +1944,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * The reason clause of a row the reader could not parse: the cause message without the
-     * {@link #READ_RECORD_FAILURE} prefix the record iterator adds, capped by {@link CsvErrorMessages#summarize}.
+     * {@link #READ_RECORD_FAILURE} prefix the record iterator adds, capped by {@link ErrorExcerpts#summarize}.
      * Jackson's over-{@code max_field_size} message is rendered as {@link #fieldSizeExceededDetail}, so the
      * Jackson arm and the house tokenizer report an over-long field in the same words. Any other message loses its
      * {@link #JACKSON_CONSTRAINT_REFERENCE}.
@@ -1958,12 +1959,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             reason = JACKSON_CONSTRAINT_REFERENCE.matcher(reason).replaceAll("");
         }
-        return CsvErrorMessages.summarize(reason);
+        return ErrorExcerpts.summarize(reason);
     }
 
     /** The reason for a value that does not fit its column's type. */
     static String cannotRead(String value, DataType type) {
-        return "cannot read [" + CsvErrorMessages.summarize(value) + "] as [" + type.typeName() + "]";
+        return "cannot read [" + ErrorExcerpts.summarize(value) + "] as [" + type.typeName() + "]";
     }
 
     private static ExternalClientException zeroRowsSamplingError(List<String> capturedErrors, Throwable firstCause) {
@@ -6922,7 +6923,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * {@code String[]}. Uses the raw CSV line for the error excerpt instead.
          */
         private void onRowError(String message, Exception cause, String rawLine, boolean structural) {
-            onRowErrorImpl(message, cause, CsvErrorMessages.summarize(rawLine), structural);
+            onRowErrorImpl(message, cause, ErrorExcerpts.summarize(rawLine), structural);
         }
 
         private void onRowErrorImpl(String message, Exception cause, String rowExcerpt, boolean structural) {
@@ -6957,7 +6958,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private void onFieldError(String message, String value, Attribute attr) {
             errorCount++;
-            String summarizedValue = CsvErrorMessages.summarize(value);
+            String summarizedValue = ErrorExcerpts.summarize(value);
             skipWarnings.add("row [" + totalRowCount + "], column [" + attr.name() + "]: " + message);
             if (logErrors) {
                 logger.warn(

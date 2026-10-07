@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -22,6 +23,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -31,6 +33,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -73,6 +76,7 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryItem;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
@@ -1479,6 +1483,100 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             logger.info("--> adding ILM history item: [{}]", item);
             items.add(item);
         }
+    }
+
+    /**
+     * The runner hands its {@link DataStreamLifecycleSettings} to the {@link ExecuteStepsUpdateTask} it submits. When a cluster state step
+     * spawns a new index, the task only runs the async action of that index if ILM manages it. A backing index of a time series data stream
+     * without a lifecycle that does not prefer ILM is managed by ILM only when the minimum lifecycle is disabled.
+     */
+    public void testSpawnedTimeSeriesIndexAsyncActionDependsOnMinimumLifecycleEnabled() throws Exception {
+        for (boolean minimumLifecycleEnabled : new boolean[] { true, false }) {
+            String policyName = randomAlphaOfLength(10);
+            StepKey sourceStepKey = new StepKey("phase", "action", "spawning_step");
+            StepKey spawnedStepKey = new StepKey("phase", "action", "async_step");
+            MockClusterStateActionStep sourceStep = new MockClusterStateActionStep(sourceStepKey, null) {
+                @Override
+                public Tuple<String, StepKey> indexForAsyncInvocation() {
+                    return Tuple.tuple(spawnedIndexName(), spawnedStepKey);
+                }
+            };
+            MockAsyncActionStep spawnedStep = new MockAsyncActionStep(spawnedStepKey, null);
+            // The policy in the registry has no phases, so resolve the steps directly instead of from the policy definition
+            MockPolicyStepsRegistry stepRegistry = createMultiStepPolicyStepRegistry(policyName, List.of(sourceStep, spawnedStep));
+            stepRegistry.setResolver((indexMetadata, stepKey) -> stepKey.equals(sourceStepKey) ? sourceStep : spawnedStep);
+
+            ClusterService clusterService = mock(ClusterService.class);
+            MasterServiceTaskQueue<IndexLifecycleClusterStateUpdateTask> taskQueue = newMockTaskQueue(clusterService);
+            when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+            // the ClusterStateObserver created for async actions needs a thread pool from the applier service
+            ClusterApplierService applierService = mock(ClusterApplierService.class);
+            when(applierService.threadPool()).thenReturn(threadPool);
+            when(clusterService.getClusterApplierService()).thenReturn(applierService);
+            var settings = createDataStreamLifecycleSettings(minimumLifecycleEnabled);
+            IndexLifecycleRunner runner = new IndexLifecycleRunner(
+                stepRegistry,
+                historyStore,
+                clusterService,
+                threadPool,
+                () -> 0L,
+                settings
+            );
+
+            IndexMetadata sourceIndex = IndexMetadata.builder("source_index")
+                .settings(randomIndexSettings().put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .putCustom(
+                    ILM_CUSTOM_METADATA_KEY,
+                    LifecycleExecutionState.builder()
+                        .setPhase(sourceStepKey.phase())
+                        .setAction(sourceStepKey.action())
+                        .setStep(sourceStepKey.name())
+                        .build()
+                        .asMap()
+                )
+                .build();
+            IndexMetadata spawnedIndex = IndexMetadata.builder(spawnedIndexName())
+                .settings(randomIndexSettings().put(LifecycleSettings.LIFECYCLE_NAME, policyName).put(IndexSettings.PREFER_ILM, false))
+                .putCustom(
+                    ILM_CUSTOM_METADATA_KEY,
+                    LifecycleExecutionState.builder()
+                        .setPhase(spawnedStepKey.phase())
+                        .setAction(spawnedStepKey.action())
+                        .setStep(spawnedStepKey.name())
+                        .build()
+                        .asMap()
+                )
+                .build();
+            DataStream dataStream = DataStream.builder("ts_data_stream", List.of(spawnedIndex.getIndex()))
+                .setGeneration(1)
+                .setIndexMode(IndexMode.TIME_SERIES)
+                .build();
+            ProjectState projectState = projectStateFromProject(
+                ProjectMetadata.builder(randomProjectIdOrDefault())
+                    .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.RUNNING))
+                    .put(sourceIndex, false)
+                    .put(spawnedIndex, false)
+                    .put(dataStream)
+            );
+
+            // Run the policy so that the runner submits the task, then drive the captured task the way the master service would.
+            runner.runPolicyAfterStateChange(projectState.projectId(), policyName, sourceIndex);
+            var taskCaptor = ArgumentCaptor.forClass(IndexLifecycleClusterStateUpdateTask.class);
+            Mockito.verify(taskQueue).submitTask(anyString(), taskCaptor.capture(), eq(null));
+            var task = (ExecuteStepsUpdateTask) taskCaptor.getValue();
+            ClusterState newClusterState = task.execute(projectState);
+            task.onClusterStateProcessed(newClusterState.projectState(projectState.projectId()));
+
+            assertThat(
+                "async action of the spawned time series index, minimum lifecycle enabled: " + minimumLifecycleEnabled,
+                spawnedStep.getExecuteCount(),
+                equalTo(minimumLifecycleEnabled ? 0L : 1L)
+            );
+        }
+    }
+
+    private static String spawnedIndexName() {
+        return DataStream.getDefaultBackingIndexName("ts_data_stream", 1);
     }
 
     private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean enabled) {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.rescore;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.ParsedQuery;
 
 import java.util.Collections;
@@ -25,6 +26,7 @@ public class RescoreContext {
     private final Rescorer rescorer;
     private Set<Integer> rescoredDocs; // doc Ids for which rescoring was applied
     private Runnable isCancelled;
+    private String name;
 
     /**
      * Build the context.
@@ -33,6 +35,19 @@ public class RescoreContext {
     public RescoreContext(int windowSize, Rescorer rescorer) {
         this.windowSize = windowSize;
         this.rescorer = rescorer;
+    }
+
+    /**
+     * The name of the rescorer this context was built for, for example {@code query}. Used to label the rescorer in search profile
+     * results. It is {@code null} if the context was not built through {@link RescorerBuilder#buildContext}.
+     */
+    @Nullable
+    public String name() {
+        return name;
+    }
+
+    void setName(String name) {
+        this.name = name;
     }
 
     public void setCancellationChecker(Runnable isCancelled) {

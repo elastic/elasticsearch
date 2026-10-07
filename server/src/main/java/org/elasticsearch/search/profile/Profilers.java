@@ -16,8 +16,11 @@ import org.elasticsearch.search.profile.aggregation.AggregationProfiler;
 import org.elasticsearch.search.profile.dfs.DfsProfiler;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.profile.query.QueryProfiler;
+import org.elasticsearch.search.profile.rescore.RescoreProfiler;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 /** Wrapper around all the profilers that makes management easier. */
 public final class Profilers {
@@ -25,6 +28,7 @@ public final class Profilers {
     private final QueryProfiler queryProfiler;
     private final AggregationProfiler aggProfiler = new AggregationProfiler();
     private DfsProfiler dfsProfiler;
+    private final List<RescoreProfiler> rescoreProfilers = new ArrayList<>();
 
     public Profilers(ContextIndexSearcher searcher) {
         this.queryProfiler = new QueryProfiler();
@@ -53,6 +57,15 @@ public final class Profilers {
     }
 
     /**
+     * Build a profiler for a rescorer. Rescorers run sequentially, so profilers are reported in the order they were added.
+     */
+    public RescoreProfiler addRescoreProfiler(String type, int windowSize) {
+        RescoreProfiler rescoreProfiler = new RescoreProfiler(type, windowSize);
+        rescoreProfilers.add(rescoreProfiler);
+        return rescoreProfiler;
+    }
+
+    /**
      * Build a profiler for the fetch phase.
      */
     public static FetchProfiler startProfilingFetchPhase() {
@@ -70,6 +83,7 @@ public final class Profilers {
             null
         );
         AggregationProfileShardResult aggResults = new AggregationProfileShardResult(aggProfiler.getTree());
-        return new SearchProfileQueryPhaseResult(Collections.singletonList(result), aggResults);
+        List<ProfileResult> rescoreResults = rescoreProfilers.stream().map(RescoreProfiler::buildResult).toList();
+        return new SearchProfileQueryPhaseResult(Collections.singletonList(result), aggResults, rescoreResults);
     }
 }

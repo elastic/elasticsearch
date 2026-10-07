@@ -2153,6 +2153,9 @@ public class EsqlSession {
         Map<String, DatasetMapping> declaredMappings = extractDeclaredMappings(plan);
 
         LogicalPlan listingPlan = FoldDateFunctionFiltersForListing.fold(plan, configuration, functionRegistry);
+        // QueryDslTimestampBoundsExtractor parses both ends with roundUp=false, so
+        // `lte now/y` is start-of-year. Including that Instant in year IN is safe
+        // only while listing is year grain.
         var filterHints = projectPartitionSpecs(
             PartitionSpec.addTimestampBounds(
                 PartitionFilterHintExtractor.extract(listingPlan),
@@ -2251,8 +2254,10 @@ public class EsqlSession {
 
     /**
      * Remaps identity hints and emits a finite {@code year IN} through each
-     * path's {@code partition_spec}. Identity-only specs leave the extractor
-     * hints unchanged.
+     * path's {@code partition_spec}. Source-column bounds such as {@code @timestamp}
+     * GTE/LTE from {@link PartitionSpec#addTimestampBounds} are dropped after that
+     * {@code IN} is built so they cannot fragment listing-cache identity.
+     * Identity-only specs leave the extractor hints unchanged.
      */
     static Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> projectPartitionSpecs(
         Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,

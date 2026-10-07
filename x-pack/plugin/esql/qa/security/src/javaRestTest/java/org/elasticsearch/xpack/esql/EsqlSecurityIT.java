@@ -965,6 +965,24 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
     }
 
+    public void testFieldCapsCacheWithFieldLevelSecurity() throws Exception {
+        String query = "FROM index | KEEP org | LIMIT 1";
+        assertOK(runESQLCommand("test-admin", query));
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runESQLCommand("fls_user", query));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown column [org]"));
+    }
+
+    public void testFieldCapsCacheWithFieldLevelSecurityThenUnrestricted() throws Exception {
+        String query = "FROM index | KEEP org | LIMIT 1";
+        ResponseException e = expectThrows(ResponseException.class, () -> runESQLCommand("fls_user", query));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown column [org]"));
+
+        assertOK(runESQLCommand("test-admin", query));
+    }
+
     public void testFieldLevelSecurityAllowPartial() throws Exception {
         Request request = new Request("GET", "/index*/_field_caps");
         setUser(request, "fls_user");
@@ -3897,7 +3915,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 )
             );
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
-            assertThat(ex.getMessage(), containsString("security-it-denied-bucket"));
+            // Verify the authorized dataset was actually reached, not just that any 400 occurred.
+            assertThat(ex.getMessage(), containsString(authorized));
         } finally {
             deleteDatasetAsAdmin(authorized);
         }
@@ -3953,7 +3972,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 () -> runESQLCommand("ds_dataset_query_partial", "FROM " + namedExactly + ",security_it_ds_keep_* | STATS COUNT(*)")
             );
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
-            assertThat(ex.getMessage(), containsString("exact-" + suffix));
+            // Verify the exact-named dataset was actually reached, not just that any 400 occurred.
+            assertThat(ex.getMessage(), containsString(namedExactly));
         } finally {
             deleteDatasetAsAdmin(namedExactly);
             deleteDatasetAsAdmin(wildcardOnly);
@@ -3993,7 +4013,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 equalTo(HttpStatus.SC_BAD_REQUEST)
             );
             assertThat(ex.getMessage(), not(containsString("document or field level security")));
-            assertThat(ex.getMessage(), containsString("ok-" + suffix));
+            // The exactly-named ok dataset must have been reached (its resource fails the query).
+            assertThat(ex.getMessage(), containsString(ok));
         } finally {
             deleteDatasetAsAdmin(ok);
             deleteDatasetAsAdmin(dls);
@@ -4145,12 +4166,22 @@ public class EsqlSecurityIT extends ESRestTestCase {
         client().performRequest(request);
     }
 
+    /**
+     * The two documents land in different backing indices (the data stream is rolled over in between), so DLS and FLS
+     * granted on the data stream name are verified against every backing index, not only the write index.
+     */
     private void createDataStreamDocuments() throws IOException {
         Request request = new Request("POST", "logs-foo/_bulk");
         request.addParameter("refresh", "");
         request.setJsonEntity("""
             { "create" : {} }
             { "@timestamp": "2099-05-06T16:21:15.000Z", "data_stream": {"namespace": "16"} }
+            """);
+        assertMap(entityAsMap(client().performRequest(request)), matchesMap().extraOk().entry("errors", false));
+        assertOK(client().performRequest(new Request("POST", "logs-foo/_rollover")));
+        request = new Request("POST", "logs-foo/_bulk");
+        request.addParameter("refresh", "");
+        request.setJsonEntity("""
             { "create" : {} }
             { "@timestamp": "2001-05-06T16:21:15.000Z", "data_stream": {"namespace": "17"} }
             """);

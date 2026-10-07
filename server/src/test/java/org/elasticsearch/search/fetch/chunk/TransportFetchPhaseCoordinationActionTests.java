@@ -144,8 +144,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {},
-            randomBoolean()
+            e -> {}
         );
 
         long taskId = 123L;
@@ -187,8 +186,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {},
-            randomBoolean()
+            e -> {}
         );
 
         TaskId parentTaskId = new TaskId("parent-node", 999L);
@@ -228,8 +226,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Map.of("X-Test-Header", "test-value", "X-Another-Header", "another-value"),
             l -> {},
             l -> {},
-            e -> {},
-            randomBoolean()
+            e -> {}
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -257,8 +254,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {},
-            randomBoolean()
+            e -> {}
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -292,8 +288,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {},
-            randomBoolean()
+            e -> {}
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -333,8 +328,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {},
-            randomBoolean()
+            e -> {}
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -375,8 +369,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {},
-            true
+            e -> {}
         );
 
         CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
@@ -426,8 +419,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {},
-            randomBoolean()
+            e -> {}
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -462,8 +454,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {},
-            randomBoolean()
+            e -> {}
         );
 
         long taskId = 456L;
@@ -502,8 +493,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {},
-            randomBoolean()
+            e -> {}
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -559,8 +549,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {},
-            randomBoolean()
+            e -> {}
         );
 
         long taskId = 789L;

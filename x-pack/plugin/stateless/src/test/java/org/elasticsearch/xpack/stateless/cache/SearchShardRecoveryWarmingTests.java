@@ -33,6 +33,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
@@ -53,6 +54,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongFunction;
@@ -60,7 +62,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.apache.logging.log4j.Level.INFO;
+import static org.apache.logging.log4j.Level.DEBUG;
 import static org.apache.logging.log4j.Level.WARN;
 import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -510,6 +512,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     private static class ReEvaluationThreadPool extends TestThreadPool {
         private final AtomicReference<Runnable> pendingTask = new AtomicReference<>();
         private final AtomicLong currentTimeMillis = new AtomicLong();
+        private final AtomicReference<AtomicBoolean> latestTaskCancelled = new AtomicReference<>(new AtomicBoolean());
 
         ReEvaluationThreadPool(String name) {
             super(name, StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
@@ -526,6 +529,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 currentTimeMillis.addAndGet(delay.millis());
                 task.run();
             });
+            final var cancelled = new AtomicBoolean();
+            latestTaskCancelled.set(cancelled);
             return new ScheduledCancellable() {
                 @Override
                 public long getDelay(TimeUnit unit) {
@@ -539,14 +544,19 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
 
                 @Override
                 public boolean cancel() {
-                    return true;
+                    return cancelled.compareAndSet(false, true);
                 }
 
                 @Override
                 public boolean isCancelled() {
-                    return true;
+                    return cancelled.get();
                 }
             };
+        }
+
+        /// Whether the task scheduled last has been cancelled.
+        boolean latestTaskCancelled() {
+            return latestTaskCancelled.get().get();
         }
 
         Runnable drainTask() {
@@ -756,9 +766,9 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         }
     }
 
-    /// The total timeout cap only bounds waits computed for a source that is not shutting down. Once the source is shutting down, slices
-    /// are bounded by the grace deadline alone, so the cap of the plan the wait started with must not shorten them.
-    public void testReevaluationLoopDoesNotApplyTotalTimeoutCapToShutdownPlans() {
+    /// The total timeout cap applies to every plan. Shutdown plans are additionally bounded by the grace deadline, which is already part
+    /// of the plan's timeout, so the lower of the two wins and a wait cannot gain budget by switching to a shutting-down source.
+    public void testReevaluationLoopCapsShutdownPlansToTheTotalTimeoutCap() {
         final var sliceSize = TimeValue.timeValueMillis(200);
         final var settings = Settings.builder()
             .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING.getKey(), TimeValue.timeValueMillis(300))
@@ -785,14 +795,84 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 resume
             );
 
-            // elapsed grows past the 300ms cap after the second slice, shutdown plans must still be extended in full
-            for (int i = 0; i < 4; i++) {
-                final var task = threadPool.drainTask();
-                assertThat("re-evaluation " + i + " must have been scheduled", task, notNullValue());
-                task.run();
-                assertThat(resume.isDone(), is(false));
-            }
-            assertThat(threadPool.drainTask(), notNullValue());
+            // 200ms elapsed: the 200ms shutdown slice is cut to the 100ms left of the 300ms cap
+            threadPool.drainTask().run();
+            assertThat(resume.isDone(), is(false));
+            // 300ms elapsed: nothing is left of the cap, the 200ms shutdown slice is cut to 0 which is below the abort threshold
+            threadPool.drainTask().run();
+            safeGet(resume);
+            assertThat(threadPool.drainTask(), nullValue());
+        }
+    }
+
+    /// When warming completes while a re-evaluation is in flight, the listener's cancel() has already run by the time the re-evaluation
+    /// schedules its next slice, so the re-evaluation must cancel that task itself instead of leaving it queued until it fires.
+    public void testReevaluationCancelsTaskScheduledAfterWarmingCompleted() {
+        final var sliceSize = TimeValue.timeValueMillis(200);
+        final var settings = Settings.builder()
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                TimeValue.timeValueMillis(50)
+            )
+            .build();
+
+        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+            final var warmingListener = new AtomicReference<ActionListener<Void>>();
+            final var service = newReevaluatingService(threadPool, settings, () -> {
+                // warming completes while the re-evaluation is computing its plan
+                warmingListener.get().onResponse(null);
+                return new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN);
+            });
+            final var resume = new PlainActionFuture<Void>();
+            warmingListener.set(
+                service.searchRecoveryWarmingListener(
+                    new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN),
+                    () -> null, // unused in this test case
+                    randomMockIndexShard(),
+                    mockDirectory(),
+                    0L,
+                    resume
+                )
+            );
+
+            threadPool.drainTask().run();
+            safeGet(resume);
+            assertThat("the task scheduled after the race completed must be cancelled", threadPool.latestTaskCancelled(), is(true));
+        }
+    }
+
+    /// A total timeout cap of 0 disables extensions: only the initial slice is ever waited for.
+    public void testReevaluationLoopDoesNotExtendWhenTotalTimeoutCapIsZero() {
+        final var sliceSize = TimeValue.timeValueMillis(200);
+        final var settings = Settings.builder()
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING.getKey(), TimeValue.ZERO)
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                TimeValue.timeValueMillis(50)
+            )
+            .build();
+
+        try (var threadPool = new ReEvaluationThreadPool(getTestName())) {
+            final var service = newReevaluatingService(
+                threadPool,
+                settings,
+                () -> new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN)
+            );
+            final var resume = new PlainActionFuture<Void>();
+            service.searchRecoveryWarmingListener(
+                new SearchRecoveryTimeout(sliceSize, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN),
+                () -> null, // unused in this test case
+                randomMockIndexShard(),
+                mockDirectory(),
+                0L,
+                resume
+            );
+
+            threadPool.drainTask().run();
+            safeGet(resume);
+            assertThat(threadPool.drainTask(), nullValue());
         }
     }
 
@@ -800,8 +880,12 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     /// lazily on each re-evaluation, not captured once at the start. This is the mechanism that allows a recovery waiting
     /// for warming to react to a node shutdown that was registered after the wait began.
     ///
-    /// The test verifies by switching the plan between re-evaluations: the INFO log on the first re-evaluation must
+    /// The test verifies by switching the plan between re-evaluations: the DEBUG log on the first re-evaluation must
     /// reflect the new plan's context, not the one that was current when the listener was built.
+    @TestLogging(
+        value = "org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService:DEBUG",
+        reason = "the timeout extension is logged at DEBUG"
+    )
     public void testReevaluationLoopPicksUpUpdatedPlanOnEachExpiry() {
         final var budget = TimeValue.timeValueMillis(1_000);
         final var sliceSize = TimeValue.timeValueMillis(300);
@@ -843,9 +927,9 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 task,
                 SharedBlobCacheWarmingService.class,
                 new MockLog.SeenEventExpectation(
-                    "INFO log must reflect the updated context, not the one current at listener-build time",
+                    "DEBUG log must reflect the updated context, not the one current at listener-build time",
                     SharedBlobCacheWarmingService.class.getCanonicalName(),
-                    INFO,
+                    DEBUG,
                     "*timeout extended*cluster shutdown metadata present*"
                 )
             );

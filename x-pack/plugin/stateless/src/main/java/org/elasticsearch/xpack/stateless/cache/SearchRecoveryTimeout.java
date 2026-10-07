@@ -108,6 +108,11 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
         };
     }
 
+    public boolean isEqualSharePlan() {
+        return timeoutContext == TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE
+            || timeoutContext == TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE_SAVED_TIME;
+    }
+
     /// When `true`, recovery should use [SharedBlobCacheWarmingService#searchRecoveryWarmingListener]
     /// with [#timeout()] (which is then > 0).
     public boolean awaitWarming() {

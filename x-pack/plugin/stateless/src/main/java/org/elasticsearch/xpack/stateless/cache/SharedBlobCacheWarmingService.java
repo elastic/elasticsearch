@@ -94,6 +94,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.lang.Math.max;
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
@@ -509,10 +510,7 @@ public class SharedBlobCacheWarmingService {
         this.cfeThrottledTaskRunner = new ThrottledTaskRunner("cfe-prewarming-cache", 2, threadPool.generic());
         // Throttle byte-range warming fetches so they don't saturate the PREWARM_THREAD_POOL and starve other prewarming work.
         final int prewarmMax = threadPool.info(StatelessPlugin.PREWARM_THREAD_POOL).getMax();
-        final int warmByteRangeThrottleLimit = Math.max(
-            1,
-            (int) (prewarmMax * clusterSettings.get(WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING))
-        );
+        final int warmByteRangeThrottleLimit = max(1, (int) (prewarmMax * clusterSettings.get(WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING)));
         this.warmByteRangeThrottledTaskRunner = new ThrottledTaskRunner(
             "warm-byte-range-prewarming-cache",
             warmByteRangeThrottleLimit,
@@ -849,6 +847,7 @@ public class SharedBlobCacheWarmingService {
         }
     }
 
+    // visible for testing
     protected SearchRecoveryTimeout searchRecoveryTimeout(
         ClusterState state,
         IndexShard indexShard,
@@ -1030,8 +1029,8 @@ public class SharedBlobCacheWarmingService {
          */
         public WarmTarget merge(WarmTarget other) {
             return new WarmTarget(
-                Math.max(endOffset(), other.endOffset()),
-                Math.max(blobSize(), other.blobSize()),
+                max(endOffset(), other.endOffset()),
+                max(blobSize(), other.blobSize()),
                 BlobFileRanges.mostRecentKnownTimestamp(timestampMillis(), other.timestampMillis())
             );
         }
@@ -1096,19 +1095,19 @@ public class SharedBlobCacheWarmingService {
                     final String contextDescription = timeoutTask.latestTimeoutContextDescription();
                     // Note that bytesWarmed covers every object store warm on this directory, including the header/footer regions that
                     // are not part of the offline warming targets counted by bytesToWarm, so the two are not a ratio.
-                    final TimeValue totalMs = TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startedMillis);
+                    final TimeValue totalWait = TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startedMillis);
                     logger.warn(
                         new ESLogMessage(
                             "Search shard recovery cache warming timed out after [{}] ({}) for {}, "
                                 + "shard data set size [{}], bytes to warm [{}], bytes warmed [{}]",
-                            totalMs,
+                            totalWait,
                             contextDescription,
                             indexShard.shardId(),
                             ByteSizeValue.ofBytes(dataSetSizeInBytes),
                             ByteSizeValue.ofBytes(bytesToWarm),
                             ByteSizeValue.ofBytes(bytesWarmed)
                         ).field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "shard", indexShard.shardId().toString())
-                            .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "warming_timeout_millis", totalMs.millis())
+                            .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "warming_wait_millis", totalWait.millis())
                             .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "warming_timeout_context", contextDescription)
                             .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "data_set_size_bytes", dataSetSizeInBytes)
                             .field(SEARCH_RECOVERY_LOG_FIELD_PREFIX + "bytes_to_warm", bytesToWarm)
@@ -1180,42 +1179,47 @@ public class SharedBlobCacheWarmingService {
                 try {
                     // Approximate: bytesWarmedSoFar also counts bytes that are not part of bytesToWarm (e.g. header/footer reads), and
                     // regions that were already cached are never counted, so this can under- or overestimate the bytes still to warm.
-                    final long bytesRemaining = Math.max(0L, bytesToWarm - bytesWarmedSoFar.getAsLong());
+                    final long bytesRemaining = max(0L, bytesToWarm - bytesWarmedSoFar.getAsLong());
                     final var newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesRemaining, latestPlan);
-                    final var elapsed = TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startedMillis);
-                    final var newTimeout = cappedToTotalBudget(newPlan, elapsed);
-                    if (newPlan.shouldExtendAfter(latestPlan)
-                        && newTimeout.compareTo(searchRecoveryTimeoutCalculationService.reevaluationAbortThreshold()) >= 0) {
-                        latestPlan = newPlan;
-                        scheduledTask = threadPool.schedule(this, newTimeout, threadPool.generic());
-                        logger.info(
-                            "Search shard recovery cache warming timeout extended by [{}] ({}) for [{}]. Total timeout: [{}]",
-                            newTimeout,
-                            newPlan.timeoutContext().description(),
-                            indexShard.shardId(),
-                            TimeValue.timeValueMillis(elapsed.millis() + newTimeout.millis())
-                        );
-                        return;
+                    if (newPlan.shouldExtendAfter(latestPlan)) {
+                        final var elapsed = TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startedMillis);
+                        final var newTimeout = cappedToTotalBudget(newPlan.timeout(), elapsed);
+                        if (newTimeout.compareTo(searchRecoveryTimeoutCalculationService.reevaluationAbortThreshold()) >= 0) {
+                            latestPlan = newPlan;
+                            scheduledTask = threadPool.schedule(this, newTimeout, threadPool.generic());
+                            // The race may have completed while this run was in flight, in which case cancel() already ran and missed the
+                            // task scheduled just now. Cancel it here so it does not retain the shard and directory until it fires.
+                            // If the race is not done yet, it completes after this check and its cancel() sees the new task.
+                            if (race.isDone()) {
+                                scheduledTask.cancel();
+                                return;
+                            }
+                            logger.debug(
+                                "Search shard recovery cache warming timeout extended by [{}] ({}) for [{}]. Total timeout: [{}]",
+                                newTimeout,
+                                newPlan.timeoutContext().description(),
+                                indexShard.shardId(),
+                                TimeValue.timeValueMillis(elapsed.millis() + newTimeout.millis())
+                            );
+                            return;
+                        }
                     }
                 } catch (Exception e) {
-                    race.onFailure(e);
-                    return;
+                    // offline warming should not fail the recovery, so ignore the exception
+                    logger.warn("Search shard recovery offline warming failed.", e);
                 }
             }
             race.onResponse(SearchRecoveryWaitOutcome.TIMEOUT);
         }
 
-        /// Caps the timeout of `plan` so that the total wait does not exceed the total budget for the situation `plan` was computed for;
-        /// no cap when there is no budget. The budget comes from the new plan rather than from the one the wait started with: once the
-        /// relocation source is shutting down, every slice is already bounded by the grace deadline, so the cap that applies before it
-        /// must not shorten the slices computed against it.
-        private TimeValue cappedToTotalBudget(SearchRecoveryTimeout plan, TimeValue elapsed) {
-            final TimeValue totalBudget = searchRecoveryTimeoutCalculationService.totalBudget(plan.timeoutContext());
-            if (totalBudget.millis() <= 0) {
-                return plan.timeout();
-            }
-            final long budgetLeftMs = Math.max(0L, totalBudget.millis() - elapsed.millis());
-            return budgetLeftMs >= plan.timeout().millis() ? plan.timeout() : TimeValue.timeValueMillis(budgetLeftMs);
+        /// Caps `timeout` so that the total wait does not exceed the total timeout cap. The same cap applies whichever context the plan
+        /// was computed for, so a wait cannot gain budget by switching contexts: when the relocation source starts shutting down, the
+        /// plan's timeout is already bounded by the grace deadline and the lower of the two wins.
+        private TimeValue cappedToTotalBudget(TimeValue timeout, TimeValue elapsed) {
+            final var budgetLeft = TimeValue.timeValueMillis(
+                max(0L, searchRecoveryTimeoutCalculationService.totalTimeoutCap().millis() - elapsed.millis())
+            );
+            return TimeValue.min(budgetLeft, timeout);
         }
 
         private String latestTimeoutContextDescription() {
@@ -1509,7 +1513,7 @@ public class SharedBlobCacheWarmingService {
             if (fileExtension != LuceneFilesExtensions.TIM) {
                 return BUFFER_SIZE;
             }
-            final var value = Math.max((long) (idLookupPreWarmRatio * length), BUFFER_SIZE);
+            final var value = max((long) (idLookupPreWarmRatio * length), BUFFER_SIZE);
             return value;
         }
 
@@ -1534,7 +1538,7 @@ public class SharedBlobCacheWarmingService {
                 try (var listeners = new RefCountingListener(listener)) {
                     for (int r = startRegion; r <= endRegion; r++) {
                         // adjust the position & length to the region
-                        var range = ByteRange.of(Math.max(start, (long) r * regionSize), Math.min(end, (r + 1L) * regionSize));
+                        var range = ByteRange.of(max(start, (long) r * regionSize), Math.min(end, (r + 1L) * regionSize));
                         BlobRegion blobRegion = new BlobRegion(location.blobFile(), r);
                         enqueueLocation(blobRegion, location, range.start(), range.length(), timestampMillis, listeners.acquire());
                     }
@@ -1660,7 +1664,7 @@ public class SharedBlobCacheWarmingService {
                     if (existingLength == null) {
                         return embeddedEndOffset;
                     } else {
-                        return Math.max(embeddedEndOffset, existingLength);
+                        return max(embeddedEndOffset, existingLength);
                     }
                 });
 

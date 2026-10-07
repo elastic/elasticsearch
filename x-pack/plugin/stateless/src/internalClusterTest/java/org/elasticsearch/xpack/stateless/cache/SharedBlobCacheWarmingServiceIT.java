@@ -608,6 +608,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         ensureSearchHits(indexName, totalDocs);
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService:DEBUG",
+        reason = "the timeout extension is logged at DEBUG"
+    )
     public void testSearchRecoveryWarmingTimeoutReevaluationWhenSourceStartsShuttingDown() throws Exception {
         final var relocationTimeoutSlice = TimeValue.timeValueMillis(200);
         final var gracePeriodCap = TimeValue.timeValueSeconds(4);
@@ -673,7 +677,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 new MockLog.SeenEventExpectation(
                     "timeout extended while the relocation source is still healthy",
                     SharedBlobCacheWarmingService.class.getCanonicalName(),
-                    Level.INFO,
+                    Level.DEBUG,
                     "*cache warming timeout extended by ["
                         + relocationTimeoutSlice.getStringRep()
                         + "] (relocation source not shutting down, no cluster shutdown)*"
@@ -683,7 +687,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 new MockLog.SeenEventExpectation(
                     "timeout extended after the relocation source started shutting down",
                     SharedBlobCacheWarmingService.class.getCanonicalName(),
-                    Level.INFO,
+                    Level.DEBUG,
                     "*cache warming timeout extended by*(relocation source shutting down*"
                 )
             );

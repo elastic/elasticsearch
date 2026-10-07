@@ -258,7 +258,7 @@ PUT /_query/dataset/access_logs
 Here the placeholder belongs in `partition_path`, and the corresponding `resource` segment is a plain `*`.
 Writing `"resource": "s3://logs-bucket/access/{year}/*.parquet"` instead would read only a directory named
 `year`, which almost certainly does not exist, and the query would report that the pattern matched no files.
-`{second}` in `partition_path` is a path placeholder for a folder level. It isn't the `second` unit of
+`{second}` in `partition_path` is a path placeholder for a folder level. It isn't the `epoch_second` unit of
 [`partition_spec`](esql-data-federation-partition-spec.md).
 
 ### Exclude non-data objects

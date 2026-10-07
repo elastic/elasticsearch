@@ -54,7 +54,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -150,8 +149,8 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                         assertThat(description, equalTo("data"));
                         LuceneSourceOperator.Status oStatus = (LuceneSourceOperator.Status) o.status();
                         assertThat(oStatus.processedSlices(), lessThanOrEqualTo(oStatus.totalSlices()));
-                        assertThat(oStatus.processedQueries(), equalTo(Set.of("*:*")));
-                        assertThat(oStatus.processedShards(), equalTo(Set.of("test:0")));
+                        assertThat(oStatus.processedQueries(), equalTo(List.of("*:*")));
+                        assertThat(oStatus.processedShards(), equalTo(List.of("test:0")));
                         assertThat(oStatus.sliceIndex(), lessThanOrEqualTo(oStatus.totalSlices()));
                         assertThat(oStatus.sliceMin(), greaterThanOrEqualTo(0));
                         assertThat(oStatus.sliceMax(), greaterThanOrEqualTo(oStatus.sliceMin()));

@@ -89,11 +89,9 @@ public class RestGrantApiKeyActionTests extends ESTestCase {
             parsed.set(grantRequest);
             return grantRequest;
         });
-        final FakeRestRequest restRequest = restRequest("""
-            {
-              "grant_type": "%s",
-              "service_account_token": "secret-token"
-            }""".formatted(USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE));
+        final FakeRestRequest restRequest = restRequest(
+            "{\"grant_type\":\"" + USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE + "\",\"service_account_token\":\"secret-token\"}"
+        );
         restRequest.markAsServerlessRequest();
 
         final ElasticsearchStatusException e = expectThrows(
@@ -112,8 +110,7 @@ public class RestGrantApiKeyActionTests extends ESTestCase {
 
     public void testUserManagedServiceAccountGrantIsPreparedForStatefulRequest() throws Exception {
         final RestGrantApiKeyAction action = action(new RequestTranslator.Default());
-        final FakeRestRequest restRequest = restRequest("""
-            { "grant_type": "%s" }""".formatted(USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE));
+        final FakeRestRequest restRequest = restRequest("{\"grant_type\":\"" + USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE + "\"}");
 
         assertThat(action.innerPrepareRequest(restRequest, null), notNullValue());
     }

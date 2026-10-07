@@ -109,7 +109,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -118,8 +117,6 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.SubPlan;
-import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchHandle;
-import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchService;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -203,7 +200,6 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
-    private final RemoteFetchService remoteFetchService;
     private final InferenceService inferenceService;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
@@ -243,7 +239,6 @@ public class ComputeService {
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
-        this.remoteFetchService = new RemoteFetchService(transportActionServices, this.bigArrays, blockFactory);
         this.inferenceService = transportActionServices.inferenceService();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
@@ -277,10 +272,6 @@ public class ComputeService {
 
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
-    }
-
-    RemoteFetchService remoteFetchService() {
-        return remoteFetchService;
     }
 
     FormatReaderRegistry formatReaderRegistry() {
@@ -1375,12 +1366,6 @@ public class ComputeService {
         boolean hasConcreteIndices = clusterToConcreteIndices.values().stream().anyMatch(indices -> indices.indices().length > 0);
         var coordinatorAndDataNode = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(resolvedPlan, configuration);
         PhysicalPlan coordinatorPlan = coordinatorAndDataNode.v1();
-        try {
-            ensureNoRemoteFetchBoundary("coordinator", coordinatorPlan);
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
 
         final PageStreamPublisher streamPublisher = coordinatorPlan instanceof StreamingOutputExec streaming
             ? streaming.pageStream()
@@ -1413,7 +1398,6 @@ public class ComputeService {
                 foldContext,
                 null,
                 exchangeSinkSupplier,
-                false,
                 false
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
@@ -1465,9 +1449,6 @@ public class ComputeService {
         Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(resolvedPlan, EsRelation::originalIndices);
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
-        final boolean retainSearchContexts = dataNodePlan.anyMatch(
-            plan -> plan instanceof RemoteFetchBoundaryExec boundary && boundary.requiresRetainedSearchContexts()
-        );
         /*
          * Grab the output attributes here, so we can pass them to
          * the listener without holding on to a reference to the
@@ -1475,18 +1456,7 @@ public class ComputeService {
          */
         List<Attribute> outputAttributes = resolvedPlan.output();
         var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
-        // Releases retained sessions on every data node at query end. Fetch operators also release the sessions
-        // they actually fetch from (the winning nodes), earlier. The overlap is intentional and safe: release is
-        // idempotent, and this releaser is the only one that reaches nodes whose rows lost the global TopN.
-        final RemoteFetchService.RetainedSessionReleaser remoteFetchRetainedSessionReleaser = retainSearchContexts
-            ? remoteFetchService.newRetainedSessionReleaser()
-            : null;
-        listener = ActionListener.runBefore(listener, () -> {
-            if (remoteFetchRetainedSessionReleaser != null) {
-                remoteFetchRetainedSessionReleaser.close();
-            }
-            exchangeService.removeExchangeSourceHandler(sessionId);
-        });
+        listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.delegateFailureAndWrap((l, completionInfo) -> {
             if (streamPublisher == null || streamPublisher.rowsPublished() == 0) {
@@ -1536,7 +1506,6 @@ public class ComputeService {
                             foldContext,
                             exchangeSource::createExchangeSource,
                             exchangeSinkSupplier,
-                            false,
                             false
                         ),
                         coordinatorPlan,
@@ -1558,8 +1527,6 @@ public class ComputeService {
                             Set.of(localConcreteIndices.indices()),
                             localOriginalIndices,
                             exchangeSource,
-                            retainSearchContexts,
-                            remoteFetchRetainedSessionReleaser,
                             cancelQueryOnFailure,
                             ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
@@ -1678,7 +1645,6 @@ public class ComputeService {
                     foldContext,
                     exchangeSource::createExchangeSource,
                     exchangeSinkSupplier,
-                    false,
                     false
                 ),
                 coordinatorPlan,
@@ -1807,8 +1773,7 @@ public class ComputeService {
         ActionListener<DriverCompletionInfo> listener
     ) {
         QueryWarnings singleValueQueryWarnings = QueryWarnings.EMIT;
-        var shardContexts = context.searchContexts()
-            .map(csc -> context.retainSearchContexts() ? csc.newDetachedShardContext() : csc.shardContext(singleValueQueryWarnings));
+        var shardContexts = context.searchContexts().map(csc -> csc.shardContext(singleValueQueryWarnings));
         LongSupplier directoryBytesRead = directoryBytesReadSupplier(searchService.getIndicesService());
         // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
         // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that
@@ -1847,7 +1812,6 @@ public class ComputeService {
                 projectResolver.getProjectMetadata(clusterService.state()),
                 physicalOperationProviders,
                 operatorFactoryRegistry,
-                remoteFetchService,
                 parallelWorkerExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get()
@@ -2073,43 +2037,10 @@ public class ComputeService {
         boolean reduceNodeLateMaterialization,
         PlanTimeProfile planTimeProfile
     ) {
-        return reductionPlan(
-            plannerSettings,
-            flags,
-            configuration,
-            foldCtx,
-            originalPlan,
-            runNodeLevelReduction,
-            reduceNodeLateMaterialization,
-            null,
-            null,
-            planTimeProfile
-        );
-    }
-
-    static ReductionPlan reductionPlan(
-        PlannerSettings plannerSettings,
-        EsqlFlags flags,
-        Configuration configuration,
-        FoldContext foldCtx,
-        ExchangeSinkExec originalPlan,
-        boolean runNodeLevelReduction,
-        boolean reduceNodeLateMaterialization,
-        @Nullable String localNodeId,
-        @Nullable String retainedSessionId,
-        PlanTimeProfile planTimeProfile
-    ) {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
         ReductionPlan passThroughReduction = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
-        RemoteFetchBoundaryExec remoteFetchBoundary = originalPlan.child() instanceof RemoteFetchBoundaryExec boundary ? boundary : null;
-        if (remoteFetchBoundary == null && originalPlan.output().stream().anyMatch(RemoteFetchHandle::isRemoteFetchHandleCarrier)) {
-            throw new IllegalStateException("remote-fetch handle without a boundary cannot be planned for node reduction");
-        }
-        if (remoteFetchBoundary == null && (localNodeId != null || retainedSessionId != null)) {
-            throw new IllegalArgumentException("remote-fetch runtime identity supplied without a remote-fetch boundary");
-        }
-        if (remoteFetchBoundary == null && reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
+        if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
             return passThroughReduction;
         }
 
@@ -2125,42 +2056,29 @@ public class ComputeService {
             stats
         );
 
-        final ReductionPlan reductionPlan;
-        if (remoteFetchBoundary != null) {
-            if (localNodeId == null || retainedSessionId == null) {
-                throw new IllegalStateException("remote-fetch boundary requires local-node and retained-session IDs");
-            }
-            reductionPlan = LateMaterializationPlanner.planRemoteFetchTopN(contextFactory, originalPlan, localNodeId, retainedSessionId)
-                .orElseThrow(() -> new IllegalStateException("remote-fetch boundary was not consumed"));
-        } else {
-            // The default plan is just the exchange source piped directly into the exchange sink.
-            reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
-                case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization -> LateMaterializationPlanner.planReduceDriverTopN(
-                    contextFactory,
-                    originalPlan
-                )
-                    // Fallback to a regular top n reduction without loading new fields.
-                    .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : passThroughReduction);
-                case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topN.plan());
-                case PlannerUtils.TopNByReduction topNBy when reduceNodeLateMaterialization -> LateMaterializationPlanner
-                    .planReduceDriverTopNBy(contextFactory, originalPlan)
-                    .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topNBy.plan()) : passThroughReduction);
-                case PlannerUtils.TopNByReduction topNBy when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topNBy.plan());
-                case PlannerUtils.LimitByReduction limitBy when reduceNodeLateMaterialization -> LateMaterializationPlanner
-                    .planReduceDriverLimitBy(contextFactory, originalPlan)
-                    .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(limitBy.plan()) : passThroughReduction);
-                case PlannerUtils.LimitByReduction limitBy when runNodeLevelReduction -> placePlanBetweenExchanges.apply(limitBy.plan());
-                // Not a TopN/TopNBy/LimitBy - must be an agg or a limit
-                case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
-                default -> passThroughReduction;
-            };
-        }
+        final ReductionPlan reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
+            case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization -> LateMaterializationPlanner.planReduceDriverTopN(
+                contextFactory,
+                originalPlan
+            )
+                // Fallback to a regular top n reduction without loading new fields.
+                .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : passThroughReduction);
+            case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topN.plan());
+            case PlannerUtils.TopNByReduction topNBy when reduceNodeLateMaterialization -> LateMaterializationPlanner
+                .planReduceDriverTopNBy(contextFactory, originalPlan)
+                .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topNBy.plan()) : passThroughReduction);
+            case PlannerUtils.TopNByReduction topNBy when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topNBy.plan());
+            case PlannerUtils.LimitByReduction limitBy when reduceNodeLateMaterialization -> LateMaterializationPlanner
+                .planReduceDriverLimitBy(contextFactory, originalPlan)
+                .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(limitBy.plan()) : passThroughReduction);
+            case PlannerUtils.LimitByReduction limitBy when runNodeLevelReduction -> placePlanBetweenExchanges.apply(limitBy.plan());
+            // Not a TopN/TopNBy/LimitBy - must be an agg or a limit
+            case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
+            default -> passThroughReduction;
+        };
         if (planTimeProfile != null) {
             planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
         }
-
-        ensureNoRemoteFetchBoundary("data-node", reductionPlan.dataNodePlan());
-        ensureNoRemoteFetchBoundary("node-reduce", reductionPlan.nodeReducePlan());
 
         // Intermediate attributes prevent clean dependency verification for these plan shapes, so skip the check for them.
         if (Assertions.ENABLED == false
@@ -2175,12 +2093,6 @@ public class ComputeService {
         PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.dataNodePlan(), reductionSource.output());
 
         return reductionPlan;
-    }
-
-    private static void ensureNoRemoteFetchBoundary(String planName, PhysicalPlan plan) {
-        if (plan.anyMatch(RemoteFetchBoundaryExec.class::isInstance)) {
-            throw new IllegalStateException("remote-fetch boundary survived into executable " + planName + " plan");
-        }
     }
 
     private static boolean skipConsistencyCheckAfterReductionPlanning(LogicalPlan fragment) {

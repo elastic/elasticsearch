@@ -77,7 +77,6 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
@@ -574,19 +573,13 @@ public class PlannerUtils {
         @Nullable Consumer<LogicalPlan> onLogicalPlanOptimized
     ) {
         var isCoordPlan = new Holder<>(Boolean.TRUE);
-        // Possible future improvement: both are BinaryExec nodes excluded for the same reason, so one collect
-        // over a shared predicate could build a single set. Kept separate for now to preserve the history of each case.
         Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
             .stream()
             .map(x -> ((LookupJoinExec) x).right())
             .collect(Collectors.toSet());
-        Set<PhysicalPlan> remoteFetchExecRightChildren = plan.collect(RemoteFetchExec.class::isInstance)
-            .stream()
-            .map(x -> ((RemoteFetchExec) x).right())
-            .collect(Collectors.toSet());
 
         PhysicalPlan localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
-            if (lookupJoinExecRightChildren.contains(f) || remoteFetchExecRightChildren.contains(f)) {
+            if (lookupJoinExecRightChildren.contains(f)) {
                 // These fragments are shipped as logical plans and planned on the target node, where the right stats and
                 // execution context are available.
                 return f;

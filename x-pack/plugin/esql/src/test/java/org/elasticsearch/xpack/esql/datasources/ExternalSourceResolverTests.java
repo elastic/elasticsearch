@@ -4529,6 +4529,60 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    /**
+     * Every arm of {@code schemaRecordAnswersTheRead}, asserted directly. The predicate decides whether the
+     * read-addressed statistics record is consulted at all, so an arm nobody exercises is an unguarded branch on
+     * the warm path — and mutation testing found that the empty-read arm was reached by none of this class's
+     * resolve-level cases.
+     * <p>
+     * The arms, and why each answers:
+     * <ul>
+     *   <li>no bound read — nothing pins what the record must have measured;</li>
+     *   <li>an empty bound read ({@code ReadConfigFingerprint.UNKNOWN}) — {@code withReadConfig("")} returns the
+     *       same key, so consulting the statistics address would re-fetch this very record;</li>
+     *   <li>a columnar record — never stamped, and no statistics record is ever filed for one, so that address
+     *       is a guaranteed miss;</li>
+     *   <li>otherwise the stamp decides, matching and not matching.</li>
+     * </ul>
+     */
+    public void testSchemaRecordAnswersTheReadOnEveryArm() {
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        SchemaCacheEntry textStamped = stampedEntry(schema, "csv", "read-a");
+        SchemaCacheEntry textUnstamped = stampedEntry(schema, "csv", null);
+        SchemaCacheEntry columnarUnstamped = stampedEntry(schema, "parquet", null);
+
+        assertTrue("no bound read is answered by any record", ExternalSourceResolver.schemaRecordAnswersTheRead(textStamped, null));
+        assertTrue(
+            "an empty bound read addresses nothing of its own, so the schema record answers it",
+            ExternalSourceResolver.schemaRecordAnswersTheRead(textUnstamped, "")
+        );
+        assertTrue(
+            "a columnar record is never stamped and can have no statistics record",
+            ExternalSourceResolver.schemaRecordAnswersTheRead(columnarUnstamped, "read-a")
+        );
+        assertTrue(
+            "a matching stamp means this record already holds the read's measurements",
+            ExternalSourceResolver.schemaRecordAnswersTheRead(textStamped, "read-a")
+        );
+        assertFalse(
+            "a differing stamp is the one case that must consult the statistics address",
+            ExternalSourceResolver.schemaRecordAnswersTheRead(textStamped, "read-b")
+        );
+        assertFalse(
+            "and so is an absent stamp on a text record",
+            ExternalSourceResolver.schemaRecordAnswersTheRead(textUnstamped, "read-b")
+        );
+    }
+
+    /** A per-file schema record of the given source type, stamped with {@code readConfig} when non-null. */
+    private static SchemaCacheEntry stampedEntry(List<Attribute> schema, String sourceType, @Nullable String readConfig) {
+        Map<String, Object> metadata = new HashMap<>();
+        if (readConfig != null) {
+            metadata.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
+        }
+        return SchemaCacheEntry.from(schema, sourceType, "s3://bucket/data/f." + sourceType, metadata, Map.of());
+    }
+
     // ===== Empty resolution =====
 
     public void testEmptyPathListReturnsEmptyResolution() throws Exception {
@@ -9734,10 +9788,24 @@ public class ExternalSourceResolverTests extends ESTestCase {
             SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity("csv", "", digestA, flatA), false),
             SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity("csv", "", digestB, flatB), false)
         );
+        // The same credential VALUE arriving in a different config object must still share one address. Built
+        // from an independent map rather than reusing flatA: comparing one expression with itself would only
+        // restate that DatasetIdentity.of is deterministic, which DatasetIdentityTests already pins, and would
+        // survive a digest that keyed on anything about the map other than its contents.
+        Map<String, Object> dsAagain = new HashMap<>(Map.of("endpoint", "http://s3.example.com", "access_key", "key-a"));
+        Map<String, Object> flatAagain = ExternalSourceResolver.storageConfig(
+            new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsAagain))
+        );
+        assertNotSame("a genuinely separate config object", flatA, flatAagain);
         assertEquals(
-            "and the same credentials must still share one",
+            "the same credential value must still share one address, whatever map it arrived in",
             SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity("csv", "", digestA, flatA), false),
-            SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity("csv", "", digestA, flatA), false)
+            SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity("csv", "", Configured.secretIdentityOf(flatAagain, secrets), flatAagain),
+                false
+            )
         );
 
         assertEquals(

@@ -30,7 +30,7 @@ import java.util.Map;
  * cases wrong.
  * <p>
  * It sits beside the identity each format reader vends for its own configuration, which covers the other half of the same idea — the
- * {@code WITH} options. Two components rather than one is an accident of how they arrived; the end state is a single
+ * format-affecting dataset settings. Two components rather than one is an accident of how they arrived; the end state is a single
  * read configuration owning both, so that a new parameter has one place it must be considered.
  * <p>
  * <b>Derived, never shipped.</b> Both sides compute it from artifacts the coordinator already minted and the wire

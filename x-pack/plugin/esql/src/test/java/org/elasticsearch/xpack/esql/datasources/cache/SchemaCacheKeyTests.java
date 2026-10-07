@@ -37,37 +37,38 @@ public class SchemaCacheKeyTests extends ESTestCase {
     }
 
     /**
-     * The key's footprint, measured. Shrinking the key is the point of this shape: a schema record's key holds a
-     * dataset identity, a path reference, an mtime and a flag, and the identity is six {@code long}s and an int
-     * behind one reference rather than a set of strings rebuilt per key.
+     * The key's footprint, measured and pinned EXACTLY. Shrinking the key is the point of this shape: a schema
+     * record's key holds a dataset identity, a path reference, an mtime and a flag, and the identity is six
+     * {@code long}s and an int behind one reference rather than a set of strings rebuilt per key.
      * <p>
-     * {@link RamUsageEstimator#shallowSizeOf} is used rather than {@code sizeOfObject}: the latter cannot
-     * introspect a plain object and returns {@code UNKNOWN_DEFAULT_RAM_BYTES_USED}, a 256-byte constant, which
-     * looks exactly like a measurement and is not one. Shallow sizes are computed from the class layout, so the
-     * retained graph is summed explicitly here - which also makes it visible that the path string, not the key,
-     * is what dominates, and the path is not this change's to shrink.
+     * Exact equality, not a ceiling, and that is deliberate. A ceiling does not discriminate: with compressed
+     * references a component added back to the key costs 4 bytes, so a 6-component key at 40B becomes 44B and
+     * pads to 48B — under any ceiling loose enough to be safe. Exact equality fails on any added field, which is
+     * the regression this exists to catch.
      * <p>
-     * Ceilings rather than equalities, because object layout varies with the JVM and with compressed oops. They
-     * are tight enough that adding a string component back to the key, or giving the identity a nested object or
-     * a retained string, fails them.
+     * The figures are layout-specific, so the layout is asserted rather than assumed: the case is skipped unless
+     * compressed references are on, which is the default for the test JVM. {@code shallowSizeOf} reads the class
+     * layout, so these are real figures, unlike {@code sizeOfObject}, which cannot introspect a plain object and
+     * returns {@code UNKNOWN_DEFAULT_RAM_BYTES_USED} — a 256-byte constant that reads exactly like a measurement.
+     * <p>
+     * The path string is deliberately excluded. It dominates the retained graph and is not this change's to
+     * shrink; what this pins is the part that is.
      */
     public void testThePerFileKeyFootprintStaysSmall() {
+        assumeTrue("footprint figures are pinned for the compressed-reference layout", RamUsageEstimator.COMPRESSED_REFS_ENABLED);
+
         DatasetIdentity identity = identity();
         SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/data/part-00000.csv", 1730000000000L, identity, false);
 
-        long keyShallow = RamUsageEstimator.shallowSizeOf(key);
         long identityShallow = RamUsageEstimator.shallowSizeOf(identity);
+        long keyShallow = RamUsageEstimator.shallowSizeOf(key);
 
-        // Six longs, an int and a header. A nested object or a retained string in the identity breaks this.
-        assertTrue("DatasetIdentity should stay at or under 80B, measured " + identityShallow + "B", identityShallow <= 80);
-        // The key itself: one reference, a long, a boolean, two nullable references, and a header. A string
-        // component added back costs a reference here plus ~40B of object overhead before its characters.
-        assertTrue("the per-file key should stay at or under 64B, measured " + keyShallow + "B", keyShallow <= 64);
-        // What the key costs over and above the path it has to name, which is the figure this shape improves.
-        assertTrue(
-            "key plus identity should stay at or under 128B, measured " + (keyShallow + identityShallow) + "B",
-            keyShallow + identityShallow <= 128
-        );
+        // Header + six longs + the cached hash. A nested object or a retained string makes this 72.
+        assertEquals("DatasetIdentity must stay six longs and an int behind one reference", 64L, identityShallow);
+        // Header + one identity reference + a long + a boolean + two nullable references. A seventh component
+        // makes this 48.
+        assertEquals("the per-file key must stay at six components", 40L, keyShallow);
+        assertEquals("and the pair is what replaced three retained strings", 104L, keyShallow + identityShallow);
     }
 
     /**

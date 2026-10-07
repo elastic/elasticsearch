@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheTestAccess;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -49,12 +48,14 @@ import static org.hamcrest.Matchers.equalTo;
  * entries are in place before MIN/MAX, reproducing the production ordering where COUNT short-circuits and
  * MIN/MAX must still serve from the merged dataset-wide column min/max. Run for CSV and NDJSON.
  * <p>
- * <b>Every harvest here is whole-file.</b> The settings below ask for a small stripe grid and a parallel
- * parse, but the contributions this suite actually produces classify as {@code WholeFile} and never as
- * {@code StripeFragment}, so {@code applyStripeDelta} matches nothing and the cross-file merge is fed by
- * the whole-file path alone. The per-stripe rail is covered by
- * {@code ExternalMultiChunkPerStripeWarmFoldIT}; a divergent file read in chunk mode is covered by neither
- * and is a gap, not a claim this suite makes.
+ * <b>Every harvest here is whole-file</b>, and the reason is that no query pragma reaches the request.
+ * {@code AbstractEsqlIntegTestCase} attaches {@code getPragmas()} only from its {@code run(String, TimeValue)}
+ * overload; every query below builds its own {@code syncEsqlQueryRequest} and goes through the
+ * {@code run(EsqlQueryRequest, TimeValue)} override, so nothing selects the parallel-parse path. The
+ * contributions this suite produces therefore classify as {@code WholeFile} and never as
+ * {@code StripeFragment}, {@code applyStripeDelta} matches nothing, and the cross-file merge is fed by the
+ * whole-file path alone. The per-stripe rail is covered by {@code ExternalMultiChunkPerStripeWarmFoldIT};
+ * a divergent file read in chunk mode is covered by neither and is a gap, not a claim this suite makes.
  * <p>
  * The precise pre-fix-fail / post-fix-pass regression for the cross-file column-stat merge defect lives in
  * {@code MergedSplitStatsTests#testColumnMinMaxUsesChildValueWhenNullCountUnknownButMinMaxPresent}: a
@@ -76,19 +77,11 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            // A tiny stripe grid, kept so the geometry here matches production rather than the default. It
-            // does NOT make this suite exercise the per-stripe rail: the harvests it produces are whole-file
-            // (see the class comment). ExternalMultiChunkPerStripeWarmFoldIT covers the per-stripe fold.
+            // A tiny stripe grid, so the geometry here matches production rather than the default. It does
+            // not make this suite exercise the per-stripe rail - no pragma selects the parallel parse, see the
+            // class comment. ExternalMultiChunkPerStripeWarmFoldIT covers the per-stripe fold.
             .put("esql.external.cache.stripe.size", "64kb")
             .build();
-    }
-
-    @Override
-    protected QueryPragmas getPragmas() {
-        // external_parsing_parallelism > 1 selects the parallel-parse path, which is the production shape at
-        // the 1rg-per-file ClickBench layout where the cross-file column-stat merge bug surfaces. It does not
-        // make the harvests per-stripe here: they arrive whole-file (see the class comment).
-        return new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 4).build());
     }
 
     /**
@@ -568,8 +561,10 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
      * what this measures is the licence behaviour rather than row loss, and the expected totals stay exact.
      */
     @AwaitsFix(
-        bugUrl = "lenient reads stay off the warm path under first_file_wins and union_by_name: "
-            + "warmsRowCountSafely is isStrict(), so a survivor count is never served. "
+        bugUrl = "under skip_row, resolvesToSkipRow sets dropPinnedRowCount, and "
+            + "RunningFileStatsFold.applyPinnedColumns returns null as soon as ANY file is pinned, so the "
+            + "whole dataset aggregate is discarded rather than overlaid. strict is served because its "
+            + "corpus pins nothing; null_field is served because it overlays instead of dropping. "
             + "Fails identically on main; tracked by elastic/esql-planning#2201"
     )
     public void testCsvSparseCorpusWarmMinMaxServedUnderSkipRowFirstFileWins() throws Exception {
@@ -593,8 +588,10 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
 
     /** The count under {@code skip_row}, which has no licence and so depends entirely on the read-addressed record. */
     @AwaitsFix(
-        bugUrl = "lenient reads stay off the warm path under first_file_wins and union_by_name: "
-            + "warmsRowCountSafely is isStrict(), so a survivor count is never served. "
+        bugUrl = "under skip_row, resolvesToSkipRow sets dropPinnedRowCount, and "
+            + "RunningFileStatsFold.applyPinnedColumns returns null as soon as ANY file is pinned, so the "
+            + "whole dataset aggregate is discarded rather than overlaid. strict is served because its "
+            + "corpus pins nothing; null_field is served because it overlays instead of dropping. "
             + "Fails identically on main; tracked by elastic/esql-planning#2201"
     )
     public void testCsvSparseCorpusWarmCountServedUnderSkipRowFirstFileWins() throws Exception {
@@ -701,7 +698,6 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         }
     }
 
-    @AwaitsFix(bugUrl = "union_by_name retypes per file, and the pinned-column poison is not lifted yet")
     public void testMatrixCountFailFastUnionByName() throws Exception {
         assertWarmMatrixCell("m_count_fail_unio", "fail_fast", "union_by_name", false);
     }
@@ -720,8 +716,10 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
     }
 
     @AwaitsFix(
-        bugUrl = "lenient reads stay off the warm path under first_file_wins and union_by_name: "
-            + "warmsRowCountSafely is isStrict(), so a survivor count is never served. "
+        bugUrl = "under skip_row, resolvesToSkipRow sets dropPinnedRowCount, and "
+            + "RunningFileStatsFold.applyPinnedColumns returns null as soon as ANY file is pinned, so the "
+            + "whole dataset aggregate is discarded rather than overlaid. strict is served because its "
+            + "corpus pins nothing; null_field is served because it overlays instead of dropping. "
             + "Fails identically on main; tracked by elastic/esql-planning#2201"
     )
     public void testMatrixCountSkipRowUnionByName() throws Exception {
@@ -729,8 +727,10 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
     }
 
     @AwaitsFix(
-        bugUrl = "lenient reads stay off the warm path under first_file_wins and union_by_name: "
-            + "warmsRowCountSafely is isStrict(), so a survivor count is never served. "
+        bugUrl = "under skip_row, resolvesToSkipRow sets dropPinnedRowCount, and "
+            + "RunningFileStatsFold.applyPinnedColumns returns null as soon as ANY file is pinned, so the "
+            + "whole dataset aggregate is discarded rather than overlaid. strict is served because its "
+            + "corpus pins nothing; null_field is served because it overlays instead of dropping. "
             + "Fails identically on main; tracked by elastic/esql-planning#2201"
     )
     public void testMatrixMinMaxSkipRowUnionByName() throws Exception {
@@ -780,8 +780,10 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
     }
 
     @AwaitsFix(
-        bugUrl = "lenient reads stay off the warm path under first_file_wins and union_by_name: "
-            + "warmsRowCountSafely is isStrict(), so a survivor count is never served. "
+        bugUrl = "under skip_row, resolvesToSkipRow sets dropPinnedRowCount, and "
+            + "RunningFileStatsFold.applyPinnedColumns returns null as soon as ANY file is pinned, so the "
+            + "whole dataset aggregate is discarded rather than overlaid. strict is served because its "
+            + "corpus pins nothing; null_field is served because it overlays instead of dropping. "
             + "Fails identically on main; tracked by elastic/esql-planning#2201"
     )
     public void testMatrixMinMaxSkipRowFirstFileWins() throws Exception {
@@ -789,8 +791,10 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
     }
 
     @AwaitsFix(
-        bugUrl = "lenient reads stay off the warm path under first_file_wins and union_by_name: "
-            + "warmsRowCountSafely is isStrict(), so a survivor count is never served. "
+        bugUrl = "under skip_row, resolvesToSkipRow sets dropPinnedRowCount, and "
+            + "RunningFileStatsFold.applyPinnedColumns returns null as soon as ANY file is pinned, so the "
+            + "whole dataset aggregate is discarded rather than overlaid. strict is served because its "
+            + "corpus pins nothing; null_field is served because it overlays instead of dropping. "
             + "Fails identically on main; tracked by elastic/esql-planning#2201"
     )
     public void testMatrixCountSkipRowFirstFileWins() throws Exception {

@@ -2016,8 +2016,11 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 stats.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0")
             );
             assertNull("nor a grid stamp", stats.safeMetadata().get(ExternalStats.STRIPE_GRID_KEY));
+            // Not a guard: the fragment carries eof=false, so no whole-file fold completes and the top-level
+            // value is never rewritten whether or not the delta landed. It records the harvested value for a
+            // reader comparing it against the rounded one inside the stripe map above.
             assertEquals(
-                "and its own harvested measurement stays exact",
+                "the harvested measurement is the exact long, unlike the coerced one above",
                 pastExactDoubleRange,
                 ((Number) stats.safeMetadata().get(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min")).longValue()
             );

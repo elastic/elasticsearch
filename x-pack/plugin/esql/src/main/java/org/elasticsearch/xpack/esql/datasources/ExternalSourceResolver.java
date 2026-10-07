@@ -3006,7 +3006,7 @@ public class ExternalSourceResolver {
      * not move it: a licensed subset contributes a row count and no stamp, so a record enriched by a foreign read
      * still reports its own.
      */
-    private static boolean schemaRecordAnswersTheRead(SchemaCacheEntry entry, @Nullable String boundReadConfig) {
+    static boolean schemaRecordAnswersTheRead(SchemaCacheEntry entry, @Nullable String boundReadConfig) {
         if (boundReadConfig == null || boundReadConfig.isEmpty()) {
             return true;
         }

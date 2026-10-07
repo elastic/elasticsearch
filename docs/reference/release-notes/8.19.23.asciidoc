@@ -1,15 +1,7 @@
 [[release-notes-8.19.23]]
 == {es} version 8.19.23
 
-coming[8.19.23]
-
 Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
-
-[IMPORTANT]
-====
-The 8.19.23 release contains fixes for potential security vulnerabilities.
-Please see our https://discuss.elastic.co/c/announcements/security-announcements/31[security advisory] for more details.
-====
 
 [[bug-8.19.23]]
 [float]

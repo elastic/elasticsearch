@@ -413,7 +413,7 @@ public class QueryConcurrencyBudgetTests extends ESTestCase {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(2, 60_000L, null);
         RowGroupIo lease = new RowGroupIo();
         AtomicBoolean wakeSawLock = new AtomicBoolean();
-        lease.setWake(() -> wakeSawLock.set(budget.isLockHeldByCurrentThread()));
+        lease.setWake("test", () -> wakeSawLock.set(budget.isLockHeldByCurrentThread()));
         budget.bind(lease);
         budget.close();
         assertTrue(lease.isCancelled());

@@ -7,11 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.simdvec;
+package org.elasticsearch.foreign.testing;
 
 import org.elasticsearch.foreign.CaptureSystemError;
 import org.elasticsearch.foreign.Function;
 import org.elasticsearch.foreign.LibrarySpecification;
+import org.elasticsearch.foreign.LinkerHelper;
 import org.elasticsearch.foreign.Platform;
 
 import java.lang.foreign.MemorySegment;
@@ -20,8 +21,10 @@ import java.lang.foreign.MemorySegment;
  * FFM binding for the POSIX virtual memory primitives used by {@link PosixGuardPageAllocator}.
  *
  * <p>Test-only by design: these are powerful primitives with no production caller, so the binding lives
- * in the {@code testFixtures} source set instead of adding surface to {@code libs/native} main. All three
- * symbols resolve from the system/default lookup, so there is no library to load.
+ * in this test-support project instead of adding surface to {@code libs/native} main. It declares its
+ * own {@code getpagesize} and {@code strerror} for the same reason: so that tests of any native library
+ * can use guard pages without depending on {@code libs/native}. All symbols resolve from the
+ * system/default lookup, so there is no library to load.
  */
 @LibrarySpecification(unavailableOn = { Platform.WINDOWS_X64 })
 public interface PosixMemLibrary {
@@ -58,4 +61,17 @@ public interface PosixMemLibrary {
     @CaptureSystemError
     @Function("munmap")
     int munmap(MemorySegment addr, long length);
+
+    /** Returns the native page size. */
+    @Function("getpagesize")
+    int getPageSize();
+
+    /**
+     * Returns a description of an error number, such as the one from {@link LinkerHelper#systemError()}
+     * after a failed call above.
+     *
+     * @see <a href="https://man7.org/linux/man-pages/man3/strerror.3.html">strerror manpage</a>
+     */
+    @Function("strerror")
+    String strerror(int errno);
 }

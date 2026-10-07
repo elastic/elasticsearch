@@ -9,10 +9,14 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -24,6 +28,8 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 
 /**
  * Decorates a {@link StorageObject} with concurrency limiting. Each I/O operation
@@ -180,7 +186,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
      * {@code barge}: untimed {@link ConcurrencyLimiter#tryAcquire()} so a retry continuation never
      * parks. A miss is {@link ConcurrencyLimiter.PermitMissException}; the retry layer waits on
      * {@link #admissionWaitTimeoutMs()} without burning a storage attempt. Permit is not held
-     * across attempts; the next hop acquires again.
+     * across attempts; the next hop acquires again. First-attempt async uses a permit ticket.
      */
     @Override
     public Releasable startReadBytesAsync(
@@ -191,21 +197,70 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
         ActionListener<DirectReadBuffer> listener,
         boolean barge
     ) {
-        try {
-            if (barge) {
-                limiter.acquireBargeChecked();
-            } else {
-                limiter.acquireChecked();
+        if (barge) {
+            return startReadBytesAsyncBarge(position, length, factory, executor, listener);
+        }
+        StorageIoAffinity.Scope scope = StorageIoAffinity.current();
+        RowGroupIo lease = scope == null ? null : scope.lease();
+        boolean countGets = scope != null && scope.countGets;
+        BooleanSupplier cancel = StorageRetryCancellation.current() == null ? () -> false : StorageRetryCancellation.current();
+        AtomicBoolean cancelled = new AtomicBoolean();
+        AtomicBoolean permitReleased = new AtomicBoolean();
+        AtomicReference<Releasable> getHandle = new AtomicReference<>();
+        SubscribableListener<Void> ticket = limiter.acquireAsync(() -> cancelled.get() || cancel.getAsBoolean(), executor);
+        ticket.addListener(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                if (cancelled.get()) {
+                    releaseLimiterOnce(permitReleased);
+                    listener.onFailure(new TaskCancelledException("Cancelled while waiting for a concurrency permit"));
+                    return;
+                }
+                try {
+                    StorageRetryCancellation.runWithCancellation(cancel, () -> {
+                        if (scope != null) {
+                            try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(lease, countGets)) {
+                                startDelegate(position, length, factory, executor, listener, permitReleased, getHandle, cancelled);
+                            }
+                        } else {
+                            startDelegate(position, length, factory, executor, listener, permitReleased, getHandle, cancelled);
+                        }
+                    });
+                } catch (Exception e) {
+                    releaseLimiterOnce(permitReleased);
+                    listener.onFailure(e);
+                }
             }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+        return () -> {
+            cancelled.set(true);
+            limiter.wakeAsyncWaiters();
+            Releasable handle = getHandle.get();
+            if (handle != null) {
+                handle.close();
+            }
+        };
+    }
+
+    private Releasable startReadBytesAsyncBarge(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
+        try {
+            limiter.acquireBargeChecked();
         } catch (Exception e) {
             listener.onFailure(e);
             return () -> {};
         }
         try {
-            // We intentionally use a raw ActionListener instead of ActionListener.wrap so a
-            // throw from listener.onResponse(result) does NOT get auto-routed to our onFailure
-            // lambda — that would double-release the permit and double-fire the downstream
-            // listener (onResponse + onFailure for the same I/O).
             return delegate.startReadBytesAsync(position, length, factory, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(DirectReadBuffer result) {
@@ -213,10 +268,6 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
                     try {
                         listener.onResponse(result);
                     } catch (Exception e) {
-                        // listener.onResponse was already invoked; routing via listener.onFailure
-                        // here would violate the single-completion contract. Close the buffer to
-                        // free the breaker reservation and propagate so the caller observes the
-                        // failure instead of a silent swallow.
                         try {
                             result.close();
                         } catch (Exception closeFailure) {
@@ -236,6 +287,55 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
             limiter.release();
             listener.onFailure(e);
             return () -> {};
+        }
+    }
+
+    private void startDelegate(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        AtomicBoolean permitReleased,
+        AtomicReference<Releasable> getHandle,
+        AtomicBoolean cancelled
+    ) {
+        try {
+            Releasable handle = delegate.startReadBytesAsync(position, length, factory, executor, new ActionListener<>() {
+                @Override
+                public void onResponse(DirectReadBuffer result) {
+                    releaseLimiterOnce(permitReleased);
+                    try {
+                        listener.onResponse(result);
+                    } catch (Exception e) {
+                        try {
+                            result.close();
+                        } catch (Exception closeFailure) {
+                            e.addSuppressed(closeFailure);
+                        }
+                        throw ExceptionsHelper.convertToRuntime(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    releaseLimiterOnce(permitReleased);
+                    listener.onFailure(e);
+                }
+            });
+            getHandle.set(handle);
+            if (cancelled.get()) {
+                handle.close();
+            }
+        } catch (Exception e) {
+            releaseLimiterOnce(permitReleased);
+            listener.onFailure(e);
+        }
+    }
+
+    private void releaseLimiterOnce(AtomicBoolean permitReleased) {
+        if (permitReleased.compareAndSet(false, true)) {
+            limiter.release();
         }
     }
 

@@ -48,9 +48,6 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Base class for tests that highlight an inference field with the semantic highlighter, across every embedding task type the field mapper
  * supports. Searches are issued from a coordinating-only node so that highlights cross the transport layer.
- * <p>
- * Subclasses supply the field mapping for the concrete inference field type under test.
- * </p>
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 1, supportsDedicatedMasters = false)
 abstract class AbstractInferenceFieldHighlighterIT extends ESIntegTestCase {

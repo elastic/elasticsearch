@@ -13,13 +13,12 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.List;
 
+import static java.util.Collections.nCopies;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class SubqueryRelationClassIT extends AbstractEsqlIntegTestCase {
@@ -45,102 +44,57 @@ public class SubqueryRelationClassIT extends AbstractEsqlIntegTestCase {
         ensureGreen("languages");
     }
 
-    public void testClassIsSubqueryForSingleSubquery() {
+    public void testClassAndNameForSingleSubquery() {
         assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
         assumeTrue("requires SUBQUERY_IN_FROM_COMMAND", Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        try (var response = run("FROM (FROM languages) METADATA _class | KEEP language_code, _class | SORT language_code")) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows.size(), equalTo(4));
-            assertThat(rows.stream().map(r -> r.get(1)).toList(), everyItem(equalTo("subquery")));
+        try (var response = run("FROM (FROM languages) METADATA _class, _name | SORT language_code")) {
+            assertThat(column(response, "_class"), equalTo(nCopies(4, "subquery")));
+            assertThat(column(response, "_name"), equalTo(nCopies(4, null)));
         }
     }
 
-    public void testNameIsNullForSingleSubquery() {
-        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
-        assumeTrue("requires SUBQUERY_IN_FROM_COMMAND", Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        try (var response = run("FROM (FROM languages) METADATA _name | KEEP language_code, _name | SORT language_code")) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows.size(), equalTo(4));
-            assertThat(rows.stream().map(r -> r.get(1)).toList(), everyItem(nullValue()));
-        }
-    }
-
-    public void testBothClassAndNameForSingleSubquery() {
-        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
-        assumeTrue("requires SUBQUERY_IN_FROM_COMMAND", Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        try (var response = run("FROM (FROM languages) METADATA _class, _name | KEEP language_code, _class, _name | SORT language_code")) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows.size(), equalTo(4));
-            assertThat(rows.stream().map(r -> r.get(1)).toList(), everyItem(equalTo("subquery")));
-            assertThat(rows.stream().map(r -> r.get(2)).toList(), everyItem(nullValue()));
-        }
-    }
-
-    public void testTwoSubqueriesEachAnswerSubquery() {
+    public void testClassAndNameForTwoSubqueries() {
         assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
         assumeTrue("requires SUBQUERY_IN_FROM_COMMAND", Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         try (
             var response = run(
                 "FROM (FROM languages | WHERE language_code <= 2), (FROM languages | WHERE language_code >= 3)"
-                    + " METADATA _class | KEEP language_code, _class | SORT language_code"
+                    + " METADATA _class, _name | SORT language_code"
             )
         ) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows.size(), equalTo(4));
-            assertThat(rows.stream().map(r -> r.get(1)).toList(), everyItem(equalTo("subquery")));
+            assertThat(column(response, "_class"), equalTo(nCopies(4, "subquery")));
+            assertThat(column(response, "_name"), equalTo(nCopies(4, null)));
         }
     }
 
-    public void testClassCountBySeparatesSubqueryFromIndex() {
+    public void testClassAndNameSeparateSubqueryFromIndex() {
         assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
         assumeTrue("requires SUBQUERY_IN_FROM_COMMAND", Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         try (
             var response = run(
                 "FROM languages, (FROM languages | KEEP language_code)"
-                    + " METADATA _class | STATS n = COUNT(*) BY _class | KEEP _class, n | SORT _class"
+                    + " METADATA _class, _name | STATS n = COUNT(*) BY _class, _name | SORT _class"
             )
         ) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, equalTo(List.of(List.of("index", 4L), List.of("subquery", 4L))));
+            assertThat(column(response, "_class"), equalTo(List.of("index", "subquery")));
+            assertThat(column(response, "_name"), equalTo(Arrays.asList("languages", null)));
+            assertThat(column(response, "n"), equalTo(List.of(4L, 4L)));
         }
     }
 
-    public void testNameNullForSubqueryNonNullForIndex() {
+    public void testClassAndNameInSubqueryBodyDoNotChangeOuterValues() {
         assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
         assumeTrue("requires SUBQUERY_IN_FROM_COMMAND", Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         try (
             var response = run(
-                "FROM languages, (FROM languages | KEEP language_code)"
-                    + " METADATA _class, _name | WHERE _class == \"subquery\" | KEEP language_code, _name"
+                "FROM (FROM languages METADATA _class, _name | RENAME _class AS inner_class, _name AS inner_name)"
+                    + " METADATA _class, _name | SORT language_code"
             )
         ) {
-            assertThat(getValuesList(response).stream().map(r -> r.get(1)).toList(), everyItem(nullValue()));
-        }
-        try (
-            var response = run(
-                "FROM languages, (FROM languages | KEEP language_code)"
-                    + " METADATA _class, _name | WHERE _class == \"index\" | KEEP language_code, _name"
-            )
-        ) {
-            assertThat(getValuesList(response).stream().map(r -> r.get(1)).toList(), everyItem(equalTo("languages")));
-        }
-    }
-
-    public void testMetadataClassInSubqueryBodyDoesNotChangeOuterClass() {
-        assumeTrue("requires METADATA_CLASS_AND_NAME", Cap.METADATA_CLASS_AND_NAME.isEnabled());
-        assumeTrue("requires SUBQUERY_IN_FROM_COMMAND", Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        try (
-            var response = run(
-                "FROM (FROM languages METADATA _class | RENAME _class AS inner_class)"
-                    + " METADATA _class | KEEP language_code, inner_class, _class | SORT language_code"
-            )
-        ) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows.size(), equalTo(4));
-            for (List<Object> row : rows) {
-                assertThat(row.get(1), equalTo("index"));
-                assertThat(row.get(2), equalTo("subquery"));
-            }
+            assertThat(column(response, "inner_class"), equalTo(nCopies(4, "index")));
+            assertThat(column(response, "inner_name"), equalTo(nCopies(4, "languages")));
+            assertThat(column(response, "_class"), equalTo(nCopies(4, "subquery")));
+            assertThat(column(response, "_name"), equalTo(nCopies(4, null)));
         }
     }
 }

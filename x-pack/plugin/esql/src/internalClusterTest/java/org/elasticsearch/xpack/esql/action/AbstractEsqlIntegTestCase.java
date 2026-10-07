@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -327,6 +328,11 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
                 return c;
             }
         }
-        throw new AssertionError("no _index column found");
+        throw new AssertionError("no [" + column + "] column found");
+    }
+
+    /** The values of the column called {@code name}, in row order. */
+    public static List<Object> column(EsqlQueryResponse response, String name) {
+        return Iterators.toList(response.column(findColumnIndex(response, name)));
     }
 }

@@ -47,7 +47,7 @@ public class RestPutViewAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             var view = View.parser(request.param("name")).parse(parser, null);
-            assert view.isInternal() == false : "Internal view can not be created or updated via API";
+            assert view.isReserved() == false : "Reserved view can not be created or updated via API";
             PutViewAction.Request req = new PutViewAction.Request(
                 RestUtils.getMasterNodeTimeout(request),
                 RestUtils.getAckTimeout(request),

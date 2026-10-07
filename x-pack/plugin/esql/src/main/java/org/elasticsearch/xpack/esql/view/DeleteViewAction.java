@@ -41,30 +41,30 @@ public class DeleteViewAction extends ActionType<AcknowledgedResponse> {
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
         private String[] views;
-        private final boolean canDeleteInternalViews;
+        private final boolean canDeleteReservedViews;
 
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] views) {
             this(masterNodeTimeout, ackTimeout, views, false);
         }
 
-        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] views, boolean canDeleteInternalViews) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] views, boolean canDeleteReservedViews) {
             super(masterNodeTimeout, ackTimeout);
             this.views = Objects.requireNonNull(views, "views cannot be null");
-            this.canDeleteInternalViews = canDeleteInternalViews;
+            this.canDeleteReservedViews = canDeleteReservedViews;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.views = in.readStringArray();
-            this.canDeleteInternalViews = in.getTransportVersion().supports(View.VIEW_INTERNAL_VERSION) && in.readBoolean();
+            this.canDeleteReservedViews = in.getTransportVersion().supports(View.VIEW_RESERVED_VERSION) && in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringArray(views);
-            if (out.getTransportVersion().supports(View.VIEW_INTERNAL_VERSION)) {
-                out.writeBoolean(canDeleteInternalViews);
+            if (out.getTransportVersion().supports(View.VIEW_RESERVED_VERSION)) {
+                out.writeBoolean(canDeleteReservedViews);
             }
         }
 
@@ -72,8 +72,8 @@ public class DeleteViewAction extends ActionType<AcknowledgedResponse> {
             return views;
         }
 
-        public boolean canDeleteInternalViews() {
-            return canDeleteInternalViews;
+        public boolean canDeleteReservedViews() {
+            return canDeleteReservedViews;
         }
 
         @Override
@@ -90,12 +90,12 @@ public class DeleteViewAction extends ActionType<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Arrays.equals(views, request.views) && canDeleteInternalViews == request.canDeleteInternalViews;
+            return Arrays.equals(views, request.views) && canDeleteReservedViews == request.canDeleteReservedViews;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(Arrays.hashCode(views), canDeleteInternalViews);
+            return Objects.hash(Arrays.hashCode(views), canDeleteReservedViews);
         }
 
         @Override

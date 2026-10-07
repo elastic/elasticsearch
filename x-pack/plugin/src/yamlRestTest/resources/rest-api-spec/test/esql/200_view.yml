@@ -251,9 +251,9 @@ setup:
   - match: { views.0.name: "dogs" }
 
 ---
-"internal-view-can-not-be-created-via-api":
+"reserved-view-can-not-be-created-via-api":
   - do:
-      catch: /\[view\] unknown field \[internal\]/
+      catch: /\[view\] unknown field \[reserved\]/
       esql.put_view:
         name: dogs
         body:

@@ -145,7 +145,7 @@ public class ViewService {
         TimeValue masterNodeTimeout,
         TimeValue ackTimeout,
         Collection<String> viewNames,
-        boolean canDeleteInternalViews,
+        boolean canDeleteReservedViews,
         ActionListener<AcknowledgedResponse> listener
     ) {
         final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
@@ -156,8 +156,8 @@ public class ViewService {
                 listener.onFailure(new ResourceNotFoundException("view [{}] not found", viewName));
                 return;
             }
-            if (canDeleteInternalViews == false && view.isInternal()) {
-                listener.onFailure(new IllegalArgumentException("cannot delete internal view [" + viewName + "]"));
+            if (canDeleteReservedViews == false && view.isReserved()) {
+                listener.onFailure(new IllegalArgumentException("cannot delete reserved view [" + viewName + "]"));
                 return;
             }
         }
@@ -200,10 +200,10 @@ public class ViewService {
         }
         final ViewMetadata views = getMetadata(metadata);
         final View existing = views.getView(view.name());
-        if (view.isInternal() == false && existing != null && existing.isInternal()) {
-            // it is impossible to supply a internal view from the rest api.
-            // this block prevents users updating definition or downgrading internal views to a regular ones
-            throw new IllegalArgumentException("cannot modify internal view [" + view.name() + "]");
+        if (view.isReserved() == false && existing != null && existing.isReserved()) {
+            // it is impossible to supply a reserved view from the rest api.
+            // this block prevents users updating definition or downgrading reserved views to a regular ones
+            throw new IllegalArgumentException("cannot modify reserved view [" + view.name() + "]");
         }
         if (existing == null && views.views().size() >= this.maxViewsCount) {
             throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + this.maxViewsCount);

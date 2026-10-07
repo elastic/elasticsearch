@@ -34,15 +34,15 @@ public class ViewTests extends AbstractXContentSerializingTestCase<View> {
         var name = instance.getName();
         var query = instance.query();
         var description = instance.description();
-        var isInternal = instance.isInternal();
+        var reserved = instance.isReserved();
         switch (between(0, 3)) {
             case 0 -> name = randomValueOtherThan(name, ESTestCase::randomIdentifier);
             case 1 -> query = randomValueOtherThan(query, ViewTests::randomQuery);
             case 2 -> description = randomValueOtherThan(description, ViewTests::randomDescription);
-            case 3 -> isInternal = !isInternal;
+            case 3 -> reserved = !reserved;
             default -> throw new AssertionError("Unexpected randomisation branch");
         }
-        return new View(name, query, description, isInternal);
+        return new View(name, query, description, reserved);
     }
 
     public static String randomQuery() {

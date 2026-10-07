@@ -89,7 +89,7 @@ public class TransportDeleteViewAction extends AcknowledgedTransportMasterNodePr
             request.masterNodeTimeout(),
             request.ackTimeout(),
             viewNames,
-            request.canDeleteInternalViews(),
+            request.canDeleteReservedViews(),
             listener
         );
     }

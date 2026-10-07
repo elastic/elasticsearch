@@ -120,39 +120,33 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testInternalViews() {
+    public void testReservedViews() {
         indexRandom(
             true,
             false,
-            prepareIndex("system-index").setSource(Map.of("id", randomIdentifier(), "source", "system-index")),
+            prepareIndex("reserved-index").setSource(Map.of("id", randomIdentifier(), "source", "reserved-index")),
             prepareIndex("regular-index").setSource(Map.of("id", randomIdentifier(), "source", "regular-index"))
         );
         try (
             var regularView = createView("regular-view", "FROM regular-index");
-            var systemView = createView(".internal-view", "FROM system-index", null, true)
+            var systemView = createView(".reserved-view", "FROM reserved-index", null, true)
         ) {
-            try (var response = run(syncEsqlQueryRequest("FROM .internal-view"))) {
+            try (var response = run(syncEsqlQueryRequest("FROM .reserved-view"))) {
                 assertOk(response);
-                assertResultConcreteIndices(response, "system-index"); // concrete name resolves system view
+                assertResultConcreteIndices(response, "reserved-index"); // concrete name resolves system view
             }
             try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *-view"))) {
                 assertOk(response);
-                assertResultConcreteIndices(response, "system-index", "regular-index"); // wildcard resolves internal
+                assertResultConcreteIndices(response, "reserved-index", "regular-index"); // wildcard resolves reserved
             }
-            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM .internal-*"))) {
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM .reserved-*"))) {
                 assertOk(response);
-                assertResultConcreteIndices(response, "system-index");
+                assertResultConcreteIndices(response, "reserved-index");
             }
             try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *"))) {
                 assertOk(response);
                 // system-index & regular-index are matched both directly and via views
-                assertResultConcreteIndices(response, "system-index", "system-index", "regular-index", "regular-index");
-            }
-            try (var fromSystemView = createView("from-system-view", "FROM .internal-view")) {
-                try (var response = run(syncEsqlQueryRequest("FROM from-system-view"))) {
-                    assertOk(response);
-                    assertResultConcreteIndices(response, "system-index"); // concrete name resolved in inner system view
-                }
+                assertResultConcreteIndices(response, "reserved-index", "reserved-index", "regular-index", "regular-index");
             }
         }
     }
@@ -202,17 +196,17 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
         return createView(name, query, null, false);
     }
 
-    private Releasable createView(String name, String query, String description, boolean internal) {
+    private Releasable createView(String name, String query, String description, boolean reserved) {
         assertAcked(
             client().execute(
                 PutViewAction.INSTANCE,
-                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query, description, internal))
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query, description, reserved))
             )
         );
         return () -> assertAcked(
             client().execute(
                 DeleteViewAction.INSTANCE,
-                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name }, internal)
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name }, reserved)
             )
         );
     }

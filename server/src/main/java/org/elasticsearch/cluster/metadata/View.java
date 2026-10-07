@@ -30,12 +30,12 @@ import java.util.Objects;
  */
 public final class View implements Writeable, ToXContentObject, IndexAbstraction {
     private static final TransportVersion VIEW_DESCRIPTION_VERSION = TransportVersion.fromName("esql_view_description");
-    public static final TransportVersion VIEW_INTERNAL_VERSION = TransportVersion.fromName("esql_view_internal");
+    public static final TransportVersion VIEW_RESERVED_VERSION = TransportVersion.fromName("esql_view_reserved");
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField QUERY = new ParseField("query");
     private static final ParseField DESCRIPTION = new ParseField("description");
-    private static final ParseField INTERNAL = new ParseField("internal");
+    private static final ParseField RESERVED = new ParseField("reserved");
 
     // Parser that includes the name field (eg. serializing/deserializing the full object)
     static final ConstructingObjectParser<View, Void> PARSER = new ConstructingObjectParser<>(
@@ -48,11 +48,11 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), QUERY);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), INTERNAL);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), RESERVED);
     }
 
     // Parser that excludes the name field (eg. when the name is provided externally, in the URL path)
-    // internal is intentionally omitted — users cannot set it via the REST API.
+    // reserved is intentionally omitted — users cannot set it via the REST API.
     public static ConstructingObjectParser<View, Void> parser(String name) {
         ConstructingObjectParser<View, Void> parser = new ConstructingObjectParser<>(
             "view",
@@ -69,10 +69,10 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
     @Nullable
     private final String description;
     /**
-     * Internal views can not be created/updated/deleted by the user.
+     * Reserved views can not be created/updated/deleted by the user.
      * Unlike system resources they can still be queried.
      */
-    private final boolean internal;
+    private final boolean reserved;
 
     public View(String name, String query) {
         this(name, query, null);
@@ -82,18 +82,18 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
         this(name, query, description, false);
     }
 
-    public View(String name, String query, @Nullable String description, boolean internal) {
+    public View(String name, String query, @Nullable String description, boolean reserved) {
         this.name = Objects.requireNonNull(name, "view name must not be null");
         this.query = Objects.requireNonNull(query, "view query must not be null");
         this.description = description;
-        this.internal = internal;
+        this.reserved = reserved;
     }
 
     public View(StreamInput in) throws IOException {
         this.name = in.readString();
         this.query = in.readString();
         this.description = in.getTransportVersion().supports(VIEW_DESCRIPTION_VERSION) ? in.readOptionalString() : null;
-        this.internal = in.getTransportVersion().supports(VIEW_INTERNAL_VERSION) && in.readBoolean();
+        this.reserved = in.getTransportVersion().supports(VIEW_RESERVED_VERSION) && in.readBoolean();
     }
 
     public static View fromXContent(XContentParser parser) throws IOException {
@@ -107,8 +107,8 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
         if (out.getTransportVersion().supports(VIEW_DESCRIPTION_VERSION)) {
             out.writeOptionalString(description);
         }
-        if (out.getTransportVersion().supports(VIEW_INTERNAL_VERSION)) {
-            out.writeBoolean(internal);
+        if (out.getTransportVersion().supports(VIEW_RESERVED_VERSION)) {
+            out.writeBoolean(reserved);
         }
     }
 
@@ -133,8 +133,8 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
-        if (internal) {
-            builder.field(INTERNAL.getPreferredName(), true);
+        if (reserved) {
+            builder.field(RESERVED.getPreferredName(), true);
         }
         builder.endObject();
         return builder;
@@ -148,12 +148,12 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
         return Objects.equals(name, other.name)
             && Objects.equals(query, other.query)
             && Objects.equals(description, other.description)
-            && internal == other.internal;
+            && reserved == other.reserved;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, query, description, internal);
+        return Objects.hash(name, query, description, reserved);
     }
 
     public String toString() {
@@ -195,7 +195,7 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
         return false;
     }
 
-    public boolean isInternal() {
-        return internal;
+    public boolean isReserved() {
+        return reserved;
     }
 }

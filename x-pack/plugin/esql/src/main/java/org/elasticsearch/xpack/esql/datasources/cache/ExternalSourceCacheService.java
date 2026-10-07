@@ -515,11 +515,14 @@ public class ExternalSourceCacheService implements Closeable {
      * size overran {@link #schemaBudget}, so none of the gather's entries will be retained. One increment per
      * gather, because the verdict is taken once and latched.
      * <p>
-     * Reported because the verdict now forks the read path, not just the cache: a refused fan-out is what
-     * licenses the resolver to stop reading per-file metadata at all (see
-     * {@code ExternalSourceResolver#remainingReadsBuyNothing}). Without this counter neither support nor an
-     * integration test can tell whether that stop engaged on a given dataset, and the budget it was compared
-     * against is already reported as {@code schema_budget_bytes}.
+     * Reported because the verdict now forks the read path, not just the cache: a refused fan-out is one of
+     * the conditions that licenses the resolver to stop reading per-file metadata (see
+     * {@code ExternalSourceResolver#remainingReadsBuyNothing}), and the budget it was compared against is
+     * already reported as {@code schema_budget_bytes}.
+     * <p>
+     * This map has no REST surface today - every caller of {@link #usageStats()} is a test - so the counter
+     * serves tests, and the DEBUG line at the refusal site is what a running node offers. Exposing the map is
+     * tracked separately; it is not this counter's to fix.
      */
     public void recordSchemaFanOutRefused() {
         schemaFanOutRefused.increment();

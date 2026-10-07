@@ -44,15 +44,15 @@ public class CountDistinctLongGroupingAggregatorFunctionTests extends Partitione
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
-        long expected = CountDistinctTestUtils.expectedCount(
-            state -> input.stream().flatMapToLong(p -> allLongs(p, group)).forEach(state::collect)
+        CountDistinctTestUtils.assertCount(
+            ((LongBlock) result).getLong(position),
+            input.stream().flatMapToLong(p -> allLongs(p, group)).distinct().map(CountDistinctTestUtils::hash)
         );
-        assertThat(((LongBlock) result).getLong(position), equalTo(expected));
     }
 
     /**
      * {@code 21685} and {@code 76695} share the top 25 bits of their hash, so linear counting stores them as one entry
-     * and counts this group as 1. {@link #assertSimpleGroup} must expect that rather than the number of distinct values.
+     * and counts this group as 1. {@link #assertSimpleGroup} must accept that as a hash collision.
      */
     public void testHashCollisionInSmallGroup() {
         var runner = new TestDriverRunner().builder(driverContext()).collectDeepCopy();
@@ -62,6 +62,17 @@ public class CountDistinctLongGroupingAggregatorFunctionTests extends Partitione
         List<Page> results = runner.run(simple());
         assertSimpleOutput(runner.deepCopy(), results);
         assertThat(((LongBlock) results.getFirst().getBlock(1)).getLong(0), equalTo(1L));
+    }
+
+    /**
+     * {@link CountDistinctTestUtils#assertCount} only accepts an undercount in a small group when the values' hashes
+     * really collide, so it still catches values being lost.
+     */
+    public void testUndercountWithoutHashCollisionFails() {
+        expectThrows(
+            AssertionError.class,
+            () -> CountDistinctTestUtils.assertCount(1, LongStream.of(1, 2).map(CountDistinctTestUtils::hash))
+        );
     }
 
     @Override

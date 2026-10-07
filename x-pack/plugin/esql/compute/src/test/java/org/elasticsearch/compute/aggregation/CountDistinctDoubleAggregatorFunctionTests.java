@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CountDistinctDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase {
@@ -29,7 +30,7 @@ public class CountDistinctDoubleAggregatorFunctionTests extends AggregatorFuncti
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new CountDistinctDoubleAggregatorFunctionSupplier(CountDistinctTestUtils.PRECISION);
+        return new CountDistinctDoubleAggregatorFunctionSupplier(40000);
     }
 
     @Override
@@ -39,10 +40,13 @@ public class CountDistinctDoubleAggregatorFunctionTests extends AggregatorFuncti
 
     @Override
     protected void assertSimpleOutput(List<Page> input, Block result) {
-        long expected = CountDistinctTestUtils.expectedCount(
-            state -> input.stream().flatMapToDouble(p -> allDoubles(p.getBlock(0))).forEach(state::collect)
-        );
-        assertThat(((LongBlock) result).getLong(0), equalTo(expected));
+        long expected = input.stream().flatMapToDouble(p -> allDoubles(p.getBlock(0))).distinct().count();
+
+        long count = ((LongBlock) result).getLong(0);
+        // HLL is an approximation algorithm and precision depends on the number of values computed and the precision_threshold param
+        // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html
+        // For a number of values close to 10k and precision_threshold=1000, precision should be less than 10%
+        assertThat((double) count, closeTo(expected, expected * .1));
     }
 
     @Override

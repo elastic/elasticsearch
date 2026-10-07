@@ -44,10 +44,10 @@ public class CountDistinctIntGroupingAggregatorFunctionTests extends GroupingAgg
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
-        long expected = CountDistinctTestUtils.expectedCount(
-            state -> input.stream().flatMapToInt(p -> allInts(p, group)).forEach(state::collect)
+        CountDistinctTestUtils.assertCount(
+            ((LongBlock) result).getLong(position),
+            input.stream().flatMapToInt(p -> allInts(p, group)).distinct().mapToLong(CountDistinctTestUtils::hash)
         );
-        assertThat(((LongBlock) result).getLong(position), equalTo(expected));
     }
 
     @Override

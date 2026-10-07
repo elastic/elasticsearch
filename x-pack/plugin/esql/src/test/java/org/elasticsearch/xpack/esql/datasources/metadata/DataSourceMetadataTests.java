@@ -12,7 +12,6 @@ import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -77,17 +76,12 @@ public class DataSourceMetadataTests extends AbstractChunkedSerializingTestCase<
         return new DataSourceSetting(value, secret);
     }
 
-    public void testContextIsGatewayOnly() {
-        // Regression guard. The cluster-state framework reads context() to decide inclusion:
-        // - API is excluded because the raw XContent contains plaintext secret setting values, which must not appear
-        // in GET /_cluster/state.
-        // - SNAPSHOT is excluded because snapshot restore has no mechanism to re-provision secrets; restoring a
-        // cluster state containing data sources would produce unusable configurations.
+    public void testContextIncludesGatewayAndSnapshot() {
         DataSourceMetadata metadata = new DataSourceMetadata(
             Map.of("my-s3", new DataSource("my-s3", "s3", null, Map.of("access_key", new DataSourceSetting("AKIA_LEAK_CHECK", true))))
         );
-        assertEquals(EnumSet.of(Metadata.XContentContext.GATEWAY), metadata.context());
+        assertTrue(metadata.context().contains(Metadata.XContentContext.GATEWAY));
+        assertTrue(metadata.context().contains(Metadata.XContentContext.SNAPSHOT));
         assertFalse(metadata.context().contains(Metadata.XContentContext.API));
-        assertFalse(metadata.context().contains(Metadata.XContentContext.SNAPSHOT));
     }
 }

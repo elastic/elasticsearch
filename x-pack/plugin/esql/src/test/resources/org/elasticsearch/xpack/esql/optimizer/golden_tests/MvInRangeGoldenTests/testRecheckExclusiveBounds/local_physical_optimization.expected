@@ -6,18 +6,11 @@ LimitExec[1000[INTEGER],null]
         \_FilterExec[MVINRANGE(double{f}#6,0.0[DOUBLE],1.0[DOUBLE],MapExpression[[include_lower[KEYWORD], false[BOOLEAN], include_upper[KEYWORD], false[BOOLEAN]]])]
           \_FieldExtractExec[[double{f}#6]<[],[],[]>,_doc{f}#20]
             \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#20], limit[], sort[] estimatedRowSize[7430] queryBuilderAndTags [[QueryBuilderAndTags[query={
-  "bool" : {
-    "filter" : [
-      {
-        "range" : {
-          "double" : {
-            "gte" : -0.0,
-            "lte" : 1.0,
-            "boost" : 0.0
-          }
-        }
-      }
-    ],
-    "boost" : 1.0
+  "range" : {
+    "double" : {
+      "gte" : -0.0,
+      "lte" : 1.0,
+      "boost" : 0.0
+    }
   }
 }, tags=[]]]]

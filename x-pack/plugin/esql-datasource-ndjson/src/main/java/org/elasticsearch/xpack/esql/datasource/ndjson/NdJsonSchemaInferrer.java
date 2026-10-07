@@ -410,7 +410,7 @@ public class NdJsonSchemaInferrer {
     private record SchemaFrame(Iterator<Map.Entry<String, FieldInfo>> children, int pathLength) {}
 
     public static Attribute attribute(String name, DataType type, boolean nullable) {
-        return new ReferenceAttribute(Source.EMPTY, null, name, type, nullable ? Nullability.TRUE : Nullability.UNKNOWN, null, false);
+        return new ReferenceAttribute(Source.EMPTY, null, name, type, nullable ? Nullability.TRUE : Nullability.FALSE, null, false);
     }
 
     /**

@@ -60,7 +60,7 @@ public class ExternalMetadataAttribute extends TypedAttribute implements Virtual
             Source.EMPTY.writeTo(out);
             out.writeString(name());
             dataType().writeTo(out);
-            out.writeEnum(nullable());
+            nullable().writeTo(out);
             id().writeTo(out);
             out.writeBoolean(synthetic());
         }
@@ -71,7 +71,7 @@ public class ExternalMetadataAttribute extends TypedAttribute implements Virtual
             Source source = Source.readFrom((PlanStreamInput) stream);
             String name = stream.readString();
             DataType dataType = DataType.readFrom(stream);
-            Nullability nullability = stream.readEnum(Nullability.class);
+            Nullability nullability = Nullability.readFrom(stream);
             NameId id = NameId.readFrom((PlanStreamInput) stream);
             boolean synthetic = stream.readBoolean();
             return new ExternalMetadataAttribute(source, name, dataType, nullability, id, synthetic);

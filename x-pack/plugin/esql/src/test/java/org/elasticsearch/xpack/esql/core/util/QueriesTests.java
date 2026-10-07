@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 
 import static java.util.Arrays.asList;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.in;
@@ -94,6 +95,18 @@ public class QueriesTests extends ESTestCase {
         assertThat(combination, instanceOf(BoolQueryBuilder.class));
         var bool = (BoolQueryBuilder) combination;
         assertBoolQueryMerge(queries, bool, clause);
+    }
+
+    public void testCombineEqualNonBoolQueries() {
+        var clause = randomFrom(Queries.Clause.values());
+        var query = randomNonBoolQuery();
+        assertThat(Queries.combine(clause, asList(query, query)), sameInstance(query));
+    }
+
+    public void testCombineEqualBoolQueries() {
+        var clause = randomFrom(Queries.Clause.values());
+        var query = QueryBuilders.boolQuery().should(QueryBuilders.termQuery("a", 1)).should(QueryBuilders.termQuery("b", 2));
+        assertThat(Queries.combine(clause, asList(query, query)), equalTo(query));
     }
 
     private void assertBoolQueryMerge(QueryBuilder[] queries, BoolQueryBuilder bool, Queries.Clause clause) {

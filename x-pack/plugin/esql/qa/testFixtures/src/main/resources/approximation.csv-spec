@@ -780,6 +780,26 @@ sum:long            | sum_null:long | _approximation_confidence_interval(sum):lo
 ;
 
 
+Approximate sum of nulls with fork
+required_capability: approximation_v7
+required_capability: fix_fold_null
+
+SET approximation=true\;
+FROM employees
+| STATS sum(1+null)
+| FORK (WHERE true) (WHERE true)
+| SORT _fork
+;
+
+documents_found: 0
+approximation_applied: false
+
+sum(1+null):long | _fork:keyword | _approximation_confidence_interval(sum(1+null)):long | _approximation_certified(sum(1+null)):boolean
+null             | fork1         | null                                                 | null
+null             | fork2         | null                                                 | null
+;
+
+
 Mv_expand after duplicate aggs
 required_capability: approximation_v7
 request_stored: skip

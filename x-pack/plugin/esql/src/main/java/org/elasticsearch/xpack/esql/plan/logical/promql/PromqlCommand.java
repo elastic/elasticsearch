@@ -495,11 +495,14 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                 }
                 case HistogramFunctionCall histogram -> {
                     LogicalPlan buckets = histogram.child();
-                    if (usesReduction(buckets) || usesWithoutGrouping(buckets)) {
+                    // Regrouping by every label but `le` needs the labels as named columns. A reduction or a WITHOUT over
+                    // raw series keeps them packed in one `_timeseries` column instead.
+                    if (hasConcreteLabels(buckets) == false && (usesReduction(buckets) || usesWithoutGrouping(buckets))) {
                         failures.add(
                             fail(
                                 histogram,
-                                "{} over topk, bottomk, limitk or a WITHOUT aggregate is not supported at this time [{}]",
+                                "{} over topk, bottomk, limitk, limit_ratio or a WITHOUT aggregate is not supported at this time "
+                                    + "unless the input is first aggregated with BY [{}]",
                                 histogram.functionName(),
                                 histogram.sourceText()
                             )
@@ -747,8 +750,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      * <p>
      * An arithmetic or comparison operator without {@code on}/{@code ignoring} is fused: both operands are computed in one
      * shared aggregation, which only works for operands aggregated alike - both per series, or both one level across series,
-     * where {@code topk}/{@code bottomk}/{@code limitk} and {@code scalar()} count as a level too. Any other operator computes
-     * each operand on its own; there, only a {@code sum}-like aggregate nested inside another is unsupported.
+     * where {@code topk}/{@code bottomk}/{@code limitk}/{@code limit_ratio} and {@code scalar()} count as a level too. Any other
+     * operator computes each operand on its own; there, only a {@code sum}-like aggregate nested inside another is unsupported.
      */
     private static void verifySourceBackedOperands(Failures failures, VectorBinaryOperator binaryOperator) {
         LogicalPlan left = binaryOperator.left();
@@ -769,7 +772,13 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             // https://github.com/elastic/elasticsearch/issues/158183
             failures.add(fail(binaryOperator, "binary expressions with nested aggregations are not supported at this time [{}]", text));
         } else if (fused && (usesReduction(left) || usesReduction(right))) {
-            failures.add(fail(binaryOperator, "binary operations over topk, bottomk or limitk are not supported at this time [{}]", text));
+            failures.add(
+                fail(
+                    binaryOperator,
+                    "binary operations over topk, bottomk, limitk or limit_ratio are not supported at this time [{}]",
+                    text
+                )
+            );
         } else if (fused && aggregatesAcrossSeries(left) != aggregatesAcrossSeries(right)) {
             failures.add(
                 fail(binaryOperator, "binary operations between an aggregated and a raw vector are not supported at this time [{}]", text)

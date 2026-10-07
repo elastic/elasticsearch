@@ -265,7 +265,9 @@ column, you can instead set the `analyzer` option of `TO_TEXT` to match the
 analyzer of the index field.
 
 Analyzers defined in index settings, and analyzers that are not reported, fall
-back to `standard` with a warning, as described later in this section.
+back to `standard` with a warning, as described later in this section. If
+another queried index uses an analyzer that does not fall back, the field still
+counts as having different analyzers.
 
 Query terms use the target field's analyzer. An `analyzer` specified on a
 full-text search function, such as

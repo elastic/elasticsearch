@@ -230,8 +230,9 @@ public class HighlightAnalyzersTests extends ESTestCase {
     }
 
     /**
-     * Indices that name different analyzers are a mismatch unless each row can use its index's own. Index-local and
-     * unreported analyzers, such as {@code semantic_text}'s, fall back to standard either way, so they are not.
+     * Indices that disagree are a mismatch unless each row can use its index's own analyzer. Without that, every row uses
+     * standard, so one named analyzer next to index-local or unreported ones, such as {@code semantic_text}'s, is a
+     * mismatch too. Index-local and unreported analyzers alone fall back to standard either way, so they are not.
      */
     public void testAnalyzerMismatch() {
         String indicesDisagree = "the queried indices disagree on the analyzer for this field";
@@ -244,7 +245,15 @@ public class HighlightAnalyzersTests extends ESTestCase {
             new IndexAnalyzerGroup(null, true, DEFAULT_POSITION_INCREMENT_GAP, Set.of("custom")),
             new IndexAnalyzerGroup(null, false, DEFAULT_POSITION_INCREMENT_GAP, Set.of("semantic"))
         );
-        assertNull(mismatch(withUnreported, false));
+        assertThat(mismatch(withUnreported, false), equalTo(indicesDisagree));
+        assertNull(mismatch(withUnreported, true));
+
+        FieldAttribute onlyUnreported = textFieldWithGroups(
+            "title",
+            new IndexAnalyzerGroup(null, true, DEFAULT_POSITION_INCREMENT_GAP, Set.of("custom")),
+            new IndexAnalyzerGroup(null, false, DEFAULT_POSITION_INCREMENT_GAP, Set.of("semantic"))
+        );
+        assertNull(mismatch(onlyUnreported, randomBoolean()));
 
         // A conflict that names no indices, like a merged LOOKUP JOIN field's, cannot be routed.
         FieldAttribute noGroups = textField("title", null, DEFAULT_POSITION_INCREMENT_GAP, TextEsField.UnknownAnalyzer.CONFLICT);

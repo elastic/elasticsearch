@@ -139,8 +139,8 @@ public final class HighlightAnalyzers {
 
     /**
      * Why the rows of {@code field} need different analyzers that HIGHLIGHT cannot tell apart, or {@code null} when they
-     * do not. Index-local and unreported analyzers fall back to {@code standard} whether or not the indices disagree, so
-     * only indices that name different analyzers count.
+     * do not. Without the row's index every row uses {@code standard}, so any index that names an analyzer counts, even
+     * next to index-local and unreported analyzers, which fall back to {@code standard} either way.
      *
      * @param perIndex whether the operator will know each row's index
      */
@@ -153,7 +153,7 @@ public final class HighlightAnalyzers {
             case NONE, INDEX_LOCAL, NOT_REPORTED -> null;
             case CONFLICT -> {
                 List<IndexAnalyzerGroup> groups = text.analyzerGroups();
-                boolean fits = groups != null && (perIndex || groups.stream().filter(g -> g.analyzerName() != null).count() < 2);
+                boolean fits = groups != null && (perIndex || groups.stream().allMatch(g -> g.analyzerName() == null));
                 yield fits ? null : CONFLICT_REASON;
             }
             case BRANCH_CONFLICT -> BRANCH_CONFLICT_REASON;

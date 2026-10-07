@@ -7624,6 +7624,44 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
+     * Without the index key every row uses standard, including rows from an index whose analyzer is known. So one known
+     * analyzer next to an index-local one fails the query, like two known analyzers do. With the key, only the
+     * index-local index falls back.
+     */
+    public void testHighlightKnownAndIndexLocalAnalyzerFailsWithoutIndexKey() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
+        TextEsField title = new TextEsField(
+            "title",
+            Map.of(),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE,
+            null,
+            gap,
+            TextEsField.UnknownAnalyzer.CONFLICT,
+            List.of(
+                new IndexAnalyzerGroup("whitespace", false, gap, Set.of("known_whitespace")),
+                new IndexAnalyzerGroup(null, true, gap, Set.of("hidden_custom"))
+            )
+        );
+        TestAnalyzer analyzer = analyzer().addIndex(
+            booksIndex("known_whitespace,hidden_custom", Map.of("title", title), "known_whitespace", "hidden_custom")
+        ).stripErrorPrefix(true).minimumTransportVersion(TextEsField.TEXT_FIELD_ANALYZER);
+        analyzer.error(
+            "FROM known_whitespace,hidden_custom | STATS count = COUNT(*) BY title | HIGHLIGHT \"foo\" ON title",
+            containsString(analyzerConflictError("title"))
+        );
+
+        assertNotNull(soleHighlight(analyzer.query("FROM known_whitespace,hidden_custom | HIGHLIGHT \"foo\" ON title")).indexKey());
+        assertWarnings(
+            "HIGHLIGHT on [title] falls back to [standard] for indices [hidden_custom]: its analyzer is defined in the index settings, "
+                + "which no node can rebuild by name. Highlights may differ from what matched; "
+                + "specify WITH {\"analyzer\": <registered analyzer>} to control this."
+        );
+    }
+
+    /**
      * A computed branch that declares the analyzer the mapped branches agree on analyzes its rows the same way. The merged
      * column keeps that mapping, and HIGHLIGHT emits no warning. A computed branch that declares nothing uses standard,
      * which disagrees with the mapping, so HIGHLIGHT rejects the query.

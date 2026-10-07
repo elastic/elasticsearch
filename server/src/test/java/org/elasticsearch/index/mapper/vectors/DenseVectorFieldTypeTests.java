@@ -9,19 +9,27 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQuery;
@@ -33,6 +41,7 @@ import org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,6 +63,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     private final boolean indexed;
@@ -999,164 +1011,174 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertThat("Unexpected k parameter", knnQuery.k(), equalTo(expectedK));
     }
 
-    public void testBBQIVFUsesSlicedQueryForSingleSliceRouting() {
+    public void testBBQIVFSearchesSelectedSlices() {
         BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
-        DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
-        Query query = fieldType.createKnnQuery(
-            VectorData.fromFloats(testQueryVector(64)),
-            5,
-            10,
-            10f,
-            null,
-            null,
-            null,
-            parentFilter,
-            randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-            randomBoolean(),
-            "s1"
-        );
-        if (parentFilter == null) {
-            assertThat(query, instanceOf(IVFKnnFloatSlicedVectorQuery.class));
-        } else {
-            assertThat(query, instanceOf(DiversifyingChildrenIVFKnnFloatSlicedVectorQuery.class));
-        }
+        Query query = createSliceAwareKnnQuery(createBBQIVFFloatFieldType(), null, parentFilter, true, SliceSelection.of(List.of("s1")));
+        assertThat(query, instanceOf(parentFilter == null ? IVFKnnFloatSlicedVectorQuery.class : SLICED_NESTED_QUERY));
         assertThat(query.toString("ignored"), containsString("_routing=[s1]"));
+
+        query = createSliceAwareKnnQuery(createBBQIVFFloatFieldType(), null, parentFilter, true, SliceSelection.of(List.of("s1", "s2")));
+        assertThat(query, instanceOf(parentFilter == null ? IVFKnnFloatSlicedVectorQuery.class : SLICED_NESTED_QUERY));
+        assertThat(query.toString("ignored"), containsString("_routing=[s1,s2]"));
     }
 
-    public void testBBQIVFUsesSlicedQueryForAllSliceRouting() {
+    public void testBBQIVFSearchesAllSlices() {
         BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
-        DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
-        Query query = fieldType.createKnnQuery(
-            VectorData.fromFloats(testQueryVector(64)),
-            5,
-            10,
-            10f,
-            null,
-            null,
-            null,
-            parentFilter,
-            randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-            randomBoolean(),
-            true,
-            null
-        );
-        if (parentFilter == null) {
-            assertThat(query, instanceOf(IVFKnnFloatSlicedVectorQuery.class));
-        } else {
-            assertThat(query, instanceOf(DiversifyingChildrenIVFKnnFloatSlicedVectorQuery.class));
-        }
+        Query query = createSliceAwareKnnQuery(createBBQIVFFloatFieldType(), null, parentFilter, true, SliceSelection.ALL);
+        assertThat(query, instanceOf(parentFilter == null ? IVFKnnFloatSlicedVectorQuery.class : SLICED_NESTED_QUERY));
         assertThat(query.toString("ignored"), containsString("_routing=[]"));
     }
 
-    public void testBBQIVFFallsBackWhenSliceRoutingMissingAndSliceDisabled() {
+    /**
+     * The vector format of an index without slices is not partitioned, whatever the request selects.
+     */
+    public void testBBQIVFIgnoresSlicesWhenIndexHasNone() {
         BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
-        DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
-        Query query = fieldType.createKnnQuery(
-            VectorData.fromFloats(testQueryVector(64)),
-            5,
-            10,
-            10f,
+        SliceSelection slices = randomFrom(SliceSelection.UNSPECIFIED, SliceSelection.ALL, SliceSelection.of(List.of("s1")));
+        Query query = createSliceAwareKnnQuery(createBBQIVFFloatFieldType(), null, parentFilter, false, slices);
+        assertThat(query, not(instanceOf(IVFKnnFloatSlicedVectorQuery.class)));
+        assertThat(query, not(instanceOf(SLICED_NESTED_QUERY)));
+        assertThat(
+            query,
+            instanceOf(parentFilter == null ? IVFKnnFloatVectorQuery.class : DiversifyingChildrenIVFKnnFloatVectorQuery.class)
+        );
+    }
+
+    /**
+     * A vector format that does not partition the vectors by slice restricts the search through the filter of the query, so
+     * that the nearest neighbours are selected among the documents of the requested slices.
+     */
+    public void testNonPartitionedFormatFiltersBySlice() {
+        SliceSelection slices = SliceSelection.of(List.of("s1"));
+
+        KnnFloatVectorQuery floatQuery = (KnnFloatVectorQuery) createSliceAwareKnnQuery(
+            createHnswFieldType(FLOAT),
             null,
             null,
+            true,
+            slices
+        );
+        assertThat(floatQuery.getFilter().toString(), equalTo("_routing:s1"));
+
+        Query userFilter = new TermQuery(new Term("color", "red"));
+        floatQuery = (KnnFloatVectorQuery) createSliceAwareKnnQuery(createHnswFieldType(FLOAT), userFilter, null, true, slices);
+        assertThat(floatQuery.getFilter().toString(), equalTo("#color:red #_routing:s1"));
+
+        KnnByteVectorQuery byteQuery = (KnnByteVectorQuery) createSliceAwareKnnQuery(createHnswFieldType(BYTE), null, null, true, slices);
+        assertThat(byteQuery.getFilter().toString(), equalTo("_routing:s1"));
+
+        KnnByteVectorQuery bitQuery = (KnnByteVectorQuery) createSliceAwareKnnQuery(
+            createHnswFieldType(BIT),
+            userFilter,
             null,
-            parentFilter,
-            randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-            randomBoolean(),
+            true,
+            slices
+        );
+        assertThat(bitQuery.getFilter().toString(), equalTo("#color:red #_routing:s1"));
+    }
+
+    public void testNonPartitionedFormatKeepsFilterForAllSlices() {
+        SliceSelection slices = SliceSelection.ALL;
+        KnnFloatVectorQuery query = (KnnFloatVectorQuery) createSliceAwareKnnQuery(createHnswFieldType(FLOAT), null, null, true, slices);
+        assertNull(query.getFilter());
+
+        Query userFilter = new TermQuery(new Term("color", "red"));
+        query = (KnnFloatVectorQuery) createSliceAwareKnnQuery(createHnswFieldType(FLOAT), userFilter, null, true, slices);
+        assertThat(query.getFilter().toString(), equalTo("color:red"));
+    }
+
+    /**
+     * On a slice-enabled index the search needs to know which slices to visit, whatever the vector format.
+     */
+    public void testRequiresSlicesToBeSelected() {
+        for (DenseVectorFieldType fieldType : List.of(
+            createBBQIVFFloatFieldType(),
+            createHnswFieldType(FLOAT),
+            createHnswFieldType(BYTE)
+        )) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> createSliceAwareKnnQuery(fieldType, null, null, true, SliceSelection.UNSPECIFIED)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo("to perform knn search on field [f], the slices to search must be selected: its index is slice-enabled")
+            );
+        }
+    }
+
+    public void testNonPartitionedFormatIgnoresSlicesWhenIndexHasNone() {
+        KnnFloatVectorQuery query = (KnnFloatVectorQuery) createSliceAwareKnnQuery(
+            createHnswFieldType(FLOAT),
+            null,
+            null,
             false,
-            null
+            SliceSelection.of(List.of("s1"))
         );
-        if (parentFilter == null) {
-            assertThat(query, instanceOf(IVFKnnFloatVectorQuery.class));
+        assertNull(query.getFilter());
+    }
+
+    private static final Class<? extends Query> SLICED_NESTED_QUERY = DiversifyingChildrenIVFKnnFloatSlicedVectorQuery.class;
+
+    private static Query createSliceAwareKnnQuery(
+        DenseVectorFieldType fieldType,
+        Query filter,
+        BitSetProducer parentFilter,
+        boolean sliceEnabled,
+        SliceSelection slices
+    ) {
+        int dims = fieldType.getVectorDimensions();
+        final VectorData queryVector;
+        if (fieldType.getElementType() == FLOAT) {
+            queryVector = VectorData.fromFloats(testQueryVector(dims));
         } else {
-            assertThat(query, instanceOf(DiversifyingChildrenIVFKnnFloatVectorQuery.class));
+            byte[] bytes = new byte[fieldType.getElementType() == BIT ? dims / Byte.SIZE : dims];
+            bytes[0] = 1;
+            queryVector = VectorData.fromBytes(bytes);
         }
-    }
-
-    public void testBBQIVFRejectsBlankSliceForKnn() {
-        BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
-        DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> fieldType.createKnnQuery(
-                VectorData.fromFloats(testQueryVector(64)),
-                5,
-                10,
-                10f,
-                null,
-                null,
-                null,
-                parentFilter,
-                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean(),
-                "   "
-            )
-        );
-        assertThat(exception.getMessage(), containsString("[slice] cannot be blank for KNN queries"));
-    }
-
-    public void testBBQIVFRejectsSliceAllForKnn() {
-        BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
-        DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> fieldType.createKnnQuery(
-                VectorData.fromFloats(testQueryVector(64)),
-                5,
-                10,
-                10f,
-                null,
-                null,
-                null,
-                parentFilter,
-                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean(),
-                "_all"
-            )
-        );
-        assertThat(exception.getMessage(), containsString("[slice] value [_all] is not supported for KNN"));
-    }
-
-    public void testBBQIVFUsesSlicedQueryForMultiSliceRouting() {
-        BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
-        DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
-        Query query = fieldType.createKnnQuery(
-            VectorData.fromFloats(testQueryVector(64)),
+        return fieldType.createKnnQuery(
+            queryVector,
             5,
             10,
             10f,
             null,
-            null,
+            filter,
             null,
             parentFilter,
             randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
             randomBoolean(),
-            "s1,s2"
+            sliceContext(sliceEnabled, slices)
         );
-        if (parentFilter == null) {
-            assertThat(query, instanceOf(IVFKnnFloatVectorQuery.class));
-        } else {
-            assertThat(query, instanceOf(DiversifyingChildrenIVFKnnFloatSlicedVectorQuery.class));
-        }
-        assertThat(query.toString("ignored"), containsString("_routing=[s1,s2]"));
     }
 
-    public void testBBQIVFDeduplicatesMultiSliceRoutingForKnn() {
-        BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
-        DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
-        Query query = fieldType.createKnnQuery(
-            VectorData.fromFloats(testQueryVector(64)),
-            5,
-            10,
-            10f,
+    /**
+     * The field type only reads the index settings, the slice selection and the slice filter of the context. A mock stands in
+     * for the real context because building one requires a mapper service and a shard; the slice filter it would build is
+     * covered by the tests of the context itself.
+     */
+    private static SearchExecutionContext sliceContext(boolean sliceEnabled, SliceSelection slices) {
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
+        Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), sliceEnabled).build();
+        when(context.getIndexSettings()).thenReturn(IndexSettingsModule.newIndexSettings("test", settings));
+        when(context.sliceSelection()).thenReturn(slices);
+        if (slices.isRestricted()) {
+            when(context.sliceFilter()).thenReturn(new TermQuery(new Term(RoutingFieldMapper.NAME, String.join(",", slices.names()))));
+        }
+        return context;
+    }
+
+    private static DenseVectorFieldType createHnswFieldType(DenseVectorFieldMapper.ElementType elementType) {
+        return new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            elementType,
+            64,
+            true,
+            elementType == BIT ? VectorSimilarity.L2_NORM : VectorSimilarity.COSINE,
             null,
-            null,
-            null,
-            parentFilter,
-            randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-            randomBoolean(),
-            "s1,s1,s2"
+            Collections.emptyMap(),
+            false
         );
-        assertThat(query.toString("ignored"), containsString("_routing=[s1,s2]"));
     }
 
     private static DenseVectorFieldType createBBQIVFFloatFieldType() {

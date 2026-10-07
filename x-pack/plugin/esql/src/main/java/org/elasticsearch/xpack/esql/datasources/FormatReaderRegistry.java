@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,11 +48,17 @@ public class FormatReaderRegistry {
     private final Map<String, Supplier<FormatReader>> byExtension = new ConcurrentHashMap<>();
     private final DecompressionCodecRegistry codecRegistry;
     private volatile AdmissionTracker admissionTracker = AdmissionTracker.NOOP;
+    private final NodeByteBudget nodeByteBudget;
     private volatile int maxDecompressionRatio = ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getDefault(Settings.EMPTY);
     private volatile int maxDecompressionRatioZstd = ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD.getDefault(Settings.EMPTY);
 
     public FormatReaderRegistry(DecompressionCodecRegistry codecRegistry) {
+        this(codecRegistry, null);
+    }
+
+    public FormatReaderRegistry(DecompressionCodecRegistry codecRegistry, @Nullable NodeByteBudget nodeByteBudget) {
         this.codecRegistry = codecRegistry;
+        this.nodeByteBudget = nodeByteBudget;
     }
 
     public void setAdmissionTracker(AdmissionTracker admissionTracker) {
@@ -85,7 +92,7 @@ public class FormatReaderRegistry {
                 if (instance == null) {
                     synchronized (this) {
                         if (instance == null) {
-                            FormatReader created = factory.create(settings, blockFactory);
+                            FormatReader created = factory.create(settings, blockFactory, nodeByteBudget);
                             created.bindAdmissionTracker(admissionTracker);
                             // Claim extension mappings before publishing the instance, under the same
                             // conflict rule as registerExtension: a reader-declared extension already

@@ -263,7 +263,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
     /**
      * Similar to {@link #testObsoleteSegmentRegionsAreEvicted} but with an open PIT (Point in Time) that holds
      * a reader on the pre-merge segments. The old segments' cache regions should be retained while the PIT is
-     * open and evicted after it is closed and a subsequent commit is processed.
+     * open and evicted as soon as it is closed, without waiting for a subsequent commit to be processed.
      */
     public void testObsoleteSegmentRegionsRetainedByPIT() throws Exception {
         startMasterAndIndexNode();

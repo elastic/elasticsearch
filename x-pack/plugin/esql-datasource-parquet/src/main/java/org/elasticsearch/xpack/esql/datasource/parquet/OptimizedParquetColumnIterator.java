@@ -3517,7 +3517,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * current result then transfers its releasable to {@link #currentChunksReleasable}; otherwise
      * the guard either cancels this entry or includes it in the synchronous-fallback barrier.
      *
-     * <p>{@link #bytes} is the footer estimate from {@link ColumnChunkPrefetcher#computePrefetchBytes}
+     * <p>{@link #bytes} is the heap-footprint estimate from {@link ColumnChunkPrefetcher#computePrefetchBytes}
      * used for queued-byte admission; it is not the live breaker charge.
      */
     record PendingPrefetch(

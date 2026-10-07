@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -79,6 +80,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
@@ -203,7 +205,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * Sanity cap on a trailer-declared footer GET ({@code F+8}). Larger than this is an invalid
      * Parquet file (HTTP 400) and is rejected before the second GET. Not a cache size and not a
      * data-page limit. Same value as {@link ExternalSourceSettings#BLOB_STORE_GET_SIZE_BYTES} so
-     * an exact-range footer GET stays inside the {@code C × B} in-flight GET accounting.
+     * an exact-range footer GET stays inside the {@code C × B} in-flight GET accounting. The cap
+     * covers the whole allocated region including the trailer, and the GET size already leaves
+     * room for the array header, so the footer buffer occupies at most 8 MiB of heap.
      */
     static final int MAX_FOOTER_READ_BYTES = ExternalSourceSettings.BLOB_STORE_GET_SIZE_BYTES;
 
@@ -383,6 +387,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * every reader derived from this one (via the {@code with*} methods) shares the caches.
      */
     public ParquetFormatReader(Settings settings, BlockFactory blockFactory) {
+        this(settings, blockFactory, null);
+    }
+
+    /**
+     * Production root with a DSM-owned byte budget so CRR tickets and look-ahead {@code tryAdmit}
+     * share one node cap.
+     */
+    public ParquetFormatReader(Settings settings, BlockFactory blockFactory, @Nullable NodeByteBudget nodeByteBudget) {
         this(
             blockFactory,
             FilterCompat.NOOP,
@@ -394,7 +406,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             Set.of(),
             FooterByteCache.fromSettings(settings),
             ParsedFooterCache.fromSettings(settings, ParquetFormatReader::estimateFooterWeightBytes),
-            ParquetIoWatermark.forHeap(),
+            nodeByteBudget == null ? ParquetIoWatermark.forHeap() : new ParquetIoWatermark(nodeByteBudget),
             PoolingHeapByteBufferAllocator.forHeap(),
             MAX_FOOTER_READ_BYTES
         );
@@ -1835,6 +1847,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     @Override
     public boolean supportsWholeFileCompression() {
         return false;
+    }
+
+    @Override
+    public void bindAdmissionTracker(AdmissionTracker tracker) {
+        ioWatermark.bindTracker(tracker);
     }
 
     @Override

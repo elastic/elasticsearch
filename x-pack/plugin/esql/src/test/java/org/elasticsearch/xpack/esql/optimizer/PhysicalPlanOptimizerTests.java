@@ -10346,13 +10346,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(
             query.query(),
             equalTo(
-                new BoolQueryBuilder().filter(
-                    new SingleValueQuery(
-                        new NotQuery(Source.EMPTY, new EqualsSyntheticSourceDelegate(Source.EMPTY, "job", "v")),
-                        "job",
-                        SingleValueQuery.UseSyntheticSourceDelegate.YES_NEGATED
-                    ).toQueryBuilder()
-                )
+                new SingleValueQuery(
+                    new NotQuery(Source.EMPTY, new EqualsSyntheticSourceDelegate(Source.EMPTY, "job", "v")),
+                    "job",
+                    SingleValueQuery.UseSyntheticSourceDelegate.YES_NEGATED
+                ).toQueryBuilder()
             )
         );
     }

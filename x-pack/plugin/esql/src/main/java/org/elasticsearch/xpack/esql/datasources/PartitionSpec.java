@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -143,6 +145,22 @@ public final class PartitionSpec {
     }
 
     /**
+     * Per-column listing window. {@code lag} extends the upper bound so a late row still finds its
+     * folder; {@code lead} extends the lower bound so a look-behind still finds the previous folder.
+     * Zero on a side is today's behavior for that direction.
+     */
+    public record Window(TimeValue lag, TimeValue lead) {
+        public Window {
+            lag = lag == null ? TimeValue.ZERO : lag;
+            lead = lead == null ? TimeValue.ZERO : lead;
+        }
+
+        boolean isZero() {
+            return lag.millis() == 0 && lead.millis() == 0;
+        }
+    }
+
+    /**
      * Half-open UTC millis range {@code [startInclusive, endExclusive)}. A null
      * end is unbounded on that side.
      */
@@ -161,6 +179,18 @@ public final class PartitionSpec {
         InstantRange intersect(InstantRange other) {
             Long start = maxInclusive(startInclusiveMillis, other.startInclusiveMillis);
             Long end = minExclusive(endExclusiveMillis, other.endExclusiveMillis);
+            return new InstantRange(start, end);
+        }
+
+        InstantRange union(InstantRange other) {
+            if (isEmpty()) {
+                return other;
+            }
+            if (other.isEmpty()) {
+                return this;
+            }
+            Long start = minInclusive(startInclusiveMillis, other.startInclusiveMillis);
+            Long end = maxExclusive(endExclusiveMillis, other.endExclusiveMillis);
             return new InstantRange(start, end);
         }
 
@@ -192,12 +222,33 @@ public final class PartitionSpec {
             }
             return Math.min(a, b);
         }
+
+        /** Null on either side is unbounded and wins. */
+        private static Long minInclusive(@Nullable Long a, @Nullable Long b) {
+            if (a == null || b == null) {
+                return null;
+            }
+            return Math.min(a, b);
+        }
+
+        private static Long maxExclusive(@Nullable Long a, @Nullable Long b) {
+            if (a == null || b == null) {
+                return null;
+            }
+            return Math.max(a, b);
+        }
     }
 
     private final List<Field> fields;
+    private final Map<String, Window> windows;
 
     PartitionSpec(List<Field> fields) {
+        this(fields, Map.of());
+    }
+
+    PartitionSpec(List<Field> fields, Map<String, Window> windows) {
         this.fields = List.copyOf(fields);
+        this.windows = windows == null || windows.isEmpty() ? Map.of() : Map.copyOf(windows);
     }
 
     public boolean isEmpty() {
@@ -206,6 +257,34 @@ public final class PartitionSpec {
 
     public List<Field> fields() {
         return fields;
+    }
+
+    public Map<String, Window> windows() {
+        return windows;
+    }
+
+    /**
+     * Canonical spec text for persistence. Field {@link Field#describe()} entries plus
+     * {@code lag}/{@code lead} so a PUT rewrite round-trips.
+     */
+    public String toSpecString() {
+        if (isEmpty() && windows.isEmpty()) {
+            return "";
+        }
+        List<String> parts = new ArrayList<>(fields.size() + windows.size() * 2);
+        for (Field field : fields) {
+            parts.add(field.describe());
+        }
+        for (Map.Entry<String, Window> entry : windows.entrySet()) {
+            Window window = entry.getValue();
+            if (window.lag().millis() != 0) {
+                parts.add("lag(" + entry.getKey() + ", " + window.lag().getStringRep() + ")");
+            }
+            if (window.lead().millis() != 0) {
+                parts.add("lead(" + entry.getKey() + ", " + window.lead().getStringRep() + ")");
+            }
+        }
+        return String.join(", ", parts);
     }
 
     /**
@@ -380,10 +459,15 @@ public final class PartitionSpec {
         }
         List<Field> parsed = new ArrayList<>(parts.size());
         Set<String> keys = new LinkedHashSet<>();
+        Map<String, TimeValue> lags = new LinkedHashMap<>();
+        Map<String, TimeValue> leads = new LinkedHashMap<>();
         for (String part : parts) {
             String trimmed = part.trim();
             if (trimmed.isEmpty()) {
                 throw new IllegalArgumentException("[" + CONFIG_PARTITION_SPEC + "] has an empty field; remove the extra comma");
+            }
+            if (parseWindow(trimmed, lags, leads)) {
+                continue;
             }
             Field field = parseField(trimmed);
             if (keys.add(field.key()) == false) {
@@ -394,7 +478,109 @@ public final class PartitionSpec {
             parsed.add(field);
         }
         rejectMixedUnits(parsed);
-        return new PartitionSpec(parsed);
+        return new PartitionSpec(parsed, windowsOf(parsed, lags, leads));
+    }
+
+    /**
+     * {@code lag(column, duration)} / {@code lead(column, duration)} are spec entries, not
+     * {@link Transform}s. Consumes the part and returns true, or leaves it for {@link #parseField}.
+     */
+    private static boolean parseWindow(String field, Map<String, TimeValue> lags, Map<String, TimeValue> leads) {
+        int open = field.indexOf('(');
+        if (open <= 0 || field.endsWith(")") == false) {
+            return false;
+        }
+        String name = field.substring(0, open).trim().toLowerCase(Locale.ROOT);
+        if ("lag".equals(name) == false && "lead".equals(name) == false) {
+            return false;
+        }
+        String inside = field.substring(open + 1, field.length() - 1);
+        List<String> args = splitTopLevel(inside);
+        if (args.size() != 2) {
+            throw new IllegalArgumentException(
+                "[" + CONFIG_PARTITION_SPEC + "] [" + field + "] must be [" + name + "(column, duration)] such as [" + name + "(ts, 15m)]"
+            );
+        }
+        String columnRaw = args.get(0).trim();
+        String durationRaw = args.get(1).trim();
+        if (columnRaw.isEmpty() || durationRaw.isEmpty()) {
+            throw new IllegalArgumentException(
+                "[" + CONFIG_PARTITION_SPEC + "] [" + field + "] has an empty argument; remove the extra comma"
+            );
+        }
+        String column = parseIdentifier(field, columnRaw);
+        TimeValue duration;
+        try {
+            duration = TimeValue.parseTimeValue(durationRaw, name);
+        } catch (IllegalArgumentException e) {
+            if (e.getMessage() != null && e.getMessage().contains("negative")) {
+                throw new IllegalArgumentException(
+                    "["
+                        + CONFIG_PARTITION_SPEC
+                        + "] ["
+                        + field
+                        + "] duration ["
+                        + durationRaw
+                        + "] is negative; use a non-negative time value"
+                );
+            }
+            throw new IllegalArgumentException(
+                "[" + CONFIG_PARTITION_SPEC + "] [" + field + "] has an unparseable duration [" + durationRaw + "]; use [15m], [1h], [90s]",
+                e
+            );
+        }
+        if (duration.millis() < 0) {
+            throw new IllegalArgumentException(
+                "[" + CONFIG_PARTITION_SPEC + "] [" + field + "] duration [" + durationRaw + "] is negative; use a non-negative time value"
+            );
+        }
+        Map<String, TimeValue> target = "lag".equals(name) ? lags : leads;
+        TimeValue previous = target.putIfAbsent(column, duration);
+        if (previous != null) {
+            throw new IllegalArgumentException(
+                "["
+                    + CONFIG_PARTITION_SPEC
+                    + "] names ["
+                    + name
+                    + "("
+                    + column
+                    + ", ...)] more than once; each column+direction must appear once"
+            );
+        }
+        return true;
+    }
+
+    private static Map<String, Window> windowsOf(List<Field> parsed, Map<String, TimeValue> lags, Map<String, TimeValue> leads) {
+        if (lags.isEmpty() && leads.isEmpty()) {
+            return Map.of();
+        }
+        Set<String> temporal = new LinkedHashSet<>();
+        for (Field field : parsed) {
+            if (field.transform().isTemporal()) {
+                temporal.add(field.column());
+            }
+        }
+        Map<String, Window> windows = new LinkedHashMap<>();
+        Set<String> columns = new LinkedHashSet<>();
+        columns.addAll(lags.keySet());
+        columns.addAll(leads.keySet());
+        for (String column : columns) {
+            if (temporal.contains(column) == false) {
+                throw new IllegalArgumentException(
+                    "["
+                        + CONFIG_PARTITION_SPEC
+                        + "] ["
+                        + (lags.containsKey(column) ? "lag" : "lead")
+                        + "("
+                        + column
+                        + ", ...)] names column ["
+                        + column
+                        + "] which has no temporal bind; add year/month/day/hour on that column"
+                );
+            }
+            windows.put(column, new Window(lags.getOrDefault(column, TimeValue.ZERO), leads.getOrDefault(column, TimeValue.ZERO)));
+        }
+        return windows;
     }
 
     private static void rejectMixedUnits(List<Field> parsed) {
@@ -466,6 +652,20 @@ public final class PartitionSpec {
                 );
             }
             if (rhs.indexOf('(') >= 0) {
+                String transformToken = rhs.substring(0, rhs.indexOf('(')).trim().toLowerCase(Locale.ROOT);
+                if ("lag".equals(transformToken) || "lead".equals(transformToken)) {
+                    throw new IllegalArgumentException(
+                        "["
+                            + CONFIG_PARTITION_SPEC
+                            + "] ["
+                            + field
+                            + "] cannot assign ["
+                            + transformToken
+                            + "] to a key; write ["
+                            + transformToken
+                            + "(column, duration)] as its own spec entry"
+                    );
+                }
                 return parseTransformCall(field, key, rhs);
             }
             return new Field(key, Transform.IDENTITY, parseIdentifier(field, rhs), Unit.EPOCH_MILLIS);
@@ -1086,7 +1286,7 @@ public final class PartitionSpec {
         return false;
     }
 
-    private static SourceBounds sourceBounds(List<PartitionFilterHint> hints, String column, Unit unit) {
+    private SourceBounds sourceBounds(List<PartitionFilterHint> hints, String column, Unit unit) {
         InstantRange range = InstantRange.ALL;
         Set<Long> equalsPoints = null;
         Set<Long> inPoints = null;
@@ -1142,7 +1342,52 @@ public final class PartitionSpec {
                 }
             }
         }
-        return new SourceBounds(range, combinePoints(equalsPoints, inPoints, range));
+        return widen(new SourceBounds(range, combinePoints(equalsPoints, inPoints, range)), column);
+    }
+
+    /**
+     * Widen the projected source range by this column's lag/lead after unit conversion and the 1971–2100
+     * clamp. Folder intervals stay unwidened; listing, glob rewrite, and the walk inherit the extra folders.
+     * Overflow on either side is unbounded (keep the folder / no listing IN).
+     */
+    private SourceBounds widen(SourceBounds bounds, String column) {
+        Window window = windows.get(column);
+        if (window == null || window.isZero()) {
+            return bounds;
+        }
+        long lag = window.lag().millis();
+        long lead = window.lead().millis();
+        if (bounds.points() != null) {
+            if (bounds.points().isEmpty()) {
+                return bounds;
+            }
+            InstantRange union = InstantRange.EMPTY;
+            for (Long point : bounds.points()) {
+                union = union.union(widenRange(new InstantRange(point, increment(point)), lead, lag));
+            }
+            return new SourceBounds(union, null);
+        }
+        return new SourceBounds(widenRange(bounds.range(), lead, lag), null);
+    }
+
+    private static InstantRange widenRange(InstantRange range, long leadMillis, long lagMillis) {
+        Long lo = range.startInclusiveMillis();
+        Long hi = range.endExclusiveMillis();
+        if (lo != null && leadMillis != 0) {
+            try {
+                lo = Math.subtractExact(lo, leadMillis);
+            } catch (ArithmeticException overflow) {
+                lo = null;
+            }
+        }
+        if (hi != null && lagMillis != 0) {
+            try {
+                hi = Math.addExact(hi, lagMillis);
+            } catch (ArithmeticException overflow) {
+                hi = null;
+            }
+        }
+        return new InstantRange(lo, hi);
     }
 
     @Nullable
@@ -1461,16 +1706,16 @@ public final class PartitionSpec {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof PartitionSpec other && fields.equals(other.fields);
+        return o instanceof PartitionSpec other && fields.equals(other.fields) && windows.equals(other.windows);
     }
 
     @Override
     public int hashCode() {
-        return fields.hashCode();
+        return Objects.hash(fields, windows);
     }
 
     @Override
     public String toString() {
-        return "PartitionSpec" + fields;
+        return "PartitionSpec" + fields + windows;
     }
 }

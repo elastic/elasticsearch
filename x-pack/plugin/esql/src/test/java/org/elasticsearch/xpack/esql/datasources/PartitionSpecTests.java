@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.PartitionSpec.Field;
 import org.elasticsearch.xpack.esql.datasources.PartitionSpec.Transform;
 import org.elasticsearch.xpack.esql.datasources.PartitionSpec.Unit;
+import org.elasticsearch.xpack.esql.datasources.PartitionSpec.Window;
 
 import java.util.List;
 import java.util.Map;
@@ -371,6 +373,34 @@ public class PartitionSpecTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(CONFIG_PARTITION_SPEC));
         assertThat(e.getMessage(), containsString("year"));
         assertThat(e.getMessage(), containsString("more than once"));
+    }
+
+    public void testParseLagAndLead() {
+        PartitionSpec spec = PartitionSpec.parse(
+            "year(@timestamp), month(@timestamp), day(@timestamp), hour(@timestamp), lag(@timestamp, 15m)"
+        );
+        assertEquals(TimeValue.timeValueMinutes(15), spec.windows().get("@timestamp").lag());
+        assertEquals(TimeValue.ZERO, spec.windows().get("@timestamp").lead());
+        PartitionSpec both = PartitionSpec.parse("year(ts), lag(ts, 1h), lead(ts, 90s)");
+        Window window = both.windows().get("ts");
+        assertEquals(TimeValue.timeValueHours(1), window.lag());
+        assertEquals(TimeValue.timeValueSeconds(90), window.lead());
+        assertEquals(both, PartitionSpec.parse(both.toSpecString()));
+        PartitionSpec zero = PartitionSpec.parse("year(ts), lag(ts, 0ms)");
+        assertEquals(TimeValue.ZERO, zero.windows().get("ts").lag());
+    }
+
+    public void testRejectLagWithoutTemporalBind() {
+        assertReject("lag(nope, 15m)", "nope", "no temporal bind");
+        assertReject("year(ts), lag(nope, 15m)", "nope", "year/month/day/hour");
+    }
+
+    public void testRejectNegativeAndUnparseableLag() {
+        assertReject("year(ts), lag(ts, -15m)", "negative", "non-negative");
+        assertReject("year(ts), lag(ts, banana)", "unparseable duration", "15m");
+        assertReject("year(ts), lag(ts, 15m), lag(ts, 1h)", "more than once", "column+direction");
+        assertReject("year(ts), key=lag(ts, 15m)", "cannot assign [lag] to a key", "lag(column, duration)");
+        assertReject("year(ts), lag(ts)", "lag(column, duration)", "15m");
     }
 
     public void testConfigKeysIsExactlyPartitionSpec() {

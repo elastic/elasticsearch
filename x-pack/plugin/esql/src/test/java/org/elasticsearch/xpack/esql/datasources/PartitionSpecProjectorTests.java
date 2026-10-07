@@ -380,6 +380,98 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         assertThat(notices, empty());
     }
 
+    public void testLagKeepsNextHourAndDay() {
+        PartitionSpec noLag = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        PartitionSpec lag = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts), lag(ts, 15m)");
+        Instant ten = Instant.parse("2024-06-15T10:00:00Z");
+        Instant eleven = Instant.parse("2024-06-15T11:00:00Z");
+        List<PartitionFilterHint> hourHints = List.of(
+            hint("ts", Operator.GREATER_THAN_OR_EQUAL, ten),
+            hint("ts", Operator.LESS_THAN, eleven)
+        );
+        assertTrue(noLag.overlaps(hourFolder(10), hourHints));
+        assertFalse("next hour is after the window without lag", noLag.overlaps(hourFolder(11), hourHints));
+        assertTrue("lag 15m reaches into hour 11", lag.overlaps(hourFolder(11), hourHints));
+
+        Instant dayStart = Instant.parse("2024-06-15T00:00:00Z");
+        Instant dayEnd = Instant.parse("2024-06-16T00:00:00Z");
+        List<PartitionFilterHint> dayHints = List.of(
+            hint("ts", Operator.GREATER_THAN_OR_EQUAL, dayStart),
+            hint("ts", Operator.LESS_THAN, dayEnd)
+        );
+        assertTrue(noLag.overlaps(folder(2024, 6, 15), dayHints));
+        assertFalse(noLag.overlaps(folder(2024, 6, 16), dayHints));
+        assertTrue(lag.overlaps(folder(2024, 6, 16), dayHints));
+    }
+
+    public void testLeadKeepsPreviousHour() {
+        PartitionSpec lead = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts), lead(ts, 15m)");
+        Instant eleven = Instant.parse("2024-06-15T11:00:00Z");
+        Instant noon = Instant.parse("2024-06-15T12:00:00Z");
+        List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, eleven), hint("ts", Operator.LESS_THAN, noon));
+        PartitionSpec none = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        assertFalse(none.overlaps(hourFolder(10), hints));
+        assertTrue(lead.overlaps(hourFolder(10), hints));
+        assertTrue(lead.overlaps(hourFolder(11), hints));
+    }
+
+    public void testLagIntoNextYearIsListed() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts), lag(ts, 15m)");
+        Instant start = Instant.parse("2024-12-31T23:50:00Z");
+        Instant end = Instant.parse("2024-12-31T23:51:00Z");
+        List<PartitionFilterHint> hints = List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, start), hint("ts", Operator.LESS_THAN, end));
+        assertEquals(
+            List.of(
+                hint("ts", Operator.GREATER_THAN_OR_EQUAL, start),
+                hint("ts", Operator.LESS_THAN, end),
+                hint("year", Operator.IN, 2024, 2025)
+            ),
+            spec.projectListingHints(hints)
+        );
+        PartitionSpec noLag = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        assertEquals(
+            List.of(
+                hint("ts", Operator.GREATER_THAN_OR_EQUAL, start),
+                hint("ts", Operator.LESS_THAN, end),
+                hint("year", Operator.IN, 2024)
+            ),
+            noLag.projectListingHints(hints)
+        );
+    }
+
+    public void testPointEqualsWithLeadWidensPreviousFolder() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts), lead(ts, 15m)");
+        Instant midnight = Instant.parse("2024-06-15T00:00:00Z");
+        List<PartitionFilterHint> hints = List.of(hint("ts", Operator.EQUALS, midnight));
+        assertTrue(spec.overlaps(hourFolder(0), hints));
+        Map<String, Object> prevHour = Map.of("year", 2024, "month", 6, "day", 14, "hour", 23);
+        assertTrue("lead 15m from midnight reaches 23:45 of the previous day", spec.overlaps(prevHour, hints));
+        PartitionSpec none = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        assertFalse(none.overlaps(prevHour, hints));
+    }
+
+    public void testLagWithEpochSecondAndDatetimeNanosHints() {
+        PartitionSpec seconds = PartitionSpec.parse("year(start, epoch_second), month(start, epoch_second), lag(start, 15m)");
+        // 2024-06-15T10:50:00Z as epoch seconds.
+        long tenFifty = Instant.parse("2024-06-15T10:50:00Z").getEpochSecond();
+        long eleven = Instant.parse("2024-06-15T11:00:00Z").getEpochSecond();
+        List<PartitionFilterHint> numeric = List.of(
+            hint("start", Operator.GREATER_THAN_OR_EQUAL, tenFifty),
+            hint("start", Operator.LESS_THAN, eleven)
+        );
+        assertTrue(seconds.overlaps(folder(2024, 6, null), numeric));
+        assertTrue("lag 15m from 11:00 keeps June", seconds.overlaps(folder(2024, 6, null), numeric));
+
+        PartitionSpec nanos = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts), lag(ts, 15m)");
+        Instant ten = Instant.parse("2024-06-15T10:00:00Z");
+        Instant elevenInstant = Instant.parse("2024-06-15T11:00:00Z");
+        List<PartitionFilterHint> datetime = List.of(
+            hint("ts", Operator.GREATER_THAN_OR_EQUAL, ten),
+            hint("ts", Operator.LESS_THAN, elevenInstant)
+        );
+        assertTrue(nanos.overlaps(hourFolder(11), datetime));
+    }
+
     private static PartitionFilterHint hint(String column, Operator op, Object... values) {
         return new PartitionFilterHint(column, op, List.of(values));
     }

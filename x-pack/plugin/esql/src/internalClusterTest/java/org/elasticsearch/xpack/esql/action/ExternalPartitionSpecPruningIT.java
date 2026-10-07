@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
@@ -23,6 +24,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +32,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * A {@code partition_spec} overlay projects a file-column filter onto Hive path keys.
@@ -177,7 +180,7 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
 
     // docs example 10
     public void testWrongUnitDoesNotFalsePrune() throws Exception {
-        // start is unix seconds; spec default millis reads 1.71e9 as 1970. Warning, full scan, rows still correct.
+        // start is unix seconds; spec default epoch_millis reads 1.71e9 as 1970. Warning, full scan, rows still correct.
         String dataset = registerSecondsTreeWrongUnit("spec_wrong_unit");
         assertPrune(
             dataset,
@@ -185,6 +188,24 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
             TOTAL_FILES,
             idsWhere((y, m, d) -> folderStart(y, m, d).isAfter(MARCH_15_2024))
         );
+    }
+
+    // docs lead example: AWS Hive-compatible hourly Parquet (CSV stand-in)
+    public void testAwsHiveHourlySecondsRangeInsideOneHour() throws Exception {
+        String dataset = registerAwsHiveHourlySecondsTree("spec_aws_hive_hourly");
+        long start = Instant.parse("2024-06-16T00:00:00Z").getEpochSecond();
+        long end = Instant.parse("2024-06-16T00:30:00Z").getEpochSecond();
+        assertPrune(dataset, "WHERE start >= " + start + " AND start < " + end, 4, 2, List.of(2L, 3L));
+    }
+
+    // docs text-layout example: literal vpcflowlogs, space delimiter, headerless start via path
+    public void testAwsTextLayoutHeaderlessSecondsRangeInsideOneDay() throws Exception {
+        String dataset = registerAwsTextLayoutHeaderlessSecondsTree("spec_aws_text_headerless");
+        long start = Instant.parse("2024-06-16T00:00:00Z").getEpochSecond();
+        long end = Instant.parse("2024-06-16T00:30:00Z").getEpochSecond();
+        long t2 = Instant.parse("2024-06-16T00:05:00Z").getEpochSecond();
+        long t3 = Instant.parse("2024-06-16T00:20:00Z").getEpochSecond();
+        assertPrune(dataset, "WHERE start >= " + start + " AND start < " + end, 4, 2, List.of(t2, t3), "start");
     }
 
     // docs example 10, exclusive upper bound must not empty the scan
@@ -199,13 +220,29 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
     }
 
     private void assertPrune(String dataset, String filterClause, int expectedFilesScanned, List<Long> expectedIds) {
-        assertPrune(dataset, filterClause, TOTAL_FILES, expectedFilesScanned, expectedIds);
+        assertPrune(dataset, filterClause, TOTAL_FILES, expectedFilesScanned, expectedIds, "id");
     }
 
     private void assertPrune(String dataset, String filterClause, int totalFiles, int expectedFilesScanned, List<Long> expectedIds) {
+        assertPrune(dataset, filterClause, totalFiles, expectedFilesScanned, expectedIds, "id");
+    }
+
+    private void assertPrune(
+        String dataset,
+        String filterClause,
+        int totalFiles,
+        int expectedFilesScanned,
+        List<Long> expectedIds,
+        String keepColumn
+    ) {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
-        List<List<Object>> rows = runPruned(dataset, filterClause + " | KEEP id | SORT id ASC", totalFiles, expectedFilesScanned);
+        List<List<Object>> rows = runPruned(
+            dataset,
+            filterClause + " | KEEP " + keepColumn + " | SORT " + keepColumn + " ASC",
+            totalFiles,
+            expectedFilesScanned
+        );
         List<Long> actualIds = rows.stream().map(row -> ((Number) row.get(0)).longValue()).toList();
         assertThat(
             "[" + filterClause + "] must return exactly the matching rows, dropping none and inventing none",
@@ -230,18 +267,33 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
         request.acceptedPragmaRisks(true);
         request.profile(true);
         try (var response = run(request)) {
-            if (expectedFilesScanned > 0) {
+            var profile = response.getExecutionInfo().queryProfile();
+            if (tail.contains("COUNT(*)")) {
+                // KEEP harvests CSV stripe stats. COUNT(*) on the same pruned set then:
+                // - cold-scans the survivors (filesScanned == expected, scan operator present), or
+                // - skip-discovery / LocalRelation fold (filesScanned == 0, no scan operator), or
+                // - discovery records survivors then PushStats folds (filesScanned == expected, no
+                // operator; warm counter stays 0 because the fragment is no longer
+                // Aggregate->ExternalRelation). Never more files than the prune budget.
                 assertThat(
-                    "external scan must run on a data node via the distributed fragment path",
-                    externalScanNodeNames(response).size(),
-                    greaterThanOrEqualTo(1)
+                    "[" + tail + "] COUNT(*) must not scan more than " + expectedFilesScanned + " of " + totalFiles + " files",
+                    profile.filesScanned(),
+                    lessThanOrEqualTo(expectedFilesScanned)
+                );
+            } else {
+                if (expectedFilesScanned > 0) {
+                    assertThat(
+                        "external scan must run on a data node via the distributed fragment path",
+                        externalScanNodeNames(response).size(),
+                        greaterThanOrEqualTo(1)
+                    );
+                }
+                assertThat(
+                    "[" + tail + "] must scan exactly " + expectedFilesScanned + " of " + totalFiles + " files",
+                    profile.filesScanned(),
+                    equalTo(expectedFilesScanned)
                 );
             }
-            assertThat(
-                "[" + tail + "] must scan exactly " + expectedFilesScanned + " of " + totalFiles + " files",
-                response.getExecutionInfo().queryProfile().filesScanned(),
-                equalTo(expectedFilesScanned)
-            );
             return getValuesList(response);
         }
     }
@@ -309,6 +361,89 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
         );
     }
 
+    /**
+     * AWS Hive-compatible hourly tree matching the public VPC Flow Logs example.
+     * The time-picker PR reuses this tree (mapping + request filter on top).
+     */
+    private String registerAwsHiveHourlySecondsTree(String name) throws IOException {
+        Path root = createTempDir().resolve(name);
+        Path hiveRoot = root.resolve("AWSLogs")
+            .resolve("aws-account-id=123456789012")
+            .resolve("aws-service=vpcflowlogs")
+            .resolve("aws-region=us-east-1");
+        writeHiveHourlyFile(hiveRoot, 2024, 6, 15, 23, "f.csv", 1, Instant.parse("2024-06-15T23:10:00Z"));
+        writeHiveHourlyFile(hiveRoot, 2024, 6, 16, 0, "a.csv", 2, Instant.parse("2024-06-16T00:05:00Z"));
+        writeHiveHourlyFile(hiveRoot, 2024, 6, 16, 0, "b.csv", 3, Instant.parse("2024-06-16T00:20:00Z"));
+        writeHiveHourlyFile(hiveRoot, 2024, 6, 16, 1, "f.csv", 4, Instant.parse("2024-06-16T01:00:00Z"));
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        return registerDataset(
+            name,
+            glob,
+            Map.of(
+                "partition_detection",
+                "hive",
+                "partition_spec",
+                "year(start, epoch_second), month(start, epoch_second), day(start, epoch_second), hour(start, epoch_second)"
+            )
+        );
+    }
+
+    private static void writeHiveHourlyFile(Path hiveRoot, int year, int month, int day, int hour, String fileName, int id, Instant start)
+        throws IOException {
+        Path dir = hiveRoot.resolve("year=" + year)
+            .resolve("month=" + pad2(month))
+            .resolve("day=" + pad2(day))
+            .resolve("hour=" + pad2(hour));
+        Files.createDirectories(dir);
+        Files.writeString(
+            dir.resolve(fileName),
+            "id:integer,start:long\n" + id + "," + start.getEpochSecond() + "\n",
+            StandardCharsets.UTF_8
+        );
+    }
+
+    /**
+     * AWS text-layout tree matching the public headerless CSV VPC example: literal {@code vpcflowlogs},
+     * space delimiter, {@code header_row} false, {@code start} bound by {@code path}.
+     */
+    private String registerAwsTextLayoutHeaderlessSecondsTree(String name) throws IOException {
+        Path root = createTempDir().resolve(name);
+        Path logs = root.resolve("AWSLogs").resolve("123456789012").resolve("vpcflowlogs").resolve("us-east-1");
+        writeTextLayoutFile(logs, 2024, 6, 15, "f.csv", 1, Instant.parse("2024-06-15T23:10:00Z"));
+        writeTextLayoutFile(logs, 2024, 6, 16, "a.csv", 2, Instant.parse("2024-06-16T00:05:00Z"));
+        writeTextLayoutFile(logs, 2024, 6, 16, "b.csv", 3, Instant.parse("2024-06-16T00:20:00Z"));
+        writeTextLayoutFile(logs, 2024, 6, 17, "f.csv", 4, Instant.parse("2024-06-17T01:00:00Z"));
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        LinkedHashMap<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("start", new DatasetFieldMapping("long", "col10"));
+        return registerNonStrictDataset(
+            name,
+            glob,
+            properties,
+            Map.of(
+                "format",
+                "csv",
+                "delimiter",
+                " ",
+                "header_row",
+                false,
+                "partition_path",
+                "{account}/vpcflowlogs/{region}/{year}/{month}/{day}",
+                "partition_spec",
+                "year(start, epoch_second), month(start, epoch_second), day(start, epoch_second)"
+            )
+        );
+    }
+
+    private static void writeTextLayoutFile(Path regionRoot, int year, int month, int day, String fileName, int id, Instant start)
+        throws IOException {
+        Path dir = regionRoot.resolve(Integer.toString(year)).resolve(pad2(month)).resolve(pad2(day));
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve(fileName), vpcHeaderlessRow(id, start), StandardCharsets.UTF_8);
+    }
+
     private String registerSecondsTree(String name) throws IOException {
         Path root = createTempDir().resolve(name);
         for (int year : YEARS) {
@@ -323,7 +458,12 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
         return registerDataset(
             name,
             glob,
-            Map.of("partition_detection", "hive", "partition_spec", "year(start, second), month(start, second), day(start, second)")
+            Map.of(
+                "partition_detection",
+                "hive",
+                "partition_spec",
+                "year(start, epoch_second), month(start, epoch_second), day(start, epoch_second)"
+            )
         );
     }
 
@@ -433,5 +573,14 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
 
     private static String pad2(int v) {
         return v < 10 ? "0" + v : Integer.toString(v);
+    }
+
+    /**
+     * Default VPC Flow Logs v2 layout so {@code start} is {@code col10}. Only {@code start} is declared
+     * (non-strict overlay), matching the docs PUT.
+     */
+    private static String vpcHeaderlessRow(int id, Instant start) {
+        long epoch = start.getEpochSecond();
+        return "2 123456789012 eni-aaaaaaaa 10.0.0.1 10.0.0.2 12345 80 6 1 " + id + " " + epoch + " " + (epoch + 1) + " ACCEPT OK\n";
     }
 }

@@ -67,8 +67,10 @@ $$$partition-detection$$$
       - `template`: Names partition columns from `partition_path`.
       - `none`: Turns off partition detection.
     - **Requires:** `partition_path` when set to `template`
-    - **Conflicts with:** `partition_path` when set to `hive` or `none`
-    - **Related:** `partition_path`, `partition_sample_size`
+    - **Conflicts with:**
+      - `partition_path` when set to `hive` or `none`
+      - {applies_to}`stack: experimental 9.6+` `partition_spec` when set to `none`
+    - **Related:** `partition_path`, `partition_spec`, `partition_sample_size`
 
 $$$partition-path$$$
 
@@ -78,9 +80,30 @@ $$$partition-path$$$
     - **Default:** None
     - **Valid values:** A path template that uses `{column}` placeholders, for example `{year}/{month}`
     - **Conflicts with:** `partition_detection` set to `hive` or `none`
-    - **Related:** `partition_detection`
+    - **Related:** `partition_detection`, `partition_spec`
 
     Each placeholder labels one path segment. For example, `{year}/{month}` extracts `year` and `month` columns from a two-level path. The default `partition_detection` of `auto` reads Hive directory names first and uses the template for other paths. For placeholder syntax, refer to [define partition paths](esql-data-federation-patterns.md#define-partition-paths).
+
+$$$partition-spec$$$
+
+`partition_spec` {applies_to}`stack: experimental 9.6+`
+:   Maps file columns to partition keys, so that filters on those columns can skip folders.
+
+    - **Default:** None
+    - **Valid values:** A comma-separated list of bindings, each in one of these forms:
+      - `[key=]transform(column[, unit])`: A temporal or identity transform. `transform` is `identity`, `year`, `month`, `day`, or `hour`. `unit` is `second`, `millis`, or `micros`, and applies only to temporal transforms. The default unit is `millis`.
+      - `key=column`: Maps a column to a differently named key.
+      - `column`: Maps a column to the key with the same name.
+    - **Requires:** Each key to be a `{name}` placeholder in `partition_path`, when `partition_path` is set
+    - **Conflicts with:** `partition_detection` set to `none`
+    - **Related:** `partition_detection`, `partition_path`
+
+    For syntax, examples, and how folders are skipped, refer to [Skip folders with file column filters](esql-data-federation-partition-spec.md).
+
+    :::{dropdown} Behavior at query time
+    A binding whose key isn't detected in the folder paths is ignored, and the query returns a warning.<br><br>Transform and unit names are case-insensitive. Keys and column names are case-sensitive.
+
+    :::
 
 $$$partition-sample-size$$$
 

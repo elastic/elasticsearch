@@ -3814,6 +3814,85 @@ public class GlobExpanderTests extends ESTestCase {
         assertThat(templateProvider.listedPrefixes, hasItem(containsString("2026/10/13/10/")));
     }
 
+    /**
+     * Docs AWS glob: leading {@code aws-account-id=*} / {@code aws-region=*} with year/month/day/hour IN.
+     * The walk must not recursively list {@code AWSLogs/}.
+     */
+    public void testKeyedAwsGlobWalksPastLeadingIdentityKeys() throws IOException {
+        List<StorageEntry> files = List.of(
+            entry(
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=10/day=13/hour=10/a.parquet",
+                100
+            ),
+            entry(
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=10/day=13/hour=11/b.parquet",
+                100
+            ),
+            entry(
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/aws-region=eu-west-1/year=2026/month=10/day=13/hour=10/c.parquet",
+                100
+            ),
+            entry(
+                "s3://bucket/AWSLogs/aws-account-id=222/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=10/day=13/hour=10/d.parquet",
+                100
+            ),
+            entry(
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=10/day=12/hour=10/e.parquet",
+                100
+            )
+        );
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        Instant start = Instant.parse("2026-10-13T10:00:00Z");
+        Instant end = Instant.parse("2026-10-13T10:15:00Z");
+        var hints = spec.projectListingHints(
+            List.of(
+                hint("ts", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, start),
+                hint("ts", PartitionFilterHintExtractor.Operator.LESS_THAN, end)
+            )
+        );
+        String glob =
+            "s3://bucket/AWSLogs/aws-account-id=*/aws-service=vpcflowlogs/aws-region=*/year=*/month=*/day=*/hour=*/*.parquet";
+        TreeStubProvider provider = new TreeStubProvider(files);
+        FileList result = GlobExpander.expand(glob, provider, hints, HIVE_ON, MAX, MAX);
+        assertEquals(
+            Set.of(
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=10/day=13/hour=10/a.parquet",
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/aws-region=eu-west-1/year=2026/month=10/day=13/hour=10/c.parquet",
+                "s3://bucket/AWSLogs/aws-account-id=222/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=10/day=13/hour=10/d.parquet"
+            ),
+            new LinkedHashSet<>(paths(result))
+        );
+        assertFalse("must not recursively list AWSLogs/", provider.listedPrefixes.contains("s3://bucket/AWSLogs/"));
+        for (String listed : provider.listedPrefixes) {
+            assertFalse("recursive AWSLogs listing: " + listed, listed.equals("s3://bucket/AWSLogs/"));
+        }
+    }
+
+    /** {@code **} on the same AWS tree still withdraws at unhinted {@code aws-account-id}. */
+    public void testGlobstarOnAwsTreeStillWithdrawsAtUnhintedAccountId() throws IOException {
+        List<StorageEntry> files = List.of(
+            entry(
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=10/day=13/hour=10/a.parquet",
+                100
+            ),
+            entry(
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/aws-region=us-east-1/year=2025/month=10/day=13/hour=10/old.parquet",
+                100
+            )
+        );
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.IN, 2026, 2030));
+        TreeStubProvider provider = new TreeStubProvider(files);
+        FileList result = GlobExpander.expand("s3://bucket/AWSLogs/**/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
+        assertEquals(1, result.fileCount());
+        assertEquals(
+            List.of(
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=10/day=13/hour=10/a.parquet"
+            ),
+            paths(result)
+        );
+        assertTrue("** glob must flat-list AWSLogs/ after withdrawing", provider.listedPrefixes.contains("s3://bucket/AWSLogs/"));
+    }
+
     /** The paths a listing returned, for asserting what was — and was not — enumerated. */
     private static List<String> paths(FileList result) {
         List<String> paths = new ArrayList<>();
@@ -5636,10 +5715,10 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * Only {@code city} is hinted under {@code year=*}/{@code city=*}. The walk probes the year level and withdraws.
-     * The flat filter still keeps the encoded city.
+     * Only {@code city} is hinted under {@code year=*}/{@code city=*}. The keyed glob walks past unhinted
+     * {@code year} and prunes {@code city}; the encoded folder stays.
      */
-    public void testUnhintedParentKeyWithdrawsAndKeepsEncodedCity() throws IOException {
+    public void testKeyedGlobWalksPastUnhintedParentKeyKeepsEncodedCity() throws IOException {
         TreeStubProvider provider = new TreeStubProvider(
             List.of(
                 entry("s3://bucket/data/year=2024/city=New%20York/a.parquet", 100),
@@ -5655,8 +5734,10 @@ public class GlobExpanderTests extends ESTestCase {
             List.of("s3://bucket/data/year=2024/city=New%20York/a.parquet", "s3://bucket/data/year=2025/city=Paris/c.parquet"),
             paths(result)
         );
-        assertEquals(List.of("s3://bucket/data/"), provider.childListedPrefixes);
-        assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes);
+        assertFalse("keyed glob must not flat-list the parent", provider.listedPrefixes.contains("s3://bucket/data/"));
+        assertThat(provider.childListedPrefixes, hasItem("s3://bucket/data/"));
+        assertThat(provider.childListedPrefixes, hasItem("s3://bucket/data/year=2024/"));
+        assertThat(provider.childListedPrefixes, hasItem("s3://bucket/data/year=2025/"));
     }
 
     /** {@code ==} still splices the concrete folder. The walk is not used. */

@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -7003,25 +7004,6 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals("String length (12) is over the limit (10)", CsvFormatReader.rowErrorReason(reworded));
     }
 
-    public void testCsvErrorMessagesSummarizeShortValuePassesThrough() {
-        assertEquals("hello", CsvErrorMessages.summarize("hello"));
-        assertEquals("null", CsvErrorMessages.summarize((String) null));
-    }
-
-    public void testCsvErrorMessagesSummarizeLongValueIsCapped() {
-        StringBuilder huge = new StringBuilder();
-        for (int i = 0; i < 5_000; i++) {
-            huge.append('x');
-        }
-        String summarized = CsvErrorMessages.summarize(huge.toString());
-        assertTrue(
-            "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length(),
-            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
-        );
-        assertTrue("expected truncation marker, got: " + summarized, summarized.contains("truncated"));
-        assertTrue("expected total-length marker, got: " + summarized, summarized.contains("5000"));
-    }
-
     public void testCsvErrorMessagesSummarizeRowEmptyIsSentinel() {
         assertEquals("<unparsed>", CsvErrorMessages.summarizeRow(new String[0]));
         assertEquals("<unparsed>", CsvErrorMessages.summarizeRow(null));
@@ -7105,7 +7087,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String summarized = CsvErrorMessages.summarizeAround(huge.toString(), faultOffset);
         assertTrue(
             "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length() + ": " + summarized,
-            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
+            summarized.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS
         );
         assertTrue(
             "expected offset annotation, got: " + summarized,
@@ -7165,7 +7147,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String summarized = CsvErrorMessages.summarizeAround(huge.toString(), -1);
         assertTrue(
             "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length(),
-            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
+            summarized.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS
         );
         assertTrue("expected truncated marker, got: " + summarized, summarized.contains("truncated"));
         assertTrue("expected total-length marker, got: " + summarized, summarized.contains("5000"));
@@ -7189,7 +7171,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String summarized = CsvErrorMessages.summarizeAround(huge.toString(), faultOffset);
         assertTrue(
             "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length(),
-            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
+            summarized.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS
         );
         assertTrue("expected offset annotation, got: " + summarized, summarized.contains("(offset " + faultOffset + " of 100000 chars)"));
         assertTrue("expected fault bytes in window, got: " + summarized, summarized.contains(marker));
@@ -7199,7 +7181,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * End-to-end: an unclosed quoted field at end-of-file produces an error excerpt anchored on the
      * opening quote, not a head/tail-truncated view of the entire row. The row is sized so the
      * opening quote sits well inside the elided middle of the legacy head/tail summary, so a
-     * regression that re-routes to {@link CsvErrorMessages#summarize} would hide the fault bytes.
+     * regression that re-routes to {@link ErrorExcerpts#summarize} would hide the fault bytes.
      */
     public void testMalformedRowErrorAnchorsOnQuoteOffset() {
         // Pad both sides of the unmatched quote so the line is much longer than MAX_EXCERPT_CHARS
@@ -7239,6 +7221,64 @@ public class CsvFormatReaderTests extends ESTestCase {
         // The unique fault marker sits at the elided middle for legacy head/tail; with offset
         // anchoring it must survive in the excerpt.
         assertTrue("expected fault bytes in excerpt, got: " + msg, msg.contains("\"unterminated_field_here_"));
+    }
+
+    /**
+     * A multi-megabyte value that does not parse as its column's type must not reach the client whole: the same
+     * message is the {@code Warning} detail under the lenient modes and the error under {@code fail_fast}. Unlike the
+     * {@link CsvErrorMessages} tests above, this reads a file, so it covers the cap's application on every walker.
+     */
+    public void testLongUnparseableValueIsTruncatedInWarningAndException() throws Exception {
+        int length = 2_000_000;
+        StorageObject object = createStorageObject("id:long,tag:keyword\n1,ok\n" + "Z".repeat(length) + ",bad\n2,ok\n");
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "tag", DataType.KEYWORD)
+        );
+        // The frame around the value is well under 64 chars. Under fail_fast the row excerpt (itself capped) and
+        // the hint come on top. A value embedded whole overshoots either bound.
+        int warningBound = ErrorExcerpts.MAX_EXCERPT_CHARS + 64;
+        int exceptionBound = 2 * ErrorExcerpts.MAX_EXCERPT_CHARS + 160;
+        for (String mvSyntax : List.of("NONE", "brackets")) {
+            for (boolean directBlock : List.of(false, true)) {
+                for (String lenient : List.of("null_field", "skip_row")) {
+                    String desc = "multi_value_syntax=" + mvSyntax + " directBlock=" + directBlock + " error_mode=" + lenient;
+                    Map<String, Object> config = Map.of(
+                        "header_row",
+                        true,
+                        "multi_value_syntax",
+                        mvSyntax,
+                        "error_mode",
+                        lenient,
+                        "max_errors",
+                        100
+                    );
+                    int rows = readRowCount(declaredReader(false, directBlock, config), object, schema, null);
+                    assertEquals(desc, lenient.equals("null_field") ? 3 : 2, rows);
+                    String detail = drainWarnings().stream().filter(w -> w.contains("cannot read [")).findFirst().orElseThrow();
+                    assertThat(desc + " warning carried the whole value", detail.length(), Matchers.lessThan(warningBound));
+                    assertThat(desc, detail, containsString("] as [long]"));
+                    assertThat(desc, detail, containsString("(truncated, " + length + " chars total)"));
+                    if (lenient.equals("null_field")) {
+                        assertThat(desc, detail, containsString("column [id]"));
+                    }
+                }
+
+                String desc = "multi_value_syntax=" + mvSyntax + " directBlock=" + directBlock + " error_mode=fail_fast";
+                Map<String, Object> config = Map.of("header_row", true, "multi_value_syntax", mvSyntax, "error_mode", "fail_fast");
+                ExternalClientException e = expectThrows(
+                    ExternalClientException.class,
+                    () -> readRowCount(declaredReader(false, directBlock, config), object, schema, null)
+                );
+                String message = e.getMessage();
+                assertThat(desc + " exception carried the whole value", message.length(), Matchers.lessThan(exceptionBound));
+                assertThat(desc, message, containsString("cannot read ["));
+                assertThat(desc, message, containsString("] as [long]"));
+                assertThat(desc, message, containsString("(truncated, " + length + " chars total)"));
+                assertThat(desc, message, containsString("set [error_mode] to [null_field]"));
+                drainWarnings();
+            }
+        }
     }
 
     // --- declared `path` binding under a pinned (declared) schema: esql-planning#1307 ---

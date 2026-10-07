@@ -65,6 +65,12 @@ final class PartitionPruningWalk {
     static final int MAX_DIRECTORY_LISTINGS = 512;
 
     /**
+     * Ceiling on pruned directories retained as probe sources for a one-file inference anchor. Outermost pruned
+     * folders first; the walk records them as it goes and does not list them again.
+     */
+    static final int MAX_PRUNED_DIRS_FOR_ANCHOR = 16;
+
+    /**
      * Ceiling on one directory's materialized children — {@link StorageProvider#listChildren} buffers a whole
      * directory, unlike the flat listing's lazy iterator. Providers return {@code null} past the limit. 10k bounds
      * the buffer to roughly a megabyte while still covering the widest realistic partition levels (e.g. a date key
@@ -98,6 +104,8 @@ final class PartitionPruningWalk {
      * type inferred for each partition key from all values seen during the walk (including a one-level retroactive
      * peek into pruned dirs — see {@link #walk}). The caller compares these types against the types detected in the
      * walked file set to catch cases where a pruned subtree was the sole source of a type-widening folder value.
+     * {@link #prunedDirs} is the outermost-first probe list (capped at {@link #MAX_PRUNED_DIRS_FOR_ANCHOR}) used
+     * when the walk matched nothing: an empty glob under surviving dirs still needs a directory that holds a file.
      */
     record WalkResult(
         List<StorageEntry> matched,
@@ -105,7 +113,8 @@ final class PartitionPruningWalk {
         int excludedCount,
         String excludedExample,
         String excludedExampleEntry,
-        Map<String, DataType> columnFullTypes
+        Map<String, DataType> columnFullTypes,
+        List<StoragePath> prunedDirs
     ) {}
 
     /**
@@ -155,6 +164,7 @@ final class PartitionPruningWalk {
             }
         }
         Set<String> prunedColumns = new HashSet<>();
+        List<StoragePath> prunedDirs = new ArrayList<>();
         boolean anyLevelHinted = false;
         List<StoragePath> dirs = List.of(prefix);
         int listings = 0;
@@ -175,7 +185,15 @@ final class PartitionPruningWalk {
             if (pending.isEmpty() || listings + dirs.size() > MAX_DIRECTORY_LISTINGS) {
                 // No hint can narrow a deeper level (or the budget is spent): finish each surviving subtree with
                 // one recursive listing, unless one flat listing of the whole prefix is cheaper.
-                return finishSurvivors(collector, provider, dirs, prunedColumns, inferColumnTypes(seenValues), lastHintedLevelPeerCount);
+                return finishSurvivors(
+                    collector,
+                    provider,
+                    dirs,
+                    prunedColumns,
+                    inferColumnTypes(seenValues),
+                    lastHintedLevelPeerCount,
+                    prunedDirs
+                );
             }
 
             List<StoragePath> shapedDirs = new ArrayList<>();
@@ -271,6 +289,9 @@ final class PartitionPruningWalk {
                         newPeeks = new ArrayList<>();
                     }
                     newPeeks.add(shapedDirs.get(i));
+                    if (prunedDirs.size() < MAX_PRUNED_DIRS_FOR_ANCHOR) {
+                        prunedDirs.add(shapedDirs.get(i));
+                    }
                 }
             }
             pendingPeeks = newPeeks != null ? newPeeks : List.of();
@@ -287,7 +308,15 @@ final class PartitionPruningWalk {
                 // LIST per directory — and `WHERE <partition> AND <data column>` is the everyday shape. Keep the
                 // pruning already done and finish by recursively listing each surviving PARENT dir (dirs), not each
                 // child (next): listing the parent once enumerates the same files with one round trip instead of N.
-                return finishSurvivors(collector, provider, dirs, prunedColumns, inferColumnTypes(seenValues), lastHintedLevelPeerCount);
+                return finishSurvivors(
+                    collector,
+                    provider,
+                    dirs,
+                    prunedColumns,
+                    inferColumnTypes(seenValues),
+                    lastHintedLevelPeerCount,
+                    prunedDirs
+                );
             }
             // Commit direct files now that we know finishSurvivors won't re-enumerate them.
             for (StorageEntry file : levelFiles) {
@@ -297,7 +326,7 @@ final class PartitionPruningWalk {
             lastHintedLevelPeerCount = shapedDirs.size();
             dirs = next;
         }
-        return collector.result(prunedColumns, inferColumnTypes(seenValues));
+        return collector.result(prunedColumns, inferColumnTypes(seenValues), prunedDirs);
     }
 
     /**
@@ -362,7 +391,8 @@ final class PartitionPruningWalk {
         List<StoragePath> dirs,
         Set<String> prunedColumns,
         Map<String, DataType> columnFullTypes,
-        int lastHintedLevelPeerCount
+        int lastHintedLevelPeerCount,
+        List<StoragePath> prunedDirs
     ) throws IOException {
         if (prunedColumns.isEmpty()) {
             return null;
@@ -376,7 +406,7 @@ final class PartitionPruningWalk {
         for (StoragePath dir : dirs) {
             collector.addRecursively(provider, dir);
         }
-        return collector.result(prunedColumns, columnFullTypes);
+        return collector.result(prunedColumns, columnFullTypes, prunedDirs);
     }
 
     /**
@@ -431,8 +461,16 @@ final class PartitionPruningWalk {
             }
         }
 
-        WalkResult result(Set<String> prunedColumns, Map<String, DataType> columnFullTypes) {
-            return new WalkResult(matched, prunedColumns, excludedCount, excludedExample, excludedExampleEntry, columnFullTypes);
+        WalkResult result(Set<String> prunedColumns, Map<String, DataType> columnFullTypes, List<StoragePath> prunedDirs) {
+            return new WalkResult(
+                matched,
+                prunedColumns,
+                excludedCount,
+                excludedExample,
+                excludedExampleEntry,
+                columnFullTypes,
+                List.copyOf(prunedDirs)
+            );
         }
     }
 }

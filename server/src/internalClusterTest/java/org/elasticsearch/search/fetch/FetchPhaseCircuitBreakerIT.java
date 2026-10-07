@@ -32,6 +32,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rank.FieldBasedRerankerIT;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -47,11 +48,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -824,6 +827,98 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         assertBusy(
             () -> assertThat(
                 "Circuit breaker should be released with no double-charge after overlapping fields+stored_fields",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    /**
+     * Verifies that the request circuit breaker trips (HTTP 429) when whole-field highlighting retains more heap than
+     * the configured limit, and that the breaker is released after the trip.
+     * <p>
+     * {@code number_of_fragments: 0} is the case that matters: it bypasses
+     * {@code index.highlight.max_number_of_fragments} and highlights the whole field, so retained bytes scale with
+     * field size rather than {@code fragment_size}. {@code _source} is disabled so the hit retains only the highlight.
+     */
+    public void testCircuitBreakerTripsOnLargeHighlightFetch() throws Exception {
+        String dataNode = startDataNode("100kb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String highlightIndex = "highlight_trip_idx";
+        assertAcked(
+            prepareCreate(highlightIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("large_text_1", "type=text,store=false")
+        );
+        // 20 docs x ~21 KB of text; whole-field highlighting retains a fragment per doc, so ~420 KB over a 100 KB limit.
+        populateIndex(highlightIndex, 20, 1000);
+        ensureSearchable(highlightIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchQuery("large_text_1", "content"))
+            .size(20)
+            .fetchSource(false)
+            .highlighter(new HighlightBuilder().field("large_text_1", 0, 0));
+        Exception exception = expectThrows(
+            Exception.class,
+            () -> client(coordinatorNode).prepareSearch(highlightIndex).setSource(source).get()
+        );
+
+        Throwable cbe = ExceptionsHelper.unwrap(exception, CircuitBreakingException.class);
+        assertThat("Should contain CircuitBreakingException", cbe, notNullValue());
+        // Assert the label, not just that something tripped: uncharged, the fetch stays under the limit and the
+        // request instead trips later while serializing the response, under [RecyclerBytesStreamOutput].
+        assertThat("The highlight bytes should be what trips the breaker", cbe.getMessage(), containsString("fetch[hit_fields]"));
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after tripped highlight fetch",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    /**
+     * A highlighted search that fits under the limit must still succeed and return the breaker to baseline, so the
+     * charge neither trips spuriously nor leaks.
+     */
+    public void testHighlightFetchReleasesCircuitBreaker() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String highlightIndex = "highlight_release_idx";
+        assertAcked(
+            prepareCreate(highlightIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("large_text_1", "type=text,store=false")
+        );
+        populateIndex(highlightIndex, 20, 1000);
+        ensureSearchable(highlightIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchQuery("large_text_1", "content"))
+            .size(20)
+            .fetchSource(false)
+            .highlighter(new HighlightBuilder().field("large_text_1", 0, 0));
+        assertNoFailuresAndResponse(client(coordinatorNode).prepareSearch(highlightIndex).setSource(source), response -> {
+            assertThat(response.getHits().getHits().length, equalTo(20));
+            assertThat(response.getHits().getHits()[0].getHighlightFields().get("large_text_1"), notNullValue());
+        });
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after a successful highlight fetch",
                 getRequestBreakerUsed(dataNode),
                 lessThanOrEqualTo(breakerBeforeSearch)
             )

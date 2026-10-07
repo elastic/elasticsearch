@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * issuing any bulk request that would push the node toward OOM.
  *
  * <p>DBQ disables {@code _source} fetching (see {@link DeleteByQueryRequest}), so the circuit breaker
- * trips on {@code fetch[document_fields]} — the RAM estimate of the per-hit metadata fields
+ * trips on {@code fetch[hit_fields]} — the RAM estimate of the per-hit metadata fields
  * ({@code _id}, {@code _seq_no}, {@code _primary_term}, etc.) accumulated across the batch.  For 100 docs
  * that charge is well above a 2 KiB limit.  The fetch circuit breaker now charges these bytes to the
  * REQUEST breaker during FetchPhase, before the (much smaller) bulk-batch reservation is ever reached.
@@ -72,7 +72,7 @@ public class DeleteByQueryCircuitBreakerTests extends ESSingleNodeTestCase {
         assertThat("expected CircuitBreakingException in cause chain, got: " + thrown, circuitBreakingCause, notNullValue());
         // The fetch circuit breaker trips during FetchPhase (on document-field metadata) before the
         // bulk-batch reservation is reached; the label is set by FetchPhase's document-fields accounting.
-        assertThat(circuitBreakingCause.getMessage(), containsString("fetch[document_fields]"));
+        assertThat(circuitBreakingCause.getMessage(), containsString("fetch[hit_fields]"));
 
         // No documents should have been deleted — no bulk request was issued.
         assertHitCount(client().prepareSearch("source").setSize(0), docCount);

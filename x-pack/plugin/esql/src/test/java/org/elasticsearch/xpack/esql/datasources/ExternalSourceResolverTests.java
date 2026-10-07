@@ -9179,7 +9179,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The resolver is built in {@code PlanExecutor} before {@code EsqlSession.execute} binds the
+     * The resolver is built in {@code PlanExecutor} before {@code PlanExecutor.esql} binds the
      * reservation. A ctor-time planning-I/O capture is null; the holder must be resolved when each
      * metadata-read task runs.
      */

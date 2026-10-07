@@ -426,7 +426,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
-                releaseExternalPlanningBytes(executionInfo);
                 recordCCSTelemetry(task, executionInfo, request, null);
                 planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
                 collectMetrics(result.inner());
@@ -445,25 +444,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
                 listener.onResponse(response);
             }, ex -> {
-                releaseExternalPlanningBytes(executionInfo);
                 recordCCSTelemetry(task, executionInfo, request, ex);
                 listener.onFailure(ex);
             })
         );
 
-    }
-
-    /**
-     * Closes the query's external-planning reservation. Both the success and failure listeners of
-     * {@link #innerExecute} and of {@link TransportEsqlStreamQueryAction} call this;
-     * {@link org.elasticsearch.xpack.esql.action.ExternalPlanningReservation#close()} is idempotent.
-     * Timeout callbacks must not call it — the query is still running.
-     */
-    static void releaseExternalPlanningBytes(EsqlExecutionInfo executionInfo) {
-        if (executionInfo == null || executionInfo.externalPlanning() == null) {
-            return;
-        }
-        executionInfo.externalPlanning().close();
     }
 
     // Note: this gate differs from the by_outcome.success gate (PlanTelemetry.externalSource()). A

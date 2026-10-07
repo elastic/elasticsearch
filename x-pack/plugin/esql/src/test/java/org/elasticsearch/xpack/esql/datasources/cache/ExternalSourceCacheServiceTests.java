@@ -3634,6 +3634,158 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         );
     }
 
+    // ===== The separation itself: assertions no composition can satisfy =====
+
+    /**
+     * The reconcile never writes the schema store. Asserted by identity, not by content.
+     * <p>
+     * This is the invariant the whole separation rests on, and it is the one the {@link #warm} helper cannot
+     * check: that helper reassembles what the single store used to hold, so a test asserting on the
+     * composition would pass whether or not the two kinds of fact are actually apart. Here the seeded instance
+     * is captured before the reconcile and compared by reference afterwards — a schema record that was rebuilt
+     * with measurements merged in would be a different object even if every served value matched.
+     * <p>
+     * Inject the defect by having the reconcile put an enriched entry back into the schema store: the
+     * {@code assertSame} fails while every value assertion elsewhere in this suite still passes.
+     */
+    public void testTheReconcileNeverWritesTheSchemaStore() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/untouched.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = seedDoubleTypedRecord(service, path, mtime, "own");
+            SchemaCacheEntry before = service.getSchemaIfPresent(key);
+            assertNotNull(before);
+
+            Map<String, Object> harvest = new LinkedHashMap<>();
+            harvest.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            harvest.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            harvest.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "own");
+            harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 4321L);
+            harvest.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min", 7.5);
+            service.reconcileSourceStats(Map.of(path, harvest));
+
+            assertSame("the reconcile must leave the schema record's instance alone", before, service.getSchemaIfPresent(key));
+            assertNull(
+                "and it must carry no measurement, whatever the serve composes",
+                service.getSchemaIfPresent(key).safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+            // The measurement went somewhere: without this the assertions above would also hold if the harvest
+            // were dropped entirely, which is the failure mode an earlier cut of this change actually had.
+            Map<String, Object> measured = service.getStatistics(StatisticsKey.of(key, "own"));
+            assertNotNull("the harvest must be in the statistics store", measured);
+            assertEquals(4321L, ((Number) measured.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        }
+    }
+
+    /**
+     * Each fact is in exactly one store. A schema record holds the file's shape and no measurements; a
+     * statistics record holds measurements and nothing about the shape.
+     * <p>
+     * Partitioned explicitly rather than asserting a served total, because the duplication this change removes
+     * was invisible in the served answer: the old statistics record carried a COPY of the schema record's
+     * columns, and every served value was correct while the two kinds of fact were tangled.
+     */
+    public void testNeitherStoreHoldsTheOtherKindOfFact() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/partitioned.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = seedDoubleTypedRecord(service, path, mtime, "own");
+
+            Map<String, Object> harvest = new LinkedHashMap<>();
+            harvest.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            harvest.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            harvest.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "own");
+            harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 11L);
+            harvest.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.max", 99.0);
+            service.reconcileSourceStats(Map.of(path, harvest));
+
+            SchemaCacheEntry schemaRecord = service.getSchemaIfPresent(key);
+            assertNotNull(schemaRecord);
+            assertArrayEquals("the schema record keeps the file's shape", new String[] { "v" }, schemaRecord.columnNames());
+            for (String measurement : schemaRecord.safeMetadata().keySet()) {
+                assertFalse(
+                    "a schema record must hold no measurement, found [" + measurement + "]",
+                    measurement.startsWith(SourceStatisticsSerializer.STATS_COL_PREFIX)
+                        || measurement.equals(SourceStatisticsSerializer.STATS_ROW_COUNT)
+                        || measurement.startsWith(ExternalStats.STRIPE_ENTRY_PREFIX)
+                );
+            }
+
+            Map<String, Object> measured = service.getStatistics(StatisticsKey.of(key, "own"));
+            assertNotNull(measured);
+            assertEquals(99.0, ((Number) measured.get(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.max")).doubleValue(), 0.0);
+            // A statistics record has no shape to hold: StatisticsRecord exposes no column accessor at all, so
+            // the only way shape could leak is through the map. It does not.
+            for (String key2 : measured.keySet()) {
+                assertFalse("a statistics record must hold no sample of the file's shape", key2.startsWith("_sample."));
+            }
+        }
+    }
+
+    /**
+     * Separate budgets: schema records survive the weight of the measurements taken against them.
+     * <p>
+     * This is the warmth property the separation buys. Both kinds of fact used to share one slice, and a
+     * measurement is the heavier half — for a wide file the harvested {@code _stats.*} map outweighs the schema
+     * it was measured against, several stat keys per column against one column name. So a dataset's own
+     * measurements evicted the dataset's own schema records, and every evicted file re-inferred on the next
+     * query. Now the measurements land in their own slice and cannot reach the schema one.
+     * <p>
+     * Each file is harvested once under its OWN read, which is where the duplication actually was: a foreign
+     * read's harvest was already filed separately, so piling foreign reads on would not exercise this. The
+     * fixture is sized so the bare schema records fit their slice with room to spare while the same records
+     * carrying their measurements would overrun it several times over — asserted as a precondition, so a
+     * mis-sized fixture fails loudly instead of passing vacuously.
+     * <p>
+     * Inject the defect by having the reconcile also write the admitted measurements onto the schema record:
+     * the schema slice is overrun and the seeded records are evicted.
+     */
+    public void testSchemaRecordsSurviveTheWeightOfTheirOwnMeasurements() throws Exception {
+        Settings settings = Settings.builder().put("esql.external.cache.size", "1mb").put("esql.external.cache.enabled", true).build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            int files = 40;
+            int columns = 60;
+            List<SchemaCacheKey> seeded = new ArrayList<>();
+            for (int i = 0; i < files; i++) {
+                seeded.add(seedDoubleTypedRecord(service, "file:///data/keep" + i + ".csv", 1000L, "own"));
+            }
+            Map<String, Object> afterSeeding = service.usageStats();
+            long schemaBudget = ((Number) afterSeeding.get("schema_budget_bytes")).longValue();
+            long bareWeight = ((Number) afterSeeding.get("schema_cache.weight_bytes")).longValue();
+            assertEquals("precondition: every schema record is resident", files, (int) afterSeeding.get("schema_cache.count"));
+            assertThat("precondition: the bare records fit with room to spare", bareWeight * 2, lessThan(schemaBudget));
+
+            // Each file measured once, under the read its schema record was resolved with.
+            for (int i = 0; i < files; i++) {
+                Map<String, Object> harvest = new LinkedHashMap<>();
+                harvest.put(ExternalStats.MTIME_MILLIS_KEY, 1000L);
+                harvest.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+                harvest.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "own");
+                harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, (long) i);
+                for (int c = 0; c < columns; c++) {
+                    harvest.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "c" + c + ".min", i * 1000L + c);
+                }
+                service.reconcileSourceStats(Map.of("file:///data/keep" + i + ".csv", harvest));
+            }
+
+            Map<String, Object> stats = service.usageStats();
+            long measuredWeight = ((Number) stats.get("statistics_cache.weight_bytes")).longValue();
+            assertThat(
+                "precondition: the measurements really are heavier than the schema slice, or this proves nothing",
+                measuredWeight,
+                greaterThan(schemaBudget)
+            );
+            assertEquals(
+                "the schema records must all survive the weight of their own measurements",
+                files,
+                (int) stats.get("schema_cache.count")
+            );
+            for (SchemaCacheKey key : seeded) {
+                assertNotNull("evicted: " + key.canonicalPath(), service.getSchemaIfPresent(key));
+            }
+        }
+    }
+
     /**
      * The entry a warm serve would compose for {@code key}: the schema record's own file facts, with the
      * measurements committed under that record's read layered over them.

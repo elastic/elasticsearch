@@ -1222,7 +1222,17 @@ public class ExternalSourceResolver {
                 pendingMetadataWarnings.addAll(schemaEntry.warnings());
                 harvestedStatistics = computedStatistics[0];
                 List<Attribute> schema = schemaEntry.toAttributes();
-                extMetadata = buildMetadataFromCache(schemaEntry, schema, fileConfig, harvestedStatistics);
+                // The measurements are their own store, so a warm hit here has to ask for them: this is the
+                // path a single-file dataset takes, and the schema record carries no harvest. On a cold resolve
+                // the loader above ran and harvestedStatistics holds what it measured, so the lookup misses and
+                // costs nothing; on a warm one it is the whole point.
+                extMetadata = buildMetadataFromCache(
+                    schemaEntry,
+                    schema,
+                    fileConfig,
+                    cachedStatistics(schemaKey, readConfigStampOf(schemaEntry)),
+                    harvestedStatistics
+                );
                 storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
             } else {
                 SourceMetadata metadata = resolveSingleSource(path, fileConfig);
@@ -1716,7 +1726,7 @@ public class ExternalSourceResolver {
                 // cache harvest (the single-unit footer skip needs those column stats). A one-file
                 // listing keeps the anchor harvest.
                 StoragePath path = listing.path(i);
-                SchemaCacheEntry cached = schemaCacheEntry(path, listing.lastModifiedMillis(i), storageIdentity, secretIdentity, config);
+                CachedFile cached = schemaCacheEntry(path, listing.lastModifiedMillis(i), storageIdentity, secretIdentity, config);
                 Map<String, DataType> inferred = inferredTypesByPath.get(path);
                 if (inferred == null) {
                     inferred = inferredTypesFromCache(cached);
@@ -1752,7 +1762,7 @@ public class ExternalSourceResolver {
     private static SourceStatistics fileStatisticsForFirstFileWins(
         FileList listing,
         ExternalSourceMetadata extMetadata,
-        @Nullable SchemaCacheEntry cached,
+        @Nullable CachedFile cached,
         @Nullable SourceStatistics captured
     ) {
         if (listing.fileCount() > 1 || listing.isInferenceAnchor()) {
@@ -1772,11 +1782,15 @@ public class ExternalSourceResolver {
      * leaves FileSchemaInfo.statistics null and split discovery opens the footer.
      */
     @Nullable
-    private static SourceStatistics fileStatisticsFromCache(@Nullable SchemaCacheEntry entry) {
-        if (entry == null) {
+    private static SourceStatistics fileStatisticsFromCache(@Nullable CachedFile cached) {
+        if (cached == null || cached.statistics() == null) {
             return null;
         }
-        return SourceStatisticsSerializer.extractStatistics(entry.safeMetadata()).orElse(null);
+        // Composed, not read off the record: the measurements are their own store, and the record's own
+        // metadata still carries the mtime and fingerprint the extractor expects beside them.
+        Map<String, Object> composed = new HashMap<>(cached.record().safeMetadata());
+        composed.putAll(cached.statistics());
+        return SourceStatisticsSerializer.extractStatistics(composed).orElse(null);
     }
 
     /**
@@ -1785,7 +1799,8 @@ public class ExternalSourceResolver {
      * alignment must recover the file's own types here or it will treat the pin as the found type.
      */
     @Nullable
-    private static Map<String, DataType> inferredTypesFromCache(@Nullable SchemaCacheEntry entry) {
+    private static Map<String, DataType> inferredTypesFromCache(@Nullable CachedFile cached) {
+        SchemaCacheEntry entry = cached == null ? null : cached.record();
         if (entry == null || entry.columnNames().length == 0) {
             return null;
         }
@@ -1796,8 +1811,20 @@ public class ExternalSourceResolver {
         return types;
     }
 
+    /**
+     * A cached per-file record together with what its own read measured.
+     * <p>
+     * The two travel together on the defer path because the file's shape and the measurements taken against it
+     * are separate stores now: the shape decides the types, the measurements decide whether a footer can be
+     * skipped, and the defer path needs both for the same file.
+     */
+    private record CachedFile(SchemaCacheEntry record, Map<String, Object> statistics) {
+        /** {@code statistics} is null when this read has measured nothing for the file yet. */
+        CachedFile {}
+    }
+
     @Nullable
-    private SchemaCacheEntry schemaCacheEntry(
+    private CachedFile schemaCacheEntry(
         StoragePath path,
         long mtimeMillis,
         String storageIdentity,
@@ -1813,7 +1840,11 @@ public class ExternalSourceResolver {
             datasetIdentity(path.objectName(), storageIdentity, secretIdentity, storageConfig(config)),
             false
         );
-        return cacheService.getSchemaIfPresent(key);
+        SchemaCacheEntry record = cacheService.getSchemaIfPresent(key);
+        if (record == null) {
+            return null;
+        }
+        return new CachedFile(record, cachedStatistics(key, readConfigStampOf(record)));
     }
 
     private static int[] identityMapping(int n) {
@@ -4583,7 +4614,15 @@ public class ExternalSourceResolver {
             // Mirror the cold branch's wrapAsExternalSourceMetadata schema guard here — buildMetadataFromCache does not
             // validate — so warm and cold enforce the same invariant.
             validateSchemaUsesOnlyReferenceAttributes(logicalSchema);
-            ExternalSourceMetadata full = buildMetadataFromCache(entry, logicalSchema, config);
+            // Same as the inferred rail: the measurements live at their own address. rowCountOnlyStats below
+            // then keeps this rail serving only the declaration-independent row count, never per-column stats.
+            ExternalSourceMetadata full = buildMetadataFromCache(
+                entry,
+                logicalSchema,
+                config,
+                cachedStatistics(schemaKey, readConfigStampOf(entry)),
+                null
+            );
             return replaceSourceMetadata(full, rowCountOnlyStats(full.sourceMetadata()));
         }
         return wrapAsExternalSourceMetadata(
@@ -5240,11 +5279,18 @@ public class ExternalSourceResolver {
             datasetIdentity(filePath.objectName(), storageIdentity, secretIdentity, storageConfig(config)),
             false
         );
+        // Stamped on mint, as the async rail does. The stamp is what makes the measurement's address
+        // deterministic: the reconcile files a harvest under the read the record was resolved with, so an
+        // unstamped record would have its own read's measurements filed at the shared unstamped address while
+        // the harvest's real read got its own - and the serve below would ask for one of the two.
         SchemaCacheEntry entry = cacheService.getOrComputeSchema(
             schemaKey,
-            k -> SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config))
+            k -> stampInferredReadConfig(SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config)))
         );
-        return buildMetadataFromCache(entry, entry.toAttributes(), config);
+        // The measurements are a separate store now, so a single-file resolve has to ask for them: the schema
+        // record carries none. Addressed by the read this record was resolved under, which for a single file
+        // IS the read the query performs - there is no anchor to bind a different one.
+        return buildMetadataFromCache(entry, entry.toAttributes(), config, cachedStatistics(schemaKey, readConfigStampOf(entry)), null);
     }
 
     private ExternalSourceMetadata wrapAsExternalSourceMetadata(

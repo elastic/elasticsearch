@@ -38,21 +38,18 @@ public interface BinaryDocValuesScanCost {
     /**
      * @param reader reader to probe for the field's real decode-block size via {@link BlockLoader.OptionalDecodeMemoryUsageEstimator},
      *               or {@code null} when unavailable.
-     * @return the real per-field bound when {@code reader} is available, otherwise {@link TrackingBinaryDocValues#ESTIMATED_SIZE}.
-     */
-    static long estimateDecodeBytes(String field, @Nullable IndexReader reader) {
-        // reader is null when building a query with no live searcher, e.g. percolator query indexing.
-        return reader == null ? TrackingBinaryDocValues.ESTIMATED_SIZE : realDecodeBytes(field, reader);
-    }
-
-    /**
-     * @return the max decode bytes for {@code field} across {@code reader}'s leaves: the real bound where the leaf's
-     *         codec reports one, {@link TrackingBinaryDocValues#ESTIMATED_SIZE} otherwise (e.g. plain Lucene doc
-     *         values), or {@code 0} if the field is absent everywhere.
+     * @return {@link TrackingBinaryDocValues#ESTIMATED_SIZE} when {@code reader} is {@code null}. Otherwise the max decode
+     *         bytes for {@code field} across {@code reader}'s leaves: the real bound where the leaf's codec reports one,
+     *         {@link TrackingBinaryDocValues#ESTIMATED_SIZE} otherwise (e.g. plain Lucene doc values), or {@code 0} if the
+     *         field is absent everywhere.
      * @throws UncheckedIOException if a leaf fails to read its binary doc values — a genuine problem (e.g. a
      *                               corrupt segment), not a "don't know" case we can safely estimate around.
      */
-    private static long realDecodeBytes(String field, IndexReader reader) {
+    static long estimateDecodeBytes(String field, @Nullable IndexReader reader) {
+        // reader is null when building a query with no live searcher, e.g. percolator query indexing.
+        if (reader == null) {
+            return TrackingBinaryDocValues.ESTIMATED_SIZE;
+        }
         long max = 0;
         for (LeafReaderContext leaf : reader.leaves()) {
             BinaryDocValues values;

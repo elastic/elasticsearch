@@ -350,6 +350,21 @@ A data source authenticates to its store with one of the following models. The m
 Managed identity uses the cloud identity attached to each {{es}} node (for example, an IAM role on EC2 or a service account on GKE). Different nodes might have different identities, and the node that performs the connection is not guaranteed. You are responsible for configuring cloud IAM so that every node's identity has the required permissions on the target bucket. This model is best suited for single-cloud, single-tenant deployments where node identities are uniform.
 :::
 
+## Grant read access to your data [grant-read-access]
+
+A data source reads from external storage as a single cloud identity, such as an IAM user, a role that {{es}} assumes, or the node's own identity. Your cloud provider controls what that identity can read. {{es}} doesn't check these permissions when you create a data source or a dataset. A missing permission shows up as an access error the first time you query a dataset.
+
+The identity needs permission to read the files in every dataset that uses the data source. If a dataset's resource is a prefix or a glob pattern, the identity also needs permission to list objects in that location. Because one data source can serve many datasets, check its permissions whenever you add a dataset that reads from a new location.
+
+For `s3` data sources, allow these actions in the IAM policy attached to the identity:
+
+| Action | Resource | When it's required |
+|---|---|---|
+| `s3:GetObject` | The objects the dataset reads, for example `arn:aws:s3:::<bucket-name>/<path>/*` | Always |
+| `s3:ListBucket` | The bucket, for example `arn:aws:s3:::<bucket-name>` | When a dataset's resource is a prefix or a glob pattern |
+
+For a complete policy, refer to [connect with static credentials](esql-data-federation-static-credentials.md) or [connect with federated identity](esql-data-federation-federated-identity.md).
+
 ## Next steps
 
 - [Create datasets](esql-data-federation-datasets.md) that point at specific files in your data source, and configure file formats, schema inference, and parsing settings.

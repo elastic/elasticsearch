@@ -8,16 +8,13 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.logging.LogManager;
@@ -26,15 +23,14 @@ import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.esql.formatter.NdjsonFormat;
+import org.elasticsearch.xpack.esql.formatter.NdjsonLines;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -60,12 +56,14 @@ import java.util.concurrent.atomic.AtomicReference;
  * profile payload (when present) contains one entry per driver across all nodes. Pages are never coalesced
  * across parts: the next page is only available via an async {@code request(1)} call, and buffering to fill
  * a chunk would contradict the client's chosen {@code batch_size}.</p>
+ *
+ * <p>This class owns flow control only: the subscription, backpressure, page ownership and terminal handling.
+ * Every NDJSON byte is written by {@link NdjsonLines}, the same writers that {@code NdjsonResponse} uses when the
+ * query is not streamed.</p>
  */
 public class EsqlStreamResponseListener implements ActionListener<ActionResponse.Empty> {
 
     private static final Logger logger = LogManager.getLogger(EsqlStreamResponseListener.class);
-    private static final String NDJSON_CONTENT_TYPE = "application/x-ndjson";
-    private static final byte[] NEWLINE = "\n".getBytes(StandardCharsets.UTF_8);
 
     private final RestChannel channel;
     private final AtomicBoolean terminalEmitted = new AtomicBoolean(false);
@@ -143,7 +141,9 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 e,
                 null
             );
-            channel.sendResponse(RestResponse.chunked(status, new NdjsonFooterBodyPart(footer), this::release));
+            channel.sendResponse(
+                RestResponse.chunked(status, new NdjsonLines.NdjsonFooterBodyPart(footer, channel.request()), this::release)
+            );
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.error("failed to send failure response", inner);
@@ -219,7 +219,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                         null
                     );
                 }
-                ChunkedRestResponseBodyPart footerPart = new NdjsonFooterBodyPart(footer);
+                ChunkedRestResponseBodyPart footerPart = new NdjsonLines.NdjsonFooterBodyPart(footer, channel.request());
                 ActionListener<ChunkedRestResponseBodyPart> next;
                 synchronized (continuationMonitor) {
                     next = nextBodyPartListener;
@@ -239,7 +239,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         public void onComplete() {
             if (terminalEmitted.compareAndSet(false, true)) {
                 PageStreamPublisher.StreamFooter footer = publisher.footer();
-                ChunkedRestResponseBodyPart footerPart = new NdjsonFooterBodyPart(footer);
+                ChunkedRestResponseBodyPart footerPart = new NdjsonLines.NdjsonFooterBodyPart(footer, channel.request());
                 ActionListener<ChunkedRestResponseBodyPart> next;
                 synchronized (continuationMonitor) {
                     next = nextBodyPartListener;
@@ -285,31 +285,8 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
             final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
             try {
-                writeJson(out, builder -> {
-                    builder.startObject();
-                    if (nullColumns != null) {
-                        builder.startArray("all_columns");
-                        for (ColumnInfoImpl col : cols) {
-                            col.toXContent(builder, channel.request());
-                        }
-                        builder.endArray();
-                        builder.startArray("columns");
-                        for (int c = 0; c < cols.size(); c++) {
-                            if (nullColumns[c] == false) {
-                                cols.get(c).toXContent(builder, channel.request());
-                            }
-                        }
-                        builder.endArray();
-                    } else {
-                        builder.startArray("columns");
-                        for (ColumnInfoImpl col : cols) {
-                            col.toXContent(builder, channel.request());
-                        }
-                        builder.endArray();
-                    }
-                    builder.endObject();
-                });
-                out.write(NEWLINE);
+                NdjsonLines.writeJson(out, builder -> NdjsonLines.writeColumns(builder, cols, nullColumns, channel.request()));
+                out.write(NdjsonLines.NEWLINE);
                 encoded = true;
                 return out.moveToBytesReference();
             } catch (Exception e) {
@@ -321,7 +298,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
         @Override
         public String getResponseContentTypeString() {
-            return NDJSON_CONTENT_TYPE;
+            return NdjsonFormat.CONTENT_TYPE;
         }
     }
 
@@ -383,16 +360,10 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
             target = chunkStream;
             try {
                 final int rowCount = page.getPositionCount();
-                final int colCount = cols.size();
                 if (builder == null) {
                     // First chunk: build converters and open the JSON structure.
                     scratch = new BytesRef();
-                    converters = new PositionToXContent[colCount];
-                    for (int c = 0; c < colCount; c++) {
-                        if (nullColumns == null || nullColumns[c] == false) {
-                            converters[c] = PositionToXContent.positionToXContent(cols.get(c), page.getBlock(c), zoneId, scratch);
-                        }
-                    }
+                    converters = NdjsonLines.converters(cols, page, nullColumns, zoneId, scratch);
                     builder = XContentFactory.jsonBuilder(out);
                     builder.startObject();
                     builder.startArray("values");
@@ -404,13 +375,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 // sizeHint. Measuring after the row (not before) guarantees at least one row per
                 // call, so a part with a tiny sizeHint still makes forward progress.
                 while (nextRow < rowCount) {
-                    builder.startArray();
-                    for (int col = 0; col < colCount; col++) {
-                        if (converters[col] != null) {
-                            converters[col].positionToXContent(builder, channel.request(), nextRow);
-                        }
-                    }
-                    builder.endArray();
+                    NdjsonLines.writeRow(builder, channel.request(), converters, nextRow);
                     nextRow++;
                     builder.flush();
                     if (chunkStream.size() >= sizeHint) {
@@ -425,7 +390,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                     builder.endObject();
                     builder.close();
                     builder = null;
-                    chunkStream.write(NEWLINE);
+                    chunkStream.write(NdjsonLines.NEWLINE);
                     encoded = true;
                 }
                 final var result = chunkStream.moveToBytesReference();
@@ -460,143 +425,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
         @Override
         public String getResponseContentTypeString() {
-            return NDJSON_CONTENT_TYPE;
-        }
-    }
-
-    private class NdjsonFooterBodyPart implements ChunkedRestResponseBodyPart {
-        private final PageStreamPublisher.StreamFooter footer;
-        private boolean encoded = false;
-
-        private RecyclerBytesStreamOutput target;
-        private final OutputStream out = new OutputStream() {
-            @Override
-            public void write(int b) throws IOException {
-                target.write(b);
-            }
-
-            @Override
-            public void write(byte[] b, int off, int len) throws IOException {
-                target.write(b, off, len);
-            }
-        };
-        private XContentBuilder builder;                          // created on the first encodeChunk
-        private Iterator<? extends ToXContent> contentIterator;  // built on the first encodeChunk
-
-        NdjsonFooterBodyPart(PageStreamPublisher.StreamFooter footer) {
-            this.footer = footer;
-        }
-
-        @Override
-        public boolean isPartComplete() {
-            return encoded;
-        }
-
-        @Override
-        public boolean isLastPart() {
-            return true;
-        }
-
-        @Override
-        public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
-            assert false : "no continuations";
-            listener.onFailure(new IllegalStateException("no continuations available"));
-        }
-
-        @Override
-        public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
-            final RecyclerBytesStreamOutput chunkStream = new RecyclerBytesStreamOutput(recycler);
-            target = chunkStream;
-            try {
-                ToXContent.Params params = channel.request();
-                if (builder == null) {
-                    builder = XContentFactory.jsonBuilder(out);
-                    builder.startObject();
-                    Iterator<? extends ToXContent> statusChunk = Iterators.single((b, p) -> {
-                        b.field("status", footer.status());
-                        b.field("took", footer.tookMillis());
-                        b.field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), footer.isPartial());
-                        b.array("warnings", footer.warnings().toArray(String[]::new));
-                        if (footer.completionInfo() != null) {
-                            DriverCompletionInfo ci = footer.completionInfo();
-                            b.field("documents_found", ci.documentsFound());
-                            b.field("values_loaded", ci.valuesLoaded());
-                            b.field("rows_emitted", ci.rowsEmitted());
-                            b.field("bytes_read", ci.bytesRead());
-                            b.field("read_nanos", ci.readNanos());
-                            b.field("cpu_nanos", ci.cpuNanos());
-                        }
-                        if (footer.error() != null) {
-                            b.startObject("error");
-                            Throwable cause = ExceptionsHelper.unwrapCause(footer.error());
-                            String type = ElasticsearchException.getExceptionName(cause);
-                            String reason = footer.error() instanceof ElasticsearchException ese
-                                ? ese.getDetailedMessage()
-                                : (footer.error().getMessage() != null ? footer.error().getMessage() : type);
-                            b.field("type", type);
-                            b.field("reason", reason);
-                            b.endObject();
-                        }
-                        return b;
-                    });
-                    contentIterator = footer.profile() != null
-                        ? Iterators.concat(statusChunk, footer.profile().toXContentChunked(params))
-                        : statusChunk;
-                }
-                while (contentIterator.hasNext()) {
-                    contentIterator.next().toXContent(builder, params);
-                    builder.flush();
-                    if (chunkStream.size() >= sizeHint) {
-                        break;
-                    }
-                }
-                if (contentIterator.hasNext() == false) {
-                    builder.endObject();
-                    builder.close();
-                    builder = null;
-                    chunkStream.write(NEWLINE);
-                    encoded = true;
-                }
-                final var result = chunkStream.moveToBytesReference();
-                target = null;
-                return result;
-            } catch (Exception e) {
-                logger.error("failure encoding footer chunk", e);
-                encoded = true;
-                if (builder != null) {
-                    IOUtils.closeWhileHandlingException(builder);
-                    builder = null;
-                }
-                IOUtils.closeWhileHandlingException(chunkStream);
-                target = null;
-                throw e;
-            }
-        }
-
-        @Override
-        public String getResponseContentTypeString() {
-            return NDJSON_CONTENT_TYPE;
-        }
-    }
-
-    @FunctionalInterface
-    private interface JsonWriter {
-        void write(XContentBuilder builder) throws IOException;
-    }
-
-    private static void writeJson(RecyclerBytesStreamOutput out, JsonWriter writer) throws IOException {
-        try (XContentBuilder builder = XContentFactory.jsonBuilder(new OutputStream() {
-            @Override
-            public void write(int b) throws IOException {
-                out.write(b);
-            }
-
-            @Override
-            public void write(byte[] b, int off, int len) throws IOException {
-                out.write(b, off, len);
-            }
-        })) {
-            writer.write(builder);
+            return NdjsonFormat.CONTENT_TYPE;
         }
     }
 }

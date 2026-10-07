@@ -13,10 +13,13 @@ import org.elasticsearch.xcontent.MediaTypeRegistry;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
+import org.elasticsearch.xpack.esql.formatter.NdjsonFormat;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
 import org.elasticsearch.xpack.esql.formatter.arrow.ArrowFormat;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_FORMAT;
@@ -64,12 +67,40 @@ public class EsqlMediaTypeParser {
     }
 
     private static MediaType mediaTypeFromParams(RestRequest request) {
-        return MEDIA_TYPE_REGISTRY.queryParamToMediaType(request.param(URL_PARAM_FORMAT));
+        String format = request.param(URL_PARAM_FORMAT);
+        /*
+         * NDJSON is not in MEDIA_TYPE_REGISTRY, see NdjsonFormat for why, so it is recognised here. It is released together
+         * with streaming, so it shares that feature's gate: when the gate is closed this falls through to the registry, which
+         * does not know "ndjson", and the request is rejected as an invalid format like any other unknown one.
+         */
+        if (RestEsqlQueryAction.STREAMING_ENABLED && NdjsonFormat.INSTANCE.queryParameter().equalsIgnoreCase(format)) {
+            return NdjsonFormat.INSTANCE;
+        }
+        return MEDIA_TYPE_REGISTRY.queryParamToMediaType(format);
+    }
+
+    /**
+     * Whether a response in this format can be produced incrementally, as the rows are computed ({@code streaming=true}).
+     * This is the single place that decides it: a format that gains streaming support is added here.
+     */
+    public static boolean supportsStreaming(MediaType mediaType) {
+        return mediaType == NdjsonFormat.INSTANCE;
+    }
+
+    /**
+     * Whether batch boundaries are visible in the bytes of this format, which makes {@code batch_size} meaningful even when the
+     * query is not streamed. Formats without record framing accept {@code batch_size} only together with {@code streaming=true}.
+     */
+    public static boolean hasRecordFraming(MediaType mediaType) {
+        return mediaType == NdjsonFormat.INSTANCE;
     }
 
     private static void validateColumnarRequest(boolean requestIsColumnar, MediaType fromMediaType) {
         if (requestIsColumnar && fromMediaType instanceof TextFormat) {
             throw invalid("columnar");
+        }
+        if (requestIsColumnar && fromMediaType == NdjsonFormat.INSTANCE) {
+            throw invalid("columnar", List.of(NdjsonFormat.INSTANCE.queryParameter()));
         }
     }
 
@@ -92,12 +123,12 @@ public class EsqlMediaTypeParser {
     }
 
     private static IllegalArgumentException invalid(String argument) {
+        return invalid(argument, Arrays.stream(TextFormat.values()).map(MediaType::queryParameter).toList());
+    }
+
+    private static IllegalArgumentException invalid(String argument, List<String> formats) {
         return new IllegalArgumentException(
-            "Invalid use of ["
-                + argument
-                + "] argument: cannot be used in combination with "
-                + Arrays.stream(TextFormat.values()).map(MediaType::queryParameter).toList()
-                + " formats"
+            "Invalid use of [" + argument + "] argument: cannot be used in combination with " + formats + " formats"
         );
     }
 

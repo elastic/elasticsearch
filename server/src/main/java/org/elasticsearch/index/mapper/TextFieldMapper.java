@@ -1343,6 +1343,10 @@ public final class TextFieldMapper extends FieldMapper {
             if (answersFromValues(context) == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
             }
+            if (scansEveryDocument()) {
+                // Nothing narrows the documents read, as it does where the field's own terms name them.
+                failIfExpensiveQueriesDisallowed(context);
+            }
             return new ReanalyzingIntervalsSource(
                 source,
                 scansEveryDocument() ? Queries.ALL_DOCS_INSTANCE : approximation,

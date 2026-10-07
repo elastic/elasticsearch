@@ -128,3 +128,9 @@ teardown:
       search:
         index: no_terms
         body: { query: { prefix: { body: "qui" } } }
+
+  - do:
+      catch: /Cannot search on field \[body\] since it is not indexed and \'search.allow_expensive_queries\' is set to false./
+      search:
+        index: no_terms
+        body: { query: { intervals: { body: { match: { query: "quick brown" } } } } }

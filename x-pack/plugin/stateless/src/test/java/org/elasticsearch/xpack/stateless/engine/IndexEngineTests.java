@@ -480,17 +480,23 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             // Success case: all docs in the batch succeed. The columnar batch path reports metering for the
             // materialized per-op views (see IndexOperationBatch#materializeIndexOps), not the original
             // Engine.Index#parsedDoc() instances, so we match the reported document by id rather than by
-            // object identity.
-            // TODO: The materialized ParsedDocument carries only id/routing, not the ingested source, so
-            // document-size metering for batch-indexed docs is not yet accurate. Revisit once the columnar
-            // path threads real per-document sizes through to the reporter.
-            List<Engine.Index> ops = List.of(randomDoc("id1"), randomDoc("id2"), randomDoc("id3"));
+            // object identity and check that the size metered on the primary travelled with the batch.
+            List<Engine.Index> ops = List.of(
+                randomDoc("id1", randomLongBetween(1, 10_000)),
+                randomDoc("id2", randomLongBetween(1, 10_000)),
+                randomDoc("id3", randomLongBetween(1, 10_000))
+            );
             List<Engine.IndexResult> results = engine.indexBatch(engineBatch(ops, encodeAsEscfBatch(ops)));
             for (int i = 0; i < results.size(); i++) {
                 final String id = ops.get(i).id();
+                final long normalizedSize = ops.get(i).parsedDoc().getNormalizedSize();
                 assertThat(results.get(i).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
-                verify(documentSizeReporter).onParsingCompleted(argThat(doc -> doc.id().equals(id)));
-                verify(documentSizeReporter).onIndexingCompleted(argThat(doc -> doc.id().equals(id)));
+                verify(documentSizeReporter).onParsingCompleted(
+                    argThat(doc -> doc.id().equals(id) && doc.getNormalizedSize() == normalizedSize)
+                );
+                verify(documentSizeReporter).onIndexingCompleted(
+                    argThat(doc -> doc.id().equals(id) && doc.getNormalizedSize() == normalizedSize)
+                );
             }
 
             // Failure case: a version-conflicting op is parsed but never gets onIndexingCompleted. It reuses

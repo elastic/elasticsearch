@@ -3635,6 +3635,53 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         );
     }
 
+    /**
+     * A stripe delta from a FOREIGN read must not be committed at all, because there is no record whose types
+     * are the right ones to normalise it against.
+     * <p>
+     * The per-stripe coercion targets the schema record's resolved types, and that is sound only when the
+     * delta's read IS that record's read — which is what the read-shape gate establishes. Without the gate the
+     * delta lands at the foreign read's own address and its extrema are coerced through a resolution that
+     * belongs to neither: this read did not produce those types, and the record that did is not this one.
+     * <p>
+     * It is asserted at the FOREIGN address, which is the part the sibling cases cannot see: they read through
+     * the record's own stamp, so a delta misfiled under another read is invisible to them. That is why
+     * mutating this gate to a no-op left every test in the suite green.
+     * <p>
+     * Inject the defect by making the {@code Objects.equals(readConfigStampOf(schemaRecord), delta.readConfig())}
+     * gate in {@code applyStripeDelta} a no-op: stripe state appears at the foreign address, carrying a value
+     * rounded through a DOUBLE resolution this read never asked for.
+     */
+    public void testAForeignReadsStripeDeltaIsNotCommittedAnywhere() throws Exception {
+        long mtime = 1000L;
+        long pastExactDoubleRange = 9007199254740993L; // 2^53 + 1
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/foreign-stripe.csv";
+            // The schema record resolves v as DOUBLE under read "own".
+            SchemaCacheKey key = seedDoubleTypedRecord(service, path, mtime, "own");
+
+            // A delta from a different read. Its own measurement is exact; DOUBLE cannot hold it.
+            Map<String, Object> delta = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
+            delta.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "foreign");
+            delta.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min", pastExactDoubleRange);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(delta)));
+
+            assertNull(
+                "a foreign read's stripe delta must not be committed at its own address: nothing there types it",
+                service.getStatistics(StatisticsKey.of(key, "foreign"))
+            );
+            Map<String, Object> own = service.getStatistics(StatisticsKey.of(key, "own"));
+            assertTrue(
+                "nor at the record's own address, which did not measure it",
+                own == null || own.get(ExternalStats.STRIPE_ENTRY_PREFIX + "0") == null
+            );
+            assertNull(
+                "and the schema record is untouched either way",
+                service.getSchemaIfPresent(key).safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0")
+            );
+        }
+    }
+
     // ===== The separation itself: assertions no composition can satisfy =====
 
     /**

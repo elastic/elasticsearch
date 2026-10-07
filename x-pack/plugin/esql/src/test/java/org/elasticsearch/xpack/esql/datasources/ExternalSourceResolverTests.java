@@ -4437,6 +4437,61 @@ public class ExternalSourceResolverTests extends ESTestCase {
         return count;
     }
 
+    /**
+     * The serve composes TWO stores: the file's own facts from the schema record, and the measurements from the
+     * statistics store layered over them.
+     * <p>
+     * Tested directly on the composition, because that is the half a unit test can decide. Both warm-path
+     * regressions in this change were serve-side, and both were caught end to end rather than here — the
+     * resolver's other cases cover the predicate that picks an address and the miss counters, but nothing
+     * asserted what the composition produces.
+     * <p>
+     * The call sites are covered by {@code ExternalCsvAggregatePushdownIT}, which is verified to go red when a
+     * serve path stops asking for measurements: it was 8 of 21 red when the single-file rails were unwired. So
+     * this pins the function and that pins the wiring; neither alone is enough, and saying so is the point.
+     */
+    public void testTheServeComposesFileFactsWithTheReadsMeasurements() {
+        List<Attribute> schema = List.of(attr("id", DataType.LONG));
+        SchemaCacheEntry record = SchemaCacheEntry.from(
+            schema,
+            "csv",
+            "s3://bucket/data/a.csv",
+            Map.of(ExternalStats.MTIME_MILLIS_KEY, 1000L, ExternalStats.CONFIG_FINGERPRINT_KEY, "fp"),
+            Map.of()
+        );
+
+        // With no measurements the file's own facts are served unchanged, and by IDENTITY - which is what
+        // keeps sharesCachedSourceMetadata() meaningful for the wire-accounting path.
+        ExternalSourceMetadata bare = ExternalSourceResolver.buildMetadataFromCache(record, schema, Map.of(), null, null);
+        assertEquals("fp", bare.sourceMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY));
+        assertNull("nothing measured, nothing served", bare.sourceMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+
+        // With measurements they are layered OVER the file facts, and the file facts survive.
+        Map<String, Object> measured = Map.of(
+            SourceStatisticsSerializer.STATS_ROW_COUNT,
+            4321L,
+            ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+            "read-a"
+        );
+        ExternalSourceMetadata composed = ExternalSourceResolver.buildMetadataFromCache(record, schema, Map.of(), measured, null);
+        assertEquals(
+            "the measurement must be served",
+            4321L,
+            ((Number) composed.sourceMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
+        );
+        assertEquals(
+            "and the file's own facts must survive the overlay",
+            "fp",
+            composed.sourceMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY)
+        );
+        assertEquals(
+            "including the read the measurement was taken under",
+            "read-a",
+            composed.sourceMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY)
+        );
+        assertEquals("the schema is the record's, not the measurement's", schema.size(), composed.schema().size());
+    }
+
     // ===== Dataset identity: what actually separates two formats =====
 
     /**

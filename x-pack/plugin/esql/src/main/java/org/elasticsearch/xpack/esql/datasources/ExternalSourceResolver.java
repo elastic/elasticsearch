@@ -2215,7 +2215,7 @@ public class ExternalSourceResolver {
      * the file facts, so a measurement wins over a mint-time placeholder for the same key, and a schema record
      * no longer has to carry another read's numbers in order to be servable.
      */
-    private static ExternalSourceMetadata buildMetadataFromCache(
+    static ExternalSourceMetadata buildMetadataFromCache(
         SchemaCacheEntry entry,
         List<Attribute> schema,
         Map<String, Object> queryConfig,

@@ -1271,7 +1271,7 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
         client(LOCAL_CLUSTER).admin().indices().prepareUpdateSettings("logs-1::failures").setSettings(singleCopy).get();
-        waitForNoInitializingShards(client(LOCAL_CLUSTER), TimeValue.timeValueSeconds(30), (String) testClusterInfo.get("local.index.fs"));
+        waitForNoInitializingShards(client(LOCAL_CLUSTER), TEST_REQUEST_TIMEOUT, (String) testClusterInfo.get("local.index.fs"));
         client(REMOTE_CLUSTER_1).admin().indices().prepareUpdateSettings("logs-2::failures").setSettings(singleCopy).get();
         waitForNoInitializingShards(
             client(REMOTE_CLUSTER_1),

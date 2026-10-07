@@ -438,7 +438,7 @@ public class EsqlSession {
         BooleanSupplier cancellation,
         ActionListener<Versioned<Result>> listener
     ) {
-        assert planningCpu.isMeteringCurrentThread() : "planning started on a thread without an open planning CPU sample";
+        assert planningCpu.isMeteringCurrentThread() : "planning started on a thread without an open planning CPU measurement";
         LOGGER.debug("ESQL query:\n{}", request.queryDescription());
         // Wrap the outer listener so any failure — parse, view-resolution, analyze, optimize, map,
         // execute — funnels through one place that emits the anonymized log on INTERNAL_SERVER_ERROR.
@@ -778,7 +778,7 @@ public class EsqlSession {
         );
 
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
-        assert planningCpu.isMeteringCurrentThread() : "planning reached its end on a thread without an open planning CPU sample";
+        assert planningCpu.isMeteringCurrentThread() : "planning reached its end on a thread without an open planning CPU measurement";
         executionInfo.queryProfile().addPlanningCpuNanos(planningCpu.finish());
 
         // In explain mode, wrap the listener to transform results into EXPLAIN table format.

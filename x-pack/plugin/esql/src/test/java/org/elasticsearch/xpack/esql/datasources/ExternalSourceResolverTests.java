@@ -7972,7 +7972,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * Planning CPU, executor path: a synchronous reader's {@code metadata} runs on the resolver's metadata-read
-     * executor through the task hook, so every call sees an open sample of the bound tracker, CPU burned there is
+     * executor through the task hook, so every call sees an open measurement of the bound tracker, CPU burned there is
      * counted, and time slept there is not.
      */
     public void testPlanningCpuMetersExecutorTasksAndSkipsWaits() throws Exception {
@@ -8020,7 +8020,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolution resolution = future.actionGet(30, TimeUnit.SECONDS);
             assertNotNull(resolution.resolvedSource(glob));
             assertEquals(fileCount, calls.get());
-            assertEquals("every metadata read must run inside a planning CPU sample", 0, unmetered.get());
+            assertEquals("every metadata read must run inside a planning CPU measurement", 0, unmetered.get());
             assertThat(tracker.cpuNanos(), greaterThanOrEqualTo(fileCount * burnNanos));
             assertThat(tracker.cpuNanos(), lessThan(fileCount * TimeUnit.MILLISECONDS.toNanos(sleepMillis)));
         } finally {
@@ -8031,8 +8031,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     /**
      * Planning CPU, foreign-thread path: the reader completes on its own pool, never on the resolver executor. The
      * resolver's continuation (where it collects the metadata warnings) runs there inside the factory listener's
-     * sample, so the probe in {@code warnings()} must see an open sample on every read-pool thread and the CPU it
-     * burns there must be counted. The read-pool threads are named so the probe ignores calls on other threads.
+     * measurement, so the probe in {@code warnings()} must see an open measurement on every read-pool thread and the
+     * CPU it burns there must be counted. The read-pool threads are named so the probe ignores calls on other threads.
      */
     public void testPlanningCpuMetersForeignCompletionThreads() throws Exception {
         assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
@@ -8091,7 +8091,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolution resolution = future.actionGet(30, TimeUnit.SECONDS);
             assertNotNull(resolution.resolvedSource(glob));
             assertEquals(fileCount, reader.totalReads.get());
-            assertEquals("resolver continuations on the read pool must run inside a planning CPU sample", 0, unmeteredOnReadPool.get());
+            assertEquals(
+                "resolver continuations on the read pool must run inside a planning CPU measurement",
+                0,
+                unmeteredOnReadPool.get()
+            );
             assertThat(meteredOnReadPool.get(), greaterThanOrEqualTo(fileCount));
             assertThat(tracker.cpuNanos(), greaterThanOrEqualTo(fileCount * burnNanos));
         } finally {

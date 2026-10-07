@@ -988,7 +988,7 @@ public class ViewResolver {
         EsqlResolveViewAction.Request request,
         ActionListener<EsqlResolveViewAction.Response> listener
     ) {
-        // Metered inside the fork, so the planning CPU sample runs on the SEARCH thread, not the transport thread.
+        // Metered inside the fork, so planning CPU is measured on the SEARCH thread, not the transport thread.
         client.execute(
             EsqlResolveViewAction.TYPE,
             request,

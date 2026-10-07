@@ -32,7 +32,7 @@ public class PlanningCpuTrackerTests extends ESTestCase {
         }
     }
 
-    public void testSingleSample() {
+    public void testSingleMeasurement() {
         FakeCpuClock clock = new FakeCpuClock();
         PlanningCpuTracker tracker = new PlanningCpuTracker(clock);
         clock.burn(5);
@@ -65,7 +65,7 @@ public class PlanningCpuTrackerTests extends ESTestCase {
         assertEquals(20L, b.cpuNanos());
     }
 
-    public void testFinishSettlesOpenSampleAndFreezes() {
+    public void testFinishSettlesOpenMeasurementAndFreezes() {
         FakeCpuClock clock = new FakeCpuClock();
         PlanningCpuTracker tracker = new PlanningCpuTracker(clock);
         long[] finished = new long[1];
@@ -103,8 +103,8 @@ public class PlanningCpuTrackerTests extends ESTestCase {
         assertEquals(50L, tracker.cpuNanos());
     }
 
-    /** Documents the loss that {@code checkpoint()} exists to bound: a sample still open when another thread finishes is dropped. */
-    public void testSampleOpenAtFinishOnAnotherThreadIsDropped() throws Exception {
+    /** Documents the loss that {@code checkpoint()} exists to bound: a measurement still open when another thread finishes is dropped. */
+    public void testMeasurementOpenAtFinishOnAnotherThreadIsDropped() throws Exception {
         FakeCpuClock clock = new FakeCpuClock();
         PlanningCpuTracker tracker = new PlanningCpuTracker(clock);
         CountDownLatch burned = new CountDownLatch(1);

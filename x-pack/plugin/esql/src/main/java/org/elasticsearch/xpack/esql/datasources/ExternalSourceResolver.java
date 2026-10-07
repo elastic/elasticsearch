@@ -203,9 +203,9 @@ public class ExternalSourceResolver {
 
     private final Executor executor;
     /**
-     * {@link #executor} with each task run as a planning CPU sample, for the per-file fan-out's continuations. A direct
-     * executor is kept as is: {@link ThrottledIterator} recognizes it by identity to run continuations inline, and an
-     * inline continuation already runs inside the releasing thread's sample.
+     * {@link #executor} with each task run inside a planning CPU measurement, for the per-file fan-out's
+     * continuations. A direct executor is kept as is: {@link ThrottledIterator} recognizes it by identity to run
+     * continuations inline, and an inline continuation already runs inside the releasing thread's measurement.
      */
     private final Executor fanOutExecutor;
     private final DataSourceModule dataSourceModule;
@@ -381,13 +381,13 @@ public class ExternalSourceResolver {
 
     /**
      * Binds the planning CPU tracker of the query {@code EsqlSession.execute} is planning. Executor tasks and storage
-     * completions then run as samples of it, so object-store waits drop out of the planning CPU. Null leaves them unmetered.
+     * completions are then measured by it, so object-store waits drop out of the planning CPU. Null leaves them unmetered.
      */
     public void planningCpu(@Nullable PlanningCpuTracker tracker) {
         this.planningCpu = tracker;
     }
 
-    /** Runs an executor task as a planning CPU sample, or directly when no tracker is bound. */
+    /** Runs an executor task inside a planning CPU measurement, or directly when no tracker is bound. */
     private void runMeteredPlanningCpu(Runnable command) {
         PlanningCpuTracker tracker = planningCpu;
         if (tracker == null) {
@@ -2814,7 +2814,7 @@ public class ExternalSourceResolver {
                 results.set(i, stored);
             }, e -> failure.compareAndSet(null, e)), () -> {
                 // Commit this item's CPU before the permit release: the release can let another thread run the gather
-                // completion and the rest of planning, and finish() there would drop a sample still open here.
+                // completion and the rest of planning, and finish() there would drop a measurement still open here.
                 checkpointPlanningCpu();
                 releasable.close();
             });
@@ -3871,7 +3871,7 @@ public class ExternalSourceResolver {
             resolveWithFactory(path, hint, config, candidates, index + 1, e, listener);
         });
         try {
-            // The metered listener starts a planning CPU sample on whichever thread completes the read (SDK, Netty, or
+            // The metered listener starts a planning CPU measurement on whichever thread completes the read (SDK, Netty, or
             // executor), so the continuation is counted and the wait before it is not.
             factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, pendingMetadataWarnings::add, meteredPlanningCpu(next));
         } catch (Exception e) {

@@ -18,25 +18,23 @@ import java.util.function.LongSupplier;
 /**
  * Sums the thread CPU time one query's planning code consumes, on whichever threads it runs.
  * <p>
- * {@code planning_nanos} is wall time: it includes object-store listings and metadata reads, field caps, enrich
- * and inference round trips, and queue waits, and Serverless bills it as if it were CPU. This tracker is the CPU
- * counterpart: ThreadMXBean CPU time summed over <em>samples</em>, where a sample is one piece of planning work on
- * one thread. Waits fall between samples and are never counted.
+ * The total is the sum of <em>measurements</em>. A measurement is the CPU time one thread uses while it runs one piece
+ * of work inside {@link #meteredCpu}. Only that work is measured, so waits between measurements are not counted. When
+ * the JVM cannot measure thread CPU time, nothing is counted and the total stays 0.
  * <p>
- * Shaped after {@code ExternalReadCounters.meteredCpu}: same verb, same supplier and runnable shapes, same nesting
- * rule (a nested call on the same tracker is counted by the enclosing sample). It differs in three ways. One shared
- * thread-local stack with an owner per sample, so another query's work that runs inline on this thread pauses our
- * sample instead of being double counted, and {@link #inheritMeteredCpu} can find the query a thread is running.
- * A listener overload, because planning hops threads at every async boundary. And {@link #finish()}, because the
- * last planning continuation runs straight into execution on the same thread and its sample must be cut explicitly.
+ * Each thread keeps one stack of open measurements, shared by all trackers, and each measurement records the tracker
+ * that owns it. A nested call on the same tracker is counted by the enclosing measurement. A call on another tracker
+ * pauses the enclosing measurement until it returns, so no CPU time is counted twice. {@link #inheritMeteredCpu} uses
+ * the stack to find the tracker that is metering the calling thread.
  * <p>
- * Known gaps, shared with {@code read_cpu_nanos}: CPU on SDK/Netty threads before our callback runs (for example
- * the Parquet footer-tail copy), transport (de)serialization, and framework code outside the metered continuations.
+ * {@link #meteredCpu(ActionListener)} carries metering across async boundaries: the completion is measured on
+ * whichever thread completes the listener. {@link #finish()} settles the calling thread's open measurement and
+ * freezes the total, so nothing that runs after it is counted, even inside a measurement that is still open.
  */
 public final class PlanningCpuTracker {
 
-    /** Innermost open sample on this thread, whichever tracker owns it. */
-    private static final ThreadLocal<Sample> CURRENT = new ThreadLocal<>();
+    /** Innermost open measurement on this thread, whichever tracker owns it. */
+    private static final ThreadLocal<Measurement> CURRENT = new ThreadLocal<>();
 
     private static final long SETTLED = -1;
     private static final long PAUSED = -2;
@@ -57,13 +55,13 @@ public final class PlanningCpuTracker {
         this.cpuClock = cpuClock;
     }
 
-    private static final class Sample {
+    private static final class Measurement {
         final PlanningCpuTracker owner;
-        final Sample outer;
+        final Measurement outer;
         /** Thread CPU at the latest (re)start, or {@code SETTLED} / {@code PAUSED}. Only touched by the owning thread. */
         long startCpuNanos;
 
-        Sample(PlanningCpuTracker owner, Sample outer, long startCpuNanos) {
+        Measurement(PlanningCpuTracker owner, Measurement outer, long startCpuNanos) {
             this.owner = owner;
             this.outer = outer;
             this.startCpuNanos = startCpuNanos;
@@ -91,12 +89,12 @@ public final class PlanningCpuTracker {
     }
 
     /**
-     * Runs {@code work} as a sample of this tracker on the current thread. A nested call on the same tracker is
-     * counted by the enclosing sample. A sample of another tracker that is open on this thread is paused while
-     * {@code work} runs and resumed afterwards.
+     * Runs {@code work} on the current thread and measures the CPU time it uses. A nested call on the same tracker is
+     * counted by the enclosing measurement. A measurement of another tracker that is open on this thread is paused
+     * while {@code work} runs and resumed afterwards.
      */
     public <T, E extends Exception> T meteredCpu(CheckedSupplier<T, E> work) throws E {
-        Sample outer = CURRENT.get();
+        Measurement outer = CURRENT.get();
         if (outer != null && outer.owner == this) {
             return work.get();
         }
@@ -107,13 +105,13 @@ public final class PlanningCpuTracker {
         if (outer != null) {
             outer.pause(startCpuNanos);
         }
-        Sample sample = new Sample(this, outer, startCpuNanos);
-        CURRENT.set(sample);
+        Measurement measurement = new Measurement(this, outer, startCpuNanos);
+        CURRENT.set(measurement);
         try {
             return work.get();
         } finally {
             long endCpuNanos = cpuClock.getAsLong();
-            sample.settle(endCpuNanos);
+            measurement.settle(endCpuNanos);
             if (outer == null) {
                 CURRENT.remove();
             } else {
@@ -160,33 +158,33 @@ public final class PlanningCpuTracker {
      * argument expression of the async dispatch it decorates, never stored and applied later.
      */
     public static <T> ActionListener<T> inheritMeteredCpu(ActionListener<T> listener) {
-        Sample sample = CURRENT.get();
-        return sample == null ? listener : sample.owner.meteredCpu(listener);
+        Measurement measurement = CURRENT.get();
+        return measurement == null ? listener : measurement.owner.meteredCpu(listener);
     }
 
     /**
-     * Commits this thread's open sample so far and restarts it. Call it right before signalling another thread
+     * Commits this thread's open measurement so far and restarts it. Call it right before signalling another thread
      * that may go on to finish planning (releasing a fan-out permit), so the work done so far survives a
      * {@link #finish()} on that other thread. Only the unwind after the signal can still be dropped.
      */
     public void checkpoint() {
-        Sample sample = CURRENT.get();
-        if (sample == null || sample.owner != this || sample.startCpuNanos < 0) {
+        Measurement measurement = CURRENT.get();
+        if (measurement == null || measurement.owner != this || measurement.startCpuNanos < 0) {
             return;
         }
         long nowCpuNanos = cpuClock.getAsLong();
-        add(nowCpuNanos - sample.startCpuNanos);
-        sample.startCpuNanos = nowCpuNanos;
+        add(nowCpuNanos - measurement.startCpuNanos);
+        measurement.startCpuNanos = nowCpuNanos;
     }
 
     /**
-     * Planning end. Settles this thread's open sample, freezes the total and returns it. Later commits are
-     * dropped, so execution that continues on this thread inside the same sample adds nothing. Idempotent.
+     * Planning end. Settles this thread's open measurement, freezes the total and returns it. Later commits are
+     * dropped, so execution that continues on this thread inside the same measurement adds nothing. Idempotent.
      */
     public long finish() {
-        Sample sample = CURRENT.get();
-        if (sample != null && sample.owner == this) {
-            sample.settle(cpuClock.getAsLong());
+        Measurement measurement = CURRENT.get();
+        if (measurement != null && measurement.owner == this) {
+            measurement.settle(cpuClock.getAsLong());
         }
         finished = true;
         return cpuNanos.sum();
@@ -197,10 +195,10 @@ public final class PlanningCpuTracker {
         return cpuNanos.sum();
     }
 
-    /** For assertions. True when a sample of this tracker is open on this thread, or when thread CPU time is unsupported. */
+    /** For assertions. True when a measurement of this tracker is open on this thread, or when thread CPU time is unsupported. */
     public boolean isMeteringCurrentThread() {
-        Sample sample = CURRENT.get();
-        return (sample != null && sample.owner == this) || cpuClock.getAsLong() < 0;
+        Measurement measurement = CURRENT.get();
+        return (measurement != null && measurement.owner == this) || cpuClock.getAsLong() < 0;
     }
 
     private void add(long deltaNanos) {

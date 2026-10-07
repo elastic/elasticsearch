@@ -158,7 +158,7 @@ public class DatasetResolver {
                 client.execute(
                     EsqlResolveDatasetAction.TYPE,
                     request,
-                    // Metered inside the fork, so the planning CPU sample runs on the SEARCH thread, not the transport thread.
+                    // Metered inside the fork, so planning CPU is measured on the SEARCH thread, not the transport thread.
                     new ThreadedActionListener<>(
                         executor,
                         PlanningCpuTracker.inheritMeteredCpu(l.delegateFailureAndWrap((delegate, response) -> {

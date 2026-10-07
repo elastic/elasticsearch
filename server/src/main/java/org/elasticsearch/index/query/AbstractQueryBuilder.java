@@ -16,7 +16,6 @@ import org.apache.lucene.search.NamedMatches;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
@@ -143,13 +142,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     @Override
     public final Query toQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException {
-        Query query;
-        try {
-            query = doToQuery(context, visitor);
-        } catch (TooComplexToDeterminizeException e) {
-            // Not every caller goes through SearchExecutionContext#toQuery (aggs, highlight, sort...), so map to 400 here
-            throw new IllegalArgumentException("Pattern was too complex to determinize", e);
-        }
+        Query query = doToQuery(context, visitor);
         if (query != null) {
             if (boost != DEFAULT_BOOST) {
                 if (query instanceof MatchNoDocsQuery == false) {

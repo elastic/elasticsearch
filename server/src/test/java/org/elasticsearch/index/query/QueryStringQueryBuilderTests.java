@@ -756,13 +756,12 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testToQueryRegExpQueryTooComplex() throws Exception {
         QueryStringQueryBuilder queryBuilder = queryStringQuery("/[ac]*a[ac]{200,500}/").defaultField(TEXT_FIELD_NAME);
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        TooComplexToDeterminizeException e = expectThrows(
+            TooComplexToDeterminizeException.class,
             () -> queryBuilder.toQuery(createSearchExecutionContext())
         );
-        assertThat(e.getMessage(), equalTo("Pattern was too complex to determinize"));
-        assertThat(e.getCause(), instanceOf(TooComplexToDeterminizeException.class));
-        assertThat(e.getCause().getMessage(), containsString("would require more than 10000 effort."));
+        assertThat(e.getMessage(), containsString("Determinizing automaton"));
+        assertThat(e.getMessage(), containsString("would require more than 10000 effort."));
     }
 
     /**
@@ -796,13 +795,12 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         builder.endObject();
 
         QueryBuilder queryBuilder = parseTopLevelQuery(createParser(builder));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        TooComplexToDeterminizeException e = expectThrows(
+            TooComplexToDeterminizeException.class,
             () -> queryBuilder.toQuery(createSearchExecutionContext())
         );
-        assertThat(e.getMessage(), equalTo("Pattern was too complex to determinize"));
-        assertThat(e.getCause(), instanceOf(TooComplexToDeterminizeException.class));
-        assertThat(e.getCause().getMessage(), containsString("would require more than 10 effort."));
+        assertThat(e.getMessage(), containsString("Determinizing automaton"));
+        assertThat(e.getMessage(), containsString("would require more than 10 effort."));
     }
 
     public void testToQueryFuzzyQueryAutoFuziness() throws Exception {

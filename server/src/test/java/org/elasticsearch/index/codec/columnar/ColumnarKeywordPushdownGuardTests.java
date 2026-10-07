@@ -278,7 +278,6 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
 
     /** Each query shape matches the same documents over the guarded column as over the column itself. */
     public void testQueries() throws IOException {
-        var noopBreaker = new NoopCircuitBreaker("wildcard");
         for (Framing framing : Framing.values()) {
             final BinaryDocValuesQueries queries = BinaryDocValuesQueries.forFormat(framing.format);
             final Map<String, Query> shapes = new LinkedHashMap<>();
@@ -289,9 +288,9 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
             shapes.put("prefix, case insensitive", queries.prefix(FIELD, "TERM-", true));
             shapes.put("fuzzy", queries.fuzzy(FIELD, "term-9", 1, 0, true));
             shapes.put("case insensitive term", queries.caseInsensitiveTerm(FIELD, "TERM-3"));
-            shapes.put("wildcard", queries.wildcard(FIELD, "*erm-3", false, noopBreaker));
-            shapes.put("wildcard, contained", queries.wildcard(FIELD, "*rm-*", false, noopBreaker));
-            shapes.put("wildcard, case insensitive", queries.wildcard(FIELD, "TERM-?", true, noopBreaker));
+            shapes.put("wildcard", queries.wildcard(FIELD, "*erm-3", false, NoopCircuitBreaker.INSTANCE));
+            shapes.put("wildcard, contained", queries.wildcard(FIELD, "*rm-*", false, NoopCircuitBreaker.INSTANCE));
+            shapes.put("wildcard, case insensitive", queries.wildcard(FIELD, "TERM-?", true, NoopCircuitBreaker.INSTANCE));
             shapes.put("automaton", queries.automaton(FIELD, Automata.makeString("term-2"), "term-2"));
             shapes.put("regexp", queries.regexp(FIELD, "term-[0-3]", RegExp.ALL, 0, 10_000, null));
             for (boolean repeating : new boolean[] { true, false }) {

@@ -49,6 +49,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecision;
 import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
 import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithNoExplanation;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -62,9 +63,17 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
 
-    private static final Matcher<String> EXCEEDED_RETRIES_EXPLANATION = allOf(
+    public static final String MORE_INFO_STRING = "and for more information, see";
+    private static final Matcher<String> EXCEEDED_RETRIES_RELOCATION_EXPLANATION = allOf(
         containsString("shard has exceeded the maximum number of retries"),
-        containsString("POST /_cluster/reroute?retry_failed")
+        containsString("POST /_cluster/reroute?retry_failed"),
+        not(containsString(MORE_INFO_STRING))
+    );
+
+    private static final Matcher<String> EXCEEDED_RETRIES_UNASSIGNED_EXPLANATION = allOf(
+        containsString("shard has exceeded the maximum number of retries"),
+        containsString("POST /_cluster/reroute?retry_failed"),
+        containsString(MORE_INFO_STRING)
     );
 
     private final MaxRetryAllocationDecider decider = new MaxRetryAllocationDecider();
@@ -195,14 +204,11 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             assertThat(unassignedPrimary.unassignedInfo().message(), containsString("boom"));
             // MaxRetryAllocationDecider#canForceAllocatePrimary should return a NO decision because canAllocate returns NO here
             final var allocation = newRoutingAllocation(clusterState);
-            assertThat(
-                decider.canForceAllocatePrimary(unassignedPrimary, null, allocation),
-                isNoDecisionWithNoExplanation(MaxRetryAllocationDecider.NAME)
-            );
+            assertThat(decider.canForceAllocatePrimary(unassignedPrimary, null, allocation), isNoDecision(MaxRetryAllocationDecider.NAME));
             allocation.debugDecision(true);
             assertThat(
                 decider.canForceAllocatePrimary(unassignedPrimary, null, allocation),
-                isNoDecisionWithExplanationMatching(MaxRetryAllocationDecider.NAME, EXCEEDED_RETRIES_EXPLANATION)
+                isNoDecisionWithExplanationMatching(MaxRetryAllocationDecider.NAME, EXCEEDED_RETRIES_UNASSIGNED_EXPLANATION)
             );
         }
 
@@ -313,7 +319,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             allocation.debugDecision(true);
             assertThat(
                 decider.canAllocate(source, allocation),
-                isNoDecisionWithExplanationMatching(MaxRetryAllocationDecider.NAME, EXCEEDED_RETRIES_EXPLANATION)
+                isNoDecisionWithExplanationMatching(MaxRetryAllocationDecider.NAME, EXCEEDED_RETRIES_RELOCATION_EXPLANATION)
             );
         });
 
@@ -494,7 +500,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             allocation.debugDecision(true);
             assertThat(
                 decider.canAllocate(source, allocation),
-                isNoDecisionWithExplanationMatching(MaxRetryAllocationDecider.NAME, EXCEEDED_RETRIES_EXPLANATION)
+                isNoDecisionWithExplanationMatching(MaxRetryAllocationDecider.NAME, EXCEEDED_RETRIES_RELOCATION_EXPLANATION)
             );
         });
     }
@@ -622,7 +628,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             alloc.debugDecision(true);
             assertThat(
                 decider.canAllocate(exhaustedReplica, alloc),
-                isNoDecisionWithExplanationMatching(MaxRetryAllocationDecider.NAME, EXCEEDED_RETRIES_EXPLANATION)
+                isNoDecisionWithExplanationMatching(MaxRetryAllocationDecider.NAME, EXCEEDED_RETRIES_RELOCATION_EXPLANATION)
             );
         });
     }

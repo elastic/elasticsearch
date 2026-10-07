@@ -223,8 +223,17 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         providerFactory.provider(() -> defaultDistro.getExtracted().getSingleFile().getPath())
                     );
 
-                    // If we are using the default distribution we need to register all module feature metadata
-                    task.getInputs().files(defaultDistroFeatureMetadataConfig).withPathSensitivity(PathSensitivity.NONE);
+                    // If we are using the default distribution we need to register all module feature metadata.
+                    // The metadata is a single deterministic JSON file emitted by the cacheable
+                    // ClusterFeaturesMetadataTask, so the file name is a stable key and the content can be
+                    // compared via classpath normalization rather than byte-for-byte. This avoids pinning
+                    // the test cache key to absolute paths (PathSensitivity.NONE, the historical setting)
+                    // and lets :javaRestTest tasks that depend on a stable default distribution hit the
+                    // remote build cache across checkouts and across feature-set-only changes.
+                    task.getInputs()
+                        .files(defaultDistroFeatureMetadataConfig)
+                        .withPropertyName("defaultDistroFeatureMetadata")
+                        .withNormalizer(ClasspathNormalizer.class);
                     nonInputSystemProperties.systemProperty(TESTS_FEATURES_METADATA_PATH, defaultDistroFeatureMetadataConfig::getAsPath);
 
                     return null;

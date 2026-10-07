@@ -121,6 +121,33 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(responsePath.evaluate("data.result"), empty());
     }
 
+    public void testInstantQueryWithTimeout() throws Exception {
+        ingestTestData("test_gauge_iq");
+
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "test_gauge_iq{job=\"test_job\"}"),
+            new BasicNameValuePair("time", "2026-01-01T00:08:00Z"),
+            new BasicNameValuePair("timeout", "1m")
+        );
+
+        ObjectPath responsePath = ObjectPath.createFromResponse(client().performRequest(request));
+        assertThat(responsePath.evaluate("status"), equalTo("success"));
+        assertThat(responsePath.evaluate("data.result"), hasSize(1));
+    }
+
+    public void testInstantQueryWithInvalidTimeoutReturnsBadRequest() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "up"),
+            new BasicNameValuePair("timeout", "soon")
+        );
+
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("invalid parameter \\\"timeout\\\""));
+    }
+
     public void testInstantQueryReturnsLatestSampleWithinDefaultLookback() throws Exception {
         ingestTestData("test_gauge_iq");
         // Evaluation time T = 00:08:00; default lookback = 5m, so window is (00:03:00, 00:08:00].

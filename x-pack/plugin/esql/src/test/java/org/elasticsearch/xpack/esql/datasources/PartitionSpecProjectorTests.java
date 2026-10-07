@@ -165,16 +165,17 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         List<String> notices = new ArrayList<>();
         spec.emitListingNotices(Set.of("year"), hints, notices::add);
         assertThat(notices, hasItem(containsString("calendar year [1970]")));
-        assertThat(notices, hasItem(containsString("second")));
-        assertThat(notices, hasItem(containsString("millis")));
+        assertThat(notices, hasItem(containsString("epoch_second")));
+        assertThat(notices, hasItem(containsString("epoch_millis")));
     }
 
     public void testWrongUnitWarnsForMillisReadAsSeconds() {
-        PartitionSpec spec = PartitionSpec.parse("year(start, second)");
+        PartitionSpec spec = PartitionSpec.parse("year(start, epoch_second)");
         List<String> notices = new ArrayList<>();
         spec.emitListingNotices(Set.of("year"), List.of(hint("start", Operator.GREATER_THAN, 1_710_000_000_000L)), notices::add);
         assertThat(notices, hasItem(containsString("calendar year [")));
-        assertThat(notices, hasItem(containsString("second")));
+        assertThat(notices, hasItem(containsString("epoch_second")));
+        assertThat(notices, hasItem(containsString("epoch_millis")));
         String yearNotice = notices.stream().filter(n -> n.contains("calendar year [")).findFirst().orElseThrow();
         int year = Integer.parseInt(yearNotice.replaceAll(".*calendar year \\[(-?\\d+)].*", "$1"));
         assertTrue(year > PartitionSpec.WRONG_UNIT_YEAR_MAX);
@@ -195,7 +196,7 @@ public class PartitionSpecProjectorTests extends ESTestCase {
     }
 
     public void testSecondsUnitConvertsNumericBound() {
-        PartitionSpec spec = PartitionSpec.parse("year(start, second), month(start, second)");
+        PartitionSpec spec = PartitionSpec.parse("year(start, epoch_second), month(start, epoch_second)");
         long march15Seconds = MARCH_15_2024.getEpochSecond();
         List<PartitionFilterHint> hints = List.of(hint("start", Operator.GREATER_THAN, march15Seconds));
 

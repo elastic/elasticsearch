@@ -814,6 +814,23 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), containsString("non-empty string"));
     }
 
+    public void testValidateDatasetPartitionSpecRejectsLegacyUnits() {
+        for (String unit : List.of("second", "millis", "micros")) {
+            ValidationException e = expectThrows(
+                ValidationException.class,
+                () -> validator.validateDataset(
+                    Map.of(),
+                    "s3://b/p",
+                    Map.of("partition_detection", "hive", "partition_spec", "year(start, " + unit + ")")
+                )
+            );
+            assertThat(e.getMessage(), containsString("partition_spec"));
+            assertThat(e.getMessage(), containsString("unknown unit [" + unit + "]"));
+            assertThat(e.getMessage(), containsString("epoch_second"));
+            assertThat(e.getMessage(), containsString("epoch_millis"));
+        }
+    }
+
     public void testValidateDatasetPartitionSpecHiveUnknownKeyIsAccepted() {
         // Hive keys are not known until list time; PUT must not reject them.
         assertEquals(

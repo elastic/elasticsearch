@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
@@ -23,6 +24,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -177,7 +179,7 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
 
     // docs example 10
     public void testWrongUnitDoesNotFalsePrune() throws Exception {
-        // start is unix seconds; spec default millis reads 1.71e9 as 1970. Warning, full scan, rows still correct.
+        // start is unix seconds; spec default epoch_millis reads 1.71e9 as 1970. Warning, full scan, rows still correct.
         String dataset = registerSecondsTreeWrongUnit("spec_wrong_unit");
         assertPrune(
             dataset,
@@ -185,6 +187,22 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
             TOTAL_FILES,
             idsWhere((y, m, d) -> folderStart(y, m, d).isAfter(MARCH_15_2024))
         );
+    }
+
+    // docs lead example: AWS Hive-compatible hourly Parquet (CSV stand-in)
+    public void testAwsHiveHourlySecondsRangeInsideOneHour() throws Exception {
+        String dataset = registerAwsHiveHourlySecondsTree("spec_aws_hive_hourly");
+        long start = Instant.parse("2024-06-16T00:00:00Z").getEpochSecond();
+        long end = Instant.parse("2024-06-16T00:30:00Z").getEpochSecond();
+        assertPrune(dataset, "WHERE start >= " + start + " AND start < " + end, 4, 2, List.of(2L, 3L));
+    }
+
+    // docs text-layout example: literal vpcflowlogs, space delimiter, headerless start via path
+    public void testAwsTextLayoutHeaderlessSecondsRangeInsideOneDay() throws Exception {
+        String dataset = registerAwsTextLayoutHeaderlessSecondsTree("spec_aws_text_headerless");
+        long start = Instant.parse("2024-06-16T00:00:00Z").getEpochSecond();
+        long end = Instant.parse("2024-06-16T00:30:00Z").getEpochSecond();
+        assertPrune(dataset, "WHERE start >= " + start + " AND start < " + end, 4, 2, List.of(2L, 3L));
     }
 
     // docs example 10, exclusive upper bound must not empty the scan
@@ -309,6 +327,91 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
         );
     }
 
+    /**
+     * AWS Hive-compatible hourly tree matching the public VPC Flow Logs example.
+     * The time-picker PR reuses this tree (mapping + request filter on top).
+     */
+    private String registerAwsHiveHourlySecondsTree(String name) throws IOException {
+        Path root = createTempDir().resolve(name);
+        Path hiveRoot = root.resolve("AWSLogs")
+            .resolve("aws-account-id=123456789012")
+            .resolve("aws-service=vpcflowlogs")
+            .resolve("aws-region=us-east-1");
+        writeHiveHourlyFile(hiveRoot, 2024, 6, 15, 23, "f.csv", 1, Instant.parse("2024-06-15T23:10:00Z"));
+        writeHiveHourlyFile(hiveRoot, 2024, 6, 16, 0, "a.csv", 2, Instant.parse("2024-06-16T00:05:00Z"));
+        writeHiveHourlyFile(hiveRoot, 2024, 6, 16, 0, "b.csv", 3, Instant.parse("2024-06-16T00:20:00Z"));
+        writeHiveHourlyFile(hiveRoot, 2024, 6, 16, 1, "f.csv", 4, Instant.parse("2024-06-16T01:00:00Z"));
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        return registerDataset(
+            name,
+            glob,
+            Map.of(
+                "partition_detection",
+                "hive",
+                "partition_spec",
+                "aws-region=region, year(start, epoch_second), month(start, epoch_second),"
+                    + " day(start, epoch_second), hour(start, epoch_second)"
+            )
+        );
+    }
+
+    private static void writeHiveHourlyFile(Path hiveRoot, int year, int month, int day, int hour, String fileName, int id, Instant start)
+        throws IOException {
+        Path dir = hiveRoot.resolve("year=" + year)
+            .resolve("month=" + pad2(month))
+            .resolve("day=" + pad2(day))
+            .resolve("hour=" + pad2(hour));
+        Files.createDirectories(dir);
+        Files.writeString(
+            dir.resolve(fileName),
+            "id:integer,start:long,region:keyword\n" + id + "," + start.getEpochSecond() + ",us-east-1\n",
+            StandardCharsets.UTF_8
+        );
+    }
+
+    /**
+     * AWS text-layout tree matching the public headerless CSV VPC example: literal {@code vpcflowlogs},
+     * space delimiter, {@code header_row} false, {@code start} bound by {@code path}.
+     */
+    private String registerAwsTextLayoutHeaderlessSecondsTree(String name) throws IOException {
+        Path root = createTempDir().resolve(name);
+        Path logs = root.resolve("AWSLogs").resolve("123456789012").resolve("vpcflowlogs").resolve("us-east-1");
+        writeTextLayoutFile(logs, 2024, 6, 15, "f.csv", 1, Instant.parse("2024-06-15T23:10:00Z"));
+        writeTextLayoutFile(logs, 2024, 6, 16, "a.csv", 2, Instant.parse("2024-06-16T00:05:00Z"));
+        writeTextLayoutFile(logs, 2024, 6, 16, "b.csv", 3, Instant.parse("2024-06-16T00:20:00Z"));
+        writeTextLayoutFile(logs, 2024, 6, 17, "f.csv", 4, Instant.parse("2024-06-17T01:00:00Z"));
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        LinkedHashMap<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("integer", "col0"));
+        properties.put("start", new DatasetFieldMapping("long", "col1"));
+        return registerStrictDataset(
+            name,
+            glob,
+            properties,
+            Map.of(
+                "format",
+                "csv",
+                "delimiter",
+                " ",
+                "header_row",
+                false,
+                "partition_path",
+                "{account}/vpcflowlogs/{region}/{year}/{month}/{day}",
+                "partition_spec",
+                "year(start, epoch_second), month(start, epoch_second), day(start, epoch_second)"
+            )
+        );
+    }
+
+    private static void writeTextLayoutFile(Path regionRoot, int year, int month, int day, String fileName, int id, Instant start)
+        throws IOException {
+        Path dir = regionRoot.resolve(Integer.toString(year)).resolve(pad2(month)).resolve(pad2(day));
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve(fileName), id + " " + start.getEpochSecond() + "\n", StandardCharsets.UTF_8);
+    }
+
     private String registerSecondsTree(String name) throws IOException {
         Path root = createTempDir().resolve(name);
         for (int year : YEARS) {
@@ -323,7 +426,12 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
         return registerDataset(
             name,
             glob,
-            Map.of("partition_detection", "hive", "partition_spec", "year(start, second), month(start, second), day(start, second)")
+            Map.of(
+                "partition_detection",
+                "hive",
+                "partition_spec",
+                "year(start, epoch_second), month(start, epoch_second), day(start, epoch_second)"
+            )
         );
     }
 

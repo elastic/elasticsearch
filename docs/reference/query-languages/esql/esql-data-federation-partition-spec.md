@@ -33,9 +33,10 @@ key=column
 column
 ```
 
-`transform` is one of `identity`, `year`, `month`, `day`, `hour`. `unit` is `second`, `millis`, or `micros`
-(default `millis`) and applies only to temporal transforms. Transforms and units are case-insensitive. Keys
-and column names are case-sensitive.
+`transform` is one of `identity`, `year`, `month`, `day`, `hour`. `unit` is `epoch_second` or `epoch_millis`
+(default `epoch_millis`, omit it) and applies only to temporal transforms. Units are epoch values, named like
+[Elasticsearch date formats](/reference/elasticsearch/mapping-reference/mapping-date-format.md). Transforms and units are
+case-insensitive. Keys and column names are case-sensitive.
 
 Omitted `key=` uses the transform name (`year(ts)` maps path `year`). Bare `region` is `identity(region)`.
 `@timestamp` is a legal column name. A name that is not an ES|QL identifier goes in backticks, as in
@@ -79,40 +80,68 @@ CloudTrail and VPC Flow Logs often land under a **delivery** date that lags the 
 filter on the event-time column can miss a folder that still holds matching rows. Widen the range, or
 filter the path keys directly, when the folder tree is organized by delivery time.
 
-The following example registers a VPC Flow Logs dataset and maps the `start` column (unix seconds) to date folders.
+The following example registers a Hive-compatible hourly VPC Flow Logs dataset. `start` is unix epoch seconds.
 
 ```console
 PUT /_query/dataset/vpc_flow
 {
   "data_source": "prod_s3_logs",
-  "resource": "s3://logs/AWSLogs/*/*/*/*/*/*.gz",
+  "resource": "s3://logs/AWSLogs/aws-account-id=*/aws-service=vpcflowlogs/aws-region=*/year=*/month=*/day=*/hour=*/*.parquet",
   "settings": {
-    "format": "csv",
-    "partition_path": "{account}/{region}/{year}/{month}/{day}",
-    "partition_spec": "year(start, second), month(start, second), day(start, second)"
+    "partition_spec": "aws-region=region, year(start, epoch_second), month(start, epoch_second), day(start, epoch_second), hour(start, epoch_second)"
   }
 }
 ```
 
-`account` and `region` are not in the spec, so they stay on their own names. `WHERE region == "eu-west-1"` still
-skips those folders.
+`aws-region=region` is `key=column` (see row 3 in the table below). `aws-account-id` and `aws-service` stay unlisted
+identity keys.
+
+Default text layout uses no `key=value` folders. A segment is a placeholder only when it is exactly `{name}`; a
+literal such as `vpcflowlogs` stays a required path segment. VPC Flow Logs have no header, so CSV settings must set
+`"header_row": false`. `delimiter` is a single character; space is valid.
+
+With `"header_row": false`, generated names are `col0`, `col1`, … (`column_prefix`). `partition_spec` binds a file
+column by that name, so declare `start` in `mappings` with `path` set to its position or prune never fires. Default
+VPC Flow Logs put `start` at `col10`.
+
+```console
+PUT /_query/dataset/vpc_flow_text
+{
+  "data_source": "prod_s3_logs",
+  "resource": "s3://logs/AWSLogs/*/vpcflowlogs/*/*/*/*/*.log.gz",
+  "settings": {
+    "format": "csv",
+    "delimiter": " ",
+    "header_row": false,
+    "partition_path": "{account}/vpcflowlogs/{region}/{year}/{month}/{day}",
+    "partition_spec": "year(start, epoch_second), month(start, epoch_second), day(start, epoch_second)"
+  },
+  "mappings": {
+    "properties": {
+      "start": { "type": "long", "path": "col10" }
+    }
+  }
+}
+```
 
 When a mapping exposes the file column as `@timestamp`, bind `@timestamp` and omit the unit: the column
 is already a date. Binding `start` matches nothing after the rename; `start` is no longer in the query.
 
 ```console
-PUT /_query/dataset/vpc_flow
+PUT /_query/dataset/vpc_flow_mapped
 {
   "data_source": "prod_s3_logs",
-  "resource": "s3://logs/AWSLogs/*/*/*/*/*/*.gz",
+  "resource": "s3://logs/AWSLogs/*/vpcflowlogs/*/*/*/*/*.log.gz",
   "settings": {
     "format": "csv",
-    "partition_path": "{account}/{region}/{year}/{month}/{day}",
+    "delimiter": " ",
+    "header_row": false,
+    "partition_path": "{account}/vpcflowlogs/{region}/{year}/{month}/{day}",
     "partition_spec": "year(@timestamp), month(@timestamp), day(@timestamp)"
   },
   "mappings": {
     "properties": {
-      "@timestamp": { "type": "date", "path": "start", "format": "epoch_second" }
+      "@timestamp": { "type": "date", "path": "col10", "format": "epoch_second" }
     }
   }
 }
@@ -136,11 +165,11 @@ The following table shows how different query patterns interact with `partition_
 | 2 | `WHERE year == 2024` | `year(ts), month(ts), day(ts)` | Same as row 1. The spec does not turn this off. |
 | 3 | `WHERE region == "EU"` | `aws-region=region` | Other `aws-region` folders. |
 | 4 | `WHERE ts > T` crossing a year | `year(ts), month(ts), day(ts)` | Folders whose UTC time range misses the filter. A start-only filter does not narrow the `year` folders in the listing. |
-| 5 | `WHERE start > T` | `year(start, second), month(start, second), day(start, second)` | Same combined range. `start` is unix seconds. |
+| 5 | `WHERE start > T` | `year(start, epoch_second), month(start, epoch_second), day(start, epoch_second)` | Same combined range. `start` is unix seconds. |
 | 6 | `WHERE year == YEAR("2024-01-01")` | `year(ts), month(ts), day(ts)` | Becomes `year == 2024` before listing. `DATE_EXTRACT("year", ...)` on a literal does the same. |
 | 7 | `WHERE YEAR(ts) > 2024` | `year(ts), month(ts), day(ts)` | 2025 folders. Without the spec, the same rows, every file opened. |
 | 8 | `WHERE MONTH(ts) == 6` | `year(ts), month(ts), day(ts)` | Nothing. Every file is opened. June rows remain. |
 | 9 | any filter on `ts` | `year(ts)` but the path key is `yyy` | Nothing from that binding. Warning: the key was not detected. |
-| 10 | `WHERE start > T` | `year(start)` on unix seconds (default unit `millis`) | Nothing. Warning: the unit is likely wrong. |
+| 10 | `WHERE start > T` | `year(start)` on unix seconds (default unit `epoch_millis`) | Nothing. Warning: the unit is likely wrong. |
 | 11 | `WHERE ts > T` | `yyy=year(ts), mo=month(ts)` and `partition_path: {yyy}/{mo}` | Same combined range as row 4, on the renamed keys. |
 | 12 | `WHERE @timestamp > T` | `year(@timestamp), month(@timestamp), day(@timestamp)` after mapping `start` to `@timestamp` | Same combined range as row 5. No unit: the column is a date. Binding `start` matches nothing. |

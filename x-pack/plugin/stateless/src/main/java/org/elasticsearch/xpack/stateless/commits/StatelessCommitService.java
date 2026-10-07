@@ -1087,8 +1087,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 assert commitState.recentlyUploadedVbccs.containsKey(virtualBcc.primaryTermAndGeneration().generation()) == false;
                 // production fallback for assertion failure
                 commitState.recentlyUploadedVbccs.remove(virtualBcc.primaryTermAndGeneration().generation());
-                IOUtils.closeWhileHandlingException(virtualBcc);
-                blobReference.decRef();
+                closeAndRelease(virtualBcc);
             }
 
             /**
@@ -1099,6 +1098,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 VirtualBatchedCompoundCommit vbcc = commitState.recentlyUploadedVbccs.remove(
                     virtualBcc.primaryTermAndGeneration().generation()
                 );
+                closeAndRelease(vbcc);
+            }
+
+            private void closeAndRelease(VirtualBatchedCompoundCommit vbcc) {
                 if (vbcc != null) {
                     IOUtils.closeWhileHandlingException(vbcc);
                 }

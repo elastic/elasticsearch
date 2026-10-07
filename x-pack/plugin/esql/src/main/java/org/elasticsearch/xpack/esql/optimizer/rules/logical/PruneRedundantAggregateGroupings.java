@@ -38,7 +38,8 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isIntegral;
 
 /**
- * Removes {@code STATS BY} keys that do not add grouping cardinality and rebuilds their output above the aggregation.
+ * Removes {@code STATS BY} keys that do not add grouping cardinality and rebuilds their output above the aggregation. When it
+ * prunes, it also drops fields of the {@code EVAL} directly below the aggregate that nothing reads any more.
  */
 public final class PruneRedundantAggregateGroupings extends OptimizerRules.OptimizerRule<Aggregate>
     implements
@@ -49,6 +50,8 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
      * visited, and with constants folded each visit adds at most one node to the rebuilt expression, so this caps both the
      * recursion and the depth and size of the expression rebuilt above the aggregate. Tying it to the parser keeps the rule
      * from building an expression deeper than one a query could spell out, whatever the length of the alias chain behind it.
+     * Literals and alias hops count as visits too, so a grouping is kept well before its expansion reaches that depth: a chain
+     * of {@code - 1} links costs three visits per link.
      */
     private static final int MAX_DERIVED_EXPANSION_NODES = ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 
@@ -283,19 +286,24 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
                 }
                 return expression.replaceChildrenSameSize(children);
             }
+            if (expression.foldable() == false) {
+                return null;
+            }
             // Folded rather than kept whole, so that this visit adds a single node to the rebuilt expression.
-            return isScalarFoldable(expression) ? Literal.of(FoldContext.small(), expression) : null;
+            Object value = expression.fold(FoldContext.small());
+            return value instanceof List<?> ? null : Literal.of(expression, value);
         }
 
         private Expression expandAttribute(Attribute attribute) {
             if (retainedGroupingAttributes.contains(attribute)) {
+                // The rebuilt Eval sits above the aggregate, so a grouping it reads must be one the aggregate exposes, possibly
+                // under a rename; otherwise the rebuilt expression would dangle.
                 if (externalAttributes.contains(attribute) == false
                     || isIntegral(attribute.dataType()) == false
                     || groupingOutputAttributes.containsKey(attribute) == false) {
                     return null;
                 }
                 readsRetainedGrouping = true;
-                // The rebuilt Eval sits above the aggregate, so it reads the attribute the aggregate exposes, possibly a rename.
                 return groupingOutputAttributes.resolve(attribute, attribute);
             }
             Expression definition = evalAliases.get(attribute);

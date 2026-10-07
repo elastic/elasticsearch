@@ -2875,8 +2875,8 @@ public class EsqlCapabilities {
 
         /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} keeps a pruned derived
-         * external grouping's alias below the aggregate while a kept grouping or another field still reads it, fixing the
-         * {@code optimized incorrectly due to missing references} verification failure that old coordinators still hit.
+         * external grouping's alias below the aggregate while a kept grouping, or a field the aggregate still needs, reads it,
+         * fixing the {@code optimized incorrectly due to missing references} verification failure that old coordinators still hit.
          */
         FIX_PRUNE_DERIVED_EXTERNAL_GROUPING_READ_BY_KEPT_FIELD,
 

@@ -41,11 +41,14 @@ public class RestoreLifecycleListenerIT extends AbstractSnapshotIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(LifecyclePlugin.class);
+        plugins.add(RestoreLifecycleListenerPlugin.class);
         return plugins;
     }
 
-    public static class LifecyclePlugin extends Plugin implements RepositoryPlugin {
+    /*
+     * RepositoryPlugin implementation that lets us set a custom RestoreLifecycleListener at runtime
+     */
+    public static class RestoreLifecycleListenerPlugin extends Plugin implements RepositoryPlugin {
         private volatile RestoreLifecycleListener delegate = RestoreLifecycleListener.NOOP;
 
         @Override
@@ -64,9 +67,12 @@ public class RestoreLifecycleListenerIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private void setListener(RestoreLifecycleListener listener) {
+    /**
+     * Sets the given listener as the delegate on the RestoreLifecycleListenerPlugin used by this test
+     */
+    private void setRestoreLifecycleListener(RestoreLifecycleListener listener) {
         internalCluster().getInstance(PluginsService.class, internalCluster().getMasterName())
-            .filterPlugins(LifecyclePlugin.class)
+            .filterPlugins(RestoreLifecycleListenerPlugin.class)
             .findFirst()
             .orElseThrow().delegate = listener;
     }
@@ -91,13 +97,14 @@ public class RestoreLifecycleListenerIT extends AbstractSnapshotIntegTestCase {
         createFullSnapshot(REPO, SNAP);
         cluster().wipeIndices(IDX);
 
-        var restoreService = internalCluster().getInstance(RestoreService.class, internalCluster().getMasterName());
+        RestoreService restoreService = internalCluster().getInstance(RestoreService.class, internalCluster().getMasterName());
+        // The lifecycle listener has already been set because this test pulls in the RestoreLifecycleListenerPlugin:
         expectThrows(IllegalStateException.class, () -> restoreService.setLifecycleListener(new RestoreLifecycleListener() {}));
 
         AtomicInteger initCount = new AtomicInteger(0);
         AtomicInteger completedCount = new AtomicInteger(0);
 
-        setListener(new RestoreLifecycleListener() {
+        setRestoreLifecycleListener(new RestoreLifecycleListener() {
             @Override
             public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
                 initCount.incrementAndGet();
@@ -139,7 +146,7 @@ public class RestoreLifecycleListenerIT extends AbstractSnapshotIntegTestCase {
 
         String masterName = internalCluster().getMasterName();
         RestoreService restoreService = internalCluster().getInstance(RestoreService.class, masterName);
-        setListener(new RestoreLifecycleListener() {
+        setRestoreLifecycleListener(new RestoreLifecycleListener() {
             @Override
             public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
                 initCount.incrementAndGet();

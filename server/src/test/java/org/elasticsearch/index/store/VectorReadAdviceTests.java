@@ -61,8 +61,8 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
 
     /**
      * A merge reads the raw vectors it copies through a mapping of its own, front to back, and says they are not reused only
-     * when the format does. The raw vectors written, by a flush or a merge, say the same, and so does a graph build reading
-     * them back.
+     * when the format does. The raw vectors written, by a flush or a merge, say the same, and so does everything a graph build
+     * or a disk BBQ merge reads back.
      */
     public void testAMergeSaysHowItReadsAndWritesEachFile() throws IOException {
         List<String> failures = new ArrayList<>();
@@ -154,6 +154,46 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
                 failures.add(each + ": " + created.name() + " was written with " + hints);
             }
         }
+
+        // a disk BBQ merge writes and reads back temp files: only its copy of the raw vectors is not reused
+        for (Open open : opens) {
+            checkTempFile(each, open, false, failures);
+        }
+        for (Open created : creates) {
+            checkTempFile(each, created, true, failures);
+        }
+        Set<DataAccessHint> rawCopyReads = new HashSet<>();
+        for (Open open : opens) {
+            if (open.name().contains("_ivfvec_")) {
+                open.context().hints(DataAccessHint.class).forEach(rawCopyReads::add);
+            }
+        }
+        if (opens.stream().anyMatch(o -> o.name().contains("_ivfvec_"))
+            && rawCopyReads.equals(Set.of(DataAccessHint.SEQUENTIAL, DataAccessHint.RANDOM)) == false) {
+            failures.add(each + ": the merge did not stream its copy of the raw vectors to cluster and read it at random after");
+        }
+    }
+
+    private static void checkTempFile(Case each, Open open, boolean created, List<String> failures) {
+        if (isVectorTempFile(open.name()) == false) {
+            return;
+        }
+        var hints = open.context().hints();
+        if (open.context().context() != IOContext.Context.MERGE) {
+            failures.add(each + ": the merge used " + open.name() + " without its merge context");
+        }
+        if (hints.contains(NoReuseHint.INSTANCE) != open.name().contains("_ivfvec_")) {
+            failures.add(each + ": " + open.name() + " says " + hints);
+        }
+        if (created ? hints.contains(DataAccessHint.SEQUENTIAL) == false : open.context().hints(DataAccessHint.class).findAny().isEmpty()) {
+            failures.add(each + ": " + open.name() + " does not say how it is " + (created ? "written" : "read") + ": " + hints);
+        }
+    }
+
+    /** The temp files a disk BBQ merge writes and reads back. */
+    private static boolean isVectorTempFile(String name) {
+        return name.endsWith(".tmp")
+            && (name.contains("_ivfvec_") || name.contains("_ivfdoc_") || name.contains("_civf_") || name.contains("_qvec_"));
     }
 
     private static void indexTwoSegments(IndexWriter writer) throws IOException {

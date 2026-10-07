@@ -27,9 +27,12 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.DataAccessHint;
+import org.apache.lucene.store.FileDataHint;
+import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.NoReuseHint;
 import org.apache.lucene.util.IORunnable;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.core.IOUtils;
@@ -704,7 +707,11 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         // For byte fields with supportsByteNative(), vectors are written as bytes;
         // otherwise byte IVF indexing is skipped entirely.
         try (
-            IndexOutput vectorsOut = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivfvec_", IOContext.DEFAULT)
+            IndexOutput vectorsOut = mergeState.segmentInfo.dir.createTempOutput(
+                mergeState.segmentInfo.name,
+                "ivfvec_",
+                rawVectorsContext(DataAccessHint.SEQUENTIAL)
+            )
         ) {
             tempRawVectorsFileName = vectorsOut.getName();
             // TODO: we only want to write this once but we'll wind up doing it for every field with the same dim and blockdim
@@ -722,7 +729,11 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
             try (
                 IndexOutput docsOut = dense
                     ? null
-                    : mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivfdoc_", IOContext.DEFAULT)
+                    : mergeState.segmentInfo.dir.createTempOutput(
+                        mergeState.segmentInfo.name,
+                        "ivfdoc_",
+                        mergeContext().union(DataAccessHint.SEQUENTIAL)
+                    )
             ) {
                 if (docsOut != null) {
                     docsFileName = docsOut.getName();
@@ -748,11 +759,13 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
             writeMeta(fieldInfo, 0, centroidOffset, 0, 0, 0, null, 0, 0, 0, 0, ivfSegmentConfig, false);
             return;
         }
-        // now open the temp file and build the index structures. Clustering reads it in increasing order, over several passes.
-        final IOContext sequentialContext = IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL);
+        // now open the temp files and build the index structures. Clustering reads the vectors in increasing order, over
+        // several passes; the doc ids are looked up per cluster
         try (
-            IndexInput vectors = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, sequentialContext);
-            IndexInput docs = docsFileName == null ? null : mergeState.segmentInfo.dir.openInput(docsFileName, sequentialContext)
+            IndexInput vectors = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, rawVectorsContext(DataAccessHint.SEQUENTIAL));
+            IndexInput docs = docsFileName == null
+                ? null
+                : mergeState.segmentInfo.dir.openInput(docsFileName, mergeContext().union(DataAccessHint.RANDOM))
         ) {
             final KMeansFloatVectorValues floatVectorValues;
             final KMeansByteVectorValues byteVectorValues;
@@ -778,7 +791,11 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
             try {
                 // TODO do this better, we shouldn't have to write to a temp file, we should be able to
                 // just from the merged vector values, the tricky part is the random access.
-                centroidTemp = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "civf_", IOContext.DEFAULT);
+                centroidTemp = mergeState.segmentInfo.dir.createTempOutput(
+                    mergeState.segmentInfo.name,
+                    "civf_",
+                    mergeContext().union(DataAccessHint.SEQUENTIAL)
+                );
                 centroidTempName = centroidTemp.getName();
                 CentroidInformation<?> centroidAssignments = calculateCentroids(fieldInfo, vectorValues, mergeState);
                 // write the centroids to a temporary file so we are not holding them on heap
@@ -820,7 +837,12 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
                 CodecUtil.writeFooter(centroidTemp);
                 IOUtils.close(centroidTemp);
 
-                try (IndexInput centroidsInput = mergeState.segmentInfo.dir.openInput(centroidTempName, IOContext.DEFAULT)) {
+                try (
+                    IndexInput centroidsInput = mergeState.segmentInfo.dir.openInput(
+                        centroidTempName,
+                        mergeContext().union(DataAccessHint.RANDOM)
+                    )
+                ) {
                     final CentroidSupplier centroidSupplier;
                     final CentroidOffsetAndLength centroidOffsetAndLength;
 
@@ -830,19 +852,30 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
                     centroidOffset = ivfCentroids.alignFilePointer(Float.BYTES);
                     CI centroidIndex = writeCentroidIndex(centroidSupplier, assignments.assignments(), ivfCentroids);
 
-                    // write posting lists
+                    // write posting lists from the merged raw vectors, read cluster by cluster: at random, and a vector again
+                    // only for a second cluster it is assigned to, so through a mapping of their own
                     postingListOffset = ivfClusters.alignFilePointer(Float.BYTES);
-                    centroidOffsetAndLength = buildAndWritePostingsLists(
-                        fieldInfo,
-                        centroidSupplier,
-                        vectorValues,
-                        ivfClusters,
-                        postingListOffset,
-                        mergeState,
-                        assignments.assignments(),
-                        assignments.overspillAssignments(),
-                        ivfSegmentConfig
-                    );
+                    try (
+                        IndexInput postingsVectors = mergeState.segmentInfo.dir.openInput(
+                            tempRawVectorsFileName,
+                            rawVectorsContext(DataAccessHint.RANDOM)
+                        )
+                    ) {
+                        final ClusteringVectorValues<?> postingsVectorValues = isByte
+                            ? KMeansByteVectorValues.build(postingsVectors, docs, numVectors, fieldInfo.getVectorDimension())
+                            : getKMeansFloatVectorValues(fieldInfo, docs, postingsVectors, numVectors);
+                        centroidOffsetAndLength = buildAndWritePostingsLists(
+                            fieldInfo,
+                            centroidSupplier,
+                            postingsVectorValues,
+                            ivfClusters,
+                            postingListOffset,
+                            mergeState,
+                            assignments.assignments(),
+                            assignments.overspillAssignments(),
+                            ivfSegmentConfig
+                        );
+                    }
                     postingListLength = ivfClusters.getFilePointer() - postingListOffset;
 
                     // write the rest of the centroid data now we know the size of the postings
@@ -985,6 +1018,19 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
     @Override
     public final long ramBytesUsed() {
         return rawVectorDelegate.ramBytesUsed();
+    }
+
+    /** The context of a temp file a merge writes and reads back: the merge's own, saying the file holds vector data. */
+    protected IOContext mergeContext() {
+        return segmentWriteState.context.union(FileTypeHint.DATA, FileDataHint.KNN_VECTORS);
+    }
+
+    /**
+     * The context of the merged raw vectors in a temp file. They are much larger than the other files and not expected to fit in
+     * the page cache, so they are not reused.
+     */
+    private IOContext rawVectorsContext(DataAccessHint access) {
+        return mergeContext().union(access, NoReuseHint.INSTANCE);
     }
 
     private record FieldWriter(FieldInfo fieldInfo, FlatFieldVectorsWriter<?> delegate) {}

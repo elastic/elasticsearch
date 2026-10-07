@@ -18,7 +18,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.store.ByteBuffersDataOutput;
-import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
@@ -305,7 +305,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVect
             IndexOutput quantizedVectorsTemp = mergeState.segmentInfo.dir.createTempOutput(
                 mergeState.segmentInfo.name,
                 "qvec_",
-                IOContext.DEFAULT
+                mergeContext().union(DataAccessHint.SEQUENTIAL)
             )
         ) {
             quantizedVectorsTempName = quantizedVectorsTemp.getName();
@@ -412,7 +412,12 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVect
             }
         }
         // now we can read the quantized vectors from the temporary file
-        try (IndexInput quantizedVectorsInput = mergeState.segmentInfo.dir.openInput(quantizedVectorsTempName, IOContext.DEFAULT)) {
+        try (
+            IndexInput quantizedVectorsInput = mergeState.segmentInfo.dir.openInput(
+                quantizedVectorsTempName,
+                mergeContext().union(DataAccessHint.RANDOM)
+            )
+        ) {
             final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
             final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
             OffHeapQuantizedVectors offHeapQuantizedVectors = new OffHeapQuantizedVectors(

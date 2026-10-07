@@ -341,7 +341,7 @@ echo "   $(wc -l < "$WORK/scan-files.txt") files scanned, all licences approved"
 echo "== manifest =="
 {
     echo "Darwin arm64 sysroot for cross-compiling Elasticsearch native libraries."
-    echo "Assembled by libs/simdvec/native/darwin-sysroot/assemble.sh."
+    echo "Assembled by libs/native-toolchain/darwin-sysroot/assemble.sh."
     echo
     echo "Components:"
     grep -E '^[A-Z_]+=' "$HERE/versions.env" | sed 's/^/  /'

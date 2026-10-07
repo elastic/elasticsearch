@@ -19,9 +19,17 @@ libs/simdvec/
 │   │   └── amd64/          #     x64 kernels (AVX2 baseline, AVX-512 in *_2.cpp)
 │   ├── src/vec/headers/    #     Shared and platform-specific headers
 │   ├── Makefile            #     Cross-compilation build (all platforms)
-│   └── Dockerfile.cross-toolchain
+│   └── publish_vec_binaries.sh #  Builds in the toolchain image and publishes to Artifactory
 └── build.gradle            # Gradle build config
 ```
+
+### Related code in other modules
+
+- **`libs/foreign-library`** — the FFM binding framework. `SimdVecLibrary` (in this module) declares
+  libvec's functions with its annotations, and the build generates the implementation.
+- **`libs/native/libraries`** — collects the built (or published) libvec alongside the other native
+  libraries, for tests and the distribution.
+- **`libs/native-toolchain`** — the cross-compilation toolchain image used to build libvec.
 
 ## Native code tiers
 
@@ -60,9 +68,9 @@ The native kernels cover single-pair and bulk scoring for:
 ## Building the native library
 
 The native library is built via the `Makefile` in `native/`. For
-cross-compilation of all three platform binaries (darwin-aarch64,
-linux-aarch64, linux-x64), we use a shared Docker-based toolchain image
-(`es-native-cross-toolchain`, also used by `libs/simdjson`).
+cross-compilation of all four platform binaries (darwin-aarch64,
+linux-aarch64, linux-x64, windows-x64), use the shared Docker-based toolchain image
+(`es-native-cross-toolchain`, see [`libs/native-toolchain`](../native-toolchain/README.md)).
 
 The build is integrated with Gradle; Gradle detects which version of the native
 sources are present and will fetch the matching binaries from Artifactory. If
@@ -95,12 +103,8 @@ a distribution for a different OS or architecture) needs `docker` mode or the
 published artifact.
 
 In the rare case in which your changes require a new `es-native-cross-toolchain`
-docker image (e.g. new clang version, additional build tools, etc.) you can
-change the Dockerfile and then build and push the cross-compilation toolchain
-image with:
-```bash
-./build_cross_toolchain_image.sh
-```
+docker image (e.g. new clang version, additional build tools, a missing system
+header, etc.), see [`libs/native-toolchain`](../native-toolchain/README.md).
 
 ## Testing
 

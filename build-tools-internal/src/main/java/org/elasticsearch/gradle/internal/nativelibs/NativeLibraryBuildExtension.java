@@ -36,7 +36,10 @@ public abstract class NativeLibraryBuildExtension {
      */
     public abstract ListProperty<String> getSources();
 
-    /** Container image used to build every platform. */
+    /**
+     * Container image used to build every platform. The {@value NativeLibraryBuildPlugin#TOOLCHAIN_IMAGE_OVERRIDE}
+     * environment variable, when set, takes precedence.
+     */
     public abstract Property<String> getToolchainImage();
 
     /**

@@ -7,11 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.simdvec;
+package org.elasticsearch.foreign.testing;
 
 import org.elasticsearch.foreign.LibraryProvider;
+import org.elasticsearch.foreign.LinkerHelper;
 import org.elasticsearch.foreign.Platform;
-import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -42,7 +42,6 @@ final class PosixGuardPageAllocator extends GuardPageAllocator {
     private static final PosixMemLibrary MEM_LIBRARY = LibraryProvider.lookupLibrary(PosixMemLibrary.class);
 
     private final PosixMemLibrary memLibrary;
-    private final PosixCLibrary libc;
     private final PosixMemLibraryConstants constants;
     private final int pageSize;
 
@@ -57,15 +56,14 @@ final class PosixGuardPageAllocator extends GuardPageAllocator {
             case DARWIN_X64, DARWIN_AARCH64 -> PosixMemLibraryConstants.DARWIN;
             case WINDOWS_X64 -> throw new AssertionError("Windows is not a Posix supported platform");
         };
-        return new PosixGuardPageAllocator(delegate, MEM_LIBRARY, LibraryProvider.lookupLibrary(PosixCLibrary.class), constants);
+        return new PosixGuardPageAllocator(delegate, MEM_LIBRARY, constants);
     }
 
-    private PosixGuardPageAllocator(Arena delegate, PosixMemLibrary memLibrary, PosixCLibrary libc, PosixMemLibraryConstants constants) {
+    private PosixGuardPageAllocator(Arena delegate, PosixMemLibrary memLibrary, PosixMemLibraryConstants constants) {
         super(delegate);
         this.memLibrary = memLibrary;
-        this.libc = libc;
         this.constants = constants;
-        this.pageSize = libc.getPageSize();
+        this.pageSize = memLibrary.getPageSize();
     }
 
     @Override
@@ -104,7 +102,7 @@ final class PosixGuardPageAllocator extends GuardPageAllocator {
     }
 
     private String lastError() {
-        int errno = libc.errno();
-        return "error=" + errno + ", reason=" + libc.strerror(errno);
+        int errno = LinkerHelper.systemError();
+        return "error=" + errno + ", reason=" + memLibrary.strerror(errno);
     }
 }

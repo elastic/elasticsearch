@@ -70,8 +70,8 @@ import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.isApp
  * The data node only puts keys into the column that hold a value, so no expanded column comes out null in every row -
  * {@link #assertNoAllNullExpandedColumn} holds that end of the contract down.
  * <p>
- * At most {@link #MAX_EXPANDED_FIELDS} discovered fields become columns: the alphabetically first ones, with a warning if there were
- * more. Only the coordinator sees the union of every row's fields, so this is where the cap has to live.
+ * At most {@link #MAX_EXPANDED_FIELDS} discovered fields become columns, with a warning if there were
+ * more.
  * <p>
  * The expansion scans every row of every page twice (once to collect field names, once to rewrite), so it polls for cancellation
  * every {@link #ROWS_PER_CANCELLATION_CHECK} rows and throws {@link TaskCancelledException} to abort promptly. Cancellation is
@@ -87,11 +87,10 @@ public final class ExpandUnmappedFieldsPostProcessor {
     /**
      * The most discovered fields a {@code LOAD_ALL} result expands into. Without a cap, a wide or heterogeneous index turns every
      * distinct {@code _source} leaf into a column, and merely collecting their names - before a single column is built - is enough
-     * to exhaust the coordinator's heap: those names are not tracked by any circuit breaker. 1000 matches the default of
-     * {@code index.mapping.total_fields.limit}, the cap mapped fields already live under.
+     * to exhaust the coordinator's heap. 1000 matches the default of
+     * {@code index.mapping.total_fields.limit}.
      * <p>
-     * The cap keeps the alphabetically first names, so which fields survive does not depend on the order pages arrive in, and a
-     * {@code KEEP} or {@code DROP} pattern - applied before the cap - can always reach the others.
+     * The cap keeps the alphabetically first names, so which fields survive does not depend on the order pages arrive in. {@code KEEP} or {@code DROP} can be used to reach fields that would go over the limit.
      */
     static final int MAX_EXPANDED_FIELDS = 1000;
 
@@ -250,9 +249,9 @@ public final class ExpandUnmappedFieldsPostProcessor {
     }
 
     /**
-     * Keeps the alphabetically first {@link #MAX_EXPANDED_FIELDS} distinct names it is fed, and never more than one extra. The same
-     * name typically turns up in many rows, so the kept names also live in a hash set: a repeat costs one lookup, and a name sorting
-     * after the largest kept one costs one comparison against the head of the max-heap. Only a new name that makes the cut pays the
+     * Essentially a max-heap that keeps the alphabetically first {@link #MAX_EXPANDED_FIELDS} distinct names it is fed, and never more than one extra. The same
+     * name typically turns up in many rows, so the kept names also live in a hash set: encountering the same name twice costs one lookup, and deciding if a new name is alphabetically later than any already encountered one
+     * costs one comparison against the head of the heap. Only a new name that makes the cut pays the
      * heap's logarithmic insert.
      */
     private static final class FieldNameCollector implements BiConsumer<String, Object> {
@@ -270,7 +269,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
         }
 
         @Override
-        public void accept(String name, Object value) {
+        public void accept(String name, Object ignoredValue) {
             if (keptNames.contains(name)) {
                 return;
             }
@@ -294,7 +293,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
         }
 
         private boolean wanted(String name) {
-            return pattern.matches(name) && existingNames.contains(name) == false;
+            return existingNames.contains(name) == false && pattern.matches(name);
         }
 
         /** Drains the heap, largest first, into a list from the back, leaving the names in ascending order. */
@@ -538,6 +537,8 @@ public final class ExpandUnmappedFieldsPostProcessor {
             // and skip the wasted per-row _source re-parse.
             if (expandedFieldsCount > 0) {
                 BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
+                // TODO a column that is null in every row of this page could be a constant null block instead of a builder, which would
+                // save the memory of builders - one per expanded field, each sized for the whole page - that end up holding nothing.
                 Arrays.setAll(builders, i -> blockFactory.newBytesRefBlockBuilder(page.getPositionCount()));
                 // ------ Naming convention ------
                 // "leaf" = JSON string

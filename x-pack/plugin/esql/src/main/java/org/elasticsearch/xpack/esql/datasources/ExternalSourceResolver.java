@@ -2415,6 +2415,124 @@ public class ExternalSourceResolver {
         // under the charge. queryHeld keeps the listing credit and the unique-schema overflow until query
         // close. Stats gathers, first-file-wins, and declared strict do not open a run.
         ExternalPlanningReservation.Run privateLists = planningReservation == null ? null : planningReservation.openRun();
+        ActionListener<Map<StoragePath, SourceMetadata>> metadataListener = new ActionListener<>() {
+            @Override
+            public void onResponse(Map<StoragePath, SourceMetadata> allMetadata) {
+                ExternalSourceResolution.ResolvedSource resolved = null;
+                Exception failure = null;
+                try {
+                    long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
+                    LOGGER.debug("Schema reconciliation [{}]: scanned {} files in {}ms", schemaResolution, allMetadata.size(), durationMs);
+
+                    StoragePath firstFile = fileList.path(0);
+                    SchemaReconciliation.Result result;
+                    if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
+                        result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata, schemaInterner);
+                    } else {
+                        result = SchemaReconciliation.reconcileUnionByName(allMetadata, pendingSchemaWarnings::add, schemaInterner);
+                    }
+
+                    // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
+                    // value wins (Spark/DuckDB semantics), so the unified schema and every per-file mapping's
+                    // output must drop the physical column. The file (physical) schema is preserved so positional
+                    // readers (CSV) still parse the column; enrichSchemaWithPartitionColumns re-adds the partition
+                    // column to the coordinator-facing schema below. Keeping the mapping width data-only keeps it
+                    // in agreement with the data-only unified schema at ColumnMapping#pruneToPerFileQuery and with
+                    // queryDataSchema at the data-node SchemaAdaptingIterator guard.
+                    //
+                    // Ordering matters: shadowPartitionCollisions emits the single shadow warning and prunes the
+                    // collision here, so the enrichSchemaWithPartitionColumns call below sees a data-only schema and
+                    // does not warn again (the no-double-warning invariant, asserted at that call). Do not reorder.
+                    PartitionMetadata partitionMetadata = fileList.partitionMetadata();
+                    Set<String> partitionNames = partitionMetadata != null ? partitionMetadata.partitionColumns().keySet() : Set.of();
+                    result = shadowPartitionCollisions(result, partitionNames, pendingSchemaWarnings::add, schemaInterner);
+
+                    List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
+                    SourceMetadata firstMeta = allMetadata.get(firstFile);
+                    // Pins are known only once every schema is in. The running fold already dropped each file's
+                    // column map. Poison is sticky, and a SKIP_ROW pin drops the file's row count.
+                    Map<StoragePath, Set<String>> perFilePinnedColumns = new HashMap<>();
+                    for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : result.perFileInfo().entrySet()) {
+                        Set<String> pinnedColumns = pinnedColumnsOf(e.getValue());
+                        if (pinnedColumns.isEmpty() == false) {
+                            perFilePinnedColumns.put(e.getKey(), pinnedColumns);
+                        }
+                    }
+                    // Under SKIP_ROW a narrow-read parse failure on a pinned column drops the whole row, so a pinned
+                    // file's cached row count is untrustworthy too; NULL_FIELD keeps the row (only the cell nulls) and
+                    // FAIL_FAST aborts the read cold before it can cache, so both keep the row count.
+                    boolean dropPinnedRowCount = resolvesToSkipRow(formatForStats, config);
+                    Map<String, Object> aggregatedStats = RunningFileStatsFold.applyPinnedColumns(
+                        fold.finish(),
+                        perFilePinnedColumns,
+                        dropPinnedRowCount
+                    );
+                    Map<String, String> pathToReadConfig = new HashMap<>(allMetadata.size());
+                    for (Map.Entry<StoragePath, SourceMetadata> e : allMetadata.entrySet()) {
+                        Map<String, Object> meta = e.getValue().sourceMetadata();
+                        Object shape = meta == null ? null : meta.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
+                        if (shape instanceof String str) {
+                            pathToReadConfig.put(e.getKey().toString(), str);
+                        }
+                    }
+                    aggregatedStats = applyDatasetAggregate(
+                        pathToReadConfig,
+                        datasetPrefetch,
+                        aggregatedStats,
+                        fileList,
+                        firstMeta,
+                        config
+                    );
+                    ExternalSourceMetadata extMetadata = withSourceType(
+                        buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats),
+                        datasetFormat
+                    );
+
+                    // Mirror the FFW invariants: file count enables canSkipSplitDiscovery; partial-stats
+                    // marking is gated on fileCount > 1 (single-file globs have no "other file" missing stats).
+                    extMetadata = enrichWithFileCount(extMetadata, fileList.fileCount());
+                    if (aggregatedStats == null && fileList.fileCount() > 1) {
+                        extMetadata = markStatsAsPartial(extMetadata);
+                    }
+
+                    if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
+                        // ReservedPartitionNames.surface renames a layout key that collides with the
+                        // dedicated metadata namespace, so a partition column can never carry a bindable
+                        // metadata name into the schema the analyzer later binds against.
+                        assert partitionNames.stream().noneMatch(ReservedPartitionNames::isReserved)
+                            : "a partition key still carries a reserved metadata name after ReservedPartitionNames.surface";
+                        // No-double-warning invariant: shadowPartitionCollisions above already pruned any physical
+                        // column that collides with a partition key (and emitted the one shadow warning), so the
+                        // post-shadow schema must be collision-free before enrich runs its own shadow detection.
+                        final ExternalSourceMetadata metaForAssert = extMetadata;
+                        assert metaForAssert.schema().stream().noneMatch(a -> partitionNames.contains(a.name()))
+                            : "shadowPartitionCollisions must run before enrichSchemaWithPartitionColumns: a physical "
+                                + "column still collides with a partition key, which would warn twice";
+                        extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
+                    }
+
+                    // _file.* columns are request-driven now; no auto-attach to the schema. See
+                    // ResolveExternalRelations / the EXTERNAL shim.
+
+                    Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
+                    resolved = new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap);
+                } catch (Exception e) {
+                    failure = e;
+                }
+                // The private lists are still on the gather frame that called us. That frame closes the run
+                // after we return, once overlay and the next path's listing have finished.
+                if (failure != null) {
+                    listener.onFailure(failure);
+                } else {
+                    listener.onResponse(resolved);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        };
         readAllFileMetadata(
             fileList,
             storageIdentity,
@@ -2424,129 +2542,7 @@ public class ExternalSourceResolver {
             fold,
             schemaInterner,
             privateLists,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(Map<StoragePath, SourceMetadata> allMetadata) {
-                    ExternalSourceResolution.ResolvedSource resolved = null;
-                    Exception failure = null;
-                    try {
-                        long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
-                        LOGGER.debug(
-                            "Schema reconciliation [{}]: scanned {} files in {}ms",
-                            schemaResolution,
-                            allMetadata.size(),
-                            durationMs
-                        );
-
-                        StoragePath firstFile = fileList.path(0);
-                        SchemaReconciliation.Result result;
-                        if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
-                            result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata, schemaInterner);
-                        } else {
-                            result = SchemaReconciliation.reconcileUnionByName(allMetadata, pendingSchemaWarnings::add, schemaInterner);
-                        }
-
-                        // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
-                        // value wins (Spark/DuckDB semantics), so the unified schema and every per-file mapping's
-                        // output must drop the physical column. The file (physical) schema is preserved so positional
-                        // readers (CSV) still parse the column; enrichSchemaWithPartitionColumns re-adds the partition
-                        // column to the coordinator-facing schema below. Keeping the mapping width data-only keeps it
-                        // in agreement with the data-only unified schema at ColumnMapping#pruneToPerFileQuery and with
-                        // queryDataSchema at the data-node SchemaAdaptingIterator guard.
-                        //
-                        // Ordering matters: shadowPartitionCollisions emits the single shadow warning and prunes the
-                        // collision here, so the enrichSchemaWithPartitionColumns call below sees a data-only schema and
-                        // does not warn again (the no-double-warning invariant, asserted at that call). Do not reorder.
-                        PartitionMetadata partitionMetadata = fileList.partitionMetadata();
-                        Set<String> partitionNames = partitionMetadata != null ? partitionMetadata.partitionColumns().keySet() : Set.of();
-                        result = shadowPartitionCollisions(result, partitionNames, pendingSchemaWarnings::add, schemaInterner);
-
-                        List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
-                        SourceMetadata firstMeta = allMetadata.get(firstFile);
-                        // Pins are known only once every schema is in. The running fold already dropped each file's
-                        // column map. Poison is sticky, and a SKIP_ROW pin drops the file's row count.
-                        Map<StoragePath, Set<String>> perFilePinnedColumns = new HashMap<>();
-                        for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : result.perFileInfo().entrySet()) {
-                            Set<String> pinnedColumns = pinnedColumnsOf(e.getValue());
-                            if (pinnedColumns.isEmpty() == false) {
-                                perFilePinnedColumns.put(e.getKey(), pinnedColumns);
-                            }
-                        }
-                        // Under SKIP_ROW a narrow-read parse failure on a pinned column drops the whole row, so a pinned
-                        // file's cached row count is untrustworthy too; NULL_FIELD keeps the row (only the cell nulls) and
-                        // FAIL_FAST aborts the read cold before it can cache, so both keep the row count.
-                        boolean dropPinnedRowCount = resolvesToSkipRow(formatForStats, config);
-                        Map<String, Object> aggregatedStats = RunningFileStatsFold.applyPinnedColumns(
-                            fold.finish(),
-                            perFilePinnedColumns,
-                            dropPinnedRowCount
-                        );
-                        Map<String, String> pathToReadConfig = new HashMap<>(allMetadata.size());
-                        for (Map.Entry<StoragePath, SourceMetadata> e : allMetadata.entrySet()) {
-                            Map<String, Object> meta = e.getValue().sourceMetadata();
-                            Object shape = meta == null ? null : meta.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
-                            if (shape instanceof String str) {
-                                pathToReadConfig.put(e.getKey().toString(), str);
-                            }
-                        }
-                        aggregatedStats = applyDatasetAggregate(
-                            pathToReadConfig,
-                            datasetPrefetch,
-                            aggregatedStats,
-                            fileList,
-                            firstMeta,
-                            config
-                        );
-                        ExternalSourceMetadata extMetadata = withSourceType(
-                            buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats),
-                            datasetFormat
-                        );
-
-                        // Mirror the FFW invariants: file count enables canSkipSplitDiscovery; partial-stats
-                        // marking is gated on fileCount > 1 (single-file globs have no "other file" missing stats).
-                        extMetadata = enrichWithFileCount(extMetadata, fileList.fileCount());
-                        if (aggregatedStats == null && fileList.fileCount() > 1) {
-                            extMetadata = markStatsAsPartial(extMetadata);
-                        }
-
-                        if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
-                            // ReservedPartitionNames.surface renames a layout key that collides with the
-                            // dedicated metadata namespace, so a partition column can never carry a bindable
-                            // metadata name into the schema the analyzer later binds against.
-                            assert partitionNames.stream().noneMatch(ReservedPartitionNames::isReserved)
-                                : "a partition key still carries a reserved metadata name after ReservedPartitionNames.surface";
-                            // No-double-warning invariant: shadowPartitionCollisions above already pruned any physical
-                            // column that collides with a partition key (and emitted the one shadow warning), so the
-                            // post-shadow schema must be collision-free before enrich runs its own shadow detection.
-                            final ExternalSourceMetadata metaForAssert = extMetadata;
-                            assert metaForAssert.schema().stream().noneMatch(a -> partitionNames.contains(a.name()))
-                                : "shadowPartitionCollisions must run before enrichSchemaWithPartitionColumns: a physical "
-                                    + "column still collides with a partition key, which would warn twice";
-                            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
-                        }
-
-                        // _file.* columns are request-driven now; no auto-attach to the schema. See
-                        // ResolveExternalRelations / the EXTERNAL shim.
-
-                        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
-                        resolved = new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap);
-                    } catch (Exception e) {
-                        failure = e;
-                    }
-                    // The private lists are still on the gather frame that called us. That frame closes the run
-                    // after we return, once overlay and the next path's listing have finished.
-                    if (failure != null) {
-                        listener.onFailure(failure);
-                    } else {
-                        listener.onResponse(resolved);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            }
+            metadataListener
         );
     }
 

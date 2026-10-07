@@ -3625,8 +3625,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private String lastFieldError;
         /**
          * Errors of the bracket elements {@code null_field} dropped from the cell just converted, which kept its
-         * remaining elements or, with none left, reads null (see {@link #tryConvertMultiValue}). Every caller of {@link #tryConvertValue} drains it
-         * right after the call: reporting the drops, deferring them with the row's other errors, or discarding them.
+         * remaining elements or, with none left, reads null (see {@link #tryConvertMultiValue}). Every caller of
+         * {@link #tryConvertValue} drains it right after the call: reporting the drops, deferring them with the row's
+         * other errors, or discarding them.
          */
         private final List<String> droppedElementErrors = new ArrayList<>();
         /** Non-null iff the iterator is eligible to populate {@link ExternalStats} on close (whole-file read). */

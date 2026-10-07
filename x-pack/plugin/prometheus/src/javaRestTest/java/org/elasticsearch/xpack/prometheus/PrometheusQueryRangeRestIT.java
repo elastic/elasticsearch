@@ -88,6 +88,12 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         );
     }
 
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantQueryDurationLiteralIsSeconds}. */
+    public void testQueryRangeDurationLiteralIsSeconds() throws Exception {
+        assertBinopRangeValues("1h30m", 5400);
+        assertBinopRangeValues("2m + 30s", 150);
+    }
+
     /** Prometheus rejects a string literal in a range query: "invalid expression type "string" for range query". */
     public void testQueryRangeStringLiteralIsRejected() throws Exception {
         Request request = prometheusReadRequest(

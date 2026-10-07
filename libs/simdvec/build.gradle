@@ -21,6 +21,7 @@ apply plugin: 'elasticsearch.benchmark'
 dependencies {
   implementation project(':libs:lucene-store')
   implementation project(':libs:native')
+  implementation project(':libs:blas')
   implementation project(':libs:logging')
   implementation "org.apache.lucene:lucene-core:${versions.lucene}"
 

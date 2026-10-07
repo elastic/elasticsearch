@@ -1,0 +1,9 @@
+OpenBLAS — https://github.com/OpenMathLib/OpenBLAS
+
+OpenBLAS is an optimized BLAS library based on GotoBLAS2 1.13 BSD version.
+Copyright (c) 2011-2014, The OpenBLAS Project.
+All rights reserved.
+
+GotoBLAS2 1.13 BSD version was developed by Kazushige Goto at the Texas Advanced
+Computing Center (TACC). The original GotoBLAS code is copyright (c) Regents of
+the University of Texas.

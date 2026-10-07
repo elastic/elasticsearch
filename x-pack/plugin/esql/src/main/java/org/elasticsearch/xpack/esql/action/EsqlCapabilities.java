@@ -3900,6 +3900,12 @@ public class EsqlCapabilities {
         METADATA_SLICE(SliceIndexing.SLICE_FEATURE_FLAG),
 
         /**
+         * A source reads the slices selected by a {@code _slice == <literal>} or {@code _slice IN (<literals>)} condition that
+         * filters it before any {@code LIMIT} or {@code STATS}. A knn function fails on a slice-enabled index without one.
+         */
+        SLICE_SELECTION_FROM_FILTER(SliceIndexing.SLICE_FEATURE_FLAG),
+
+        /**
          * Support for the {@code _class} and {@code _name} metadata fields: {@code _class} is the kind
          * of relation the row came from and {@code _name} is that relation's own name. Enables
          * {@code FROM <relation> METADATA _class, _name} on an index and on a dataset. A view answers

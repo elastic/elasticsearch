@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -89,6 +90,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -356,6 +358,16 @@ public class PlannerUtils {
                 action.accept(r);
             }
         }));
+    }
+
+    /**
+     * The slices the data-node plan reads from its indices, or none when its relations do not agree on them: the shards of
+     * a plan are resolved together.
+     */
+    public static SliceSelection sliceSelection(PhysicalPlan plan) {
+        Set<SliceSelection> slices = new HashSet<>();
+        forEachRelation(plan, relation -> slices.add(relation.slices()));
+        return slices.size() == 1 ? slices.iterator().next() : SliceSelection.UNSPECIFIED;
     }
 
     /**

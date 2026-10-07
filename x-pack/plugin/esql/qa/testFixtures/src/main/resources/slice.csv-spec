@@ -200,3 +200,144 @@ c:long | _slice:keyword
 9      | warm
 9      | yellow_green
 ;
+
+###################################################################
+# Tests for the slices a source reads, selected by a _slice filter
+###################################################################
+
+selectSlice
+
+required_capability: metadata_slice
+required_capability: slice_selection_from_filter
+
+FROM colors_with_slice METADATA _slice
+| WHERE _slice == "cool"
+| SORT color
+| KEEP color, _slice
+;
+
+color:text  | _slice:keyword
+aqua marine | cool
+blue        | cool
+cyan        | cool
+indigo      | cool
+navy        | cool
+turquoise   | cool
+;
+
+selectSeveralSlices
+
+required_capability: metadata_slice
+required_capability: slice_selection_from_filter
+
+FROM colors_with_slice METADATA _slice
+| WHERE _slice IN ("cool", "purple_pink")
+| STATS c = COUNT(*) BY _slice
+| SORT _slice
+;
+
+c:long | _slice:keyword
+6      | cool
+7      | purple_pink
+;
+
+selectSliceWithOtherConditions
+
+required_capability: metadata_slice
+required_capability: slice_selection_from_filter
+
+FROM colors_with_slice METADATA _slice
+| EVAL kind = _slice
+| WHERE primary == true
+| WHERE kind == "cool"
+| SORT color
+| KEEP color, kind
+;
+
+color:text | kind:keyword
+blue       | cool
+cyan       | cool
+;
+
+selectSliceTopN
+
+required_capability: metadata_slice
+required_capability: slice_selection_from_filter
+
+FROM colors_with_slice METADATA _slice
+| WHERE _slice == "purple_pink"
+| SORT color DESC
+| LIMIT 3
+| KEEP color, _slice
+;
+
+color:text | _slice:keyword
+violet     | purple_pink
+thistle    | purple_pink
+purple     | purple_pink
+;
+
+sliceFilterAfterLimitIsAnOrdinaryFilter
+
+required_capability: metadata_slice
+required_capability: slice_selection_from_filter
+
+FROM colors_with_slice METADATA _slice
+| SORT color
+| LIMIT 6
+| WHERE _slice == "cool"
+| KEEP color, _slice
+;
+
+color:text  | _slice:keyword
+aqua marine | cool
+blue        | cool
+;
+
+sliceFilterAfterStatsIsAnOrdinaryFilter
+
+required_capability: metadata_slice
+required_capability: slice_selection_from_filter
+
+FROM colors_with_slice METADATA _slice
+| STATS c = COUNT(*) BY _slice
+| WHERE _slice == "warm" OR c == 7
+| SORT _slice
+;
+
+c:long | _slice:keyword
+7      | purple_pink
+9      | warm
+;
+
+sliceFilterOnIndexWithoutSlicesMatchesNothing
+
+required_capability: metadata_slice
+required_capability: slice_selection_from_filter
+
+FROM colors METADATA _slice
+| WHERE _slice == "cool"
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+# The colors closest to red all live in slice "warm". The neighbours are selected among the documents
+# of the selected slice, so the search still returns documents, all of them from that slice.
+knnSearchesTheSelectedSlice
+
+required_capability: metadata_slice
+required_capability: slice_selection_from_filter
+required_capability: knn_function_v5
+
+FROM colors_with_slice METADATA _slice
+| WHERE knn(rgb_vector, [255, 0, 0]) AND _slice == "cool"
+| LIMIT 3
+| STATS slices = VALUES(_slice)
+;
+
+slices:keyword
+cool
+;

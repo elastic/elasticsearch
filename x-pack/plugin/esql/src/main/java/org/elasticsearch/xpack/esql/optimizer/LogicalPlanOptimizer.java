@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingW
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteDateFunctionComparisons;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteSumOfExpressionPlusConstant;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SelectSlicesFromFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnEmptyMappings;
@@ -127,6 +128,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     private static final List<RuleExecutor.Batch<LogicalPlan>> RULES = List.of(
         substitutions(),
         operators(),
+        // After operators() has pushed the filters down to the relations, and before the relations are wrapped below.
+        new Batch<>("Select Slices", Limiter.ONCE, new SelectSlicesFromFilter()),
         // After operators() has converged, so the UnionAll pushdowns gated on PushDownUtils.isLeafUnionAll
         // see the plain relation shape. This rule replaces a relation with Project > Eval > relation, and
         // that Eval stops the gate matching, which would switch those pushdowns off for the rest of a batch.

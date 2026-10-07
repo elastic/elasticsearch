@@ -801,12 +801,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
         grantedIo = null;
         if (closed.get() || ticketAbandoned.get()) {
-            granted.hold.drop();
+            discardUnusedGrant(granted);
             signalReady();
             return;
         }
         if (granted.phase2 == false && rowGroupDominatedByThreshold(granted.block)) {
-            granted.hold.drop();
+            discardUnusedGrant(granted);
             signalReady();
             return;
         }
@@ -841,7 +841,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
         } catch (Exception e) {
             if (reserved) {
-                granted.hold.drop();
+                discardUnusedGrant(granted);
             }
             failReady(e);
         }
@@ -860,7 +860,29 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         GrantedIo granted = grantedIo;
         grantedIo = null;
         if (granted != null) {
-            granted.hold.drop();
+            discardUnusedGrant(granted);
+        }
+    }
+
+    /**
+     * Drops a hold that never started a GET and finishes its lease so the node-wide overshoot
+     * slot is not pinned until {@link #close()}.
+     */
+    private void discardUnusedGrant(GrantedIo granted) {
+        granted.hold.drop();
+        RowGroupIo lease = granted.lease;
+        if (lease == null || lease.isFinished()) {
+            return;
+        }
+        lease.finish();
+        if (granted.watermark != null) {
+            granted.watermark.clearOwner(lease);
+        }
+        if (rowGroupLeases != null
+            && granted.ordinal >= 0
+            && granted.ordinal < rowGroupLeases.length
+            && rowGroupLeases[granted.ordinal] == lease) {
+            rowGroupLeases[granted.ordinal] = null;
         }
     }
 

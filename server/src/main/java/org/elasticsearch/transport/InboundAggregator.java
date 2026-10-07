@@ -35,7 +35,6 @@ public class InboundAggregator implements Releasable {
     private Exception aggregationException;
     private boolean canTripBreaker = true;
     private boolean isClosed = false;
-    // Bytes charged to the breaker for the current message before it finished aggregating; handed to the BreakerControl on finish
     private int chargedBytes = 0;
 
     public InboundAggregator(
@@ -81,14 +80,12 @@ public class InboundAggregator implements Releasable {
         ensureOpen();
         assert isAggregating();
         if (isShortCircuited() == false) {
-            // Charging each fragment as it arrives, rather than reserving the declared size once up front, means every fragment is checked
-            // against the memory in use at that moment, so a message that arrives alongside others trips as the heap fills. Only requests
-            // whose action name is already known can be charged, anything else is charged in chargeContent once it has all been read.
+            // Charge each piece as it arrives so it is checked against the memory in use at that moment. Requests whose action name isn't
+            // known yet are charged in chargeContent.
             if (currentHeader.isRequest() && currentHeader.needsToReadVariableHeader() == false && content.length() > 0) {
                 if (reserveBreakerBytes(content.length(), currentHeader.getActionName())) {
                     chargedBytes += content.length();
                 } else {
-                    // The breaker tripped: stop holding on to what has been read so far, the rest of the message is discarded
                     releaseContent();
                     firstContent = null;
                     contentAggregation = null;
@@ -124,7 +121,7 @@ public class InboundAggregator implements Releasable {
         }
 
         final BreakerControl breakerControl = new BreakerControl(circuitBreaker);
-        breakerControl.addReservedBytes(chargedBytes);
+        breakerControl.setReservedBytes(chargedBytes);
         chargedBytes = 0;
         final InboundMessage aggregated = new InboundMessage(currentHeader, releasableContent, breakerControl);
         boolean success = false;
@@ -233,9 +230,7 @@ public class InboundAggregator implements Releasable {
         return header.isCompressed() == (header.getCompressionScheme() != null);
     }
 
-    /**
-     * @return whether the bytes were reserved; {@code false} if the breaker tripped, in which case the aggregation is short-circuited
-     */
+    // Returns false if the breaker tripped, which short-circuits the aggregation
     private boolean reserveBreakerBytes(int bytes, String label) {
         if (canTripBreaker) {
             try {
@@ -251,12 +246,11 @@ public class InboundAggregator implements Releasable {
     }
 
     /**
-     * Charges the whole content of a request whose action name was only parsed along with the content, so nothing could be charged
-     * while it was being read. Everything else has already been charged fragment by fragment in {@link #aggregate}.
+     * Charges the content of a request whose action name was only parsed along with the content, so it couldn't be charged while read.
      */
     private void chargeContent(final Header header, final int contentLength, final BreakerControl breakerControl) {
         if (header.isRequest() && reserveBreakerBytes(contentLength, header.getActionName())) {
-            breakerControl.addReservedBytes(contentLength);
+            breakerControl.setReservedBytes(contentLength);
         }
     }
 
@@ -271,9 +265,9 @@ public class InboundAggregator implements Releasable {
             this.circuitBreaker = circuitBreaker;
         }
 
-        private void addReservedBytes(int reservedBytes) {
-            final int updated = bytesToRelease.addAndGet(reservedBytes);
-            assert updated >= 0 : "Expected bytesToRelease to be non-negative, found " + updated;
+        private void setReservedBytes(int reservedBytes) {
+            final boolean set = bytesToRelease.compareAndSet(0, reservedBytes);
+            assert set : "Expected bytesToRelease to be 0, found " + bytesToRelease.get();
         }
 
         @Override

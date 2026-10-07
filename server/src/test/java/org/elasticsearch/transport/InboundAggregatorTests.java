@@ -338,7 +338,6 @@ public class InboundAggregatorTests extends ESTestCase {
         assertFalse(fragment2.hasReferences());
         assertThat(limitedBreaker.getUsed(), equalTo(0L));
 
-        // The rest of the message is discarded
         final ReleasableBytesReference fragment3 = fragment(10);
         aggregator.aggregate(fragment3);
         fragment3.close();
@@ -366,10 +365,8 @@ public class InboundAggregatorTests extends ESTestCase {
     }
 
     /**
-     * Models several large messages (e.g. fetch chunks from different shards) that each fit in the heap on their own but not together,
-     * and whose headers all arrive before any of them has filled its buffers. The breaker stands in for the parent breaker with real
-     * memory accounting: it compares the bytes actually held at the time of the call, plus the bytes being reserved, with the limit,
-     * and does not account for anything reserved earlier that has not been buffered yet.
+     * Several messages that each fit in the heap but not together, with all headers arriving before any buffers fill. The breaker models
+     * the parent real-memory check: held bytes plus the bytes being reserved, ignoring earlier reservations not yet buffered.
      */
     public void testConcurrentLargeMessagesTripAsTheHeapFills() throws IOException {
         final int messageCount = 6;
@@ -406,7 +403,6 @@ public class InboundAggregatorTests extends ESTestCase {
             aggregators.add(messageAggregator);
         }
 
-        // The messages then fill up in step with each other
         long peakHeapUsed = 0;
         for (int fragmentIndex = 0; fragmentIndex < fragmentsPerMessage; fragmentIndex++) {
             for (InboundAggregator messageAggregator : aggregators) {

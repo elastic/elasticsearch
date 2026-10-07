@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
@@ -101,6 +102,96 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
         MapperService mapperService = columnarService(b -> {});
         assertTrue(isUnmappedSink(mapperService));
         assertThat(mapperService.documentMapper().mappingSource().toString(), not(containsString(FlattenedFieldMapper.UNMAPPED_SINK_NAME)));
+    }
+
+    /** Arrays keep document order, duplicates and nulls; the sink stores keywords, so numbers and booleans come back as strings. */
+    public void testSyntheticSourceKeepsAbsorbedArraysAndStringifiesValues() throws IOException {
+        DocumentMapper mapper = columnarService(b -> {}).documentMapper();
+        long n = randomLongBetween(0, 1000);
+
+        // Keys are written in sorted order: the sink's blob keeps slots in document order across keys, so the harness's re-index of the
+        // (key-sorted) synthetic source only reproduces the same blob when the input order is already sorted.
+        String source = syntheticSource(mapper, b -> {
+            b.array("flags", true, false, true);
+            b.nullField("nothing");
+            b.startArray("nums").value(n).value(n).nullValue().value(n + 1).endArray();
+        });
+
+        assertEquals(
+            "{\"flags\":[\"true\",\"false\",\"true\"],\"nothing\":null,\"nums\":[\"" + n + "\",\"" + n + "\",null,\"" + (n + 1) + "\"]}",
+            source
+        );
+    }
+
+    /**
+     * Fields absorbed inside a nested object are stored on that object's own Lucene document, so they render inside the nested element they
+     * came from, relative to it, including in an element that holds nothing mapped. They are filtered by their full path, like the mapped
+     * fields beside them.
+     */
+    public void testSyntheticSourceRendersAbsorbedFieldsInsideNestedObjects() throws IOException {
+        DocumentMapper mapper = columnarService(
+            b -> b.startObject("n")
+                .field("type", "nested")
+                .startObject("properties")
+                .startObject("k")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+        ).documentMapper();
+        String k = randomAlphanumericOfLength(6);
+        String u1 = randomAlphanumericOfLength(6);
+        String u2 = randomAlphanumericOfLength(6);
+        String top = randomAlphanumericOfLength(6);
+        CheckedConsumer<XContentBuilder, IOException> doc = b -> {
+            b.startArray("n");
+            b.startObject().field("k", k).field("u", u1).endObject();
+            b.startObject().field("u", u2).endObject();
+            b.endArray();
+            b.field("top", top);
+        };
+
+        assertEquals(
+            "{\"n\":[{\"k\":\"" + k + "\",\"u\":\"" + u1 + "\"},{\"u\":\"" + u2 + "\"}],\"top\":\"" + top + "\"}",
+            syntheticSource(mapper, doc)
+        );
+        assertEquals(
+            "{\"n\":[{\"u\":\"" + u1 + "\"},{\"u\":\"" + u2 + "\"}]}",
+            syntheticSource(mapper, new SourceFilter(new String[] { "n.u" }, null), doc)
+        );
+        assertEquals("{\"top\":\"" + top + "\"}", syntheticSource(mapper, new SourceFilter(new String[] { "top" }, null), doc));
+    }
+
+    /**
+     * Synthetic source renders absorbed fields as if they had never been absorbed: at the root, under their full dotted paths (the same
+     * flat shape subobjects: false gives mapped fields), sorted among the mapped fields, with no {@code _unmapped} object. Source filtering
+     * applies to each absorbed key's own path, not to the sink's name. ES|QL's source fallback for an unmapped field relies on this: it
+     * loads source with only that field's name included.
+     */
+    public void testSyntheticSourceRendersAndFiltersAbsorbedFieldsPerKey() throws IOException {
+        DocumentMapper mapper = columnarService(b -> b.startObject("m").field("type", "keyword").endObject()).documentMapper();
+        String a = randomAlphanumericOfLength(6);
+        String leaf = randomAlphanumericOfLength(6);
+        String m = randomAlphanumericOfLength(6);
+        CheckedConsumer<XContentBuilder, IOException> doc = b -> {
+            b.field("a", a);
+            b.field("m", m);
+            b.startObject("outer").startObject("inner").field("leaf", leaf).endObject().endObject();
+        };
+
+        assertEquals("{\"a\":\"" + a + "\",\"m\":\"" + m + "\",\"outer.inner.leaf\":\"" + leaf + "\"}", syntheticSource(mapper, doc));
+        assertEquals("{\"a\":\"" + a + "\"}", syntheticSource(mapper, new SourceFilter(new String[] { "a" }, null), doc));
+        assertEquals(
+            "{\"outer.inner.leaf\":\"" + leaf + "\"}",
+            syntheticSource(mapper, new SourceFilter(new String[] { "outer" }, null), doc)
+        );
+        assertEquals(
+            "{\"m\":\"" + m + "\",\"outer.inner.leaf\":\"" + leaf + "\"}",
+            syntheticSource(mapper, new SourceFilter(null, new String[] { "a" }), doc)
+        );
+        assertEquals("{\"m\":\"" + m + "\"}", syntheticSource(mapper, new SourceFilter(new String[] { "m" }, null), doc));
+        // The sink's own name is not a path in the rendered source, so filtering on it selects nothing.
+        assertEquals("{}", syntheticSource(mapper, new SourceFilter(new String[] { FlattenedFieldMapper.UNMAPPED_SINK_NAME }, null), doc));
     }
 
     public void testAbsentWhenSettingOff() throws IOException {

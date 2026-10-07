@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkSyntheticFieldLoader;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -1085,13 +1086,25 @@ public class ObjectMapper extends Mapper {
             return ignoredSourceMapper.syntheticFieldLoader();
         }
 
-        if (filter != null && filter.isPathFiltered(mapper.fullPath(), mapper instanceof ObjectMapper)) {
+        // The _unmapped sink renders its keys under their own paths, so it is filtered per key in prepare() rather than by its own name.
+        boolean isUnmappedSink = mapper instanceof FlattenedFieldMapper flattened && flattened.isUnmappedSink();
+        if (filter != null && isUnmappedSink == false && filter.isPathFiltered(mapper.fullPath(), mapper instanceof ObjectMapper)) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
 
         if (mapper instanceof ObjectMapper objectMapper) {
             // columnarStored is not propagated: the single-blob shortcut in write() is guarded by isRoot(),
             // which is only true for RootObjectMapper, never for child object mappers.
+            // Nested objects are separate Lucene documents and fields absorbed inside them are stored on those documents, so the root's
+            // _unmapped sink is loaded by every nested mapper alongside its own children. Only the root holds the sink, and in columnar
+            // modes (the only ones with a sink) every nested mapper is a direct child of the root.
+            if (objectMapper instanceof NestedObjectMapper
+                && mappers.get(FlattenedFieldMapper.UNMAPPED_SINK_NAME) instanceof FlattenedFieldMapper sink
+                && sink.isUnmappedSink()) {
+                List<Mapper> children = new ArrayList<>(objectMapper.mappers.values());
+                children.add(sink);
+                return objectMapper.syntheticFieldLoader(filter, children, false, false);
+            }
             return objectMapper.syntheticFieldLoader(filter);
         }
 
@@ -1219,7 +1232,9 @@ public class ObjectMapper extends Mapper {
 
             for (SourceLoader.SyntheticFieldLoader field : fields) {
                 if (field.hasValue()) {
-                    if (currentWriters.containsKey(field.fieldName()) == false) {
+                    if (field instanceof UnmappedSinkSyntheticFieldLoader sink) {
+                        addUnmappedSinkWriters(sink);
+                    } else if (currentWriters.containsKey(field.fieldName()) == false) {
                         writersHaveValues |= true;
                         currentWriters.put(field.fieldName(), new FieldWriter.FieldLoader(field));
                     } else {
@@ -1230,6 +1245,26 @@ public class ObjectMapper extends Mapper {
                     }
                 }
             }
+        }
+
+        /**
+         * Adds a writer per key absorbed into the _unmapped sink, so absorbed fields render under their original dotted paths, sorted among
+         * the mapped fields and filtered per key, as if they had never been absorbed. Keys are full paths, so inside a nested object they
+         * are written relative to it.
+         */
+        private void addUnmappedSinkWriters(UnmappedSinkSyntheticFieldLoader sink) {
+            for (Map.Entry<String, List<String>> entry : sink.valuesByKey().entrySet()) {
+                String key = entry.getKey();
+                if ((filter != null && filter.isPathFiltered(key, false)) || currentWriters.containsKey(key)) {
+                    continue;
+                }
+                String leafKey = isRoot() ? key : key.substring(ObjectMapper.this.fullPath().length() + 1);
+                writersHaveValues = true;
+                currentWriters.put(key, new FieldWriter.UnmappedSinkKey(leafKey, entry.getValue()));
+            }
+
+            // The sink itself is never written, so it is reset here
+            sink.reset();
         }
 
         @Override
@@ -1326,6 +1361,18 @@ public class ObjectMapper extends Mapper {
                 @Override
                 public boolean hasValue() {
                     return loader.hasValue();
+                }
+            }
+
+            record UnmappedSinkKey(String key, List<String> values) implements FieldWriter {
+                @Override
+                public void writeTo(XContentBuilder builder) throws IOException {
+                    UnmappedSinkSyntheticFieldLoader.writeKey(builder, key, values);
+                }
+
+                @Override
+                public boolean hasValue() {
+                    return true;
                 }
             }
 

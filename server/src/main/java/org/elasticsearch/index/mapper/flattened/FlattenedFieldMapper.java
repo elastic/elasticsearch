@@ -2109,6 +2109,16 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (fieldType().hasDocValues() && isUnmappedSink()) {
+            return new SyntheticSourceSupport.Native(
+                () -> new UnmappedSinkSyntheticFieldLoader(
+                    fullPath(),
+                    fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+                    builder.storeIgnoredFieldsInBinaryDocValues
+                )
+            );
+        }
+
         if (fieldType().hasDocValues()) {
             return new SyntheticSourceSupport.Native(
                 () -> new FlattenedDocValuesSyntheticFieldLoader(

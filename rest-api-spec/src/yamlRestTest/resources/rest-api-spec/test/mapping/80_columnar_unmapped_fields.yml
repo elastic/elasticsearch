@@ -123,6 +123,111 @@ setup:
   - match: { hits.total.value: 0 }
 
 ---
+"include_unmapped reaches absorbed fields under their own paths":
+  # include_unmapped walks _source, which renders absorbed fields at their original dotted paths, so they arrive as ordinary unmapped
+  # fields rather than under the sink.
+  - do:
+      index:
+        index: test_mapped
+        id: "1"
+        refresh: true
+        body:
+          mapped: 42
+          bare: "bare-value"
+          nums: [ 3, 1, 1 ]
+          outer:
+            inner:
+              leaf: "leaf-value"
+
+  - do:
+      search:
+        index: test_mapped
+        body:
+          query: { match_all: {} }
+          fields:
+            - field: "*"
+              include_unmapped: true
+
+  # Mapped fields still arrive through the ordinary path, with their real type.
+  - match: { hits.hits.0.fields.mapped: [ 42 ] }
+
+  # Absorbed leaves arrive one entry per leaf under their own paths, never under the sink.
+  - match: { hits.hits.0.fields.bare: [ "bare-value" ] }
+  - match: { hits.hits.0.fields.outer\.inner\.leaf: [ "leaf-value" ] }
+  - is_false: hits.hits.0.fields._unmapped
+  - is_false: hits.hits.0.fields._unmapped\.bare
+
+  # Absorbed values are strings even where the document held numbers, since the sink stores keywords. Array order and duplicates survive,
+  # which is the document-order encoding strict columnar uses rather than the sorted-unique doc values a lossy flattened field would give.
+  - match: { hits.hits.0.fields.nums: [ "3", "1", "1" ] }
+
+---
+"synthetic _source renders absorbed fields under their own paths":
+  # Absorbed fields come back as if they had never been absorbed: flat dotted paths at the root (the shape subobjects: false gives mapped
+  # fields too), no _unmapped object, and values as strings since the sink stores keywords.
+  - do:
+      index:
+        index: test_mapped
+        id: "1"
+        refresh: true
+        body:
+          mapped: 42
+          bare: "bare-value"
+          num: 7
+          outer:
+            inner:
+              leaf: "leaf-value"
+
+  - do:
+      get:
+        index: test_mapped
+        id: "1"
+  - match: { _source: { bare: "bare-value", mapped: 42, num: "7", outer.inner.leaf: "leaf-value" } }
+
+  # Source filtering applies to each absorbed field's own path, not to the sink's name.
+  - do:
+      get:
+        index: test_mapped
+        id: "1"
+        _source_includes: bare
+  - match: { _source: { bare: "bare-value" } }
+
+---
+"synthetic _source renders absorbed fields inside nested objects":
+  # Each nested element is its own Lucene document and keeps the fields absorbed inside it, so they render inside the element they came
+  # from, relative to it, even in an element that holds nothing mapped.
+  - do:
+      indices.create:
+        index: test_nested
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.flattened_unmapped_fields.enabled: true
+          mappings:
+            properties:
+              n:
+                type: nested
+                properties:
+                  k:
+                    type: keyword
+  - do:
+      index:
+        index: test_nested
+        id: "1"
+        refresh: true
+        body:
+          top: "top-value"
+          n:
+            - { k: "k-value", u: "u1" }
+            - { u: "u2" }
+
+  - do:
+      get:
+        index: test_nested
+        id: "1"
+  - match: { _source: { n: [ { k: "k-value", u: "u1" }, { u: "u2" } ], top: "top-value" } }
+
+---
 "exists on a mapped object still matches its mapped leaves":
   # exists on an object name retries as name.* when the exact name resolves to nothing. On a sink index that behavior must be unchanged: a
   # scalar absorbed at the mapped object's own path (possible in columnar mode, where subobjects is always false) stays unmapped and never

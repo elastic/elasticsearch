@@ -244,7 +244,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         return new FlattenedFieldSyntheticWriterHelper(getKeyedValueProducer(), sortedSubFieldEntries);
     }
 
-    private FlattenedFieldSyntheticWriterHelper.KeyedValueProducer getKeyedValueProducer() throws IOException {
+    FlattenedFieldSyntheticWriterHelper.KeyedValueProducer getKeyedValueProducer() throws IOException {
         List<BytesRef> rawIgnored = collectIgnoredValues();
 
         if (usesArrayOrderBinaryDocValues) {

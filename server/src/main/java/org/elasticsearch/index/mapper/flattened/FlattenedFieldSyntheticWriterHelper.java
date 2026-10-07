@@ -448,7 +448,7 @@ public class FlattenedFieldSyntheticWriterHelper {
         }
     }
 
-    private static void writeField(XContentBuilder b, List<String> values, String leaf) throws IOException {
+    static void writeField(XContentBuilder b, List<String> values, String leaf) throws IOException {
         if (values.size() > 1) {
             b.startArray(leaf);
             for (String v : values) {

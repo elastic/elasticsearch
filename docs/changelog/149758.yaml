@@ -1,4 +1,4 @@
-area: Bridge
+area: Infra/REST API
 issues: []
 pr: 149758
 summary: "Introduce size limit on Logstash pipeline in the pipeline creation API"

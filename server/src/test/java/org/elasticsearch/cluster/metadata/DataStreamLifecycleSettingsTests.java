@@ -10,9 +10,13 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -22,7 +26,8 @@ public class DataStreamLifecycleSettingsTests extends ESTestCase {
 
     public void testDefaults() {
         DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
-            ClusterSettings.createBuiltInClusterSettings()
+            ClusterSettings.createBuiltInClusterSettings(),
+            Settings.EMPTY
         );
 
         assertThat(dataStreamLifecycleSettings.getDefaultRetention(), nullValue());
@@ -32,11 +37,12 @@ public class DataStreamLifecycleSettingsTests extends ESTestCase {
             dataStreamLifecycleSettings.getGlobalRetention(true),
             equalTo(DataStreamGlobalRetention.create(TimeValue.timeValueDays(30), null))
         );
+        assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(true));
     }
 
     public void testMonitorsDefaultRetention() {
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
-        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings);
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings, Settings.EMPTY);
 
         // Test valid update
         TimeValue newDefaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 10));
@@ -71,7 +77,7 @@ public class DataStreamLifecycleSettingsTests extends ESTestCase {
 
     public void testMonitorsMaxRetention() {
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
-        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings);
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings, Settings.EMPTY);
 
         // Test valid update
         TimeValue newMaxRetention = TimeValue.timeValueDays(randomIntBetween(10, 29));
@@ -111,7 +117,7 @@ public class DataStreamLifecycleSettingsTests extends ESTestCase {
 
     public void testMonitorsDefaultFailuresRetention() {
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
-        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings);
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings, Settings.EMPTY);
 
         // Test valid update
         TimeValue newDefaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 10));
@@ -153,7 +159,7 @@ public class DataStreamLifecycleSettingsTests extends ESTestCase {
 
     public void testCombinationValidation() {
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
-        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings);
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings, Settings.EMPTY);
 
         // Test invalid update
         Settings newInvalidSettings = Settings.builder()
@@ -182,5 +188,43 @@ public class DataStreamLifecycleSettingsTests extends ESTestCase {
             dataStreamLifecycleSettings.getGlobalRetention(true),
             equalTo(DataStreamGlobalRetention.create(null, TimeValue.timeValueDays(30)))
         );
+    }
+
+    public void testMinimumLifecycleForTimeSeriesRespectiveToDlmOnly() {
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
+            ClusterSettings.createBuiltInClusterSettings(),
+            Settings.builder().put(DataStreamLifecycle.DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME, true).build()
+        );
+        // In DLM only mode all data streams have an initial lifecycle, there is no need for this flag.
+        assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(false));
+
+        dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
+            ClusterSettings.createBuiltInClusterSettings(),
+            Settings.builder().put(DataStreamLifecycle.DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME, false).build()
+        );
+        assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(true));
+    }
+
+    public void testMinimumLifecycleForTimeSeriesSettingMonitored() {
+        // Simulate ILM being loaded: register the setting in ClusterSettings.
+        Set<Setting<?>> settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingsSet.add(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
+
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterSettings, Settings.EMPTY);
+
+        assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(true));
+
+        // Dynamically disable.
+        clusterSettings.applySettings(
+            Settings.builder().put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, false).build()
+        );
+        assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(false));
+
+        // Dynamically re-enable.
+        clusterSettings.applySettings(
+            Settings.builder().put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, true).build()
+        );
+        assertThat(dataStreamLifecycleSettings.minimumLifecycleEnabled(), equalTo(true));
     }
 }

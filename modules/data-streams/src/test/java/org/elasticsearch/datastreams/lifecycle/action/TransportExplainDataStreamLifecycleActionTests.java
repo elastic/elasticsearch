@@ -55,7 +55,8 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
 
     private TransportExplainDataStreamLifecycleAction testAction;
     private final DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
-        ClusterSettings.createBuiltInClusterSettings()
+        ClusterSettings.createBuiltInClusterSettings(),
+        Settings.EMPTY
     );
 
     @Before

@@ -1,0 +1,12 @@
+area: Data streams
+breaking:
+  area: Data streams
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false
+  title: Introduce the setting to enable minimum lifecycle
+issues: []
+pr: 161049
+summary: Introduce the setting to enable minimum lifecycle
+type: breaking

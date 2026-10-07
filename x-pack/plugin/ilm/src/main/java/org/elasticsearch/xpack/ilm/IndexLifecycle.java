@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -126,7 +127,9 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
             IlmHealthIndicatorService.MAX_TIME_ON_ACTION_SETTING,
             IlmHealthIndicatorService.MAX_TIME_ON_STEP_SETTING,
-            IlmHealthIndicatorService.MAX_RETRIES_PER_STEP_SETTING
+            IlmHealthIndicatorService.MAX_RETRIES_PER_STEP_SETTING,
+            // The ILM plugin registers this setting to avoid enabling it on serverless
+            DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING
         );
     }
 

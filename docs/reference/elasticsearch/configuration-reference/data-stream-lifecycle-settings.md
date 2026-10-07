@@ -27,6 +27,11 @@ $$$data-streams-lifecycle-poll-interval$$$
 `data_streams.lifecycle.poll_interval`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often {{es}} checks what the next action is for all data streams with a built-in lifecycle. Defaults to `5m`.
 
+$$$data-streams-lifecycle-minimum-enabled$$$
+
+`data_streams.lifecycle.minimum.enabled` {applies_to}`stack: ga 9.6`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), boolean) When `true`, the minimum data stream lifecycle is enabled on time series data streams that do not have their own lifecycle configured. The minimum lifecycle runs only necessary for the health of the data stream operations such as rollover. Defaults to `true`.
+
 $$$cluster-lifecycle-default-rollover$$$
 
 `cluster.lifecycle.default.rollover`

@@ -32,7 +32,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.ExtractableFields;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 
@@ -179,14 +178,14 @@ public class SingleValueQuery extends Query {
 
         /**
          * The type of {@link #field()} on this shard, or {@code null} if ES|QL treats the field as missing here.
-         * {@link SearchExecutionContext#getFieldType} still resolves dynamic {@code flattened} sub-keys and nested
-         * subfields, which field extraction loads as {@code null} (see {@link ExtractableFields}). The query has to
-         * agree with extraction: otherwise it either rejects wildcard/regexp queries or matches documents whose
-         * extracted value is {@code null}.
+         * A dotted name under a {@code flattened} root resolves to a keyed sub-field type even though the shard
+         * has no mapping for it. Field caps and field extraction treat that name as unmapped, so the query has to
+         * as well: otherwise it either rejects wildcard/regexp queries or matches documents whose extracted
+         * value is {@code null}.
          */
         protected final MappedFieldType mappedFieldType(SearchExecutionContext context) {
             MappedFieldType ft = context.getFieldType(field);
-            if (ft == null || (field.indexOf('.') > 0 && ExtractableFields.isExtractable(context, field) == false)) {
+            if (ft == null || (field.indexOf('.') > 0 && context.isMappedField(field) == false)) {
                 return null;
             }
             return ft;

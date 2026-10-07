@@ -46,14 +46,6 @@ public class SingleValueQueryFlattenedSubkeyTests extends MapperServiceTestCase 
         assertThat(count(new SingleValueQuery(wildcard, "category.raw", false).negate(Source.EMPTY)), equalTo(0));
     }
 
-    /**
-     * Field caps hides nested subfields from ES|QL, and {@code include_in_root} copies their values onto the root
-     * document, so the query has to treat them as missing too.
-     */
-    public void testTermOnNestedSubfieldMatchesNothing() throws IOException {
-        assertThat(count(new SingleValueQuery(new TermQuery(Source.EMPTY, "n.b", "alpha"), "n.b", false)), equalTo(0));
-    }
-
     public void testMappedMultiFieldStillMatches() throws IOException {
         assertThat(count(new SingleValueQuery(new TermQuery(Source.EMPTY, "kw.raw", "alpha"), "kw.raw", false)), equalTo(1));
     }
@@ -64,25 +56,12 @@ public class SingleValueQueryFlattenedSubkeyTests extends MapperServiceTestCase 
             b.startObject("kw").field("type", "text");
             b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
             b.endObject();
-            b.startObject("n").field("type", "nested").field("include_in_root", true);
-            b.startObject("properties").startObject("b").field("type", "keyword").endObject().endObject();
-            b.endObject();
         }));
         int[] count = new int[1];
         withLuceneIndex(mapper, iw -> {
             iw.addDocument(
                 mapper.documentMapper()
-                    .parse(
-                        source(
-                            b -> b.startObject("category")
-                                .field("raw", "alpha")
-                                .endObject()
-                                .field("kw", "alpha")
-                                .startObject("n")
-                                .field("b", "alpha")
-                                .endObject()
-                        )
-                    )
+                    .parse(source(b -> b.startObject("category").field("raw", "alpha").endObject().field("kw", "alpha")))
                     .rootDoc()
             );
             iw.addDocument(

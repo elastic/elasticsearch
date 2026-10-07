@@ -14,7 +14,7 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 import java.util.Arrays;
 import java.util.Random;
 
-final class AshUtils {
+public final class AshUtils {
 
     private AshUtils() {}
 
@@ -140,7 +140,7 @@ final class AshUtils {
      * @param seed random seed for initialization
      * @return top-k right singular vectors as columns, row-major (n x k)
      */
-    public static float[] topKRightSingularVectors(float[] a, int m, int n, int k, long seed) {
+    static float[] topKRightSingularVectors(float[] a, int m, int n, int k, long seed) {
         // Compute C = A^T A (n x n) -- this is symmetric positive semi-definite
         // For m >> n this is cheaper than full SVD
         // For m < n, we use A A^T (m x m) and transform back

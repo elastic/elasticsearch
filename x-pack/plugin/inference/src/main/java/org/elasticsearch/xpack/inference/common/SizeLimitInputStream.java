@@ -58,7 +58,7 @@ public final class SizeLimitInputStream extends FilterInputStream {
         int bytesRead = super.read(b, off, len);
 
         if (bytesRead != -1) {
-            byteCounter.addAndGet(len);
+            byteCounter.addAndGet(bytesRead);
             checkMaximumLengthReached();
         }
 

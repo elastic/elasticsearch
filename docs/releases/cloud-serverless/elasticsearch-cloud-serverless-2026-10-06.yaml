@@ -480,6 +480,18 @@ entries:
   issues:
   - https://github.com/elastic/elasticsearch/issues/160694
 - file:
+    name: 158279.yaml
+    checksum: 81e3c66b5724bd590db2dfb2529795c77c1f6744
+  type: enhancement
+  title: Add a data stream lifecycle frozen health indicator
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - Data streams
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/158279
+- file:
     name: 160882.yaml
     checksum: 578a0499499bf736cde6dd62e8219e21b07fb2cb
   type: enhancement
@@ -603,6 +615,18 @@ entries:
   prs:
   - https://github.com/elastic/elasticsearch/pull/160659
 - file:
+    name: 160141.yaml
+    checksum: 312fae837067c02eef81a6b747aea4b9c7eb374c
+  type: enhancement
+  title: Accept dotted and empty Hive values
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/160141
+- file:
     name: 160301.yaml
     checksum: 5a894411a1323213089d29a3de147eedd2cf09c7
   type: enhancement
@@ -664,6 +688,20 @@ entries:
   - Machine learning
   prs:
   - https://github.com/elastic/elasticsearch/pull/160593
+- file:
+    name: 159997.yaml
+    checksum: 76b9bb266adae3048e072252338ba78427879b6c
+  type: bug-fix
+  title: Keep sparse columns in the non-strict overlay
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/159997
+  issues:
+  - https://github.com/elastic/esql-planning/issues/2057
 - file:
     name: 159313.yaml
     checksum: ebc584678800759caf65a0ffd2da5fbfc5a212eb
@@ -938,6 +976,18 @@ entries:
   - ES|QL
   prs:
   - https://github.com/elastic/elasticsearch/pull/160351
+- file:
+    name: 160146.yaml
+    checksum: 273708d830fb608d3b728066cfa7583aa922a352
+  type: enhancement
+  title: Filter partition globs by value when the walk withdraws
+  products:
+  - product: cloud-serverless
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/160146
 - file:
     name: 160445.yaml
     checksum: 2f0e04fbfe9dc303ee79b113408635f3460acc1d

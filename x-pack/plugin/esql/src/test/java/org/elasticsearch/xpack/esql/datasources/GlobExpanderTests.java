@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -40,6 +43,8 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -49,8 +54,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
@@ -4652,8 +4659,8 @@ public class GlobExpanderTests extends ESTestCase {
 
         FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
 
-        // Flat listing (insertion order): flag=True first since it appears first in the test data.
-        assertEquals(List.of("s3://bucket/data/flag=True/a.parquet", "s3://bucket/data/flag=False/b.parquet"), paths(result));
+        // Flat listing (key order): flag=False comes before flag=True alphabetically.
+        assertEquals(List.of("s3://bucket/data/flag=False/b.parquet", "s3://bucket/data/flag=True/a.parquet"), paths(result));
     }
 
     /**
@@ -4762,6 +4769,541 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(List.of("s3://bucket/a/year=2025/y.parquet", "s3://bucket/b/z.parquet"), paths(result));
         assertFalse("year=2024 must not be enumerated", provider.enumeratedFiles.stream().anyMatch(p -> p.contains("year=2024")));
+    }
+
+    // -- Parallel prefix fan-out --
+
+    /**
+     * A wide Hive-shaped tree with a file directly under the root and one directly under each year= folder,
+     * so the fan-out must handle files at intermediate levels as well as deep files.
+     */
+    private static List<StorageEntry> wideHiveTree(int years, int months, int filesPerMonth) {
+        List<StorageEntry> entries = new ArrayList<>();
+        entries.add(entry("s3://bucket/data/top.parquet", 50));
+        for (int y = 0; y < years; y++) {
+            String yearDir = "year=" + (2020 + y);
+            entries.add(entry("s3://bucket/data/" + yearDir + "/mid.parquet", 50));
+            for (int m = 1; m <= months; m++) {
+                String monthDir = String.format(Locale.ROOT, "month=%02d", m);
+                for (int f = 0; f < filesPerMonth; f++) {
+                    entries.add(entry(String.format(Locale.ROOT, "s3://bucket/data/%s/%s/f%04d.parquet", yearDir, monthDir, f), 100));
+                }
+            }
+        }
+        return entries;
+    }
+
+    /**
+     * The fan-out path and the serial flat-drain path must return the same file at every index.
+     * One provider has {@code childrenUnsupported=true} so it falls back to the serial drain;
+     * the other supports children and fans out. Both are called with concurrency=4.
+     */
+    public void testPrefixFanOutReturnsTheFlatListingEntryForEntry() throws Exception {
+        List<StorageEntry> tree = wideHiveTree(12, 12, 8);
+        TreeStubProvider serial = new TreeStubProvider(tree);
+        serial.childrenUnsupported = true;
+
+        TreeStubProvider fanOut = new TreeStubProvider(tree);
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        FileList serialResult = expandSync(
+            pattern,
+            serial,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            4,
+            () -> false
+        );
+        FileList fanOutResult = expandSync(
+            pattern,
+            fanOut,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            4,
+            () -> false
+        );
+
+        assertEquals("file counts must match", serialResult.fileCount(), fanOutResult.fileCount());
+        for (int i = 0; i < serialResult.fileCount(); i++) {
+            assertEquals("path at index " + i, serialResult.path(i), fanOutResult.path(i));
+            assertEquals("size at index " + i, serialResult.size(i), fanOutResult.size(i));
+            assertEquals("lastModifiedMillis at index " + i, serialResult.lastModifiedMillis(i), fanOutResult.lastModifiedMillis(i));
+        }
+        assertThat("fan-out must drain more than one prefix", fanOut.listedPrefixes.size(), greaterThan(1));
+    }
+
+    /**
+     * Verifies that the fan-out drains each derived prefix independently (sequentially). Each prefix issues its
+     * own {@code listObjects} call; the total across all prefixes is greater than one.
+     */
+    public void testPrefixDrainsAreIndependent() throws Exception {
+        AtomicInteger listObjectsCalls = new AtomicInteger();
+        TreeStubProvider counting = new TreeStubProvider(wideHiveTree(12, 12, 8)) {
+            @Override
+            public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+                listObjectsCalls.incrementAndGet();
+                return super.listObjects(prefix, recursive);
+            }
+        };
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        expandSync(
+            pattern,
+            counting,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            4,
+            () -> false
+        );
+        assertThat("fan-out must issue more than one listObjects call", listObjectsCalls.get(), greaterThan(1));
+    }
+
+    /**
+     * The {@code max_listed_objects} cap must be checked across the fan-out as a whole: a per-worker cap
+     * allows width W to collectively visit W times the limit before any check fires.
+     */
+    public void testListedObjectsCapAbortsAcrossConcurrentPrefixes() throws Exception {
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        AtomicInteger totalPulled = new AtomicInteger();
+        TreeStubProvider counting = new TreeStubProvider(wideHiveTree(12, 12, 8)) {
+            @Override
+            public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+                StorageIterator delegate = super.listObjects(prefix, recursive);
+                return new StorageIterator() {
+                    @Override
+                    public boolean hasNext() {
+                        return delegate.hasNext();
+                    }
+
+                    @Override
+                    public StorageEntry next() {
+                        totalPulled.incrementAndGet();
+                        return delegate.next();
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        delegate.close();
+                    }
+                };
+            }
+        };
+
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> expandSync(pattern, counting, null, HIVE_ON, Integer.MAX_VALUE, Integer.MAX_VALUE, 100, Integer.MAX_VALUE, 4, () -> false)
+        );
+        assertThat(e.getMessage(), containsString("esql.external.max_listed_objects"));
+        assertThat("cap must fire across workers, not per-worker", totalPulled.get(), lessThan(300));
+    }
+
+    /**
+     * The {@code max_discovered_files} cap must be checked across the fan-out as a whole: a per-worker cap
+     * allows width W to collectively keep W times the limit before any check fires.
+     */
+    public void testDiscoveredFilesCapAbortsAcrossConcurrentPrefixes() throws Exception {
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        AtomicInteger totalPulled = new AtomicInteger();
+        TreeStubProvider counting = new TreeStubProvider(wideHiveTree(12, 12, 8)) {
+            @Override
+            public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+                StorageIterator delegate = super.listObjects(prefix, recursive);
+                return new StorageIterator() {
+                    @Override
+                    public boolean hasNext() {
+                        return delegate.hasNext();
+                    }
+
+                    @Override
+                    public StorageEntry next() {
+                        totalPulled.incrementAndGet();
+                        return delegate.next();
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        delegate.close();
+                    }
+                };
+            }
+        };
+
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> expandSync(pattern, counting, null, HIVE_ON, 10, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, 4, () -> false)
+        );
+        assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
+        assertThat("cap must fire across workers, not per-worker", totalPulled.get(), lessThan(40));
+    }
+
+    /**
+     * A cancel that lands after every folder drain was submitted, but before any of them runs, must fail the listing
+     * as cancelled. The drains skip their work, so without recording the cancellation the merge would read the empty
+     * slots as "matched no files".
+     */
+    public void testCancelWhileEveryFolderDrainIsInFlightFailsAsCancelled() {
+        TreeStubProvider provider = new TreeStubProvider(wideHiveTree(4, 2, 2));
+        AtomicBoolean cancelled = new AtomicBoolean();
+        List<Runnable> submitted = new ArrayList<>();
+        PlainActionFuture<FileList> future = new PlainActionFuture<>();
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        // Concurrency above the folder count: all four drains are submitted (and none has run) before the cancel.
+        GlobExpander.expandAsync(
+            pattern,
+            provider,
+            null,
+            HIVE_ON,
+            MAX,
+            MAX,
+            MAX,
+            ListingExtents.UNBOUNDED,
+            PlanningMemory.NONE,
+            16,
+            cancelled::get,
+            submitted::add,
+            future
+        );
+        assertEquals("one drain per year= folder", 4, submitted.size());
+        assertFalse(future.isDone());
+
+        cancelled.set(true);
+        submitted.forEach(Runnable::run);
+
+        expectThrows(TaskCancelledException.class, future::actionGet);
+    }
+
+    /**
+     * The folder drain applies no partition value filter, so a glob with an active filter must keep the flat listing:
+     * fanning out would keep every {@code year=} the query excludes.
+     */
+    public void testPartitionValueFilterKeepsTheFlatListingInsteadOfFanningOut() throws Exception {
+        List<StorageEntry> tree = wideHiveTree(4, 2, 2);
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2021));
+        String pattern = "s3://bucket/data/year=*/*/*.parquet";
+
+        TreeStubProvider serial = new TreeStubProvider(tree);
+        serial.childrenUnsupported = true;
+        FileList expected = expandSync(pattern, serial, hints, HIVE_ON, MAX, MAX, MAX, MAX, 4, () -> false);
+
+        TreeStubProvider provider = new TreeStubProvider(tree);
+        FileList actual = expandSync(pattern, provider, hints, HIVE_ON, MAX, MAX, MAX, MAX, 4, () -> false);
+
+        assertFalse(paths(actual).isEmpty());
+        assertTrue("only year=2021 may survive", paths(actual).stream().allMatch(p -> p.contains("/year=2021/")));
+        assertEquals(paths(expected), paths(actual));
+    }
+
+    /** With no subfolder the slots built to probe the prefix are the whole listing: the prefix is not listed again. */
+    public void testFilesOnlyPrefixReusesTheProbedSlotsWithoutAFlatList() throws Exception {
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(entry("s3://bucket/data/a.parquet", 10), entry("s3://bucket/data/b.parquet", 10), entry("s3://bucket/data/c.csv", 10))
+        );
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        FileList result = expandSync(pattern, provider, null, HIVE_ON, MAX, MAX, MAX, MAX, 4, () -> false);
+
+        assertEquals(List.of("s3://bucket/data/a.parquet", "s3://bucket/data/b.parquet"), paths(result));
+        assertEquals("no flat LIST of the prefix", List.of(), provider.listedPrefixes);
+    }
+
+    /** Files that sort before, between and after the folders keep their key-order position without any sort of entries. */
+    public void testFilesBesideFoldersKeepKeyOrder() throws Exception {
+        List<StorageEntry> tree = List.of(
+            entry("s3://bucket/data/a.parquet", 10),
+            entry("s3://bucket/data/b/x.parquet", 10),
+            entry("s3://bucket/data/b/y.parquet", 10),
+            entry("s3://bucket/data/c.parquet", 10),
+            entry("s3://bucket/data/d/z.parquet", 10),
+            entry("s3://bucket/data/e.parquet", 10)
+        );
+        TreeStubProvider serial = new TreeStubProvider(tree);
+        serial.childrenUnsupported = true;
+        TreeStubProvider fanOut = new TreeStubProvider(tree);
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        FileList expected = expandSync(pattern, serial, null, HIVE_ON, MAX, MAX, MAX, MAX, 4, () -> false);
+        FileList actual = expandSync(pattern, fanOut, null, HIVE_ON, MAX, MAX, MAX, MAX, 4, () -> false);
+
+        assertEquals(6, actual.fileCount());
+        assertEquals(paths(expected), paths(actual));
+        assertEquals("one drain per folder", 2, fanOut.listedPrefixes.size());
+    }
+
+    /** The fan-out reserves planning memory for exactly the entries it retains, as the flat listing does. */
+    public void testFanOutReservesPlanningMemoryForEveryRetainedEntry() throws Exception {
+        AtomicLong reserved = new AtomicLong();
+        TreeStubProvider provider = new TreeStubProvider(wideHiveTree(4, 2, 2));
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        FileList result = expandSync(pattern, provider, null, HIVE_ON, MAX, MAX, MAX, MAX, 4, () -> false, reserved::addAndGet);
+
+        assertThat("fan-out must have drained more than one prefix", provider.listedPrefixes.size(), greaterThan(1));
+        assertEquals((long) result.fileCount() * FileList.LISTING_BYTES_PER_ENTRY, reserved.get());
+    }
+
+    /**
+     * Lists {@code pattern} through the synchronous {@link GlobExpander#expand} and through the async fan-out and
+     * asserts they agree on everything a caller can observe: the files in order, the warnings, and the truncation flag.
+     * Returns the provider the async listing ran on, so a test can also say whether it fanned out.
+     */
+    private TreeStubProvider assertAsyncMatchesSync(
+        String pattern,
+        List<StorageEntry> tree,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        int listingBound
+    ) throws Exception {
+        ListingExtents extents = listingBound == MAX ? ListingExtents.UNBOUNDED : new ListingExtents(listingBound);
+        FileList sync = GlobExpander.expand(
+            pattern,
+            new TreeStubProvider(tree),
+            hints,
+            HIVE_ON,
+            MAX,
+            MAX,
+            MAX,
+            extents,
+            PlanningMemory.NONE,
+            () -> false
+        );
+        TreeStubProvider asyncProvider = new TreeStubProvider(tree);
+        FileList async = expandSync(pattern, asyncProvider, hints, HIVE_ON, MAX, MAX, MAX, listingBound, 4, () -> false);
+
+        assertEquals("files", paths(sync), paths(async));
+        assertEquals("warnings", sync.listingWarnings(), async.listingWarnings());
+        assertEquals("truncated", sync.isTruncated(), async.isTruncated());
+        return asyncProvider;
+    }
+
+    /** The glob rewrite spells {@code month == 7} as {@code month=7}; the folders are {@code month=07}. */
+    public void testAsyncRetryAfterAMissedRewriteKeepsThePartitionHints() throws Exception {
+        List<StorageEntry> tree = new ArrayList<>();
+        for (int year = 2023; year <= 2024; year++) {
+            for (int month = 6; month <= 8; month++) {
+                for (int f = 0; f < 2; f++) {
+                    tree.add(entry(String.format(Locale.ROOT, "s3://bucket/data/year=%d/month=%02d/f%d.parquet", year, month, f), 10));
+                }
+            }
+        }
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 7));
+
+        TreeStubProvider provider = assertAsyncMatchesSync("s3://bucket/data/year=*/month=*/*.parquet", tree, hints, MAX);
+
+        FileList result = expandSync(
+            "s3://bucket/data/year=*/month=*/*.parquet",
+            provider,
+            hints,
+            HIVE_ON,
+            MAX,
+            MAX,
+            MAX,
+            MAX,
+            4,
+            () -> false
+        );
+        assertEquals("only month=07 survives, in both years", 4, result.fileCount());
+    }
+
+    /** A bound that lists only litter must not decide the dataset is empty, on either path. */
+    public void testAsyncRetryAfterABoundThatListsOnlyLitterMatchesSync() throws Exception {
+        List<StorageEntry> tree = List.of(
+            entry("s3://bucket/data/_a.parquet", 10),
+            entry("s3://bucket/data/b/x.parquet", 10),
+            entry("s3://bucket/data/c/y.parquet", 10)
+        );
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        TreeStubProvider provider = assertAsyncMatchesSync(pattern, tree, null, 1);
+        assertEquals(2, expandSync(pattern, provider, null, HIVE_ON, MAX, MAX, MAX, 1, 4, () -> false).fileCount());
+    }
+
+    /**
+     * Excluded names are reported on a listing only when nothing else is in it; with files present the flat listing
+     * logs the notice and carries none, and the fan-out must not add one.
+     */
+    public void testFanOutCarriesNoExclusionNoticeWhenFilesRemain() throws Exception {
+        List<StorageEntry> tree = new ArrayList<>(wideHiveTree(3, 2, 2));
+        tree.add(entry("s3://bucket/data/year=2020/_marker.parquet", 10));
+        tree.add(entry("s3://bucket/data/year=2021/month=01/_marker.parquet", 10));
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        TreeStubProvider provider = assertAsyncMatchesSync(pattern, tree, null, MAX);
+
+        assertThat("the fan-out must have drained more than one prefix", provider.listedPrefixes.size(), greaterThan(1));
+        FileList result = expandSync(pattern, provider, null, HIVE_ON, MAX, MAX, MAX, MAX, 4, () -> false);
+        assertEquals(List.of(), result.listingWarnings());
+    }
+
+    /** Folder post-filters (closed ranges) apply to the fan-out's listing as they do to the flat one. */
+    public void testFanOutAppliesClosedRangeFolderFilters() throws Exception {
+        List<StorageEntry> tree = wideHiveTree(6, 2, 2);
+        var hints = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2022),
+            hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2023)
+        );
+
+        TreeStubProvider provider = assertAsyncMatchesSync("s3://bucket/data/*/*/*.parquet", tree, hints, MAX);
+
+        assertThat("the fan-out must have drained more than one prefix", provider.listedPrefixes.size(), greaterThan(1));
+        FileList result = expandSync("s3://bucket/data/*/*/*.parquet", provider, hints, HIVE_ON, MAX, MAX, MAX, MAX, 4, () -> false);
+        assertThat(result.fileCount(), greaterThan(0));
+        assertTrue(paths(result).stream().allMatch(p -> p.contains("/year=2022/") || p.contains("/year=2023/")));
+    }
+
+    /** {@code _file.modified} literals are parsed once into epoch millis before any file is tested, on the fan-out too. */
+    public void testFanOutResolvesFileModifiedHints() throws Exception {
+        Instant old = Instant.parse("2020-01-01T00:00:00Z");
+        Instant recent = Instant.parse("2024-06-01T00:00:00Z");
+        List<StorageEntry> tree = new ArrayList<>();
+        for (String dir : List.of("a", "b", "c")) {
+            tree.add(new StorageEntry(StoragePath.of("s3://bucket/data/" + dir + "/old.parquet"), 10, old));
+            tree.add(new StorageEntry(StoragePath.of("s3://bucket/data/" + dir + "/new.parquet"), 10, recent));
+        }
+        var hints = List.of(hint(FileMetadataColumns.MODIFIED, PartitionFilterHintExtractor.Operator.GREATER_THAN, "2022-01-01T00:00:00Z"));
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        TreeStubProvider provider = assertAsyncMatchesSync(pattern, tree, hints, MAX);
+
+        assertThat("the fan-out must have drained more than one prefix", provider.listedPrefixes.size(), greaterThan(1));
+        FileList result = expandSync(pattern, provider, hints, HIVE_ON, MAX, MAX, MAX, MAX, 4, () -> false);
+        assertEquals(
+            List.of("s3://bucket/data/a/new.parquet", "s3://bucket/data/b/new.parquet", "s3://bucket/data/c/new.parquet"),
+            paths(result)
+        );
+    }
+
+    /**
+     * Files beside a single folder are in key order with that folder's files, whichever side of it they sort on: the
+     * probe tunnels through a lone folder and the files it saw on the way down must be merged, not put first.
+     */
+    public void testFilesAboveALoneFolderKeepKeyOrder() throws Exception {
+        List<StorageEntry> tree = List.of(
+            entry("s3://bucket/data/a.parquet", 10),
+            entry("s3://bucket/data/m/x.parquet", 10),
+            entry("s3://bucket/data/m/y.parquet", 10),
+            entry("s3://bucket/data/z.parquet", 10)
+        );
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        TreeStubProvider provider = assertAsyncMatchesSync(pattern, tree, null, MAX);
+
+        assertEquals("answered from the probe, with no flat LIST", List.of(), provider.listedPrefixes);
+        assertEquals(
+            List.of(
+                "s3://bucket/data/a.parquet",
+                "s3://bucket/data/m/x.parquet",
+                "s3://bucket/data/m/y.parquet",
+                "s3://bucket/data/z.parquet"
+            ),
+            paths(expandSync(pattern, provider, null, HIVE_ON, MAX, MAX, MAX, MAX, 4, () -> false))
+        );
+    }
+
+    /** A glob that does not descend is one request for the prefix; probing its children first would only add to it. */
+    public void testNonDescendingGlobIsNotProbedForFanOut() throws Exception {
+        TreeStubProvider provider = new TreeStubProvider(wideHiveTree(4, 2, 2));
+
+        FileList result = expandSync("s3://bucket/data/*.parquet", provider, null, HIVE_ON, MAX, MAX, MAX, MAX, 4, () -> false);
+
+        assertEquals(List.of("s3://bucket/data/top.parquet"), paths(result));
+        assertEquals("no listChildren probe", List.of(), provider.childListedPrefixes);
+        assertEquals("one flat LIST", 1, provider.listedPrefixes.size());
+    }
+
+    /**
+     * Calls {@link GlobExpander#expandAsync} synchronously by providing a {@link PlainActionFuture} and a direct
+     * executor. Exceptions from the expansion are re-thrown with their original type (RuntimeException direct,
+     * checked exceptions wrapped in RuntimeException). Use this in tests that verify fan-out behavior but do not
+     * need real parallelism.
+     */
+    private static FileList expandSync(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        int listingBound,
+        int concurrency,
+        BooleanSupplier isCancelled
+    ) throws Exception {
+        return expandSync(
+            pattern,
+            provider,
+            hints,
+            config,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            listingBound,
+            concurrency,
+            isCancelled,
+            PlanningMemory.NONE
+        );
+    }
+
+    private static FileList expandSync(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        int listingBound,
+        int concurrency,
+        BooleanSupplier isCancelled,
+        PlanningMemory memory
+    ) throws Exception {
+        PlainActionFuture<FileList> future = new PlainActionFuture<>();
+        GlobExpander.expandAsync(
+            pattern,
+            provider,
+            hints,
+            config,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            listingBound == Integer.MAX_VALUE ? ListingExtents.UNBOUNDED : new ListingExtents(listingBound),
+            memory,
+            concurrency,
+            isCancelled,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        try {
+            return future.get();
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException re) throw re;
+            if (cause instanceof IOException ioe) throw ioe;
+            throw new RuntimeException(cause);
+        }
     }
 
     /**
@@ -4937,7 +5479,7 @@ public class GlobExpanderTests extends ESTestCase {
         var hints = List.of(hint("city", PartitionFilterHintExtractor.Operator.IN, "Paris", "NoSuch"));
 
         assertEquals(
-            List.of("s3://bucket/data/city=__HIVE_DEFAULT_PARTITION__/a.parquet", "s3://bucket/data/city=Paris/b.parquet"),
+            List.of("s3://bucket/data/city=Paris/b.parquet", "s3://bucket/data/city=__HIVE_DEFAULT_PARTITION__/a.parquet"),
             paths(GlobExpander.expand("s3://bucket/data/city=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX))
         );
     }
@@ -4957,8 +5499,8 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(
             List.of(
                 "s3://bucket/data/city=New.York/a.parquet",
-                "s3://bucket/data/city=a=b/b.parquet",
-                "s3://bucket/data/city=Paris/c.parquet"
+                "s3://bucket/data/city=Paris/c.parquet",
+                "s3://bucket/data/city=a=b/b.parquet"
             ),
             paths(GlobExpander.expand("s3://bucket/data/city=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX))
         );
@@ -5548,14 +6090,23 @@ public class GlobExpanderTests extends ESTestCase {
      */
     private static class TreeStubProvider implements StorageProvider {
         private final List<StorageEntry> allEntries;
-        final List<String> listedPrefixes = new ArrayList<>();
-        final List<String> childListedPrefixes = new ArrayList<>();
-        final List<String> enumeratedFiles = new ArrayList<>();
-        final Map<String, Integer> keysPulled = new LinkedHashMap<>();
+        final List<String> listedPrefixes = Collections.synchronizedList(new ArrayList<>());
+        final List<String> childListedPrefixes = Collections.synchronizedList(new ArrayList<>());
+        final List<String> enumeratedFiles = Collections.synchronizedList(new ArrayList<>());
+        final Map<String, Integer> keysPulled = Collections.synchronizedMap(new LinkedHashMap<>());
         boolean childrenUnsupported = false;
 
         TreeStubProvider(List<StorageEntry> allEntries) {
-            this.allEntries = allEntries;
+            // Sort entries by path so listChildren and listObjects return results in key order,
+            // satisfying the contract required by listsInKeyOrder().
+            List<StorageEntry> sorted = new ArrayList<>(allEntries);
+            sorted.sort(Comparator.comparing(e -> e.path().toString()));
+            this.allEntries = sorted;
+        }
+
+        @Override
+        public boolean listsInKeyOrder() {
+            return true;
         }
 
         private static String withTrailingSlash(String prefix) {

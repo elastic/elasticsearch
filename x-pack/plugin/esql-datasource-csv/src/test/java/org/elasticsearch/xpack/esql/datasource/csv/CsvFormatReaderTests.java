@@ -83,7 +83,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -1618,12 +1618,16 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(DataType.DATE_NANOS, schema.get(1).dataType());
     }
 
+    /**
+     * A bare number in a {@code date_nanos} column is epoch MILLIS, as under {@code datetime}: the type fixes the
+     * stored precision, not the unit of the number.
+     */
     public void testReadDateNanosType() throws IOException {
         String csv = """
             event:keyword,ts:date_nanos
             login,2024-01-15T12:34:56.123456789Z
             logout,2024-01-15T12:35:00.000000000Z
-            raw,1737030896123456789
+            raw,1719828000000
             """;
 
         StorageObject object = createStorageObject(csv);
@@ -1639,10 +1643,78 @@ public class CsvFormatReaderTests extends ESTestCase {
             LongBlock tsBlock = (LongBlock) page.getBlock(1);
             assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:34:56.123456789Z"), tsBlock.getLong(0));
             assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:35:00.000000000Z"), tsBlock.getLong(1));
-            assertEquals(1737030896123456789L, tsBlock.getLong(2));
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-07-01T10:00:00.000000000Z"), tsBlock.getLong(2));
 
             assertFalse(iterator.hasNext());
         }
+    }
+
+    /**
+     * The same instant in both units a {@code date_nanos} column accepts as a bare number, on CSV and TSV (one reader):
+     * epoch millis with no format, epoch seconds with a declared {@code epoch_second}.
+     */
+    public void testReadDateNanosBareNumberUnitsCsvAndTsv() throws IOException {
+        long expected = EsqlDataTypeConverter.dateNanosToLong("2024-07-01T10:00:00.000000000Z");
+        for (String delimiter : List.of(",", "\t")) {
+            CsvFormatReader base = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("delimiter", delimiter));
+            String header = "ms:date_nanos" + delimiter + "s:date_nanos\n";
+            StorageObject object = createStorageObject(header + "1719828000000" + delimiter + "1719828000\n");
+            CsvFormatReader reader = base.withDeclaredDateFormats(Map.of("s", "epoch_second"));
+            try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+                Page page = iterator.next();
+                try {
+                    assertEquals("millis, delimiter [" + delimiter + "]", expected, ((LongBlock) page.getBlock(0)).getLong(0));
+                    assertEquals("epoch_second, delimiter [" + delimiter + "]", expected, ((LongBlock) page.getBlock(1)).getLong(0));
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+    }
+
+    /**
+     * A bare nanosecond count is out of range as epoch millis: it nulls the cell under {@code null_field} and fails the
+     * read under {@code fail_fast}, rather than reading as an instant.
+     */
+    public void testReadDateNanosBareNanosecondCountIsOutOfRange() throws IOException {
+        String csv = """
+            event:keyword,ts:date_nanos
+            nanos,1719828000000000000
+            millis,1719828000000
+            """;
+        ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                createStorageObject(csv),
+                FormatReadContext.builder().batchSize(10).errorPolicy(permissive).build()
+            )
+        ) {
+            Page page = iterator.next();
+            try {
+                LongBlock tsBlock = (LongBlock) page.getBlock(1);
+                assertTrue(tsBlock.isNull(0));
+                assertEquals(
+                    EsqlDataTypeConverter.dateNanosToLong("2024-07-01T10:00:00.000000000Z"),
+                    tsBlock.getLong(tsBlock.getFirstValueIndex(1))
+                );
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    createStorageObject(csv),
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("[1719828000000000000]"));
     }
 
     public void testReadDateNanosNullFieldOnBadValue() throws IOException {

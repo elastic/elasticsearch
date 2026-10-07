@@ -205,7 +205,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * Sanity cap on a trailer-declared footer GET ({@code F+8}). Larger than this is an invalid
      * Parquet file (HTTP 400) and is rejected before the second GET. Not a cache size and not a
      * data-page limit. Same value as {@link ExternalSourceSettings#BLOB_STORE_GET_SIZE_BYTES} so
-     * an exact-range footer GET stays inside the {@code C × B} in-flight GET accounting.
+     * an exact-range footer GET stays inside the {@code C × B} in-flight GET accounting. The cap
+     * covers the whole allocated region including the trailer, and the GET size already leaves
+     * room for the array header, so the footer buffer occupies at most 8 MiB of heap.
      */
     static final int MAX_FOOTER_READ_BYTES = ExternalSourceSettings.BLOB_STORE_GET_SIZE_BYTES;
 

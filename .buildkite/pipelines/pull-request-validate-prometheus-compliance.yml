@@ -1,21 +1,17 @@
-# This pipeline detects regressions in PromQL query coverage.
-
-config:
-  auto-retry: false
-  allow-labels: ":StorageEngine/PromQL"
-  trigger-phrase: '.*run\W+elasticsearch-ci/promql-compliance-bench.*'
+# Compares PromQL compliance with Prometheus between a pull request and its merge base. The pull request pipeline
+# triggers it for PRs labelled :StorageEngine/PromQL, and the build bot posts the report as a PR comment.
 env:
   PROMCHECK_VER: "0.5.4"
   PROMCHECK_TEST_INSTANCE_TIMEOUT: "900"
 steps:
-  - label: ":prometheus: promcheck-grafana-compliance:test"
-    key: promql-compliance-bench-grafana
+  - label: validate-prometheus-compliance
+    key: validate-prometheus-compliance
     command: |
       if ! command -v uv >/dev/null 2>&1; then
         curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh
         export PATH="$${HOME}/.local/bin:$${PATH}"
       fi
-      .buildkite/scripts/promql-compliance-bench.sh promql_test_queries-grafana
+      .buildkite/scripts/validate-prometheus-compliance.sh promql_test_queries-grafana
     timeout_in_minutes: 120
     retry:
       automatic:
@@ -24,7 +20,7 @@ steps:
         - exit_status: 137
           limit: 2
     artifact_paths:
-      - "/tmp/promql-compliance-bench-output/*"
+      - "/tmp/validate-prometheus-compliance-output/*"
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404

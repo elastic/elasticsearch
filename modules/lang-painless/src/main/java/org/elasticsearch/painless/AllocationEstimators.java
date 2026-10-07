@@ -545,7 +545,8 @@ public final class AllocationEstimators {
     }
 
     // ---- java.math.BigDecimal: the object plus, when the unscaled value exceeds long range, a backing BigInteger. ----
-    // precision() (unscaled decimal digit count) and scale() are allocation-free, so estimators size results from them.
+    // Estimators size results from precision() (unscaled decimal digit count) and scale(). scale() never allocates. precision()
+    // can allocate once, on its first call for a value over 18 digits, and then caches the answer.
 
     /** Heap cost of a {@link BigDecimal} whose unscaled value has {@code digits} decimal digits. */
     private static long bigDecimalBytes(long digits) {

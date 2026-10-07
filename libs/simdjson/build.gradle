@@ -23,9 +23,7 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'simdjson'
   }
-  testImplementation(testFixtures(project(':libs:simdvec'))) {
-    exclude group: 'org.elasticsearch', module: 'simdjson'
-  }
+  testImplementation project(':libs:foreign-library:testing')
 
   // SimdJsonParserBenchmark measures simdjson through the EscfEncoder pipeline, so the benchmark
   // source set needs :server for the escf, sourcebatch and bytes classes.

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -39,6 +40,7 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.xpack.core.security.action.Grant.USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE;
 
 /**
  * Rest action to create an API key on behalf of another user. Loosely mimics the API of
@@ -129,6 +131,18 @@ public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implement
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final GrantApiKeyRequest grantRequest = requestTranslator.translate(request);
+        // The user-managed service account REST handlers have no ServerlessScope, so they are not activated in
+        // serverless. This grant can only name an account created through those APIs.
+        if (request.isServerlessRequest() && USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE.equals(grantRequest.getGrant().getType())) {
+            if (grantRequest.getGrant().getServiceAccountToken() != null) {
+                grantRequest.getGrant().getServiceAccountToken().close();
+            }
+            throw new ElasticsearchStatusException(
+                "grant_type [{}] is not available when running in serverless mode",
+                RestStatus.BAD_REQUEST,
+                USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE
+            );
+        }
         final String refresh = request.param("refresh");
         if (refresh != null) {
             grantRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refresh));

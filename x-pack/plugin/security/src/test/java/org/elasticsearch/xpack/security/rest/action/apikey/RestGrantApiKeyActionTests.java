@@ -7,13 +7,29 @@
 
 package org.elasticsearch.xpack.security.rest.action.apikey;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestGrantApiKeyAction.RequestTranslator;
 
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.core.security.action.Grant.USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 public class RestGrantApiKeyActionTests extends ESTestCase {
 
@@ -64,6 +80,62 @@ public class RestGrantApiKeyActionTests extends ESTestCase {
             assertThat(grantApiKeyRequest.getApiKeyRequest().getName(), is(apiKeyName));
             assertThat(grantApiKeyRequest.getApiKeyRequest().getExpiration(), is(apiKeyExpiration));
         }
+    }
+
+    public void testUserManagedServiceAccountGrantIsRejectedForServerlessRequest() throws Exception {
+        final AtomicReference<GrantApiKeyRequest> parsed = new AtomicReference<>();
+        final RestGrantApiKeyAction action = action(request -> {
+            final GrantApiKeyRequest grantRequest = new RequestTranslator.Default().translate(request);
+            parsed.set(grantRequest);
+            return grantRequest;
+        });
+        final FakeRestRequest restRequest = restRequest("""
+            {
+              "grant_type": "%s",
+              "service_account_token": "secret-token"
+            }""".formatted(USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE));
+        restRequest.markAsServerlessRequest();
+
+        final ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> action.innerPrepareRequest(restRequest, null)
+        );
+        assertThat(
+            e,
+            throwableWithMessage(
+                "grant_type [" + USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE + "] is not available when running in serverless mode"
+            )
+        );
+        assertThat(e.status(), is(RestStatus.BAD_REQUEST));
+        expectThrows(IllegalStateException.class, () -> parsed.get().getGrant().getServiceAccountToken().getChars());
+    }
+
+    public void testUserManagedServiceAccountGrantIsPreparedForStatefulRequest() throws Exception {
+        final RestGrantApiKeyAction action = action(new RequestTranslator.Default());
+        final FakeRestRequest restRequest = restRequest("""
+            { "grant_type": "%s" }""".formatted(USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE));
+
+        assertThat(action.innerPrepareRequest(restRequest, null), notNullValue());
+    }
+
+    public void testPasswordGrantIsPreparedForServerlessRequest() throws Exception {
+        final RestGrantApiKeyAction action = action(new RequestTranslator.Default());
+        final FakeRestRequest restRequest = restRequest("""
+            { "grant_type": "password" }""");
+        restRequest.markAsServerlessRequest();
+
+        assertThat(action.innerPrepareRequest(restRequest, null), notNullValue());
+    }
+
+    private static RestGrantApiKeyAction action(RequestTranslator translator) {
+        return new RestGrantApiKeyAction(Settings.EMPTY, mock(XPackLicenseState.class), translator);
+    }
+
+    private static FakeRestRequest restRequest(String body) {
+        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.POST)
+            .withPath("/_security/api_key/grant")
+            .withContent(new BytesArray(body), XContentType.JSON)
+            .build();
     }
 
 }

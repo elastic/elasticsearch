@@ -135,6 +135,7 @@ import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -5543,9 +5544,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
     public void testOversizedMultiFileListingDoesNotFillSchemaCache() throws Exception {
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
         long entryBytes = SchemaCacheEntry.from(new SimpleSourceMetadata(schema, "parquet", "s3://bucket/data/a.parquet")).estimatedBytes();
+        // A total whose SCHEMA slice holds about two of these entries. The identity caches take a fifth of the
+        // total between them and the schema store takes two fifths of that, so the schema slice is 2/25 of the
+        // total: 25 entry-widths of total give a 2-entry schema slice. The premise is asserted below rather
+        // than trusted, so a reshare of the slices fails here with a figure instead of as an eviction.
         long schemaBudget = entryBytes * 2;
         Settings settings = Settings.builder()
-            .put("esql.external.cache.size", (schemaBudget * 5) + "b")
+            .put("esql.external.cache.size", (entryBytes * 25) + "b")
             .put("esql.external.cache.enabled", true)
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
@@ -5566,6 +5571,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 false
             );
             SchemaCacheEntry sentinel = SchemaCacheEntry.from(new SimpleSourceMetadata(schema, "parquet", "s3://other/keep.parquet"));
+            assertThat(
+                "fixture premise: the schema slice must hold about two of these entries",
+                (Long) cacheService.usageStats().get("schema_budget_bytes"),
+                allOf(greaterThanOrEqualTo(entryBytes * 2), lessThan(entryBytes * 3))
+            );
             cacheService.putSchema(sentinelKey, sentinel);
             ExternalSourceResolver resolver = createResolver(
                 schemas,

@@ -69,6 +69,12 @@ public class ExternalSourceCacheService implements Closeable {
 
     private final WeightedStore<SchemaCacheKey, SchemaCacheEntry> schemaStore;
     /**
+     * What each read measured, addressed by {@link StatisticsKey}. Its own store and its own budget slice, so a
+     * divergent-heavy listing filling this one cannot evict the schema records it was resolved from — which it
+     * could when both kinds of fact shared the schema slice.
+     */
+    private final WeightedStore<StatisticsKey, StatisticsRecord> statisticsStore;
+    /**
      * The memoized whole-dataset row-count aggregate, keyed by file-set fingerprint. Tiny per entry but
      * expensive to rebuild (a full cold scan), so it gets its OWN cache: sharing the per-file budget let
      * per-file churn evict it and the warm dataset {@code COUNT} decayed mid-use. No time expiry — the
@@ -173,9 +179,16 @@ public class ExternalSourceCacheService implements Closeable {
         // Per-file schema stays at its established 20%; the dataset-aggregate cache gets a small dedicated
         // slice carved from listing (each dataset entry is a single row count — kilobytes suffice — so its
         // exact size barely matters; what matters is that it is ITS OWN slice, immune to per-file churn).
-        long schemaBudget = maxTotalBytes / 5;               // 20%
+        // The identity caches take 20% between them, as before, now split by kind of fact. Statistics get the
+        // larger share: for a text file with harvested extrema the _stats.* map outweighs the schema it was
+        // measured against, several stat keys per column against one column name.
+        // The identity slices still total a fifth between them; statistics take the remainder so the two sum
+        // exactly, rather than each flooring its own percentage and losing a byte.
+        long identityBudget = maxTotalBytes / 5;             // 20%, as before the split
+        long schemaBudget = identityBudget * 2 / 5;          // 8% of the total
+        long statisticsBudget = identityBudget - schemaBudget; // 12% of the total, and the exact remainder
         long datasetAggregateBudget = maxTotalBytes / 50;    // 2%
-        long listingBudget = maxTotalBytes - schemaBudget - datasetAggregateBudget; // ~78%
+        long listingBudget = maxTotalBytes - schemaBudget - statisticsBudget - datasetAggregateBudget; // ~78%
         // Each store refuses a single entry heavier than its own per-entry ceiling, so one oversized harvest
         // cannot admit-then-flush that store's working set. See WeightedStore#perEntryCeiling.
 
@@ -185,6 +198,7 @@ public class ExternalSourceCacheService implements Closeable {
         // (listing and file-metadata) DO keep the listing TTL — they hold current file identity with no
         // per-file key to invalidate on, so they must refresh on a clock.
         this.schemaStore = WeightedStore.of("schema_cache", schemaBudget, SchemaCacheEntry::estimatedBytes, null);
+        this.statisticsStore = WeightedStore.of("statistics_cache", statisticsBudget, StatisticsRecord::estimatedBytes, null);
 
         // A constant weigher: the value is one long behind a header, so this store's weight is its entry count
         // times DATASET_AGGREGATE_BYTES and nothing is walked per promote.
@@ -1238,27 +1252,31 @@ public class ExternalSourceCacheService implements Closeable {
         );
         for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
             SchemaCacheKey key = match.getKey();
-            SchemaCacheEntry existing = match.getValue();
-            // A statistics record holds no types of its own — it carries the columns of the schema record it was built
-            // beside, which belong to a different read. The per-stripe coercion below targets those types, so a delta
-            // landing here would normalise this read's extrema against another read's resolution and mark the column
-            // unservable on the very record that measured it. Stripe state belongs on the schema record for this read.
-            if (key.isStatisticsRecord()) {
+            SchemaCacheEntry schemaRecord = match.getValue();
+
+            // The schema record is matched for its TYPES and never written: stripe state is a measurement, so it
+            // lives at the statistics address for the read that produced it. There is no longer a kind check
+            // here, because collectMatchingEntries walks the schema store and the schema store holds one kind
+            // of fact. The check this replaces existed because both kinds shared a store, and the sibling
+            // whole-file arm had it while this one did not — which was a shipped defect.
+            StatisticsKey statsKey = StatisticsKey.of(key, delta.readConfig());
+            // Read-shape gate, stricter than the whole-file path's: stripe state is an accumulating fold, so a
+            // foreign-configured delta cannot contribute even its row count without mixing two reads' stripes
+            // into one cover. Same-shape only; anything else safe-misses to a scan. The gate is now the address
+            // itself for the stripe state, and this comparison keeps a delta off a file whose schema record was
+            // resolved under a different read, where the types below would be the wrong ones to coerce against.
+            if (Objects.equals(readConfigStampOf(schemaRecord), delta.readConfig()) == false) {
                 continue;
             }
-            // Read-shape gate, stricter than the whole-file path's: stripe state is an accumulating per-entry fold,
-            // so a foreign-configured delta cannot contribute even its row count without mixing two reads' stripes into
-            // one cover. Same-shape only; anything else safe-misses to a scan.
-            if (Objects.equals(existing.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY), delta.readConfig()) == false) {
-                continue;
-            }
-            Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());
-            // Grid identity gate: stripe ordinals are only comparable within one grid. If the entry's
-            // committed stripe state was accumulated on a DIFFERENT grid (data nodes running different
-            // stripe.size values — rolling restart, config drift), merging this delta's ordinals into it
-            // would let the 0..K fold serve a silently wrong count over a "complete" cover. Clear the
-            // stale-grid state and restart accumulation on this delta's grid (safe-miss, never mixed).
-            // An entry with stripes but NO stamp predates the stamp — its grid is unknowable, same reset.
+            StatisticsRecord priorStats = statisticsStore.get(statsKey);
+            Map<String, Object> enriched = new HashMap<>(priorStats == null ? Map.of() : priorStats.measurements());
+            enriched.putAll(statisticsIdentity(schemaRecord));
+            // Grid identity gate: stripe ordinals are only comparable within one grid. If the committed stripe
+            // state was accumulated on a DIFFERENT grid (data nodes running different stripe.size values —
+            // rolling restart, config drift), merging this delta's ordinals into it would let the 0..K fold
+            // serve a silently wrong count over a "complete" cover. Clear the stale-grid state and restart
+            // accumulation on this delta's grid (safe-miss, never mixed). Stripes with NO stamp predate the
+            // stamp — their grid is unknowable, same reset.
             Object entryGrid = enriched.get(ExternalStats.STRIPE_GRID_KEY);
             boolean gridMatches = entryGrid instanceof Number n && n.longValue() == delta.stripeSize();
             if (gridMatches == false) {
@@ -1268,12 +1286,14 @@ public class ExternalSourceCacheService implements Closeable {
             for (Map.Entry<Long, Map<String, Object>> stripe : delta.stripes().entrySet()) {
                 // Push the resolved column type down to each stripe's min/max before it is stored, so the
                 // 0..K fold (foldCommittedStripes -> mergeStatistics) never folds a Long extremum against a
-                // Double one for the same column. dropUnrepresentable=false: an unrepresentable value is left
-                // for that fold's POISON to safe-miss the whole column (a per-stripe drop would fold a subset).
+                // Double one for the same column. The types are the schema record's OWN, which is sound here
+                // precisely because the gate above established that this delta's read IS that record's read.
+                // dropUnrepresentable=false: an unrepresentable value is left for that fold's POISON to
+                // safe-miss the whole column (a per-stripe drop would fold a subset).
                 Map<String, Object> stripeStats = coerceColumnStatsToResolvedTypes(
                     stripe.getValue(),
-                    existing.columnNames(),
-                    existing.columnTypes(),
+                    schemaRecord.columnNames(),
+                    schemaRecord.columnTypes(),
                     false
                 );
                 enriched.put(ExternalStats.STRIPE_ENTRY_PREFIX + stripe.getKey(), stripeStats);
@@ -1283,13 +1303,13 @@ public class ExternalSourceCacheService implements Closeable {
             }
             Map<String, Object> wholeFile = foldCommittedStripes(enriched, delta);
             if (wholeFile != null) {
-                clearStripeState(enriched); // compaction: the fold subsumes the stripes; entry weight back to O(1)
+                clearStripeState(enriched); // compaction: the fold subsumes the stripes; weight back to O(1)
                 enriched.putAll(wholeFile);
                 if (completedFold == null) {
                     completedFold = wholeFile;
                 }
             }
-            putSchemaIfWithinCeiling(key, existing.withSafeMetadata(enriched));
+            statisticsStore.putIfWithinCeiling(statsKey, new StatisticsRecord(enriched));
         }
         return completedFold;
     }
@@ -1625,94 +1645,102 @@ public class ExternalSourceCacheService implements Closeable {
                 for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
                     SchemaCacheKey key = match.getKey();
                     SchemaCacheEntry existing = match.getValue();
-                    if (key.isStatisticsRecord()) {
-                        // A statistics record is addressed by the read that produced it and holds no types of its OWN: it is
-                        // built beside a schema record and carries that record's columns. So only a contribution from the same
-                        // read may enrich it — contribution matching compares path, mtime and format config and never the read,
-                        // so without this a foreign read's harvest lands here — and it is stored as harvested, because the
-                        // coercion below targets the schema record's resolved types, which belong to a different read.
-                        if (Objects.equals(key.readConfig(), contributionReadConfig)) {
-                            putSchemaIfWithinCeiling(
-                                key,
-                                existing.withSafeMetadata(statisticsRecordMetadata(existing, existing, mergedStats))
-                            );
-                        }
-                        continue;
-                    }
+
+                    // The schema record is never written here any more: it describes the file, and a measurement
+                    // is a property of a read. Everything this loop files goes to the statistics store, under
+                    // the read that produced it.
+                    //
+                    // Two addresses, and they differ only in whose types the measurement is normalised against.
+                    String ownRead = readConfigStampOf(existing);
                     Map<String, Object> applicable = applicableStats(existing, mergedStats);
-                    // Anything the schema record does not take whole is an accurate measurement of its own read, and it is filed
-                    // under that read rather than dropped. Two cases reach here. A refusal (null) is the obvious one. The other is
-                    // a PARTIAL admission: under a strict error policy the producer licenses the physical row count to cross read
-                    // configurations, so applicableStats returns a count-only map, the count enriches this record — and without
-                    // this the per-column extrema harvested under the other read went nowhere, which is the default error mode.
-                    // A reference compare is the discriminator, because applicableStats returns the contribution itself when the
-                    // stamps agree and a fresh map when it is licensing a subset.
-                    // Not for a declared-strict key: strictSingleFileMetadata is the only site that mints one, and
-                    // every lookup builds its key with declaredStrict=false, so a statistics record derived from it
-                    // can never be read. Filing it would charge the schema budget and evict live entries through the
-                    // LRU to hold an address nothing asks for. Wiring that rail is a separate change.
-                    if (applicable != mergedStats && contributionReadConfig != null && key.declaredStrict() == false) {
-                        SchemaCacheKey statsKey = key.withReadConfig(contributionReadConfig);
-                        // Counts a hit or a miss and promotes the entry: the shared Cache exposes no
-                        // non-counting read, so the first filing for a divergent file books a miss in
-                        // schema_cache.misses. Bounded by the number of divergent files per reconcile rather
-                        // than by the file count, unlike the per-file lookup that order was changed to avoid.
-                        SchemaCacheEntry priorStats = schemaStore.get(statsKey);
-                        putSchemaIfWithinCeiling(
-                            statsKey,
-                            existing.withSafeMetadata(statisticsRecordMetadata(existing, priorStats, mergedStats))
+
+                    // (1) The file's OWN read — the one the schema record was resolved under. What
+                    // applicableStats admits is normalised against this record's types, which are the right
+                    // types precisely because this address IS this record's read. A strict licence admits the
+                    // physical row count alone, so that is all this address takes.
+                    if (applicable != null) {
+                        Map<String, Object> coerced = coerceColumnStatsToResolvedTypes(
+                            applicable,
+                            existing.columnNames(),
+                            existing.columnTypes(),
+                            true
                         );
+                        fileStatistics(StatisticsKey.of(key, ownRead), statisticsIdentity(existing), coerced);
                     }
-                    if (applicable == null) {
-                        continue;
+
+                    // (2) The read that actually produced this harvest, when it is not the record's own. Stored
+                    // as harvested, with no coercion at all: there is no record whose types are the right ones
+                    // to normalise against, and inventing one is exactly what used to go wrong. A measurement
+                    // the own-read address did not take WHOLE still belongs to its own read rather than being
+                    // dropped, which covers both a refusal and the licensed partial admission that is the
+                    // default error mode.
+                    if (applicable != mergedStats && Objects.equals(contributionReadConfig, ownRead) == false) {
+                        fileStatistics(StatisticsKey.of(key, contributionReadConfig), statisticsIdentity(existing), mergedStats);
                     }
-                    Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());
-                    // Push the resolved column type down before enriching. This whole-file path is
-                    // last-writer-wins (no POISON fold), so an unrepresentable value (e.g. a Double past
-                    // Long.MAX for a LONG-resolved column) is DROPPED rather than stored — otherwise the
-                    // serve would coerce it to the resolved type and produce a wrong value.
-                    enriched.putAll(coerceColumnStatsToResolvedTypes(applicable, existing.columnNames(), existing.columnTypes(), true));
-                    putSchemaIfWithinCeiling(key, existing.withSafeMetadata(enriched));
                 }
             }
         }
     }
 
     /**
-     * The metadata a statistics record carries: the two keys contribution matching compares on, carried over from
-     * the schema record beside it, plus every measurement this read has committed for the file.
+     * What the read {@code readConfig} measured about this file, or {@code null} on a miss.
      * <p>
-     * Deliberately NOT the schema record's whole metadata map - that carries another read's measurements, and
-     * inheriting them is how a record filed under one read came to answer with another's extrema.
-     * <p>
-     * {@code prior} is the statistics record already at this address, when there is one, and seeding from it is
-     * what makes the record accumulate rather than replace. Different cold queries harvest different columns
-     * under PROJECTED scope, so a harvest of {@code MIN(a)} followed by one of {@code MIN(b)} must leave both —
-     * otherwise a file queried with alternating projections re-reads every time, which is the cost this
-     * addressing exists to remove. The schema-record arm does the same thing by copying its own metadata first.
-     * <p>
-     * Only the measurements are inherited. The identity keys below are re-taken from {@code existing} every
-     * time, so a record cannot carry a stale mtime or format fingerprint forward.
+     * The peek half of the warm path: a schema record describes the file and is fetched first, and this is
+     * consulted only when that record cannot answer the bound read. Never invokes a loader — a statistics
+     * record is written by the reconcile, not computed on demand, so a miss here means "not harvested yet"
+     * rather than "needs fetching".
      */
-    private static Map<String, Object> statisticsRecordMetadata(
-        SchemaCacheEntry existing,
-        @Nullable SchemaCacheEntry prior,
-        Map<String, Object> contribution
-    ) {
-        Map<String, Object> metadata = new HashMap<>();
-        if (prior != null) {
-            metadata.putAll(prior.safeMetadata());
+    @Nullable
+    public Map<String, Object> getStatistics(StatisticsKey key) {
+        if (enabled == false || key == null) {
+            return null;
         }
-        Object mtime = existing.safeMetadata().get(ExternalStats.MTIME_MILLIS_KEY);
+        StatisticsRecord record = statisticsStore.get(key);
+        return record == null ? null : record.measurements();
+    }
+
+    /** The read a record was committed under, or {@code null} when its rail stamped none. */
+    @Nullable
+    private static String readConfigStampOf(SchemaCacheEntry entry) {
+        return entry.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String s && s.isEmpty() == false ? s : null;
+    }
+
+    /**
+     * The two keys contribution matching compares on, taken from the schema record this measurement is about.
+     * <p>
+     * Re-taken on every write rather than inherited from whatever is already at the address, so an accumulating
+     * record cannot carry a stale mtime or format fingerprint forward. Everything else about the schema record —
+     * its columns, its types, its warnings — is deliberately not here: a statistics record holds no shape.
+     */
+    private static Map<String, Object> statisticsIdentity(SchemaCacheEntry schemaRecord) {
+        Map<String, Object> identity = new HashMap<>(2);
+        Object mtime = schemaRecord.safeMetadata().get(ExternalStats.MTIME_MILLIS_KEY);
         if (mtime != null) {
-            metadata.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            identity.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
         }
-        Object fingerprint = existing.safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY);
+        Object fingerprint = schemaRecord.safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY);
         if (fingerprint != null) {
-            metadata.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
+            identity.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
         }
-        metadata.putAll(contribution);
-        return metadata;
+        return identity;
+    }
+
+    /**
+     * Files {@code measurements} at {@code key}, accumulating over whatever this read has already committed
+     * there.
+     * <p>
+     * Accumulating rather than replacing, because different cold queries harvest different columns under
+     * PROJECTED scope: a harvest of {@code MIN(a)} followed by one of {@code MIN(b)} must leave both, or a file
+     * queried with alternating projections re-reads every time — the cost this addressing exists to remove.
+     * The identity keys are layered under the measurements and re-taken per write, so accumulation cannot
+     * outlive the file version it describes.
+     */
+    private void fileStatistics(StatisticsKey key, Map<String, Object> identity, Map<String, Object> measurements) {
+        StatisticsRecord prior = statisticsStore.get(key);
+        Map<String, Object> merged = new HashMap<>(prior == null ? Map.of() : prior.measurements());
+        merged.putAll(identity);
+        merged.putAll(measurements);
+        statisticsStore.putIfWithinCeiling(key, new StatisticsRecord(merged));
     }
 
     public void setEnabled(boolean enabled) {
@@ -1732,6 +1760,7 @@ public class ExternalSourceCacheService implements Closeable {
 
     public void clearAll() {
         schemaStore.invalidateAll();
+        statisticsStore.invalidateAll();
         datasetAggregateStore.invalidateAll();
         fileMetadataCache.invalidateAll();
         listingStore.invalidateAll();
@@ -1752,9 +1781,12 @@ public class ExternalSourceCacheService implements Closeable {
         stats.put("max_total_bytes", maxTotalBytes);
         stats.put("schema_budget_bytes", schemaStore.budgetBytes());
         stats.put("schema_max_entry_bytes", schemaStore.maxEntryBytes());
+        stats.put("statistics_budget_bytes", statisticsStore.budgetBytes());
+        stats.put("statistics_max_entry_bytes", statisticsStore.maxEntryBytes());
         stats.put("dataset_aggregate_max_entry_bytes", datasetAggregateStore.maxEntryBytes());
 
         schemaStore.reportInto(stats);
+        statisticsStore.reportInto(stats);
 
         stats.put("file_metadata_cache.count", fileMetadataCache.count());
         stats.put("file_metadata_cache.weight_bytes", fileMetadataCache.weight());
@@ -1788,6 +1820,11 @@ public class ExternalSourceCacheService implements Closeable {
     // Visible for testing
     Cache<SchemaCacheKey, SchemaCacheEntry> schemaCache() {
         return schemaStore.cache();
+    }
+
+    // Visible for testing
+    Cache<StatisticsKey, StatisticsRecord> statisticsCache() {
+        return statisticsStore.cache();
     }
 
     // Visible for testing

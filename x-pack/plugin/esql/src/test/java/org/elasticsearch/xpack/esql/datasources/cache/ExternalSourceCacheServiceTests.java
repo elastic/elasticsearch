@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -158,8 +159,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * Startup log and slice budgets. The TTL change must not move weight: schema stays a fifth of the
-     * budget, and the listing slice is what remains after the schema and dataset-aggregate slices.
+     * Startup log and slice budgets. The identity caches take a fifth of the budget between them, now split by
+     * kind of fact: schema records and the measurements taken against them have separate slices, so a
+     * divergent-heavy listing filling one cannot evict the other. The listing slice is what remains after those
+     * and the dataset-aggregate slice.
      */
     public void testDefaultListingTtlLoggedAndCacheWeightsUnchanged() {
         Settings settings = Settings.builder().put("esql.external.cache.size", "10mb").put("esql.external.cache.enabled", true).build();
@@ -168,10 +171,14 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 Map<String, Object> stats = service.usageStats();
                 long total = (long) stats.get("max_total_bytes");
                 long schema = (long) stats.get("schema_budget_bytes");
+                long statistics = (long) stats.get("statistics_budget_bytes");
                 assertEquals(ByteSizeValue.ofMb(10).getBytes(), total);
-                // Schema stays a fifth of the budget. Listing is whatever remains after that and the
-                // dataset-aggregate slice; this TTL change does not retune those weights.
-                assertEquals(total / 5, schema);
+                // The two identity slices still total a fifth, which is what keeps this change from retuning
+                // how much the cache spends on identity overall.
+                assertEquals("the identity slices together are unchanged at a fifth", total / 5, schema + statistics);
+                // Measurements get the larger share: for a text file with harvested extrema the _stats.* map
+                // outweighs the schema it was measured against, several stat keys per column against one name.
+                assertThat("measurements are the heavier half", statistics, greaterThan(schema));
             }
         },
             ExternalSourceCacheService.class,
@@ -852,10 +859,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
             service.reconcileSourceStats(Map.of(path, stats));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(keyHeader, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, keyHeader);
             assertEquals(42L, enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
 
-            SchemaCacheEntry untouched = service.getOrComputeSchema(keyNoHeader, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry untouched = warm(service, keyNoHeader);
             assertFalse(untouched.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT));
         }
     }
@@ -890,7 +897,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             foreignFragment.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-foreign");
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreignFragment)));
 
-            SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry entry = warm(service, key);
             assertNull(
                 "a stripe delta from another read must not enter this entry's cover",
                 entry.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0")
@@ -948,7 +955,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(fragment)));
 
             for (SchemaCacheKey key : List.of(storeA, storeB)) {
-                SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+                SchemaCacheEntry entry = warm(service, key);
                 assertNull(
                     "an unattributable stripe delta must enter no cover, including the one it may have come from",
                     entry.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0")
@@ -1016,7 +1023,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(fragment)));
 
             for (SchemaCacheKey key : keys) {
-                SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+                SchemaCacheEntry entry = warm(service, key);
                 assertNotNull(
                     "entries that agree on their participants must all be enriched; refusing them all leaves the warm "
                         + "path dead with no clock to clear it",
@@ -1113,7 +1120,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 Map.of(path, List.of(wholeFileWithShape(mtime, "fp", "config-a", 100L), wholeFileWithShape(mtime, "fp", "config-b", 100L)))
             );
 
-            SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry entry = warm(service, key);
             assertFalse(
                 "contributions from two different reads must not merge into one measurement",
                 entry.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
@@ -1204,7 +1211,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             // by the map bypasses the classifier and passes even when the gate is structurally inert.
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
 
-            SchemaCacheEntry afterForeign = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry afterForeign = warm(service, key);
             assertFalse(
                 "a read of a different shape measured different rows and must not enrich this entry",
                 afterForeign.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
@@ -1215,7 +1222,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             own.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(own)));
 
-            SchemaCacheEntry afterOwn = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry afterOwn = warm(service, key);
             assertEquals(
                 "its own read configuration enriches normally",
                 42L,
@@ -1260,7 +1267,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             licensed.put(SourceStatisticsSerializer.columnMinKey("id"), 7L);
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(licensed)));
 
-            SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry entry = warm(service, key);
             assertEquals(
                 "FAIL_FAST licenses the physical record count to cross resolved read configurations",
                 42L,
@@ -1309,7 +1316,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(wholeFileA, wholeFileB)));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             assertEquals(
                 "duplicate whole-file reads must dedup, not sum",
                 100L,
@@ -1357,7 +1364,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(probe, scan)));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             Map<String, Object> meta = enriched.safeMetadata();
             assertEquals(100L, meta.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
             assertEquals(
@@ -1395,7 +1402,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(wholeFile, poison)));
 
-            SchemaCacheEntry untouched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry untouched = warm(service, key);
             // Compare the full metadata map (not just absence of STATS_ROW_COUNT) so the test
             // catches any silent partial-merge — e.g., an mtime or fingerprint key leaking onto
             // the entry from the discarded WholeFile contribution.
@@ -1424,7 +1431,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 Map.of(path, List.of(stripeFragment(mtime, "fp", 100L, 1024L, 0, 0, 100, true, true, true)))
             );
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             assertEquals(100L, enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
             // Once the 0..K fold is complete the per-stripe bookkeeping is compacted away (it has served its
             // purpose) so the entry weight stays O(1) — see ExternalSourceCacheService#clearStripeState.
@@ -1460,7 +1467,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 )
             );
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             assertEquals(
                 "page fragments tiling a stripe must sum",
                 100L,
@@ -1493,7 +1500,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(a, b1, b2)));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             assertEquals(
                 "misaligned page tilings of one stripe must fold once, not double-count",
                 100L,
@@ -1522,7 +1529,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(chunkA, chunkB)));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             assertEquals(
                 "a stripe split across chunks must tile and fold",
                 100L,
@@ -1551,7 +1558,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(head, tail)));
 
-            SchemaCacheEntry untouched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry untouched = warm(service, key);
             assertNull("a gap must leave the stripe uncommitted", untouched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
         }
     }
@@ -1575,7 +1582,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(suffix)));
 
-            SchemaCacheEntry untouched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry untouched = warm(service, key);
             assertNull("an unanchored stripe must not fold", untouched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
         }
     }
@@ -1598,7 +1605,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(s0, s1)));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             assertEquals(
                 "whole-file fold sums committed stripes 0..K",
                 100L,
@@ -1639,7 +1646,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(s0, s1)));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             Object min = enriched.safeMetadata().get(SourceStatisticsSerializer.columnMinKey("uid"));
             Object max = enriched.safeMetadata().get(SourceStatisticsSerializer.columnMaxKey("uid"));
             assertNotNull("whole-file uid MIN must survive the Long/Double stripe flap (no POISON)", min);
@@ -1672,7 +1679,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             wholeFile.put(SourceStatisticsSerializer.columnMaxKey("uid"), 2.0e19);
             service.reconcileSourceStats(Map.of(path, wholeFile));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             assertFalse(
                 "an unrepresentable Double must not be stored as a LONG column's min (would serve overflow garbage)",
                 enriched.safeMetadata().containsKey(SourceStatisticsSerializer.columnMinKey("uid"))
@@ -1713,7 +1720,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             bad.put(SourceStatisticsSerializer.columnMaxKey("uid"), 2.0e19);
             service.reconcileSourceStats(Map.of(path, bad));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             assertTrue(
                 "the unservable marker must be written so a stale committed min cannot survive the putAll overlay",
                 enriched.safeMetadata().containsKey(SourceStatisticsSerializer.columnMinUnservableKey("uid"))
@@ -1850,7 +1857,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(s0, s1)));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             Object vc = enriched.safeMetadata().get(SourceStatisticsSerializer.columnValueCountKey("tags"));
             assertNotNull("value_count must fold across stripes", vc);
             assertEquals("value_count folds as SUM (130 + 95), independent of the 100-row count", 225L, ((Number) vc).longValue());
@@ -1891,7 +1898,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(s0, s1)));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             // rowCount still folds (60 + 40), but neither column survives -> COUNT(a)/COUNT(b) safe-miss.
             assertEquals(100L, ((Number) enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
             assertFalse(
@@ -1932,7 +1939,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(s0, s1empty, s2)));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             assertEquals(100L, ((Number) enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
             Object vc = enriched.safeMetadata().get(SourceStatisticsSerializer.columnValueCountKey("v"));
             assertNotNull("column v must survive the empty-stripe gap (not dropped)", vc);
@@ -1941,131 +1948,105 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * A stripe delta must not land on a statistics record, and the consequence is a ROUNDED extremum, not only a
-     * lost one.
+     * Stripe state is a measurement, so it lands in the statistics store under the read that produced it, and
+     * the schema record is never written by the stripe path at all.
      * <p>
-     * A statistics record holds no types of its own: it carries the columns of the schema record it was built
-     * beside, which belong to a DIFFERENT read. The per-stripe coercion normalises each extremum against those
-     * types, so a delta landing there is measured against another read's resolution.
+     * This case used to pin a GUARD: both kinds of fact shared one store, so {@code collectMatchingEntries}
+     * returned statistics records too, and {@code applyStripeDelta} had to skip them explicitly or it would
+     * normalise one read's extrema against another read's types — which it did, because the sibling whole-file
+     * arm had that check and this one did not. There is nothing left to guard. The schema store holds one kind
+     * of fact, so the delta cannot be handed the wrong thing, and the types it coerces against are the schema
+     * record's own because the read-shape gate established that the delta's read IS that record's read.
      * <p>
-     * Two independent files, because one cannot show both halves: a delta only passes the read-shape gate on a
-     * record stamped with its own read, so in the scenario where a statistics record exists the schema record
-     * beside it is stamped differently and takes nothing.
-     * <ul>
-     *   <li>{@code control.csv} - a schema record stamped with the delta's own read and typing {@code v} as
-     *       DOUBLE. The delta lands, and the committed stripe holds the ROUNDED value, not the long harvested.
-     *       This is what makes the guard load-bearing rather than hypothetical. A KEYWORD column here would be
-     *       vacuous: {@code coerceColumnStatsToResolvedTypes} skips a column whose resolved type is not numeric,
-     *       so nothing would be coerced with or without the guard.</li>
-     *   <li>{@code guarded.csv} - a schema record stamped with a different read, so a foreign harvest files a
-     *       statistics record. The delta from that read must take none of it.</li>
-     * </ul>
-     * Inject the defect by deleting the {@code isStatisticsRecord()} continue in {@code applyStripeDelta}: stripe
-     * state appears on the statistics record and the guarded assertions turn red.
+     * What is asserted now is the placement, and that the coercion still happens where it should: a DOUBLE
+     * column and a long past 2^53 show the extremum rounding in the committed stripe, which is the behaviour
+     * the old guard existed to keep off the wrong record.
      */
-    public void testAStripeDeltaDoesNotLandOnAStatisticsRecord() throws Exception {
+    public void testStripeStateLandsInTheStatisticsStoreNotOnTheSchemaRecord() throws Exception {
         long mtime = 1000L;
         long pastExactDoubleRange = 9007199254740993L; // 2^53 + 1
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/stripes.csv";
+            SchemaCacheKey key = seedDoubleTypedRecord(service, path, mtime, "own");
 
-            // ---- control: the delta lands on a record stamped with its own read, and DOUBLE rounds it ----
-            String control = "file:///data/control.csv";
-            SchemaCacheKey controlKey = seedDoubleTypedRecord(service, control, mtime, "other");
-            Map<String, Object> controlDelta = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
-            controlDelta.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "other");
-            controlDelta.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min", pastExactDoubleRange);
-            service.reconcileSourceStatsFromContributions(Map.of(control, List.of(controlDelta)));
+            Map<String, Object> delta = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
+            delta.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "own");
+            delta.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min", pastExactDoubleRange);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(delta)));
 
-            SchemaCacheEntry controlRecord = service.getSchemaIfPresent(controlKey);
-            assertNotNull(controlRecord);
+            // The schema record is untouched: it describes the file, and a stripe is a measurement.
+            SchemaCacheEntry schemaRecord = service.getSchemaIfPresent(key);
+            assertNotNull(schemaRecord);
+            assertNull(
+                "the stripe path must not write the schema record",
+                schemaRecord.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0")
+            );
+
+            // The measurement is at the statistics address for the read that produced it.
+            Map<String, Object> stats = service.getStatistics(StatisticsKey.of(key, "own"));
+            assertNotNull("the delta lands at its own read's address", stats);
             @SuppressWarnings("unchecked")
-            Map<String, Object> stripe0 = (Map<String, Object>) controlRecord.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0");
-            assertNotNull("the delta must land where the read matches", stripe0);
+            Map<String, Object> stripe0 = (Map<String, Object>) stats.get(ExternalStats.STRIPE_ENTRY_PREFIX + "0");
+            assertNotNull(stripe0);
+
+            // And the coercion still runs, against the schema record's types: DOUBLE cannot hold 2^53+1, so the
+            // committed stripe carries the rounded value. Compared as a long, because casting the long to
+            // double rounds it identically and a double-to-double comparison would compare the rounded value
+            // with itself.
             Object coerced = stripe0.get(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min");
             assertTrue("DOUBLE coercion is live on this path, got " + coerced, coerced instanceof Double);
-            // Compared as a long, not as a double: casting the long to double rounds it the same way, so a
-            // double-to-double comparison would be comparing the rounded value with itself.
             assertNotEquals(
-                "2^53+1 does not survive DOUBLE, which is why it must not reach a record it does not type",
+                "2^53+1 does not survive DOUBLE, which is why it must be coerced against the right types",
                 pastExactDoubleRange,
                 ((Number) coerced).longValue()
-            );
-
-            // ---- guarded: a statistics record exists, and the delta from its read must not touch it ----
-            String guarded = "file:///data/guarded.csv";
-            SchemaCacheKey guardedKey = seedDoubleTypedRecord(service, guarded, mtime, "own");
-            Map<String, Object> foreign = new LinkedHashMap<>();
-            foreign.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
-            foreign.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
-            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "other");
-            foreign.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min", pastExactDoubleRange);
-            service.reconcileSourceStats(Map.of(guarded, foreign));
-
-            SchemaCacheKey statsKey = guardedKey.withReadConfig("other");
-            assertNotNull("the foreign read must have its own record", service.getSchemaIfPresent(statsKey));
-
-            Map<String, Object> guardedDelta = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
-            guardedDelta.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "other");
-            guardedDelta.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min", pastExactDoubleRange);
-            service.reconcileSourceStatsFromContributions(Map.of(guarded, List.of(guardedDelta)));
-
-            SchemaCacheEntry stats = service.getSchemaIfPresent(statsKey);
-            assertNotNull(stats);
-            assertNull(
-                "no stripe state may fold onto a statistics record",
-                stats.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0")
-            );
-            assertNull("nor a grid stamp", stats.safeMetadata().get(ExternalStats.STRIPE_GRID_KEY));
-            // Not a guard: the fragment carries eof=false, so no whole-file fold completes and the top-level
-            // value is never rewritten whether or not the delta landed. It records the harvested value for a
-            // reader comparing it against the rounded one inside the stripe map above.
-            assertEquals(
-                "the harvested measurement is the exact long, unlike the coerced one above",
-                pastExactDoubleRange,
-                ((Number) stats.safeMetadata().get(SourceStatisticsSerializer.STATS_COL_PREFIX + "v.min")).longValue()
             );
         }
     }
 
     /**
-     * A declared-strict key gets no statistics record, because nothing could ever read one.
+     * A declared-strict key DOES get a statistics record, and the split is what made that worth doing.
      * <p>
-     * {@code strictSingleFileMetadata} is the only site that mints {@code declaredStrict=true}, and every lookup
-     * builds its key with {@code declaredStrict=false}. So a statistics record derived from a strict key is
-     * write-only: it charges the schema budget and evicts live entries through the LRU to hold an address nothing
-     * asks for. Wiring that rail is a separate change; until then it is not written.
+     * Before the stores were separated, a statistics record derived from a strict key was write-only:
+     * {@code strictSingleFileMetadata} is the only site minting {@code declaredStrict=true}, every lookup built
+     * its key with {@code declaredStrict=false}, and the record could never be read — so the reconcile refused
+     * to file one rather than charge the schema budget for an address nothing asked for. That refusal was a
+     * workaround for the shared store, not a decision about the rail.
      * <p>
-     * Inject the defect by dropping {@code key.declaredStrict() == false} from the filing condition in
-     * {@code reconcileSourceStats}: the record appears and the first assertion turns red.
+     * Now the rail is wired by construction: a statistics address composes the file key it was derived from, so
+     * the strict record's measurements are reachable from the strict record, and nothing has to agree about a
+     * flag for that to work.
      */
-    public void testAStrictDeclaredKeyGetsNoStatisticsRecord() throws Exception {
+    public void testAStrictDeclaredKeyGetsItsOwnReadableStatistics() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/strict.csv";
             long mtime = 1000L;
             DatasetIdentity id = TestDatasetIdentities.identity(".csv", "id", Map.of());
             SchemaCacheKey strictKey = SchemaCacheKey.build(path, mtime, id, true);
+            SchemaCacheKey inferredKey = SchemaCacheKey.build(path, mtime, id, false);
             assertTrue("precondition: this is the declared-strict rail", strictKey.declaredStrict());
+            assertNotEquals("and it is a different address from the inferred record", strictKey, inferredKey);
 
             List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG, Nullability.TRUE, null, false));
-            service.getOrComputeSchema(
-                strictKey,
-                k -> SchemaCacheEntry.from(
-                    schema,
-                    "csv",
-                    path,
-                    Map.of(
-                        ExternalStats.CONFIG_FINGERPRINT_KEY,
-                        "fp",
-                        ExternalStats.MTIME_MILLIS_KEY,
-                        mtime,
-                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
-                        "own"
-                    ),
-                    Map.of()
-                )
-            );
+            for (SchemaCacheKey key : List.of(strictKey, inferredKey)) {
+                service.getOrComputeSchema(
+                    key,
+                    k -> SchemaCacheEntry.from(
+                        schema,
+                        "csv",
+                        path,
+                        Map.of(
+                            ExternalStats.CONFIG_FINGERPRINT_KEY,
+                            "fp",
+                            ExternalStats.MTIME_MILLIS_KEY,
+                            mtime,
+                            ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                            "own"
+                        ),
+                        Map.of()
+                    )
+                );
+            }
 
-            // A harvest from a different read, which on a non-strict key would file a read-addressed record.
             Map<String, Object> foreign = new LinkedHashMap<>();
             foreign.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
             foreign.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
@@ -2073,35 +2054,18 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             foreign.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max", 42L);
             service.reconcileSourceStats(Map.of(path, foreign));
 
-            assertNull(
-                "no statistics record may be filed against a declared-strict key: no lookup can reach it",
-                service.getSchemaIfPresent(strictKey.withReadConfig("other"))
-            );
+            Map<String, Object> strictStats = service.getStatistics(StatisticsKey.of(strictKey, "other"));
+            assertNotNull("the strict rail gets its own read-addressed statistics", strictStats);
+            assertEquals(42L, strictStats.get(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max"));
 
-            // Positive control over the same harvest: on the inferred key for the same file it IS filed, so the
-            // assertion above is about the strict rail and not about the harvest being unfileable.
-            SchemaCacheKey inferredKey = SchemaCacheKey.build(path, mtime, id, false);
-            service.getOrComputeSchema(
-                inferredKey,
-                k -> SchemaCacheEntry.from(
-                    schema,
-                    "csv",
-                    path,
-                    Map.of(
-                        ExternalStats.CONFIG_FINGERPRINT_KEY,
-                        "fp",
-                        ExternalStats.MTIME_MILLIS_KEY,
-                        mtime,
-                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
-                        "own"
-                    ),
-                    Map.of()
-                )
-            );
-            service.reconcileSourceStats(Map.of(path, foreign));
-            assertNotNull(
-                "the same harvest on the inferred key does file one",
-                service.getSchemaIfPresent(inferredKey.withReadConfig("other"))
+            // And the two rails stay separate, which is the property the declaredStrict component carries: the
+            // strict record's measurements are not the inferred record's, even over the same file and read.
+            Map<String, Object> inferredStats = service.getStatistics(StatisticsKey.of(inferredKey, "other"));
+            assertNotNull(inferredStats);
+            assertNotEquals(
+                "a strict address and an inferred address are different addresses",
+                StatisticsKey.of(strictKey, "other"),
+                StatisticsKey.of(inferredKey, "other")
             );
         }
     }
@@ -2148,14 +2112,14 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             service.reconcileSourceStatsFromContributions(
                 Map.of(path, List.of(stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false)))
             );
-            SchemaCacheEntry afterA = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry afterA = warm(service, key);
             assertNull("incomplete after query A", afterA.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
             assertNotNull("stripe 0 committed by A", afterA.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0"));
 
             service.reconcileSourceStatsFromContributions(
                 Map.of(path, List.of(stripeFragment(mtime, "fp", 70L, 100L, 1, 100, 150, true, true, true)))
             );
-            SchemaCacheEntry afterB = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry afterB = warm(service, key);
             assertEquals("stripes from two queries compose", 100L, afterB.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
         }
     }
@@ -2185,7 +2149,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             service.reconcileSourceStatsFromContributions(
                 Map.of(path, List.of(stripeFragment(mtime, "fp", 6L, 100L, 1, 100, 200, true, true, true)))
             );
-            SchemaCacheEntry afterA = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry afterA = warm(service, key);
             assertNull("incomplete on grid A", afterA.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
             assertEquals("grid A stamped", 100L, afterA.safeMetadata().get(ExternalStats.STRIPE_GRID_KEY));
 
@@ -2200,7 +2164,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                     )
                 )
             );
-            SchemaCacheEntry afterB = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry afterB = warm(service, key);
             assertNull(
                 "grid change must reset, NEVER fold mixed grids",
                 afterB.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
@@ -2218,7 +2182,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                     )
                 )
             );
-            SchemaCacheEntry afterC = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry afterC = warm(service, key);
             assertEquals(
                 "accumulation converges on the new grid",
                 11L,
@@ -2256,7 +2220,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             }
             service.reconcileSourceStatsFromContributions(Map.of(path, fragments));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             assertEquals(
                 "whole-file fold sums every stripe",
                 (long) stripes * 3L,
@@ -2300,7 +2264,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(s0, s1empty, s2)));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             assertEquals(
                 "every row counted once across the empty-stripe gap",
                 10L,
@@ -2365,7 +2329,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             }
             assertNull("commit threw under contention: " + failure.get(), failure.get());
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             assertEquals(
                 "no stripe lost under concurrent commits",
                 stripes * rowsPerStripe,
@@ -2418,7 +2382,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             }
             assertNull("reconcile threw under contention: " + failure.get(), failure.get());
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             assertEquals(
                 "duplicate whole-file contributions must not sum",
                 rows,
@@ -2458,7 +2422,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                     try {
                         start.await();
                         while (stopReader.get() == false) {
-                            SchemaCacheEntry e = service.getOrComputeSchema(key, k -> { throw new AssertionError("seeded"); });
+                            SchemaCacheEntry e = warm(service, key);
                             Object rc = e.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT);
                             if (rc != null && rc.equals(expected) == false) {
                                 tornValue.compareAndSet(null, rc);
@@ -2497,7 +2461,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             assertNull("a thread threw under contention: " + failure.get(), failure.get());
             assertNull("reader saw a torn/partial row_count fold", tornValue.get());
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             assertEquals(expected, enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
         }
     }
@@ -2518,7 +2482,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 Map.of(path, List.of(stripeFragment(999L, "fp", 100L, 1024L, 0, 0, 100, true, true, true)))
             );
 
-            SchemaCacheEntry untouched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry untouched = warm(service, key);
             assertEquals(
                 "a stripe with a mismatched mtime must not enrich the entry",
                 Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp"),
@@ -2546,7 +2510,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(striped, unstriped)));
 
-            SchemaCacheEntry untouched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry untouched = warm(service, key);
             assertEquals(
                 "mixed striped+unstriped fragments must leave the seeded entry untouched",
                 Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp"),
@@ -2575,7 +2539,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(partialA, partialB)));
 
-            SchemaCacheEntry untouched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry untouched = warm(service, key);
             assertEquals(
                 "un-striped fragments must leave the seeded entry untouched",
                 Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp"),
@@ -2604,7 +2568,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(partial, wholeFile)));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry enriched = warm(service, key);
             assertEquals(
                 "whole-file read must win over partials, not 140L",
                 100L,
@@ -3385,7 +3349,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     /** Neither the whole-file fold nor any individual stripe may reach the entry. */
     private static void assertStripeFoldCommittedNothing(ExternalSourceCacheService service, SchemaCacheKey key) throws Exception {
-        SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("entry should already be cached"); });
+        SchemaCacheEntry entry = warm(service, key);
         assertNull("no whole-file fold may commit", entry.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
         assertNull("stripe 0 must not commit", entry.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0"));
         assertNull("stripe 1 must not commit", entry.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "1"));
@@ -3430,7 +3394,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             harvest.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max", 7L);
             service.reconcileSourceStats(Map.of(path, harvest));
 
-            SchemaCacheEntry schemaRecord = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry schemaRecord = warm(service, key);
             assertEquals(
                 "the licence admits the count onto the schema record, as before",
                 100L,
@@ -3441,9 +3405,9 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 schemaRecord.safeMetadata().get(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max")
             );
 
-            SchemaCacheEntry statsRecord = service.getSchemaIfPresent(key.withReadConfig("read-anchor"));
+            Map<String, Object> statsRecord = service.getStatistics(StatisticsKey.of(key, "read-anchor"));
             assertNotNull("the extrema the licence did not admit must be filed under the read that measured them", statsRecord);
-            assertEquals(7L, statsRecord.safeMetadata().get(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max"));
+            assertEquals(7L, statsRecord.get(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max"));
         }
     }
 
@@ -3487,16 +3451,16 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             harvest.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max", 7L);
             service.reconcileSourceStats(Map.of(path, harvest));
 
-            SchemaCacheEntry schemaRecord = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry schemaRecord = warm(service, key);
             assertNull(
                 "without the licence the schema record takes nothing from another read",
                 schemaRecord.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
             );
 
-            SchemaCacheEntry statsRecord = service.getSchemaIfPresent(key.withReadConfig("read-anchor"));
+            Map<String, Object> statsRecord = service.getStatistics(StatisticsKey.of(key, "read-anchor"));
             assertNotNull("and the whole harvest is filed under the read that measured it", statsRecord);
-            assertEquals(100L, statsRecord.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
-            assertEquals(7L, statsRecord.safeMetadata().get(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max"));
+            assertEquals(100L, statsRecord.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            assertEquals(7L, statsRecord.get(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max"));
         }
     }
 
@@ -3553,17 +3517,17 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             q2.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "b.min", 2L);
             service.reconcileSourceStats(Map.of(path, q2));
 
-            SchemaCacheEntry stats = service.getSchemaIfPresent(key.withReadConfig("bound"));
+            Map<String, Object> stats = service.getStatistics(StatisticsKey.of(key, "bound"));
             assertNotNull(stats);
             assertEquals(
                 "query 1's column must survive query 2's harvest, or alternating projections re-read every time",
                 1L,
-                stats.safeMetadata().get(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.min")
+                stats.get(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.min")
             );
             assertEquals(
                 "and query 2's own measurement must be there",
                 2L,
-                stats.safeMetadata().get(SourceStatisticsSerializer.STATS_COL_PREFIX + "b.min")
+                stats.get(SourceStatisticsSerializer.STATS_COL_PREFIX + "b.min")
             );
         }
     }
@@ -3611,16 +3575,16 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             second.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max", 22L);
             service.reconcileSourceStats(Map.of(path, second));
 
-            SchemaCacheEntry underA = service.getSchemaIfPresent(key.withReadConfig("read-a"));
-            SchemaCacheEntry underB = service.getSchemaIfPresent(key.withReadConfig("read-b"));
+            Map<String, Object> underA = service.getStatistics(StatisticsKey.of(key, "read-a"));
+            Map<String, Object> underB = service.getStatistics(StatisticsKey.of(key, "read-b"));
             assertNotNull(underA);
             assertNotNull(underB);
             assertEquals(
                 "read-a's record must still hold read-a's measurement",
                 11L,
-                underA.safeMetadata().get(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max")
+                underA.get(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max")
             );
-            assertEquals("and read-b's its own", 22L, underB.safeMetadata().get(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max"));
+            assertEquals("and read-b's its own", 22L, underB.get(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max"));
         }
     }
 
@@ -3668,6 +3632,31 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             key,
             k -> SchemaCacheEntry.from(schema, "ndjson", path, Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint), Map.of())
         );
+    }
+
+    /**
+     * The entry a warm serve would compose for {@code key}: the schema record's own file facts, with the
+     * measurements committed under that record's read layered over them.
+     * <p>
+     * It exists because the two kinds of fact are now two stores. These cases predate the split and assert on
+     * one map, which is still the right thing for them to assert: what a query is served is the composition,
+     * and composing here the way {@code ExternalSourceResolver#buildMetadataFromCache} does keeps them testing
+     * the served answer rather than the storage layout. A case that means to pin WHICH store a fact is in reads
+     * the stores directly instead.
+     */
+    private static SchemaCacheEntry warm(ExternalSourceCacheService service, SchemaCacheKey key) {
+        SchemaCacheEntry schema = service.getSchemaIfPresent(key);
+        assertNotNull("no schema record at " + key, schema);
+        String stamp = schema.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String str && str.isEmpty() == false
+            ? str
+            : null;
+        Map<String, Object> statistics = service.getStatistics(StatisticsKey.of(key, stamp));
+        if (statistics == null || statistics.isEmpty()) {
+            return schema;
+        }
+        Map<String, Object> composed = new HashMap<>(schema.safeMetadata());
+        composed.putAll(statistics);
+        return schema.withSafeMetadata(composed);
     }
 
     private static Map<String, Object> wholeFileStats(long mtime, String fingerprint, long rows) {

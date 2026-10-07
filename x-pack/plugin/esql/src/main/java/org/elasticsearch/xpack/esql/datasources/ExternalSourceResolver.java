@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.cache.StatisticsKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
@@ -2160,6 +2161,25 @@ public class ExternalSourceResolver {
         Map<String, Object> queryConfig,
         @Nullable SourceStatistics harvestedStatistics
     ) {
+        return buildMetadataFromCache(entry, schema, queryConfig, null, harvestedStatistics);
+    }
+
+    /**
+     * The served metadata, composed from the two kinds of fact rather than read off one record.
+     * <p>
+     * {@code entry} describes the FILE: its columns, its connector config, its own read stamp and the facts the
+     * reader embedded at mint. {@code readStatistics} is what one READ measured, fetched from the statistics
+     * store at an address the caller has already decided is the right one. The measurements are layered OVER
+     * the file facts, so a measurement wins over a mint-time placeholder for the same key, and a schema record
+     * no longer has to carry another read's numbers in order to be servable.
+     */
+    private static ExternalSourceMetadata buildMetadataFromCache(
+        SchemaCacheEntry entry,
+        List<Attribute> schema,
+        Map<String, Object> queryConfig,
+        @Nullable Map<String, Object> readStatistics,
+        @Nullable SourceStatistics harvestedStatistics
+    ) {
         // Merge cached connector config (e.g. Flight endpoint/target) with query-level params.
         // Query-level params take precedence, matching the merge in wrapAsExternalSourceMetadata.
         Map<String, Object> cachedConnectorConfig = entry.connectorConfig();
@@ -2181,7 +2201,17 @@ public class ExternalSourceResolver {
         // _stats.stripe_grid), which only ExternalSourceCacheService's 0..K fold reads — it has no plan-side
         // consumer, yet this map rides ExternalRelation.writeTo onto the wire in every fragment of every query.
         // Strip it here so the plan carries only what the optimizer actually reads.
-        final Map<String, Object> finalMetadata = stripStripeBookkeeping(entry.safeMetadata());
+        // Two layers: the file's own facts, then this read's measurements over them. Identity rather than a
+        // copy when there is nothing to overlay, which is what keeps sharesCachedSourceMetadata() meaningful -
+        // the wire-accounting path skips charging a map it knows is shared with the cache.
+        final Map<String, Object> composed;
+        if (readStatistics == null || readStatistics.isEmpty()) {
+            composed = entry.safeMetadata();
+        } else {
+            composed = new HashMap<>(entry.safeMetadata());
+            composed.putAll(readStatistics);
+        }
+        final Map<String, Object> finalMetadata = stripStripeBookkeeping(composed);
 
         return new CacheBackedMetadata() {
             @Override
@@ -2958,26 +2988,16 @@ public class ExternalSourceResolver {
         // segment traffic across N files and reported a miss per file in schema_cache.misses, which is the ratio
         // an operator reads to size this cache.
         SchemaCacheEntry cached = cacheService.getSchemaIfPresent(schemaKey);
-        if (cached != null && schemaRecordAnswersTheRead(cached, boundReadConfig)) {
-            pendingMetadataWarnings.addAll(cached.warnings());
-            listener.onResponse(buildMetadataFromCache(cached, cached.toAttributes(), config));
-            return;
-        }
-        // Otherwise the schema record holds whatever the last matching read left, and for a file whose own
-        // schema differs from the bound one that is another read's measurement. A statistic describes one read,
-        // so this read's live at their own address — a hit here is the warm answer the schema record cannot carry.
-        if (boundReadConfig != null) {
-            SchemaCacheEntry stats = cacheService.getSchemaIfPresent(schemaKey.withReadConfig(boundReadConfig));
-            if (stats != null) {
-                pendingMetadataWarnings.addAll(stats.warnings());
-                listener.onResponse(buildMetadataFromCache(stats, stats.toAttributes(), config));
-                return;
-            }
-        }
-        // The schema record is still a correct schema answer even when its statistics belong to another read.
         if (cached != null) {
+            // The file's shape comes from the schema record; which read's measurements go over it is the only
+            // question left. When the record answers this read, its own address is the right one; otherwise the
+            // bound read's measurements live at their own address and the schema record carries none of them.
+            String measuredUnder = schemaRecordAnswersTheRead(cached, boundReadConfig) ? readConfigStampOf(cached) : boundReadConfig;
+            Map<String, Object> statistics = cachedStatistics(schemaKey, measuredUnder);
             pendingMetadataWarnings.addAll(cached.warnings());
-            listener.onResponse(buildMetadataFromCache(cached, cached.toAttributes(), config));
+            // Served with no statistics when nothing has been harvested under that read yet: a correct schema
+            // answer, and the aggregate above it re-scans rather than folding numbers nobody measured.
+            listener.onResponse(buildMetadataFromCache(cached, cached.toAttributes(), config, statistics, null));
             return;
         }
         resolveSingleSourceAsync(filePath.toString(), hint, config, listener.map(meta -> {
@@ -3007,6 +3027,27 @@ public class ExternalSourceResolver {
      * not move it: a licensed subset contributes a row count and no stamp, so a record enriched by a foreign read
      * still reports its own.
      */
+    /**
+     * What the given read measured about this file, or {@code null} when nothing has been harvested at that
+     * address. A statistics record is written by the reconcile and never computed on demand, so a miss means
+     * "not measured yet" and the caller falls through to the schema record or to a scan.
+     */
+    /** The read a schema record was resolved under, or {@code null} when its rail stamps none (columnar). */
+    @Nullable
+    private static String readConfigStampOf(SchemaCacheEntry entry) {
+        return entry.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String stamp && stamp.isEmpty() == false
+            ? stamp
+            : null;
+    }
+
+    @Nullable
+    private Map<String, Object> cachedStatistics(SchemaCacheKey schemaKey, @Nullable String readConfig) {
+        if (cacheService == null) {
+            return null;
+        }
+        return cacheService.getStatistics(StatisticsKey.of(schemaKey, readConfig));
+    }
+
     static boolean schemaRecordAnswersTheRead(SchemaCacheEntry entry, @Nullable String boundReadConfig) {
         if (boundReadConfig == null || boundReadConfig.isEmpty()) {
             return true;
@@ -3014,7 +3055,7 @@ public class ExternalSourceResolver {
         if (FILE_TYPED_FORMATS.contains(entry.sourceType())) {
             return true;
         }
-        return boundReadConfig.equals(entry.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY));
+        return boundReadConfig.equals(readConfigStampOf(entry));
     }
 
     /** Sequential {@code 0..count} iterator for {@link ThrottledIterator}; avoids a stream in production code. */

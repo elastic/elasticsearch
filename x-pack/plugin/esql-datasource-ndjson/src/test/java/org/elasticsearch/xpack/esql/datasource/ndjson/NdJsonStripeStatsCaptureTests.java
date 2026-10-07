@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.cache.StatisticsKey;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -470,11 +471,8 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
                 k -> SchemaCacheEntry.from(schema, "ndjson", path, Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint), Map.of())
             );
             service.reconcileSourceStatsFromContributions(Map.of(path, fragments));
-            SchemaCacheEntry enriched = service.getOrComputeSchema(
-                key,
-                k -> { throw new AssertionError("schema entry must remain cached"); }
-            );
-            return enriched.safeMetadata();
+            Map<String, Object> enriched = harvested(service, key);
+            return enriched;
         }
     }
 
@@ -562,14 +560,11 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, fragments));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(
-                key,
-                k -> { throw new AssertionError("schema entry must remain cached"); }
-            );
+            Map<String, Object> enriched = harvested(service, key);
             assertEquals(
                 "real reader fragments must fold to the exact whole-file row count",
                 expectedRows,
-                ((Number) enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
+                ((Number) enriched.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
             );
         }
     }
@@ -734,5 +729,20 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
      */
     private static DatasetIdentity testIdentity() {
         return DatasetIdentity.of("", null, "", ".ndjson", "");
+    }
+
+    /**
+     * The measurements a warm serve would use for {@code key}: the statistics committed under the read the
+     * schema record was resolved with. The two kinds of fact are separate stores, so a measurement is no longer
+     * read off the schema record — these cases predate that and assert on the measurement, which is what they
+     * mean to assert.
+     */
+    private static Map<String, Object> harvested(ExternalSourceCacheService service, SchemaCacheKey key) {
+        SchemaCacheEntry schema = service.getSchemaIfPresent(key);
+        assertNotNull("no schema record at " + key, schema);
+        String stamp = schema.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String str
+            && str.isEmpty() == false ? str : null;
+        Map<String, Object> statistics = service.getStatistics(StatisticsKey.of(key, stamp));
+        return statistics == null ? Map.of() : statistics;
     }
 }

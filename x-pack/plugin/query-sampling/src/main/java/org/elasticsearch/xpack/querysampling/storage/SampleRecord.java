@@ -7,8 +7,17 @@
 
 package org.elasticsearch.xpack.querysampling.storage;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
@@ -16,6 +25,9 @@ import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
@@ -33,7 +45,11 @@ public final class SampleRecord {
      * that picked the same query counted its arrivals separately, and their weights must not overwrite each other.
      */
     public static String documentId(String samplerId, QueryFingerprint fingerprint) {
-        return samplerId + "_" + fingerprint.hex();
+        return documentId(samplerId, fingerprint.hex());
+    }
+
+    static String documentId(String samplerId, String fingerprintHex) {
+        return samplerId + "_" + fingerprintHex;
     }
 
     /**
@@ -96,6 +112,99 @@ public final class SampleRecord {
         weights(builder, weights);
         builder.field("updated_at", nowMillis);
         return builder.endObject();
+    }
+
+    /**
+     * Reads a document back, the inverse of {@link #document}.
+     *
+     * @param source   the source of the document
+     * @param registry needed to read the filters of the query
+     */
+    public static StoredSample parse(Map<String, Object> source, NamedXContentRegistry registry) throws IOException {
+        Map<String, Object> query = map(source.get("query"));
+        List<QueryBuilder> filters = new ArrayList<>();
+        for (Object filter : (List<?>) query.get("filters")) {
+            filters.add(parseFilter(map(filter), registry));
+        }
+        List<?> vector = (List<?>) query.get("query_vector");
+        float[] queryVector = new float[vector.size()];
+        for (int i = 0; i < queryVector.length; i++) {
+            queryVector[i] = ((Number) vector.get(i)).floatValue();
+        }
+        CapturedQuery captured = new CapturedQuery(
+            ((List<?>) source.get("indices")).stream().map(String.class::cast).toArray(String[]::new),
+            (String) source.get("field"),
+            queryVector,
+            ((Number) source.get("k")).intValue(),
+            ((Number) query.get("num_candidates")).intValue(),
+            optionalFloat(query.get("visit_percentage")),
+            optionalFloat(query.get("oversample")),
+            filters,
+            (String) query.get("opaque_id")
+        );
+
+        Map<String, Object> liveHits = map(source.get("live_hits"));
+        double captureRate = ((Number) source.get("capture_rate")).doubleValue();
+        CapturedSearch search = new CapturedSearch(
+            captured,
+            hits(liveHits.get("hits")),
+            ((Number) liveHits.get("took_millis")).longValue(),
+            captureRate
+        );
+
+        TrackedQuery.Weights weights = new TrackedQuery.Weights(
+            ((Number) source.get("multiplicity")).longValue(),
+            ((Number) source.get("weighted_multiplicity")).doubleValue(),
+            ((Number) source.get("inclusion_probability")).doubleValue(),
+            ((Number) source.get("seen_probability")).doubleValue(),
+            captureRate
+        );
+        GroundTruth groundTruth = source.get("ground_truth") == null
+            ? null
+            : new GroundTruth(hits(map(source.get("ground_truth")).get("neighbors")));
+        return new StoredSample(
+            (String) source.get("sampler_id"),
+            (String) source.get("fingerprint"),
+            search,
+            weights,
+            ((Number) source.get("picked_at")).longValue(),
+            ((Number) source.get("updated_at")).longValue(),
+            groundTruth
+        );
+    }
+
+    @SuppressWarnings("unchecked") // objects of a source are maps of strings, this class is what writes them
+    private static Map<String, Object> map(Object object) {
+        return (Map<String, Object>) object;
+    }
+
+    private static Float optionalFloat(Object value) {
+        return value == null ? null : ((Number) value).floatValue();
+    }
+
+    private static List<CapturedSearch.Hit> hits(Object hits) {
+        List<CapturedSearch.Hit> result = new ArrayList<>();
+        for (Object hit : (List<?>) hits) {
+            Map<String, Object> fields = map(hit);
+            result.add(
+                new CapturedSearch.Hit((String) fields.get("index"), (String) fields.get("id"), ((Number) fields.get("score")).floatValue())
+            );
+        }
+        return result;
+    }
+
+    private static QueryBuilder parseFilter(Map<String, Object> filter, NamedXContentRegistry registry) throws IOException {
+        try (
+            XContentBuilder builder = JsonXContent.contentBuilder().map(filter);
+            XContentParser parser = XContentHelper.createParser(
+                XContentParserConfiguration.EMPTY.withRegistry(registry)
+                    .withDeprecationHandler(DeprecationHandler.THROW_UNSUPPORTED_OPERATION),
+                BytesReference.bytes(builder),
+                XContentType.JSON
+            )
+        ) {
+            return AbstractQueryBuilder.parseTopLevelQuery(parser);
+        }
     }
 
     private static void weights(XContentBuilder builder, TrackedQuery.Weights weights) throws IOException {

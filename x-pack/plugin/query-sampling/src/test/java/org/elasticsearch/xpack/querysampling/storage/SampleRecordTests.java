@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.querysampling.storage;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -114,6 +117,67 @@ public class SampleRecordTests extends ESTestCase {
 
         // the mappings are strict: a field they do not list would make the write fail
         assertThat(mappedFields(), equalTo(document.keySet()));
+    }
+
+    public void testADocumentCanBeReadBack() throws IOException {
+        float[] vector = { randomFloat(), randomFloat(), -randomFloat() };
+        CapturedQuery query = new CapturedQuery(
+            new String[] { "a", "b" },
+            "vec",
+            vector,
+            randomIntBetween(1, 100),
+            randomIntBetween(100, 1000),
+            randomBoolean() ? null : randomFloat(),
+            randomBoolean() ? null : randomFloat(),
+            randomBoolean()
+                ? List.of()
+                : List.of(
+                    QueryBuilders.termQuery("category", randomIntBetween(1, 9)),
+                    QueryBuilders.boolQuery().should(QueryBuilders.rangeQuery("price").gte(10)).should(QueryBuilders.existsQuery("brand"))
+                ),
+            randomBoolean() ? null : "q" + randomInt()
+        );
+        List<CapturedSearch.Hit> hits = List.of(new CapturedSearch.Hit("a", "d1", randomFloat()), new CapturedSearch.Hit("b", "d2", 0.5f));
+        double captureRate = randomDoubleBetween(0.01, 1.0, true);
+        SampledQuery sampled = new SampledQuery(
+            FINGERPRINT,
+            new CapturedSearch(query, hits, randomNonNegativeLong() % 1000, captureRate),
+            tracked(captureRate)
+        );
+        if (randomBoolean()) {
+            sampled.groundTruth(new GroundTruth(List.of(new CapturedSearch.Hit("a", "d3", 1f))));
+        }
+
+        StoredSample stored = SampleRecord.parse(
+            toMap(SampleRecord.document(JsonXContent.contentBuilder(), "s1", sampled, 1000L)),
+            xContentRegistry()
+        );
+
+        CapturedQuery read = stored.search().query();
+        assertArrayEquals(query.indices(), read.indices());
+        assertThat(read.field(), equalTo(query.field()));
+        assertArrayEquals(query.queryVector(), read.queryVector(), 0f);
+        assertThat(read.k(), equalTo(query.k()));
+        assertThat(read.numCandidates(), equalTo(query.numCandidates()));
+        assertThat(read.visitPercentage(), equalTo(query.visitPercentage()));
+        assertThat(read.oversample(), equalTo(query.oversample()));
+        assertThat(read.filters(), equalTo(query.filters()));
+        assertThat(read.opaqueId(), equalTo(query.opaqueId()));
+        assertThat(stored.search().hits(), equalTo(hits));
+        assertThat(stored.search().tookMillis(), equalTo(sampled.search().tookMillis()));
+        // the rate is stored as the inverse of the weight of the arrival, which can be off in the last digit
+        assertThat(stored.search().captureRate(), closeTo(captureRate, 1e-12));
+        assertThat(stored.weights(), equalTo(sampled.tracked().weights()));
+        assertThat(stored.samplerId(), equalTo("s1"));
+        assertThat(stored.fingerprint(), equalTo(FINGERPRINT.hex()));
+        assertThat(stored.pickedAt(), equalTo(1000L));
+        assertThat(stored.groundTruth(), equalTo(sampled.groundTruth()));
+        assertThat("it can be found again by its id", stored.id(), equalTo(SampleRecord.documentId("s1", FINGERPRINT)));
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents());
     }
 
     public void testWeightsUpdateOnlyHasWhatChanges() throws IOException {

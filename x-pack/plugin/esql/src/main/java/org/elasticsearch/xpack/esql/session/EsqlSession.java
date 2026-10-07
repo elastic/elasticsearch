@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -89,6 +90,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
 import org.elasticsearch.xpack.esql.datasources.FoldDateFunctionFiltersForListing;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
+import org.elasticsearch.xpack.esql.datasources.PartitionSpec;
 import org.elasticsearch.xpack.esql.datasources.SchemaDiscoveryPathExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
@@ -248,6 +250,7 @@ public class EsqlSession {
     private final InferenceService inferenceService;
     private final RemoteClusterService remoteClusterService;
     private final BlockFactory blockFactory;
+    private final ThreadPool threadPool;
     private final PlannerSettings plannerSettings;
     private final EsqlFlags flags;
     private final ClusterService clusterService;
@@ -383,6 +386,7 @@ public class EsqlSession {
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
         this.blockFactory = services.blockFactoryProvider().blockFactory();
+        this.threadPool = services.transportService().getThreadPool();
         this.plannerSettings = plannerSettings;
         this.flags = new EsqlFlags(services.clusterService().getClusterSettings());
         this.clusterService = services.clusterService();
@@ -662,18 +666,40 @@ public class EsqlSession {
                                 approximationApplied,
                                 minimumVersion
                             );
-                            l.onResponse(
-                                new Versioned<>(
-                                    ExpandUnmappedFieldsPostProcessor.expand(
-                                        withAdditionalData.inner(),
-                                        unmappedFieldsOrdering,
-                                        blockFactory,
-                                        plannerSettings,
-                                        cancellation
-                                    ),
-                                    withAdditionalData.minimumVersion()
-                                )
-                            );
+                            Result inner = withAdditionalData.inner();
+                            TransportVersion resultVersion = withAdditionalData.minimumVersion();
+                            if (ExpandUnmappedFieldsPostProcessor.hasUnmappedFields(inner.schema())) {
+                                // Under SET unmapped_fields="LOAD_ALL" the expansion is a CPU-heavy scan over every row of
+                                // every result page. This continuation runs on whichever thread completed the compute result
+                                // (the esql_worker pool, or the search pool when a data node completes it last), so a large
+                                // expansion could hog the wrong pool. Dispatch it to the esql_worker pool, which is designated
+                                // for CPU-bound ES|QL work. See https://github.com/elastic/elasticsearch/issues/160286.
+                                // wrapReleasing releases the buffered pages if esql_worker rejects the task (e.g. shutting
+                                // down); expand() releases them itself once it runs, and page release is idempotent.
+                                threadPool.executor(EsqlPlugin.computePool())
+                                    .execute(
+                                        ActionRunnable.wrapReleasing(
+                                            l,
+                                            () -> Releasables.closeExpectNoException(inner.pages()),
+                                            ll -> ll.onResponse(
+                                                new Versioned<>(
+                                                    ExpandUnmappedFieldsPostProcessor.expand(
+                                                        inner,
+                                                        unmappedFieldsOrdering,
+                                                        blockFactory,
+                                                        plannerSettings,
+                                                        cancellation
+                                                    ),
+                                                    resultVersion
+                                                )
+                                            )
+                                        )
+                                    );
+                            } else {
+                                // No LOAD_ALL expansion to do: expand() would return the result unchanged, so pass it through inline
+                                // and avoid both the needless scan and an unnecessary thread hop.
+                                l.onResponse(new Versioned<>(inner, resultVersion));
+                            }
                         })
                         .addListener(listener);
                 }
@@ -1848,7 +1874,7 @@ public class EsqlSession {
                     ExternalSourceResolution resolution = preAnalysisResult.externalSourceResolution();
                     externalSourceWarnings = resolution == null ? List.of() : resolution.warnings();
                     return preAnalysisResult;
-                }), configuration, functionRegistry)
+                }), configuration, functionRegistry, timestampBounds)
             )
             .<PreAnalysisResult>andThen((l, r) -> {
                 // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
@@ -2095,7 +2121,20 @@ public class EsqlSession {
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry
     ) {
-        if (preAnalysis.icebergPaths().isEmpty()) {
+        preAnalyzeExternalSources(externalSourceResolver, plan, preAnalysis, result, listener, configuration, functionRegistry, null);
+    }
+
+    static void preAnalyzeExternalSources(
+        ExternalSourceResolver externalSourceResolver,
+        LogicalPlan plan,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        PreAnalysisResult result,
+        ActionListener<PreAnalysisResult> listener,
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        @Nullable QueryDslTimestampBoundsExtractor.TimestampBounds timestampBounds
+    ) {
+        if (preAnalysis.externalSourcePaths().isEmpty()) {
             listener.onResponse(result);
             return;
         }
@@ -2104,7 +2143,15 @@ public class EsqlSession {
         Map<String, DatasetMapping> declaredMappings = extractDeclaredMappings(plan);
 
         LogicalPlan listingPlan = FoldDateFunctionFiltersForListing.fold(plan, configuration, functionRegistry);
-        var filterHints = PartitionFilterHintExtractor.extract(listingPlan);
+        var filterHints = projectPartitionSpecs(
+            PartitionSpec.addTimestampBounds(
+                PartitionFilterHintExtractor.extract(listingPlan),
+                pathConfigs,
+                timestampBounds == null ? null : timestampBounds.start(),
+                timestampBounds == null ? null : timestampBounds.end()
+            ),
+            pathConfigs
+        );
 
         // Always non-null (empty when no ungrouped aggregate is present). A non-null set switches the
         // resolver to selective eager stats: only the listed paths read every file's footer at
@@ -2118,7 +2165,7 @@ public class EsqlSession {
         Set<String> pathsReadingNoRows = SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan);
 
         externalSourceResolver.resolve(
-            preAnalysis.icebergPaths(),
+            preAnalysis.externalSourcePaths(),
             pathConfigs,
             filterHints.isEmpty() ? null : filterHints,
             declaredMappings.isEmpty() ? null : declaredMappings,
@@ -2190,6 +2237,26 @@ public class EsqlSession {
             }
         });
         return pathConfigs;
+    }
+
+    /**
+     * Remaps identity hints and emits a finite {@code year IN} through each
+     * path's {@code partition_spec}. Identity-only specs leave the extractor
+     * hints unchanged.
+     */
+    static Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> projectPartitionSpecs(
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        Map<String, Map<String, Object>> pathConfigs
+    ) {
+        if (filterHints.isEmpty()) {
+            return filterHints;
+        }
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> projected = new HashMap<>(filterHints.size());
+        filterHints.forEach((path, hints) -> {
+            PartitionSpec spec = PartitionSpec.fromConfig(pathConfigs.get(path));
+            projected.put(path, spec.projectListingHints(hints));
+        });
+        return projected;
     }
 
     private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, String message) {

@@ -72,7 +72,7 @@ import java.util.function.Consumer;
  *       group (column chunks in one row group are written contiguously, so the multi-column
  *       projection coalesces naturally) and dispatches the merged ranges to
  *       {@link StorageObject#readBytesAsync}. The first in-flight bucket and the stall path
- *       wait per GET ({@code PER_GET}); later buckets take a look-ahead
+ *       wait with bounded PER_GET; later buckets take a look-ahead
  *       {@link ParquetIoWatermark} hold so TopN extraction competes with scan look-ahead for
  *       {@code heap / 8} and wait for a live group to decode when the cap would be exceeded.
  *       Within that cap, buckets still fan out before decode: the extractor does not wait on
@@ -519,7 +519,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
     /**
      * Dispatches later buckets as look-ahead until {@link ParquetIoWatermark#tryAdmit} refuses.
-     * The first in-flight group and the stall path are {@code PER_GET}; look-ahead stays
+     * The first in-flight group and the stall path are bounded {@code PER_GET}; look-ahead stays
      * non-blocking {@code GROUP_HOLD}.
      */
     private int dispatchAdmittedPrefetches(
@@ -554,7 +554,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
     /**
      * Starts one bucket GET. Look-ahead uses non-blocking {@code tryAdmit}.
-     * Non-look-ahead (first bucket and the stall path) uses blocking {@code PER_GET}.
+     * Non-look-ahead (first bucket and the stall path) uses bounded {@code PER_GET}.
      */
     @Nullable
     private CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> startBucketPrefetch(

@@ -964,6 +964,24 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
     }
 
+    public void testFieldCapsCacheWithFieldLevelSecurity() throws Exception {
+        String query = "FROM index | KEEP org | LIMIT 1";
+        assertOK(runESQLCommand("test-admin", query));
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runESQLCommand("fls_user", query));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown column [org]"));
+    }
+
+    public void testFieldCapsCacheWithFieldLevelSecurityThenUnrestricted() throws Exception {
+        String query = "FROM index | KEEP org | LIMIT 1";
+        ResponseException e = expectThrows(ResponseException.class, () -> runESQLCommand("fls_user", query));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown column [org]"));
+
+        assertOK(runESQLCommand("test-admin", query));
+    }
+
     public void testFieldLevelSecurityAllowPartial() throws Exception {
         Request request = new Request("GET", "/index*/_field_caps");
         setUser(request, "fls_user");
@@ -3842,12 +3860,22 @@ public class EsqlSecurityIT extends ESRestTestCase {
         client().performRequest(request);
     }
 
+    /**
+     * The two documents land in different backing indices (the data stream is rolled over in between), so DLS and FLS
+     * granted on the data stream name are verified against every backing index, not only the write index.
+     */
     private void createDataStreamDocuments() throws IOException {
         Request request = new Request("POST", "logs-foo/_bulk");
         request.addParameter("refresh", "");
         request.setJsonEntity("""
             { "create" : {} }
             { "@timestamp": "2099-05-06T16:21:15.000Z", "data_stream": {"namespace": "16"} }
+            """);
+        assertMap(entityAsMap(client().performRequest(request)), matchesMap().extraOk().entry("errors", false));
+        assertOK(client().performRequest(new Request("POST", "logs-foo/_rollover")));
+        request = new Request("POST", "logs-foo/_bulk");
+        request.addParameter("refresh", "");
+        request.setJsonEntity("""
             { "create" : {} }
             { "@timestamp": "2001-05-06T16:21:15.000Z", "data_stream": {"namespace": "17"} }
             """);

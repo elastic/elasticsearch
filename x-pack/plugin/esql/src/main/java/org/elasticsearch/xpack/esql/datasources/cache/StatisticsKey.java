@@ -54,13 +54,4 @@ public record StatisticsKey(SchemaCacheKey file, String readConfig) {
     public static StatisticsKey of(SchemaCacheKey file, @Nullable String readConfig) {
         return new StatisticsKey(file, readConfig == null || readConfig.isEmpty() ? UNSTAMPED : readConfig);
     }
-
-    /** The file this measurement is about, which is also the address of its schema record. */
-    public String canonicalPath() {
-        return file.canonicalPath();
-    }
-
-    public long lastModifiedEpochMillis() {
-        return file.lastModifiedEpochMillis();
-    }
 }

@@ -51,8 +51,6 @@ public class StatisticsKeyTests extends ESTestCase {
         SchemaCacheKey f = file(false);
         StatisticsKey key = StatisticsKey.of(f, "cccc3333");
         assertSame("composed, not copied", f, key.file());
-        assertEquals(f.canonicalPath(), key.canonicalPath());
-        assertEquals(f.lastModifiedEpochMillis(), key.lastModifiedEpochMillis());
     }
 
     /**

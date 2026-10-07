@@ -48,7 +48,7 @@ public final class ExternalSourceCacheTestAccess {
         // not express.
         int[] enriched = { 0 };
         service.statisticsCache().forEach((key, record) -> {
-            if (key.canonicalPath().contains(pathSubstring)
+            if (key.file().canonicalPath().contains(pathSubstring)
                 && record.measurements().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)) {
                 enriched[0]++;
             }

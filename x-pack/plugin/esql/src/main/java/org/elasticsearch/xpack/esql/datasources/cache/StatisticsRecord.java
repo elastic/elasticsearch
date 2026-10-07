@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -50,19 +48,6 @@ public final class StatisticsRecord {
     /** The measurements, as the flat {@code _stats.*} map every consumer of statistics already speaks. */
     public Map<String, Object> measurements() {
         return measurements;
-    }
-
-    /** The format-configuration fingerprint contribution matching compares on, or {@code null} if unstamped. */
-    @Nullable
-    public String configFingerprint() {
-        return measurements.get(ExternalStats.CONFIG_FINGERPRINT_KEY) instanceof String s ? s : null;
-    }
-
-    /** This record with {@code overlay} applied over its own measurements; the receiver is unchanged. */
-    public StatisticsRecord with(Map<String, Object> overlay) {
-        Map<String, Object> merged = new HashMap<>(measurements);
-        merged.putAll(overlay);
-        return new StatisticsRecord(merged);
     }
 
     public long estimatedBytes() {

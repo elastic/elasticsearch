@@ -557,7 +557,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         String transformId = getTestName();
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
 
-        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Map.of("source_index", new long[] { 1L }), null);
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Map.of("source_index", new long[] { 1L }));
         ArgumentCaptor<GetCheckpointAction.Request> requestCaptor = ArgumentCaptor.forClass(GetCheckpointAction.Request.class);
         doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), requestCaptor.capture(), any());
 
@@ -573,7 +573,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         String transformId = getTestName();
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
 
-        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Map.of("source_index", new long[] { 1L }), null);
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Map.of("source_index", new long[] { 1L }));
         ArgumentCaptor<GetCheckpointAction.Request> requestCaptor = ArgumentCaptor.forClass(GetCheckpointAction.Request.class);
         doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), requestCaptor.capture(), any());
 

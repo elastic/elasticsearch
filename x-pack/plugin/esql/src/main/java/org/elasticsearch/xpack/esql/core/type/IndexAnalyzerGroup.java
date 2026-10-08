@@ -13,6 +13,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -37,6 +41,23 @@ public record IndexAnalyzerGroup(@Nullable String analyzerName, boolean indexLoc
 
     public IndexAnalyzerGroup(StreamInput in) throws IOException {
         this(in.readOptionalString(), in.readBoolean(), in.readVInt(), in.readCollectionAsImmutableSet(StreamInput::readString));
+    }
+
+    /** Name, index-local flag, and position increment gap. This is what indices are grouped by. */
+    public record Analyzer(@Nullable String name, boolean indexLocal, int positionIncrementGap) {}
+
+    public Analyzer analyzer() {
+        return new Analyzer(analyzerName, indexLocal, positionIncrementGap);
+    }
+
+    /** One group per analyzer, in the order each analyzer first shows up in {@code analyzerByIndex}. */
+    public static List<IndexAnalyzerGroup> byAnalyzer(Map<String, Analyzer> analyzerByIndex) {
+        Map<Analyzer, Set<String>> indicesByAnalyzer = new LinkedHashMap<>();
+        analyzerByIndex.forEach((index, analyzer) -> indicesByAnalyzer.computeIfAbsent(analyzer, k -> new HashSet<>()).add(index));
+        return indicesByAnalyzer.entrySet()
+            .stream()
+            .map(e -> new IndexAnalyzerGroup(e.getKey().name(), e.getKey().indexLocal(), e.getKey().positionIncrementGap(), e.getValue()))
+            .toList();
     }
 
     @Override

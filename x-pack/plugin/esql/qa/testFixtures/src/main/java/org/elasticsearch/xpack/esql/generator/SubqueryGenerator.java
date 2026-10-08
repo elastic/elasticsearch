@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.generator;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
@@ -18,8 +17,8 @@ import java.util.List;
 
 /**
  * Builds a parenthesized subquery suitable for embedding in another query, e.g. {@code (FROM idx)}.
- * Each command is run incrementally against the cluster; the pipeline stops appending once a result has an empty schema,
- * but the empty-schema subquery is still returned. Inner exceptions propagate unless the executor considers them allowed.
+ * Each command is run incrementally against the cluster; the pipeline stops appending once a result has an empty schema
+ * and returns the last successful query and schema. Inner exceptions propagate unless the executor considers them allowed.
  */
 public final class SubqueryGenerator {
 
@@ -33,10 +32,6 @@ public final class SubqueryGenerator {
 
     /**
      * Returns a parenthesized subquery and its output schema.
-     * Throws {@link AllowedGeneratorFailureException} if the inner pipeline failed with an allowed/known error
-     * (as judged by {@link QueryExecutor#isAllowedFailure}), so callers can detect and propagate the
-     * allowed-failure signal rather than silently swallowing it.
-     * Unexpected inner exceptions are rethrown as-is.
      */
     public static SubqueryResult build(GenerationContext outerContext, CommandGenerator.QuerySchema schema, QueryExecutor queryExecutor) {
         GenerationContext innerContext = outerContext.withSubqueryDepth(outerContext.subqueryDepth() + 1);
@@ -50,9 +45,10 @@ public final class SubqueryGenerator {
                 throw new AllowedGeneratorFailureException(last.query(), last.exception());
             }
             logger.warn(() -> "Subquery generation failed for inner query [" + last.query() + "]", last.exception());
-            throw ExceptionsHelper.convertToRuntime(last.exception());
+            throw new RuntimeException("Subquery generation failed for inner query [" + last.query() + "]", last.exception());
         }
-        return new SubqueryResult("(" + last.query() + ")", inner.currentSchema());
+        QueryExecuted usable = inner.lastSuccessfulResult != null ? inner.lastSuccessfulResult : last;
+        return new SubqueryResult("(" + usable.query() + ")", inner.currentSchema());
     }
 
     /**
@@ -65,6 +61,7 @@ public final class SubqueryGenerator {
         private final List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
         private List<Column> currentSchema = List.of();
         private QueryExecuted lastResult;
+        private QueryExecuted lastSuccessfulResult;
         private boolean continueExecuting = true;
 
         InnerExecutor(QueryExecutor queryExecutor) {
@@ -83,6 +80,7 @@ public final class SubqueryGenerator {
                 continueExecuting = false;
                 return;
             }
+            lastSuccessfulResult = result;
             previousCommands.add(current);
             // Track indexMapped flags like the top-level generation loop, so full-text functions inside the subquery
             // are only generated against index-mapped fields (and residual failures can be recognized as known bugs).

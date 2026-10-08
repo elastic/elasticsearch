@@ -59,6 +59,8 @@ public class RecyclerBytesStreamOutputWriteBenchmark {
     private long[] vlong7Bytes;
     private long[] vlong8Bytes;
     private long[] vlong9Bytes;
+    private int[] ints;
+    private long[] longs;
 
     private RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(new SinglePageStream());
 
@@ -124,6 +126,9 @@ public class RecyclerBytesStreamOutputWriteBenchmark {
         vlong7Bytes = randomVLongs(7);
         vlong8Bytes = randomVLongs(8);
         vlong9Bytes = randomVLongs(9);
+
+        ints = random.ints(RANDOM_NUMS_PER_ITERATION).toArray();
+        longs = random.longs(RANDOM_NUMS_PER_ITERATION).toArray();
     }
 
     private void writeVIntLoop(int[] nums) throws IOException {
@@ -232,6 +237,70 @@ public class RecyclerBytesStreamOutputWriteBenchmark {
     @OperationsPerInvocation(WRITES_PER_ITERATION)
     public void writeVLong9() throws IOException {
         writeVLongLoop(vlong9Bytes);
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(WRITES_PER_ITERATION)
+    public void writeIntLE() throws IOException {
+        for (int reps = 0; reps < LOOPS_PER_ITERATION; reps++) {
+            for (var n : ints) {
+                output.writeIntLE(n);
+            }
+        }
+        output.seek(0);
+    }
+
+    private void writeIntsLELoop(int arrayLength) throws IOException {
+        for (int reps = 0; reps < LOOPS_PER_ITERATION; reps++) {
+            for (int offset = 0; offset < RANDOM_NUMS_PER_ITERATION; offset += arrayLength) {
+                output.writeIntsLE(ints, offset, arrayLength);
+            }
+        }
+        output.seek(0);
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(WRITES_PER_ITERATION)
+    public void writeIntsLE8() throws IOException {
+        writeIntsLELoop(8);
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(WRITES_PER_ITERATION)
+    public void writeIntsLE1000() throws IOException {
+        writeIntsLELoop(RANDOM_NUMS_PER_ITERATION);
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(WRITES_PER_ITERATION)
+    public void writeLongLE() throws IOException {
+        for (int reps = 0; reps < LOOPS_PER_ITERATION; reps++) {
+            for (var n : longs) {
+                output.writeLongLE(n);
+            }
+        }
+        output.seek(0);
+    }
+
+    private void writeLongsLELoop(int arrayLength) throws IOException {
+        for (int reps = 0; reps < LOOPS_PER_ITERATION; reps++) {
+            for (int offset = 0; offset < RANDOM_NUMS_PER_ITERATION; offset += arrayLength) {
+                output.writeLongsLE(longs, offset, arrayLength);
+            }
+        }
+        output.seek(0);
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(WRITES_PER_ITERATION)
+    public void writeLongsLE8() throws IOException {
+        writeLongsLELoop(8);
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(WRITES_PER_ITERATION)
+    public void writeLongsLE1000() throws IOException {
+        writeLongsLELoop(RANDOM_NUMS_PER_ITERATION);
     }
 
     // recycle same page, we never read previous pages

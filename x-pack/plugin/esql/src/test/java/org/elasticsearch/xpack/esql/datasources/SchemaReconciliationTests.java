@@ -1320,9 +1320,8 @@ public class SchemaReconciliationTests extends ESTestCase {
     }
 
     public void testUnionByNameTextSourceWidenDatetimeToDateNanosKeepsCastNotPinned() {
-        // DATE_NANOS is excluded from read-type pinning: a text reader parsing an epoch number at
-        // DATE_NANOS reads it as epoch-nanos, not the epoch-millis a DATETIME column holds, so the
-        // DATETIME file keeps its inferred read type and the post-read cast rescales the unit.
+        // DATE_NANOS is excluded from read-type pinning: the DATETIME file keeps its inferred read
+        // type and the post-read cast widens millis to nanos.
         List<Attribute> schema1 = List.of(attr("c", DataType.DATETIME));
         List<Attribute> schema2 = List.of(attr("c", DataType.DATE_NANOS));
 

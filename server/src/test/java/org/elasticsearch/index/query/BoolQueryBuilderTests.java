@@ -962,7 +962,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     public void testWrappedColumnarScanExclusionIsRequired() throws IOException {
         Query scan = ColumnarStringTermQuery.contains("kw", new BytesRef("google"), s -> {});
         Query wrapped = new BooleanQuery.Builder().add(scan, BooleanClause.Occur.FILTER)
-            .add(new MatchAllDocsQuery(), BooleanClause.Occur.FILTER)
+            .add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.FILTER)
             .build();
         BooleanQuery query = (BooleanQuery) boolQuery().filter(new FixedQueryBuilder(new TermQuery(new Term("f", "x"))))
             .mustNot(new FixedQueryBuilder(wrapped))

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.FrozenTransitionInfoProvider;
@@ -46,6 +47,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
+
+import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY;
 
 /**
  * Transport action handling the explain the data stream lifecycle requests for one or more data stream lifecycle managed indices.
@@ -136,7 +140,8 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
                 generationDate,
                 lifecycle,
                 errorStore.getError(state.projectId(), idxMetadata.getIndex()),
-                computeFrozenTransitionStatus(state, parentDataStream, idxMetadata, lifecycle, pastFrozenAfterByDataStream)
+                computeFrozenTransitionStatus(state, parentDataStream, idxMetadata, lifecycle, pastFrozenAfterByDataStream),
+                tailMergeDate(idxMetadata)
             );
             explainIndices.add(explainIndexDataStreamLifecycle);
         }
@@ -150,6 +155,13 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
                 dataStreamLifecycleSettings.getGlobalRetention(true)
             )
         );
+    }
+
+    @Nullable
+    private static Long tailMergeDate(IndexMetadata indexMetadata) {
+        Map<String, String> customMetadata = indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
+        String timestamp = customMetadata == null ? null : customMetadata.get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
+        return timestamp == null ? null : Long.parseLong(timestamp);
     }
 
     private String describeNotManagedByDlmReason(DataStream parentDataStream, IndexMetadata indexMetadata, boolean dlmOnly) {

@@ -50,7 +50,8 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                         randomIntBetween(0, 30)
                     )
                     : null,
-                null
+                null,
+                randomBoolean() ? randomNonNegativeLong() : null
             );
             assertThat(explainIndexDataStreamLifecycle.getGenerationTime(() -> now + 50L), is(nullValue()));
             explainIndexDataStreamLifecycle = ExplainIndexDataStreamLifecycle.managedIndexResponse(
@@ -68,7 +69,8 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                         randomIntBetween(0, 30)
                     )
                     : null,
-                null
+                null,
+                randomBoolean() ? randomNonNegativeLong() : null
             );
             assertThat(explainIndexDataStreamLifecycle.getGenerationTime(() -> now + 500L), is(TimeValue.timeValueMillis(400)));
         }
@@ -91,7 +93,8 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 TimeValue.timeValueMillis(now + 100L),
                 DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
                 null,
-                null
+                null,
+                randomBoolean() ? randomNonNegativeLong() : null
             );
             assertThat(indexDataStreamLifecycle.getGenerationTime(() -> now), is(TimeValue.ZERO));
         }
@@ -128,7 +131,8 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 null,
                 DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
                 null,
-                null
+                null,
+                randomBoolean() ? randomNonNegativeLong() : null
             );
             assertThat(indexDataStreamLifecycle.getTimeSinceIndexCreation(() -> now), is(TimeValue.ZERO));
         }
@@ -172,7 +176,8 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 TimeValue.timeValueMillis(now),
                 DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
                 null,
-                null
+                null,
+                randomBoolean() ? randomNonNegativeLong() : null
             );
             assertThat(indexDataStreamLifecycle.getTimeSinceRollover(() -> now), is(TimeValue.ZERO));
         }
@@ -188,7 +193,8 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             null,
             DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
             null,
-            FrozenTransitionStatus.NOT_SUPPORTED
+            FrozenTransitionStatus.NOT_SUPPORTED,
+            randomBoolean() ? randomNonNegativeLong() : null
         );
         Map<String, Object> withFrozenMap = getXContentMap(withFrozen, null, null);
         assertThat(withFrozenMap.get("frozen_transition_status"), is("not_supported"));
@@ -202,7 +208,8 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             null,
             DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
             null,
-            null
+            null,
+            randomBoolean() ? randomNonNegativeLong() : null
         );
         Map<String, Object> withoutFrozenMap = getXContentMap(withoutFrozen, null, null);
         assertThat(withoutFrozenMap.containsKey("frozen_transition_status"), is(false));
@@ -217,13 +224,52 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             null,
             DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
             null,
-            FrozenTransitionStatus.RUNNING
+            FrozenTransitionStatus.RUNNING,
+            randomBoolean() ? randomNonNegativeLong() : null
         );
         ExplainIndexDataStreamLifecycle roundTripped = copyInstance(
             withFrozen,
             TransportVersionUtils.randomVersionNotSupporting(ExplainIndexDataStreamLifecycle.EXPLAIN_INDEX_FROZEN_TRANSITION)
         );
         assertThat(roundTripped.getFrozenTransitionStatus(), is(nullValue()));
+    }
+
+    public void testTailMergeDate() throws IOException {
+        long timestamp = randomNonNegativeLong();
+        ExplainIndexDataStreamLifecycle withTimestamp = ExplainIndexDataStreamLifecycle.managedIndexResponse(
+            "my-index",
+            randomBoolean(),
+            System.currentTimeMillis(),
+            null,
+            null,
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
+            null,
+            null,
+            timestamp
+        );
+        Map<String, Object> xContent = getXContentMap(withTimestamp, null, null);
+        assertThat(xContent.get("tail_merge_date_millis"), is(timestamp));
+        assertThat(copyInstance(withTimestamp), is(withTimestamp));
+        ExplainIndexDataStreamLifecycle roundTripped = copyInstance(
+            withTimestamp,
+            TransportVersionUtils.randomVersionNotSupporting(ExplainIndexDataStreamLifecycle.EXPLAIN_INDEX_TAIL_MERGE_DATE)
+        );
+        assertThat(roundTripped.getTailMergeDate(), is(nullValue()));
+
+        ExplainIndexDataStreamLifecycle withoutTimestamp = ExplainIndexDataStreamLifecycle.managedIndexResponse(
+            "my-index",
+            randomBoolean(),
+            System.currentTimeMillis(),
+            null,
+            null,
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
+            null,
+            null,
+            null
+        );
+        Map<String, Object> withoutTimestampMap = getXContentMap(withoutTimestamp, null, null);
+        assertThat(withoutTimestampMap.containsKey("tail_merge_date_millis"), is(false));
+        assertThat(withoutTimestampMap.containsKey("tail_merge_date"), is(false));
     }
 
     public void testUnmanagedReasonXContent() throws IOException {
@@ -393,7 +439,8 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                     randomIntBetween(0, 30)
                 )
                 : null,
-            frozenTransitionStatus
+            frozenTransitionStatus,
+            randomBoolean() ? randomNonNegativeLong() : null
         );
     }
 

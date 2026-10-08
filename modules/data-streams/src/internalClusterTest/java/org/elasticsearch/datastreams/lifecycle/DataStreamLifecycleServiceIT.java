@@ -72,6 +72,7 @@ import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -407,7 +408,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             "id1",
             null,
             List.of(dataStreamName + "*"),
-            indexSettings(1, 1).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+            indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE)
                 .build(),
             null,
@@ -475,6 +476,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                         forceMergedIndices.contains(toBeForceMergedIndex),
                         equalTo(true)
                     );
+                    ExplainDataStreamLifecycleAction.Request request = new ExplainDataStreamLifecycleAction.Request(TEST_REQUEST_TIMEOUT, new String[]{dataStreamName});
+                    ExplainDataStreamLifecycleAction.Response response = safeGet(client().execute(ExplainDataStreamLifecycleAction.INSTANCE, request));
+                    ExplainIndexDataStreamLifecycle lifecycleExplain = response.getIndices().getFirst();
+                    assertThat(lifecycleExplain.getTailMergeDate(), notNullValue());
                 }
                 // We want to assert that when data stream lifecycle rolls over the write index it, it doesn't forcemerge it on that
                 // iteration:

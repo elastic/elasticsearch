@@ -227,7 +227,8 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                         randomIntBetween(0, 30)
                     )
                     : null,
-                null
+                null,
+                randomBoolean() ? randomNonNegativeLong() : null
             );
             Response response = new Response(List.of(explainIndexWithNullGenerationDate), null, null, null);
 
@@ -297,7 +298,8 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     randomIntBetween(0, 30)
                 )
                 : null,
-            randomBoolean() ? randomFrom(FrozenTransitionStatus.values()) : null
+            randomBoolean() ? randomFrom(FrozenTransitionStatus.values()) : null,
+            randomBoolean() ? randomNonNegativeLong() : null
         );
     }
 

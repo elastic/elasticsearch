@@ -243,6 +243,7 @@ public class PlanExecutor {
         Executor externalSourceExecutor,
         int externalSourceConcurrency,
         BooleanSupplier cancellation,
+        EsqlSession.UnmappedFieldsExpander expander,
         ActionListener<Versioned<Result>> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
@@ -307,7 +308,7 @@ public class PlanExecutor {
         );
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
         // and all the metrics are properly updated
-        ActionListener.run(executeListener, l -> session.execute(request, executionInfo, planRunner, cancellation, l));
+        ActionListener.run(executeListener, l -> session.execute(request, executionInfo, planRunner, expander, l));
     }
 
     /**

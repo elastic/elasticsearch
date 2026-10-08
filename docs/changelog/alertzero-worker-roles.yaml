@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 0
+summary: Add built-in roles for the service accounts of AlertZero workers in Kibana
+type: enhancement

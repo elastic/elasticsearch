@@ -17,8 +17,10 @@ import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
@@ -196,6 +198,19 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         }
     }
 
+    public void testUnsupportedOnlyProjectionEmitsNullsWithoutSyncFallbackAssert() throws Exception {
+        byte[] parquet = unsupportedListOfStructFile();
+        try (CloseableIterator<Page> iter = open(new ImmediateAsyncStorage(parquet, asyncIo), null)) {
+            assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
+            Page page = iter.tryAdvance();
+            assertNotNull("zero-byte unsupported projection must emit rows, not AssertionError", page);
+            assertEquals(1, page.getPositionCount());
+            assertTrue(page.getBlock(0).areAllValuesNull());
+            page.releaseBlocks();
+            assertNull(iter.tryAdvance());
+        }
+    }
+
     public void testCloseDuringTicketWaitWakesWaiter() throws Exception {
         byte[] parquet = smallFile();
         ParquetIoWatermark watermark = new ParquetIoWatermark(1);
@@ -337,6 +352,37 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             for (int i = 0; i < 8; i++) {
                 writer.write(factory.newGroup().append("id", i));
             }
+        }
+        return out.toByteArray();
+    }
+
+    private static byte[] unsupportedListOfStructFile() throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test {
+              optional group a (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary key (UTF8);
+                  }
+                }
+              }
+            }
+            """);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withRowGroupSize(1024)
+                .withPageSize(128)
+                .build()
+        ) {
+            Group row = factory.newGroup();
+            row.addGroup("a").addGroup("list").addGroup("element").add("key", Binary.fromString("k"));
+            writer.write(row);
         }
         return out.toByteArray();
     }

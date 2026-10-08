@@ -695,6 +695,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(nextBlock, phaseColumns);
                 }
                 if (prefetchBytes <= 0) {
+                    // Zero-byte groups still have rows (unsupported-only KEEP). Queue a completed
+                    // empty map so takePendingPrefetch sees success, not a miss that re-tickets
+                    // and drainForFallback twice (AssertionError on esql_worker).
+                    enqueueEmptyPrefetch(nextOrdinal);
                     nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
                     continue;
                 }
@@ -942,6 +946,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (required && future.isDone() == false) {
             setPhase(ReadinessPhase.GROUP_IO_PENDING);
         }
+    }
+
+    private void enqueueEmptyPrefetch(int ordinal) {
+        enqueuePrefetch(
+            ordinal,
+            CompletableFuture.completedFuture(new ColumnChunkPrefetcher.PrefetchedChunks(new TreeMap<>(), () -> {})),
+            0L,
+            null,
+            null,
+            false
+        );
     }
 
     private void watchPrefetch(CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future) {
@@ -2666,10 +2681,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             return false;
         }
         groupPrefetchRetried = true;
-        // Join staged skips so their breaker/watermark bytes drop before the retry GET.
-        // Do not cancel in-flight buffers — that leaks the hold and the retry ticket never grants.
-        prefetch.drainForFallback(new ArrayDeque<>(), rowGroupOrdinal);
         cancelPendingPrefetch();
+        // Join staged skips so their breaker/watermark bytes drop before the retry GET.
+        // drainForFallback is idempotent: if fill queues nothing, the caller's later drain is a no-op.
+        prefetch.drainForFallback(new ArrayDeque<>(), rowGroupOrdinal);
         fillPrefetchQueue(rowGroupOrdinal, true);
         consumeGrantedIo();
         return pendingTicket != null || grantedIo != null || queuedPrefetchFor(rowGroupOrdinal);
@@ -4217,7 +4232,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
          * release barrier. The queues are empty before a release failure is rethrown.
          */
         private void drainForFallback(ArrayDeque<PendingPrefetch> remainingPrefetches, int keepOrdinal) {
-            assert closed == false;
+            if (closed) {
+                return;
+            }
             closed = true;
             drainPendingPrefetches(stagedPrefetches, remainingPrefetches, keepOrdinal);
         }

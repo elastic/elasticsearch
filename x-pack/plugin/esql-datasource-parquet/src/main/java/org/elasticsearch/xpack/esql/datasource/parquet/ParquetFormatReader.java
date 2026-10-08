@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -79,6 +80,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
@@ -203,7 +205,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * Sanity cap on a trailer-declared footer GET ({@code F+8}). Larger than this is an invalid
      * Parquet file (HTTP 400) and is rejected before the second GET. Not a cache size and not a
      * data-page limit. Same value as {@link ExternalSourceSettings#BLOB_STORE_GET_SIZE_BYTES} so
-     * an exact-range footer GET stays inside the {@code C × B} in-flight GET accounting.
+     * an exact-range footer GET stays inside the {@code C × B} in-flight GET accounting. The cap
+     * covers the whole allocated region including the trailer, and the GET size already leaves
+     * room for the array header, so the footer buffer occupies at most 8 MiB of heap.
      */
     static final int MAX_FOOTER_READ_BYTES = ExternalSourceSettings.BLOB_STORE_GET_SIZE_BYTES;
 
@@ -383,6 +387,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * every reader derived from this one (via the {@code with*} methods) shares the caches.
      */
     public ParquetFormatReader(Settings settings, BlockFactory blockFactory) {
+        this(settings, blockFactory, null);
+    }
+
+    /**
+     * Production root with a DSM-owned byte budget so CRR tickets and look-ahead {@code tryAdmit}
+     * share one node cap.
+     */
+    public ParquetFormatReader(Settings settings, BlockFactory blockFactory, @Nullable NodeByteBudget nodeByteBudget) {
         this(
             blockFactory,
             FilterCompat.NOOP,
@@ -394,7 +406,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             Set.of(),
             FooterByteCache.fromSettings(settings),
             ParsedFooterCache.fromSettings(settings, ParquetFormatReader::estimateFooterWeightBytes),
-            ParquetIoWatermark.forHeap(),
+            nodeByteBudget == null ? ParquetIoWatermark.forHeap() : new ParquetIoWatermark(nodeByteBudget),
             PoolingHeapByteBufferAllocator.forHeap(),
             MAX_FOOTER_READ_BYTES
         );
@@ -1838,6 +1850,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     }
 
     @Override
+    public void bindAdmissionTracker(AdmissionTracker tracker) {
+        ioWatermark.bindTracker(tracker);
+    }
+
+    @Override
     public String formatName() {
         return FormatNameResolver.FORMAT_PARQUET;
     }
@@ -2429,15 +2446,23 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         ParquetStorageObjectAdapter adapter = (ParquetStorageObjectAdapter) inputFile;
         ColumnInfo[] columnInfos = buildColumnInfos(projectedSchema, projectedAttributes, declaredDateFormats);
         String[] absentColumnWarnings = buildAbsentColumnWarnings(projectedAttributes, columnInfos);
-        validatePlannerTypesAgainstFile(
+        String fileLocation = safeObjectName(storageObject.path());
+        String dropReason = validatePlannerTypesAgainstFile(
             logger,
-            safeObjectName(storageObject.path()),
+            fileLocation,
             reader,
             projectedAttributes,
             columnInfos,
             declaredTypeColumns,
+            errorPolicy,
             warningSink
         );
+        if (dropReason != null) {
+            ColumnarRowDropHelper.dropWholeRead(sharedErrorBudget, errorPolicy, fileLocation, rowCount(reader), dropReason);
+            // Nothing of this file reaches the page, so nothing is decoded: a zero-limit count-only walk yields no
+            // page and owns (and closes) the reader.
+            return new ParquetCountOnlyIterator(reader, batchSize, 0);
+        }
 
         // Pass the predicate column names so the metadata preload also batch-fetches dictionary
         // pages (and bloom filters when their length is known) for those columns. Without this,
@@ -3446,18 +3471,31 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * the escape does not apply: a cross-file clash (e.g. {@code first_file_wins} froze the column to a narrower type
      * from the anchor file) must widen-or-null, never downcast — so an inferred column null-fills whenever it is not
      * widening-compatible.
+     * <p>
+     * A declared column that is neither is a read failure of that column in this file, so the read's
+     * {@code errorPolicy} decides it ({@link DeclaredTypeCoercions#onUncoercibleColumn}): {@code fail_fast} fails the
+     * read, {@code null_field} nulls the column as above, and {@code skip_row} drops every row of the file, which the
+     * caller does when this returns non-{@code null}.
+     *
+     * @return under {@code skip_row}, why every row of the file must be dropped; otherwise {@code null}
      */
-    private static void validatePlannerTypesAgainstFile(
+    @Nullable
+    private static String validatePlannerTypesAgainstFile(
         Logger logger,
         String fileLocation,
         ParquetFileReader reader,
         List<Attribute> attributes,
         ColumnInfo[] columnInfos,
         Set<String> declaredTypeColumns,
+        ErrorPolicy errorPolicy,
         @Nullable Consumer<String> warningSink
     ) {
         MessageType fullSchema = reader.getFileMetaData().getSchema();
-        SkipWarnings skipWarnings = null;
+        // Reported once the loop is done, and only if no declared column drops the file's rows: a column of rows
+        // that never reach the page does not read null.
+        List<String> nullDetails = null;
+        SkipWarnings dropWarnings = null;
+        String dropReason = null;
         for (int i = 0; i < attributes.size(); i++) {
             if (columnInfos[i] == null) {
                 continue;
@@ -3472,34 +3510,52 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             }
             DataType actualInFile = convertParquetTypeToEsql(resolved);
             // The lossy-narrowing coercion escape is reserved for DECLARED columns; an inferred target may only widen.
-            boolean declaredCoercible = declaredTypeColumns.contains(attr.name())
-                && DeclaredTypeCoercions.supports(actualInFile, attr.dataType());
+            boolean declared = declaredTypeColumns.contains(attr.name());
+            boolean declaredCoercible = declared && DeclaredTypeCoercions.supports(actualInFile, attr.dataType());
             if (plannerTypeCompatibleWithFileDerivedType(attr.dataType(), actualInFile) == false && declaredCoercible == false) {
-                if (skipWarnings == null) {
-                    skipWarnings = new SkipWarnings(
-                        "Some columns in [" + fileLocation + "] have a type the query cannot read; returning null",
-                        warningSink
-                    );
+                String outcome = "returning null";
+                if (declared && errorPolicy.isStrict()) {
+                    DeclaredTypeCoercions.onUncoercibleColumn(attr.name(), fileLocation, actualInFile, attr.dataType(), null);
+                } else if (declared && errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW) {
+                    if (dropWarnings == null) {
+                        dropWarnings = new SkipWarnings(DeclaredTypeCoercions.uncoercibleColumnsDropSummary(fileLocation), warningSink);
+                    }
+                    DeclaredTypeCoercions.onUncoercibleColumn(attr.name(), fileLocation, actualInFile, attr.dataType(), dropWarnings);
+                    if (dropReason == null) {
+                        dropReason = DeclaredTypeCoercions.uncoercibleColumnDetail(attr.name(), actualInFile, attr.dataType());
+                    }
+                    outcome = "skipping the file's rows";
+                } else {
+                    if (nullDetails == null) {
+                        nullDetails = new ArrayList<>();
+                    }
+                    nullDetails.add(DeclaredTypeCoercions.uncoercibleColumnDetail(attr.name(), actualInFile, attr.dataType()));
                 }
-                skipWarnings.add(
-                    "column ["
-                        + attr.name()
-                        + "]: ["
-                        + actualInFile.typeName()
-                        + "] in the file, ["
-                        + attr.dataType().typeName()
-                        + "] in the query"
-                );
                 logger.warn(
-                    "Column [{}] in [{}] is [{}] in the file, [{}] in the query; returning null",
+                    "Column [{}] in [{}] is [{}] in the file, [{}] in the query; {}",
                     attr.name(),
                     fileLocation,
                     actualInFile.typeName(),
-                    attr.dataType().typeName()
+                    attr.dataType().typeName(),
+                    outcome
                 );
                 columnInfos[i] = null;
             }
         }
+        if (nullDetails != null && dropReason == null) {
+            SkipWarnings nullWarnings = new SkipWarnings(DeclaredTypeCoercions.uncoercibleColumnsNullSummary(fileLocation), warningSink);
+            nullDetails.forEach(nullWarnings::add);
+        }
+        return dropReason;
+    }
+
+    /** The rows of every row group this reader covers: the whole file, or the row groups of its range. */
+    private static long rowCount(ParquetFileReader reader) {
+        long rows = 0;
+        for (BlockMetaData rowGroup : reader.getRowGroups()) {
+            rows += rowGroup.getRowCount();
+        }
+        return rows;
     }
 
     /**
@@ -3603,10 +3659,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             }
             if (coercionWarnings == null) {
                 String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW ? "skipping their rows" : "returning null";
-                coercionWarnings = new SkipWarnings(
-                    "Some values in [" + fileLocation + "] cannot be read as their declared type; " + outcome,
-                    warningSink
-                );
+                String prefix = "Some values in [" + fileLocation + "] cannot be read as their declared type; ";
+                coercionWarnings = new SkipWarnings(prefix + outcome, prefix + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME, warningSink);
             }
             return coercionWarnings;
         }
@@ -3740,7 +3794,21 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             } else {
                 this.rowGroupFirstRowGlobal = null;
             }
-            validatePlannerTypesAgainstFile(logger, fileLocation, reader, attributes, columnInfos, declaredTypeColumns, warningSink);
+            String dropReason = validatePlannerTypesAgainstFile(
+                logger,
+                fileLocation,
+                reader,
+                attributes,
+                columnInfos,
+                declaredTypeColumns,
+                errorPolicy,
+                warningSink
+            );
+            if (dropReason != null) {
+                // Charged once, here, so no row group of this file is decoded only to be dropped.
+                ColumnarRowDropHelper.dropWholeRead(sharedErrorBudget, errorPolicy, fileLocation, rowCount(reader), dropReason);
+                exhausted = true;
+            }
         }
 
         @Override

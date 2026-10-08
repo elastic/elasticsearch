@@ -1,0 +1,6 @@
+area: Geo
+issues:
+ - 159682
+pr: 160228
+summary: Fix H3 great-circle latitude correction edge selection
+type: bug

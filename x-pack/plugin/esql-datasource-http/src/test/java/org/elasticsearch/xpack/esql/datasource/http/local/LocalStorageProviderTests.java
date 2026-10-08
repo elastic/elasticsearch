@@ -34,13 +34,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests for LocalStorageProvider and LocalStorageObject.
  */
 public class LocalStorageProviderTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     public void testReadFullFile() throws IOException {
         // Create a temporary file
@@ -268,6 +269,17 @@ public class LocalStorageProviderTests extends ESTestCase {
 
         NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> object.length());
         assertThat(e.getMessage(), containsString("nonexistent_file.txt"));
+        assertThat("the local directory is the location and is never quoted", e.getMessage(), not(containsString(tempDir.toString())));
+    }
+
+    public void testListingAMissingDirectoryNamesOnlyTheDirectory() throws IOException {
+        Path missing = createTempDir().resolve("missing_dir");
+        LocalStorageProvider provider = new LocalStorageProvider();
+
+        IOException e = expectThrows(IOException.class, () -> provider.listObjects(StoragePath.of(StoragePath.fileUri(missing)), false));
+
+        assertThat(e.getMessage(), containsString("missing_dir"));
+        assertThat(e.getMessage(), not(containsString(missing.getParent().toString())));
     }
 
     public void testLastModifiedOnNonExistentFileThrows() throws IOException {

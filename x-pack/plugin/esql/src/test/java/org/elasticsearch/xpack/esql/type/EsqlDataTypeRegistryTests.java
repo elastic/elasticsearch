@@ -73,14 +73,17 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
                 idx,
                 Map.of(field, new IndexFieldCapabilitiesBuilder(field, esTypeName).build()),
                 true,
-                IndexMode.STANDARD
+                IndexMode.STANDARD,
+                0,
+                0,
+                0
             )
         );
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder().withIndexResponses(idxResponses).build();
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
             false,
-            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, flattenedDataTypeEnabled),
+            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, false, flattenedDataTypeEnabled),
             false,
             IndexResolver.DO_NOT_GROUP
         );
@@ -96,7 +99,10 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
                 idx,
                 Map.of(field, new IndexFieldCapabilitiesBuilder(field, esTypeName).metricType(metricType).build()),
                 true,
-                IndexMode.TIME_SERIES
+                IndexMode.TIME_SERIES,
+                0,
+                0,
+                0
             )
         );
 
@@ -105,7 +111,7 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
             false,
-            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, true),
+            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, false, true),
             false,
             IndexResolver.DO_NOT_GROUP
         );

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
@@ -60,11 +61,16 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
@@ -150,9 +156,12 @@ public class Verifier {
         checkTStepIncompatibleWithTRange(plan, failures);
         checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
         checkHighlightSupported(plan, failures, context.minimumVersion());
+        checkHighlightAnalyzersAgree(plan, failures, context.minimumVersion());
+        checkDenseVectorSupported(plan, failures, context.minimumVersion());
 
         // collect plan checkers
-        var planCheckers = planCheckers(plan, context.analysisRegistry());
+        Consumer<String> warnings = context.deferredHeaderWarnings()::add;
+        var planCheckers = planCheckers(plan, context.analysisRegistry(), warnings);
         planCheckers.addAll(extraCheckers);
 
         // Concrete verifications
@@ -165,7 +174,7 @@ public class Verifier {
             planCheckers.forEach(c -> c.accept(p, failures));
             p.forEachExpression(e -> {
                 if (e instanceof PostAnalysisVerificationAware va) {
-                    va.postAnalysisVerification(context.analysisRegistry(), failures);
+                    va.postAnalysisVerification(context.analysisRegistry(), warnings, failures);
                 }
             });
 
@@ -209,15 +218,51 @@ public class Verifier {
 
     /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */
     private static void checkHighlightSupported(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
-        if (minimumVersion.supports(Highlight.ESQL_HIGHLIGHT)) {
+        plan.forEachDown(Highlight.class, highlight -> {
+            if (minimumVersion.supports(Highlight.ESQL_HIGHLIGHT) == false) {
+                failures.add(
+                    fail(
+                        highlight,
+                        "HIGHLIGHT is not supported on every participating node; "
+                            + "rolling upgrade in progress, or a remote cluster is on an older version"
+                    )
+                );
+                return;
+            }
+            if ((highlight.implicitQuery() || highlight.derivedFields())
+                && minimumVersion.supports(Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS) == false) {
+                failures.add(
+                    fail(
+                        highlight,
+                        "HIGHLIGHT with a derived query or field list is not supported on every participating node; "
+                            + "rolling upgrade in progress, or a remote cluster is on an older version"
+                    )
+                );
+            }
+        });
+    }
+
+    /**
+     * An older node cannot route rows by index, so until every node can, analyzer mismatches that routing would resolve
+     * keep the {@code standard} fallback and its warning.
+     */
+    private static void checkHighlightAnalyzersAgree(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
+        if (minimumVersion.supports(TextEsField.TEXT_FIELD_ANALYZER)) {
+            plan.forEachDown(Highlight.class, highlight -> highlight.verifyAnalyzersAgree(failures));
+        }
+    }
+
+    /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */
+    private static void checkDenseVectorSupported(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
+        if (minimumVersion.supports(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION)) {
             return;
         }
         plan.forEachDown(
-            Highlight.class,
-            highlight -> failures.add(
+            DenseVector.class,
+            denseVector -> failures.add(
                 fail(
-                    highlight,
-                    "HIGHLIGHT is not supported on every participating node; "
+                    denseVector,
+                    "DENSE_VECTOR is not supported on every participating node; "
                         + "rolling upgrade in progress, or a remote cluster is on an older version"
                 )
             )
@@ -331,7 +376,11 @@ public class Verifier {
     /**
      * Build a list of checkers based on the components in the plan.
      */
-    private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(LogicalPlan plan, AnalysisRegistry analysisRegistry) {
+    private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(
+        LogicalPlan plan,
+        AnalysisRegistry analysisRegistry,
+        Consumer<String> warnings
+    ) {
         List<BiConsumer<LogicalPlan, Failures>> planCheckers = new ArrayList<>();
         Consumer<? super Node<?>> collectPlanCheckers = p -> {
             if (p instanceof PostAnalysisPlanVerificationAware pva) {
@@ -345,7 +394,7 @@ public class Verifier {
             if (p instanceof PostAnalysisVerificationAware va) {
                 planCheckers.add((lp, failures) -> {
                     if (lp.getClass().equals(va.getClass())) {
-                        va.postAnalysisVerification(analysisRegistry, failures);
+                        va.postAnalysisVerification(analysisRegistry, warnings, failures);
                     }
                 });
             }
@@ -577,8 +626,10 @@ public class Verifier {
                     fail(
                         p,
                         "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                            + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; [{}] is not supported yet",
+                            + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [{}] is not supported yet",
                         p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
+                            : p instanceof ViewUnionAll ? "ViewUnionAll"
+                            : p instanceof NamedSubquery ? "NamedSubquery"
                             : p instanceof TelemetryAware ta ? ta.telemetryLabel()
                             : p.nodeName()
                     )
@@ -604,7 +655,10 @@ public class Verifier {
             // so a LOOKUP JOIN is still a LookupJoin node here and other Join subclasses (InlineJoin etc.) are not admitted.
             || plan instanceof LookupJoin
             || plan instanceof Enrich
-            || plan instanceof Fork;
+            || plan instanceof Fork
+            || (plan instanceof UnionAll && plan instanceof ViewUnionAll == false)
+            || (plan instanceof Subquery && plan instanceof NamedSubquery == false)
+            || plan instanceof AbstractSubqueryJoin;
     }
 
     /**

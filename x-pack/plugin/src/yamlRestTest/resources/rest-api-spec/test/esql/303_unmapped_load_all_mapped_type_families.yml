@@ -177,7 +177,15 @@ teardown:
   - match: { values.1: [ "unmapped", "1", "9" ] }
 
 ---
-'declaring a field nested does not hide it from LOAD_ALL':
+'a mapped nested leaf stays null under LOAD_ALL':
+  # The column still exists: the unmapped index discovers nst.leaf from _source. The nested index returns null.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ fix_nested_subfield_extraction ]
+      reason: "A leaf declared under a nested parent stays null under LOAD_ALL"
   - do:
       esql.query:
         body:
@@ -185,5 +193,5 @@ teardown:
   - length: { columns: 2 }
   - match: { columns.1.name: nst.leaf }
   - match: { columns.1.type: keyword }
-  - match: { values.0: [ "mapped", "n1" ] }
+  - match: { values.0: [ "mapped", null ] }
   - match: { values.1: [ "unmapped", "n1" ] }

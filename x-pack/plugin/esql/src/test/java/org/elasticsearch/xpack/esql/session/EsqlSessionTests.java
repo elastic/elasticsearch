@@ -189,7 +189,7 @@ public class EsqlSessionTests extends ESTestCase {
         );
 
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
-            SchemaCacheKey key = SchemaCacheKey.build(drift, 0L, "parquet", config);
+            SchemaCacheKey key = SchemaCacheKey.build(drift, 0L, "parquet", "", config);
             Map<String, Object> nativeStats = Map.of(
                 SourceStatisticsSerializer.columnValueCountKey("x"),
                 2L,
@@ -264,7 +264,7 @@ public class EsqlSessionTests extends ESTestCase {
         assertEquals(2L, strippedContribution.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
 
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
-            SchemaCacheKey key = SchemaCacheKey.build(path, 0L, "parquet", config);
+            SchemaCacheKey key = SchemaCacheKey.build(path, 0L, "parquet", "", config);
             Map<String, Object> nativeStats = Map.of(
                 SourceStatisticsSerializer.columnValueCountKey("val"),
                 2L,
@@ -998,6 +998,32 @@ public class EsqlSessionTests extends ESTestCase {
     }
 
     /**
+     * Same fold path as {@link #testPreAnalyzeExternalSourcesForwardsFoldedDateExtractHints},
+     * with unary {@code YEAR(param)}. Proves {@code preAnalyzeExternalSources} still folds
+     * after the class-dispatch change in {@code tryFoldCall}.
+     */
+    public void testPreAnalyzeExternalSourcesForwardsFoldedYearHints() {
+        String path = "s3://bucket/data/*.parquet";
+        long ts = Instant.parse("2026-07-13T00:00:00Z").toEpochMilli();
+        UnresolvedFunction year = new UnresolvedFunction(EMPTY, "YEAR", List.of(new Literal(EMPTY, ts, DataType.DATETIME)));
+        UnresolvedExternalRelation relation = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), Map.of());
+        LogicalPlan plan = new Filter(EMPTY, relation, new Equals(EMPTY, new UnresolvedAttribute(EMPTY, "year"), year));
+
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> hints = captureFilterHints(plan, path);
+        assertNotNull(hints);
+        List<PartitionFilterHintExtractor.PartitionFilterHint> pathHints = hints.get(path);
+        assertNotNull(pathHints);
+        assertEquals(1, pathHints.size());
+        assertEquals("year", pathHints.get(0).columnName());
+        assertEquals(PartitionFilterHintExtractor.Operator.EQUALS, pathHints.get(0).operator());
+        assertEquals(List.of(2026L), pathHints.get(0).values());
+        assertTrue(
+            "session plan stays unresolved",
+            plan.anyMatch(n -> n instanceof Filter f && f.condition().anyMatch(UnresolvedFunction.class::isInstance))
+        );
+    }
+
+    /**
      * Wiring test: a zero {@code LIMIT} over an external relation forwards that relation's path as reading no
      * rows, which is what lets the resolver stop listing once it has a schema.
      */
@@ -1078,6 +1104,7 @@ public class EsqlSessionTests extends ESTestCase {
             false,
             false,
             false,
+            false,
             List.of(path),
             List.of()
         );
@@ -1085,7 +1112,7 @@ public class EsqlSessionTests extends ESTestCase {
         PlainActionFuture<EsqlSession.PreAnalysisResult> future = new PlainActionFuture<>();
         EsqlSession.preAnalyzeExternalSources(capturingResolver, plan, preAnalysis, result, future, TEST_CFG, new EsqlFunctionRegistry());
         future.actionGet();
-        assertTrue("resolve must be invoked when icebergPaths is non-empty", resolveCalled.get());
+        assertTrue("resolve must be invoked when externalSourcePaths is non-empty", resolveCalled.get());
         return new CapturedExternalResolve(capturedStats.get(), capturedNoRows.get(), capturedHints.get());
     }
 

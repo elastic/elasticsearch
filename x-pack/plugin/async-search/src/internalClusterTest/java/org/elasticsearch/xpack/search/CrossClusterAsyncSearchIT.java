@@ -22,6 +22,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -2092,6 +2093,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 .setSettings(localSettings)
                 .setMapping("@timestamp", "type=date", "f", "type=text")
         );
+        ensureYellowAndNoInitializingShards(LOCAL_CLUSTER, localIndex);
         indexDocs(client(LOCAL_CLUSTER), localIndex);
 
         String remoteIndex = "remote";
@@ -2109,21 +2111,12 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 .setSettings(Settings.builder().put(remoteSettings.build()))
                 .setMapping("@timestamp", "type=date", "f", "type=text")
         );
-        // Wait for yellow and no initializing shards so all assigned shards are STARTED before tests run searches.
-        ClusterHealthResponse healthResponse = client(REMOTE_CLUSTER).admin()
-            .cluster()
-            .prepareHealth(TEST_REQUEST_TIMEOUT, remoteIndex)
-            .setWaitForYellowStatus()
-            .setWaitForNoInitializingShards(true)
-            .setTimeout(TimeValue.timeValueSeconds(10))
-            .get();
-        assertFalse("remote index health check timed out", healthResponse.isTimedOut());
-        assertEquals(
-            "remote index should have no initializing shards, had: " + healthResponse.getInitializingShards(),
-            0,
-            healthResponse.getInitializingShards()
-        );
+        ensureYellowAndNoInitializingShards(REMOTE_CLUSTER, remoteIndex);
         indexDocs(client(REMOTE_CLUSTER), remoteIndex);
+        // Both indexDocs() calls above are slow and sequential; re-check right before returning so a shard that
+        // started relocating or re-initializing meanwhile isn't mistaken by callers for a STARTED, queryable shard.
+        ensureYellowAndNoInitializingShards(LOCAL_CLUSTER, localIndex);
+        ensureYellowAndNoInitializingShards(REMOTE_CLUSTER, remoteIndex);
 
         String skipUnavailableKey = Strings.format("cluster.remote.%s.skip_unavailable", REMOTE_CLUSTER);
         Setting<?> skipUnavailableSetting = cluster(REMOTE_CLUSTER).clusterService().getClusterSettings().get(skipUnavailableKey);
@@ -2136,6 +2129,23 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         clusterInfo.put("remote.index", remoteIndex);
         clusterInfo.put("remote.skip_unavailable", skipUnavailable);
         return clusterInfo;
+    }
+
+    // A relocating shard's target copy is tried by search but isn't counted by setWaitForNoInitializingShards,
+    // so a relocation in flight can still hand a query an unqueryable copy; wait for no relocations too.
+    private void ensureYellowAndNoInitializingShards(String clusterAlias, String index) {
+        ClusterHealthResponse healthResponse = client(clusterAlias).admin()
+            .cluster()
+            .prepareHealth(TEST_REQUEST_TIMEOUT, index)
+            .setWaitForYellowStatus()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForNoInitializingShards(true)
+            .setTimeout(TimeValue.timeValueSeconds(30))
+            .get();
+        assertFalse(Strings.toString(healthResponse, true, true), healthResponse.isTimedOut());
+        assertEquals(Strings.toString(healthResponse, true, true), 0, healthResponse.getInitializingShards());
+        assertEquals(Strings.toString(healthResponse, true, true), 0, healthResponse.getRelocatingShards());
     }
 
     private int indexDocs(Client client, String index) {

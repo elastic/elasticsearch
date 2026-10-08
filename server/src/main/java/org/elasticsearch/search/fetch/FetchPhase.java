@@ -32,6 +32,7 @@ import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchContextSourcePrinter;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitRamUsageEstimator;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -203,8 +204,9 @@ public final class FetchPhase {
                 ProfileResult profileResult = profiler.finish();
                 context.fetchResult().shardResult(hitsAndBytes.hits, profileResult);
 
-                if (writer == null) {
-                    context.fetchResult().setSearchHitsSizeBytes(hitsAndBytes.searchHitsBytesSize);
+                // Some contexts have no breaker; nothing to record when nothing was charged.
+                if (writer == null && hitsAndBytes.searchHitsBytesSize > 0L) {
+                    context.fetchResult().setSearchHitsSizeBytes(hitsAndBytes.searchHitsBytesSize, context.circuitBreaker());
                 }
 
                 hitsToRelease = null;
@@ -263,11 +265,20 @@ public final class FetchPhase {
     }
 
     /**
-     * Creates the docs iterator that handles per-document fetching and sub-phase processing, shared between sync and
-     * streaming modes. In streaming mode, only per-hit source/script-field bytes exceeding
-     * {@link SearchContext#memAccountingBufferSize()} are charged to the request circuit breaker;
-     * In non-streaming mode, bytes are accumulated and charged once the threshold is crossed, and
-     * held until the fetch response is released.
+     * Creates the docs iterator for both sync and streaming modes.
+     * <p>
+     * In streaming mode, only per-hit bytes exceeding {@link SearchContext#memAccountingBufferSize()}
+     * are charged to the request circuit breaker. In non-streaming mode, bytes accumulate until the
+     * threshold is crossed, then are held until the fetch response is released.
+     * <p>
+     * Document-field bytes (covering {@code fields}, {@code stored_fields}, {@code docvalue_fields}
+     * and {@code script_fields}) are charged once per hit after all sub-phases have run, via
+     * {@link SearchHitRamUsageEstimator#estimateDocumentFields(SearchHit)}. This is the only charge
+     * site for document fields; charging inside individual sub-phases is incorrect because later
+     * sub-phases can replace earlier entries in the hit's field maps.
+     * <p>
+     * Inner-hit bytes are charged separately via the {@link FetchContext#chargeInnerHitsBytes(long)}
+     * hook, which transfers them from the nested {@code FetchSearchResult} onto this iterator's counter.
      */
     private StreamingFetchPhaseDocsIterator createDocsIterator(
         SearchContext context,
@@ -307,29 +318,33 @@ public final class FetchPhase {
         SourceLoader sourceLoader = context.newSourceLoader(res.v2());
         FetchContext fetchContext = new FetchContext(context, sourceLoader);
 
-        final long[] scriptFieldsBreakerBytes = new long[1];
+        // Bytes charged for inner hits (transferred from the nested FetchSearchResult)
+        final long[] innerHitsBreakerBytes = new long[1];
         final long[] streamingHeldBytes = new long[1];
-        LongConsumer scriptFieldsByteChecker;
+
+        // Inner-hits byte checker: transfers the byte total from a nested fetch onto this context.
+        // Inner-hit result bytes are coarse-grained (one charge per inner-hit fetch), so no buffering.
+        LongConsumer innerHitsByteChecker;
         if (streaming) {
-            scriptFieldsByteChecker = bytes -> {
+            innerHitsByteChecker = bytes -> {
                 if (bytes > context.memAccountingBufferSize()) {
                     context.circuitBreaker()
-                        .addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[script_field]");
+                        .addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[inner_hits]");
                     streamingHeldBytes[0] += bytes;
                 }
             };
         } else if (memoryChecker != null) {
-            scriptFieldsByteChecker = bytes -> memoryChecker.accept(bytes > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) bytes);
+            innerHitsByteChecker = bytes -> memoryChecker.accept(bytes > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) bytes);
         } else {
-            scriptFieldsByteChecker = bytes -> {
+            innerHitsByteChecker = bytes -> {
                 if (bytes > 0) {
                     context.circuitBreaker()
-                        .addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[script_field]");
-                    scriptFieldsBreakerBytes[0] += bytes;
+                        .addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[inner_hits]");
+                    innerHitsBreakerBytes[0] += bytes;
                 }
             };
         }
-        fetchContext.setScriptFieldsByteChecker(scriptFieldsByteChecker);
+        fetchContext.setInnerHitsByteChecker(innerHitsByteChecker);
 
         PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
         PreloadedFieldLookupProvider fieldLookupProvider = new PreloadedFieldLookupProvider();
@@ -352,7 +367,10 @@ public final class FetchPhase {
         StoredFieldLoader storedFieldLoader = profiler.storedFields(StoredFieldLoader.fromSpec(storedFieldsSpec));
         IdLoader idLoader = context.newIdLoader();
         boolean requiresSource = storedFieldsSpec.requiresSource();
-        final int[] locallyAccumulatedBytes = new int[1];
+        final int[] locallyAccumulatedSourceBytes = new int[1];
+        // Bytes for document fields are buffered here and only charged when the buffer crosses
+        // memAccountingBufferSize(), matching the buffering strategy used for _source.
+        final long[] locallyAccumulatedFieldBytes = new long[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         StreamingFetchPhaseDocsIterator docsIterator = new StreamingFetchPhaseDocsIterator(context.currentThreadDirectoryMetricsCapture()) {
@@ -369,16 +387,42 @@ public final class FetchPhase {
                     streamingHeldBytes[0] += bytes;
                 }
             } : (memoryChecker != null ? memoryChecker : bytes -> {
-                locallyAccumulatedBytes[0] += bytes;
-                if (context.checkCircuitBreaker(locallyAccumulatedBytes[0], ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]")) {
-                    addRequestBreakerBytes(locallyAccumulatedBytes[0]);
-                    locallyAccumulatedBytes[0] = 0;
+                locallyAccumulatedSourceBytes[0] += bytes;
+                if (context.checkCircuitBreaker(locallyAccumulatedSourceBytes[0], ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]")) {
+                    addRequestBreakerBytes(locallyAccumulatedSourceBytes[0]);
+                    locallyAccumulatedSourceBytes[0] = 0;
                 }
             });
 
+            // Document-fields byte checker: covers fields / stored_fields / docvalue_fields / script_fields.
+            // Charged once per hit in nextDoc() after all sub-phases have run. Buffered to amortise the
+            // per-call cost of addEstimateBytesAndMaybeBreak. Any tail below the buffer threshold is
+            // flushed in onAllHitsIterated() after the full iteration completes.
+            LongConsumer fieldsChecker = streaming ? bytes -> {
+                if (bytes > context.memAccountingBufferSize()) {
+                    context.circuitBreaker()
+                        .addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[document_fields]");
+                    streamingHeldBytes[0] += bytes;
+                }
+            }
+                : (memoryChecker != null
+                    ? (bytes -> memoryChecker.accept(bytes > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) bytes))
+                    : bytes -> {
+                        locallyAccumulatedFieldBytes[0] += bytes;
+                        if (locallyAccumulatedFieldBytes[0] >= context.memAccountingBufferSize()) {
+                            context.circuitBreaker()
+                                .addEstimateBytesAndMaybeBreak(
+                                    locallyAccumulatedFieldBytes[0],
+                                    ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[document_fields]"
+                                );
+                            addRequestBreakerBytes(locallyAccumulatedFieldBytes[0]);
+                            locallyAccumulatedFieldBytes[0] = 0;
+                        }
+                    });
+
             @Override
             public long getRequestBreakerBytes() {
-                return super.getRequestBreakerBytes() + scriptFieldsBreakerBytes[0] + streamingHeldBytes[0];
+                return super.getRequestBreakerBytes() + innerHitsBreakerBytes[0] + streamingHeldBytes[0];
             }
 
             @Override
@@ -387,6 +431,28 @@ public final class FetchPhase {
                 if (held > 0) {
                     context.circuitBreaker().addWithoutBreaking(-held, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
                     streamingHeldBytes[0] = 0;
+                }
+            }
+
+            @Override
+            protected void onAllHitsIterated() {
+                if (locallyAccumulatedFieldBytes[0] > 0) {
+                    context.circuitBreaker()
+                        .addEstimateBytesAndMaybeBreak(
+                            locallyAccumulatedFieldBytes[0],
+                            ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[document_fields]"
+                        );
+                    addRequestBreakerBytes(locallyAccumulatedFieldBytes[0]);
+                    locallyAccumulatedFieldBytes[0] = 0;
+                }
+                if (locallyAccumulatedSourceBytes[0] > 0) {
+                    context.circuitBreaker()
+                        .addEstimateBytesAndMaybeBreak(
+                            locallyAccumulatedSourceBytes[0],
+                            ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]"
+                        );
+                    addRequestBreakerBytes(locallyAccumulatedSourceBytes[0]);
+                    locallyAccumulatedSourceBytes[0] = 0;
                 }
             }
 
@@ -436,6 +502,14 @@ public final class FetchPhase {
                     fieldLookupProvider.setPreloadedStoredFieldValues(hit.hit().getId(), hit.loadedFields());
                     for (FetchSubPhaseProcessor processor : processors) {
                         processor.process(hit);
+                    }
+
+                    // Charge document fields (fields / stored_fields / docvalue_fields / script_fields)
+                    // after all sub-phases have run so the maps are final. Charging inside individual
+                    // sub-phases is wrong because later phases can replace or mutate earlier entries.
+                    long fieldBytes = SearchHitRamUsageEstimator.estimateDocumentFields(hit.hit());
+                    if (fieldBytes > 0) {
+                        fieldsChecker.accept(fieldBytes);
                     }
 
                     BytesReference sourceRef = hit.hit().getSourceRef();

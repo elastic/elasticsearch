@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -494,6 +495,56 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         List<String> result = TransportEsqlStreamQueryAction.footerWarnings(threadContext, DriverCompletionInfo.EMPTY);
         assertEquals(1, result.size());
         assertEquals("escaped characters in header warning must be decoded", rawMessage, result.get(0));
+    }
+
+    public void testFailureFooterOmitsClustersEvenWhenMetadataIsReportable() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS);
+        executionInfo.swapCluster(
+            RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
+            (k, v) -> new EsqlExecutionInfo.Cluster(
+                RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
+                RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
+                "test",
+                false
+            )
+        );
+        assertTrue("precondition: execution info must have metadata to report", executionInfo.hasMetadataToReport());
+        assertNotNull(
+            "precondition: a success footer would include _clusters",
+            TransportEsqlStreamQueryAction.footerClusters(executionInfo)
+        );
+
+        Exception ex = new ElasticsearchStatusException("boom", RestStatus.BAD_REQUEST);
+        PageStreamPublisher.StreamFooter footer = TransportEsqlStreamQueryAction.failureFooter(
+            ex,
+            executionInfo,
+            DriverCompletionInfo.EMPTY,
+            new ThreadContext(Settings.EMPTY)
+        );
+
+        assertNull("a failure footer must not report _clusters, as clusters may still look like they are running", footer.clusters());
+        assertSame(ex, footer.error());
+        assertEquals(RestStatus.BAD_REQUEST.getStatus(), footer.status());
+        assertNull(footer.completionInfo());
+        assertNull(footer.profile());
+    }
+
+    public void testFailureFooterCarriesWarningsAndPartial() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        executionInfo.markPartial();
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.addResponseHeader("Warning", HeaderWarning.formatWarning("some warning"));
+
+        PageStreamPublisher.StreamFooter footer = TransportEsqlStreamQueryAction.failureFooter(
+            new RuntimeException("boom"),
+            executionInfo,
+            DriverCompletionInfo.EMPTY,
+            threadContext
+        );
+
+        assertTrue(footer.isPartial());
+        assertEquals(List.of("some warning"), footer.warnings());
+        assertNull(footer.clusters());
     }
 
     public void testMarkPartialFromCompletionInfoLeavesNonPartialUnchanged() {

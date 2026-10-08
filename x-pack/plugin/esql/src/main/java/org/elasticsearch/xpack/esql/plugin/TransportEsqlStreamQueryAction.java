@@ -23,6 +23,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.ActivityLogger;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
@@ -34,8 +35,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
@@ -211,10 +214,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         if (request.allowPartialResults() == null) {
             request.allowPartialResults(defaultAllowPartialResults);
         }
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(
-            clusterAlias -> remoteClusterService.shouldSkipOnFailure(clusterAlias, request.allowPartialResults()),
-            EsqlExecutionInfo.IncludeExecutionMetadata.NEVER
-        );
+        EsqlExecutionInfo executionInfo = transportEsqlQueryAction.createEsqlExecutionInfo(request);
         PageStreamPublisher publisher = new PageStreamPublisher(request.batchSize());
         AtomicReference<Result> resultRef = new AtomicReference<>();
         activityLogger.wrapAndRun(
@@ -394,6 +394,16 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 assert streamStarted.get() : "the footer must not be delivered before the stream is started";
                 long tookMillis = tookMillis(executionInfo);
                 List<String> warnings = footerWarnings(threadPool.getThreadContext(), result.completionInfo());
+                ChunkedToXContent profile = request.profile()
+                    ? EsqlQueryResponse.profileXContent(
+                        new EsqlQueryResponse.Profile(
+                            result.completionInfo().driverProfiles(),
+                            result.completionInfo().planProfiles(),
+                            versionedResult.minimumVersion()
+                        ),
+                        executionInfo
+                    )
+                    : null;
                 publisher.completeWithFooter(
                     new PageStreamPublisher.StreamFooter(
                         200,
@@ -401,7 +411,9 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         executionInfo.isPartial(),
                         warnings,
                         result.completionInfo(),
-                        null
+                        footerClusters(executionInfo),
+                        null,
+                        profile
                     )
                 );
                 planExecutor.metrics().recordTook(tookMillis);
@@ -423,6 +435,13 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 listener.onFailure(ex);
             })
         );
+    }
+
+    static ToXContent footerClusters(EsqlExecutionInfo executionInfo) {
+        if (executionInfo.hasMetadataToReport() == false) {
+            return null;
+        }
+        return ChunkedToXContent.wrapAsToXContent(executionInfo);
     }
 
     private static Exception startStream(
@@ -570,7 +589,9 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             executionInfo.isPartial() || completedWork.partial(),
             footerWarnings(threadContext, completedWork),
             null,
-            ex
+            null,
+            ex,
+            null
         );
     }
 

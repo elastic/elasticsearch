@@ -183,6 +183,12 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
     }
 
     @Override
+    public Path getNodeDataPath(int index) {
+        checkHandle();
+        return handle.getNodeDataPath(index);
+    }
+
+    @Override
     public void updateStoredSecureSettings() {
         checkHandle();
         handle.updateStoredSecureSettings();

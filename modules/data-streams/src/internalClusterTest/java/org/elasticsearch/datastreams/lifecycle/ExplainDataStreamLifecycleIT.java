@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -352,6 +354,19 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         }
 
         {
+            // The template only configures a failures lifecycle, so the backing index is not managed and reports why
+            String backingIndex = waitForDataStreamBackingIndices(dataStreamName, 1).get(0).getName();
+            ExplainDataStreamLifecycleAction.Response response = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                new ExplainDataStreamLifecycleAction.Request(TEST_REQUEST_TIMEOUT, new String[] { backingIndex })
+            ).actionGet();
+            assertThat(response.getIndices().size(), is(1));
+            ExplainIndexDataStreamLifecycle explainIndex = response.getIndices().get(0);
+            assertThat(explainIndex.isManagedByLifecycle(), is(false));
+            assertThat(explainIndex.getUnmanagedReason(), containsString("does not have data stream lifecycle configuration"));
+        }
+
+        {
             // Let's also explain using the data stream name
             ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
                 TEST_REQUEST_TIMEOUT,
@@ -434,7 +449,13 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         assertThat(secondGenerationIndex, backingIndexEqualTo(dataStreamName, 3));
         // let's ensure that the failure store is initialised
         List<Index> failureIndices = waitForDataStreamIndices(dataStreamName, 1, true);
-        String firstGenerationFailureIndex = failureIndices.get(0).getName();
+        String firstGenerationFailureIndex = failureIndices.getFirst().getName();
+        GetSettingsResponse settingsResponse = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, firstGenerationFailureIndex)
+            .get();
+
+        assertThat(settingsResponse.getSetting(firstGenerationFailureIndex, IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS), equalTo("0-1"));
         assertThat(firstGenerationFailureIndex, dataStreamIndexEqualTo(dataStreamName, 2, true));
 
         // prevent new indices from being created (ie. future rollovers)
@@ -500,8 +521,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                  */
                 assertThat(response.getIndices().get(0).getError(), is(notNullValue()));
                 assertThat(response.getIndices().get(0).getError().error(), containsString("Force merge request "));
-                assertThat(response.getIndices().get(1).getError(), is(notNullValue()));
-                assertThat(response.getIndices().get(1).getError().error(), containsString("Force merge request "));
+                assertThat(response.getIndices().get(1).getError(), is(nullValue()));
             }
         });
     }
@@ -544,6 +564,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.isManagedByLifecycle(), is(false));
                 assertThat(explainIndex.getIndex(), is(firstGenerationIndex));
                 assertThat(explainIndex.getIndexCreationDate(), nullValue());
+                assertThat(explainIndex.getUnmanagedReason(), containsString("has disabled data stream lifecycle"));
                 assertThat(explainIndex.getLifecycle(), nullValue());
                 assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), nullValue());
                 assertThat(explainIndex.getRolloverDate(), nullValue());

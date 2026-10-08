@@ -38,6 +38,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -50,6 +51,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -120,6 +122,110 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
         Map<String, Object> footer = lines.get(1);
         assertThat(footer, equalTo(Map.of("status", 200, "took", 42, "is_partial", false, "warnings", List.of("warning1", "warning2"))));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testFooterWithProfile() throws IOException {
+        Subscribed s = subscribe(simpleColumns(), null);
+
+        // Build a minimal profile stub: a ChunkedToXContent that renders {"profile":{"k":"v"}}.
+        PageStreamPublisher.StreamFooter footer = new PageStreamPublisher.StreamFooter(
+            200,
+            10L,
+            false,
+            List.of(),
+            null,
+            null,
+            null,
+            params -> List.<ToXContent>of((b, p) -> b.startObject("profile").field("k", "v").endObject()).iterator()
+        );
+
+        // Subscribe, complete the publisher, and drain.
+        assertTrue("expected a chunked response", s.response().isChunked());
+        ChunkedRestResponseBodyPart currentPart = s.response().chunkedContent();
+        List<Map<String, Object>> lines = new ArrayList<>();
+        lines.add(decodeLine(currentPart));
+
+        ChunkedRestResponseBodyPart footerPart = nextPart(currentPart, () -> {
+            s.producer().finish();
+            s.publisher().completeWithFooter(footer);
+        });
+        assertTrue("footer must be the last part", footerPart.isLastPart());
+        lines.add(decodeLine(footerPart));
+
+        assertThat(lines.size(), equalTo(2));
+        Map<String, Object> footerLine = lines.get(1);
+        assertThat("profile key must be present in footer", footerLine, hasKey("profile"));
+        Map<String, Object> profile = (Map<String, Object>) footerLine.get("profile");
+        assertThat("profile content must be rendered", profile.get("k"), equalTo("v"));
+        // Existing fields must still be present.
+        assertThat(footerLine.get("status"), equalTo(200));
+        assertThat(footerLine.get("took"), equalTo(10));
+        assertThat(footerLine.get("is_partial"), equalTo(false));
+    }
+
+    public void testLargeFooterSplitsAcrossChunks() throws IOException {
+        // Build a profile stub that produces many small chunks.
+        final int chunkCount = 100;
+        PageStreamPublisher.StreamFooter footer = new PageStreamPublisher.StreamFooter(
+            200,
+            0L,
+            false,
+            List.of(),
+            null,
+            null,
+            null,
+            params -> new Iterator<ToXContent>() {
+                private int remaining = chunkCount;
+
+                @Override
+                public boolean hasNext() {
+                    return remaining > 0;
+                }
+
+                @Override
+                public ToXContent next() {
+                    if (remaining-- <= 0) {
+                        throw new java.util.NoSuchElementException();
+                    }
+                    final int idx = chunkCount - remaining;
+                    return (b, p) -> b.field("f" + idx, idx);
+                }
+            }
+        );
+
+        Subscribed s = subscribe(simpleColumns(), null);
+        assertTrue("expected a chunked response", s.response().isChunked());
+        ChunkedRestResponseBodyPart currentPart = s.response().chunkedContent();
+        // Consume the columns part.
+        encodeBodyPart(currentPart);
+
+        ChunkedRestResponseBodyPart footerPart = nextPart(currentPart, () -> {
+            s.producer().finish();
+            s.publisher().completeWithFooter(footer);
+        });
+        assertTrue("footer must be the last part", footerPart.isLastPart());
+
+        // Encode with a tiny sizeHint to force multiple chunks.
+        List<ReleasableBytesReference> refs = new ArrayList<>();
+        int encodedChunks = 0;
+        while (footerPart.isPartComplete() == false) {
+            refs.add(footerPart.encodeChunk(1, BytesRefRecycler.NON_RECYCLING_INSTANCE));
+            encodedChunks++;
+        }
+        assertThat("large footer must encode in more than one chunk", encodedChunks, greaterThan(1));
+
+        // The reassembled bytes must be valid JSON followed by exactly one newline.
+        String raw = CompositeBytesReference.of(refs.toArray(new BytesReference[0])).utf8ToString();
+        assertTrue("footer must end with a newline", raw.endsWith("\n"));
+        Map<String, Object> parsed = parseJson(raw.strip());
+        refs.forEach(ReleasableBytesReference::close);
+
+        // All profile fields must be present.
+        for (int i = 1; i <= chunkCount; i++) {
+            assertThat("field f" + i + " must be present in the reassembled footer", parsed, hasKey("f" + i));
+        }
+        assertThat("status must be present", parsed, hasKey("status"));
     }
 
     public void testFooterIsPartial() throws IOException {
@@ -476,6 +582,39 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testFooterWithClusters() throws IOException {
+        ToXContent clusters = (builder, params) -> {
+            builder.startObject();
+            builder.field("total", 1);
+            builder.endObject();
+            return builder;
+        };
+
+        Subscribed s = subscribe(simpleColumns(), null);
+        ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
+        encodeBodyPart(columnsPart);
+
+        ChunkedRestResponseBodyPart footerPart = nextPart(columnsPart, () -> {
+            s.producer().finish();
+            s.publisher().completeWithFooter(new PageStreamPublisher.StreamFooter(200, 50L, false, List.of(), null, clusters, null, null));
+        });
+        assertTrue("footer must be the last part", footerPart.isLastPart());
+        Map<String, Object> footer = decodeLine(footerPart);
+
+        assertThat(footer, hasKey("_clusters"));
+        Map<String, Object> clustersMap = (Map<String, Object>) footer.get("_clusters");
+        assertThat(clustersMap.get("total"), equalTo(1));
+        assertThat("_clusters must appear before error (error absent here)", footer, not(hasKey("error")));
+    }
+
+    public void testFooterWithoutClusters() throws IOException {
+        Subscribed s = subscribe(simpleColumns(), null);
+        List<Map<String, Object>> lines = drainStream(s.response(), s, List.of(), 5L, List.of());
+        Map<String, Object> footer = lines.get(lines.size() - 1);
+        assertThat("footer must not contain _clusters when metadata is absent", footer, not(hasKey("_clusters")));
+    }
+
     public void testDatetimeValuesUseTheQueryTimeZone() throws IOException {
         long epochMillis = 1748649600123L; // 2025-05-31T00:00:00.123Z
         List<ColumnInfoImpl> columns = List.of(new ColumnInfoImpl("ts", DataType.DATETIME, null));
@@ -603,7 +742,9 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
             false,
             List.of("warning from sub-plan"),
             null,
-            cause
+            null,
+            cause,
+            null
         );
         listener.setPreHeaderFailureFooter(footer);
         listener.onFailure(new ElasticsearchStatusException("other", RestStatus.BAD_REQUEST));

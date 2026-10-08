@@ -231,6 +231,8 @@ tests:
 - class: org.elasticsearch.common.io.stream.RecyclerBytesStreamOutputTests
   method: testCircuitBreakerReleaseOnRecyclerFailure
   issue: https://github.com/elastic/elasticsearch/issues/161203
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvgTests
+  issue: https://github.com/elastic/elasticsearch/issues/161319
 
 # Examples:
 #

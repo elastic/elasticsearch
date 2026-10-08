@@ -212,9 +212,8 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
         {
             // Make sure generation_date is not present if it is null (which it is for a write index):
             String index = randomAlphaOfLengthBetween(10, 30);
-            ExplainIndexDataStreamLifecycle explainIndexWithNullGenerationDate = new ExplainIndexDataStreamLifecycle(
+            ExplainIndexDataStreamLifecycle explainIndexWithNullGenerationDate = ExplainIndexDataStreamLifecycle.managedIndexResponse(
                 index,
-                true,
                 randomBoolean(),
                 now,
                 randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
@@ -227,7 +226,8 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                         System.currentTimeMillis(),
                         randomIntBetween(0, 30)
                     )
-                    : null
+                    : null,
+                null
             );
             Response response = new Response(List.of(explainIndexWithNullGenerationDate), null, null, null);
 
@@ -282,9 +282,8 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
         @Nullable DataStreamLifecycle lifecycle
     ) {
         String index = randomAlphaOfLengthBetween(10, 30);
-        return new ExplainIndexDataStreamLifecycle(
+        return ExplainIndexDataStreamLifecycle.managedIndexResponse(
             index,
-            true,
             randomBoolean(),
             now,
             randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,

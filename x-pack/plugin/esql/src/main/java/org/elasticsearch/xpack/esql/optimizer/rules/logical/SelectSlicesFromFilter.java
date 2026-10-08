@@ -31,7 +31,7 @@ import java.util.Set;
  * Records on a source the slices that the filter sitting on it restricts it to. The filter stays in the plan: the slices
  * only tell the engine which shards to query and which slices each search context reads.
  * <p>
- * Slices are read from the conditions and-ed at the top level of the filter that have the form {@code _slice == <literal>}
+ * Slices are read from the conditions AND'd at the top level of the filter that have the form {@code _slice == <literal>}
  * or {@code _slice IN (<literals>)}, or are a disjunction of those. The rule runs once the filters have been pushed down, so
  * a filter that cannot reach the relation selects nothing.
  */

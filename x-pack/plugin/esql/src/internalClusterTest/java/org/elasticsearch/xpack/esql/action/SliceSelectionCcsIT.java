@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.in;
  * The slices a source reads when the source spans clusters. Each cluster reads them from the plan it receives and applies
  * them to its own indices: it routes the query to the shards that hold the slices and tells its search contexts about them.
  */
-public class CrossClusterSliceSelectionIT extends AbstractCrossClusterTestCase {
+public class SliceSelectionCcsIT extends AbstractCrossClusterTestCase {
 
     private static final String SLICED = "tenants";
     private static final String PLAIN = "reference";

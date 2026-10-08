@@ -44,7 +44,7 @@ public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.Optimize
      * @param expression expression to process recursively
      * @param filters current filters to apply to the expression. They contain expressions on the other side of the traversed conjunctions
      * @param addedFilter a new filter to add to the list of filters for the processing
-     * @param topLevel whether the expression is and-ed at the top level of the filter condition
+     * @param topLevel whether the expression is AND'd at the top level of the filter condition
      * @return the updated expression, or the original expression if it doesn't need to be updated
      */
     private static Expression pushConjunctionsToKnn(

@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
  * The slices a source reads when cross-project search is enabled. Index names are then resolved across the origin project
  * and its linked projects, none of which are configured here: the test covers the resolution and planning of a source in
  * that mode, on the origin project. A linked project is queried like a remote cluster, which
- * {@link CrossClusterSliceSelectionIT} covers.
+ * {@link SliceSelectionCcsIT} covers.
  */
 public class SliceSelectionCpsIT extends AbstractEsqlIntegTestCase {
 

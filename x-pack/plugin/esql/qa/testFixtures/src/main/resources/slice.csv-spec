@@ -324,6 +324,24 @@ c:long
 0
 ;
 
+subqueriesSelectDifferentSlices
+
+required_capability: metadata_slice
+required_capability: slice_selection_from_filter
+required_capability: subquery_in_from_command
+
+FROM (FROM colors_with_slice METADATA _slice | WHERE _slice == "cool"),
+     (FROM colors_with_slice METADATA _slice | WHERE _slice IN ("warm", "purple_pink"))
+| STATS c = COUNT(*) BY _slice
+| SORT _slice
+;
+
+c:long | _slice:keyword
+6      | cool
+7      | purple_pink
+9      | warm
+;
+
 # The colors closest to red all live in slice "warm". The neighbours are selected among the documents
 # of the selected slice, so the search still returns documents, all of them from that slice.
 knnSearchesTheSelectedSlice

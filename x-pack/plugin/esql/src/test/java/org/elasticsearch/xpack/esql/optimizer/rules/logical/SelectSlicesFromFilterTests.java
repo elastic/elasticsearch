@@ -257,7 +257,7 @@ public class SelectSlicesFromFilterTests extends AbstractLogicalPlanOptimizerTes
 
     /**
      * A knn function searches the slices of its source, so the conditions that select them are not passed to it as filters.
-     * Every other condition and-ed with the function still is.
+     * Every other condition AND'd with the function still is.
      */
     public void testKnnDoesNotFilterOnSelectedSlices() {
         assertThat(knnFilters("knn(dense_vector, [0, 1, 2]) and _slice == \"acme\""), empty());
@@ -281,7 +281,7 @@ public class SelectSlicesFromFilterTests extends AbstractLogicalPlanOptimizerTes
             knnFilters("knn(dense_vector, [0, 1, 2]) and (_slice == \"acme\" or integer > 10)"),
             contains("_slice == \"acme\" or integer > 10")
         );
-        // the function is not and-ed at the top level, so the source is not restricted to the slice
+        // the function is not AND'd at the top level, so the source is not restricted to the slice
         assertThat(knnFilters("(knn(dense_vector, [0, 1, 2]) and _slice == \"acme\") or integer > 10"), contains("_slice == \"acme\""));
     }
 

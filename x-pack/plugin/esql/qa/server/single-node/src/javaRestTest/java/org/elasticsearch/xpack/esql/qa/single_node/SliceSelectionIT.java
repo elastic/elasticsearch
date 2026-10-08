@@ -206,7 +206,7 @@ public class SliceSelectionIT extends ESRestTestCase {
     }
 
     /**
-     * A knn function and-ed with a condition that Lucene cannot evaluate does not run as a nearest neighbour search: it
+     * A knn function AND'd with a condition that Lucene cannot evaluate does not run as a nearest neighbour search: it
      * scores every document instead, and the vector field needs no slice for that.
      */
     public void testExactKnnNeedsNoSlices() throws IOException {
@@ -247,6 +247,32 @@ public class SliceSelectionIT extends ESRestTestCase {
         assertThat(count("FROM tenants, plain METADATA _slice | WHERE _slice == \"far\" | STATS c = COUNT(*)"), equalTo(FAR_DOCS));
         assertThat(count("FROM tenants, plain METADATA _slice | STATS c = COUNT(*)"), equalTo(ALL_DOCS + 3));
         assertThat(count("FROM tenants, plain | WHERE MATCH(name, \"plain-1\") | STATS c = COUNT(*)"), equalTo(1));
+    }
+
+    /**
+     * The slices selected on an alias route the query to the shards of its indices that hold them, and combine with the
+     * filter of the alias.
+     */
+    public void testIndexAlias() throws IOException {
+        Request aliases = new Request("POST", "/_aliases");
+        aliases.setJsonEntity("""
+            { "actions": [
+              { "add": { "index": "tenants", "alias": "tenants-alias" } },
+              { "add": { "index": "tenants", "alias": "tenants-first", "filter": { "term": { "position": 0 } } } }
+            ] }""");
+        assertOK(client().performRequest(aliases));
+
+        String far = "METADATA _slice | WHERE _slice == \"far\" | STATS c = COUNT(*)";
+        assertThat(count("FROM tenants-alias " + far), equalTo(FAR_DOCS));
+        assertThat(totalShards("FROM tenants-alias " + far), equalTo(1));
+        assertThat(count("FROM tenants-first " + far), equalTo(1));
+        assertThat(totalShards("FROM tenants-first " + far), equalTo(1));
+        assertThat(totalShards("FROM tenants-alias METADATA _slice | STATS c = COUNT(*)"), equalTo(SHARDS));
+
+        String knn = "KNN(vector, " + queryVector() + ", {\"k\": 2})";
+        List<String> rows = slices("FROM tenants-alias METADATA _slice | WHERE " + knn + " AND _slice == \"far\" | KEEP _slice | LIMIT 10");
+        assertThat(rows.size(), greaterThanOrEqualTo(2));
+        assertThat(rows, everyItem(equalTo("far")));
     }
 
     /**

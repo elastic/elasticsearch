@@ -35,7 +35,6 @@ public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<Que
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomNonNegativeLong(),
             randomNonNegativeLong()
         );
     }
@@ -50,14 +49,13 @@ public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<Que
             instance.untrackedArrivals(),
             instance.picked(),
             instance.buffered(),
-            instance.withGroundTruth(),
             instance.rejected() };
         values[between(0, values.length - 1)]++;
-        return new QuerySamplingStats(values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8]);
+        return new QuerySamplingStats(values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7]);
     }
 
     public void testRendersEveryCounter() throws IOException {
-        QuerySamplingStats stats = new QuerySamplingStats(1, 2, 3, 4, 5, 6, 7, 8, 9);
+        QuerySamplingStats stats = new QuerySamplingStats(1, 2, 3, 4, 5, 6, 7, 8);
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
@@ -66,7 +64,7 @@ public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<Que
             Strings.toString(builder),
             equalTo(
                 "{\"knn_searches\":1,\"captured\":2,\"dropped\":3,\"distinct_queries\":4,"
-                    + "\"untracked_arrivals\":5,\"picked\":6,\"buffered\":7,\"with_ground_truth\":8,\"rejected\":9}"
+                    + "\"untracked_arrivals\":5,\"picked\":6,\"buffered\":7,\"rejected\":8}"
             )
         );
     }

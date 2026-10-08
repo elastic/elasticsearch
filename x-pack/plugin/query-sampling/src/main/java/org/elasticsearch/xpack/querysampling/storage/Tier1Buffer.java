@@ -12,14 +12,12 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.sampling.SampleListener;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * Short-term, in-memory home of the queries picked for the sample, until their ground truth is computed
- * and they can be kept for good.
+ * Short-term, in-memory home of the queries picked for the sample.
  * <p>
  * The buffer is bounded. When it is full, newly picked queries are turned away and counted. A query that
  * was turned away has already been marked as picked, so it does not get another chance and its inclusion
@@ -57,20 +55,6 @@ public final class Tier1Buffer implements SampleListener {
         }
         queries.put(query.fingerprint(), query);
         return true;
-    }
-
-    /**
-     * Picked queries that are still waiting for their ground truth, at most {@code limit} of them.
-     */
-    public List<SampledQuery> pendingGroundTruth(int limit) {
-        return queries.values().stream().filter(query -> query.groundTruth() == null).limit(limit).toList();
-    }
-
-    /**
-     * Number of buffered queries whose ground truth has been computed.
-     */
-    public long withGroundTruth() {
-        return queries.values().stream().filter(query -> query.groundTruth() != null).count();
     }
 
     public int size() {

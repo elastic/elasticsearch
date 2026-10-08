@@ -11,7 +11,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
-import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -68,14 +67,5 @@ public final class SampledQuery {
      */
     public <T> void attach(AttachmentKey<T> key, T value) {
         attachments.put(key, value);
-    }
-
-    @Nullable
-    public GroundTruth groundTruth() {
-        return attachment(GroundTruth.KEY);
-    }
-
-    public void groundTruth(GroundTruth groundTruth) {
-        attach(GroundTruth.KEY, groundTruth);
     }
 }

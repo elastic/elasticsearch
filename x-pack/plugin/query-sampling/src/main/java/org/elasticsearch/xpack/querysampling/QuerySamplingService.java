@@ -7,15 +7,10 @@
 
 package org.elasticsearch.xpack.querysampling;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.xpack.querysampling.capture.CaptureHandoff;
 import org.elasticsearch.xpack.querysampling.capture.QueryCaptureFilter;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.storage.Tier1Buffer;
-
-import java.util.function.BiConsumer;
 
 /**
  * Node-local owner of the query sampling state. Each coordinating node samples the slice of traffic it
@@ -36,19 +31,6 @@ public class QuerySamplingService {
         this.buffer = buffer;
     }
 
-    /**
-     * Computes the ground truth of up to {@code max} of the queries that are still waiting for it.
-     *
-     * @param search how the exact searches are run, which decides on whose behalf they are
-     */
-    public void computeGroundTruth(
-        int max,
-        BiConsumer<SearchRequest, ActionListener<SearchResponse>> search,
-        ActionListener<GroundTruthRunner.Result> listener
-    ) {
-        new GroundTruthRunner(search).run(buffer.pendingGroundTruth(max), listener);
-    }
-
     public QuerySamplingStats stats() {
         // the sampler picks a query at most once and a pick ends up either buffered or rejected
         long rejected = buffer.rejected();
@@ -61,7 +43,6 @@ public class QuerySamplingService {
             tracker.untracked(),
             buffered + rejected,
             buffered,
-            buffer.withGroundTruth(),
             rejected
         );
     }

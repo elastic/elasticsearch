@@ -7,22 +7,25 @@
 
 package org.elasticsearch.xpack.querysampling.action;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
- * Asks the selected nodes to compute the ground truth of some of their sampled queries.
+ * Asks for the ground truth of some of the stored sampled queries to be computed. It is only run by the node
+ * that receives it, which reads the pending queries from the index of the sample, so it is never sent anywhere.
  */
-public final class QuerySamplingGroundTruthRequest extends BaseNodesRequest {
+public final class QuerySamplingGroundTruthRequest extends ActionRequest {
 
     private final int max;
 
     /**
-     * @param max the most queries each node computes the ground truth of, so that how much work one call
-     *            starts is bounded
+     * @param max the most queries to compute the ground truth of, so that how much work one call starts is bounded
      */
-    public QuerySamplingGroundTruthRequest(int max, String... nodesIds) {
-        super(nodesIds);
+    public QuerySamplingGroundTruthRequest(int max) {
         this.max = max;
     }
 
@@ -38,5 +41,10 @@ public final class QuerySamplingGroundTruthRequest extends BaseNodesRequest {
             return e;
         }
         return null;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        TransportAction.localOnly();
     }
 }

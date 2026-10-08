@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
-import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
 import java.util.List;
 
@@ -34,39 +33,6 @@ public class Tier1BufferTests extends ESTestCase {
 
         assertThat(buffer.size(), equalTo(capacity));
         assertThat(buffer.rejected(), equalTo((long) overflow));
-    }
-
-    public void testPendingGroundTruthSkipsQueriesThatHaveIt() {
-        Tier1Buffer buffer = new Tier1Buffer(10);
-        SampledQuery done = sampled(1);
-        done.groundTruth(new GroundTruth(List.of()));
-        SampledQuery pending = sampled(2);
-        buffer.add(done);
-        buffer.add(pending);
-
-        assertThat(buffer.pendingGroundTruth(10), equalTo(List.of(pending)));
-    }
-
-    public void testCountsTheQueriesThatHaveGroundTruth() {
-        Tier1Buffer buffer = new Tier1Buffer(10);
-        SampledQuery done = sampled(1);
-        buffer.add(done);
-        buffer.add(sampled(2));
-        assertThat(buffer.withGroundTruth(), equalTo(0L));
-
-        done.groundTruth(new GroundTruth(List.of()));
-
-        assertThat(buffer.withGroundTruth(), equalTo(1L));
-    }
-
-    public void testPendingGroundTruthIsLimited() {
-        Tier1Buffer buffer = new Tier1Buffer(10);
-        for (int i = 0; i < 5; i++) {
-            buffer.add(sampled(i));
-        }
-
-        assertThat(buffer.pendingGroundTruth(3).size(), equalTo(3));
-        assertThat(buffer.pendingGroundTruth(100).size(), equalTo(5));
     }
 
     private static SampledQuery sampled(long id) {

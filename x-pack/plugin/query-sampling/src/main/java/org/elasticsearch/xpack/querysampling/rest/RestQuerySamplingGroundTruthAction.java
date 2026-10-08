@@ -8,12 +8,11 @@
 package org.elasticsearch.xpack.querysampling.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingGroundTruthAction;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingGroundTruthRequest;
 
@@ -22,8 +21,8 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
- * Computes the ground truth of the sampled queries on the selected nodes. Each query costs an exact search over
- * the index, so how many are done per call is bounded by {@code max}.
+ * Computes the ground truth of the stored sampled queries that do not have it. Each query costs an exact search
+ * over the index, so how many are done per call is bounded by {@code max}.
  */
 @ServerlessScope(Scope.INTERNAL)
 public final class RestQuerySamplingGroundTruthAction extends BaseRestHandler {
@@ -37,20 +36,16 @@ public final class RestQuerySamplingGroundTruthAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_query_sampling/ground_truth"), new Route(POST, "/_query_sampling/ground_truth/{node_id}"));
+        return List.of(new Route(POST, "/_query_sampling/ground_truth"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        String[] nodesIds = Strings.splitStringByCommaToArray(request.param("node_id"));
-        QuerySamplingGroundTruthRequest groundTruthRequest = new QuerySamplingGroundTruthRequest(
-            request.paramAsInt("max", DEFAULT_MAX),
-            nodesIds
-        );
+        QuerySamplingGroundTruthRequest groundTruthRequest = new QuerySamplingGroundTruthRequest(request.paramAsInt("max", DEFAULT_MAX));
         return channel -> client.execute(
             QuerySamplingGroundTruthAction.INSTANCE,
             groundTruthRequest,
-            new RestActions.NodesResponseRestListener<>(channel)
+            new RestToXContentListener<>(channel)
         );
     }
 }

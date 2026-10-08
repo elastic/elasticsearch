@@ -59,7 +59,7 @@ public final class SampleRecord {
         throws IOException {
         CapturedSearch search = sampled.search();
         CapturedQuery query = search.query();
-        GroundTruth groundTruth = sampled.groundTruth();
+        GroundTruth groundTruth = sampled.attachment(GroundTruth.KEY);
 
         builder.startObject();
         builder.field("sampler_id", samplerId);

@@ -20,16 +20,14 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * Runs the whole path against a real cluster: a kNN search is captured and sampled, its ground truth is
- * computed through the REST API and the sampled query is written to the index of the sample. A sampled query
- * reaches the buffer and the index on other threads, which a YAML test cannot wait for, hence this class and its
+ * Runs the whole path against a real cluster: a kNN search is captured and sampled, the sampled query is written to
+ * the index of the sample, its weights are kept up to date and its ground truth is computed through the REST API.
+ * A sampled query reaches the index on another thread, which a YAML test cannot wait for, hence this class and its
  * polling.
  */
 public class QuerySamplingGroundTruthIT extends ESRestTestCase {
@@ -47,53 +45,41 @@ public class QuerySamplingGroundTruthIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    public void testGroundTruthOfASampledSearchIsComputed() throws Exception {
+    public void testGroundTruthOfStoredQueriesIsComputed() throws Exception {
         setUpIndexAndSampling();
+        float x = sampleOneQuery();
+        assertThat(storedValue(x, "has_ground_truth"), equalTo(false));
 
-        // the node keeps what it sampled between tests, so counts are relative
-        long buffered = nodeStat("buffered");
-        long withGroundTruth = nodeStat("with_ground_truth");
+        // the index keeps what was sampled between tests and a call does at most 100 queries, so ask until nothing is
+        // left; what a call stored is only found as done by the next one once the index was refreshed
+        long computed = 0;
+        long last;
+        int calls = 0;
+        do {
+            refreshSampleIndex();
+            ObjectPath result = ObjectPath.createFromResponse(
+                client().performRequest(new Request("POST", "/_query_sampling/ground_truth"))
+            );
+            last = ((Number) result.evaluate("computed")).longValue();
+            computed += last;
+        } while (last > 0 && ++calls < 100);
 
-        // a new query is picked with a probability below one, so search for several different ones
-        searchDistinctQueries();
-        assertBusy(() -> assertThat(nodeStat("buffered"), greaterThan(buffered)));
-        assertThat(nodeStat("with_ground_truth"), equalTo(withGroundTruth));
-
-        ObjectPath result = ObjectPath.createFromResponse(client().performRequest(new Request("POST", "/_query_sampling/ground_truth")));
-        // the other test of this class may have left a sampled query without ground truth on the node
-        long computed = nodeValue(result, "computed");
         assertThat(computed, greaterThanOrEqualTo(1L));
-        assertThat(nodeValue(result, "failed"), equalTo(0L));
-        assertThat(nodeStat("with_ground_truth"), equalTo(withGroundTruth + computed));
-
-        // nothing stays pending: a call does at most 100 queries, so ask until one has nothing left to do
-        long last = computed;
-        for (int i = 0; i < 100 && last > 0; i++) {
-            result = ObjectPath.createFromResponse(client().performRequest(new Request("POST", "/_query_sampling/ground_truth")));
-            last = nodeValue(result, "computed");
-        }
         assertThat(last, equalTo(0L));
+        assertBusy(() -> assertThat(storedValue(x, "has_ground_truth"), equalTo(true)));
+        assertThat(((List<?>) storedValue(x, "ground_truth.neighbors")).size(), equalTo(3));
     }
 
     public void testSampledQueriesAreWrittenToTheIndex() throws Exception {
         setUpIndexAndSampling();
-        List<Float> sent = searchDistinctQueries();
-
-        // the queries are written once the flush interval has passed
-        assertBusy(() -> assertNotNull("a document has the vector of one of the searches", sampledVector(sent)));
+        sampleOneQuery();
     }
 
     public void testWeightsOfStoredQueriesAreRefreshed() throws Exception {
         setUpIndexAndSampling();
-        List<Float> sent = searchDistinctQueries();
-        Float[] sampled = new Float[1];
-        assertBusy(() -> {
-            sampled[0] = sampledVector(sent);
-            assertNotNull("a document has the vector of one of the searches", sampled[0]);
-        });
+        float x = sampleOneQuery();
 
         // the document was written when the query was picked, the arrivals that follow only reach it as an update
-        float x = sampled[0];
         double before = storedMultiplicity(x);
         int arrivals = 5;
         for (int i = 0; i < arrivals; i++) {
@@ -123,15 +109,29 @@ public class QuerySamplingGroundTruthIT extends ESRestTestCase {
     /**
      * Searches with many different vectors, so that it is practically certain that some of them are picked: a
      * new query is picked with a probability of about 0.69, and one that repeats is less and less likely to be.
+     * Waits until one of them is in the index of the sample.
+     *
+     * @return the first component of the vector of such a query, which tells it from the others
      */
-    private static List<Float> searchDistinctQueries() throws IOException {
+    private float sampleOneQuery() throws Exception {
         List<Float> sent = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
             float x = randomFloat();
             sent.add(x);
             client().performRequest(knnSearch(x));
         }
-        return sent;
+        Float[] sampled = new Float[1];
+        // queries are written once the flush interval has passed
+        assertBusy(() -> {
+            for (float x : sent) {
+                if (storedValue(x, "weighted_multiplicity") != null) {
+                    sampled[0] = x;
+                    return;
+                }
+            }
+            fail("none of the searched queries is in the index of the sample");
+        });
+        return sampled[0];
     }
 
     private static Request knnSearch(float x) {
@@ -140,29 +140,17 @@ public class QuerySamplingGroundTruthIT extends ESRestTestCase {
         return search;
     }
 
-    /**
-     * The first of the vectors that has a document in the index of the sample, or {@code null}.
-     */
-    private static Float sampledVector(List<Float> vectors) throws IOException {
-        for (float x : vectors) {
-            if (storedMultiplicity(x) >= 0) {
-                return x;
-            }
-        }
-        return null;
+    private static double storedMultiplicity(float x) throws IOException {
+        return ((Number) storedValue(x, "weighted_multiplicity")).doubleValue();
     }
 
     /**
-     * The estimated multiplicity stored with the sampled query whose vector starts with {@code x}, or -1 if it
-     * was not stored.
+     * A field of the document of the index of the sample whose query vector starts with {@code x}, or {@code null}
+     * if there is no such document.
      */
-    private static double storedMultiplicity(float x) throws IOException {
-        Request refresh = new Request("POST", "/.query_sampling/_refresh");
-        refresh.setOptions(systemIndexAccess());
-        try {
-            client().performRequest(refresh);
-        } catch (ResponseException e) {
-            return -1; // the index does not exist before the first write
+    private static Object storedValue(float x, String path) throws IOException {
+        if (refreshSampleIndex() == false) {
+            return null;
         }
         Request search = new Request("GET", "/.query_sampling/_search?size=10000");
         search.setOptions(systemIndexAccess());
@@ -171,10 +159,24 @@ public class QuerySamplingGroundTruthIT extends ESRestTestCase {
         for (int i = 0; i < hits.size(); i++) {
             double first = ((Number) result.evaluate("hits.hits." + i + "._source.query.query_vector.0")).doubleValue();
             if (Math.abs(first - x) < 1e-6) {
-                return ((Number) result.evaluate("hits.hits." + i + "._source.weighted_multiplicity")).doubleValue();
+                return result.evaluate("hits.hits." + i + "._source." + path);
             }
         }
-        return -1;
+        return null;
+    }
+
+    /**
+     * @return whether the index of the sample exists, which it does not before the first write
+     */
+    private static boolean refreshSampleIndex() throws IOException {
+        Request refresh = new Request("POST", "/.query_sampling/_refresh");
+        refresh.setOptions(systemIndexAccess());
+        try {
+            client().performRequest(refresh);
+            return true;
+        } catch (ResponseException e) {
+            return false;
+        }
     }
 
     /**
@@ -182,16 +184,5 @@ public class QuerySamplingGroundTruthIT extends ESRestTestCase {
      */
     private static RequestOptions systemIndexAccess() {
         return RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
-    }
-
-    private static long nodeStat(String name) throws IOException {
-        return nodeValue(ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_query_sampling/stats"))), name);
-    }
-
-    private static long nodeValue(ObjectPath response, String name) throws IOException {
-        Map<?, ?> nodes = response.evaluate("nodes");
-        assertThat("the test cluster has one node", nodes.size(), equalTo(1));
-        String nodeId = (String) nodes.keySet().iterator().next();
-        return ((Number) response.evaluate("nodes." + nodeId + "." + name)).longValue();
     }
 }

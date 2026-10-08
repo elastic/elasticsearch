@@ -15,7 +15,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.ExactSearch;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
-import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -44,10 +43,6 @@ public final class GroundTruthRunner {
 
     public GroundTruthRunner(BiConsumer<SearchRequest, ActionListener<SearchResponse>> search) {
         this.search = search;
-    }
-
-    public void run(List<SampledQuery> queries, ActionListener<Result> listener) {
-        run(queries, query -> query.search().query(), (query, groundTruth) -> query.groundTruth(groundTruth), listener);
     }
 
     /**

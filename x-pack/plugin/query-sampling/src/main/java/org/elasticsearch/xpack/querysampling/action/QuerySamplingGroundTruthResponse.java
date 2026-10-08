@@ -7,47 +7,46 @@
 
 package org.elasticsearch.xpack.querysampling.action;
 
-import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 
-public final class QuerySamplingGroundTruthResponse extends BaseNodesResponse<QuerySamplingNodeGroundTruthResponse>
-    implements
-        ToXContentFragment {
+/**
+ * What a computation of ground truth did. Like the request it stays on the node that ran it.
+ */
+public final class QuerySamplingGroundTruthResponse extends ActionResponse implements ToXContentObject {
 
-    public QuerySamplingGroundTruthResponse(
-        ClusterName clusterName,
-        List<QuerySamplingNodeGroundTruthResponse> nodes,
-        List<FailedNodeException> failures
-    ) {
-        super(clusterName, nodes, failures);
+    private final int computed;
+    private final int failed;
+
+    /**
+     * @param computed queries that got their ground truth
+     * @param failed   queries whose ground truth could not be computed or stored, they stay pending
+     */
+    public QuerySamplingGroundTruthResponse(int computed, int failed) {
+        this.computed = computed;
+        this.failed = failed;
+    }
+
+    public int computed() {
+        return computed;
+    }
+
+    public int failed() {
+        return failed;
     }
 
     @Override
-    protected List<QuerySamplingNodeGroundTruthResponse> readNodesFrom(StreamInput in) {
-        return TransportAction.localOnly();
-    }
-
-    @Override
-    protected void writeNodesTo(StreamOutput out, List<QuerySamplingNodeGroundTruthResponse> nodes) {
+    public void writeTo(StreamOutput out) throws IOException {
         TransportAction.localOnly();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("nodes");
-        for (QuerySamplingNodeGroundTruthResponse node : getNodes()) {
-            node.toXContent(builder, params);
-        }
-        builder.endObject();
-        return builder;
+        return builder.startObject().field("computed", computed).field("failed", failed).endObject();
     }
 }

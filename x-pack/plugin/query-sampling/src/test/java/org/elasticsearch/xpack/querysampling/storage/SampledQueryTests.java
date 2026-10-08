@@ -29,7 +29,7 @@ public class SampledQueryTests extends ESTestCase {
     public void testAttachmentsAreEmptyUntilAttached() {
         SampledQuery query = sampled();
         assertThat(query.attachment(LABEL), nullValue());
-        assertThat(query.groundTruth(), nullValue());
+        assertThat(query.attachment(GroundTruth.KEY), nullValue());
     }
 
     public void testAttachmentsAreKeptPerKey() {
@@ -40,7 +40,7 @@ public class SampledQueryTests extends ESTestCase {
 
         assertThat(query.attachment(LABEL), equalTo("a"));
         assertThat(query.attachment(OTHER_LABEL), equalTo("b"));
-        assertThat("other payloads are not affected", query.groundTruth(), nullValue());
+        assertThat("other payloads are not affected", query.attachment(GroundTruth.KEY), nullValue());
     }
 
     public void testAttachingAgainReplacesThePayload() {
@@ -50,14 +50,13 @@ public class SampledQueryTests extends ESTestCase {
         assertThat(query.attachment(LABEL), equalTo("b"));
     }
 
-    public void testGroundTruthIsAnAttachment() {
+    public void testGroundTruthIsAttachedLikeAnyOtherPayload() {
         SampledQuery query = sampled();
         GroundTruth groundTruth = new GroundTruth(List.of());
 
-        query.groundTruth(groundTruth);
+        query.attach(GroundTruth.KEY, groundTruth);
 
         assertThat(query.attachment(GroundTruth.KEY), sameInstance(groundTruth));
-        assertThat(query.groundTruth(), sameInstance(groundTruth));
     }
 
     private static SampledQuery sampled() {

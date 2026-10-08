@@ -96,7 +96,7 @@ public class SampleRecordTests extends ESTestCase {
     public void testGroundTruthIsStoredOnceKnownAndOptionalPartsAreLeftOut() throws IOException {
         CapturedQuery query = new CapturedQuery(new String[] { "a" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
         SampledQuery sampled = new SampledQuery(FINGERPRINT, new CapturedSearch(query, List.of(), 1, 1.0), tracked(1.0));
-        sampled.groundTruth(new GroundTruth(List.of(new CapturedSearch.Hit("a", "d2", 1f))));
+        sampled.attach(GroundTruth.KEY, new GroundTruth(List.of(new CapturedSearch.Hit("a", "d2", 1f))));
 
         Map<String, Object> document = toMap(SampleRecord.document(JsonXContent.contentBuilder(), "s1", sampled, 5L));
 
@@ -111,7 +111,7 @@ public class SampleRecordTests extends ESTestCase {
     public void testEveryFieldOfADocumentIsInTheMappings() throws IOException {
         CapturedQuery query = new CapturedQuery(new String[] { "a" }, "vec", new float[] { 1f }, 10, 100, 0.5f, 3f, List.of(), "q");
         SampledQuery sampled = new SampledQuery(FINGERPRINT, new CapturedSearch(query, List.of(), 1, 1.0), tracked(1.0));
-        sampled.groundTruth(new GroundTruth(List.of()));
+        sampled.attach(GroundTruth.KEY, new GroundTruth(List.of()));
 
         Map<String, Object> document = toMap(SampleRecord.document(JsonXContent.contentBuilder(), "s1", sampled, 5L));
 
@@ -145,7 +145,7 @@ public class SampleRecordTests extends ESTestCase {
             tracked(captureRate)
         );
         if (randomBoolean()) {
-            sampled.groundTruth(new GroundTruth(List.of(new CapturedSearch.Hit("a", "d3", 1f))));
+            sampled.attach(GroundTruth.KEY, new GroundTruth(List.of(new CapturedSearch.Hit("a", "d3", 1f))));
         }
 
         StoredSample stored = SampleRecord.parse(
@@ -171,7 +171,7 @@ public class SampleRecordTests extends ESTestCase {
         assertThat(stored.samplerId(), equalTo("s1"));
         assertThat(stored.fingerprint(), equalTo(FINGERPRINT.hex()));
         assertThat(stored.pickedAt(), equalTo(1000L));
-        assertThat(stored.groundTruth(), equalTo(sampled.groundTruth()));
+        assertThat(stored.groundTruth(), equalTo(sampled.attachment(GroundTruth.KEY)));
         assertThat("it can be found again by its id", stored.id(), equalTo(SampleRecord.documentId("s1", FINGERPRINT)));
     }
 

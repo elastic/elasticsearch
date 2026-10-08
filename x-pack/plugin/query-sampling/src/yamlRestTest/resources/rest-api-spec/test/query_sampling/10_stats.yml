@@ -15,16 +15,13 @@
   - match: { nodes.$node_id.distinct_queries: 0 }
   - match: { nodes.$node_id.picked: 0 }
   - match: { nodes.$node_id.buffered: 0 }
-  - match: { nodes.$node_id.with_ground_truth: 0 }
 
   # nothing has been sampled yet, so there is nothing to compute
   - do:
       query_sampling.ground_truth: {}
 
-  - match: { _nodes.total: 1 }
-  - match: { _nodes.successful: 1 }
-  - match: { nodes.$node_id.computed: 0 }
-  - match: { nodes.$node_id.failed: 0 }
+  - match: { computed: 0 }
+  - match: { failed: 0 }
 
   - do:
       catch: bad_request

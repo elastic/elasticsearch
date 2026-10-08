@@ -19,12 +19,12 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
-import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
-import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
-import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
+import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -35,8 +35,10 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class GroundTruthRunnerTests extends ESTestCase {
 
+    private final Map<CapturedQuery, GroundTruth> stored = new IdentityHashMap<>();
+
     public void testComputesTheGroundTruthOfEveryQuery() {
-        List<SampledQuery> queries = List.of(sampled(1), sampled(2), sampled(3));
+        List<CapturedQuery> queries = List.of(query(1), query(2), query(3));
         // each test query asks for as many neighbours as its number, which is how the fake search tells them apart
         GroundTruthRunner runner = new GroundTruthRunner(answering(request -> "doc" + request.source().size()));
 
@@ -44,12 +46,12 @@ public class GroundTruthRunnerTests extends ESTestCase {
 
         assertThat(result, equalTo(new GroundTruthRunner.Result(3, 0)));
         for (int i = 0; i < 3; i++) {
-            assertThat(queries.get(i).groundTruth().neighbors(), equalTo(List.of(new CapturedSearch.Hit("idx", "doc" + (i + 1), 1f))));
+            assertThat(stored.get(queries.get(i)).neighbors(), equalTo(List.of(new CapturedSearch.Hit("idx", "doc" + (i + 1), 1f))));
         }
     }
 
     public void testQueriesAreProcessedOneAfterTheOther() {
-        List<SampledQuery> queries = List.of(sampled(1), sampled(2), sampled(3));
+        List<CapturedQuery> queries = List.of(query(1), query(2), query(3));
         List<Runnable> inFlight = new ArrayList<>();
         // searches only complete when the test says so
         GroundTruthRunner runner = new GroundTruthRunner(
@@ -57,7 +59,7 @@ public class GroundTruthRunnerTests extends ESTestCase {
         );
         AtomicReference<GroundTruthRunner.Result> result = new AtomicReference<>();
 
-        runner.run(queries, ActionListener.wrap(result::set, e -> fail(e)));
+        runner.run(queries, Function.identity(), stored::put, ActionListener.wrap(result::set, e -> fail(e)));
 
         for (int expectedComputed = 0; expectedComputed < 3; expectedComputed++) {
             assertThat("a search is only started when the previous one is done", inFlight.size(), equalTo(expectedComputed + 1));
@@ -67,10 +69,10 @@ public class GroundTruthRunnerTests extends ESTestCase {
         assertThat(result.get(), equalTo(new GroundTruthRunner.Result(3, 0)));
     }
 
-    public void testFailedSearchesAreCountedAndLeaveTheQueryPending() {
-        SampledQuery failing = sampled(1);
-        SampledQuery throwing = sampled(2);
-        SampledQuery working = sampled(3);
+    public void testFailedSearchesAreCountedAndGetNoGroundTruth() {
+        CapturedQuery failing = query(1);
+        CapturedQuery throwing = query(2);
+        CapturedQuery working = query(3);
         GroundTruthRunner runner = new GroundTruthRunner((request, listener) -> {
             switch (request.source().size()) {
                 case 1 -> listener.onFailure(new IllegalStateException("search failed"));
@@ -83,37 +85,36 @@ public class GroundTruthRunnerTests extends ESTestCase {
         GroundTruthRunner.Result result = run(runner, List.of(failing, throwing, working));
 
         assertThat(result, equalTo(new GroundTruthRunner.Result(1, 2)));
-        assertThat(failing.groundTruth(), nullValue());
-        assertThat(throwing.groundTruth(), nullValue());
-        assertThat(working.groundTruth().neighbors().size(), equalTo(1));
+        assertThat(stored.get(failing), nullValue());
+        assertThat(stored.get(throwing), nullValue());
+        assertThat(stored.get(working).neighbors().size(), equalTo(1));
     }
 
     public void testSearchThatCompletesAndThenThrowsIsOnlyCountedOnce() {
-        SampledQuery query = sampled(1);
         GroundTruthRunner runner = new GroundTruthRunner((request, listener) -> {
             respond(listener, "doc1");
             throw new IllegalStateException("thrown after the response");
         });
 
-        assertThat(run(runner, List.of(query)), equalTo(new GroundTruthRunner.Result(1, 0)));
+        assertThat(run(runner, List.of(query(1))), equalTo(new GroundTruthRunner.Result(1, 0)));
     }
 
     public void testItemsOfAnyKindCanBeProcessed() {
         // what is looked at is the query of an item and what happens to the answer is up to the caller
-        List<CapturedQuery> items = List.of(sampled(1).search().query(), sampled(2).search().query());
-        List<String> stored = new ArrayList<>();
+        List<CapturedQuery> items = List.of(query(1), query(2));
+        List<String> results = new ArrayList<>();
         GroundTruthRunner runner = new GroundTruthRunner(answering(request -> "doc" + request.source().size()));
         AtomicReference<GroundTruthRunner.Result> result = new AtomicReference<>();
 
         runner.run(
             items,
             item -> item,
-            (item, groundTruth) -> stored.add(item.k() + ":" + groundTruth.neighbors().get(0).id()),
+            (item, groundTruth) -> results.add(item.k() + ":" + groundTruth.neighbors().get(0).id()),
             ActionListener.wrap(result::set, e -> fail(e))
         );
 
         assertThat(result.get(), equalTo(new GroundTruthRunner.Result(2, 0)));
-        assertThat(stored, equalTo(List.of("1:doc1", "2:doc2")));
+        assertThat(results, equalTo(List.of("1:doc1", "2:doc2")));
     }
 
     public void testNothingToDo() {
@@ -124,10 +125,10 @@ public class GroundTruthRunnerTests extends ESTestCase {
         assertThat(searches.get(), equalTo(0));
     }
 
-    private static GroundTruthRunner.Result run(GroundTruthRunner runner, List<SampledQuery> queries) {
+    private GroundTruthRunner.Result run(GroundTruthRunner runner, List<CapturedQuery> queries) {
         AtomicReference<GroundTruthRunner.Result> result = new AtomicReference<>();
         AtomicInteger notifications = new AtomicInteger();
-        runner.run(queries, ActionListener.wrap(r -> {
+        runner.run(queries, Function.identity(), stored::put, ActionListener.wrap(r -> {
             notifications.incrementAndGet();
             result.set(r);
         }, e -> fail(e)));
@@ -156,9 +157,7 @@ public class GroundTruthRunnerTests extends ESTestCase {
         }
     }
 
-    private static SampledQuery sampled(float value) {
-        int k = (int) value;
-        CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", new float[] { value }, k, 10, null, null, List.of(), null);
-        return new SampledQuery(new QueryFingerprint(k, 0), new CapturedSearch(query, List.of(), 1, 1.0), new TrackedQuery());
+    private static CapturedQuery query(int k) {
+        return new CapturedQuery(new String[] { "idx" }, "vec", new float[] { k }, k, 10, null, null, List.of(), null);
     }
 }

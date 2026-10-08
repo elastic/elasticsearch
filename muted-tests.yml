@@ -598,9 +598,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
   issue: https://github.com/elastic/elasticsearch/issues/160055
-- class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
-  method: testCancelOnExpiry
-  issue: https://github.com/elastic/elasticsearch/issues/160823
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationContinuesAfterMasterFailover
   issue: https://github.com/elastic/elasticsearch/issues/160824
@@ -610,9 +607,6 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testRemoteReductionRejectionWithPendingCoordinatorReduction
   issue: https://github.com/elastic/elasticsearch/issues/160620
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryDatastreamIT
-  method: testProfileFailureStore
-  issue: https://github.com/elastic/elasticsearch/issues/160877
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   method: testStatsBlowupParquet
   issue: https://github.com/elastic/elasticsearch/issues/160899

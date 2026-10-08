@@ -262,9 +262,9 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
     }
 
     /**
-     * Merges states in bulk, either from serialized bytes ({@code combine}), from another structure ({@code merge}) or after
-     * deserializing ({@code readFrom}), and checks the result against one structure that collected every hash directly. Registers
-     * only grow, so the result must not depend on how the hashes were split up or merged.
+     * Merges states from serialized bytes ({@code combine}), from another structure ({@code merge}) or after deserializing
+     * ({@code readFrom}), and checks the result against one structure that collected every hash. Registers only grow, so the result
+     * must not depend on how the hashes were split up or merged.
      */
     public void testBulkMergePaths() throws IOException {
         // Up to 14: more than 4096 registers need several steps of the scratch array.
@@ -335,8 +335,8 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
     }
 
     /**
-     * Partitioned aggregations merge serialized states into a fresh structure with {@code combine} and then keep collecting into
-     * it, across many buckets. Check that works and matches a structure that collected everything directly.
+     * Partitioned aggregations {@code combine} serialized states into a fresh structure and then keep collecting into it. Check that
+     * this matches a structure that collected everything directly, across many buckets.
      * <p>
      * It is the regression test for writing registers in place through a slice: that wrote to the zero page that BigArrays shares
      * between unwritten pages, and fails {@code assertZeroPageClean} when the next array is allocated.

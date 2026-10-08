@@ -169,16 +169,14 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         return hllBuckets.ramBytesUsed() + hll.ramBytesUsed() + lc.ramBytesUsed();
     }
 
-    /** Reads the registers of a serialized HyperLogLog state into an empty bucket, which becomes HyperLogLog. */
+    /** Reads the registers of a serialized HyperLogLog state into an empty bucket, upgrading it. */
     void readRegisters(long bucketOrd, StreamInput in) throws IOException {
         hll.readRegisters(upgradeToHll(bucketOrd), in);
     }
 
-    /**
-     * Merges the registers {@code registers[offset, offset + 2^precision)} into the bucket, upgrading it to HyperLogLog first if needed.
-     */
+    /** Merges the {@code 2^precision} registers at {@code registers[offset]} into the bucket, upgrading it to HyperLogLog if needed. */
     void mergeRegisters(long bucketOrd, byte[] registers, int offset) {
-        // upgradeToHll returns the HyperLogLog bucket of a bucket that is already upgraded.
+        // This returns the existing HyperLogLog bucket if there is one.
         hll.mergeRegisters(upgradeToHll(bucketOrd), registers, offset);
     }
 
@@ -200,7 +198,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         final int precision = in.readVInt();
         assert precision == precision() : "precision [" + precision + "] differs from [" + precision() + "]";
         final boolean algorithm = in.readBoolean();
-        // this=LC, other=LC: insert each value into this, and upgrade this to HLL if it passes the threshold.
+        // this=LC, other=LC: insert each value, and upgrade this to HLL past the threshold.
         if (algorithm == LINEAR_COUNTING && getAlgorithm(bucket) == LINEAR_COUNTING) {
             final int length = Math.toIntExact(in.readVLong());
             final long bytesUsed = (long) length * Integer.BYTES;
@@ -228,15 +226,15 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             }
             return;
         }
-        // this=LC/HLL, other=HLL: upgrade this to HLL if needed, then merge the registers in bulk.
+        // this=LC/HLL, other=HLL: merge the registers in bulk, upgrading this to HLL if needed.
         if (algorithm == HYPERLOGLOG) {
             final int registers = 1 << precision;
             assert in.available() >= registers : "expected [" + registers + "] registers but only [" + in.available() + "] bytes remain";
-            // The registers follow the header as raw bytes, so merge them straight from the buffer.
+            // The registers follow the header, so merge them straight from the buffer.
             mergeRegisters(bucket, other.bytes, in.getPosition());
             return;
         }
-        // this=HLL, other=LC: collect each value into the registers as it is read.
+        // this=HLL, other=LC: collect each value into the registers.
         final int length = Math.toIntExact(in.readVLong());
         final long hllBucket = hllBuckets.get(bucket) - 1;
         for (int i = 0; i < length; i++) {
@@ -291,14 +289,14 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     }
 
     private static class HyperLogLog extends AbstractHyperLogLog implements Releasable {
-        /** The most registers that a bulk operation moves in one step, and so the size of the scratch array. */
+        /** The most registers that a bulk operation moves at once, and so the largest scratch array. */
         private static final int MAX_SCRATCH_SIZE = 4096;
 
         private final BigArrays bigArrays;
         // array for holding the runlens.
         private ByteArray runLens;
         private long totalBuckets = 0;
-        /** Scratch for bulk register moves, allocated on first use. It is small whatever the precision, so it is not charged to the breaker. */
+        /** Scratch for bulk register moves, allocated on first use. It is small for any precision, so it is not charged to the breaker. */
         private byte[] scratch;
 
         private byte[] scratch() {
@@ -329,17 +327,14 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             return new HyperLogLogIterator(this, bucketOrd);
         }
 
-        /**
-         * Sets each register of the bucket to the larger of its value and the corresponding byte of
-         * {@code src[srcOffset, srcOffset + m)}, in bulk.
-         */
+        /** Sets each register of the bucket to the larger of itself and the byte at the same position of {@code src}, in bulk. */
         void mergeRegisters(long bucketOrd, byte[] src, int srcOffset) {
             final long start = bucketOrd << p;
             final BytesRef dest = new BytesRef();
             final byte[] scratch = scratch();
             for (int done = 0; done < m; done += scratch.length) {
                 final int length = Math.min(scratch.length, m - done);
-                // get can return a live page, even the zero page that BigArrays shares between unwritten pages, so only read it.
+                // get can return a live page, even the zero page that BigArrays shares between unwritten pages, so only read it;
                 // set copies a shared page before it writes.
                 runLens.get(start + done, length, dest);
                 maxInto(scratch, 0, dest.bytes, dest.offset, src, srcOffset + done, length);
@@ -358,12 +353,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             }
         }
 
-        /** As {@link #mergeRegisters(long, byte[], int)} with the registers of a bucket of another HyperLogLog of the same precision. */
+        /** As {@link #mergeRegisters(long, byte[], int)}, from a bucket of another HyperLogLog of the same precision. */
         void mergeRegisters(long bucketOrd, HyperLogLog other, long otherBucketOrd) {
             final BytesRef src = new BytesRef();
             other.runLens.get(otherBucketOrd << p, m, src);
-            // Only read. A slice that aliases the destination is safe: different buckets do not overlap, and a bucket merged into itself
-            // does not change.
+            // Only read. Aliasing the destination is safe: buckets do not overlap, and merging a bucket into itself changes nothing.
             mergeRegisters(bucketOrd, src.bytes, src.offset);
         }
 

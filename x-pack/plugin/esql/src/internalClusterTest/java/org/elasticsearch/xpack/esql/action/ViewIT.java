@@ -185,7 +185,7 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         var viewService = internalCluster().getCurrentMasterNodeInstance(ViewService.class);
 
         var future = new PlainActionFuture<AcknowledgedResponse>();
-        viewService.ensureReservedViewExists(ProjectId.DEFAULT, "reserved", "ROW f1=1", null, future);
+        viewService.ensureReservedViewExists(ProjectId.DEFAULT, new View("reserved", "ROW f1=1", null, true), future);
         // the view is created in response to a cluster state change
         assertAcked(indicesAdmin().prepareCreate("trigger-index"));
         assertAcked(future.actionGet(30, TimeUnit.SECONDS));

@@ -193,7 +193,7 @@ public class ViewServiceTests extends ESTestCase {
 
     private PlainActionFuture<AcknowledgedResponse> ensureReservedViewExists(String name, String query, String description) {
         var future = new PlainActionFuture<AcknowledgedResponse>();
-        viewService.ensureReservedViewExists(ProjectId.DEFAULT, name, query, description, future);
+        viewService.ensureReservedViewExists(ProjectId.DEFAULT, new View(name, query, description, true), future);
         return future;
     }
 

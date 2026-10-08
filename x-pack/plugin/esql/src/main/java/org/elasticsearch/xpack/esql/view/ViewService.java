@@ -265,15 +265,16 @@ public class ViewService {
      * Use it to run logic that depends on the view being present.
      * It fails with {@link ResourceAlreadyExistsException} if a non-reserved view with the same name already exists.
      * <p>
+     * {@code listener.onFailure} must not interrupt the node startup. The caller should only notify about the problem,
+     * preferably by logging it, and let the node continue to start.
+     * <p>
      * Example:
      * <pre>{@code
      * public class MyService {
      *     public MyService(ViewService viewService) {
      *         viewService.ensureReservedViewExists(
      *             ProjectId.DEFAULT,
-     *             "my-reserved-view",
-     *             "FROM my-index | WHERE active",
-     *             "Description shown to users",
+     *             new View("my-reserved-view", "FROM my-index | WHERE active", "Description shown to users", true),
      *             ActionListener.wrap(
      *                 ack -> logger.debug("reserved view is ready"),
      *                 e -> logger.warn("failed to create reserved view", e)
@@ -283,13 +284,8 @@ public class ViewService {
      * }
      * }</pre>
      */
-    public void ensureReservedViewExists(
-        ProjectId projectId,
-        String name,
-        String query,
-        String description,
-        ActionListener<AcknowledgedResponse> listener
-    ) {
+    public void ensureReservedViewExists(ProjectId projectId, View view, ActionListener<AcknowledgedResponse> listener) {
+        assert view.isReserved() : "ensureReservedViewExists should create reserved views only";
         clusterService.addListener(new ClusterStateListener() {
             private final AtomicBoolean initializing = new AtomicBoolean(false);
 
@@ -304,32 +300,30 @@ public class ViewService {
                 if (event.state().getMinTransportVersion().supports(View.VIEW_RESERVED_VERSION) == false) {
                     return;
                 }
-                var existing = getMetadata(event.state().metadata().getProject(projectId)).getView(name);
+                var existing = getMetadata(event.state().metadata().getProject(projectId)).getView(view.name());
                 if (existing != null && existing.isReserved() == false) {
-                    listener.onFailure(new ResourceAlreadyExistsException("view [{}] already exists", name));
-                } else if (existing == null
-                    || Objects.equals(existing.query(), query) == false
-                    || Objects.equals(existing.description(), description) == false) {
-                        if (initializing.compareAndSet(false, true)) {
-                            clusterService.threadPool()
-                                .generic()
-                                .submit(
-                                    () -> putView(
-                                        projectId,
-                                        new PutViewAction.Request(
-                                            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
-                                            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
-                                            new View(name, query, description, true)
-                                        ),
-                                        listener
-                                    )
-                                );
-                        }
-                    } else {
-                        if (initializing.compareAndSet(false, true)) {
-                            listener.onResponse(AcknowledgedResponse.TRUE); // already initialized
-                        }
+                    listener.onFailure(new ResourceAlreadyExistsException("view [{}] already exists", view.name()));
+                } else if (existing == null || Objects.equals(view, existing) == false) {
+                    if (initializing.compareAndSet(false, true)) {
+                        clusterService.threadPool()
+                            .generic()
+                            .submit(
+                                () -> putView(
+                                    projectId,
+                                    new PutViewAction.Request(
+                                        MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                                        MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                                        view
+                                    ),
+                                    listener
+                                )
+                            );
                     }
+                } else {
+                    if (initializing.compareAndSet(false, true)) {
+                        listener.onResponse(AcknowledgedResponse.TRUE); // already initialized
+                    }
+                }
                 clusterService.removeListener(this);
             }
         });

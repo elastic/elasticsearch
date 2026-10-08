@@ -620,7 +620,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(validator.capturedQuery, nullValue());
     }
 
-    // Regression test for elastic-workspace-g2sz.2: a leading line comment before FROM must not defeat the
+    // A leading line comment before FROM must not defeat the
     // FROM-detection scan. extractLeadingCommand() returns the comment together with the FROM command (it
     // only skips comments while looking for the next top-level pipe, not when reporting the leading text),
     // so the probe-eligibility check must skip past the comment itself before comparing against "FROM".
@@ -667,7 +667,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(validator.capturedQuery, equalTo("/* x */ FROM logs | KEEP ??sourceTimeField | LIMIT 0"));
     }
 
-    // Regression test for elastic-workspace-g2sz.2: TS is a real ES|QL source command (time-series source),
+    // TS is a real ES|QL source command (time-series source);
     // and EsqlDataExtractor#fetchSourceRangeSummary already reuses extractLeadingCommand() generically (not
     // FROM-specific) at runtime, so a TS-leading datafeed query's runtime path already works. The PUT-time
     // validator must accept it too rather than silently skipping the source_time_field check.

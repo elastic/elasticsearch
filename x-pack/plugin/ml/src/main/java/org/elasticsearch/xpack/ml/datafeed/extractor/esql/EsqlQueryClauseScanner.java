@@ -62,7 +62,7 @@ final class EsqlQueryClauseScanner {
      * (pass-through queries: yes, one output row per matching doc) or whether output rows must instead be
      * estimated via a bounded probe of the user's own pipeline (aggregating queries: raw doc count vastly
      * overcounts output rows, e.g. {@code STATS ... BY BUCKET(@timestamp, 1h)} collapses many docs into one
-     * row per bucket) -- see elastic-workspace-g2sz.1.
+     * row per bucket).
      */
     static boolean hasAggregation(String query) {
         return scan(query, "").hasOuterStats();

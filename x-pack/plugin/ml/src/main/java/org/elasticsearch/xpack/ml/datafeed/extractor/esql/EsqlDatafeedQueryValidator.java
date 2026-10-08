@@ -311,7 +311,7 @@ public class EsqlDatafeedQueryValidator {
      * Whether {@code text} has a FROM or TS command keyword starting at {@code index}, followed by a
      * whitespace boundary. TS (time-series source) is accepted alongside FROM because
      * {@link EsqlDataExtractor#fetchSourceRangeSummary} already probes a TS-leading query's source the same
-     * way at runtime -- see elastic-workspace-g2sz.2 -- so the PUT-time validator must not silently skip it.
+     * way at runtime, so the PUT-time validator must not silently skip it.
      */
     private static boolean isSourceCommand(String text, int index) {
         return matchesCommandKeyword(text, index, "FROM") || matchesCommandKeyword(text, index, "TS");
@@ -329,9 +329,13 @@ public class EsqlDatafeedQueryValidator {
         // execution before a response is produced (handled by the onFailure branch in validateSourceTimeField).
         String outputType = columns.isEmpty() ? null : columns.get(0).outputType();
         if (isDateColumnType(outputType) == false) {
-            String datafeedContext = datafeedId == null ? "" : " for datafeed [" + datafeedId + "]";
             throw new IllegalArgumentException(
-                Messages.getMessage(Messages.DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE, sourceTimeField, outputType, datafeedContext)
+                Messages.getMessage(
+                    Messages.DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE,
+                    sourceTimeField,
+                    outputType,
+                    datafeedContextSuffix(datafeedId)
+                )
             );
         }
     }
@@ -341,13 +345,12 @@ public class EsqlDatafeedQueryValidator {
         @Nullable String datafeedId,
         Throwable cause
     ) {
-        String datafeedContext = datafeedId == null ? "" : " for datafeed [" + datafeedId + "]";
         return new IllegalArgumentException(
             Messages.getMessage(
                 Messages.DATAFEED_ESQL_SOURCE_TIME_FIELD_UNRESOLVED,
                 sourceTimeField,
                 cause == null ? "unknown error" : cause.getMessage(),
-                datafeedContext
+                datafeedContextSuffix(datafeedId)
             ),
             cause
         );
@@ -358,25 +361,15 @@ public class EsqlDatafeedQueryValidator {
      */
     static void warnForConflictingOuterClauses(@Nullable String datafeedId, String esqlQuery, String timeField) {
         EsqlQueryClauseScanner.ScanResult scan = EsqlQueryClauseScanner.scan(esqlQuery, timeField);
-        String datafeedContext = datafeedId == null ? "ES|QL datafeed query" : "ES|QL datafeed [" + datafeedId + "] query";
+        String queryContext = esqlQueryWarningContext(datafeedId);
         if (scan.hasOuterTimeWhere()) {
-            HeaderWarning.addWarning(
-                datafeedContext
-                    + " contains an outer WHERE clause on job time field ["
-                    + timeField
-                    + "]; remove the time-field WHERE clause because ML owns the request window."
-            );
+            HeaderWarning.addWarning(Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_TIME_WHERE_WARNING, queryContext, timeField));
         }
         if (scan.hasOuterTimeSort()) {
-            HeaderWarning.addWarning(
-                datafeedContext
-                    + " contains an outer SORT clause on job time field ["
-                    + timeField
-                    + "]; remove or change the time-field SORT clause because ML owns the request order."
-            );
+            HeaderWarning.addWarning(Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_TIME_SORT_WARNING, queryContext, timeField));
         }
         if (scan.hasOuterLimit()) {
-            HeaderWarning.addWarning(datafeedContext + " contains an outer LIMIT clause; remove it because ML owns the safety ceiling.");
+            HeaderWarning.addWarning(Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_LIMIT_WARNING, queryContext));
         }
     }
 
@@ -504,7 +497,8 @@ public class EsqlDatafeedQueryValidator {
                 "value has an unsupported type",
                 sourceWindowStart,
                 sourceWindowEnd,
-                "Ensure the emitted time field is a date or numeric timestamp"
+                "Ensure the emitted time field is a date or numeric timestamp",
+                e
             );
         }
         if (emittedTimeMillis < sourceWindowStart) {
@@ -538,6 +532,18 @@ public class EsqlDatafeedQueryValidator {
         long sourceWindowEnd,
         String correctiveAction
     ) {
+        return emittedTimeValidationException(jobId, emittedTimeField, problem, sourceWindowStart, sourceWindowEnd, correctiveAction, null);
+    }
+
+    private static IllegalArgumentException emittedTimeValidationException(
+        String jobId,
+        String emittedTimeField,
+        String problem,
+        long sourceWindowStart,
+        long sourceWindowEnd,
+        String correctiveAction,
+        @Nullable Throwable cause
+    ) {
         return new IllegalArgumentException(
             Messages.getMessage(
                 Messages.DATAFEED_ESQL_EMITTED_TIME_VALIDATION_FAILED,
@@ -547,7 +553,8 @@ public class EsqlDatafeedQueryValidator {
                 sourceWindowStart,
                 sourceWindowEnd,
                 correctiveAction
-            )
+            ),
+            cause
         );
     }
 
@@ -557,7 +564,7 @@ public class EsqlDatafeedQueryValidator {
                 return index;
             }
         }
-        throw new IllegalArgumentException("ESQL query response is missing the required columns: " + columnName);
+        throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_ESQL_RESPONSE_MISSING_COLUMN, columnName));
     }
 
     private static Object valueAt(Iterable<Object> row, int columnIndex) {
@@ -571,11 +578,18 @@ public class EsqlDatafeedQueryValidator {
         return values.hasNext() ? values.next() : null;
     }
 
-    private static boolean isDateColumnType(String outputType) {
+    static boolean isDateColumnType(String outputType) {
         return "date".equals(outputType) || "date_nanos".equals(outputType);
     }
 
-    private static long toEpochMillis(Object value, boolean isDate) {
+    static Long toEpochMillisOrNull(Object value, boolean isDate) {
+        if (value == null) {
+            return null;
+        }
+        return toEpochMillis(value, isDate);
+    }
+
+    static long toEpochMillis(Object value, boolean isDate) {
         if (isDate) {
             if (value instanceof String isoDate) {
                 return Instant.parse(isoDate).toEpochMilli();
@@ -586,6 +600,14 @@ public class EsqlDatafeedQueryValidator {
             return number.longValue();
         }
         throw new IllegalArgumentException("expected numeric timestamp");
+    }
+
+    static String datafeedContextSuffix(@Nullable String datafeedId) {
+        return datafeedId == null ? "" : " for datafeed [" + datafeedId + "]";
+    }
+
+    static String esqlQueryWarningContext(@Nullable String datafeedId) {
+        return datafeedId == null ? "ES|QL datafeed query" : "ES|QL datafeed [" + datafeedId + "] query";
     }
 
     static void checkRequiredColumns(
@@ -608,7 +630,7 @@ public class EsqlDatafeedQueryValidator {
         if (foundTimeField == false || foundSummaryCountField == false) {
             // Degrades gracefully when datafeedId is null, mirroring warnForConflictingOuterClauses's datafeedContext:
             // this validator also runs during PUT-time validation before a datafeed ID may exist yet.
-            String datafeedContext = datafeedId == null ? "" : " for datafeed [" + datafeedId + "]";
+            String datafeedContext = datafeedContextSuffix(datafeedId);
             if (foundTimeField == false && foundSummaryCountField == false) {
                 throw new IllegalArgumentException(
                     Messages.getMessage(Messages.DATAFEED_ESQL_MISSING_TIME_COLUMN, timeField, datafeedContext)

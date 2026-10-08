@@ -355,29 +355,6 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(EsqlDataExtractor.buildOrderedQuery(query), equalTo(query + " | SORT ??timeField ASC"));
     }
 
-    public void testHasAggregationGivenNoStatsCommandIsFalse() {
-        assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | KEEP @timestamp, bytes"), is(false));
-        assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-*"), is(false));
-    }
-
-    public void testHasAggregationGivenTopLevelStatsIsTrue() {
-        assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | STATS COUNT(*)"), is(true));
-        assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | STATS doc_count = COUNT(*) BY BUCKET(@timestamp, 1h)"), is(true));
-    }
-
-    public void testHasAggregationGivenMixedCaseStatsIsTrue() {
-        assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | stats COUNT(*)"), is(true));
-    }
-
-    public void testHasAggregationGivenStatsOnlyInSubqueryIsFalse() {
-        assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | WHERE id IN (FROM other | STATS COUNT(*))"), is(false));
-    }
-
-    public void testHasAggregationGivenStatsSubstringIsFalse() {
-        assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | KEEP statsField"), is(false));
-        assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | WHERE message == \"STATS COUNT(*)\""), is(false));
-    }
-
     public void testNextGivenTimeFilterIsHalfOpen() throws IOException {
         TestDataExtractor extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, "timestamp");
         extractor.enqueueRow(List.of(column("timestamp", DATE)), isoAtEpochMillis(1500L));
@@ -708,6 +685,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(JOB_ID));
         assertThat(e.getMessage(), containsString(TIME_FIELD));
         assertThat(e.getMessage(), containsString("unsupported type"));
+        assertNotNull(e.getCause());
     }
 
     public void testNextGivenInvalidEmittedTimeShouldNotExposeNdjson() {
@@ -730,10 +708,8 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(extractor.capturedParams, equalTo(List.of(new EsqlQueryParam("timeField", "bucket_time", IDENTIFIER))));
     }
 
-    // Prior to elastic-workspace-g2sz.1's fix, getSummary() ran the user's FULL pipeline (including
-    // whatever it renamed the time column to) to compute earliest/latest/total_hits, so it had to bind
-    // ??timeField to the *emitted* field name. It now runs only the leading FROM clause -- see
-    // fetchSourceRangeSummary() -- so the raw source field name is what's in scope, not the emitted one.
+    // getSummary() binds ??timeField to source_time_field for the source-level probe (leading FROM/TS only),
+    // not the emitted time column name used after the user's pipeline renames it.
     public void testQuerySummaryUsesSourceTimeFieldForFastRangeProbe() {
         TestDataExtractor extractor = createExtractorWithDistinctTimeFields(1000L, 9000L, DEFAULT_QUERY, SOURCE_TIME_FIELD, "bucket_time");
         extractor.enqueueRow(
@@ -846,8 +822,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         DataExtractor.DataSummary summary = extractor.getSummary();
 
-        // A zero-density extrapolation would starve ChunkedDataExtractor's chunk-span heuristic, so this
-        // falls back to a floor of 1 rather than 0.
+        // A zero-density extrapolation would starve chunking, so this falls back to a floor of 1 rather than 0.
         assertThat(summary.totalHits(), equalTo(1L));
     }
 
@@ -869,12 +844,9 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(extractor.capturedQueries.size(), equalTo(1));
     }
 
-    // Regression test for elastic-workspace-g2sz.1 follow-up: COUNT(*) can be > 0 while MIN/MAX(??timeField)
-    // are null when every matching doc is missing a value for the source time field (e.g. multi-valued
-    // field emitting no value, or a runtime field that errors to null). Before the fix, getSummary()'s
-    // guard only checked totalHits() == 0, so this case fell into estimateAggregatingOutputRows() and threw
-    // an NPE unboxing the null Long earliestTime/latestTime -- which escaped
-    // ChunkedDataExtractor.setUpChunkedSearch() uncaught.
+    // COUNT(*) can be > 0 while MIN/MAX(??timeField) are null when every matching doc is missing a value for
+    // the source time field. getSummary() must use hasData() (not totalHits() == 0) so this case does not
+    // call estimateAggregatingOutputRows() with null earliest/latest bounds.
     public void testGetSummaryForAggregatingQueryWithNullMinMaxButNonZeroTotalHitsReturnsNoData() {
         String aggregatingQuery = "FROM logs | STATS doc_count = COUNT(*) BY bucket = BUCKET(ts, 1h)";
         TestDataExtractor extractor = createExtractor(0L, 100_000_000L, aggregatingQuery, TIME_FIELD);

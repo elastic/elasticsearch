@@ -57,6 +57,16 @@ public final class Messages {
     public static final String DATAFEED_ESQL_MISSING_TIME_COLUMN =
         "The final ES|QL output{1} is missing the configured job data_description.time_field [{0}]; "
             + "project [{0}] in the final ES|QL output.";
+    public static final String DATAFEED_ESQL_OUTER_TIME_WHERE_WARNING =
+        "{0} contains an outer WHERE clause on job time field [{1}]; remove the time-field WHERE clause because ML owns the request "
+            + "window.";
+    public static final String DATAFEED_ESQL_OUTER_TIME_SORT_WARNING =
+        "{0} contains an outer SORT clause on job time field [{1}]; remove or change the time-field SORT clause because ML owns the "
+            + "request order.";
+    public static final String DATAFEED_ESQL_OUTER_LIMIT_WARNING =
+        "{0} contains an outer LIMIT clause; remove it because ML owns the safety ceiling.";
+    public static final String DATAFEED_ESQL_QUERY_CANCELLED = "ES|QL query was cancelled";
+    public static final String DATAFEED_ESQL_RESPONSE_MISSING_COLUMN = "ESQL query response is missing the required columns: {0}";
     public static final String DATAFEED_ESQL_PREVIEW_UPGRADE_IN_PROGRESS =
         "Cannot preview ES|QL datafeed [{0}] while a cluster upgrade is in progress; "
             + "wait for every node to support ES|QL datafeeds before previewing it.";

@@ -13,6 +13,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -36,12 +37,12 @@ import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQuer
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -61,11 +62,17 @@ public class EsqlDataExtractor implements DataExtractor {
      * The row limit this extractor injects into a user's ES|QL query when it has no explicit outer LIMIT
      * of its own. Once an explicit LIMIT is present in the pipeline (whether the user's or this injected
      * one), ES|QL applies that LIMIT as its row cap instead of its no-limit default
-     * ({@code esql.query.result_truncation_default_size}, 1000 rows). Callers that need to detect genuine
-     * row-count truncation (e.g. {@code ChunkedDataExtractor}) must compare against this constant, not the
-     * unrelated no-limit default, so the two can never drift apart.
+     * ({@code esql.query.result_truncation_default_size}, 1000 rows). Chunking logic that detects truncation
+     * must compare against this constant, not the unrelated no-limit default, so the two can never drift apart.
      */
     public static final long INJECTED_ROW_LIMIT = 10_000L;
+
+    /**
+     * Bounded-probe span used to estimate an aggregating query's output-row density when the datafeed has no
+     * explicit grouping interval to reuse as the probe window.
+     */
+    private static final long DEFAULT_DENSITY_PROBE_SPAN_MILLIS = TimeValue.timeValueHours(1).millis();
+
     private static final String DEFAULT_LIMIT = " | LIMIT " + INJECTED_ROW_LIMIT;
     private static final String TIME_SORT = " | SORT ??timeField ASC";
     private static final String SOURCE_RANGE_SUMMARY_STATS =
@@ -76,7 +83,7 @@ public class EsqlDataExtractor implements DataExtractor {
     private final EsqlDataExtractorContext context;
     private final DatafeedTimingStatsReporter timingStatsReporter;
     private boolean hasNext = true;
-    private boolean isCancelled = false;
+    private volatile boolean isCancelled = false;
     private final Object cancellationLock = new Object();
     private Task inFlightQueryTask;
 
@@ -123,26 +130,11 @@ public class EsqlDataExtractor implements DataExtractor {
     }
 
     /**
-     * Fallback bounded-probe span used to estimate an aggregating query's output-row density (see
-     * {@link #estimateAggregatingOutputRows}) when the datafeed has no explicit grouping interval to reuse
-     * as the probe window.
-     */
-    private static final long DEFAULT_DENSITY_PROBE_SPAN_MILLIS = TimeValue.timeValueHours(1).millis();
-
-    /**
-     * Sizes the first/next chunk without paying for the user's full pipeline over the whole extraction
-     * range. The original implementation ran {@code <esqlQuery> | STATS MIN/MAX/COUNT(*)} -- i.e. the
-     * user's own STATS/BUCKET aggregation, unbounded -- purely to obtain earliest/latest/row-count for
-     * {@code ChunkedDataExtractor}'s chunk-span heuristic; on an aggregating query with no start/end this
-     * measured ~750x slower than the DSL datafeed equivalent (elastic-workspace-g2sz.1), because ES|QL's
-     * STATS pipeline lacks the Lucene-level fast path DSL's date_histogram/min/max aggs get.
-     * <p>
-     * Fix: get earliest/latest/raw-doc-count from a source-level probe (FROM clause only, no user
-     * pipeline) -- cheap regardless of what the user's query does downstream. For a pass-through query
-     * (no top-level STATS) the raw doc count IS the output-row count, so that's returned directly. For an
-     * aggregating query (top-level STATS present), raw doc count vastly overcounts output rows, so
-     * {@link #estimateAggregatingOutputRows} extrapolates output-row density from a small bounded probe of
-     * the user's actual pipeline instead of running it over the full range.
+     * Sizes chunking without running the user's full STATS/BUCKET pipeline over the whole extraction range.
+     * Earliest/latest/raw-doc-count come from a source-level probe (leading FROM/TS only), which uses the same
+     * Lucene point-range fast path as DSL summary aggregations. For pass-through queries the raw doc count is
+     * the output-row count; for aggregating queries (top-level STATS) {@link #estimateAggregatingOutputRows}
+     * extrapolates output-row density from a small bounded probe of the user's pipeline instead.
      */
     @Override
     public DataSummary getSummary() {
@@ -185,10 +177,8 @@ public class EsqlDataExtractor implements DataExtractor {
      * Estimates output rows for an aggregating user query without running it over the full
      * [earliest, latest) range: runs the user's actual pipeline, bounded to one grouping-interval-sized
      * (or a default 1h) probe window right after {@code earliestTime}, counts its output rows, and
-     * extrapolates linearly over the full time spread. When the probe window already covers the whole
-     * range (sparse data / short time spread) this degenerates to running the query once, in full -- same
-     * as the pre-fix behaviour -- but the multi-day-range/1h-BUCKET case that motivated this fix (see
-     * elastic-workspace-g2sz.1) is exactly the case this shortcuts.
+     * extrapolates linearly over the full time spread. When the probe window already covers the whole range
+     * (sparse data or a short time spread) the estimate uses the exact probe count instead of extrapolating.
      */
     private long estimateAggregatingOutputRows(SourceRangeSummary sourceSummary) {
         long earliest = sourceSummary.earliestTime();
@@ -207,8 +197,8 @@ public class EsqlDataExtractor implements DataExtractor {
         long actualProbeSpan = probeEnd - earliest;
         if (probeOutputRows == 0 || actualProbeSpan >= timeSpread) {
             // Either the probe window already spans the whole range, or the probe window itself produced
-            // no output rows (sparse/bursty data) -- extrapolating a zero density would starve
-            // ChunkedDataExtractor's chunk-span heuristic, so fall back to the exact probe count.
+            // no output rows (sparse/bursty data) -- extrapolating a zero density would starve chunking, so
+            // fall back to the exact probe count.
             return Math.max(1L, probeOutputRows);
         }
         double density = (double) probeOutputRows / actualProbeSpan;
@@ -217,8 +207,7 @@ public class EsqlDataExtractor implements DataExtractor {
 
     /**
      * Runs the user's actual pipeline, bounded to [probeStart, probeEnd), appending a trailing row-count
-     * STATS. Used only to measure output-row density over a small window -- never over the unbounded
-     * range that caused elastic-workspace-g2sz.1.
+     * STATS. Used only to measure output-row density over a small window, not over the full extraction range.
      */
     private long runBoundedAggregationProbe(long probeStart, long probeEnd) {
         QueryBuilder probeFilter = new RangeQueryBuilder(context.sourceTimeField()).gte(probeStart).lt(probeEnd).format(EPOCH_MILLIS);
@@ -248,34 +237,19 @@ public class EsqlDataExtractor implements DataExtractor {
 
     private static DataSummary parseSummaryResponse(EsqlResponse response) {
         List<? extends ColumnInfo> columns = response.columns();
-        boolean earliestIsDate = isDateType(columns, 0);
-        boolean latestIsDate = isDateType(columns, 1);
+        boolean earliestIsDate = columns.isEmpty() == false && EsqlDatafeedQueryValidator.isDateColumnType(columns.get(0).outputType());
+        boolean latestIsDate = columns.size() > 1 && EsqlDatafeedQueryValidator.isDateColumnType(columns.get(1).outputType());
         for (Iterable<Object> row : response.rows()) {
             List<Object> values = new ArrayList<>();
             for (Object v : row) {
                 values.add(v);
             }
-            Long earliestTime = toEpochMillisOrNull(values.get(0), earliestIsDate);
-            Long latestTime = toEpochMillisOrNull(values.get(1), latestIsDate);
+            Long earliestTime = EsqlDatafeedQueryValidator.toEpochMillisOrNull(values.get(0), earliestIsDate);
+            Long latestTime = EsqlDatafeedQueryValidator.toEpochMillisOrNull(values.get(1), latestIsDate);
             long totalHits = values.get(2) instanceof Number n ? n.longValue() : 0L;
             return new DataSummary(earliestTime, latestTime, totalHits);
         }
         return new DataSummary(null, null, 0L);
-    }
-
-    private static boolean isDateType(List<? extends ColumnInfo> columns, int index) {
-        if (index >= columns.size()) {
-            return false;
-        }
-        String type = columns.get(index).outputType();
-        return "date".equals(type) || "date_nanos".equals(type);
-    }
-
-    private static Long toEpochMillisOrNull(Object value, boolean isDate) {
-        if (value == null) {
-            return null;
-        }
-        return isDate ? toEpochMillis((String) value) : ((Number) value).longValue();
     }
 
     @Override
@@ -325,7 +299,7 @@ public class EsqlDataExtractor implements DataExtractor {
     private EsqlQueryResponse runEsqlQueryWithSingleRetry(String query, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
         for (int attempt = 0; attempt < 2; attempt++) {
             if (isCancelled) {
-                throw new IllegalStateException("ES|QL query was cancelled");
+                throw new IllegalStateException(Messages.getMessage(Messages.DATAFEED_ESQL_QUERY_CANCELLED));
             }
             try {
                 return runEsqlQuery(query, timeFilter, params);
@@ -355,8 +329,8 @@ public class EsqlDataExtractor implements DataExtractor {
      * always appended. When the user's query has no outer {@code LIMIT}, the safety cap
      * ({@link #INJECTED_ROW_LIMIT}) is injected <em>after</em> that sort ({@code ... | SORT t ASC | LIMIT n}).
      * ES|QL pipelines are sequential, so the opposite order ({@code LIMIT n | SORT t ASC}) would keep an
-     * arbitrary {@code n} rows and only then sort them, contradicting the chunker's assumption that a capped
-     * chunk holds the earliest rows of its interval (see {@code ChunkedDataExtractor#getIncompleteSearchInterval}).
+     * arbitrary {@code n} rows and only then sort them, contradicting the requirement that a capped chunk holds
+     * the earliest rows of its interval.
      * The planner rewrites {@code SORT + LIMIT} into a single top-N, so the cap does not sort the full result.
      * A user-supplied outer {@code LIMIT} is left where the user put it, with the time sort after it.
      */
@@ -419,7 +393,7 @@ public class EsqlDataExtractor implements DataExtractor {
     ) {
         // Stored datafeed headers must reach _query for the same security behavior as classic extractors.
         return ClientHelper.executeWithHeaders(context.headers(), ClientHelper.ML_ORIGIN, client, () -> {
-            var future = new org.elasticsearch.action.support.PlainActionFuture<EsqlQueryResponse>();
+            var future = new PlainActionFuture<EsqlQueryResponse>();
             // TransportEsqlQueryAction#doExecute wraps the terminal listener with ActionListener::respondAndRelease,
             // which decRefs the response as soon as onResponse() returns, on the assumption that a synchronous
             // consumer already read it (or took its own reference) before returning. PlainActionFuture#onResponse
@@ -509,8 +483,7 @@ public class EsqlDataExtractor implements DataExtractor {
         );
         boolean[] isDateColumn = new boolean[columns.size()];
         for (int i = 0; i < columns.size(); i++) {
-            String type = columns.get(i).outputType();
-            isDateColumn[i] = "date".equals(type) || "date_nanos".equals(type);
+            isDateColumn[i] = EsqlDatafeedQueryValidator.isDateColumnType(columns.get(i).outputType());
         }
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -545,11 +518,11 @@ public class EsqlDataExtractor implements DataExtractor {
             if (value instanceof List<?> list) {
                 List<Long> epochMillis = new ArrayList<>(list.size());
                 for (Object element : list) {
-                    epochMillis.add(toEpochMillis((String) element));
+                    epochMillis.add(EsqlDatafeedQueryValidator.toEpochMillis(element, true));
                 }
                 b.field(name, epochMillis);
             } else {
-                b.field(name, toEpochMillis((String) value));
+                b.field(name, EsqlDatafeedQueryValidator.toEpochMillis(value, true));
             }
         } else if (value instanceof List<?> list) {
             b.field(name, list);
@@ -558,7 +531,4 @@ public class EsqlDataExtractor implements DataExtractor {
         }
     }
 
-    private static long toEpochMillis(String isoDate) {
-        return Instant.parse(isoDate).toEpochMilli();
-    }
 }

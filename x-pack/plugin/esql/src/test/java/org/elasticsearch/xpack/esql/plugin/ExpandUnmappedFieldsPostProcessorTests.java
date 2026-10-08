@@ -11,7 +11,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -47,6 +49,7 @@ import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntFunction;
 
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.plugin.ExpandUnmappedFieldsPostProcessor.MAX_EXPANDED_FIELDS;
@@ -868,6 +871,93 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         } finally {
             Releasables.close(expanded.pages());
         }
+    }
+
+    /**
+     * A {@code LOAD_ALL} over a wide {@code _source} must trip a graceful {@link CircuitBreakingException} from the field-name
+     * accounting rather than growing the kept set until the node OOMs (esql-planning#2061). This isolates the new accounting from the
+     * per-row parse reservation, which is released every row and so never accumulates: two runs with identical parse pressure - same
+     * row count, same {@code _source} length per row - differ only in how many <em>distinct</em> field names they carry. The run that
+     * reuses one name keeps a single reservation and completes; the run with a distinct name per row grows the reservation until it
+     * breaks. Because the only variable is the distinct-name count, the break can only be the names' doing - without accounting them it
+     * would, like the control, never cross the limit (and would instead OOM in the wild). The input pages are built against a generous
+     * breaker so that only the expansion's own reservations are charged to the tight one, and {@code tearDown}'s breaker check confirms
+     * both runs hand every reserved byte back.
+     */
+    public void testCollectFieldNamesCircuitBreaksGracefullyWithoutLeaking() {
+        int rows = 2000;
+        int nameLength = 100;
+        ByteSizeValue limit = ByteSizeValue.ofKb(64);
+
+        // Control: the same name in every row, so the parse reservation churns but only one name is ever kept - this must not break.
+        String sharedName = "f".repeat(nameLength);
+        runExpandUnderLimit(limit, rows, row -> sharedName);
+
+        // Attack: a distinct name of the same length in every row, so the kept set - and its reservation - grows until it breaks.
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> runExpandUnderLimit(limit, rows, row -> "f" + String.format(Locale.ROOT, "%0" + (nameLength - 1) + "d", row))
+        );
+    }
+
+    /**
+     * Builds {@code rows} single-field rows (the field named by {@code nameForRow}) against a generous breaker, then runs the expansion
+     * against one capped at {@code limit}, so only the expansion's own reservations - the per-row parse and the kept field names - are
+     * charged to the tight breaker. Releases the expanded pages on success; on a break the expansion releases everything itself.
+     */
+    private void runExpandUnderLimit(ByteSizeValue limit, int rows, IntFunction<String> nameForRow) {
+        BlockFactory inputFactory = blockFactory();
+        List<List<Object>> pageRows = new ArrayList<>(rows);
+        for (int i = 0; i < rows; i++) {
+            pageRows.add(row(i, jsonWithFields(List.of(nameForRow.apply(i)))));
+        }
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(inputFactory, pageRows)));
+
+        BlockFactory tightFactory = blockFactory(limit);
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, null, tightFactory, PlannerSettings.DEFAULTS, () -> false);
+        Releasables.close(expanded.pages());
+    }
+
+    /**
+     * A single structure-heavy {@code _source} row - an array of thousands of tiny objects - parses into a {@code Map}/{@code List}
+     * graph many times its own byte size, so the parse reservation must charge for that structure and trip a graceful
+     * {@link CircuitBreakingException} rather than let the parse OOM the node (esql-planning#2061). A flat {@code json.length} times
+     * factor reservation misses this, because the array is only a few bytes per element. The control spends the same {@code _source}
+     * byte budget on one long string value - almost no structural tokens - and completes: the only difference between the two is the
+     * structure, so the break can only be the reservation accounting for it. {@code tearDown}'s breaker check confirms neither run leaks
+     * a reserved byte.
+     */
+    public void testStructuralParseReservationBreaksOnArrayOfObjectsWithoutLeaking() {
+        int elements = 4000;
+        ByteSizeValue limit = ByteSizeValue.ofKb(512);
+
+        // Control: the same byte budget carried as one long string value, so only the flat json.length reservation is charged.
+        runExpandSingleRowUnderLimit(limit, "{\"a\":\"" + "x".repeat(elements * 8) + "\"}");
+
+        // Attack: an array of tiny objects - thousands of maps and members - whose structural reservation outgrows the limit.
+        StringBuilder arrayOfObjects = new StringBuilder("{\"a\":[");
+        for (int i = 0; i < elements; i++) {
+            if (i > 0) {
+                arrayOfObjects.append(',');
+            }
+            arrayOfObjects.append("{\"x\":1}");
+        }
+        arrayOfObjects.append("]}");
+        expectThrows(CircuitBreakingException.class, () -> runExpandSingleRowUnderLimit(limit, arrayOfObjects.toString()));
+    }
+
+    /**
+     * Builds a single-row page carrying {@code json} as its {@code _unmapped_fields} value against a generous breaker, then runs the
+     * expansion against one capped at {@code limit}, so only the expansion's own reservations are charged to the tight breaker.
+     * Releases the expanded pages on success; on a break the expansion releases everything itself.
+     */
+    private void runExpandSingleRowUnderLimit(ByteSizeValue limit, String json) {
+        BlockFactory inputFactory = blockFactory();
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(inputFactory, List.of(row(1, json)))));
+
+        BlockFactory tightFactory = blockFactory(limit);
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, null, tightFactory, PlannerSettings.DEFAULTS, () -> false);
+        Releasables.close(expanded.pages());
     }
 
     // No ordering recipe: these exercise the expansion mechanics, so the natural real-then-discovered fallback applies. The ordering

@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * The single per-batch context metadata mappers read and write during columnar batch mapping (see
@@ -153,6 +154,26 @@ public final class BatchMappingContext implements Releasable {
     public void addResource(Releasable resource) {
         assert frozen == false;
         resources.add(resource);
+    }
+
+    /**
+     * Returns a cursor that reassembles, one document at a time, the Lucene fields of every column attached so far — the row-oriented
+     * view of the batch, for mappers that must read back what the other mappers produced (e.g. {@code columnar_stored} rebuilding
+     * {@code _source}). Unlike {@link #columns()} this does not {@link #frozen freeze} the context, so the caller may still
+     * attach or {@link #removeColumnsIf remove} columns afterwards; columns attached later are not seen by the returned cursor.
+     */
+    public MappedColumns.RowCursor rowCursor() {
+        return new MappedColumns(0, batch.docCount(), batch.seqNoBytes(), batch.primaryTermBytes(), batch.versionBytes(), columns)
+            .rowCursor();
+    }
+
+    /**
+     * Detaches every column whose Lucene field name matches {@code fieldName}. The backing data of a detached column stays registered
+     * with this context and is released on {@link #close()}.
+     */
+    public void removeColumnsIf(Predicate<String> fieldName) {
+        assert frozen == false;
+        columns.removeIf(column -> fieldName.test(column.toLuceneColumn().name()));
     }
 
     @Override

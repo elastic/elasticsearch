@@ -624,11 +624,20 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         // TODO: Need to implement support for additional scenarios
         // Columnar batch mapping only ports the cheap branch of preParse: no stored _source to
         // materialize, and either recovery source is disabled or only a size estimate is needed
-        // (synthetic recovery). Stored source, COLUMNAR_STORED (stored() == true for that mode
-        // too), and non-synthetic recovery source all require the full row path.
+        // (synthetic recovery). Stored source and non-synthetic recovery source require the full row path.
         final boolean recoverySourceEnabled = indexSettings.isRecoverySourceEnabled();
         final boolean syntheticRecovery = recoverySourceEnabled && indexSettings.isRecoverySourceSyntheticEnabled();
-        return stored() == false && (recoverySourceEnabled == false || syntheticRecovery);
+        if (recoverySourceEnabled && syntheticRecovery == false) {
+            return false;
+        }
+        if (mode == Mode.COLUMNAR_STORED) {
+            // The whole-document blob is written by postColumnarParse as an _ignored_source doc values column, which
+            // can only be produced for the doc-values format of _ignored_source; the stored-field formats need the row path.
+            return IgnoredSourceFieldMapper.ignoredSourceFormat(
+                indexSettings
+            ) == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
+        }
+        return stored() == false;
     }
 
     @Override
@@ -650,6 +659,51 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 new BytesRef(sizes),
                 RECOVERY_SOURCE_SIZE_NAME,
                 NumericDocValuesField.TYPE,
+                LongColumn.NumericKind.LONG
+            )
+        );
+    }
+
+    /**
+     * Columnar counterpart of {@link #postParse}. For {@code columnar_stored} the batch path has no per-document
+     * {@link LuceneDocument} to rebuild {@code _source} from, so each row is reassembled from the columns the other mappers attached
+     * and fed through the same {@link ColumnarSourceWriter} the row path uses; the resulting blob is then attached as the
+     * {@code _ignored_source} doc values column (plus its {@code .counts} companion), exactly the field the row path adds to the document.
+     */
+    @Override
+    public void postColumnarParse(BatchMappingContext context) throws IOException {
+        if (mode != Mode.COLUMNAR_STORED) {
+            return;
+        }
+        final int docCount = context.docCount();
+        final BytesRef[] blobs = new BytesRef[docCount];
+        final MappedColumns.RowCursor rows = context.rowCursor();
+        for (int d = 0; d < docCount; d++) {
+            rows.advance();
+            // The cursor's field list is only valid until the next advance(), which is fine: the blob is built before then.
+            final LuceneDocument doc = new LuceneDocument(rows.fields());
+            try (var builder = XContentFactory.jsonBuilder()) {
+                columnarSourceWriter.write(context.mappingLookup(), List.of(doc), doc, builder);
+                final BytesRef encodedValue = XContentDataHelper.encodeXContentBuilder(builder);
+                blobs[d] = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
+                    new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, doc)
+                );
+            }
+        }
+        // Same pruning as postParse: the blob subsumes the per-field fallback columns, and the leftover _ignored_source columns
+        // would otherwise collide with the blob's.
+        context.removeColumnsIf(SourceFieldMapper::isRedundantInColumnarStoredSource);
+
+        final byte[] counts = new byte[docCount * 8];
+        for (int d = 0; d < docCount; d++) {
+            ByteUtils.writeLongLE(1, counts, d * 8);
+        }
+        context.addColumn(MappedColumns.binaryColumn(blobs, IgnoredSourceFieldMapper.NAME, CustomDocValuesField.TYPE));
+        context.addColumn(
+            MappedColumns.longColumn(
+                new BytesRef(counts),
+                IgnoredSourceFieldMapper.NAME + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX,
+                MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_TYPE,
                 LongColumn.NumericKind.LONG
             )
         );

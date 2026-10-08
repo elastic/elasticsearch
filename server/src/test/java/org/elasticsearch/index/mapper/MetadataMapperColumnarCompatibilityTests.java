@@ -202,4 +202,71 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
             )
         );
     }
+
+    /**
+     * {@code columnar_stored} source: the batch path rebuilds each row's {@code _source} from the mapped columns and must write the
+     * same {@code _ignored_source} blob (and {@code .counts} companion) the row path writes in {@link SourceFieldMapper#postParse}.
+     * Synthetic recovery stays enabled, since {@code columnar_stored} requires it.
+     */
+    private static Settings columnarStoredSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+    }
+
+    public void testColumnarStoredSupportsColumnarParse() throws IOException {
+        final MapperService mapperService = createMapperService(
+            columnarStoredSettings(),
+            mapping(b -> b.startObject("f").field("type", "keyword").endObject())
+        );
+        assertTrue(
+            mapperService.mappingLookup()
+                .getMapping()
+                .getMetadataMapperByName(SourceFieldMapper.NAME)
+                .supportsColumnarParse(mapperService.getIndexSettings())
+        );
+    }
+
+    public void testColumnarStoredSource() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("kwd").field("type", "keyword").endObject();
+            b.startObject("num").field("type", "long").endObject();
+            b.startObject("flag").field("type", "boolean").endObject();
+        }),
+            columnarStoredSettings(),
+            batch("single doc", 1L, doc("d1", 1L, "{\"kwd\":\"hello\",\"num\":42,\"flag\":true}")),
+            // A column mixing scalars and arrays is a UNION, which the number mapper does not map yet, so keep each batch uniform.
+            batch(
+                "arrays and absent docs",
+                2L,
+                doc("d1", 1L, "{\"kwd\":[\"b\",\"a\",\"b\"],\"num\":[3,1,2]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"kwd\":[\"x\"],\"num\":[5]}")
+            ),
+            batch(
+                "scalars and absent docs",
+                3L,
+                doc("d1", 1L, "{\"flag\":false}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"kwd\":\"x\",\"num\":-7,\"flag\":true}")
+            )
+        );
+    }
+
+    /** Values dropped by {@code ignore_above} keep their fallback column out of the batch, as {@code postParse} prunes it on the row path. */
+    public void testColumnarStoredSourceWithIgnoredValues() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject("kwd").field("type", "keyword").field("ignore_above", 5).endObject()),
+            columnarStoredSettings(),
+            batch(
+                "ignored values",
+                1L,
+                doc("d1", 1L, "{\"kwd\":\"toolong\"}"),
+                doc("d2", 2L, "{\"kwd\":\"ok\"}"),
+                doc("d3", 3L, "{\"kwd\":[\"ok\",\"toolong\"]}")
+            )
+        );
+    }
 }

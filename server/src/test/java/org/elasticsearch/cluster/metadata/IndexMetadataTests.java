@@ -201,9 +201,9 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     /**
-     * {@link IndexMetadata#isFrozen()} is derived from the legacy {@code index.frozen} setting when the metadata is built. Verify that it is
-     * computed correctly and that it survives every way of copying, diffing or (de)serializing the metadata, since the flag itself is not
-     * serialized.
+     * {@link IndexMetadata#isFrozen()} is derived from the legacy {@code index.frozen} setting when the metadata is built. Verify that
+     * it is computed correctly and that it survives every way of copying, diffing or (de)serializing the metadata, since the flag itself
+     * is not serialized.
      */
     public void testIsFrozen() throws IOException {
         final Boolean frozenSetting = randomFrom(true, false, null);

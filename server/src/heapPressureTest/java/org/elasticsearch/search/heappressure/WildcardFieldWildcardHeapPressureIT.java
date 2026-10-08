@@ -29,7 +29,7 @@ public class WildcardFieldWildcardHeapPressureIT extends WildcardFieldHeapPressu
 
     // More than the REST client's default of 10 connections per route, so no more than that many are parked at once and the rest wait
     // for one to be freed. Five shards each, even ten are enough to occupy the whole search pool.
-    private static final int THREAD_COUNT = 8;
+    private static final int THREAD_COUNT = 24;
     // '*a' followed by N '?' determinizes to 2^N states: 8192 for N=11, the most the default 10,000 work limit accepts.
     private static final String HEAVY_WILDCARD = "*a???????????*";
     private static final String SMALL_WILDCARD = "*a????*";

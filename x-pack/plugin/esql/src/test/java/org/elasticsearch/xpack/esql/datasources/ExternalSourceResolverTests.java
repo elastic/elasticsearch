@@ -253,6 +253,26 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertThat("the type check fires first, not the format check", e.getMessage(), not(containsString("[format] on column")));
     }
 
+    /**
+     * Under {@code dynamic: true} a declared column a complete (columnar) schema lacks is kept at its declared type
+     * instead of rejecting the dataset, and resolution warns with the physical name, as the readers do, so a query
+     * that never reads the column still carries the warning.
+     */
+    public void testNonStrictOverlayKeepsDeclaredColumnAbsentFromCompleteSchemaAndWarns() throws Exception {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("dept", new DatasetFieldMapping("keyword", "department"));
+        ExternalSourceResolution resolution = resolveWithDeclaredMapping(
+            List.of(attr("id", DataType.LONG)),
+            props,
+            DatasetMapping.Dynamic.TRUE
+        );
+
+        List<Attribute> schema = resolution.resolvedSource(DECLARED_GLOB).metadata().schema();
+        assertEquals(List.of("id", "dept"), schema.stream().map(Attribute::name).toList());
+        assertEquals(DataType.KEYWORD, schema.get(1).dataType());
+        assertThat(resolution.warnings(), hasItem(SkipWarnings.absentDeclaredColumnMessage("department")));
+    }
+
     private static final String DECLARED_GLOB = "s3://bucket/data/*.parquet";
 
     /**
@@ -2009,6 +2029,74 @@ public class ExternalSourceResolverTests extends ESTestCase {
         SchemaReconciliation.FileSchemaInfo driftInfo = future.actionGet().resolvedSource(GLOB).schemaMap().get(StoragePath.of(driftPath));
         assertNotNull(driftInfo);
         assertNull(driftInfo.inferredTypes());
+    }
+
+    /**
+     * Under union_by_name a declared column one file stores under a type it cannot be read as (here integer for a
+     * declared boolean, while the unified keyword is readable) is rejected at resolution under fail_fast, with the
+     * message a data node reading that file reports. Under null_field or skip_row resolution leaves it to the readers,
+     * which apply the policy to that file.
+     */
+    public void testNonStrictOverlayPerFileDriftFollowsErrorMode() throws Exception {
+        String readablePath = "s3://bucket/data/a.parquet";
+        String driftPath = "s3://bucket/data/b.parquet";
+        for (String errorMode : List.of("fail_fast", "null_field", "skip_row")) {
+            Map<String, List<Attribute>> schemas = new HashMap<>();
+            schemas.put(readablePath, List.of(attr("x", DataType.BOOLEAN)));
+            schemas.put(driftPath, List.of(attr("x", DataType.INTEGER)));
+            ThreeFileStats stats = new ThreeFileStats(schemas, Map.of(readablePath, 2L, driftPath, 2L));
+            List<StorageEntry> listing = List.of(entry(readablePath, 100), entry(driftPath, 200));
+            CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
+            ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null);
+            DatasetMapping mapping = new DatasetMapping(
+                new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("x", new DatasetFieldMapping("boolean", null)))
+            );
+            Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
+            config.put("error_mode", errorMode);
+
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(GLOB), Map.of(GLOB, config), null, Map.of(GLOB, mapping), Set.of(), future);
+            if (errorMode.equals("fail_fast")) {
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+                assertEquals(
+                    DeclaredTypeCoercions.uncoercibleColumnFailure("x", "b.parquet", DataType.INTEGER, DataType.BOOLEAN),
+                    e.getMessage()
+                );
+            } else {
+                ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(GLOB);
+                assertEquals(DataType.BOOLEAN, resolved.metadata().schema().get(0).dataType());
+            }
+        }
+    }
+
+    /**
+     * Under first_file_wins a later file whose declared column drifts to an uncoercible type is left to the readers
+     * even under fail_fast, also when the eager stats gather has recorded that file's own types: a plan-time check on
+     * them would fail a query only for the shapes (or cache states) that gather, whether or not it reads the column.
+     */
+    public void testFirstFileWinsDriftOfDeclaredColumnIsLeftToTheReaders() throws Exception {
+        String anchorPath = "s3://bucket/data/a.parquet";
+        String driftPath = "s3://bucket/data/b.parquet";
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put(anchorPath, List.of(attr("x", DataType.BOOLEAN)));
+        schemas.put(driftPath, List.of(attr("x", DataType.INTEGER)));
+        ThreeFileStats stats = new ThreeFileStats(schemas, Map.of(anchorPath, 2L, driftPath, 2L));
+        List<StorageEntry> listing = List.of(entry(anchorPath, 100), entry(driftPath, 200));
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
+        ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null);
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("x", new DatasetFieldMapping("boolean", null)))
+        );
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        config.put("error_mode", "fail_fast");
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(GLOB), Map.of(GLOB, config), null, Map.of(GLOB, mapping), Set.of(GLOB), future);
+        ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(GLOB);
+
+        assertEquals(DataType.BOOLEAN, resolved.metadata().schema().get(0).dataType());
+        SchemaReconciliation.FileSchemaInfo driftInfo = resolved.schemaMap().get(StoragePath.of(driftPath));
+        assertEquals("the eager gather recorded the drifted file's own type", Map.of("x", DataType.INTEGER), driftInfo.inferredTypes());
     }
 
     public void testPartitionedNonStrictRenamePreservesMissingFirstFileWinsNativeTypes() throws Exception {

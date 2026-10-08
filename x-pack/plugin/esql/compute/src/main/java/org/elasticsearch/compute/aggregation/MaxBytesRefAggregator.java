@@ -68,7 +68,7 @@ class MaxBytesRefAggregator {
         return state.toBlock(selected, ctx.driverContext());
     }
 
-    public static class GroupingState implements GroupingAggregatorState {
+    public static final class GroupingState implements GroupingAggregatorState {
         private final BytesRefArrayState internalState;
 
         private GroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
@@ -76,7 +76,8 @@ class MaxBytesRefAggregator {
         }
 
         public void add(int groupId, BytesRef value) {
-            if (internalState.hasValue(groupId) == false || isBetter(value, internalState.get(groupId))) {
+            var current = internalState.getOrNull(groupId);
+            if (current == null || isBetter(value, current)) {
                 internalState.set(groupId, value);
             }
         }

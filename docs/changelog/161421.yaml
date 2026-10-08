@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 161247
+pr: 161421
+summary: Unmute streaming buffer-pool close test
+type: enhancement

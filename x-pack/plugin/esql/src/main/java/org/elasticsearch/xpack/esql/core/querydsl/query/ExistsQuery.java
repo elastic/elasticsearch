@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.querydsl.query;
 
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -13,7 +14,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
-import java.io.IOException;
 import java.util.Objects;
 
 public class ExistsQuery extends Query {
@@ -56,11 +56,12 @@ public class ExistsQuery extends Query {
         }
 
         @Override
-        protected org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
-            if (mappedFieldType(context, fieldName()) == null) {
+        protected org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) {
+            MappedFieldType ft = mappedFieldType(context, fieldName());
+            if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + fieldName() + "]");
             }
-            return super.doToQuery(context);
+            return new ConstantScoreQuery(ft.existsQuery(context));
         }
     }
 

@@ -97,7 +97,7 @@ public class ListColumnParityTests extends ESTestCase {
     }
 
     public void testBaselineAndOptimizedProduceSameListsForAllCodecs() throws Exception {
-        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         // Mixed schema with both an int list and a string list, plus a flat scalar to exercise
         // the maxRepLevel == 0 + maxRepLevel > 0 mixed-projection path in the iterator.

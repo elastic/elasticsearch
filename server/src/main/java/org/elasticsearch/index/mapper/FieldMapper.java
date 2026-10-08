@@ -662,19 +662,6 @@ public abstract class FieldMapper extends Mapper {
      */
     public abstract Builder getMergeBuilder();
 
-    protected void checkIncomingMergeType(FieldMapper mergeWith) {
-        if (Objects.equals(this.getClass(), mergeWith.getClass()) == false) {
-            throw new IllegalArgumentException(
-                "mapper [" + fullPath() + "] cannot be changed from type [" + contentType() + "] to [" + mergeWith.contentType() + "]"
-            );
-        }
-        if (Objects.equals(contentType(), mergeWith.contentType()) == false) {
-            throw new IllegalArgumentException(
-                "mapper [" + fullPath() + "] cannot be changed from type [" + contentType() + "] to [" + mergeWith.contentType() + "]"
-            );
-        }
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(leafName());
@@ -893,27 +880,11 @@ public abstract class FieldMapper extends Mapper {
             }
 
             private void add(FieldMapper mapper) {
-                FieldMapper.Builder builder = mapper.getMergeBuilder();
-                if (builder != null) {
-                    fieldBuilders.put(mapper.leafName(), builder);
-                } else {
-                    fieldBuilders.put(mapper.leafName(), new FieldMapper.Builder(mapper.leafName()) {
-                        @Override
-                        protected Parameter<?>[] getParameters() {
-                            return EMPTY_PARAMETERS;
-                        }
-
-                        @Override
-                        public String contentType() {
-                            return mapper.contentType();
-                        }
-
-                        @Override
-                        public FieldMapper build(MapperBuilderContext context) {
-                            return mapper;
-                        }
-                    });
-                }
+                FieldMapper.Builder builder = Objects.requireNonNull(
+                    mapper.getMergeBuilder(),
+                    () -> "multi-field mapper [" + mapper.fullPath() + "] must provide a merge builder"
+                );
+                fieldBuilders.put(mapper.leafName(), builder);
 
                 if (mapper instanceof KeywordFieldMapper kwd) {
                     if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {

@@ -192,6 +192,7 @@ public class RestoringShardTransformIT extends AbstractSnapshotIntegTestCase {
                 new PutTransformAction.Request(config, false, TimeValue.THIRTY_SECONDS)
             );
             ActionFuture<AcknowledgedResponse> future = putFuture;
+            // this blocks because the SOURCE_INDEX can't recover because the repo is blocked
             expectThrows(TimeoutException.class, () -> future.get(randomIntBetween(50, 500), TimeUnit.MILLISECONDS));
 
             // The put creates the internal index itself, so its primary may still be initializing here, and searching it

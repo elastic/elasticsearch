@@ -196,23 +196,22 @@ public class BlockLoaderTestRunner {
 
             LuceneDocument doc = this.document().rootDoc();
 
-            boolean sortedIndex = mapperService.getIndexSettings().getIndexSortConfig().hasIndexSort();
-            if (sortedIndex) {
-                // NOTE: an index sort reorders documents, so the real document cannot be kept between empty ones; it is the only one.
-                iw.addDocument(doc);
-            } else {
+            boolean documentBlocks = TestIndexWriterBuilder.acceptsDocumentBlocks(mapperService);
+            if (documentBlocks) {
                 /*
                  * Add three documents with doc id 0, 1, 2. The real document is 1.
                  * The other two are empty documents.
                  */
                 iw.addDocuments(List.of(List.of(), doc, List.of()));
+            } else {
+                iw.addDocument(doc);
             }
             iw.close();
 
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 MapperServiceTestCase.assertDocValuesWrittenAsMapped(mapperService, reader);
                 LeafReaderContext context = reader.leaves().getFirst();
-                return load(createBlockLoader(fieldName), context, sortedIndex ? 0 : 1);
+                return load(createBlockLoader(fieldName), context, documentBlocks ? 1 : 0);
             }
         }
     }

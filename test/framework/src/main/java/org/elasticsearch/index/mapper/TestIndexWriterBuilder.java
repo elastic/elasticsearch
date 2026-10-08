@@ -84,6 +84,20 @@ public final class TestIndexWriterBuilder {
         throw new AssertionError("codec [" + codec.getName() + "] does not pick doc values formats per field");
     }
 
+    /**
+     * Whether a writer built for {@code mapperService} accepts document blocks. Lucene rejects them in a sorted index without a parent
+     * field, which the engine only sets from {@link IndexVersions#INDEX_SORTING_ON_NESTED}. With the parent field, a block stays
+     * contiguous and in order however the index sorts.
+     */
+    static boolean acceptsDocumentBlocks(MapperService mapperService) {
+        return mapperService.getIndexSettings().getIndexSortConfig().hasIndexSort() == false
+            || setsParentField(mapperService.getIndexSettings().getIndexVersionCreated());
+    }
+
+    private static boolean setsParentField(IndexVersion indexVersion) {
+        return indexVersion.onOrAfter(IndexVersions.INDEX_SORTING_ON_NESTED);
+    }
+
     static Sort productionIndexSort(MapperService mapperService) {
         return new IndexSortConfig(mapperService.getIndexSettings()).buildIndexSort(
             mapperService::fieldType,
@@ -111,7 +125,7 @@ public final class TestIndexWriterBuilder {
         config.setCodec(codec);
         if (indexSort != null) {
             config.setIndexSort(indexSort);
-            if (indexVersion.onOrAfter(IndexVersions.INDEX_SORTING_ON_NESTED)) {
+            if (setsParentField(indexVersion)) {
                 config.setParentField(Engine.ROOT_DOC_FIELD_NAME);
             }
         }

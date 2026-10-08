@@ -20,6 +20,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -29,18 +30,22 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat.Mode.LUCENE;
 import static org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION;
@@ -199,6 +204,101 @@ public class MappedIndexWriterTests extends MapperServiceTestCase {
         }
     }
 
+    public void testBuilderKeepsNestedDocumentsWithTheirParentWhenSorting() throws IOException {
+        final MapperService mapperService = createMapperService(
+            Settings.builder().put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "sort_key").build(),
+            mapping(b -> {
+                b.startObject("sort_key").field("type", "long").endObject();
+                b.startObject("items").field("type", "nested");
+                b.startObject("properties").startObject("v").field("type", "long").endObject().endObject();
+                b.endObject();
+            })
+        );
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService).build(directory)) {
+                iw.addDocuments(parseWithItems(mapperService, 2, 20, 21).docs());
+                iw.commit();
+                iw.addDocuments(parseWithItems(mapperService, 1, 10).docs());
+                iw.commit();
+                iw.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                assertThat(reader.leaves(), hasSize(1));
+                final LeafReader leaf = reader.leaves().get(0).reader();
+                final NumericDocValues roots = leaf.getNumericDocValues(Engine.ROOT_DOC_FIELD_NAME);
+                final SortedNumericDocValues sortKeys = leaf.getSortedNumericDocValues("sort_key");
+                final SortedNumericDocValues items = leaf.getSortedNumericDocValues("items.v");
+                final List<String> docs = new ArrayList<>();
+                for (int doc = 0; doc < leaf.maxDoc(); doc++) {
+                    if (roots.advanceExact(doc)) {
+                        assertTrue(sortKeys.advanceExact(doc));
+                        docs.add("parent " + sortKeys.nextValue());
+                    } else {
+                        assertTrue(items.advanceExact(doc));
+                        docs.add("child " + items.nextValue());
+                    }
+                }
+                assertThat(docs, equalTo(List.of("child 10", "parent 1", "child 20", "child 21", "parent 2")));
+            }
+        }
+    }
+
+    public void testSortedIndexKeepsTheRunnerBlockFromTheVersionThatSetsTheParentField() throws IOException {
+        for (IndexVersion version : List.of(IndexVersion.current(), IndexVersions.INDEX_SORTING_ON_NESTED)) {
+            final MapperService mapperService = sortedService(version);
+            assertTrue(version.toString(), TestIndexWriterBuilder.acceptsDocumentBlocks(mapperService));
+            try (Directory directory = newDirectory()) {
+                try (RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService).build(directory)) {
+                    iw.addDocuments(List.of(List.of(), realDocument(mapperService), List.of()));
+                }
+                try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                    final LeafReader leaf = reader.leaves().get(0).reader();
+                    assertThat(version.toString(), leaf.maxDoc(), equalTo(3));
+                    final SortedNumericDocValues sortKeys = leaf.getSortedNumericDocValues("sort_key");
+                    final NumericDocValues parents = leaf.getNumericDocValues(Engine.ROOT_DOC_FIELD_NAME);
+                    assertFalse(sortKeys.advanceExact(0));
+                    assertTrue(sortKeys.advanceExact(1));
+                    assertFalse(sortKeys.advanceExact(2));
+                    assertFalse(parents.advanceExact(0));
+                    assertFalse(parents.advanceExact(1));
+                    assertTrue(parents.advanceExact(2));
+                }
+            }
+        }
+    }
+
+    public void testSortedIndexBeforeTheParentFieldRejectsDocumentBlocks() throws IOException {
+        final MapperService mapperService = sortedService(IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_SORTING_ON_NESTED));
+        assertFalse(TestIndexWriterBuilder.acceptsDocumentBlocks(mapperService));
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService).build(directory)) {
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> iw.addDocuments(List.of(List.of(), realDocument(mapperService), List.of()))
+            );
+            assertThat(e.getMessage(), containsString("a parent field must be set"));
+        }
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService).build(directory)) {
+                iw.addDocument(realDocument(mapperService));
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                assertThat(reader.maxDoc(), equalTo(1));
+            }
+        }
+    }
+
+    public void testUnsortedIndexAcceptsDocumentBlocksAtAnyVersion() throws IOException {
+        for (IndexVersion version : List.of(
+            IndexVersion.current(),
+            IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_SORTING_ON_NESTED)
+        )) {
+            assertTrue(
+                version.toString(),
+                TestIndexWriterBuilder.acceptsDocumentBlocks(createMapperService(version, keywordMapping(false)))
+            );
+        }
+    }
+
     public void testBuilderRequiresMapperService() {
         expectThrows(NullPointerException.class, () -> TestIndexWriterBuilder.mapped(null));
     }
@@ -231,6 +331,27 @@ public class MappedIndexWriterTests extends MapperServiceTestCase {
 
     private static Settings withCodec(Settings settings, String codec) {
         return Settings.builder().put(settings).put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec).build();
+    }
+
+    private ParsedDocument parseWithItems(MapperService mapperService, long sortKey, long... values) throws IOException {
+        return mapperService.documentMapper().parse(source(b -> {
+            b.field("sort_key", sortKey);
+            b.startArray("items");
+            for (long value : values) {
+                b.startObject().field("v", value).endObject();
+            }
+            b.endArray();
+        }));
+    }
+
+    private MapperService sortedService(IndexVersion version) throws IOException {
+        return createMapperService(version, Settings.builder().put("index.sort.field", "sort_key").build(), mapping(b -> {
+            b.startObject("sort_key").field("type", "long").endObject();
+        }));
+    }
+
+    private LuceneDocument realDocument(MapperService mapperService) throws IOException {
+        return mapperService.documentMapper().parse(source(b -> b.field("sort_key", 5L))).rootDoc();
     }
 
     private RandomIndexWriter mappedWriter(MapperService mapperService, Directory directory) throws IOException {

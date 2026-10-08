@@ -149,6 +149,7 @@ public class AzureBlobStore implements BlobStore {
     private final String container;
     private final LocationMode locationMode;
     private final ByteSizeValue maxSinglePartUploadSize;
+    private final ByteSizeValue multiPartUploadPartSize;
     private final int deletionBatchSize;
     private final int maxConcurrentBatchDeletes;
     private final int multipartUploadMaxConcurrency;
@@ -179,6 +180,7 @@ public class AzureBlobStore implements BlobStore {
         // locationMode is set per repository, not per client
         this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
         this.maxSinglePartUploadSize = Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.get(metadata.settings());
+        this.multiPartUploadPartSize = Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING.get(metadata.settings());
         this.deletionBatchSize = Repository.DELETION_BATCH_SIZE_SETTING.get(metadata.settings());
         this.maxConcurrentBatchDeletes = Repository.MAX_CONCURRENT_BATCH_DELETES_SETTING.get(metadata.settings());
         this.multipartUploadMaxConcurrency = service.getMultipartUploadMaxConcurrency();
@@ -1119,7 +1121,7 @@ public class AzureBlobStore implements BlobStore {
     }
 
     long getUploadBlockSize() {
-        return service.getUploadBlockSize();
+        return multiPartUploadPartSize.getBytes();
     }
 
     private AzureBlobServiceClient getAzureBlobServiceClientClient(OperationPurpose purpose) {

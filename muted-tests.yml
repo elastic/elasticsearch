@@ -670,9 +670,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.PartitionSpecProjectorTests
   method: testOverlapsExpressionsDatetimeLongIsNotScaledAsSeconds
   issue: https://github.com/elastic/elasticsearch/issues/161281
-- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/161304
 - class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/161309
@@ -691,3 +688,14 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalWarmDatasetAggregatePartialEvictionIT
   method: testNdjsonWarmCountSurvivesOneMissingPerFileEntry
   issue: https://github.com/elastic/elasticsearch/issues/161381
+- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonManyFileWarmFoldIT
+  method: testNdjsonFileSetChangeInvalidatesDatasetAggregate
+  issue: https://github.com/elastic/elasticsearch/issues/161390
+- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonManyFileWarmFoldIT
+  method: testNdjsonWarmCountSurvivesPerFileEntryEviction
+  issue: https://github.com/elastic/elasticsearch/issues/161391
+- class: org.elasticsearch.xpack.esql.qa.csv.TsvFormatSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/161394
+- class: org.elasticsearch.integration.FieldLevelSecurityTests
+  method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
+  issue: https://github.com/elastic/elasticsearch/issues/161396

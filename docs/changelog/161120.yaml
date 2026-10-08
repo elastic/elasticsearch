@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 161120
-summary: "ES|QL|DS: bind headered CSV/TSV files by own header"
+summary: Match CSV and TSV columns by header name under `first_file_wins`
 type: bug

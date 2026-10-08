@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
@@ -98,7 +99,7 @@ public class MapperFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(
+        var features = Sets.newHashSet(
             RangeFieldMapper.DATE_RANGE_INDEXING_FIX,
             IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
             SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
@@ -149,7 +150,6 @@ public class MapperFeatures implements FeatureSpecification {
             MV_MIN_FUNCTION_FUSE_TO_LOAD,
             MV_MAX_FUNCTION_FUSE_TO_LOAD,
             TDIGEST_TYPE,
-            TEXT_FIELD_DOC_VALUES,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX,
             DOC_VALUES_MULTI_VALUE,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
@@ -162,5 +162,9 @@ public class MapperFeatures implements FeatureSpecification {
             ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER,
             PUT_MAPPING_NO_TYPES_CHECK
         );
+        if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
+            features.add(TEXT_FIELD_DOC_VALUES);
+        }
+        return Set.copyOf(features);
     }
 }

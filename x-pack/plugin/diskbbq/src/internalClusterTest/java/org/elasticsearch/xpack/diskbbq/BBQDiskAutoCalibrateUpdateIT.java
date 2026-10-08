@@ -132,7 +132,7 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
     }
 
     private void updateAutoCalibrate(boolean autoCalibrate) {
-        assertAcked(indicesAdmin().preparePutMapping(INDEX).setSource(mappingSource(autoCalibrate), XContentType.JSON));
+        assertAcked(indicesAdmin().preparePutMapping(INDEX).setSource(mappingSource(autoCalibrate)));
         assertAutoCalibrateInMapping(autoCalibrate);
     }
 

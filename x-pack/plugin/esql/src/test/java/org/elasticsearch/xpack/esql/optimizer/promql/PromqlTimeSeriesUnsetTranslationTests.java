@@ -15,6 +15,9 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
@@ -24,16 +27,26 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWitho
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesUnset;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ReadDimsExec;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -282,6 +295,63 @@ public class PromqlTimeSeriesUnsetTranslationTests extends AbstractPromqlPlanOpt
         }
         assertThat(serialized, greaterThan(0));
         assertThat(unsets(analyze(queries().get(2), version)), not(empty()));
+    }
+
+    /**
+     * A {@link TimeSeriesUnset} of a series' {@code _timeseries} runs on the data node, once per series: after the per-series
+     * aggregate reads the dimensions, never on the coordinator and never for every document.
+     */
+    public void testDataNodeUnsetsOncePerSeries() {
+        TransportVersion version = TransportVersion.current();
+        var localLogical = new LocalLogicalPlanOptimizer(
+            new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), SearchStats.EMPTY)
+        );
+        var localPhysical = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(
+                PlannerSettings.DEFAULTS,
+                new EsqlFlags(true),
+                EsqlTestUtils.TEST_CFG,
+                FoldContext.small(),
+                SearchStats.EMPTY
+            )
+        );
+        int checked = 0;
+        for (String query : queries().stream().filter(q -> q.contains(" or ") == false && q.contains("ignoring") == false).toList()) {
+            LogicalPlan analyzed = analyze(query, version);
+            if (unsets(analyzed).isEmpty()) {
+                continue;
+            }
+            LogicalPlan optimized = logicalOptimizerWithLatestVersion.optimize(analyzed);
+            PhysicalPlan physical = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG, version)).optimize(
+                new Mapper().map(new Versioned<>(optimized, version))
+            );
+            var split = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(physical, EsqlTestUtils.TEST_CFG);
+            if (split.v2() == null) {
+                continue; // folded to a local relation: nothing ships to a data node
+            }
+            checked++;
+            List<TimeSeriesUnset> coordinator = new ArrayList<>();
+            split.v1().forEachExpressionDown(TimeSeriesUnset.class, coordinator::add);
+            assertThat(query, coordinator, empty());
+
+            PhysicalPlan dataNode = PlannerUtils.localPlan(split.v2(), localLogical, localPhysical, null);
+            List<EvalExec> unsetting = dataNode.collect(EvalExec.class)
+                .stream()
+                .filter(eval -> eval.fields().stream().anyMatch(field -> field.child() instanceof TimeSeriesUnset))
+                .toList();
+            assertThat(query + "\n" + dataNode, unsetting, not(empty()));
+            for (EvalExec eval : unsetting) {
+                assertThat(query + "\n" + dataNode, eval.anyMatch(ReadDimsExec.class::isInstance), equalTo(true));
+            }
+            for (FieldExtractExec extract : dataNode.collect(FieldExtractExec.class)) {
+                assertThat(
+                    query + "\n" + dataNode,
+                    Expressions.names(extract.attributesToExtract()),
+                    not(hasItem(MetadataAttribute.TIMESERIES))
+                );
+            }
+        }
+        assertThat(checked, greaterThan(0));
     }
 
     private static List<TimeSeriesUnset> unsets(LogicalPlan plan) {

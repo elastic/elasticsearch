@@ -49,6 +49,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryDeprecationInfo;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.tasks.CancellableTask;
@@ -101,6 +103,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
     public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/repository/analyze");
 
     static final TransportVersion REPO_ANALYSIS_BLOB_OVERWRITE = TransportVersion.fromName("repo_analysis_blob_overwrite");
+
+    static final TransportVersion REPO_ANALYSIS_CHECK_DEPRECATIONS = TransportVersion.fromName("repo_analysis_check_deprecations");
 
     static final String UNCONTENDED_REGISTER_NAME_PREFIX = "test-register-uncontended-";
     static final String CONTENDED_REGISTER_NAME_PREFIX = "test-register-contended-";
@@ -900,6 +904,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         private void runCleanUp() {
             transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
                 ensureOverwriteSucceeded();
+                ensureNoDeprecations();
                 final long listingStartTimeNanos = System.nanoTime();
                 ensureConsistentListing();
                 final long deleteStartTimeNanos = System.nanoTime();
@@ -916,6 +921,26 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 );
                 logger.debug("all overwrite protection checks failed", repositoryVerificationException);
                 fail(repositoryVerificationException);
+            }
+        }
+
+        private void ensureNoDeprecations() {
+            if (isRunning() && minClusterTransportVersion.supports(REPO_ANALYSIS_CHECK_DEPRECATIONS) && request.checkDeprecations()) {
+                for (var info : repository.getDeprecationInfos()) {
+                    if (info.level() == RepositoryDeprecationInfo.Level.CRITICAL) {
+                        // Maybe seems slightly odd to check for deprecations here rather than earlier, but we want to wrap these messages
+                        // in the generic "storage behaved incorrectly" wrapper just like any other analysis failure. This is because
+                        // deprecated repository features always(*) relate to temporary workarounds for incompatibilities in third-party
+                        // storage systems (particularly for S3 repositories) which would be detected if the workaround were absent.
+                        //
+                        // (*) "always" at least meaning that if they cannot be addressed by adjusting the config then there's a serious
+                        // discrepancy between the user's environment and what we expect.
+                        fail(new RepositoryException(request.getRepositoryName(), """
+                            This repository uses a critically deprecated feature, which prevents running a complete analysis. Fix all the \
+                            logged deprecation warnings and re-run the analysis."""));
+                        return;
+                    }
+                }
             }
         }
 
@@ -1093,7 +1118,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                         responses,
                         deleteStartTimeNanos - listingStartTimeNanos,
                         completionTimeNanos - deleteStartTimeNanos,
-                        request.checkOverwriteProtection()
+                        request.checkOverwriteProtection(),
+                        request.checkDeprecations()
                     )
                 );
             } else {
@@ -1134,6 +1160,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         private DiscoveryNode reroutedFrom = null;
         private boolean abortWritePermitted = true;
         private boolean checkOverwriteProtection = true;
+        private boolean checkDeprecations = true;
 
         public Request(String repositoryName) {
             this.repositoryName = repositoryName;
@@ -1156,6 +1183,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             reroutedFrom = in.readOptionalWriteable(DiscoveryNode::new);
             abortWritePermitted = in.readBoolean();
             checkOverwriteProtection = in.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_BLOB_OVERWRITE)
+                && in.readBoolean();
+            checkDeprecations = in.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_CHECK_DEPRECATIONS)
                 && in.readBoolean();
         }
 
@@ -1185,6 +1214,11 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 out.writeBoolean(checkOverwriteProtection);
             } else if (checkOverwriteProtection) {
                 throw new IllegalArgumentException("not all nodes support overwrite-protection checks");
+            }
+            if (out.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_CHECK_DEPRECATIONS)) {
+                out.writeBoolean(checkDeprecations);
+            } else if (checkDeprecations) {
+                throw new IllegalArgumentException("not all nodes support deprecation checks");
             }
         }
 
@@ -1339,6 +1373,14 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             return checkOverwriteProtection;
         }
 
+        public void checkDeprecations(boolean checkDeprecations) {
+            this.checkDeprecations = checkDeprecations;
+        }
+
+        public boolean checkDeprecations() {
+            return checkDeprecations;
+        }
+
         @Override
         public String toString() {
             return "Request{" + getDescription() + '}';
@@ -1372,6 +1414,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 + abortWritePermitted
                 + ", checkOverwriteProtection="
                 + checkOverwriteProtection
+                + ", checkDeprecations="
+                + checkDeprecations
                 + "]";
         }
 
@@ -1402,6 +1446,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         private final long listingTimeNanos;
         private final long deleteTimeNanos;
         private final boolean checkOverwriteProtection;
+        private final boolean checkDeprecations;
 
         public Response(
             String coordinatingNodeId,
@@ -1420,7 +1465,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             List<BlobAnalyzeAction.Response> blobResponses,
             long listingTimeNanos,
             long deleteTimeNanos,
-            boolean checkOverwriteProtection
+            boolean checkOverwriteProtection,
+            boolean checkDeprecations
         ) {
             this.coordinatingNodeId = coordinatingNodeId;
             this.coordinatingNodeName = coordinatingNodeName;
@@ -1439,6 +1485,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             this.listingTimeNanos = listingTimeNanos;
             this.deleteTimeNanos = deleteTimeNanos;
             this.checkOverwriteProtection = checkOverwriteProtection;
+            this.checkDeprecations = checkDeprecations;
         }
 
         public Response(StreamInput in) throws IOException {
@@ -1459,6 +1506,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             listingTimeNanos = in.readVLong();
             deleteTimeNanos = in.readVLong();
             checkOverwriteProtection = in.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_BLOB_OVERWRITE)
+                && in.readBoolean();
+            checkDeprecations = in.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_CHECK_DEPRECATIONS)
                 && in.readBoolean();
         }
 
@@ -1483,6 +1532,9 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             if (out.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_BLOB_OVERWRITE)) {
                 out.writeBoolean(checkOverwriteProtection);
             }
+            if (out.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_CHECK_DEPRECATIONS)) {
+                out.writeBoolean(checkDeprecations);
+            }
         }
 
         @Override
@@ -1505,6 +1557,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             builder.field("rare_action_probability", rareActionProbability);
             builder.field("blob_path", blobPath);
             builder.field("check_overwrite_protection", checkOverwriteProtection);
+            builder.field("check_deprecations", checkDeprecations);
 
             builder.startArray("issues_detected");
             // nothing to report here, if we detected an issue then we would have thrown an exception, but we include this to emphasise

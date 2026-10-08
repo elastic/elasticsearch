@@ -691,3 +691,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.TextValuePushdownIT
   method: testTheColumnarIndexAnswersInLucene
   issue: https://github.com/elastic/elasticsearch/issues/161356
+- class: org.elasticsearch.xpack.esql.action.ExternalSchemaDiscoveryBoundIT
+  method: testReadingQueryAfterSchemaDiscoverySeesEveryFile
+  issue: https://github.com/elastic/elasticsearch/issues/161359

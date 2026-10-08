@@ -1,5 +1,6 @@
 area: ES|QL
-issues: []
+issues:
+ - 161383
 pr: 161230
 summary: Treat flattened sub-keys as missing in pushed-down predicates
 type: bug

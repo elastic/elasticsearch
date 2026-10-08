@@ -15,6 +15,7 @@ apply plugin: 'elasticsearch.test-build-info'
 apply plugin: 'elasticsearch.transport-version-references'
 apply plugin: 'elasticsearch.transport-version-resources'
 apply plugin: 'elasticsearch.foreign-api'
+apply plugin: 'elasticsearch.internal-heap-pressure-test'
 
 publishing {
   publications {
@@ -29,6 +30,9 @@ base {
 }
 
 dependencies {
+
+  heapPressureTestImplementation project(':test:framework')
+  heapPressureTestImplementation project(':test:test-clusters')
 
   api project(':libs:core')
   api project(':libs:logging')

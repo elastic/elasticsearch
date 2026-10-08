@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.ImmediateLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
+import org.elasticsearch.xpack.esql.plan.physical.DocRefEncodeExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -57,6 +58,8 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -150,6 +153,7 @@ public class PlanWritables {
             CompletionExec.ENTRY,
             DissectExec.ENTRY,
             DenseVectorExec.ENTRY,
+            DocRefEncodeExec.ENTRY,
             EnrichExec.ENTRY,
             EsSourceExec.ENTRY,
             EvalExec.ENTRY,
@@ -157,6 +161,8 @@ public class PlanWritables {
             ExchangeSinkExec.ENTRY,
             ExchangeSourceExec.ENTRY,
             ExternalSourceExec.ENTRY,
+            FetchExec.ENTRY,
+            FetchSourceExec.ENTRY,
             FieldExtractExec.ENTRY,
             FilterExec.ENTRY,
             FragmentExec.ENTRY,

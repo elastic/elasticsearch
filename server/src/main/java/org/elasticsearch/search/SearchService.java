@@ -722,7 +722,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (context.scrollContext() != null) {
             return "scroll";
         }
-        return context.singleSession() ? "single" : "pit";
+        if (context instanceof PitReaderContext) {
+            return "pit";
+        }
+        return context.singleSession() ? "single" : "owned";
     }
 
     private String formatCreatorTaskId(ReaderContext context) {
@@ -1609,7 +1612,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private ReaderContext findReaderContext(ShardSearchContextId id, TransportRequest request, @Nullable ShardId expectedShard)
+    /**
+     * Looks up a registered reader context by id. When {@code expectedShard} is given, the context must belong to that
+     * shard. {@link SearchOperationListener#validateReaderContext} then runs, so listeners such as the security listener
+     * can reject the caller. Their exceptions propagate. A rejection frees the context only if it serves a single
+     * search or a scroll.
+     *
+     * @throws SearchContextMissingException if no context has this id
+     * @throws IllegalArgumentException if the id has no session id, or the context belongs to another shard
+     */
+    public ReaderContext findReaderContext(ShardSearchContextId id, TransportRequest request, @Nullable ShardId expectedShard)
         throws SearchContextMissingException {
         if (id.getSessionId().isEmpty()) {
             throw new IllegalArgumentException("Session id must be specified");
@@ -1912,6 +1924,49 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         });
     }
 
+    /**
+     * Opens a reader context for a caller that runs its own phases on it and frees it itself. The context is registered
+     * like the context of a search: {@link #findReaderContext} finds it, the keep-alive reaper expires it, and removing
+     * the index or stopping the node frees it. It is never freed because a phase on it failed, so one failed phase does
+     * not take the reader away from the phases that follow. The caller frees it with
+     * {@link #freeReaderContext(ShardSearchContextId)}, or lets the keep-alive expire.
+     * <p>
+     * {@link SearchOperationListener#onNewReaderContext} runs before the context is published, and
+     * {@link SearchOperationListener#onFreeReaderContext} runs when it closes. A caller that needs state per context or
+     * checks on later callers registers a {@link SearchOperationListener} on the index.
+     * <p>
+     * Unlike {@link #openReaderContext}, this method does not wait for a pending refresh. A caller that needs one on a
+     * search idle shard waits for {@link IndexShard#ensureShardSearchActive} first.
+     *
+     * @param request   the shard to open, and the split shard count summary to acquire its reader with. A plain shard
+     *                  request: no reader id, no scroll.
+     * @param keepAlive how long the context stays open without being used. At most {@code search.max_keep_alive}.
+     * @param task      the task that opens the context, logged when the context opens and closes. May be {@code null}.
+     */
+    public ReaderContext openOwnedReaderContext(ShardSearchRequest request, TimeValue keepAlive, @Nullable Task task) {
+        assert request.readerId() == null && request.scroll() == null : "an owned reader context opens from a plain shard request";
+        checkKeepAliveLimit(keepAlive.millis());
+        final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        final IndexShard shard = indexService.getShard(request.shardId().id());
+        Engine.SearcherSupplier reader = shard.acquireExternalSearcherSupplier(request.getSplitShardCountSummary());
+        ReaderContext readerContext = null;
+        try {
+            final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet(), reader.getSearcherId());
+            readerContext = new ReaderContext(id, indexService, shard, reader, keepAlive.millis(), false, creatorTaskIdOf(task));
+            reader = null;
+            final ReaderContext finalReaderContext = readerContext;
+            final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
+            searchOperationListener.onNewReaderContext(finalReaderContext);
+            readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
+            putReaderContext(finalReaderContext);
+            readerContext = null;
+            logOpened(finalReaderContext);
+            return finalReaderContext;
+        } finally {
+            Releasables.close(reader, readerContext);
+        }
+    }
+
     protected SearchContext createContext(
         ReaderContext readerContext,
         ShardSearchRequest request,
@@ -1962,6 +2017,29 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             searchContext.addReleasable(searchContext.getSearchExecutionContext()::releaseQueryConstructionMemory);
             return searchContext;
         }
+    }
+
+    /**
+     * Creates a search context on an existing reader context, for example one from {@link #openOwnedReaderContext}. The
+     * search context can execute queries and load fields. While it is open, the reader context cannot expire or close
+     * its reader. Closing the search context does not free the reader context.
+     *
+     * @throws SearchContextMissingException if the reader context is already closed
+     */
+    public SearchContext createSearchContext(ReaderContext readerContext, ShardSearchRequest request, TimeValue timeout)
+        throws IOException {
+        // pin the reader before the search context acquires a searcher, so a concurrent free cannot close it in between
+        final Releasable pin = readerContext.markAsUsed(-1L);
+        final DefaultSearchContext searchContext;
+        try {
+            searchContext = createSearchContext(readerContext, request, timeout, ResultsType.QUERY);
+        } catch (Exception e) {
+            pin.close();
+            throw e;
+        }
+        searchContext.addReleasable(pin);
+        searchContext.addReleasable(searchContext.getSearchExecutionContext()::releaseQueryConstructionMemory);
+        return searchContext;
     }
 
     @SuppressWarnings("unchecked")
@@ -2568,6 +2646,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public long getDefaultKeepAliveInMillis() {
         return defaultKeepAlive;
+    }
+
+    /** The current {@code search.max_keep_alive}, for callers that check a keep-alive they received before using it. */
+    public long getMaxKeepAliveInMillis() {
+        return maxKeepAlive;
     }
 
     /**

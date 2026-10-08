@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.xpack.esql.fetch.lifetime.OpenContextInfo;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,18 +33,35 @@ final class DataNodeComputeResponse extends TransportResponse {
 
     private final DriverCompletionInfo completionInfo;
     private final Map<ShardId, Exception> shardLevelFailures;
+    private final List<OpenContextInfo> openContexts;
 
     DataNodeComputeResponse(DriverCompletionInfo completionInfo, Map<ShardId, Exception> shardLevelFailures) {
+        this(completionInfo, shardLevelFailures, List.of());
+    }
+
+    /**
+     * @param openContexts the fetch contexts the data node keeps open after this response, for the coordinator to free
+     */
+    DataNodeComputeResponse(
+        DriverCompletionInfo completionInfo,
+        Map<ShardId, Exception> shardLevelFailures,
+        List<OpenContextInfo> openContexts
+    ) {
         this.completionInfo = completionInfo;
         this.shardLevelFailures = shardLevelFailures;
+        this.openContexts = openContexts;
     }
 
     DataNodeComputeResponse(StreamInput in, ThreadContext threadContext) throws IOException {
         if (supportsCompletionInfo(in.getTransportVersion())) {
             this.completionInfo = DriverCompletionInfo.readFrom(in, threadContext);
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
+            this.openContexts = in.getTransportVersion().supports(DataNodeRequest.ESQL_FETCH_CONTEXTS)
+                ? in.readCollectionAsImmutableList(OpenContextInfo::new)
+                : List.of();
             return;
         }
+        this.openContexts = List.of();
         if (DataNodeComputeHandler.supportShardLevelRetryFailure(in.getTransportVersion())) {
             this.completionInfo = new DriverCompletionInfo(
                 0,
@@ -69,9 +87,16 @@ final class DataNodeComputeResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (openContexts.isEmpty() == false && out.getTransportVersion().supports(DataNodeRequest.ESQL_FETCH_CONTEXTS) == false) {
+            // only a coordinator that asked for fetch contexts gets them, and it can read them
+            throw new IllegalStateException("can't send fetch contexts to a node on [" + out.getTransportVersion() + "]");
+        }
         if (supportsCompletionInfo(out.getTransportVersion())) {
             completionInfo.writeTo(out);
             out.writeMap(shardLevelFailures, (o, v) -> v.writeTo(o), StreamOutput::writeException);
+            if (out.getTransportVersion().supports(DataNodeRequest.ESQL_FETCH_CONTEXTS)) {
+                out.writeCollection(openContexts);
+            }
             return;
         }
         if (DataNodeComputeHandler.supportShardLevelRetryFailure(out.getTransportVersion())) {
@@ -95,5 +120,13 @@ final class DataNodeComputeResponse extends TransportResponse {
 
     Map<ShardId, Exception> shardLevelFailures() {
         return shardLevelFailures;
+    }
+
+    List<OpenContextInfo> openContexts() {
+        return openContexts;
+    }
+
+    DataNodeComputeResponse withOpenContexts(List<OpenContextInfo> openContexts) {
+        return new DataNodeComputeResponse(completionInfo, shardLevelFailures, openContexts);
     }
 }

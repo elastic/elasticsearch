@@ -863,6 +863,7 @@ public final class CsvTestUtils {
                 case BYTES_REF -> bytesRefBlockType(actualType);
                 case BOOLEAN -> BOOLEAN;
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
+                case DOC_REF -> throw new IllegalArgumentException("can't assert on doc ref blocks");
                 case COMPOSITE -> throw new IllegalArgumentException("can't assert on composite blocks");
                 case AGGREGATE_METRIC_DOUBLE -> AGGREGATE_METRIC_DOUBLE;
                 case EXPONENTIAL_HISTOGRAM -> EXPONENTIAL_HISTOGRAM;

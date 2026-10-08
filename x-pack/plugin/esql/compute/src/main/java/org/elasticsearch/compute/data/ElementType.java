@@ -80,7 +80,13 @@ public enum ElementType {
 
     LONG_RANGE(13, "LongRange", BlockFactory::newLongRangeBlockBuilder, LongRangeArrayBlock::readFrom),
 
-    DOUBLE_RANGE(14, "DoubleRange", BlockFactory::newDoubleRangeBlockBuilder, DoubleRangeArrayBlock::readFrom);
+    DOUBLE_RANGE(14, "DoubleRange", BlockFactory::newDoubleRangeBlockBuilder, DoubleRangeArrayBlock::readFrom),
+
+    /**
+     * Blocks that reference individual lucene documents in a form that stays valid after the rows leave the node that
+     * read them.
+     */
+    DOC_REF(15, "DocRef", DocRefBlock::newBlockBuilder, DocRefBlock::readFrom);
 
     private static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = TransportVersion.fromName("esql_serialize_block_type_code");
 

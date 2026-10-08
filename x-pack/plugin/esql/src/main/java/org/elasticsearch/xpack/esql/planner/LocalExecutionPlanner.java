@@ -76,6 +76,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
+import org.elasticsearch.compute.operator.fetch.DocRefEncodeOperator;
 import org.elasticsearch.compute.operator.fuse.LinearConfig;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.fuse.RrfConfig;
@@ -182,6 +183,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
+import org.elasticsearch.xpack.esql.plan.physical.DocRefEncodeExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
@@ -191,6 +193,8 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalFieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -306,6 +310,8 @@ public class LocalExecutionPlanner {
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     @Nullable
     private final RemoteFetchService remoteFetchService;
+    private final FetchOperatorProvider fetchOperators;
+    private final FetchSourceProvider fetchSources;
     @Nullable
     private final Executor parallelWorkerExecutor;
     private final int esqlWorkerPoolSize;
@@ -332,7 +338,7 @@ public class LocalExecutionPlanner {
         ProjectMetadata projectMetadata,
         AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry,
-        @Nullable RemoteFetchService remoteFetchService,
+        PlannerServices services,
         @Nullable Executor parallelWorkerExecutor,
         int esqlWorkerPoolSize,
         MatcherWatchdog grokMatcherWatchdog,
@@ -357,7 +363,9 @@ public class LocalExecutionPlanner {
         this.projectMetadata = projectMetadata;
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
-        this.remoteFetchService = remoteFetchService;
+        this.remoteFetchService = services.remoteFetch();
+        this.fetchOperators = services.fetch();
+        this.fetchSources = services.fetchSources();
         this.parallelWorkerExecutor = parallelWorkerExecutor;
         this.esqlWorkerPoolSize = esqlWorkerPoolSize;
         // Resolved once by the caller from the live ClusterSettings (the setting is dynamic), then shared
@@ -377,6 +385,32 @@ public class LocalExecutionPlanner {
         PhysicalPlan localPhysicalPlan,
         IndexedByShardId<? extends ShardContext> shardContexts,
         boolean singleNodeOptimizations
+    ) {
+        return plan(description, foldCtx, plannerSettings, localPhysicalPlan, shardContexts, singleNodeOptimizations, null);
+    }
+
+    /**
+     * Plans a plan whose root is no sink, like the fetch plan of a fetch request. Every driver ends in {@code rootSink}.
+     */
+    public LocalExecutionPlan plan(
+        String description,
+        FoldContext foldCtx,
+        PlannerSettings plannerSettings,
+        PhysicalPlan localPhysicalPlan,
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        SinkOperatorFactory rootSink
+    ) {
+        return plan(description, foldCtx, plannerSettings, localPhysicalPlan, shardContexts, false, Objects.requireNonNull(rootSink));
+    }
+
+    private LocalExecutionPlan plan(
+        String description,
+        FoldContext foldCtx,
+        PlannerSettings plannerSettings,
+        PhysicalPlan localPhysicalPlan,
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        boolean singleNodeOptimizations,
+        @Nullable SinkOperatorFactory rootSink
     ) {
         final boolean timeSeries = localPhysicalPlan.anyMatch(p -> p instanceof TimeSeriesAggregateExec);
         var context = new LocalExecutionPlannerContext(
@@ -403,6 +437,9 @@ public class LocalExecutionPlanner {
             a -> a.getMode().isOutputPartial() ? a : new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates()))
         );
         PhysicalOperation physicalOperation = plan(localPhysicalPlan, context);
+        if (rootSink != null) {
+            physicalOperation = physicalOperation.withSink(rootSink, physicalOperation.layout);
+        }
 
         final TimeValue statusInterval = configuration.pragmas().statusInterval();
         context.addDriverFactory(
@@ -440,6 +477,10 @@ public class LocalExecutionPlanner {
             return planExternalFieldExtract(extExtract, context);
         } else if (node instanceof RemoteFetchExec remoteFetch) {
             return planRemoteFetch(remoteFetch, context);
+        } else if (node instanceof DocRefEncodeExec docRefEncode) {
+            return planDocRefEncode(docRefEncode, context);
+        } else if (node instanceof FetchExec fetch) {
+            return planFetch(fetch, context);
         } else if (node instanceof ExchangeExec exchangeExec) {
             return planExchange(exchangeExec, context);
         } else if (node instanceof TopNExec topNExec) {
@@ -499,6 +540,8 @@ public class LocalExecutionPlanner {
         // source nodes
         else if (node instanceof EsQueryExec esQuery) {
             return planEsQueryNode(esQuery, context);
+        } else if (node instanceof FetchSourceExec fetchSource) {
+            return planFetchSource(fetchSource, context);
         } else if (node instanceof EsStatsQueryExec statsQuery) {
             return planEsStats(statsQuery, context);
         } else if (node instanceof LocalSourceExec localSource) {
@@ -2707,6 +2750,53 @@ public class LocalExecutionPlanner {
             elementTypes.add(PlannerUtils.toElementType(inverse.get(channel).type()));
         }
         return source.with(new GroupedLimitOperator.Factory(limitValue, groupKeys, elementTypes), source.layout);
+    }
+
+    private PhysicalOperation planFetch(FetchExec fetch, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(fetch.left(), context);
+        Layout.ChannelAndType docRef = source.layout.get(fetch.docRef().id());
+        if (docRef == null || docRef.type() != DataType.DOC_REF) {
+            throw new IllegalStateException("fetch reads document references from [" + fetch.docRef() + "] but the input has " + docRef);
+        }
+        Layout layout = source.layout.builder().append(fetch.fetchedAttributes()).build();
+        return source.with(fetchOperators.fetchOperator(fetch, docRef.channel(), fetchedElementTypes(fetch)), layout);
+    }
+
+    private PhysicalOperation planFetchSource(FetchSourceExec source, LocalExecutionPlannerContext context) {
+        FetchSourceProvider.FetchSource fetch = fetchSources.fetchSource(source, context.pageSize(source, source.estimatedRowSize()));
+        // each driver loads one shard of the fetch request
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, fetch.drivers()));
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(source.doc());
+        return PhysicalOperation.fromSource(fetch.factory(), layout.build());
+    }
+
+    /**
+     * The element type of a column depends on how it is loaded, for example a point loaded from doc values is a long.
+     * The fetch plan loads the fetched columns, so its extraction preferences decide.
+     */
+    private static List<ElementType> fetchedElementTypes(FetchExec fetch) {
+        Map<NameId, MappedFieldType.FieldExtractPreference> preferences = new HashMap<>();
+        fetch.fetchPlan().forEachDown(FieldExtractExec.class, extract -> {
+            for (Attribute attr : extract.attributesToExtract()) {
+                preferences.put(attr.id(), extract.fieldExtractPreference(attr));
+            }
+        });
+        return fetch.fetchedAttributes()
+            .stream()
+            .map(
+                a -> PlannerUtils.toElementType(a.dataType(), preferences.getOrDefault(a.id(), MappedFieldType.FieldExtractPreference.NONE))
+            )
+            .toList();
+    }
+
+    private PhysicalOperation planDocRefEncode(DocRefEncodeExec encode, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(encode.child(), context);
+        int docChannel = source.layout.get(encode.doc().id()).channel();
+        Layout.Builder layout = source.layout.builder();
+        // the column keeps its channel but changes type, and the operators planned above pick their encoders by type
+        layout.replace(encode.doc().id(), encode.docRef().id(), DataType.DOC_REF);
+        return source.with(new DocRefEncodeOperator.Factory(docChannel, context.shardContexts.map(ShardContext::origin)), layout.build());
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {

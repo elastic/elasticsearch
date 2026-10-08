@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.InsertPartialWindow
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.PlanRemoteFetch;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ReplaceSampledStatsBySampleAndStats;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhaseOutcomes;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.PlanFetch;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
@@ -32,12 +34,19 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
 
     private final AtomicBoolean approximationApplied = new AtomicBoolean();
 
+    private final FetchPhaseOutcomes fetchPhaseOutcomes = new FetchPhaseOutcomes();
+
     public PhysicalPlanOptimizer(PhysicalOptimizerContext context) {
         super(context);
     }
 
     public boolean approximationApplied() {
         return approximationApplied.get();
+    }
+
+    /** The fetch phase decisions of every plan this optimizer optimized, in order. */
+    public FetchPhaseOutcomes fetchPhaseOutcomes() {
+        return fetchPhaseOutcomes;
     }
 
     public PhysicalPlan optimize(PhysicalPlan plan) {
@@ -62,6 +71,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                 new ReplaceSampledStatsBySampleAndStats(() -> approximationApplied.set(true)),
                 new InsertPartialWindowAggregates()
             ),
+            new Batch<>("Plan Fetch", Limiter.ONCE, new PlanFetch(fetchPhaseOutcomes)),
             new Batch<>("Plan Remote Fetch", Limiter.ONCE, new PlanRemoteFetch())
         );
     }

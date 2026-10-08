@@ -11,6 +11,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.xpack.esql.fetch.lifetime.DocRefOriginResolver;
 
 import java.util.Arrays;
 import java.util.List;
@@ -24,11 +25,20 @@ import java.util.stream.IntStream;
  */
 public class AcquiredSearchContexts implements Releasable {
     private final ComputeSearchContext[] allContexts;
+    private final DocRefOriginResolver originResolver;
     private int nextAddIndex = 0;
     private boolean isClosed = false;
 
     public AcquiredSearchContexts(int size) {
+        this(size, DocRefOriginResolver.NONE);
+    }
+
+    /**
+     * @param originResolver names the reader of each shard for rows that leave the node as document references
+     */
+    public AcquiredSearchContexts(int size, DocRefOriginResolver originResolver) {
         this.allContexts = new ComputeSearchContext[size];
+        this.originResolver = originResolver;
     }
 
     public synchronized boolean isEmpty() {
@@ -63,7 +73,7 @@ public class AcquiredSearchContexts implements Releasable {
                     }
                 }
             });
-            allContexts[idx] = new ComputeSearchContext(idx, cse);
+            allContexts[idx] = new ComputeSearchContext(idx, cse, originResolver);
         }
         return new SubRanged<>(allContexts, startingIndex, nextAddIndex);
     }

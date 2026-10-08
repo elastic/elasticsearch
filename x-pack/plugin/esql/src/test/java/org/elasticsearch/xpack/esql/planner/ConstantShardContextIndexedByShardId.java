@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.data.DocRefOrigin;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -19,6 +20,8 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
@@ -57,6 +60,11 @@ public class ConstantShardContextIndexedByShardId implements IndexedByShardId<Es
         @Override
         public int index() {
             return 0;
+        }
+
+        @Override
+        public DocRefOrigin origin() {
+            return new DocRefOrigin("", "test_node", new ShardId("test", "_na_", 0), new ShardSearchContextId("test_session", 0));
         }
 
         @Override
@@ -123,6 +131,33 @@ public class ConstantShardContextIndexedByShardId implements IndexedByShardId<Es
 
     @Override
     public <S> IndexedByShardId<S> map(Function<EsPhysicalOperationProviders.ShardContext, S> mapper) {
-        throw new UnsupportedOperationException();
+        return constant(mapper.apply(CONTEXT));
+    }
+
+    /**
+     * Like this view, answers every shard with one value.
+     */
+    private static <T> IndexedByShardId<T> constant(T value) {
+        return new IndexedByShardId<>() {
+            @Override
+            public T get(int shardId) {
+                return value;
+            }
+
+            @Override
+            public Iterable<? extends T> iterable() {
+                return List.of(value);
+            }
+
+            @Override
+            public int size() {
+                return 1;
+            }
+
+            @Override
+            public <S> IndexedByShardId<S> map(Function<T, S> mapper) {
+                return constant(mapper.apply(value));
+            }
+        };
     }
 }

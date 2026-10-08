@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.FeatureFlag;
 
 import java.util.List;
 import java.util.Objects;
@@ -62,6 +63,38 @@ public class EsqlFlags {
     );
 
     /**
+     * Builds that carry the fetch phase. It is on in snapshot builds and off in release builds unless the
+     * {@code es.esql_fetch_phase_feature_flag_enabled} system property turns it on. It decides nothing else than
+     * whether {@link #ESQL_FETCH_PHASE} can take effect.
+     */
+    public static final FeatureFlag FETCH_PHASE_FEATURE_FLAG = new FeatureFlag("esql_fetch_phase");
+
+    /**
+     * Lets the coordinator load the columns a query only needs after a {@code LIMIT} or {@code TopN} for the rows that
+     * survive it, instead of loading them on every data node for every candidate row. Read on the coordinator when it
+     * plans a query, the plan carries the decision to the data nodes. The {@code fetch_phase} pragma overrides it for
+     * one query.
+     */
+    public static final Setting<Boolean> ESQL_FETCH_PHASE = Setting.boolSetting(
+        "esql.query.fetch_phase.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Whether a query may use the fetch phase, as far as the build and the cluster setting are concerned.
+     */
+    public enum FetchPhaseMode {
+        /** The build does not carry the fetch phase. Nothing turns it on. */
+        UNAVAILABLE,
+        /** The cluster setting is off. A query can still turn it on with the {@code fetch_phase} pragma. */
+        DISABLED,
+        /** The cluster setting is on. A query can still turn it off with the {@code fetch_phase} pragma. */
+        ENABLED
+    }
+
+    /**
      * Cluster-wide cap on the number of leaf branches an independently executed query may use.
      * An explicit {@link QueryPragmas#MAX_BRANCH_COUNT} pragma overrides this value for that query.
      */
@@ -91,7 +124,8 @@ public class EsqlFlags {
         ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
         ESQL_REMOTE_FETCH_TOPN,
         ESQL_MAX_BRANCH_COUNT,
-        ESQL_MAX_BRANCH_LEVEL
+        ESQL_MAX_BRANCH_LEVEL,
+        ESQL_FETCH_PHASE
     );
 
     /**
@@ -103,7 +137,8 @@ public class EsqlFlags {
         ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
         ESQL_REMOTE_FETCH_TOPN.getDefault(Settings.EMPTY),
         ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
-        ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY)
+        ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+        fetchPhaseMode(FETCH_PHASE_FEATURE_FLAG.isEnabled(), ESQL_FETCH_PHASE.getDefault(Settings.EMPTY))
     );
 
     private final boolean stringLikeOnIndex;
@@ -115,6 +150,8 @@ public class EsqlFlags {
     private final int maxBranchCount;
 
     private final int maxBranchLevel;
+
+    private final FetchPhaseMode fetchPhaseMode;
 
     /**
      * Constructor for tests.
@@ -154,7 +191,8 @@ public class EsqlFlags {
             roundToPushdownThreshold,
             remoteFetchTopN,
             ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
-            ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY)
+            ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+            DEFAULTS.fetchPhaseMode
         );
     }
 
@@ -174,7 +212,24 @@ public class EsqlFlags {
             ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
             ESQL_REMOTE_FETCH_TOPN.getDefault(Settings.EMPTY),
             maxBranchCount,
-            maxBranchLevel
+            maxBranchLevel,
+            DEFAULTS.fetchPhaseMode
+        );
+    }
+
+    /**
+     * Test helper that leaves the other flags at their defaults. The fetch phase is {@link FetchPhaseMode#ENABLED}
+     * or {@link FetchPhaseMode#DISABLED} whatever the feature flag of the test JVM says, so planner tests behave the
+     * same on release builds.
+     */
+    public static EsqlFlags withFetchPhase(boolean enabled) {
+        return new EsqlFlags(
+            ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
+            ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
+            ESQL_REMOTE_FETCH_TOPN.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+            enabled ? FetchPhaseMode.ENABLED : FetchPhaseMode.DISABLED
         );
     }
 
@@ -183,13 +238,15 @@ public class EsqlFlags {
         int roundToPushdownThreshold,
         boolean remoteFetchTopN,
         int maxBranchCount,
-        int maxBranchLevel
+        int maxBranchLevel,
+        FetchPhaseMode fetchPhaseMode
     ) {
         this.stringLikeOnIndex = stringLikeOnIndex;
         this.roundToPushdownThreshold = roundToPushdownThreshold;
         this.remoteFetchTopN = remoteFetchTopN;
         this.maxBranchCount = maxBranchCount;
         this.maxBranchLevel = maxBranchLevel;
+        this.fetchPhaseMode = fetchPhaseMode;
     }
 
     public EsqlFlags(ClusterSettings settings) {
@@ -198,8 +255,19 @@ public class EsqlFlags {
             settings.get(ESQL_ROUNDTO_PUSHDOWN_THRESHOLD),
             settings.get(ESQL_REMOTE_FETCH_TOPN),
             settings.get(ESQL_MAX_BRANCH_COUNT),
-            settings.get(ESQL_MAX_BRANCH_LEVEL)
+            settings.get(ESQL_MAX_BRANCH_LEVEL),
+            fetchPhaseMode(FETCH_PHASE_FEATURE_FLAG.isEnabled(), settings.get(ESQL_FETCH_PHASE))
         );
+    }
+
+    /**
+     * The only place the feature flag is read for planning. A build without the flag ignores the setting.
+     */
+    static FetchPhaseMode fetchPhaseMode(boolean featureFlagEnabled, boolean settingEnabled) {
+        if (featureFlagEnabled == false) {
+            return FetchPhaseMode.UNAVAILABLE;
+        }
+        return settingEnabled ? FetchPhaseMode.ENABLED : FetchPhaseMode.DISABLED;
     }
 
     /**
@@ -230,6 +298,13 @@ public class EsqlFlags {
         return maxBranchLevel;
     }
 
+    /**
+     * Whether the build and the cluster setting let a query use the fetch phase. See {@link FetchPhaseMode}.
+     */
+    public FetchPhaseMode fetchPhaseMode() {
+        return fetchPhaseMode;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -239,12 +314,13 @@ public class EsqlFlags {
             && roundToPushdownThreshold == that.roundToPushdownThreshold
             && remoteFetchTopN == that.remoteFetchTopN
             && maxBranchCount == that.maxBranchCount
-            && maxBranchLevel == that.maxBranchLevel;
+            && maxBranchLevel == that.maxBranchLevel
+            && fetchPhaseMode == that.fetchPhaseMode;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(stringLikeOnIndex, roundToPushdownThreshold, remoteFetchTopN, maxBranchCount, maxBranchLevel);
+        return Objects.hash(stringLikeOnIndex, roundToPushdownThreshold, remoteFetchTopN, maxBranchCount, maxBranchLevel, fetchPhaseMode);
     }
 
     @Override
@@ -259,6 +335,8 @@ public class EsqlFlags {
             + maxBranchCount
             + ", maxBranchLevel="
             + maxBranchLevel
+            + ", fetchPhaseMode="
+            + fetchPhaseMode
             + ']';
     }
 }

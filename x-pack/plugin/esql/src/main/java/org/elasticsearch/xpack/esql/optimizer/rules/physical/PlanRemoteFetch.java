@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
@@ -70,6 +71,10 @@ import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
 public final class PlanRemoteFetch extends ParameterizedRule<PhysicalPlan, PhysicalPlan, PhysicalOptimizerContext> {
     @Override
     public PhysicalPlan apply(PhysicalPlan plan, PhysicalOptimizerContext context) {
+        // the fetch phase planned this plan already
+        if (plan.anyMatch(FetchExec.class::isInstance)) {
+            return plan;
+        }
         if (context.flags().remoteFetchTopN() == false
             || context.configuration().pragmas().nodeLevelReduction() == false
             || context.configuration().pragmas().fieldExtractPreference() != MappedFieldType.FieldExtractPreference.NONE
@@ -259,7 +264,7 @@ public final class PlanRemoteFetch extends ParameterizedRule<PhysicalPlan, Physi
             case BOOLEAN, LONG, INTEGER, UNSIGNED_LONG, DOUBLE, KEYWORD, TEXT, DATETIME, DATE_NANOS, IP, VERSION -> true;
             case NULL, SOURCE, UNSUPPORTED, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT,
                 OBJECT, DATE_PERIOD, TIME_DURATION, GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, GEOHASH, GEOTILE, GEOHEX,
-                DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, HISTOGRAM,
+                DOC_DATA_TYPE, DOC_REF, TSID_DATA_TYPE, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, HISTOGRAM,
                 DENSE_VECTOR, FLATTENED, DATE_RANGE, DOUBLE_RANGE -> false;
         };
     }

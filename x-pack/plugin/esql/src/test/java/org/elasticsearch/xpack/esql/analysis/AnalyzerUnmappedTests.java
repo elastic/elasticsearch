@@ -1145,6 +1145,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             DataType.NULL,              // not a real mapped field type
             DataType.UNSUPPORTED,       // not a real mapped field type
             DataType.DOC_DATA_TYPE,     // internal _doc type
+            DataType.DOC_REF,           // internal document reference type
             DataType.TSID_DATA_TYPE,    // internal _tsid type
             DataType.SOURCE,            // internal _source type
             DataType.DATE_PERIOD,       // ESQL-internal, not an ES mapping type

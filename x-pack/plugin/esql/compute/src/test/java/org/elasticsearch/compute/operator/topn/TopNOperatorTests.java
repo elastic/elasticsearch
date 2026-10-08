@@ -24,6 +24,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocRefBlock;
+import org.elasticsearch.compute.data.DocRefOrigin;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -40,6 +42,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.compute.test.AbstractTypedBlockSourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestBlockBuilder;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -65,6 +68,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -991,7 +995,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         encoders.add(DEFAULT_SORTABLE);
 
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == EXPONENTIAL_HISTOGRAM || e == TDIGEST) {
+            if (e == ElementType.UNKNOWN || e == ElementType.DOC_REF || e == COMPOSITE || e == EXPONENTIAL_HISTOGRAM || e == TDIGEST) {
                 continue;
             }
             elementTypes.add(e);
@@ -1105,7 +1109,12 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomFrom(ElementType.values());
-            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE || e == EXPONENTIAL_HISTOGRAM || e == TDIGEST) {
+            if (e == ElementType.UNKNOWN
+                || e == ElementType.DOC_REF
+                || e == COMPOSITE
+                || e == AGGREGATE_METRIC_DOUBLE
+                || e == EXPONENTIAL_HISTOGRAM
+                || e == TDIGEST) {
                 continue;
             }
             elementTypes.add(e);
@@ -1560,6 +1569,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             ElementType e = randomValueOtherThanMany(
                 t -> t == ElementType.UNKNOWN
                     || t == ElementType.DOC
+                    || t == ElementType.DOC_REF
                     || t == COMPOSITE
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
@@ -2462,6 +2472,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             ElementType e = randomValueOtherThanMany(
                 t -> t == ElementType.UNKNOWN
                     || t == ElementType.DOC
+                    || t == ElementType.DOC_REF
                     || t == COMPOSITE
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
@@ -2592,6 +2603,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             ElementType e = randomValueOtherThanMany(
                 t -> t == ElementType.UNKNOWN
                     || t == ElementType.DOC
+                    || t == ElementType.DOC_REF
                     || t == COMPOSITE
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
@@ -2644,6 +2656,117 @@ public class TopNOperatorTests extends OperatorTestCase {
      * group key columns alongside their data columns. When {@code groupKeys} is empty, the
      * layout is an identity mapping (data channel i == channel i).
      */
+    /**
+     * Document references from several nodes, whose shard numbers overlap, keep their documents through the TopN. Each
+     * output page only names the origins its own rows reference. {@link ParallelTopNOperatorTests} runs this with
+     * workers that see the origins in a different order and share one registry.
+     */
+    public void testDocRefsFromManyOrigins() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        var layout = ChannelLayout.forDataColumns(2, groupKeys());
+        List<DocRefOrigin> origins = new ArrayList<>();
+        while (origins.size() < 4) {
+            DocRefOrigin origin = RandomBlock.randomDocRefOrigin();
+            if (origins.contains(origin) == false) {
+                origins.add(origin);
+            }
+        }
+        // distinct keys, so the winners don't depend on how ties break
+        List<Long> keys = new ArrayList<>();
+        for (long k = 0; k < 400; k++) {
+            keys.add(k);
+        }
+        Collections.shuffle(keys, random());
+        List<Tuple<Long, BlockUtils.DocRef>> rows = new ArrayList<>();
+        List<Page> pages = new ArrayList<>();
+        int next = 0;
+        while (next < keys.size()) {
+            int positions = Math.min(between(1, 50), keys.size() - next);
+            List<DocRefOrigin> pageOrigins = new ArrayList<>(randomSubsetOf(between(1, origins.size()), origins));
+            Collections.shuffle(pageOrigins, random());
+            try (
+                LongBlock.Builder keyColumn = blockFactory.newLongBlockBuilder(positions);
+                DocRefBlock.Builder refColumn = DocRefBlock.newBlockBuilder(blockFactory, positions)
+            ) {
+                for (DocRefOrigin origin : pageOrigins) {
+                    refColumn.addOrigin(origin);
+                }
+                for (int p = 0; p < positions; p++) {
+                    long key = keys.get(next++);
+                    int ordinal = between(0, pageOrigins.size() - 1);
+                    int segment = between(0, 3);
+                    int doc = between(0, 1000);
+                    keyColumn.appendLong(key);
+                    refColumn.append(ordinal, segment, doc);
+                    rows.add(tuple(key, new BlockUtils.DocRef(pageOrigins.get(ordinal), segment, doc)));
+                }
+                pages.add(new Page(layout.buildPageBlocks(positions, blockFactory, keyColumn.build(), refColumn.build())));
+            }
+        }
+        int topCount = between(1, rows.size());
+
+        List<ElementType> elementTypes = new ArrayList<>();
+        List<TopNEncoder> encoders = new ArrayList<>();
+        for (int ch = 0; ch < layout.totalChannels(); ch++) {
+            if (layout.groupKeySet().contains(ch)) {
+                elementTypes.add(INT);
+                encoders.add(DEFAULT_UNSORTABLE);
+            } else if (ch == layout.dataChannel(0)) {
+                elementTypes.add(LONG);
+                encoders.add(DEFAULT_SORTABLE);
+            } else {
+                elementTypes.add(ElementType.DOC_REF);
+                encoders.add(DocRefEncoder.PROTOTYPE);
+            }
+        }
+        List<Tuple<Long, BlockUtils.DocRef>> actual = new ArrayList<>();
+        try (
+            Driver driver = TestDriverFactory.create(
+                driverContext,
+                new CannedSourceOperator(pages.iterator()),
+                List.of(
+                    createTopNOperatorFactory(
+                        topCount,
+                        elementTypes,
+                        encoders,
+                        List.of(new TopNOperator.SortOrder(layout.dataChannel(0), true, false)),
+                        groupKeys(),
+                        randomPageSize(),
+                        randomJumboPageBytes(),
+                        InputOrdering.NOT_SORTED,
+                        null
+                    ).get(driverContext)
+                ),
+                new PageConsumerOperator(page -> {
+                    try {
+                        LongBlock keyColumn = page.getBlock(layout.dataChannel(0));
+                        DocRefBlock refColumn = page.getBlock(layout.dataChannel(1));
+                        Set<DocRefOrigin> referenced = new HashSet<>();
+                        for (int p = 0; p < page.getPositionCount(); p++) {
+                            BlockUtils.DocRef ref = (BlockUtils.DocRef) toJavaObject(refColumn, p);
+                            referenced.add(ref.origin());
+                            actual.add(tuple(keyColumn.getLong(p), ref));
+                        }
+                        assertThat(
+                            "the page names only its own origins",
+                            refColumn.asVector().origins().size(),
+                            equalTo(referenced.size())
+                        );
+                    } finally {
+                        page.releaseBlocks();
+                    }
+                })
+            )
+        ) {
+            new TestDriverRunner().run(driver);
+        }
+
+        rows.sort(Comparator.comparing(Tuple::v1));
+        actual.sort(Comparator.comparing(Tuple::v1));
+        assertThat(actual, equalTo(rows.subList(0, topCount)));
+    }
+
     protected record ChannelLayout(int[] groupKeys, Set<Integer> groupKeySet, int[] dataChannels, int totalChannels) {
 
         static ChannelLayout forDataColumns(int dataColumnCount, int[] groupKeys) {
@@ -2796,6 +2919,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             ElementType e = randomValueOtherThanMany(
                 t -> t == ElementType.UNKNOWN
                     || t == ElementType.DOC
+                    || t == ElementType.DOC_REF
                     || t == ElementType.COMPOSITE
                     || t == ElementType.AGGREGATE_METRIC_DOUBLE
                     || t == ElementType.EXPONENTIAL_HISTOGRAM

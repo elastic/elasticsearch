@@ -244,7 +244,9 @@ public final class BlockUtils {
             case TDIGEST -> ((TDigestBlockBuilder) builder).appendTDigest((TDigestHolder) val);
             case LONG_RANGE -> ((LongRangeBlockBuilder) builder).appendLongRange((LongRangeBlockBuilder.LongRange) val);
             case DOUBLE_RANGE -> ((DoubleRangeBlockBuilder) builder).appendDoubleRange((DoubleRangeBlockBuilder.DoubleRange) val);
-            case DOC, COMPOSITE, NULL, UNKNOWN -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
+            case DOC, DOC_REF, COMPOSITE, NULL, UNKNOWN -> throw new UnsupportedOperationException(
+                "unsupported element type [" + type + "]"
+            );
         }
     }
 
@@ -291,6 +293,11 @@ public final class BlockUtils {
      * Returned by {@link #toJavaObject} for "doc" type blocks.
      */
     public record Doc(int shard, int segment, int doc) {}
+
+    /**
+     * Returned by {@link #toJavaObject} for "doc ref" type blocks.
+     */
+    public record DocRef(DocRefOrigin origin, int segment, int doc) {}
 
     /**
      * Read all values from a positions into a java object. This is not fast
@@ -364,6 +371,10 @@ public final class BlockUtils {
             case DOUBLE_RANGE -> {
                 DoubleRangeBlock b = (DoubleRangeBlock) block;
                 yield b.getDoubleRange(offset, new DoubleRangeBlockBuilder.DoubleRange());
+            }
+            case DOC_REF -> {
+                DocRefVector v = ((DocRefBlock) block).asVector();
+                yield new DocRef(v.origin(offset), v.segments().getInt(offset), v.docs().getInt(offset));
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };

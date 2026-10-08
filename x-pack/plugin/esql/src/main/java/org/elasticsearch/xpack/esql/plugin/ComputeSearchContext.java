@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.xpack.esql.fetch.lifetime.DocRefOriginResolver;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 
@@ -44,16 +46,27 @@ public class ComputeSearchContext implements Releasable {
     private final int index;
     @Nullable
     private final SearchContext searchContext;
+    @Nullable
+    private final DocRefOriginResolver originResolver;
     private final SetOnce<ShardContext> shardContext = new SetOnce<>();
 
     ComputeSearchContext(int index, SearchContext searchContext) {
+        this(index, searchContext, DocRefOriginResolver.NONE);
+    }
+
+    /**
+     * @param originResolver names the reader of this shard for rows that leave the node as document references
+     */
+    ComputeSearchContext(int index, SearchContext searchContext, DocRefOriginResolver originResolver) {
         this.index = index;
         this.searchContext = Objects.requireNonNull(searchContext);
+        this.originResolver = Objects.requireNonNull(originResolver);
     }
 
     private ComputeSearchContext(int index) {
         this.index = index;
         this.searchContext = null;
+        this.originResolver = null;
     }
 
     /** Tombstone with no {@link SearchContext}, so the closed search context can be GC'd. */
@@ -105,7 +118,13 @@ public class ComputeSearchContext implements Releasable {
         // Registered unconditionally; for detached shard contexts this is a no-op since the remote fetch path does not construct
         // Lucene queries and the counter stays at zero.
         searchContext.addReleasable(searchExecutionContext::releaseQueryConstructionMemory);
-        return new DefaultShardContext(index, releasable, searchExecutionContext, searchContext.request().getAliasFilter());
+        return new DefaultShardContext(
+            index,
+            releasable,
+            searchExecutionContext,
+            searchContext.request().getAliasFilter(),
+            CachedSupplier.wrap(() -> originResolver.originOf(searchContext))
+        );
     }
 
     @Override

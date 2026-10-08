@@ -1,0 +1,3 @@
+FROM employees
+| LIMIT 10
+| KEEP first_name, last_name

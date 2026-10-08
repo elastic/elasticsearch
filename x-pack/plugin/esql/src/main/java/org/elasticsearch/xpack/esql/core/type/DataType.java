@@ -402,6 +402,18 @@ public enum DataType implements Writeable {
      */
     DOC_DATA_TYPE(builder().esType("_doc").estimatedSize(Integer.BYTES * 3).supportedOnAllNodes()),
     /**
+     * A reference to one Lucene document that stays valid after the row leaves the node that read it. Where
+     * {@link #DOC_DATA_TYPE} points into the shard contexts of one node, this type also names the node, the shard and
+     * the reader context, so the coordinator can send the reference back to that node and load more fields for the
+     * document later. Hidden like {@link #DOC_DATA_TYPE}: the planner adds it, users never see or write it, and it is
+     * dropped before results are returned.
+     */
+    DOC_REF(
+        builder().typeName("DOC_REF")
+            .estimatedSize(Integer.BYTES * 3)
+            .supportedSince(DataTypesTransportVersions.ESQL_FETCH_PHASE_PLAN, DataTypesTransportVersions.ESQL_FETCH_PHASE_PLAN)
+    ),
+    /**
      * Fields with this type represent values from the {@link TimeSeriesIdFieldMapper}.
      * Every document in {@link IndexMode#TIME_SERIES} index will have a single value
      * for this field and the segments themselves are sorted on this value.
@@ -570,7 +582,7 @@ public enum DataType implements Writeable {
     }
 
     private static final Collection<DataType> TYPES = Arrays.stream(values())
-        .filter(d -> d != DOC_DATA_TYPE)
+        .filter(d -> d != DOC_DATA_TYPE && d != DOC_REF)
         .sorted(Comparator.comparing(DataType::typeName))
         .toList();
 
@@ -870,6 +882,7 @@ public enum DataType implements Writeable {
 
     public static boolean isSortable(DataType t) {
         return false == (t == SOURCE
+            || t == DOC_REF
             || isCounter(t)
             || isSpatialOrGrid(t)
             || t == AGGREGATE_METRIC_DOUBLE
@@ -1016,6 +1029,10 @@ public enum DataType implements Writeable {
              * want folks to be able to convert to `DOC`.
              */
             return DataType.DOC_DATA_TYPE;
+        }
+        if (name.equalsIgnoreCase(DataType.DOC_REF.nameUpper())) {
+            // not in fromTypeName for the same reason as DOC
+            return DataType.DOC_REF;
         }
         DataType dataType = DataType.fromTypeName(name);
         if (dataType == null) {
@@ -1303,5 +1320,11 @@ public enum DataType implements Writeable {
         public static final TransportVersion ESQL_DOUBLE_RANGE_UNDER_CONSTRUCTION = TransportVersion.fromName(
             "esql_double_range_tech_preview"
         );
+
+        /**
+         * The plans of the fetch phase: {@link #DOC_REF} attributes and the node level exchange scope. A node that
+         * does not support this version never receives such a plan, the planner checks it first.
+         */
+        public static final TransportVersion ESQL_FETCH_PHASE_PLAN = TransportVersion.fromName("esql_fetch_phase_plan");
     }
 }

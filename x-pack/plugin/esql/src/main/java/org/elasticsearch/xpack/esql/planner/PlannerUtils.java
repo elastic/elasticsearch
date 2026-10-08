@@ -255,6 +255,8 @@ public class PlannerUtils {
          */
         PhysicalPlan coordinatorPlan = plan.transformDownSkipBranch((p, skipBranch) -> {
             if (p instanceof ExchangeExec e) {
+                // NODE exchanges are always below a CLUSTER exchange and are split on the data node
+                assert e.scope() == ExchangeExec.Scope.CLUSTER : "expected a CLUSTER exchange at the coordinator split but found " + e;
                 if (dataNodePlan.get() != null) {
                     // Multiple exchange points are not supported by this split helper.
                     throw new EsqlIllegalArgumentException("expected a single ExchangeExec when splitting coordinator and data node plans");
@@ -736,6 +738,7 @@ public class PlannerUtils {
             case NULL -> ElementType.NULL;
             case BOOLEAN -> ElementType.BOOLEAN;
             case DOC_DATA_TYPE -> ElementType.DOC;
+            case DOC_REF -> ElementType.DOC_REF;
             case TSID_DATA_TYPE -> ElementType.BYTES_REF;
             case GEO_POINT, CARTESIAN_POINT -> fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
             case GEO_SHAPE, CARTESIAN_SHAPE -> switch (fieldExtractPreference) {

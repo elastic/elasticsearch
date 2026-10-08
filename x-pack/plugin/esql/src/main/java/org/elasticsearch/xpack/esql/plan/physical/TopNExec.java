@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.SideChannel;
+import org.elasticsearch.compute.operator.topn.DocRefEncoder;
 import org.elasticsearch.compute.operator.topn.DocVectorEncoder;
 import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
@@ -286,6 +287,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
                 AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR, GEOHASH, GEOTILE, GEOHEX, EXPONENTIAL_HISTOGRAM, TDIGEST, HISTOGRAM, TSID_DATA_TYPE,
                 DATE_RANGE, DOUBLE_RANGE, PARTIAL_AGG, FLATTENED -> TopNEncoder.DEFAULT_UNSORTABLE;
             case UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
+            case DOC_REF -> DocRefEncoder.PROTOTYPE;
         };
         if (Assertions.ENABLED) {
             TopNEncoder keyEncoder = keyEncoder(type);

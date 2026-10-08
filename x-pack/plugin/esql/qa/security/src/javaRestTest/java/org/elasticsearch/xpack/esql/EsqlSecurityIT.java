@@ -1502,6 +1502,18 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertOK(client().performRequest(putMapping));
     }
 
+    private static List<?> esqlColumnNames(Map<String, Object> response) {
+        return ((List<?>) response.get("columns")).stream().map(column -> ((Map<?, ?>) column).get("name")).toList();
+    }
+
+    private static List<?> esqlColumnValues(Map<String, Object> response, String columnName) {
+        int columnIndex = esqlColumnNames(response).indexOf(columnName);
+        if (columnIndex < 0) {
+            throw new AssertionError("column [" + columnName + "] not found in " + esqlColumnNames(response));
+        }
+        return ((List<?>) response.get("values")).stream().map(row -> ((List<?>) row).get(columnIndex)).toList();
+    }
+
     public void testRowCommand() throws Exception {
         String user = randomFrom("test-admin", "user1", "user2");
         Response resp = runESQLCommand(user, "row a = 5, b = 2 | stats count=sum(b) by a");
@@ -2105,15 +2117,15 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         Response admin = runESQLCommand("test-admin", query);
         assertOK(admin);
-        EsqlResult adminResult = esqlResult(admin);
-        assertThat(adminResult.values("org"), equalTo(List.of("sales")));
-        assertThat(adminResult.values("test_constant"), equalTo(List.of("hidden_value")));
+        Map<String, Object> adminResult = entityAsMap(admin);
+        assertThat(esqlColumnValues(adminResult, "org"), equalTo(List.of("sales")));
+        assertThat(esqlColumnValues(adminResult, "test_constant"), equalTo(List.of("hidden_value")));
 
         Response restricted = runESQLCommand("fls_user2", query);
         assertOK(restricted);
-        EsqlResult restrictedResult = esqlResult(restricted);
-        assertThat(restrictedResult.values("org"), equalTo(List.of("sales")));
-        assertThat(restrictedResult.columnNames(), not(hasItem("test_constant")));
+        Map<String, Object> restrictedResult = entityAsMap(restricted);
+        assertThat(esqlColumnValues(restrictedResult, "org"), equalTo(List.of("sales")));
+        assertFalse(esqlColumnNames(restrictedResult).contains("test_constant"));
     }
 
     public void testFromLookupIndexForbidden() throws Exception {

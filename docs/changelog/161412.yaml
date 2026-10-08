@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 161165
-pr: 161412
-summary: Unmute gzip permit cycle test
-type: enhancement

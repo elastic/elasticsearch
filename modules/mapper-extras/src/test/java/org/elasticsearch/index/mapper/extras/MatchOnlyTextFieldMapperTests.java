@@ -20,6 +20,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.join.ScoreMode;
@@ -46,6 +47,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
@@ -816,6 +818,32 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         assertTrue("doc_values should be enabled", fieldType.hasDocValues());
     }
 
+    /**
+     * {@code match_only_text} is the same family, so a predicate over its value is answered from the values it keeps:
+     * the document whose value is {@code quick} answers a term, and the one that merely holds that token does not.
+     */
+    public void testPredicatesOverTheValuesItKeeps() throws IOException {
+        final Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        final MapperService mapperService = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "match_only_text").endObject())
+        );
+        final TextFamilyFieldType field = (TextFamilyFieldType) mapperService.fieldType("field");
+        assertNotNull(field.valueQueries());
+
+        withLuceneIndex(mapperService, iw -> {
+            for (String doc : List.of("the quick brown fox", "quick")) {
+                iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", doc))).rootDoc());
+            }
+        }, reader -> {
+            final IndexSearcher searcher = newSearcher(reader);
+            final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+            assertEquals(1, searcher.count(field.termLikeQuery("quick", context)));
+            assertEquals(0, searcher.count(field.termLikeQuery("brown", context)));
+            assertEquals(1, searcher.count(field.wildcardLikeQuery("the quick*", null, false, context)));
+        });
+    }
+
     public void testColumnarArrayOrderRoundTrip() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(
@@ -1013,7 +1041,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
 
     /**
      * Phrase query on a multi-value document in columnar mode. Before the fix this crashed with an invalid-vInt error because
-     * {@code SourceConfirmedTextQuery}'s position-confirming phase read {@code ArrayOrderInlineNull} bytes through the
+     * {@code ReanalyzingTextQuery}'s position-confirming phase read {@code ArrayOrderInlineNull} bytes through the
      * {@code SeparateCount} decoder. Tests the regression fix in
      * {@link MatchOnlyTextFieldMapper.MatchOnlyTextFieldType#getValueFetcherProvider}.
      */

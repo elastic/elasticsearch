@@ -69,19 +69,29 @@ public class OutputOperator extends SinkOperator {
 
     boolean finished = false;
 
+    /** A {@link PageConsumer} may still be finishing after the last page, and the query waits for it. */
     @Override
     public boolean isFinished() {
-        return finished;
+        return finished && (pageConsumer instanceof PageConsumer consumer ? consumer.isFinished() : true);
     }
 
     @Override
     public void finish() {
         finished = true;
+        if (pageConsumer instanceof PageConsumer consumer) {
+            consumer.finish();
+        }
     }
 
     @Override
     public boolean needsInput() {
         return finished == false;
+    }
+
+    /** A {@link PageConsumer} that is falling behind parks the driver rather than being handed more pages. */
+    @Override
+    public IsBlockedResult isBlocked() {
+        return pageConsumer instanceof PageConsumer consumer ? consumer.isBlocked() : NOT_BLOCKED;
     }
 
     @Override
@@ -91,7 +101,9 @@ public class OutputOperator extends SinkOperator {
 
     @Override
     public void close() {
-
+        if (pageConsumer instanceof PageConsumer consumer) {
+            consumer.close();
+        }
     }
 
     @Override

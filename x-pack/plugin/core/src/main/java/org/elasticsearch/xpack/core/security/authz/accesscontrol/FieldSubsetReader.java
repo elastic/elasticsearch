@@ -42,6 +42,7 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
@@ -461,7 +462,9 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      * re-encoding them into a blob that the caller would immediately parse apart again. {@link #binaryValue()} encodes on demand as a
      * fallback for anything that reads this instance as a plain {@link BinaryDocValues}.
      */
-    private static final class FilteredIgnoredSourceDocValues extends MultiValuedSortableBinaryDocValues.DecodedBinaryDocValues {
+    private static final class FilteredIgnoredSourceDocValues extends MultiValuedSortableBinaryDocValues.DecodedBinaryDocValues
+        implements
+            BlockLoader.OptionalDecodeMemoryUsageEstimator {
 
         private final BinaryDocValues delegate;
         private final MultiValuedSortableBinaryDocValues multiValues;
@@ -485,6 +488,11 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             this.nameFilter = filter::run;
             // convert incoming binary doc values to reuse the code provided by MultiValuedSortableBinaryDocValues
             this.multiValues = MultiValuedSortableBinaryDocValues.fromMultiValued(reader, IgnoredSourceFieldMapper.NAME, dv);
+        }
+
+        @Override
+        public long maxDecodeBytes() {
+            return delegate instanceof BlockLoader.OptionalDecodeMemoryUsageEstimator estimator ? estimator.maxDecodeBytes() : -1;
         }
 
         @Override

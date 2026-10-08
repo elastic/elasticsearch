@@ -287,6 +287,7 @@ public final class QuerySettings {
         ExemplarsSettings::fromXContent,
         ExemplarsSettings::parse
     )
+        .withRequestBody()
         .withDefault(ExemplarsSettings.DISABLED)
         .withSnapshotOnly()
         .streamFormat((out, value) -> value.writeTo(out), ExemplarsSettings::new)

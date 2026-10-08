@@ -13,11 +13,15 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
 
@@ -242,5 +246,45 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
         var chunks = new ArrayList<>();
         processor.parse(parserConfig, data).forEachRemaining(chunks::add);
         assertThat(chunks.size(), is(2));
+    }
+
+    public void testSynthesizedFunctionCallIdsAreUnique() throws IOException {
+        var json = """
+            {
+              "candidates": [ {
+                "content": {
+                  "role": "model",
+                  "parts": [
+                    { "functionCall": { "name": "getWeatherData", "args": { "location": "buenos aires" } } },
+                    { "functionCall": { "name": "getWeatherData", "args": { "location": "new york" } } }
+                  ]
+                }
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 20, "totalTokenCount": 30 },
+              "modelVersion": "gemini-2.0-flash-lite",
+              "responseId": "responseId"
+            }
+            """;
+
+        var parallelCalls = parseToolCalls(json);
+        var laterCall = parseToolCalls(json).getFirst();
+
+        assertThat(parallelCalls.get(0).id(), startsWith("getWeatherData#"));
+        assertThat(parallelCalls.get(1).id(), startsWith("getWeatherData#"));
+        assertThat(parallelCalls.get(0).id(), not(parallelCalls.get(1).id()));
+        assertThat(laterCall.id(), not(parallelCalls.get(0).id()));
+        assertThat(laterCall.id(), not(parallelCalls.get(1).id()));
+    }
+
+    private static List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> parseToolCalls(String json)
+        throws IOException {
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, json)) {
+            return GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser.parse(parser)
+                .choices()
+                .getFirst()
+                .delta()
+                .toolCalls();
+        }
     }
 }

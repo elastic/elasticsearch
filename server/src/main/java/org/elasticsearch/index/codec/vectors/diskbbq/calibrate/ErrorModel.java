@@ -529,7 +529,7 @@ public final class ErrorModel {
      * Opaque per-sweep state for the real-residual magnitude path: reusable OSQ scratch, a serial k-means
      * instance, and the (encoding-independent) clustering from the first candidate, reused as a warm start
      * for subsequent candidates so k-means is not recomputed from scratch per encoding. Construct once per
-     * calibration via {@link #newRealResidualState} and thread through every candidate.
+     * calibration and thread through every candidate.
      */
     public static final class RealResidualState {
         private final QuantizedErrorScratch scratch;
@@ -553,11 +553,6 @@ public final class ErrorModel {
         public int ndocs() {
             return nDocs;
         }
-    }
-
-    /** Creates the shared state for a real-residual magnitude sweep over {@code source}, with the default margin. */
-    public static RealResidualState newRealResidualState(CalibrationSource source) {
-        return new RealResidualState(source);
     }
 
     /**

@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 160516
+summary: Add query breakers to more wildcard queries
+type: enhancement

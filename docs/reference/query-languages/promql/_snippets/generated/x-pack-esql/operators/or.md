@@ -24,4 +24,4 @@ vector1 or vector2
 
 **Differences from Prometheus**
 
-{{es}} evaluates `or` only at the top level of an expression. A nested `or`, or a chain that exceeds the operand limit, returns a client error (4xx). The limit depends on the version; see [Unsupported PromQL constructs](/reference/query-languages/promql/promql-limitations.md#promql-limitations-unsupported-constructs).
+For the restrictions on `or` in {{es}}, see [Unsupported PromQL constructs](/reference/query-languages/promql/promql-limitations.md#promql-limitations-unsupported-constructs).

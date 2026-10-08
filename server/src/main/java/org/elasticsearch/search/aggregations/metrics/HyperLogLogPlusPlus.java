@@ -364,7 +364,8 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         void mergeRegisters(long bucketOrd, HyperLogLog other, long otherBucketOrd) {
             final BytesRef src = new BytesRef();
             other.runLens.get(otherBucketOrd << p, m, src);
-            // Only read. Aliasing the destination is safe: buckets do not overlap, and merging a bucket into itself changes nothing.
+            // Only read. When both buckets are in this structure, the source slice can point into the same array as the destination.
+            // That is safe: different buckets do not overlap, and a bucket that merges into itself does not change.
             mergeRegisters(bucketOrd, src.bytes, src.offset);
         }
 

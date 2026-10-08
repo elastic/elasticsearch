@@ -67,6 +67,10 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
 
     private int reasoningBlockCount;
     private final Map<Integer, Integer> contentBlockIndexToReasoningIndex = new HashMap<>();
+    /**
+     * Tool calls are numbered in the order they start. Entries are never removed, so the map size is the next free index.
+     */
+    private final Map<Integer, Integer> contentBlockIndexToToolCallIndex = new HashMap<>();
 
     protected AmazonBedrockChatCompletionStreamingProcessor(ThreadPool threadPool, String modelId, AmazonBedrockProvider provider) {
         super(threadPool);
@@ -295,12 +299,13 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
      * This occurs when the model first decides to use a tool, providing its name and ID.
      * Parse a MessageStartEvent into a ToolCall stream
      * @param start the ContentBlockStart data
+     * @param toolCallIndex the index of this tool call within the message
      * @return a ToolCall
      */
-    private ChatCompletionToolCallResponse handleToolUseStart(ContentBlockStart start) {
+    private ChatCompletionToolCallResponse handleToolUseStart(ContentBlockStart start, int toolCallIndex) {
         var toolUse = start.toolUse();
         var function = new ChatCompletionToolCallResponse.Function(null, toolUse.name());
-        return new ChatCompletionToolCallResponse(0, toolUse.toolUseId(), function, FUNCTION_TYPE);
+        return new ChatCompletionToolCallResponse(toolCallIndex, toolUse.toolUseId(), function, FUNCTION_TYPE);
     }
 
     /**
@@ -308,12 +313,13 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
      * This typically contains the arguments that the model wants to pass to the tool.
      * Parse a ContentBlockDelta into a ToolCall stream
      * @param delta the ContentBlockDelta data
+     * @param toolCallIndex the index of this tool call within the message
      * @return a ToolCall
      */
-    private ChatCompletionToolCallResponse handleToolUseDelta(ContentBlockDelta delta) {
+    private ChatCompletionToolCallResponse handleToolUseDelta(ContentBlockDelta delta, int toolCallIndex) {
         var toolUse = delta.toolUse();
         var function = new ChatCompletionToolCallResponse.Function(toolUse.input(), null);
-        return new ChatCompletionToolCallResponse(0, null, function, FUNCTION_TYPE);
+        return new ChatCompletionToolCallResponse(toolCallIndex, null, function, FUNCTION_TYPE);
     }
 
     /**
@@ -322,11 +328,14 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
      * @return a stream of ChatCompletionChunkResponse
      */
     private Stream<ChatCompletionChunkResponse> handleContentBlockStart(ContentBlockStartEvent event) {
-        var index = event.contentBlockIndex();
         var type = event.start().type();
 
         if (ContentBlockStart.Type.TOOL_USE == type) {
-            var toolCall = handleToolUseStart(event.start());
+            int toolCallIndex = contentBlockIndexToToolCallIndex.computeIfAbsent(
+                event.contentBlockIndex(),
+                k -> contentBlockIndexToToolCallIndex.size()
+            );
+            var toolCall = handleToolUseStart(event.start(), toolCallIndex);
             var message = new ChatCompletionMessageResponse(
                 null,
                 null,
@@ -335,7 +344,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
                 ChatCompletionRole.ASSISTANT.toString(),
                 List.of(toolCall)
             );
-            var choice = new ChatCompletionChoiceResponse(message, null, index);
+            var choice = new ChatCompletionChoiceResponse(message, null, 0);
             var chunk = createChatCompletionChunkResponse(List.of(choice), null);
             return Stream.of(chunk);
         }
@@ -357,7 +366,12 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
         var message = switch (type) {
             case ContentBlockDelta.Type.TEXT -> new ChatCompletionMessageResponse(content, null, null, null, null, null);
             case ContentBlockDelta.Type.TOOL_USE -> {
-                var toolCall = handleToolUseDelta(event.delta());
+                var toolCallIndex = contentBlockIndexToToolCallIndex.get(event.contentBlockIndex());
+                if (toolCallIndex == null) {
+                    logger.debug("tool use delta for content block [{}] without a tool use start, skipping.", event.contentBlockIndex());
+                    yield null;
+                }
+                var toolCall = handleToolUseDelta(event.delta(), toolCallIndex);
                 yield new ChatCompletionMessageResponse(content, null, null, List.of(toolCall), null, null);
             }
             case ContentBlockDelta.Type.REASONING_CONTENT -> handleReasoningDelta(
@@ -372,7 +386,9 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
         if (message == null) {
             return Stream.empty();
         }
-        var choice = new ChatCompletionChoiceResponse(message, null, event.contentBlockIndex());
+        // Converse streams a single message, so the chunk always holds one choice at index 0; content blocks such as reasoning,
+        // text and parallel tool calls are distinguished by the reasoning and tool call indices, not the choice index.
+        var choice = new ChatCompletionChoiceResponse(message, null, 0);
 
         var chunk = createChatCompletionChunkResponse(List.of(choice), null);
         return Stream.of(chunk);

@@ -22,6 +22,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.MessageStartEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.MessageStopEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.ReasoningContentBlockDelta;
 import software.amazon.awssdk.services.bedrockruntime.model.TokenUsage;
+import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlockDelta;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlockStart;
 
 import org.elasticsearch.ElasticsearchException;
@@ -39,6 +40,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -266,6 +268,81 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         assertThat(messages.size(), is(0));
     }
 
+    public void testReasoningTextAndParallelToolCallsShareChoiceZero() {
+        processor = createProcessor(AmazonBedrockProvider.ANTHROPIC);
+
+        var messages = messagesFrom(
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromText("thinking")), 0),
+            contentBlockDeltaOutput(ContentBlockDelta.fromText("answer"), 1),
+            toolUseStartOutput("call-a", "first", 2),
+            toolUseDeltaOutput("{\"a\":1}", 2),
+            toolUseStartOutput("call-b", "second", 3),
+            toolUseDeltaOutput("{\"b\":2}", 3)
+        );
+
+        assertThat(messages.size(), is(6));
+        assertThat(messages.get(0).reasoning(), equalTo("thinking"));
+        assertThat(messages.get(1).content(), equalTo("answer"));
+        assertThat(
+            messages.subList(2, 6).stream().map(message -> message.toolCalls().getFirst().index()).toList(),
+            equalTo(List.of(0, 0, 1, 1))
+        );
+        assertThat(
+            messages.subList(2, 6).stream().map(message -> message.toolCalls().getFirst().id()).toList(),
+            equalTo(Arrays.asList("call-a", null, "call-b", null))
+        );
+        assertThat(messages.get(2).toolCalls().getFirst().function().name(), equalTo("first"));
+        assertThat(messages.get(3).toolCalls().getFirst().function().arguments(), equalTo("{\"a\":1}"));
+        assertThat(messages.get(4).toolCalls().getFirst().function().name(), equalTo("second"));
+        assertThat(messages.get(5).toolCalls().getFirst().function().arguments(), equalTo("{\"b\":2}"));
+    }
+
+    /**
+     * Models that omit thinking text from the response stream only the signature for the reasoning block.
+     */
+    public void testSignatureOnlyReasoningThenAnswer() {
+        processor = createProcessor(AmazonBedrockProvider.ANTHROPIC);
+
+        var messages = messagesFrom(
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromSignature("sig")), 0),
+            contentBlockDeltaOutput(ContentBlockDelta.fromText("answer"), 1)
+        );
+
+        assertThat(messages.size(), is(2));
+        assertNull(messages.get(0).reasoning());
+        assertThat(
+            messages.get(0).reasoningDetails(),
+            equalTo(List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 0L, null, "sig")))
+        );
+        assertThat(messages.get(1).content(), equalTo("answer"));
+        assertNull(messages.get(1).reasoningDetails());
+    }
+
+    public void testRepeatedSignatureFragmentsShareReasoningIndex() {
+        processor = createProcessor(AmazonBedrockProvider.ANTHROPIC);
+
+        var messages = messagesFrom(
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromSignature("sig-a")), 0),
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromSignature("sig-b")), 0)
+        );
+
+        assertThat(
+            messages.stream().map(ChatCompletionMessageResponse::reasoningDetails).toList(),
+            equalTo(
+                List.of(
+                    List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 0L, null, "sig-a")),
+                    List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 0L, null, "sig-b"))
+                )
+            )
+        );
+    }
+
+    public void testToolUseDeltaWithoutStartIsSkipped() {
+        var messages = messagesFrom(toolUseDeltaOutput("{}", 1));
+
+        assertThat(messages.size(), is(0));
+    }
+
     /**
      * Sends each output through the processor and returns the message of every chunk sent downstream.
      */
@@ -286,7 +363,24 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         verify(downstream, Mockito.atLeast(0)).onNext(argument.capture());
         // Every skipped output asks upstream for the next item instead of sending a chunk downstream.
         verify(upstream, times(outputs.length - argument.getAllValues().size())).request(1);
-        return argument.getAllValues().stream().map(results -> results.chunks().getFirst().choices().getFirst().message()).toList();
+        var chunks = argument.getAllValues().stream().flatMap(results -> results.chunks().stream()).toList();
+        for (var chunk : chunks) {
+            for (var choice : chunk.choices()) {
+                assertThat(choice.index(), is(0));
+            }
+        }
+        return chunks.stream().map(chunk -> chunk.choices().getFirst().message()).toList();
+    }
+
+    private ConverseStreamOutput toolUseStartOutput(String id, String name, int contentBlockIndex) {
+        return contentBlockStartOutput(
+            ContentBlockStart.fromToolUse(ToolUseBlockStart.builder().toolUseId(id).name(name).build()),
+            contentBlockIndex
+        );
+    }
+
+    private ConverseStreamOutput toolUseDeltaOutput(String input, int contentBlockIndex) {
+        return contentBlockDeltaOutput(ContentBlockDelta.fromToolUse(ToolUseBlockDelta.builder().input(input).build()), contentBlockIndex);
     }
 
     private ConverseStreamOutput contentBlockDeltaOutput(ContentBlockDelta delta, int contentBlockIndex) {

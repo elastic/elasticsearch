@@ -26,6 +26,7 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractHnswVectorsFormat;
+import org.elasticsearch.index.codec.vectors.VectorReadHints;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -85,6 +86,6 @@ public class ES816HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFo
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new Lucene99HnswVectorsReader(state, flatVectorsFormat.fieldsReader(state));
+        return new Lucene99HnswVectorsReader(state, flatVectorsFormat.fieldsReader(VectorReadHints.walkedByGraph(state)));
     }
 }

@@ -17,6 +17,8 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.VectorReadHints;
+import org.elasticsearch.index.codec.vectors.VectorWriteHints;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorScorer;
@@ -198,7 +200,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
             state,
             rawVectorFormat.getName(),
             writeDirectIOReads,
-            rawVectorFormat.fieldsWriter(state),
+            rawVectorFormat.fieldsWriter(VectorWriteHints.writtenToRescore(state)),
             vectorPerCluster,
             centroidsPerParentCluster,
             mergeExec,
@@ -214,7 +216,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
             state,
             rawVectorFormat.getName(),
             null,
-            rawVectorFormat.fieldsWriter(state),
+            rawVectorFormat.fieldsWriter(VectorWriteHints.writtenToRescore(state)),
             vectorPerCluster,
             centroidsPerParentCluster,
             VERSION_START,
@@ -239,7 +241,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
         return new ES920DiskBBQVectorsReader(state, (f, dio, odm) -> {
             var format = supportedFormats.get(f);
             if (format == null) return null;
-            return format.fieldsReader(state, dio, odm);
+            return format.fieldsReader(VectorReadHints.readToRescore(state), dio, odm);
         });
     }
 

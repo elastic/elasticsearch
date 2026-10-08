@@ -121,7 +121,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
                 confidenceInterval,
                 bits,
                 compress,
-                rawVectorFormat.fieldsWriter(state),
+                rawVectorFormat.fieldsWriter(VectorWriteHints.writtenToRescore(state)),
                 flatVectorScorer
             )
         );
@@ -129,7 +129,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        FlatVectorsReader rawDelegate = rawVectorFormat.fieldsReader(state);
+        FlatVectorsReader rawDelegate = rawVectorFormat.fieldsReader(VectorReadHints.readToRescore(state));
         return new ES814ScalarQuantizedVectorsReader(
             new Lucene99ScalarQuantizedVectorsReader(state, rawDelegate, flatVectorScorer),
             rawDelegate
@@ -238,6 +238,17 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         @Override
         public ScalarQuantizer getQuantizationState(String fieldName) {
             return delegate.getQuantizationState(fieldName);
+        }
+
+        /** Reads the raw vectors through the merge instance of the raw reader. */
+        @Override
+        public FlatVectorsReader getMergeInstance() throws IOException {
+            return new ES814ScalarQuantizedVectorsReader(delegate, rawDelegate.getMergeInstance());
+        }
+
+        @Override
+        public void finishMerge() throws IOException {
+            rawDelegate.finishMerge();
         }
 
         @Override

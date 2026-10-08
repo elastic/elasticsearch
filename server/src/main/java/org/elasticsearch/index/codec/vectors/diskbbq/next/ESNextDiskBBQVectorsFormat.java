@@ -19,6 +19,8 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.VectorReadHints;
+import org.elasticsearch.index.codec.vectors.VectorWriteHints;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
@@ -295,7 +297,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             rawVectorFormat.getName(),
             useDirectIO,
             onDiskMerge,
-            rawVectorFormat.fieldsWriter(state, onDiskMerge),
+            rawVectorFormat.fieldsWriter(VectorWriteHints.writtenToRescore(state), onDiskMerge),
             centroidIndexFormat,
             quantEncoding,
             vectorPerCluster,
@@ -317,7 +319,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         return new ESNextDiskBBQVectorsReader(state, (f, dio, odm) -> {
             var format = supportedFormats.get(f);
             if (format == null) return null;
-            return format.fieldsReader(state, dio, odm);
+            return format.fieldsReader(VectorReadHints.readToRescore(state), dio, odm);
         });
     }
 

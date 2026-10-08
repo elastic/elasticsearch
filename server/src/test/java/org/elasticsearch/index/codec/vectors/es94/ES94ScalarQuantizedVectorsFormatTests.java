@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.index.codec.vectors.BaseQuantizedKnnVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.QuantizedAndRawFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
@@ -35,6 +36,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class ES94ScalarQuantizedVectorsFormatTests extends BaseQuantizedKnnVectorsFormatTestCase {
@@ -94,6 +96,32 @@ public class ES94ScalarQuantizedVectorsFormatTests extends BaseQuantizedKnnVecto
                     assertThat(offHeap, aMapWithSize(2));
                     assertThat(offHeap, hasEntry("vec", (long) vector.length * Float.BYTES));
                     assertThat(offHeap, hasEntry(equalTo("veq"), greaterThan(0L)));
+                }
+            }
+        }
+    }
+
+    /** A merge reads the same paired raw and quantized values a search does. */
+    public void testMergeInstanceKeepsRawAndQuantizedValuesPaired() throws IOException {
+        int dimension = 2 * random().nextInt(6, 250);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            Document doc = new Document();
+            doc.add(new KnnFloatVectorField("f", randomVector(dimension), DOT_PRODUCT));
+            w.addDocument(doc);
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                LeafReader r = getOnlyLeafReader(reader);
+                assumeTrue("needs the codec's own reader", r instanceof CodecReader);
+                KnnVectorsReader knnVectorsReader = ((CodecReader) r).getVectorReader();
+                if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                    knnVectorsReader = fieldsReader.getFieldReader("f");
+                }
+                assertThat(knnVectorsReader.getFloatVectorValues("f"), instanceOf(QuantizedAndRawFloatVectorValues.class));
+                KnnVectorsReader mergeInstance = knnVectorsReader.getMergeInstance();
+                try {
+                    assertThat(mergeInstance.getFloatVectorValues("f"), instanceOf(QuantizedAndRawFloatVectorValues.class));
+                } finally {
+                    mergeInstance.finishMerge();
                 }
             }
         }

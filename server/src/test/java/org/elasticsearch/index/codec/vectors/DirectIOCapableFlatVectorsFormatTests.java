@@ -153,9 +153,8 @@ public class DirectIOCapableFlatVectorsFormatTests extends BaseDirectIOMergeTest
                 true,
                 false
             ),
-            // no getMergeInstance override, so the flat type's merges read the sources through the page cache; merge-time
-            // direct I/O writes do not depend on getMergeInstance. bfloat16 is the element type with a raw writer of its own,
-            // float32's is the one the rows above drive
+            // flat: searches do not read the vectors at random, so merges read through the search mapping; merge-time
+            // direct I/O writes do not depend on getMergeInstance
             new Case("flat bfloat16, on_disk_merge", odm -> new ES93FlatVectorFormat(ElementType.BFLOAT16, odm), true, false, false, true)
         ).map(c -> new Object[] { c }).toList();
     }

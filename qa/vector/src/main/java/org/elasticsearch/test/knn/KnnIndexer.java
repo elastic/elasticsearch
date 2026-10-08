@@ -394,7 +394,7 @@ public class KnnIndexer {
             if (context.hints().contains(StandardIOBehaviorHint.INSTANCE) || name.endsWith(".cfs")) {
                 return Optional.of(ReadAdvice.NORMAL);
             }
-            return MMapDirectory.ADVISE_BY_CONTEXT.apply(name, context);
+            return FsDirectoryFactory.getReadAdviceFunc().apply(name, context);
         };
     }
 

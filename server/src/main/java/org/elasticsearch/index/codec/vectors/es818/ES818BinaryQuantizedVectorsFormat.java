@@ -29,6 +29,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.VectorReadHints;
 
 import java.io.IOException;
 
@@ -121,6 +122,6 @@ public class ES818BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES818BinaryQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), scorer);
+        return new ES818BinaryQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(VectorReadHints.readToRescore(state)), scorer);
     }
 }

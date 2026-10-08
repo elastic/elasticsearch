@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 161210
+summary: Advise vector files only when they are not reused
+type: enhancement

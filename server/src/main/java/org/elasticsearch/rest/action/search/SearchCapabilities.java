@@ -77,6 +77,9 @@ public final class SearchCapabilities {
     /** {@code BinaryDocValuesRangeQuery} descriptions (e.g. in {@code _explanation}) name the queried range field. */
     private static final String RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD = "range_field_dv_query_description_has_field";
 
+    /** A text field that indexes no positions answers positional queries from the values it keeps. */
+    private static final String POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS = "positional_queries_on_text_without_positions";
+
     public static final Set<String> CAPABILITIES;
     static {
         HashSet<String> capabilities = new HashSet<>();
@@ -115,6 +118,7 @@ public final class SearchCapabilities {
         capabilities.add(AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE);
         capabilities.add(KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES);
         capabilities.add(KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST);
+        capabilities.add(POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS);
         capabilities.add(RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD);
         CAPABILITIES = Set.copyOf(capabilities);
     }

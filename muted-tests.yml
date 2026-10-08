@@ -701,3 +701,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalWarmDatasetAggregatePartialEvictionIT
   method: testNdjsonWarmCountSurvivesHalfMissingPerFileEntries
   issue: https://github.com/elastic/elasticsearch/issues/161434
+- class: org.elasticsearch.columnar.substrate.MonotonicTableTests
+  method: testTablesInterleavedInOneFile
+  issue: https://github.com/elastic/elasticsearch/issues/161435

@@ -2892,6 +2892,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         }
 
         @Override
+        public void revokeOvershootOnPark() {
+            delegate.revokeOvershootOnPark();
+        }
+
+        @Override
         public ColumnExtractor createColumnExtractor(@Nullable Consumer<String> driverThreadWarningSink) throws IOException {
             return delegate.createColumnExtractor(driverThreadWarningSink);
         }

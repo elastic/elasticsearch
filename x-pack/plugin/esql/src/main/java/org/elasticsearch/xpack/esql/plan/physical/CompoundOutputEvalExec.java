@@ -49,6 +49,8 @@ public abstract class CompoundOutputEvalExec extends UnaryExec implements Estima
      */
     private final List<Attribute> outputFieldAttributes;
 
+    private List<Attribute> lazyOutput;
+
     public CompoundOutputEvalExec(
         Source source,
         PhysicalPlan child,
@@ -94,7 +96,10 @@ public abstract class CompoundOutputEvalExec extends UnaryExec implements Estima
 
     @Override
     public List<Attribute> output() {
-        return mergeOutputAttributes(outputFieldAttributes, child().output());
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(outputFieldAttributes, child().output());
+        }
+        return lazyOutput;
     }
 
     @Override

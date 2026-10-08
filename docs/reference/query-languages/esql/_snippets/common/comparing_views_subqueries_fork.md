@@ -16,7 +16,7 @@
 ::::{applies-switch}
 
 :::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
-A single `FORK` or one dataset pattern expansion is capped at 8 branches by default (`esql.query.max_branch_count_per_merge`). A `max_branch_count_per_merge` query pragma overrides that per-merge cap. View [query compaction](/reference/query-languages/esql/esql-views.md#query-compaction) flattens nested view unions only when the flat width is within `esql.query.max_branch_count` (20 by default). A `max_branch_count` query pragma overrides that query-wide total, which also caps nested leaves across the whole query.
+A single `FORK` or one dataset pattern expansion is capped at 8 branches by default (`esql.query.max_branch_count_per_merge`). View [query compaction](/reference/query-languages/esql/esql-views.md#query-compaction) flattens nested view unions only when the flat width is within `esql.query.max_branch_count` (20 by default), which also caps nested leaves across the whole query.
 :::
 
 :::{applies-item} stack: preview 9.1-9.5

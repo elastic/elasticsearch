@@ -146,7 +146,8 @@ public final class Fork extends MergePlan implements TelemetryAware {
             failures.add(
                 Failure.fail(
                     plan,
-                    "{} resolved to {} branches, exceeding the limit of {} set by the {}",
+                    "{} resolved to {} branches, exceeding the limit of {} set by the {}. Reduce the number of branches,"
+                        + " split the query, or change the setting",
                     errorMessage,
                     plan.children().size(),
                     maxBranches,

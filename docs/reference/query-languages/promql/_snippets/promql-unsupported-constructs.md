@@ -6,7 +6,7 @@ The majority of PromQL expressions run unchanged.
 The following constructs are not evaluated yet, so they return a client error (4xx):
 
 - Binary set operators: `and` and `unless`.
-- {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` Binary set operator `or`, except at the top level of an expression. A top-level `or` chain supports at most 8 operands by default (`esql.query.max_branch_count_per_merge`) and can't use `on(...)` or `ignoring(...)`. A `max_branch_count_per_merge` query pragma overrides it. A nested `or`, a chain that exceeds that limit, or an `or` with `on(...)` or `ignoring(...)` returns a client error (4xx).
+- {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` Binary set operator `or`, except at the top level of an expression. A top-level `or` chain supports at most 8 operands by default (`esql.query.max_branch_count_per_merge`) and can't use `on(...)` or `ignoring(...)`. A nested `or`, a chain that exceeds that limit, or an `or` with `on(...)` or `ignoring(...)` returns a client error (4xx).
 - {applies_to}`stack: ga =9.5` Binary set operator `or`, except at the top level of an expression. A top-level `or` chain supports at most 8 operands and can't use `on(...)` or `ignoring(...)`. A nested `or`, a chain of more than 8 operands, or an `or` with `on(...)` or `ignoring(...)` returns a client error (4xx).
 - Comparison operators: evaluated only at the top level of an expression and only with a scalar literal on the right-hand side. Comparisons between two instant vectors, and nested comparisons, return a client error (4xx).
 - Group modifiers: `on(...)`, `ignoring(...)`, `group_left`, `group_right`.

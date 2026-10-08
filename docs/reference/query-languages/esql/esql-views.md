@@ -221,7 +221,7 @@ When multiple views are referenced within the same index pattern, each view exec
 ::::{applies-switch}
 
 :::{applies-item} { "stack": "preview 9.6+", "serverless": "preview" }
-[Query compaction](#query-compaction) flattens nested view branches into one merge only when the result has at most 20 branches by default (`esql.query.max_branch_count`). A `max_branch_count` query pragma overrides it. If flattening would exceed that cap, {{esql}} keeps the nested plan instead of failing the query. The same setting also caps the total number of leaf branches in the query.
+[Query compaction](#query-compaction) flattens nested view branches into one merge only when the result has at most 20 branches by default (`esql.query.max_branch_count`). If flattening would exceed that cap, {{esql}} keeps the nested plan instead of failing the query. The same setting also caps the total number of leaf branches in the query.
 :::
 
 :::{applies-item} stack: preview 9.4-9.5

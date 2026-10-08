@@ -916,8 +916,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         assert indexMetadata != null : "null index metadata but non-null shard routing " + shardRouting;
         final var primaryTerm = indexMetadata.primaryTerm(shardRouting.id());
         final var retryKey = new RetryKey(shardId, shardRouting.allocationId().getId());
-        final var retryCount = retryingShards.get(retryKey);
-        final int localRecoveryRetries = retryCount != null ? retryCount : 0;
+        final var localRecoveryRetries = retryingShards.getOrDefault(retryKey, 0);
 
         try {
             final DiscoveryNode sourceNode;

@@ -61,7 +61,11 @@ The following parameters are accepted by `text` fields:
 :   Should the field be searchable? Accepts `true` (default) or `false`.
 
 [`index_options`](/reference/elasticsearch/mapping-reference/index-options.md)
-:   What information should be stored in the index, for search and highlighting purposes. If index mode is columnar (e.g. `columnar` or `logsdb_columnar`) then this mapping attribute defaults to `docs` ({applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`), otherwise it defaults to `positions`.
+:   What information should be stored in the index, for search and highlighting purposes. The default depends on the index mode:
+
+    - {applies_to}`stack: preview 9.6+` `docs` for indices created in the `columnar` or `logsdb_columnar` index mode, unless you set `index_phrases` or `position_increment_gap`.
+    - {applies_to}`stack: preview =9.5` `positions` in columnar index modes, which use the same default as other index modes in 9.5.
+    - `positions` for all other indices.
 
 [`index_prefixes`](/reference/elasticsearch/mapping-reference/index-prefixes.md)
 :   If enabled, term prefixes of between 2 and 5 characters are indexed into a separate field. This allows prefix searches to run more efficiently, at the expense of a larger index.

@@ -17,7 +17,8 @@ For a conceptual introduction to when and why to use it, go to [Columnar index m
 You activate a set of changes that collectively align the {{es}} storage model with dedicated columnar stores:
 
 - Fields are stored **once, as doc values only**. Non-text fields are not indexed by default, eliminating the storage cost of maintaining redundant index structures. Text fields (e.g. `text` and `match_only_text`) remain indexed by default to support full-text search.
-- The `text` field type no longer stores positions or frequencies by default, just the docs (`index_options: docs`) ({applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`).
+- {applies_to}`stack: preview 9.6+` The `text` field type defaults to `index_options: docs`, so it doesn't store positions or frequencies unless you set `index_phrases` or `position_increment_gap`.
+- {applies_to}`stack: preview =9.5` The `text` field type uses the standard default of `index_options: positions`.
 - For non-indexed fields, [doc values skippers](/reference/elasticsearch/mapping-reference/doc-values.md#doc-values-skippers) are enabled by default. Doc values skippers are compact skip lists with metadata (for example, minimum and maximum values) to avoid scanning large blocks of data when executing a query.
 - Mappings are always flat, and object and passthrough fields in mappings are always auto-flattened. Nested fields are not auto flattened.
 - Depending on your license, you can choose between two [`_source` modes](#columnar-source). If using synthetic source, a flattened or columnar representation of the source is generated automatically when it's requested at query time. Alternatively, this columnar source can be generated at index time and stored to the disk as doc values.

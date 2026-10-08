@@ -129,6 +129,10 @@ tasks.named("compileJava").configure {
   // org.elasticsearch.plugins.internal is used in signatures classes used in benchmarks but we don't want to expose it publicly
   // adding an export to allow compilation with gradle. This does not solve a problem in intellij as it does not use compileJava task
   options.compilerArgs.addAll(["--add-exports", "org.elasticsearch.server/org.elasticsearch.plugins.internal=ALL-UNNAMED"])
+  // AshUtils is an internal detail of the ASH codec, so its package is not exported by the server
+  // module. AshProcrustesBenchmark measures it directly; exporting it here keeps the production
+  // module descriptor unchanged.
+  options.compilerArgs.addAll(["--add-exports", "org.elasticsearch.server/org.elasticsearch.index.codec.vectors.ash=ALL-UNNAMED"])
 }
 
 tasks.register('copyExpression', Copy) {

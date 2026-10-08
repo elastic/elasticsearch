@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.async.StoredAsyncTask;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
@@ -257,11 +258,19 @@ public class AsyncTaskManagementService<
             );
             boolean operationStarted = false;
             try {
-                operation.execute(
-                    request,
+                AtomicBoolean skipExecute = new AtomicBoolean();
+                ActionListener<Response> storingListener = wrapStoringListener(
                     searchTask,
-                    wrapStoringListener(searchTask, waitForCompletionTimeout, keepOnCompletion, listener, submitTask)
+                    waitForCompletionTimeout,
+                    keepOnCompletion,
+                    listener,
+                    submitTask,
+                    skipExecute
                 );
+                if (skipExecute.get()) {
+                    return;
+                }
+                operation.execute(request, searchTask, storingListener);
                 operationStarted = true;
             } finally {
                 // If we didn't start operation for any reason, we need to clean up the task that we have created
@@ -277,9 +286,10 @@ public class AsyncTaskManagementService<
         TimeValue waitForCompletionTimeout,
         boolean keepOnCompletion,
         ActionListener<Response> listener,
-        @Nullable CancellableTask submitTask
+        @Nullable CancellableTask submitTask,
+        AtomicBoolean skipExecute
     ) {
-        final ActionListener<Response> submitListener = listener;
+        final ActionListener<Response> submitListener = ActionListener.notifyOnce(listener);
         final ActionListener<Response> cancelledSentinel = sentinel(SUBMIT_CANCELLED);
         final ActionListener<Response> completedSentinel = sentinel(SUBMIT_COMPLETED);
         AtomicReference<ActionListener<Response>> exclusiveListener = new AtomicReference<>(submitListener);
@@ -292,12 +302,22 @@ public class AsyncTaskManagementService<
                 if (exclusiveListener.compareAndSet(submitListener, cancelledSentinel) == false) {
                     return;
                 }
-                cancelTimeout(timeoutHandlerRef);
+                skipExecute.set(true);
                 String reason = Objects.requireNonNullElse(submitTask.getReasonCancelled(), "submit task cancelled");
-                if (searchTask.isCancelled() == false) {
-                    searchTask.cancelTask(taskManager, () -> {}, reason);
+                try {
+                    cancelTimeout(timeoutHandlerRef);
+                    if (searchTask.isCancelled() == false) {
+                        searchTask.cancelTask(taskManager, () -> {}, reason);
+                    }
+                } catch (RuntimeException e) {
+                    logger.warn("failed to cancel async task after submit cancel", e);
+                } finally {
+                    try {
+                        submitListener.onFailure(new TaskCancelledException(reason));
+                    } catch (RuntimeException e) {
+                        logger.warn("failed to notify submit listener after cancel", e);
+                    }
                 }
-                submitListener.onFailure(new TaskCancelledException(reason));
             });
         }
 
@@ -306,6 +326,9 @@ public class AsyncTaskManagementService<
                 submitListener.onResponse(operation.initialResponse(searchTask));
             }
         }, waitForCompletionTimeout, threadPool.executor(ThreadPool.Names.SEARCH)));
+        if (exclusiveListener.get() != submitListener) {
+            cancelTimeout(timeoutHandlerRef);
+        }
 
         // Separate onResponse/onFailure so a throw in one path cannot complete the search task twice.
         return new ActionListener<>() {

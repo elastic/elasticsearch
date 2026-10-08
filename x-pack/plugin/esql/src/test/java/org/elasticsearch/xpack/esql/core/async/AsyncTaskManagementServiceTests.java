@@ -50,6 +50,7 @@ import static org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -502,14 +503,17 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         PlainActionFuture<TestResponse> submit = new PlainActionFuture<>();
         TestRequest request = new TestRequest(randomAlphaOfLength(8), TimeValue.timeValueDays(1));
         try {
-            // ZERO timeout: already-cancelled submit must beat the scheduled wait handler.
+            // ZERO timeout: already-cancelled submit must beat the scheduled wait handler
+            // and must not start execute().
             service.asyncExecute(request, TimeValue.ZERO, request.keepAlive, false, submit, submitTask);
             TaskCancelledException e = expectThrows(TaskCancelledException.class, () -> submit.actionGet(10, TimeUnit.SECONDS));
             assertThat(e.getMessage(), containsString("http channel closed"));
-            TestTask task = inner.get();
-            assertThat(task, notNullValue());
-            assertThat(task.isCancelled(), equalTo(true));
-            assertBusy(() -> assertThat(transportService.getTaskManager().getTask(task.getId()), nullValue()));
+            assertThat(inner.get(), nullValue());
+            assertBusy(() -> {
+                for (CancellableTask task : transportService.getTaskManager().getCancellableTasks().values()) {
+                    assertThat(task.getAction(), not(containsString("test_action")));
+                }
+            });
         } finally {
             transportService.getTaskManager().unregister(submitTask);
         }

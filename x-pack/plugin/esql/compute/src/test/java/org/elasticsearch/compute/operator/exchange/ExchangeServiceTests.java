@@ -184,6 +184,7 @@ public class ExchangeServiceTests extends ESTestCase {
         }
         ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(blockFactory, numPages, threadPool.relativeTimeInMillisSupplier());
         ExchangeSink sink = sinkHandler.createExchangeSink(() -> {});
+        // Room for every page, so the fetch never waits for a reader.
         ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(numPages + 1, threadPool.executor(ESQL_TEST_EXECUTOR));
         ExchangeSource source = sourceHandler.createExchangeSource();
         PlainActionFuture<Void> remoteSinkFuture = new PlainActionFuture<>();

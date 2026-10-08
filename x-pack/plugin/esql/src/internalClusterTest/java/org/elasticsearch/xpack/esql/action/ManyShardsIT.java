@@ -33,6 +33,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -49,11 +50,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -344,6 +347,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
     public void testQueryAllNodesWithoutLimit() throws Exception {
         assumeTrue("Requires pragmas", canUseQueryPragmas());
         int numDocs = createOneShardPerNodeIndex().numDocs();
+        assertThat(numDocs, lessThan(AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)));
         int queriedNodes = queryWithStarvedCoordinator(
             "FROM " + ONE_SHARD_PER_NODE_INDEX,
             result -> assertThat(Iterables.size(result.rows()), equalTo((long) numDocs))
@@ -360,6 +364,27 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         int queriedNodes = queryWithStarvedCoordinator(
             "FROM " + ONE_SHARD_PER_NODE_INDEX + " | STATS c = COUNT(*)",
             result -> assertThat(EsqlTestUtils.getValuesList(result), equalTo(List.of(List.of((long) numDocs))))
+        );
+        assertThat(queriedNodes, equalTo(internalCluster().numDataNodes()));
+    }
+
+    /**
+     * Any node may hold the rows that sort first, so a {@code SORT} before the {@code LIMIT} needs every node, even though
+     * the first node alone returns enough rows.
+     */
+    public void testQueryAllNodesForSortedLimit() throws Exception {
+        assumeTrue("Requires pragmas", canUseQueryPragmas());
+        OneShardPerNodeIndex index = createOneShardPerNodeIndex();
+        int limit = between(1, Math.toIntExact(index.minDocsPerShard()));
+        List<List<Object>> expected = IntStream.range(0, index.numDocs())
+            .mapToObj(d -> "u" + d)
+            .sorted()
+            .limit(limit)
+            .map(user -> List.<Object>of(user))
+            .toList();
+        int queriedNodes = queryWithStarvedCoordinator(
+            "FROM " + ONE_SHARD_PER_NODE_INDEX + " | SORT user | LIMIT " + limit,
+            result -> assertThat(EsqlTestUtils.getValuesList(result), equalTo(expected))
         );
         assertThat(queriedNodes, equalTo(internalCluster().numDataNodes()));
     }
@@ -401,8 +426,9 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
 
     /**
      * Runs {@code esqlQuery} from a new coordinating-only node, querying one data node at a time. Once the first exchange is
-     * opened, the coordinator's ES|QL worker threads are kept busy, so its final driver cannot consume any rows before the next
-     * node is picked. The coordinator holds no shards, so every exchange it opens goes through the mock transport and is counted.
+     * opened, the coordinator's ES|QL worker threads are kept busy until a second exchange is opened, so its final driver cannot
+     * consume any rows before the next node is picked. The coordinator holds no shards, so every exchange it opens goes through
+     * the mock transport and is counted.
      *
      * @return the number of data nodes the coordinator queried
      */
@@ -437,7 +463,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
 
     /**
      * Occupies every ES|QL worker thread so that no driver can run until {@code release} is counted down or a few seconds pass,
-     * which is far longer than querying the remaining data nodes takes.
+     * which is far longer than the coordinator takes to decide whether to query the next node.
      */
     private static void blockWorkers(ThreadPool threadPool, CountDownLatch release) {
         int workers = threadPool.info(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME).getMax();

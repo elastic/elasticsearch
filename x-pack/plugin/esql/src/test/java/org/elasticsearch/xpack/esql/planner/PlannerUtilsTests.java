@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.util.List;
 import java.util.Map;
@@ -262,7 +263,8 @@ public class PlannerUtilsTests extends ESTestCase {
     }
 
     /**
-     * The coordinator applies {@code LIMIT 10} directly to the exchange, so 10 received rows are enough.
+     * The coordinator applies {@code LIMIT 10} directly to the exchange, so 10 received rows are enough. An outer
+     * {@code LIMIT 20} does not read the exchange, so it is ignored.
      */
     public void testRowsNeededFromDataNodes() {
         ExchangeSourceExec exchange = new ExchangeSourceExec(Source.EMPTY, List.of(field("a")), false);
@@ -271,12 +273,18 @@ public class PlannerUtilsTests extends ESTestCase {
     }
 
     /**
-     * Unknown unless a {@code LIMIT} reads the exchange directly: a filter in between may drop received rows.
+     * Unknown unless a {@code LIMIT} reads the exchange directly: a filter in between may drop received rows, and a
+     * {@code TopN} needs rows from every node to pick the first ones.
      */
     public void testRowsNeededFromDataNodesUnknown() {
         ExchangeSourceExec exchange = new ExchangeSourceExec(Source.EMPTY, List.of(field("a")), false);
         assertNull(PlannerUtils.rowsNeededFromDataNodes(exchange));
         assertNull(PlannerUtils.rowsNeededFromDataNodes(limit(new FilterExec(Source.EMPTY, exchange, Literal.TRUE), 10)));
+        assertNull(
+            PlannerUtils.rowsNeededFromDataNodes(
+                new TopNExec(Source.EMPTY, exchange, List.of(), new Literal(Source.EMPTY, 10, DataType.INTEGER), null)
+            )
+        );
         assertNull(PlannerUtils.rowsNeededFromDataNodes(localSource(List.of(field("a")))));
     }
 

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -23,7 +22,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -114,6 +112,20 @@ public class ExternalPartitionSpecRequestFilterIT extends AbstractExternalDataSo
         );
     }
 
+    public void testWhereParamsWithExplicitDatetimeCast() throws Exception {
+        String dataset = registerParquetTree("spec_rf_params_cast");
+        QueryParams params = new QueryParams(
+            List.of(paramAsConstant("_tstart", JUNE_15_START.toString()), paramAsConstant("_tend", JUNE_16_START.toString()))
+        );
+        assertPruneWhere(
+            dataset,
+            "WHERE @timestamp >= ?_tstart::datetime AND @timestamp < ?_tend::datetime",
+            params,
+            1,
+            List.of((long) parquetIdFor(2024, 6, 15))
+        );
+    }
+
     public void testMidnightRangeSkipsNextDayFolderHoldingLateEvent() throws Exception {
         // start=23:59:50 of day D lives under day D+1. Without lag the split drops that file.
         String dataset = registerParquetTree("spec_rf_midnight");
@@ -195,38 +207,26 @@ public class ExternalPartitionSpecRequestFilterIT extends AbstractExternalDataSo
         assertThat(httpWarnings("FROM " + pair.spec + " | KEEP id"), hasItem(containsString("identity to the date column")));
     }
 
-    public void testPutRewritesStartToTimestamp() throws Exception {
-        Path root = writeHourlyHive(createTempDir().resolve("put_rewrite"));
+    public void testPutRejectsStartWhenMappedAsTimestamp() throws Exception {
+        Path root = writeHourlyHive(createTempDir().resolve("put_reject"));
         String glob = StoragePath.fileUri(root)
             + "/AWSLogs/aws-account-id=*/aws-service=vpcflowlogs/aws-region=*/year=*/month=*/day=*/hour=*/*.csv";
-        LinkedHashMap<String, DatasetFieldMapping> properties = mapping();
-        String name = registerStrictDataset(
-            "put_rewrite_spec",
-            glob,
-            properties,
-            Map.of(
-                "partition_detection",
-                "hive",
-                "partition_spec",
-                "year(start, epoch_second), month(start, epoch_second), day(start, epoch_second), hour(start, epoch_second)"
+        Exception e = expectThrows(
+            Exception.class,
+            () -> registerStrictDataset(
+                "put_reject_spec",
+                glob,
+                mapping(),
+                Map.of(
+                    "partition_detection",
+                    "hive",
+                    "partition_spec",
+                    "year(start, epoch_second), month(start, epoch_second), day(start, epoch_second), hour(start, epoch_second)"
+                )
             )
         );
-        GetDatasetAction.Request get = new GetDatasetAction.Request(TIMEOUT);
-        get.indices(name);
-        Dataset ds = client().execute(GetDatasetAction.INSTANCE, get).actionGet(TIMEOUT).getDatasets().iterator().next();
-        String stored = (String) ds.settings().get("partition_spec");
-        assertThat(stored, containsString("@timestamp"));
-        assertThat(stored, not(containsString("start")));
-        String again = registerStrictDataset(
-            "put_rewrite_roundtrip",
-            glob,
-            properties,
-            Map.of("partition_detection", "hive", "partition_spec", stored)
-        );
-        GetDatasetAction.Request getAgain = new GetDatasetAction.Request(TIMEOUT);
-        getAgain.indices(again);
-        Dataset dsAgain = client().execute(GetDatasetAction.INSTANCE, getAgain).actionGet(TIMEOUT).getDatasets().iterator().next();
-        assertThat((String) dsAgain.settings().get("partition_spec"), equalTo(stored));
+        assertThat(e.toString(), containsString("start"));
+        assertThat(e.toString(), containsString("bind [@timestamp]"));
     }
 
     public void testMixedDepthExtraFileMatchesTwinAndWarns() throws Exception {

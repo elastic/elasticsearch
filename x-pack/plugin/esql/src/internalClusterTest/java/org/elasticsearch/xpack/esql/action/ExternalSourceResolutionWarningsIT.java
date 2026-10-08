@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.plugins.Plugin;
@@ -17,7 +16,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.nio.charset.StandardCharsets;
@@ -251,25 +249,23 @@ public class ExternalSourceResolutionWarningsIT extends AbstractExternalDataSour
         assertThat("cached listing mixed", warningsOf(query), hasItem(containsString(mixed)));
     }
 
-    public void testPutRewritesPartitionSpecPathToLogicalName() throws Exception {
-        Path dir = createTempDir().resolve("spec_put_rewrite");
+    public void testPutRejectsPartitionSpecPathSourceWhenMapped() throws Exception {
+        Path dir = createTempDir().resolve("spec_put_path");
         Files.createDirectories(dir);
         Files.writeString(dir.resolve("a.csv"), "id:integer,start:long\n1,1718409600\n", StandardCharsets.UTF_8);
         LinkedHashMap<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("@timestamp", new DatasetFieldMapping("date", "start"));
-        String name = registerStrictDataset(
-            "spec_put_rewrite",
-            StoragePath.fileUri(dir.resolve("a.csv")),
-            properties,
-            Map.of("partition_spec", "year(start, epoch_second)")
+        Exception e = expectThrows(
+            Exception.class,
+            () -> registerStrictDataset(
+                "spec_put_path",
+                StoragePath.fileUri(dir.resolve("a.csv")),
+                properties,
+                Map.of("partition_spec", "year(start, epoch_second)")
+            )
         );
-        GetDatasetAction.Request get = new GetDatasetAction.Request(TIMEOUT);
-        get.indices(name);
-        Dataset ds = client().execute(GetDatasetAction.INSTANCE, get).actionGet(TIMEOUT).getDatasets().iterator().next();
-        String stored = (String) ds.settings().get("partition_spec");
-        assertThat(stored, containsString("year(@timestamp)"));
-        assertThat(stored, not(containsString("start")));
-        assertThat(stored, not(containsString("epoch_second")));
+        assertThat(e.toString(), containsString("start"));
+        assertThat(e.toString(), containsString("bind [@timestamp]"));
     }
 
     public void testPutRejectsPartitionSpecColumnMissingFromMapping() throws Exception {
@@ -288,7 +284,7 @@ public class ExternalSourceResolutionWarningsIT extends AbstractExternalDataSour
             )
         );
         assertThat(e.toString(), containsString("nope"));
-        assertThat(e.toString(), containsString("path source"));
+        assertThat(e.toString(), containsString("not a mapping field"));
     }
 
     /** Runs {@code query} over HTTP and returns the {@code Warning} header messages of the response. */

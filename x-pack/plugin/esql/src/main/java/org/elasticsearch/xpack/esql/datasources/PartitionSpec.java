@@ -304,11 +304,12 @@ public final class PartitionSpec {
     }
 
     /**
-     * PUT rewrite: temporal and lag/lead columns that match a mapping {@code path} become the logical
-     * field name. A date / date_nanos field drops {@code epoch_second} (the unit is unused). Identity
-     * columns missing from the mapping stay. No mapping, or a mapping with no properties, is a no-op.
-     * After rewrite the spec is re-parsed so duplicate keys or lag/lead on the same column fail PUT
-     * instead of storing a spec that GET cannot PUT again.
+     * PUT alignment: temporal and lag/lead columns must name a mapping field, not a mapping
+     * {@code path}. Naming the path (for example {@code year(start)} while {@code @timestamp} has
+     * {@code path=start}) is a PUT error; bind the logical field. A date / date_nanos field drops
+     * unused {@code epoch_second}. Identity columns missing from the mapping stay. No mapping, or a
+     * mapping with no properties, is a no-op. After alignment the spec is re-parsed so duplicate keys
+     * or lag/lead on the same column fail PUT instead of storing a spec that GET cannot PUT again.
      */
     public static Map<String, Object> alignWithMapping(@Nullable Map<String, Object> settings, @Nullable DatasetMapping mapping) {
         if (settings == null || settings.containsKey(CONFIG_PARTITION_SPEC) == false) {
@@ -340,7 +341,7 @@ public final class PartitionSpec {
 
     /**
      * Mapping {@code path} → logical name for fields that rename a physical column. Empty when there
-     * is no mapping. Used at PUT and for the BWC query-time warning.
+     * is no mapping. PUT rejects a spec that names the path; query time still warns for stored specs.
      */
     static Map<String, String> pathToLogical(@Nullable DatasetMapping mapping) {
         Map<String, DatasetFieldMapping> properties = mappingProperties(mapping);
@@ -386,8 +387,8 @@ public final class PartitionSpec {
     }
 
     /**
-     * Two windows on the same logical column after path rewrite: complementary lag+lead merge;
-     * two lags or two leads are a PUT error (first-wins would not round-trip GET → PUT).
+     * Two windows on the same logical column: complementary lag+lead merge; two lags or two leads
+     * are a PUT error (first-wins would not round-trip GET → PUT).
      */
     private static void putRewrittenWindow(Map<String, Window> dest, String column, Window next) {
         Window previous = dest.put(column, next);
@@ -417,7 +418,7 @@ public final class PartitionSpec {
                 + name
                 + "("
                 + column
-                + ", ...)] more than once after mapping rewrite; each column+direction must appear once"
+                + ", ...)] more than once; each column+direction must appear once"
         );
     }
 
@@ -450,14 +451,22 @@ public final class PartitionSpec {
         }
         String mapped = pathToLogical.get(column);
         if (mapped != null) {
-            return mapped;
+            throw new IllegalArgumentException(
+                "["
+                    + CONFIG_PARTITION_SPEC
+                    + "] column ["
+                    + column
+                    + "] is the path of mapping field ["
+                    + mapped
+                    + "]; bind ["
+                    + mapped
+                    + "]"
+            );
         }
         if (identity) {
             return column;
         }
-        throw new IllegalArgumentException(
-            "[" + CONFIG_PARTITION_SPEC + "] column [" + column + "] is not a mapping field or a path source"
-        );
+        throw new IllegalArgumentException("[" + CONFIG_PARTITION_SPEC + "] column [" + column + "] is not a mapping field");
     }
 
     private static boolean isDateMappingType(String typeName) {

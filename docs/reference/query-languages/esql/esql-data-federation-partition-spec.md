@@ -10,10 +10,11 @@ products:
 
 # Skip folders with file column filters in {{esql}} Data Federation
 
-`partition_spec` maps a file column to your folder structure so that filters on the column skip
+`partition_spec` binds a file column to your folder structure so that filters on the column skip
 non-matching folders. Filtering on a partition key such as `WHERE year == 2024` already skips
-folders, but filtering on a file column like `WHERE ts > "2024-03-15T00:00:00Z"::datetime` normally
-opens every file.
+folders, but filtering on a file column like `WHERE ts > "2024-03-15T00:00:00Z"` normally
+opens every file. An ISO-8601 string compared to a datetime column does not need `::datetime`;
+ES|QL casts the keyword literal. `::datetime` is still valid.
 
 :::{include} _snippets/data-federation/experimental-warning.md
 :::
@@ -24,9 +25,9 @@ names are found.
 
 ## Define a partition spec
 
-Set `partition_spec` in your dataset settings as a comma-separated list of bindings. Each binding
-maps a path key to a transform on a file column. `lag` and `lead` are not transforms; they widen the
-listing window for a column that already has a temporal bind:
+Set `partition_spec` in your dataset settings as a comma-separated list. A **binding** maps a path
+key to a transform on a file column. `lag` and `lead` are not bindings: they do not map a path key.
+They widen the listing window for a column that already has a temporal binding:
 
 ```text
 [key=]transform(column[, unit])
@@ -42,22 +43,22 @@ lead(column, duration)
 case-insensitive. Keys and column names are case-sensitive. `duration` is a time value such as `15m`, `1h`, or `90s`.
 The same Hive key may appear once per source column (`year(start), year(end)`). `key=lag(...)` is rejected.
 
-Omitted `key=` uses the transform name (`year(ts)` maps path `year`). Bare `region` is `identity(region)`.
+Omitted `key=` uses the transform name (`year(ts)` binds path `year`). Bare `region` is `identity(region)`.
 `@timestamp` is a legal column name. A name that is not an ES|QL identifier goes in backticks, as in
 `` year(`event time`) ``. `{second}` in `partition_path` is a folder name, not this unit. Refer to
 [Resource patterns](esql-data-federation-patterns.md#define-partition-paths).
 
 Path keys you leave out of the spec still filter on their own name. `WHERE year == 2024` still skips
 other years when a spec is set, and `WHERE region == "eu"` still skips other regions when the spec only
-maps `year`, `month`, and `day`. The spec is not the list of the only keys that can skip folders. A folder
-named `aws-region` needs `aws-region=region` before `WHERE region == "eu"` matches it.
+binds `year`, `month`, and `day`. The spec is not the list of the only keys that can skip folders. A folder
+named `aws-region` needs the binding `aws-region=region` before `WHERE region == "eu"` matches it.
 
 When `partition_path` is set, every spec key must be a `{name}` placeholder in that template. A Hive key is
 not known until list time. A binding whose key was not detected is ignored and the query emits a warning.
 The query does not skip folders from that binding. A spec that does not parse warns on the query and does
 not skip folders. Registration still rejects it.
 
-Omit `partition_spec` to keep path-key filters and skip this mapping. That is the default.
+Omit `partition_spec` to keep path-key filters and skip these bindings. That is the default.
 [`partition_detection`](esql-data-federation-dataset-settings.md#partition-detection) set to `none` turns path keys off.
 A spec in that mode is rejected. `template` keeps `partition_path` and does not read Hive `key=value` names.
 `hive` reads those names only.
@@ -91,8 +92,10 @@ Lag and lead only widen; they never skip a folder the filter would keep.
 
 The following example registers a Hive-compatible hourly VPC Flow Logs dataset. `start` and `end` are unix
 epoch seconds. The resource uses keyed `key=*` segments, not `**`, so listing can walk past unhinted identity
-keys (`aws-account-id`, `aws-region`) when year through hour are in the spec. The mapping renames `start` to
-`@timestamp`; PUT rewrites the spec to `year(@timestamp)` and `lag(@timestamp, 20m)`, and GET shows those names.
+keys (`aws-account-id`, `aws-region`) when year through hour are in the spec. The mapping exposes `start` as
+`@timestamp`, so the bindings use `@timestamp`, not `start`. PUT rejects `year(start)` in that case. `end` is
+a mapping field with no rename, so `year(end)` is the binding. `lag` widens those columns; it is not a key
+binding. Date mapping types omit the unit.
 
 ```console
 PUT /_query/dataset/vpc_flow
@@ -100,7 +103,7 @@ PUT /_query/dataset/vpc_flow
   "data_source": "prod_s3_logs",
   "resource": "s3://logs/AWSLogs/aws-account-id=*/aws-service=vpcflowlogs/aws-region=*/year=*/month=*/day=*/hour=*/*.parquet",
   "settings": {
-    "partition_spec": "year(start, epoch_second), month(start, epoch_second), day(start, epoch_second), hour(start, epoch_second), year(end, epoch_second), month(end, epoch_second), day(end, epoch_second), hour(end, epoch_second), lag(start, 20m), lag(end, 10m)"
+    "partition_spec": "year(@timestamp), month(@timestamp), day(@timestamp), hour(@timestamp), year(end), month(end), day(end), hour(end), lag(@timestamp, 20m), lag(end, 10m)"
   },
   "mappings": {
     "properties": {
@@ -144,10 +147,10 @@ PUT /_query/dataset/vpc_flow_text
 }
 ```
 
-When a mapping exposes the file column as `@timestamp`, you can bind `@timestamp` and omit the unit: the
-column is already a date. PUT also rewrites a spec that still names the mapping `path` source, so you do
-not strip the spec, rename, and re-add. A stored spec that was never re-PUT after a mapping rename stays
-on `start` and does not prune `@timestamp` filters; the query succeeds and warns.
+When a mapping exposes the file column as `@timestamp`, bind `@timestamp` and omit the unit: the
+column is already a date. PUT rejects a spec that names the mapping `path` (`year(start)` while
+`@timestamp` has `path=start`); name the logical field. A stored spec that was never re-PUT after a
+mapping rename stays on `start` and does not prune `@timestamp` filters; the query succeeds and warns.
 
 ```console
 PUT /_query/dataset/vpc_flow_mapped
@@ -197,6 +200,7 @@ The following table shows how different query patterns interact with `partition_
 | 9 | any filter on `ts` | `year(ts)` but the path key is `yyy` | Nothing from that binding. Warning: the key was not detected. |
 | 10 | `WHERE start > T` | `year(start)` on unix seconds (default unit `epoch_millis`) | Nothing. Warning: the unit is likely wrong. |
 | 11 | `WHERE ts > T` | `yyy=year(ts), mo=month(ts)` and `partition_path: {yyy}/{mo}` | Same combined range as row 4, on the renamed keys. |
-| 12 | `WHERE @timestamp > T` | `year(@timestamp), month(@timestamp), day(@timestamp)` after mapping `start` to `@timestamp` | Same combined range as row 5. PUT rewrites `year(start, epoch_second)` to this. A never-re-PUT spec on `start` matches nothing. |
+| 12 | `WHERE @timestamp > T` | `year(@timestamp), month(@timestamp), day(@timestamp)` after mapping `start` to `@timestamp` | Same combined range as row 5. PUT rejects `year(start)` here; bind `@timestamp`. A never-re-PUT spec on `start` matches nothing. |
 | 13 | `request.filter` range on `@timestamp` | `year(@timestamp), month(@timestamp), day(@timestamp)` | Day folders whose UTC interval misses the window. Year folders in the listing too. |
 | 14 | `WHERE @timestamp >= T AND @timestamp < U` | `year(ts), month(ts), day(ts), hour(ts)` | Listing can skip year/month/day/hour folders whose UTC parts miss the (lag-widened) range. Day or hour `IN` is omitted when the set is complete or larger than 64. |
+| 15 | `WHERE @timestamp > "2024-06-15T00:00:00Z"` | `year(@timestamp), month(@timestamp), day(@timestamp)` | Same as with `::datetime`. The keyword ISO literal is cast to datetime. |

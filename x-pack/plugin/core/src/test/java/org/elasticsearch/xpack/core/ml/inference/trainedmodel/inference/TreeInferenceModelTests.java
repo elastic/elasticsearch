@@ -284,6 +284,150 @@ public class TreeInferenceModelTests extends ESTestCase {
         assertThat(featureImportance[1][0], closeTo(2.5, eps));
     }
 
+    /**
+     * Trained trees can contain a split where one child saw no training samples, typically below an ancestor that already
+     * split on the same feature. The zero fraction for that child must not turn feature importance into NaN. Expected
+     * values follow from SHAP local accuracy: importance sums to prediction minus the sample-weighted mean leaf value,
+     * which is (2 * 10 + 2 * 20) / 4 = 15 here, since the zero-sample leaf carries no weight.
+     */
+    public void testFeatureImportanceWithZeroSampleLeaf() throws IOException {
+        List<String> featureNames = Arrays.asList("foo", "bar");
+        Tree treeObject = Tree.builder()
+            .setFeatureNames(featureNames)
+            .setNodes(
+                TreeNode.builder(0)
+                    .setSplitFeature(0)
+                    .setOperator(Operator.LT)
+                    .setLeftChild(1)
+                    .setRightChild(2)
+                    .setThreshold(0.5)
+                    .setNumberSamples(4L),
+                TreeNode.builder(1)
+                    .setSplitFeature(0)
+                    .setOperator(Operator.LT)
+                    .setLeftChild(3)
+                    .setRightChild(4)
+                    .setThreshold(0.2)
+                    .setNumberSamples(2L),
+                TreeNode.builder(2).setLeafValue(20.0).setNumberSamples(2L),
+                TreeNode.builder(3).setLeafValue(7.0).setNumberSamples(0L),
+                TreeNode.builder(4).setLeafValue(10.0).setNumberSamples(2L)
+            )
+            .build();
+
+        TreeInferenceModel tree = deserializeFromTrainedModel(treeObject, xContentRegistry(), TreeInferenceModel::fromXContent);
+        tree.rewriteFeatureIndices(Collections.emptyMap());
+
+        final double eps = 1.0E-8;
+        // Reaches the populated leaf (10) while the sibling leaf has zero samples
+        double[][] featureImportance = tree.featureImportance(new double[] { 0.3, 0.0 });
+        assertThat(featureImportance[0][0], closeTo(10.0 - 15.0, eps));
+        assertThat(featureImportance[1][0], closeTo(0.0, eps));
+
+        // Reaches the zero-sample leaf (7) itself
+        featureImportance = tree.featureImportance(new double[] { 0.1, 0.0 });
+        assertThat(featureImportance[0][0], closeTo(7.0 - 15.0, eps));
+        assertThat(featureImportance[1][0], closeTo(0.0, eps));
+
+        featureImportance = tree.featureImportance(new double[] { 0.7, 0.0 });
+        assertThat(featureImportance[0][0], closeTo(20.0 - 15.0, eps));
+        assertThat(featureImportance[1][0], closeTo(0.0, eps));
+    }
+
+    /**
+     * An internal node can itself have zero training samples, so the fraction of its samples reaching each child is 0 / 0.
+     * The fractions are then split evenly between the children, which keeps them summing to one, so SHAP local accuracy
+     * still holds (importance sums to prediction minus the sample-weighted mean leaf value, 15 here).
+     * <p>
+     * Expected values are Shapley values of the path-dependent value function v(S), computed by hand:
+     * v({}) = 15, v({foo}) = 20 or 10 (by foo), v({bar}) = 15 for bar = 0.3 and 0.5 * 20 + 0.5 * (0.5 * 7 + 0.5 * 9) = 14
+     * for bar = 0.7, and v({foo, bar}) is the prediction. Values for documents passing through the zero-sample node depend
+     * on the even split: with a left fraction p, foo's importance for (0.3, 0.7) would be -5.25 + p / 2.
+     */
+    public void testFeatureImportanceWithZeroSampleInnerNode() throws IOException {
+        List<String> featureNames = Arrays.asList("foo", "bar");
+        Tree treeObject = Tree.builder()
+            .setFeatureNames(featureNames)
+            .setNodes(
+                TreeNode.builder(0)
+                    .setSplitFeature(0)
+                    .setOperator(Operator.LT)
+                    .setLeftChild(1)
+                    .setRightChild(2)
+                    .setThreshold(0.5)
+                    .setNumberSamples(4L),
+                TreeNode.builder(1)
+                    .setSplitFeature(1)
+                    .setOperator(Operator.LT)
+                    .setLeftChild(3)
+                    .setRightChild(4)
+                    .setThreshold(0.5)
+                    .setNumberSamples(2L),
+                TreeNode.builder(2).setLeafValue(20.0).setNumberSamples(2L),
+                TreeNode.builder(3).setLeafValue(10.0).setNumberSamples(2L),
+                TreeNode.builder(4)
+                    .setSplitFeature(0)
+                    .setOperator(Operator.LT)
+                    .setLeftChild(5)
+                    .setRightChild(6)
+                    .setThreshold(0.2)
+                    .setNumberSamples(0L),
+                TreeNode.builder(5).setLeafValue(7.0).setNumberSamples(0L),
+                TreeNode.builder(6).setLeafValue(9.0).setNumberSamples(0L)
+            )
+            .build();
+
+        TreeInferenceModel tree = deserializeFromTrainedModel(treeObject, xContentRegistry(), TreeInferenceModel::fromXContent);
+        tree.rewriteFeatureIndices(Collections.emptyMap());
+
+        final double eps = 1.0E-8;
+        // Never reaches the zero-sample node
+        double[][] featureImportance = tree.featureImportance(new double[] { 0.7, 0.3 });
+        assertThat(featureImportance[0][0], closeTo(5.0, eps));
+        assertThat(featureImportance[1][0], closeTo(0.0, eps));
+
+        // Reaches the populated sibling of the zero-sample node
+        featureImportance = tree.featureImportance(new double[] { 0.3, 0.3 });
+        assertThat(featureImportance[0][0], closeTo(-5.0, eps));
+        assertThat(featureImportance[1][0], closeTo(0.0, eps));
+
+        // Passes through the zero-sample node to its right leaf (9)
+        featureImportance = tree.featureImportance(new double[] { 0.3, 0.7 });
+        assertThat(featureImportance[0][0], closeTo(-5.0, eps));
+        assertThat(featureImportance[1][0], closeTo(-1.0, eps));
+
+        // Passes through the zero-sample node to its left leaf (7)
+        featureImportance = tree.featureImportance(new double[] { 0.1, 0.7 });
+        assertThat(featureImportance[0][0], closeTo(-6.0, eps));
+        assertThat(featureImportance[1][0], closeTo(-2.0, eps));
+    }
+
+    /**
+     * number_samples is optional, so a model can arrive without it and then every node, including the root, has zero samples.
+     * Such a model has no sample weights to compute feature importance from. The zero-sample guard only applies below the
+     * root, so this must keep producing NaN rather than plausible looking values from even splits at every node.
+     */
+    public void testFeatureImportanceWithoutNumberSamplesIsNotMasked() throws IOException {
+        List<String> featureNames = Arrays.asList("foo", "bar");
+        Tree treeObject = Tree.builder()
+            .setFeatureNames(featureNames)
+            .setNodes(
+                TreeNode.builder(0).setSplitFeature(0).setOperator(Operator.LT).setLeftChild(1).setRightChild(2).setThreshold(0.5),
+                TreeNode.builder(1).setSplitFeature(1).setOperator(Operator.LT).setLeftChild(3).setRightChild(4).setThreshold(0.5),
+                TreeNode.builder(2).setLeafValue(20.0),
+                TreeNode.builder(3).setLeafValue(10.0),
+                TreeNode.builder(4).setLeafValue(30.0)
+            )
+            .build();
+
+        TreeInferenceModel tree = deserializeFromTrainedModel(treeObject, xContentRegistry(), TreeInferenceModel::fromXContent);
+        tree.rewriteFeatureIndices(Collections.emptyMap());
+
+        double[][] featureImportance = tree.featureImportance(new double[] { 0.3, 0.7 });
+        assertTrue(Double.isNaN(featureImportance[0][0]));
+        assertTrue(Double.isNaN(featureImportance[1][0]));
+    }
+
     public void testMinAndMaxBoundaries() throws IOException {
         Tree.Builder builder = Tree.builder().setTargetType(TargetType.REGRESSION);
         TreeNode.Builder rootNode = builder.addJunction(0, 0, true, 0.5);

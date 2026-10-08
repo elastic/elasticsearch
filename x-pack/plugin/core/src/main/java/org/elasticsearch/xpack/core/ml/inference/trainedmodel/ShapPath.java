@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
  * Ported from https://github.com/elastic/ml-cpp/blob/master/include/maths/CTreeShapFeatureImportance.h Path struct
  */
 public class ShapPath {
-    private static final double DBL_EPSILON = Double.MIN_VALUE;
+    // Machine epsilon, matching std::numeric_limits<double>::epsilon() in the native implementation. Not Double.MIN_VALUE:
+    // dividing by that overflows to infinity when a node has no training samples, which then turns into NaN.
+    private static final double DBL_EPSILON = Math.ulp(1.0);
 
     private final PathElement[] pathElements;
     private final double[] scale;

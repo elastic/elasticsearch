@@ -418,7 +418,7 @@ public class SearchEngine extends Engine {
                         synchronized (openReaders) {
                             openReadersChanged = false;
                         }
-                        logger.debug(() -> shardId + " failed to retain open reader files after reader close", e);
+                        logger.warn(() -> shardId + " failed to retain open reader files after reader close", e);
                     }
                 });
             }
@@ -435,6 +435,9 @@ public class SearchEngine extends Engine {
      * (see {@link SearchDirectory#retainFiles}). Called both when processing a new commit notification and, via
      * {@link #trackLocalOpenReader}'s reader-close listener, when a reader (e.g. a closed PIT) stops referencing
      * files that a subsequent commit notification might be slow to arrive and clean up on its own.
+     * <p>
+     * Both call sites enqueue this on the {@link #processCommitTaskRunner}, which runs a single task at a time, so the
+     * two paths never interleave and each invocation observes a consistent view of {@code openReaders}.
      */
     private void retainOpenReaderFiles() {
         // A commit notification first calls SearchDirectory#updateCommit (adding the new commit's files to the

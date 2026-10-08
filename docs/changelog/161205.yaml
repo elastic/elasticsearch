@@ -1,4 +1,4 @@
-area: "ES|QL, Search"
+area: "ES|QL"
 issues: []
 pr: 161205
 summary: Release esql knn on runtime field from snapshot only

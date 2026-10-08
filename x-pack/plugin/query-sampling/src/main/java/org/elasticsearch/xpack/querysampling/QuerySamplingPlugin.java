@@ -28,13 +28,16 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingGroundTruthAction;
+import org.elasticsearch.xpack.querysampling.action.QuerySamplingRecallAction;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingStatsAction;
 import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingGroundTruthAction;
+import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingRecallAction;
 import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingStatsAction;
 import org.elasticsearch.xpack.querysampling.capture.CaptureHandoff;
 import org.elasticsearch.xpack.querysampling.capture.QueryCaptureFilter;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGroundTruthAction;
+import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingRecallAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingStatsAction;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.storage.QuerySamplingIndex;
@@ -144,7 +147,8 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
     public List<ActionHandler> getActions() {
         return List.of(
             new ActionHandler(QuerySamplingStatsAction.INSTANCE, TransportQuerySamplingStatsAction.class),
-            new ActionHandler(QuerySamplingGroundTruthAction.INSTANCE, TransportQuerySamplingGroundTruthAction.class)
+            new ActionHandler(QuerySamplingGroundTruthAction.INSTANCE, TransportQuerySamplingGroundTruthAction.class),
+            new ActionHandler(QuerySamplingRecallAction.INSTANCE, TransportQuerySamplingRecallAction.class)
         );
     }
 
@@ -157,7 +161,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled() == false) {
             return List.of();
         }
-        return List.of(new RestQuerySamplingStatsAction(), new RestQuerySamplingGroundTruthAction());
+        return List.of(new RestQuerySamplingStatsAction(), new RestQuerySamplingGroundTruthAction(), new RestQuerySamplingRecallAction());
     }
 
     @Override

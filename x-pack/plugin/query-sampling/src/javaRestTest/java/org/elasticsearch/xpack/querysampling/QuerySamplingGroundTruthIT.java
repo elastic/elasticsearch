@@ -16,6 +16,7 @@ import org.junit.ClassRule;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
@@ -63,6 +64,17 @@ public class QuerySamplingGroundTruthIT extends QuerySamplingRestTestCase {
         assertThat(last, equalTo(0L));
         assertBusy(() -> assertThat(storedValue(x, "has_ground_truth"), equalTo(true)));
         assertThat(((List<?>) storedValue(x, "ground_truth.neighbors")).size(), equalTo(3));
+
+        // the queries that have ground truth now are what the recall is estimated from
+        refreshSampleIndex();
+        ObjectPath estimate = ObjectPath.createFromResponse(
+            client().performRequest(new Request("GET", "/_query_sampling/recall?include_samples=true"))
+        );
+        assertThat(((Number) estimate.evaluate("records_with_ground_truth")).intValue(), greaterThanOrEqualTo(1));
+        // the index is so small that the approximate search finds every true neighbour
+        assertThat(((Number) estimate.evaluate("traffic_weighted_recall")).doubleValue(), greaterThan(0.99));
+        assertThat(((Number) estimate.evaluate("unique_query_recall")).doubleValue(), greaterThan(0.99));
+        assertThat(((List<?>) estimate.evaluate("samples")).size(), greaterThanOrEqualTo(1));
     }
 
     public void testSampledQueriesAreWrittenToTheIndex() throws Exception {

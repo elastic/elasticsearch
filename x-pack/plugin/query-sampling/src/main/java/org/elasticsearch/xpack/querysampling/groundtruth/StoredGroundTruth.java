@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.querysampling.groundtruth;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -15,12 +14,9 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -29,8 +25,8 @@ import org.elasticsearch.xpack.querysampling.GroundTruthRunner;
 import org.elasticsearch.xpack.querysampling.storage.QuerySamplingIndex;
 import org.elasticsearch.xpack.querysampling.storage.SampleRecord;
 import org.elasticsearch.xpack.querysampling.storage.StoredSample;
+import org.elasticsearch.xpack.querysampling.storage.StoredSamples;
 
-import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,10 +45,9 @@ public final class StoredGroundTruth {
 
     private static final Logger logger = LogManager.getLogger(StoredGroundTruth.class);
 
-    private final BiConsumer<SearchRequest, ActionListener<SearchResponse>> sampleSearch;
+    private final StoredSamples samples;
     private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> sampleBulk;
     private final BiConsumer<SearchRequest, ActionListener<SearchResponse>> exactSearch;
-    private final NamedXContentRegistry registry;
     private final LongSupplier clock;
 
     /**
@@ -69,10 +64,9 @@ public final class StoredGroundTruth {
         NamedXContentRegistry registry,
         LongSupplier clock
     ) {
-        this.sampleSearch = sampleSearch;
+        this.samples = new StoredSamples(sampleSearch, registry);
         this.sampleBulk = sampleBulk;
         this.exactSearch = exactSearch;
-        this.registry = registry;
         this.clock = clock;
     }
 
@@ -82,38 +76,13 @@ public final class StoredGroundTruth {
      * does not keep the others from being served.
      */
     public void compute(int max, ActionListener<GroundTruthRunner.Result> listener) {
-        SearchRequest pending = new SearchRequest(QuerySamplingIndex.NAME).source(
-            new SearchSourceBuilder().query(QueryBuilders.termQuery("has_ground_truth", false)).sort("updated_at", SortOrder.ASC).size(max)
+        samples.read(
+            QueryBuilders.termQuery("has_ground_truth", false),
+            "updated_at",
+            SortOrder.ASC,
+            max,
+            ActionListener.wrap(read -> compute(read.samples(), read.unreadable(), listener), listener::onFailure)
         );
-        sampleSearch.accept(pending, ActionListener.wrap(response -> {
-            List<StoredSample> samples = new ArrayList<>();
-            int unreadable = readSamples(response, samples);
-            compute(samples, unreadable, listener);
-        }, e -> {
-            if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                listener.onResponse(new GroundTruthRunner.Result(0, 0)); // nothing was ever sampled
-            } else {
-                listener.onFailure(e);
-            }
-        }));
-    }
-
-    /**
-     * Copies the stored queries out of the response, which cannot be kept.
-     *
-     * @return how many documents could not be read
-     */
-    private int readSamples(SearchResponse response, List<StoredSample> samples) {
-        int unreadable = 0;
-        for (SearchHit hit : response.getHits().getHits()) {
-            try {
-                samples.add(SampleRecord.parse(hit.getSourceAsMap(), registry));
-            } catch (Exception e) {
-                unreadable++;
-                logger.debug("failed to read the sampled query [{}]", hit.getId(), e);
-            }
-        }
-        return unreadable;
     }
 
     private void compute(List<StoredSample> samples, int unreadable, ActionListener<GroundTruthRunner.Result> listener) {

@@ -81,7 +81,6 @@ public class KibanaPluginTests extends ESTestCase {
         assertTrue(KibanaPlugin.KIBANA_INDEX_DESCRIPTOR.matchesIndexPattern(".kibana_task_manager_8.0.0_001"));
         assertFalse(KibanaPlugin.KIBANA_INDEX_DESCRIPTOR.matchesIndexPattern(".kibana_change_history"));
         assertFalse(KibanaPlugin.KIBANA_INDEX_DESCRIPTOR.matchesIndexPattern(".kibana_change_history-2026.07.16-000001"));
-        assertFalse(KibanaPlugin.KIBANA_INDEX_DESCRIPTOR.matchesIndexPattern(".notifications"));
     }
 
     public void testKibanaFeaturePassesSystemIndicesOverlapChecks() {

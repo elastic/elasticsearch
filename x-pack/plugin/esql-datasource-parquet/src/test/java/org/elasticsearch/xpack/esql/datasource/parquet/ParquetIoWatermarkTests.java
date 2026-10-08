@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalIoExecutors;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupScheduler;
 
@@ -109,8 +110,8 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         ParquetIoWatermark watermark = new ParquetIoWatermark(1024);
         DirectBufferFactory factory = watermark.accountingFactory(breaker);
         DirectReadBuffer buffer = factory.allocate(64);
-        assertEquals(64, watermark.used());
-        assertEquals(64, breaker.getUsed());
+        assertEquals(HeapFootprint.byteArrayBytes(64), watermark.used());
+        assertEquals(HeapFootprint.byteArrayBytes(64), breaker.getUsed());
         buffer.close();
         assertEquals(0, watermark.used());
         assertEquals(0, breaker.getUsed());
@@ -124,9 +125,9 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertEquals(64, watermark.used());
         DirectBufferFactory factory = watermark.accountingFactory(breaker, hold);
         DirectReadBuffer buffer = factory.allocate(64);
-        assertEquals("alloc swaps the estimate for the retained array", 64, watermark.used());
+        assertEquals("alloc swaps the estimate for the retained array", HeapFootprint.byteArrayBytes(64), watermark.used());
         hold.drop();
-        assertEquals("second drop is a no-op", 64, watermark.used());
+        assertEquals("second drop is a no-op", HeapFootprint.byteArrayBytes(64), watermark.used());
         buffer.close();
         assertEquals(0, watermark.used());
         assertEquals(0, breaker.getUsed());
@@ -143,7 +144,7 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         DirectReadBuffer second = factory.allocate(10);
         assertEquals(152, watermark.used());
         hold.drop();
-        assertEquals("leftover estimate released; retained arrays remain", 20, watermark.used());
+        assertEquals("leftover estimate released; retained arrays remain", 2 * HeapFootprint.byteArrayBytes(10), watermark.used());
         first.close();
         second.close();
         assertEquals(0, watermark.used());

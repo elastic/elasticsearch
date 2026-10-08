@@ -105,12 +105,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:UNMAPPED_FIELDS_LOAD}
   issue: https://github.com/elastic/elasticsearch/issues/148619
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecWhereLikeIT
-  method: test {csv-spec:where-like.likePrefixSuffix}
-  issue: https://github.com/elastic/elasticsearch/issues/149964
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecWhereLikeIT
-  method: test {csv-spec:where-like.likePrefixSuffix}
-  issue: https://github.com/elastic/elasticsearch/issues/149964
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-increase.increase_of_double_no_grouping_promql}
   issue: https://github.com/elastic/elasticsearch/issues/150045
@@ -598,9 +592,6 @@ tests:
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationContinuesAfterMasterFailover
   issue: https://github.com/elastic/elasticsearch/issues/160824
-- class: org.elasticsearch.xpack.esql.datasource.parquet.PrefetchLatencySimulationTests
-  method: testWatermarkEmptyQueueOverrunIsNodeWide
-  issue: https://github.com/elastic/elasticsearch/issues/160849
 - class: org.elasticsearch.action.RejectionActionIT
   method: testRemoteReductionRejectionWithPendingCoordinatorReduction
   issue: https://github.com/elastic/elasticsearch/issues/160620
@@ -628,9 +619,6 @@ tests:
 - class: org.elasticsearch.index.reindex.RestoringShardReindexIT
   method: testDeleteByQueryWhileRestoringParks
   issue: https://github.com/elastic/elasticsearch/issues/161091
-- class: org.elasticsearch.xpack.esql.datasources.StreamingPermitCycleSmallTests
-  method: testEightGzipStreamsCompleteUnderTinyLimiterBudget
-  issue: https://github.com/elastic/elasticsearch/issues/161165
 - class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
   method: testTermsQuery
   issue: https://github.com/elastic/elasticsearch/issues/161173
@@ -646,21 +634,12 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsVectorsYamlTestSuiteIT
   method: test {yaml=search.vectors/241_source_columnar_stored_vectors/dynamically mapped vectors are excluded too}
   issue: https://github.com/elastic/elasticsearch/issues/161237
-- class: org.elasticsearch.xpack.esql.action.ExternalPartitionSpecPruningIT
-  method: testIdentityRemapPrunesRegion
-  issue: https://github.com/elastic/elasticsearch/issues/161232
 - class: org.elasticsearch.xpack.watcher.actions.webhook.WebhookTokenIntegrationTests
   method: testWebhook
   issue: https://github.com/elastic/elasticsearch/issues/160935
-- class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
-  method: testCloseWhileSegmentatorParkedOnBufferPool
-  issue: https://github.com/elastic/elasticsearch/issues/161247
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {yaml=indices.sort/30_multi_value/Index Sort with doc_values multi_value false - secondary sort field}
   issue: https://github.com/elastic/elasticsearch/issues/161280
-- class: org.elasticsearch.xpack.esql.datasources.PartitionSpecProjectorTests
-  method: testOverlapsExpressionsDatetimeLongIsNotScaledAsSeconds
-  issue: https://github.com/elastic/elasticsearch/issues/161281
 - class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/161309
@@ -690,3 +669,23 @@ tests:
 - class: org.elasticsearch.integration.FieldLevelSecurityTests
   method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
   issue: https://github.com/elastic/elasticsearch/issues/161396
+- class: org.elasticsearch.xpack.esql.action.ExternalPartitionSpecPruningIT
+  method: testAwsHiveHourlySecondsRangeInsideOneHour
+  issue: https://github.com/elastic/elasticsearch/issues/161409
+- class: org.elasticsearch.xpack.esql.qa.parquet.ClickBenchParquetSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/161413
+- class: org.elasticsearch.xpack.esql.action.ExternalWarmDatasetAggregatePartialEvictionIT
+  method: testWarmNonCountAggregatesSafeMissUnderEviction
+  issue: https://github.com/elastic/elasticsearch/issues/161428
+- class: org.elasticsearch.xpack.esql.action.ExternalWarmDatasetAggregatePartialEvictionIT
+  method: testNdjsonWarmCountSurvivesHalfMissingPerFileEntries
+  issue: https://github.com/elastic/elasticsearch/issues/161434
+- class: org.elasticsearch.columnar.substrate.MonotonicTableTests
+  method: testTablesInterleavedInOneFile
+  issue: https://github.com/elastic/elasticsearch/issues/161435
+- class: org.elasticsearch.xpack.esql.datasources.StreamingPermitCycleSmallTests
+  method: testEightGzipStreamsCompleteUnderTinyLimiterBudget
+  issue: https://github.com/elastic/elasticsearch/issues/161165
+- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonManyFileWarmFoldIT
+  method: testNdjsonManyFileCountStarWarmShortCircuits
+  issue: https://github.com/elastic/elasticsearch/issues/161443

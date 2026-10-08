@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -289,21 +290,40 @@ public class EsqlDataExtractor implements DataExtractor {
     }
 
     private EsqlQueryResponse runEsqlQueryWithSingleRetry(String query, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
-        for (int attempt = 0; attempt < 2; attempt++) {
-            if (isCancelled) {
-                throw new IllegalStateException(Messages.getMessage(Messages.DATAFEED_ESQL_QUERY_CANCELLED));
-            }
-            try {
-                return runEsqlQuery(query, timeFilter, params);
-            } catch (RuntimeException e) {
-                if (attempt == 0 && isCancelled == false && isNodeChurnFailure(e)) {
-                    LOGGER.debug(() -> "[" + context.jobId() + "] ES|QL query failed due to node churn; retrying the same range", e);
-                    continue;
-                }
+        throwIfCancelled();
+        try {
+            return runEsqlQuery(query, timeFilter, params);
+        } catch (NodeClosedException | NodeDisconnectedException | NodeNotConnectedException | UnavailableShardsException e) {
+            return retryAfterNodeChurnFailure(query, timeFilter, params, e);
+        } catch (ElasticsearchException e) {
+            if (isNodeChurnFailure(e) == false) {
                 throw e;
             }
+            return retryAfterNodeChurnFailure(query, timeFilter, params, e);
         }
-        throw new AssertionError("unreachable");
+    }
+
+    private EsqlQueryResponse retryAfterNodeChurnFailure(
+        String query,
+        QueryBuilder timeFilter,
+        List<EsqlQueryParam> params,
+        Exception nodeChurnFailure
+    ) {
+        if (isCancelled) {
+            if (nodeChurnFailure instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new ElasticsearchException(nodeChurnFailure);
+        }
+        LOGGER.debug(() -> "[" + context.jobId() + "] ES|QL query failed due to node churn; retrying the same range", nodeChurnFailure);
+        throwIfCancelled();
+        return runEsqlQuery(query, timeFilter, params);
+    }
+
+    private void throwIfCancelled() {
+        if (isCancelled) {
+            throw new IllegalStateException(Messages.getMessage(Messages.DATAFEED_ESQL_QUERY_CANCELLED));
+        }
     }
 
     public static boolean isNodeChurnFailure(Exception e) {
@@ -373,12 +393,15 @@ public class EsqlDataExtractor implements DataExtractor {
                 future.onResponse(response);
             }, future::onFailure);
             Task task = executeAndReturnTask(nodeClient, request, retainingListener);
+            boolean cancelledBeforeTracking;
             synchronized (cancellationLock) {
-                if (isCancelled) {
-                    cancelQueryTask(task);
-                } else {
+                cancelledBeforeTracking = isCancelled;
+                if (cancelledBeforeTracking == false) {
                     inFlightQueryTask = task;
                 }
+            }
+            if (cancelledBeforeTracking) {
+                cancelQueryTask(task);
             }
             try {
                 return future.actionGet();

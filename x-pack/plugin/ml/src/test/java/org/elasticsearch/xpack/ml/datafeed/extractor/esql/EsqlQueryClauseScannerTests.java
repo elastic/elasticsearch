@@ -8,6 +8,15 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -58,6 +67,44 @@ public class EsqlQueryClauseScannerTests extends ESTestCase {
         assertThat(scan.hasOuterLimit(), is(false));
         assertThat(scan.hasOuterTimeWhere(), is(false));
         assertThat(scan.hasOuterTimeSort(), is(false));
+    }
+
+    /**
+     * The scanner is a narrow reimplementation of a slice of the ES|QL grammar (ML cannot depend on the ES|QL parser
+     * at build time). This pins it to the real parser on queries that hide LIMIT/STATS-like text in strings,
+     * comments and quoted identifiers, so grammar drift shows up as a test failure.
+     */
+    public void testScanAgreesWithEsqlParserOnOuterLimitAndStats() {
+        EsqlParser parser = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
+        List<String> queries = List.of(
+            "FROM logs",
+            "FROM logs | LIMIT 5",
+            "FROM logs | limit 5",
+            "FROM logs | STATS c = COUNT(*)",
+            "FROM logs | STATS c = COUNT(*) BY b = BUCKET(ts, 1 hour) | LIMIT 10",
+            "FROM logs | WHERE ts > \"2020-01-01T00:00:00Z\" | SORT ts ASC | LIMIT 100",
+            "FROM logs | EVAL note = \"| LIMIT 20\" | KEEP note",
+            "FROM logs | EVAL note = \"| STATS c = COUNT(*)\" | KEEP note",
+            "FROM logs | EVAL note = \"\"\"| LIMIT 20\"\"\" | KEEP note",
+            "FROM logs | KEEP `LIMIT`, `x | LIMIT 3`",
+            "FROM logs /* | LIMIT 5 */ | KEEP a",
+            "FROM logs // | STATS c = COUNT(*)\n| KEEP a",
+            "FROM logs | KEEP limit_field, stats_field",
+            "FROM logs | EVAL x = TO_STRING(a) /* | STATS c = COUNT(*) */ | LIMIT 1"
+        );
+        for (String query : queries) {
+            LogicalPlan plan = parser.parseQuery(query);
+            boolean parserLimit = false;
+            boolean parserStats = false;
+            for (LogicalPlan node = plan; node != null; node = node instanceof UnaryPlan unary ? unary.child() : null) {
+                parserLimit |= node instanceof Limit;
+                parserStats |= node instanceof Aggregate;
+            }
+            EsqlQueryClauseScanner.ScanResult scan = EsqlQueryClauseScanner.scan(query, "ts");
+            assertThat("hasOuterLimit for [" + query + "]", scan.hasOuterLimit(), is(parserLimit));
+            assertThat("hasOuterStats for [" + query + "]", scan.hasOuterStats(), is(parserStats));
+            assertThat("hasAggregation for [" + query + "]", EsqlQueryClauseScanner.hasAggregation(query), is(parserStats));
+        }
     }
 
     public void testEndsInLineComment() {

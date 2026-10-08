@@ -616,9 +616,6 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testCancelNewShardRecoveryAndUsesExistingShardCopy
   issue: https://github.com/elastic/elasticsearch/issues/160953
-- class: org.elasticsearch.xpack.transform.integration.RestoringShardTransformIT
-  method: testPutTransformValidationWhileRestoringParks
-  issue: https://github.com/elastic/elasticsearch/issues/160991
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   method: testStatsBlowupNdjson
   issue: https://github.com/elastic/elasticsearch/issues/161026

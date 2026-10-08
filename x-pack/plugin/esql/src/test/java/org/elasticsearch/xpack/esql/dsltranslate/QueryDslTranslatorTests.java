@@ -57,6 +57,9 @@ import static org.hamcrest.Matchers.not;
 
 public class QueryDslTranslatorTests extends ESTestCase {
 
+    private static final long EPOCH_SECOND_2024_06_15 = 1_718_409_600L;
+    private static final long EPOCH_SECOND_2024_06_16 = 1_718_496_000L;
+
     // These fields exist; everything else is missing and binds to NULL.
     private static final Function<String, Expression> BINDER = name -> switch (name) {
         case "status" -> new ReferenceAttribute(Source.EMPTY, "status", DataType.INTEGER);
@@ -923,6 +926,30 @@ public class QueryDslTranslatorTests extends ESTestCase {
         Expression e = translate(QueryBuilders.rangeQuery("ts_nanos").lte(millis));
         Literal bound = (Literal) ((MvLess) e).bound();
         assertEquals(millis * 1_000_000L + 999_999L, bound.value());
+    }
+
+    /**
+     * A numeric bound with {@code format: epoch_second} is seconds, matching {@code DateFieldMapper} — not millis.
+     * {@code 1718409600} as millis is 1970-01-20; as epoch_second it is 2024-06-15.
+     */
+    public void testNumericEpochSecondFormatIsNotMillis() {
+        Expression e = translate(
+            QueryBuilders.rangeQuery("@timestamp").format("epoch_second").gte(EPOCH_SECOND_2024_06_15).lte(EPOCH_SECOND_2024_06_16)
+        );
+        assertThat(e, instanceOf(MvInRange.class));
+        MvInRange r = (MvInRange) e;
+        assertEquals(millis("2024-06-15T00:00:00Z"), ((Literal) r.lower()).value());
+        // lte rounds up through the last milli of that second (DateMathParser round-up of epoch_second).
+        assertEquals(millis("2024-06-16T00:00:00.999Z"), ((Literal) r.upper()).value());
+    }
+
+    /** A numeric bound with no format is epoch millis, not a calendar year — {@code 2024} is 1970, not 2024. */
+    public void testNumericWithoutFormatIsEpochMillisNotYear() {
+        Expression e = translate(QueryBuilders.rangeQuery("@timestamp").gte(2024L).lte(2025L));
+        assertThat(e, instanceOf(MvInRange.class));
+        MvInRange r = (MvInRange) e;
+        assertEquals(2024L, ((Literal) r.lower()).value());
+        assertEquals(2025L, ((Literal) r.upper()).value());
     }
 
     /**

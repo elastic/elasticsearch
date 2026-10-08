@@ -115,7 +115,9 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature MV_MAX_FUNCTION_FUSE_TO_LOAD = new NodeFeature("mapper.keyword.mv_max_function_fuse_to_load");
     public static final NodeFeature TDIGEST_TYPE = new NodeFeature("mapper.tdigest_type");
     public static final NodeFeature TEXT_FIELD_DOC_VALUES = new NodeFeature("mapper.text.doc_values");
-    public static final NodeFeature TEXT_FIELD_DOC_VALUES_WITHOUT_FEATURE_FLAG = new NodeFeature("mapper.text.doc_values_without_feature_flag");
+    public static final NodeFeature TEXT_FIELD_DOC_VALUES_WITHOUT_FEATURE_FLAG = new NodeFeature(
+        "mapper.text.doc_values_without_feature_flag"
+    );
     public static final NodeFeature TEXT_FIELD_DOC_VALUES_PREFIX_WILDCARD_REGEXP = new NodeFeature(
         "mapper.text.doc_values_prefix_wildcard_regexp"
     );

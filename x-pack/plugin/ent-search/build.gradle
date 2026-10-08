@@ -79,3 +79,15 @@ addQaCheckDependencies(project)
 artifacts {
   restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    'com.ethlo.time.ITU',
+    'com.ethlo.time.LeapSecondException',
+    'com.fasterxml.jackson.dataformat.yaml.YAMLMapper',
+    'com.fasterxml.jackson.dataformat.yaml.YAMLMapper$Builder',
+    'org.graalvm.polyglot.Context',
+    'org.graalvm.polyglot.Context$Builder',
+    'org.graalvm.polyglot.Value'
+  )
+}

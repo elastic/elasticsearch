@@ -10,12 +10,11 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaException;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SchemaValidatorsConfig;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import com.networknt.schema.Error;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SchemaException;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SpecificationVersion;
 
 import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.gradle.api.DefaultTask;
@@ -112,7 +111,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
     @TaskAction
     public void validate(InputChanges inputChanges) throws IOException {
         final File jsonSchemaOnDisk = getJsonSchema();
-        final JsonSchema jsonSchema = buildSchemaObject(jsonSchemaOnDisk);
+        final Schema jsonSchema = buildSchemaObject(jsonSchemaOnDisk);
 
         final Map<File, Set<String>> errors = new LinkedHashMap<>();
         final List<Problem> problems = new ArrayList<>();
@@ -126,8 +125,8 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
             .filter(file -> file.isDirectory() == false)
             .forEach(file -> {
                 try {
-                    Set<ValidationMessage> validationMessages = jsonSchema.validate(mapper.readTree(file));
-                    maybeLogAndCollectError(validationMessages, errors, problems, file);
+                    List<Error> validationErrors = jsonSchema.validate(mapper.readTree(file));
+                    maybeLogAndCollectError(validationErrors, errors, problems, file);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -152,25 +151,19 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
                     errors.values().size()
                 )
             );
-            throw problemReporter.throwing(new JsonSchemaException(sb.toString()), problems);
+            throw problemReporter.throwing(new SchemaException(sb.toString()), problems);
         }
     }
 
-    private JsonSchema buildSchemaObject(File jsonSchemaOnDisk) throws IOException {
+    private Schema buildSchemaObject(File jsonSchemaOnDisk) throws IOException {
         final ObjectMapper jsonMapper = new ObjectMapper();
-        final SchemaValidatorsConfig config = new SchemaValidatorsConfig();
-        final JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
-        return factory.getSchema(jsonMapper.readTree(jsonSchemaOnDisk), config);
+        final SchemaRegistry factory = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_7);
+        return factory.getSchema(jsonMapper.readTree(jsonSchemaOnDisk));
     }
 
-    private void maybeLogAndCollectError(
-        Set<ValidationMessage> messages,
-        Map<File, Set<String>> errors,
-        List<Problem> problems,
-        File file
-    ) {
+    private void maybeLogAndCollectError(List<Error> messages, Map<File, Set<String>> errors, List<Problem> problems, File file) {
         final String fileType = getFileType();
-        for (ValidationMessage message : messages) {
+        for (Error message : messages) {
             getLogger().error("[validate {}][ERROR][{}][{}]", fileType, file.getName(), message.toString());
             errors.computeIfAbsent(file, k -> new LinkedHashSet<>())
                 .add(String.format("%s: %s", file.getAbsolutePath(), message.toString()));

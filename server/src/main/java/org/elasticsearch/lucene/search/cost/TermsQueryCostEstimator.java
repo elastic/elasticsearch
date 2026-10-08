@@ -64,7 +64,7 @@ public final class TermsQueryCostEstimator implements QueryCostEstimator {
     @Override
     public long estimate() {
         try {
-            return Math.max(BASE_BYTES, Math.addExact(termsRamBytes, BASE_BYTES));
+            return Math.addExact(termsRamBytes, BASE_BYTES);
         } catch (ArithmeticException e) {
             return Long.MAX_VALUE;
         }

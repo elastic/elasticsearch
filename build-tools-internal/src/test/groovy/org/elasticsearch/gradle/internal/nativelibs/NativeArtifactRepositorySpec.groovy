@@ -26,7 +26,7 @@ class NativeArtifactRepositorySpec extends Specification {
     static final String HASH = "abc123"
     static final byte[] CONTENT = "zip-bytes".getBytes("UTF-8")
     static final byte[] DEBUG_INFO = "debuginfo-zip-bytes".getBytes("UTF-8")
-    static final String RUNBOOK = "https://codex.elastic.dev/r/elasticsearch-team/development/artifactory-credentials-for-ci-jobs"
+    static final String RUNBOOK = "https://codex.elastic.dev/r/elasticsearch-team/development/native-ci-publish"
 
     HttpServer server
 

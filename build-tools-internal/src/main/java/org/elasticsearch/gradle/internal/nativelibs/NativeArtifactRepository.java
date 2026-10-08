@@ -38,7 +38,7 @@ class NativeArtifactRepository {
 
     /** Runbook covering problems publishing the native libraries. */
     private static final String PUBLISHING_RUNBOOK =
-        "https://codex.elastic.dev/r/elasticsearch-team/development/artifactory-credentials-for-ci-jobs";
+        "https://codex.elastic.dev/r/elasticsearch-team/development/native-ci-publish";
 
     private final String baseUrl;
 

@@ -148,3 +148,23 @@ id:long | dept:keyword
 10002   | null
 10003   | null
 ;
+
+// The same absent column under `dynamic: true`: the declaration overlays the inferred schema, and a declared column
+// the inferred schema lacks reads null just as above, on every format -- a complete schema (headered text, columnar)
+// as much as a sample-derived one. The resolver also warns, so the warning is the same text the readers use.
+sharedOverlayDeclaredSchemaAbsentColumnReadsNull
+required_capability: dataset_in_from_command
+required_capability: fix_non_strict_overlay_absent_cols
+dataset: shared_overlay_absent: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "true", "properties": {"id": {"type": "long", "path": "emp_no"}, "dept": {"type": "keyword", "path": "department"}}}}
+
+FROM shared_overlay_absent
+| KEEP id, dept
+| SORT id
+| LIMIT 3;
+warningRegex:declared column \[department\] is not present in some source files and reads null there
+
+id:long | dept:keyword
+10001   | null
+10002   | null
+10003   | null
+;

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.datasources.StorageRetryCancellation;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
@@ -60,11 +61,11 @@ final class CoalescedRangeReader {
      * group does not become one very large contiguous array and request. This is a coalescing
      * bound, not an allocation bound: a single constituent larger than this keeps its own
      * oversized range. Matches {@link ParquetStorageObjectAdapter#MAX_WINDOW_SIZE} so merge GETs
-     * and window GETs share the same 10 MiB in-flight ceiling. Permits drop when the GET completes;
+     * and window GETs share the same (just under) 8 MiB in-flight ceiling. Permits drop when the GET completes;
      * coalesced buffers stay until that row group is decoded. {@code C × B} budgets concurrent GET
      * size, not retained prefetch. Using the adapter's 4 MiB
      * {@link ParquetStorageObjectAdapter#DEFAULT_WINDOW_SIZE} here would turn a representative
-     * 152 MiB row group from roughly 16 requests into roughly 38.
+     * 152 MiB row group from roughly 19 requests into roughly 38.
      */
     static final long MAX_MERGED_RANGE_BYTES = ParquetStorageObjectAdapter.MAX_WINDOW_SIZE;
 
@@ -405,7 +406,7 @@ final class CoalescedRangeReader {
                 } else {
                     misses.add(mr);
                     if (byteGate == ParquetIoWatermark.ByteGate.PER_GET && ioWatermark != null) {
-                        unitBytes = Math.addExact(unitBytes, mr.length());
+                        unitBytes = Math.addExact(unitBytes, HeapFootprint.byteArrayBytes(mr.length()));
                     }
                 }
             }
@@ -545,7 +546,7 @@ final class CoalescedRangeReader {
             boolean countGets = scope.countGets;
             long unitBytes = 0L;
             for (MergedRange mr : gets) {
-                unitBytes = Math.addExact(unitBytes, mr.length());
+                unitBytes = Math.addExact(unitBytes, HeapFootprint.byteArrayBytes(mr.length()));
             }
             BooleanSupplier cancel = composeCancel(cancelled, lease);
             NodeByteBudget.Hold immediate = ioWatermark.nodeByteBudget().tryAdmit(unitBytes);

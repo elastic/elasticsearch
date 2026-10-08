@@ -32,11 +32,11 @@ In practice, this can make a significant difference. A filtered query over a Par
 
 When a dataset's resource path uses Hive-style partitioning (for example, `year=2024/month=3/`), the engine detects partition keys automatically and promotes them to queryable columns. A `WHERE` condition on a partition column evaluates during file discovery, before any data is read. On a two-year monthly-partitioned dataset, `WHERE year = 2024 AND month = 3` skips 23 out of 24 partitions at zero I/O cost.
 
-A filter on a column inside the file can skip folders too, when the dataset sets [`partition_spec`](esql-data-federation-partition-spec.md). `WHERE ts > "2024-03-15T00:00:00Z"::datetime` skips folders whose time range does not overlap that filter. Path keys you do not list in the spec still prune on their own name.
+A filter on a column inside the file can skip folders too, when the dataset sets [`partition_spec`](esql-data-federation-partition-spec.md). `WHERE ts > "2024-03-15T00:00:00Z"` skips folders whose time range does not overlap that filter. `::datetime` on the ISO string is optional: ES|QL casts a keyword literal to datetime on comparison with a date column. Path keys you do not list in the spec still prune on their own name.
 
 Pruning applies when the partition filter comes before any `LIMIT`, `SORT`, or `STATS` in the query. If one of those commands sits between `FROM` and the `WHERE` on a partition column, pruning is silently skipped and every partition is read. Try to put partition filters first.
 
-For details on partition detection modes, refer to [dataset settings](esql-data-federation-datasets.md#common-settings).
+For details on partition detection modes, refer to [`partition_detection`](esql-data-federation-dataset-settings.md#partition-detection).
 
 ### Filter and limit pushdown
 
@@ -183,13 +183,15 @@ New files not appearing in query results
 :   {{es}} caches file listings for each dataset. A file added to or removed from the bucket might not show up until the listing cache expires. The default listing cache TTL is 5 minutes. Lower `esql.external.cache.listing.ttl` when new or removed files must be visible sooner. Refer to [cluster settings](esql-data-federation-cluster-settings.md).
 
 Columns with unexpected types or missing values
-:   When {{es}} infers a dataset's schema from its files, it might infer types differently than you expect. For example, a date column might appear as a keyword if the values do not match the default datetime format. To inspect the inferred field mappings, refer to [check field mappings](esql-data-federation-quickstart.md#check-field-mappings) in the quickstart. Use dataset [mappings](esql-data-federation-datasets.md#declare-a-dataset-mapping) to declare column types explicitly, or adjust the [`datetime_format`](esql-data-federation-datasets.md#csv-and-tsv-settings) setting. If some rows have null values for a column that exists in other files, check the dataset's [`schema_resolution`](esql-data-federation-datasets.md#schema-merge-strategies) setting.
+:   When {{es}} infers a dataset's schema from its files, it might infer types differently than you expect. For example, a date column might appear as a keyword if the values do not match the default datetime format. To inspect the inferred field mappings, refer to [check field mappings](esql-data-federation-quickstart.md#check-field-mappings) in the quickstart. [Declare the schema explicitly](esql-data-federation-schema.md#declare-a-schema-explicitly) to control column types, or adjust the `datetime_format` setting for [CSV and TSV](esql-data-federation-dataset-settings.md#csv-datetime-format) or [NDJSON](esql-data-federation-dataset-settings.md#ndjson-datetime-format). If some rows have null values for a column that exists in other files, review [schema inference and resolution](esql-data-federation-schema.md).
 
 Access denied or connection errors
 :   Credential and permission errors appear at query time, not when the data source is created. If a query returns an access denied error, verify that the credentials in the data source have the required permissions (such as `s3:ListBucket` and `s3:GetObject`) and that the region is correct.
 
 ## Next steps
 
+Use the following resources to tune queries and dataset behavior:
+
 - To adjust caching TTLs, file-discovery limits, or request concurrency, refer to [cluster settings](esql-data-federation-cluster-settings.md).
-- To control column types or rename columns, declare [dataset mappings](esql-data-federation-datasets.md#declare-a-dataset-mapping).
+- To control column types or rename columns, [declare the dataset schema explicitly](esql-data-federation-schema.md#declare-a-schema-explicitly).
 - For general {{esql}} tuning advice that also applies to datasets, refer to [optimize {{esql}} query performance](esql-query-performance.md).

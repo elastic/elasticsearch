@@ -2360,7 +2360,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         }
 
         DummyAsyncBulkByPaginatedSearchAction(BulkByPaginatedSearchTask task, TimeValue maxTaskShutdownGracePeriod) {
-            this(task, maxTaskShutdownGracePeriod, new NoopCircuitBreaker("test"), "test_bulk_batch");
+            this(task, maxTaskShutdownGracePeriod, NoopCircuitBreaker.INSTANCE, "test_bulk_batch");
         }
 
         DummyAsyncBulkByPaginatedSearchAction(

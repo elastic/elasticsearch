@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -72,12 +73,14 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     /**
      * Node-level setting for the parallel-parsing segment size. Larger segments amortise the fixed
      * Java/Jackson per-segment setup cost; smaller segments enable parallelism on smaller files.
-     * Also overridable per dataset via the {@code segment_size} setting.
+     * Also overridable per dataset via the {@code segment_size} setting. The effective segment is a few bytes under
+     * the configured value, see {@link #effectiveSegmentSize(long)}.
      */
     public static final String SEGMENT_SIZE_SETTING = "esql.external.ndjson.segment_size";
 
     /**
-     * 4 MiB, larger than the SPI's 1 MiB. Each NDJSON segment pays a fixed Java/Jackson setup cost
+     * 4 MiB, larger than the SPI's 1 MiB; the effective segment is a few bytes under it, like any configured value
+     * (see {@link #effectiveSegmentSize(long)}). Each NDJSON segment pays a fixed Java/Jackson setup cost
      * (schema lookup, {@link FormatReadContext} creation, {@link NdJsonPageIterator} +
      * {@link NdJsonPageDecoder} construction, range-stream wrapping, queue coordination), so cutting
      * the segment count by 4x cuts that overhead by ~4x. ClickHouse's 1 MiB sweet spot does not
@@ -398,7 +401,17 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         ByteSizeValue value = resolved.getAsBytesSize(SEGMENT_SIZE_SETTING, DEFAULT_SEGMENT_SIZE);
         long bytes = value.getBytes();
         Check.clientError(bytes >= MIN_SEGMENT_SIZE.getBytes(), "{} must be >= {}, got: {}", SEGMENT_SIZE_SETTING, MIN_SEGMENT_SIZE, value);
-        return bytes;
+        return effectiveSegmentSize(bytes);
+    }
+
+    /**
+     * The streaming coordinator allocates one {@code byte[]} of the segment size per in-flight chunk. A configured size
+     * is trimmed by the array header so the array, header included, fits in the configured bytes: a {@code 4mb}
+     * segment then occupies 4 MiB of heap instead of the 8 MiB an exact 4 MiB array takes at 4 MiB G1 regions. See
+     * {@link HeapFootprint#lengthFittingIn(long)}.
+     */
+    static long effectiveSegmentSize(long configuredBytes) {
+        return HeapFootprint.lengthFittingIn(configuredBytes);
     }
 
     private static int parseInt(Object value, int defaultValue) {
@@ -423,7 +436,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         ByteSizeValue parsed = ByteSizeValue.parseBytesSizeValue(value.toString(), CONFIG_SEGMENT_SIZE);
         long bytes = parsed.getBytes();
         Check.clientError(bytes >= MIN_SEGMENT_SIZE.getBytes(), CONFIG_SEGMENT_SIZE + " must be >= {}, got: {}", MIN_SEGMENT_SIZE, parsed);
-        return bytes;
+        return effectiveSegmentSize(bytes);
     }
 
     private static DateFormatter parseDatetimeFormat(Object value, DateFormatter baseline) {
@@ -679,7 +692,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     /**
      * Resolved per-reader from {@link #SEGMENT_SIZE_SETTING} (node-level) or the {@code segment_size}
-     * key in the per-query {@code WITH {...}} config. Defaults to {@link #DEFAULT_SEGMENT_SIZE}.
+     * key in the per-query {@code WITH {...}} config, defaulting to {@link #DEFAULT_SEGMENT_SIZE}, then trimmed by
+     * {@link #effectiveSegmentSize(long)}.
      */
     @Override
     public long minimumSegmentSize() {

@@ -4215,6 +4215,14 @@ public class EsqlCapabilities {
         FIX_NON_STRICT_OVERLAY_SPARSE_COLS,
 
         /**
+         * Non-strict ({@code dynamic: true}) declared-schema overlay keeps a declared column absent from a
+         * <em>complete</em> inferred schema too (Parquet, ORC, headered CSV/TSV), instead of rejecting the dataset with
+         * "declared columns not found in the source": the column reads null with the absent-column warning, as under
+         * {@code dynamic: false}. Gates tests that exercise this so they are skipped against old coordinators.
+         */
+        FIX_NON_STRICT_OVERLAY_ABSENT_COLS,
+
+        /**
          * {@code KEEP *} retains a {@code _file.*} column named in the {@code METADATA} clause.
          * Older coordinators omit those columns from star expansion, so a later reference fails
          * verification with {@code Unknown column [_file.*]}. Tests that read the column after

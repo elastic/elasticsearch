@@ -1338,22 +1338,19 @@ public class EsqlCapabilities {
          */
         COMPLETION,
         /**
-         * Support for the DENSE_VECTOR command. Dev/snapshot-only — the command is gated behind
-         * {@code isDevVersion()} in the grammar.
+         * Support for the DENSE_VECTOR command.
          */
-        DENSE_VECTOR_COMMAND(Build.current().isSnapshot()),
+        DENSE_VECTOR_COMMAND,
         /**
          * Adds the {@code type} option (text|image) and endpoint-driven multimodal routing to the DENSE_VECTOR command.
-         * Dev/snapshot-only, like {@link #DENSE_VECTOR_COMMAND}.
          */
-        DENSE_VECTOR_COMMAND_V2(Build.current().isSnapshot()),
+        DENSE_VECTOR_COMMAND_V2,
         /**
          * Adds custom output naming to the DENSE_VECTOR command: {@code vec = field} names a single generated column, and
          * {@code suffix = "_dv" ON f1, f2} replaces the default {@code _dense_vector} suffix on every listed field. Also covers
          * the warning emitted when an input position holds more than one value, which ships alongside the naming forms.
-         * Dev/snapshot-only, like {@link #DENSE_VECTOR_COMMAND}.
          */
-        DENSE_VECTOR_COMMAND_V3(Build.current().isSnapshot()),
+        DENSE_VECTOR_COMMAND_V3,
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
@@ -1404,6 +1401,11 @@ public class EsqlCapabilities {
          * Enables automatically grouping by all dimension fields in TS mode queries
          */
         METRICS_GROUP_BY_ALL(),
+
+        /**
+         * Support for the {@code exemplars} query setting.
+         */
+        EXEMPLARS_SETTING_DEVELOPMENT_V1(Build.current().isSnapshot()),
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -3045,6 +3047,12 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_DECLARED_SCHEMA_ROW_WIDTH_VALIDATION,
 
         /**
+         * Every headered CSV/TSV file binds its columns by its own header, whether the schema was declared or
+         * inferred. Older nodes bind an inferred schema by position against the first file.
+         */
+        EXTERNAL_TEXT_BINDS_BY_FILE_HEADER,
+
+        /**
          * CompressionDelegatingFormatReader forwards the wrapped reader's typed profile status.
          * Older nodes still execute compressed reads but expose an empty {@code format_reader}
          * object in the external-source operator profile.
@@ -3113,6 +3121,13 @@ public class EsqlCapabilities {
          * {@code template} binds and prunes on the templated column.
          */
         PARTITION_DETECTION_ON_READ_PATH,
+
+        /**
+         * A concrete (non-glob) Hive or template path binds partition columns on the coordinator
+         * and injects them at read time. Coordinators that predate this skip detection on a single
+         * explicit key, so mixed-cluster schema width disagrees. Gates tests, not production.
+         */
+        PARTITION_DETECTION_ON_A_CONCRETE_FILE,
 
         /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
@@ -3652,6 +3667,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_QUOTED_PATTERNS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, at most 1000 fields discovered in {@code _source} become columns: the
+         * alphabetically first ones, with a warning if there were more.
+         * See https://github.com/elastic/elasticsearch/issues/159972.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,
@@ -3971,6 +3993,11 @@ public class EsqlCapabilities {
         PROMQL_LIMITK,
 
         /**
+         * Support for the PromQL {@code limit_ratio()} streaming-sampled fraction function.
+         */
+        PROMQL_LIMIT_RATIO,
+
+        /**
          * Support for PromQL {@code histogram_fraction()} on native histograms.
          */
         PROMQL_HISTOGRAM_FRACTION,
@@ -4206,6 +4233,14 @@ public class EsqlCapabilities {
         FIX_NON_STRICT_OVERLAY_SPARSE_COLS,
 
         /**
+         * Non-strict ({@code dynamic: true}) declared-schema overlay keeps a declared column absent from a
+         * <em>complete</em> inferred schema too (Parquet, ORC, headered CSV/TSV), instead of rejecting the dataset with
+         * "declared columns not found in the source": the column reads null with the absent-column warning, as under
+         * {@code dynamic: false}. Gates tests that exercise this so they are skipped against old coordinators.
+         */
+        FIX_NON_STRICT_OVERLAY_ABSENT_COLS,
+
+        /**
          * {@code KEEP *} retains a {@code _file.*} column named in the {@code METADATA} clause.
          * Older coordinators omit those columns from star expansion, so a later reference fails
          * verification with {@code Unknown column [_file.*]}. Tests that read the column after
@@ -4268,6 +4303,30 @@ public class EsqlCapabilities {
          * answer {@code null}.
          */
         EXTERNAL_SOURCE_SCORE_FIX,
+
+        /**
+         * Does the usage information for ESQL contain the datasource failure-reason counters
+         * ({@code datasources.queries.failures.by_error_type.*}, {@code datasources.discovery.failures.by_error_type.*},
+         * {@code datasources.config.<kind>.changes.rejected.by_reason.*} and
+         * {@code datasources.config.<kind>.changes.by_type.*})?
+         */
+        USAGE_CONTAINS_DATASOURCES_FAILURE_REASONS,
+
+        /**
+         * Fix for {@code DocumentParser#parseArrayDynamic}: with {@code subobjects:false} and {@code dynamic:false},
+         * arrays of objects now correctly walk mapped dotted fields (e.g. {@code "objarr.k"}), consistent
+         * with the plain-object path. Previously the array was silently skipped and the values dropped.
+         * Fixed in <a href="https://github.com/elastic/elasticsearch/issues/160012">#160012</a>.
+         */
+        FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
+
+        /**
+         * A whole number in an external dataset column declared or inferred as {@code date_nanos}, without a
+         * {@code format}, is read as epoch milliseconds widened to nanoseconds, matching {@code date} columns. Parquet
+         * filter pushdown and TopN pruning scale their bounds the same way. Older nodes read such a number as epoch
+         * nanoseconds, so tests that assert the millisecond read require this capability to skip against them.
+         */
+        EXTERNAL_DATASET_DATE_NANOS_BARE_NUMBER_IS_EPOCH_MILLIS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

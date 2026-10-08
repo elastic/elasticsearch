@@ -101,7 +101,7 @@ $$$access-key$$$
 
     - **Default:** None
     - **Requires:** `auth` set to `static_credentials`
-    - **Related:** `secret_key`
+    - **Related:** `secret_key`, `session_token`
 
 $$$secret-key$$$
 
@@ -110,7 +110,18 @@ $$$secret-key$$$
 
     - **Default:** None
     - **Requires:** `auth` set to `static_credentials`
-    - **Related:** `access_key`
+    - **Related:** `access_key`, `session_token`
+
+$$$session-token$$$
+
+`session_token`
+:   The AWS session token for temporary security credentials issued by AWS STS.
+
+    - **Default:** None
+    - **Requires:** `auth` set to `static_credentials`, with `access_key` and `secret_key` from the same temporary credentials
+    - **Related:** `access_key`, `secret_key`
+
+    Temporary credentials expire. When they do, requests from the data source fail until you update all three values with new credentials.
 
 $$$role-arn$$$
 

@@ -46,6 +46,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
@@ -588,22 +589,30 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         }
         RecordReader rows = reader.rows(readOptions);
 
-        CloseableIterator<Page> iter = new OrcPageIterator(
-            reader,
-            rows,
-            schema,
-            projectedAttributes,
-            batchSize,
-            blockFactory,
-            StripeSkipTable.build(reader, schema, dynamicThreshold, 0L, Long.MAX_VALUE, declaredDateFormats, declaredTypeColumns),
-            counters,
-            declaredDateFormats,
-            declaredTypeColumns,
-            object.path().objectName(),
-            resolveErrorPolicy(context.errorPolicy()),
-            context.informationalWarningSink(),
-            context.sharedErrorBudget()
-        );
+        CloseableIterator<Page> iter;
+        try {
+            iter = new OrcPageIterator(
+                reader,
+                rows,
+                schema,
+                projectedAttributes,
+                batchSize,
+                blockFactory,
+                StripeSkipTable.build(reader, schema, dynamicThreshold, 0L, Long.MAX_VALUE, declaredDateFormats, declaredTypeColumns),
+                counters,
+                declaredDateFormats,
+                declaredTypeColumns,
+                object.path().objectName(),
+                resolveErrorPolicy(context.errorPolicy()),
+                context.informationalWarningSink(),
+                context.sharedErrorBudget(),
+                0L,
+                Long.MAX_VALUE
+            );
+        } catch (Exception e) {
+            IOUtils.closeWhileHandlingException(rows, reader);
+            throw e;
+        }
         return rowLimit != NO_LIMIT ? new RowLimitingIterator(iter, rowLimit) : iter;
     }
 
@@ -739,22 +748,29 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         }
         RecordReader rows = reader.rows(readOptions);
 
-        return new OrcPageIterator(
-            reader,
-            rows,
-            schema,
-            projectedAttributes,
-            batchSize,
-            blockFactory,
-            StripeSkipTable.build(reader, schema, dynamicThreshold, rangeStart, rangeEnd, declaredDateFormats, declaredTypeColumns),
-            counters,
-            declaredDateFormats,
-            declaredTypeColumns,
-            object.path().objectName(),
-            resolveErrorPolicy(context.errorPolicy()),
-            context.informationalWarningSink(),
-            context.sharedErrorBudget()
-        );
+        try {
+            return new OrcPageIterator(
+                reader,
+                rows,
+                schema,
+                projectedAttributes,
+                batchSize,
+                blockFactory,
+                StripeSkipTable.build(reader, schema, dynamicThreshold, rangeStart, rangeEnd, declaredDateFormats, declaredTypeColumns),
+                counters,
+                declaredDateFormats,
+                declaredTypeColumns,
+                object.path().objectName(),
+                resolveErrorPolicy(context.errorPolicy()),
+                context.informationalWarningSink(),
+                context.sharedErrorBudget(),
+                rangeStart,
+                rangeEnd
+            );
+        } catch (Exception e) {
+            IOUtils.closeWhileHandlingException(rows, reader);
+            throw e;
+        }
     }
 
     /** Returns {@code object.length()} if known, or 0 when unavailable. Best-effort sizing for
@@ -1438,7 +1454,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             String fileLocation,
             ErrorPolicy errorPolicy,
             @Nullable Consumer<String> warningSink,
-            @Nullable SharedErrorBudget sharedErrorBudget
+            @Nullable SharedErrorBudget sharedErrorBudget,
+            long rangeStart,
+            long rangeEnd
         ) {
             this.errorPolicy = errorPolicy;
             this.warningSink = warningSink;
@@ -1484,7 +1502,18 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     declaredFormatters[col] = DateFormatter.forPattern(pattern);
                 }
             }
-            validatePlannerTypesAgainstFile(fileLocation, declaredTypeColumns);
+            String dropReason = validatePlannerTypesAgainstFile(fileLocation, declaredTypeColumns);
+            if (dropReason != null) {
+                // Charged once, here, so no stripe of this file is decoded only to be dropped.
+                ColumnarRowDropHelper.dropWholeRead(
+                    sharedErrorBudget,
+                    errorPolicy,
+                    fileLocation,
+                    rowsInRange(reader, rangeStart, rangeEnd),
+                    dropReason
+                );
+                exhausted = true;
+            }
 
             // Collect columns absent from the ORC file. resolveProjection uses DataType.NULL as a
             // sentinel for columns not found in the file schema; those columns are null-filled
@@ -1537,9 +1566,21 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
          * The {@code DeclaredTypeCoercions#supports} escape — which admits lossy narrowing — is honored only for a column
          * in {@code declaredTypeColumns} (target type from an explicit declaration, so a per-value coerce is licensed).
          * For an INFERRED target the escape does not apply: a cross-file clash must widen-or-null, never downcast.
+         * <p>
+         * A declared column that is neither follows the read's error policy
+         * ({@link DeclaredTypeCoercions#onUncoercibleColumn}): {@code fail_fast} fails the read, {@code null_field} nulls
+         * the column as above, and {@code skip_row} drops every row of the file, which the caller does when this returns
+         * non-{@code null}.
+         *
+         * @return under {@code skip_row}, why every row of the file must be dropped; otherwise {@code null}
          */
-        private void validatePlannerTypesAgainstFile(String fileLocation, Set<String> declaredTypeColumns) {
-            SkipWarnings skipWarnings = null;
+        @Nullable
+        private String validatePlannerTypesAgainstFile(String fileLocation, Set<String> declaredTypeColumns) {
+            // Reported once the loop is done, and only if no declared column drops the file's rows: a column of rows
+            // that never reach the page does not read null.
+            List<String> nullDetails = null;
+            SkipWarnings dropWarnings = null;
+            String dropReason = null;
             for (int col = 0; col < attributes.size(); col++) {
                 Attribute attr = attributes.get(col);
                 TypeDescription leafType = leafTypes[col];
@@ -1552,36 +1593,61 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 }
                 DataType actualInFile = convertOrcTypeToEsql(leafType);
                 DataType widened = EsqlDataTypeConverter.commonType(planner, actualInFile);
+                boolean declared = declaredTypeColumns.contains(attr.name());
                 boolean compatible = planner == actualInFile || (widened != null && widened == planner)
                 // Lossy-narrowing coercion escape is reserved for DECLARED columns; an inferred target may only widen.
-                    || (declaredTypeColumns.contains(attr.name()) && DeclaredTypeCoercions.supports(actualInFile, planner));
+                    || (declared && DeclaredTypeCoercions.supports(actualInFile, planner));
                 if (compatible == false) {
-                    if (skipWarnings == null) {
-                        skipWarnings = new SkipWarnings(
-                            "Some columns in [" + fileLocation + "] have a type the query cannot read; returning null",
-                            warningSink
-                        );
+                    String outcome = "returning null";
+                    if (declared && errorPolicy.isStrict()) {
+                        DeclaredTypeCoercions.onUncoercibleColumn(attr.name(), fileLocation, actualInFile, planner, null);
+                    } else if (declared && errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW) {
+                        if (dropWarnings == null) {
+                            dropWarnings = new SkipWarnings(DeclaredTypeCoercions.uncoercibleColumnsDropSummary(fileLocation), warningSink);
+                        }
+                        DeclaredTypeCoercions.onUncoercibleColumn(attr.name(), fileLocation, actualInFile, planner, dropWarnings);
+                        if (dropReason == null) {
+                            dropReason = DeclaredTypeCoercions.uncoercibleColumnDetail(attr.name(), actualInFile, planner);
+                        }
+                        outcome = "skipping the file's rows";
+                    } else {
+                        if (nullDetails == null) {
+                            nullDetails = new ArrayList<>();
+                        }
+                        nullDetails.add(DeclaredTypeCoercions.uncoercibleColumnDetail(attr.name(), actualInFile, planner));
                     }
-                    skipWarnings.add(
-                        "column ["
-                            + attr.name()
-                            + "]: ["
-                            + actualInFile.typeName()
-                            + "] in the file, ["
-                            + planner.typeName()
-                            + "] in the query"
-                    );
                     LOGGER.warn(
-                        "Column [{}] in [{}] is [{}] in the file, [{}] in the query; returning null",
+                        "Column [{}] in [{}] is [{}] in the file, [{}] in the query; {}",
                         attr.name(),
                         fileLocation,
                         actualInFile.typeName(),
-                        planner.typeName()
+                        planner.typeName(),
+                        outcome
                     );
                     fieldNameToPath.remove(attr.name());
                     leafTypes[col] = null;
                 }
             }
+            if (nullDetails != null && dropReason == null) {
+                SkipWarnings nullWarnings = new SkipWarnings(
+                    DeclaredTypeCoercions.uncoercibleColumnsNullSummary(fileLocation),
+                    warningSink
+                );
+                nullDetails.forEach(nullWarnings::add);
+            }
+            return dropReason;
+        }
+
+        /** The rows of the stripes that start in {@code [rangeStart, rangeEnd)}: the stripes this read covers. */
+        private static long rowsInRange(Reader reader, long rangeStart, long rangeEnd) {
+            long rows = 0;
+            for (StripeInformation stripe : reader.getStripes()) {
+                long off = stripe.getOffset();
+                if (off >= rangeStart && off < rangeEnd) {
+                    rows += stripe.getNumberOfRows();
+                }
+            }
+            return rows;
         }
 
         /**
@@ -1876,10 +1942,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             }
             if (coercionWarnings == null) {
                 String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW ? "skipping their rows" : "returning null";
-                coercionWarnings = new SkipWarnings(
-                    "Some values in [" + fileLocation + "] cannot be read as their declared type; " + outcome,
-                    warningSink
-                );
+                String prefix = "Some values in [" + fileLocation + "] cannot be read as their declared type; ";
+                coercionWarnings = new SkipWarnings(prefix + outcome, prefix + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME, warningSink);
             }
             return coercionWarnings;
         }
@@ -2213,9 +2277,10 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
          * only defined elements); a row whose elements are all null (or an empty/null list) is a
          * null position. The string&rarr;datetime coercion arm parses each element via the shared
          * scalar with the declared format (ISO default); a parse failure follows the read's error
-         * policy with {@code castBlock}'s bulk semantics — the whole position nulls + warns, or
-         * propagates under {@code fail_fast} — so each row is gathered into a primitive scratch
-         * before appending.
+         * policy with {@code castBlock}'s multi-value rule — the element is removed and warned about,
+         * the readable ones kept (the entry opens lazily on the first, so a row with none is a null
+         * position), the row dropped under {@code skip_row}, or the failure propagates under
+         * {@code fail_fast}.
          */
         private Block createListDatetimeBlock(
             ListColumnVector listCol,
@@ -2230,7 +2295,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             // millis); integer elements declared `datetime` are already epoch millis (reinterpret).
             long scale = elementFileType == null || elementFileType.getCategory() == TypeDescription.Category.DATE ? MILLIS_PER_DAY : 1L;
             boolean skipRow = failedPositionSink != null;
-            long[] parsed = new long[8];
             try (var builder = blockFactory.newLongBlockBuilder(rowCount)) {
                 for (int i = 0; i < rowCount; i++) {
                     if (listCol.noNulls == false && listCol.isNull[i]) {
@@ -2239,20 +2303,17 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     }
                     int start = (int) listCol.offsets[i];
                     int len = (int) listCol.lengths[i];
-                    if (parsed.length < len) {
-                        parsed = new long[len];
-                    }
-                    int count = 0;
-                    boolean failed = false;
-                    for (int j = 0; j < len && failed == false; j++) {
+                    boolean open = false;
+                    for (int j = 0; j < len; j++) {
                         int idx = start + j;
                         if (child.noNulls == false && child.isNull[idx]) {
                             continue; // null element: skip, like the Parquet list decode
                         }
+                        long millis;
                         if (child instanceof TimestampColumnVector ts) {
-                            parsed[count++] = ts.getTime(idx);
+                            millis = ts.getTime(idx);
                         } else if (child instanceof LongColumnVector lv) {
-                            parsed[count++] = lv.vector[idx] * scale;
+                            millis = lv.vector[idx] * scale;
                         } else if (child instanceof BytesColumnVector bv) {
                             String value = new String(
                                 bv.vector[idx],
@@ -2261,35 +2322,46 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                                 java.nio.charset.StandardCharsets.UTF_8
                             );
                             try {
-                                parsed[count++] = DeclaredTypeCoercions.parseDatetimeMillis(value, dateFormatter);
+                                millis = DeclaredTypeCoercions.parseDatetimeMillis(value, dateFormatter);
                             } catch (IllegalArgumentException | DateTimeException e) {
+                                if (skipRow) {
+                                    DeclaredTypeCoercions.onCoercionFailure(
+                                        columnName,
+                                        DataType.KEYWORD,
+                                        DataType.DATETIME,
+                                        e,
+                                        coercionWarnings()
+                                    );
+                                    failedPositionSink.accept(i);
+                                    break;
+                                }
                                 DeclaredTypeCoercions.onCoercionFailure(
                                     columnName,
                                     DataType.KEYWORD,
                                     DataType.DATETIME,
                                     e,
-                                    coercionWarnings()
+                                    coercionWarnings(),
+                                    true
                                 );
-                                failed = true;
+                                continue;
                             }
                         } else {
                             throw new IllegalArgumentException(
                                 "Unsupported list child type for DATETIME: " + child.getClass().getSimpleName()
                             );
                         }
+                        if (open == false) {
+                            builder.beginPositionEntry();
+                            open = true;
+                        }
+                        builder.appendLong(millis);
                     }
-                    if (failed || count == 0) {
-                        // failed: bulk semantics null the whole position (already warned above).
-                        // count == 0: empty list or all-null elements — a null position.
-                        if (failed && skipRow) failedPositionSink.accept(i);
+                    if (open) {
+                        builder.endPositionEntry();
+                    } else {
+                        // An empty list, all-null elements, or no element parsed: a null position.
                         builder.appendNull();
-                        continue;
                     }
-                    builder.beginPositionEntry();
-                    for (int v = 0; v < count; v++) {
-                        builder.appendLong(parsed[v]);
-                    }
-                    builder.endPositionEntry();
                 }
                 return builder.build();
             }

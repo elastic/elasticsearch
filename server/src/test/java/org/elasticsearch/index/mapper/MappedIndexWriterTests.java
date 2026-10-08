@@ -40,6 +40,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class MappedIndexWriterTests extends MapperServiceTestCase {
 
@@ -99,6 +100,13 @@ public class MappedIndexWriterTests extends MapperServiceTestCase {
                 assertThat(e.getMessage(), containsString("foo=mapped to [" + expected + "]"));
             }
         }
+    }
+
+    public void testSyntheticSourceAppliesDynamicMappingsBeforeIndexing() throws IOException {
+        final MapperService mapperService = createMapperService(columnarVersion(true), columnar(), mapping(b -> {}));
+        assertThat(syntheticSource(mapperService, b -> b.field("new_keyword", "alpha")), equalTo("{\"new_keyword\":\"alpha\"}"));
+        assertThat(mapperService.fieldType("new_keyword"), notNullValue());
+        assertThat(productionDocValuesFormat(mapperService, "new_keyword"), instanceOf(ColumNARDocValuesFormat.class));
     }
 
     public void testBuilderPreservesInsertionOrderAcrossMerges() throws IOException {

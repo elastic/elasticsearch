@@ -1002,6 +1002,19 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return productionCodec(mapperService).getDocValuesFormatForField(field);
     }
 
+    /**
+     * Parses {@code source} the way {@code IndexShard} indexes it: a dynamic mapping update is merged into {@code mapperService}
+     * and the document is parsed again, so its fields are written with the formats the updated mapping picks.
+     */
+    protected static ParsedDocument parseAsIndexed(MapperService mapperService, SourceToParse source) {
+        final ParsedDocument doc = mapperService.documentMapper().parse(source);
+        if (doc.dynamicMappingsUpdate() == null) {
+            return doc;
+        }
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, doc.dynamicMappingsUpdate(), MapperService.MergeReason.MAPPING_UPDATE);
+        return mapperService.documentMapper().parse(source);
+    }
+
     static Sort productionIndexSort(MapperService mapperService) {
         return new IndexSortConfig(mapperService.getIndexSettings()).buildIndexSort(
             mapperService::fieldType,
@@ -1030,10 +1043,10 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         @Nullable SourceFilter sourceFilter,
         CheckedConsumer<XContentBuilder, IOException> build
     ) throws IOException {
+        ParsedDocument doc = parseAsIndexed(mapperService, source(build));
         DocumentMapper mapper = mapperService.documentMapper();
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = indexWriterForSyntheticSource(mapperService, directory);
-            ParsedDocument doc = mapper.parse(source(build));
             doc.updateSeqID(0, 0);
             doc.version().setLongValue(0);
             iw.addDocuments(doc.docs());

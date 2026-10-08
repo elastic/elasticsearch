@@ -138,7 +138,7 @@ public class BlockLoaderTestRunner {
                     XContentMeteringParserDecorator.NOOP,
                     null
                 );
-                doc = mapperService.documentMapper().parse(source);
+                doc = MapperServiceTestCase.parseAsIndexed(mapperService, source);
                 return doc;
             } catch (IOException e) {
                 throw new RuntimeException("shouldn't be possible", e);

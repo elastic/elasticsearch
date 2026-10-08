@@ -40,7 +40,13 @@ public interface FetchPhaseServices {
                     fetchedTypes,
                     exec.fetchPlan(),
                     exec.stage() == scope.fetchStages(),
-                    new QueryFetchClient(fetchService::sendFetch, () -> clusterService.state().nodes(), scope, exec.originalIndices())
+                    new QueryFetchClient(
+                        fetchService::sendFetch,
+                        (nodeId, ids) -> contextService.forgetFreedByFetch(scope.rootTask().getId(), nodeId, ids),
+                        () -> clusterService.state().nodes(),
+                        scope,
+                        exec.originalIndices()
+                    )
                 );
             }
 

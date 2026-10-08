@@ -87,6 +87,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
 import org.junit.Assert;
@@ -95,7 +96,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -754,6 +757,60 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     protected boolean supportsCopyTo() {
         return true;
+    }
+
+    /** How a dynamic update is serialized, as it is for a document that adds to the mapping. */
+    private static final ToXContent.Params EXPLICIT_ONLY = new ToXContent.MapParams(Map.of(Mapper.EXPLICIT_ONLY_PARAM, "true"));
+
+    /**
+     * Override to disable testing that a multi-field can be added to the mapped field by a dynamic update, in fields that either
+     * don't support multi-fields or can't be re-created from nothing but their type to carry one.
+     */
+    protected boolean supportsDynamicallyAddedMultiFields() {
+        return true;
+    }
+
+    /**
+     * A multi-field discovered while parsing a document is added to a field that is already mapped. The update that results has to
+     * be a delta, so that merging it into the mapping adds the sub-field and leaves everything else about the field as it was.
+     */
+    public final void testDynamicMultiField() throws IOException {
+        assumeTrue("Field doesn't support dynamically added multi-fields", supportsDynamicallyAddedMultiFields());
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertParseMinimalWarnings();
+        Map<String, Object> expected = XContentHelper.convertToMap(
+            mapperService.documentMapper().mappingSource().uncompressed(),
+            true,
+            XContentType.JSON
+        ).v2();
+
+        MappingParserContext parserContext = mapperService.parserContext();
+        FieldMapper.Builder multiField = (FieldMapper.Builder) parserContext.typeParser("keyword")
+            .parse("dynamic_sub", new HashMap<>(), parserContext);
+        DocumentParserContext context = new TestDocumentParserContext(parserContext, mapperService.mappingLookup());
+        context.addDynamicMultiField("field", multiField);
+        List<Mapper.Builder> added = context.getDynamicMappers("field");
+        assertThat(added, hasSize(1));
+
+        merge(
+            mapperService,
+            MapperService.MergeReason.MAPPING_AUTO_UPDATE,
+            "{\"_doc\":{\"properties\":" + Strings.toString(added.get(0), EXPLICIT_ONLY) + "}}"
+        );
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) ((Map<String, Object>) expected.get("_doc")).get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> field = (Map<String, Object>) properties.get("field");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> fields = (Map<String, Object>) field.computeIfAbsent("fields", k -> new LinkedHashMap<String, Object>());
+        fields.put("dynamic_sub", Map.of("type", "keyword"));
+        assertEquals(
+            expected,
+            XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), true, XContentType.JSON).v2()
+        );
+        // parsing the stored mapping again to merge into it warns as creating it did
+        assertParseMinimalWarnings();
     }
 
     protected void metaMapping(XContentBuilder b) throws IOException {

@@ -618,30 +618,29 @@ public final class TextFieldMapper extends FieldMapper {
          */
         @Override
         protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
-            boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
             builder.field("type", contentType());
-            index.toXContent(builder, includeDefaults);
-            store.toXContent(builder, includeDefaults);
-            docValuesParameters.toXContent(builder, includeDefaults);
+            index.toXContent(builder, params);
+            store.toXContent(builder, params);
+            docValuesParameters.toXContent(builder, params);
             multiFieldsBuilder.toXContent(builder, params);
             copyTo.toXContent(builder);
             if (sourceKeepMode.isPresent()) {
                 sourceKeepMode.get().toXContent(builder);
             }
-            meta.toXContent(builder, includeDefaults);
-            indexOptions.toXContent(builder, includeDefaults);
-            termVectors.toXContent(builder, includeDefaults);
-            norms.toXContent(builder, includeDefaults);
-            analyzers.indexAnalyzer.toXContent(builder, includeDefaults);
-            analyzers.searchAnalyzer.toXContent(builder, includeDefaults);
-            analyzers.searchQuoteAnalyzer.toXContent(builder, includeDefaults);
-            similarity.toXContent(builder, includeDefaults);
-            eagerGlobalOrdinals.toXContent(builder, includeDefaults);
-            analyzers.positionIncrementGap.toXContent(builder, includeDefaults);
-            fieldData.toXContent(builder, includeDefaults);
-            freqFilter.toXContent(builder, includeDefaults);
-            indexPrefixes.toXContent(builder, includeDefaults);
-            indexPhrases.toXContent(builder, includeDefaults);
+            meta.toXContent(builder, params);
+            indexOptions.toXContent(builder, params);
+            termVectors.toXContent(builder, params);
+            norms.toXContent(builder, params);
+            analyzers.indexAnalyzer.toXContent(builder, params);
+            analyzers.searchAnalyzer.toXContent(builder, params);
+            analyzers.searchQuoteAnalyzer.toXContent(builder, params);
+            similarity.toXContent(builder, params);
+            eagerGlobalOrdinals.toXContent(builder, params);
+            analyzers.positionIncrementGap.toXContent(builder, params);
+            fieldData.toXContent(builder, params);
+            freqFilter.toXContent(builder, params);
+            indexPrefixes.toXContent(builder, params);
+            indexPhrases.toXContent(builder, params);
         }
 
         @Override

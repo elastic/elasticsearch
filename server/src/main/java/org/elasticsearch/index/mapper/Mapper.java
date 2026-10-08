@@ -37,6 +37,13 @@ public abstract class Mapper implements Iterable<Mapper> {
 
     public static final String SYNTHETIC_SOURCE_KEEP_PARAM = "synthetic_source_keep";
 
+    /**
+     * A serialization parameter that limits what a mapper builder writes to the parameters that were explicitly set on it. A dynamic
+     * update is serialized this way so that it asserts only what it carries: parameters that are always written, or that have a
+     * default derived from other parameters, would otherwise be taken as the update's own values and conflict with the existing ones.
+     */
+    public static final String EXPLICIT_ONLY_PARAM = "explicit_only";
+
     // Only relevant for synthetic source mode.
     public enum SourceKeepMode {
         NONE("none"),      // No source recording

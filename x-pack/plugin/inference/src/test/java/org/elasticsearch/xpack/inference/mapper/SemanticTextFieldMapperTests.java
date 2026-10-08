@@ -1956,4 +1956,11 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             throw new AssertionError("Index version " + indexVersion + " does not support legacy semantic text format");
         }
     }
+
+    @Override
+    protected boolean supportsDynamicallyAddedMultiFields() {
+        // a semantic_text field can not be created without its inference configuration, so it can not stand in for an existing field in an
+        // update
+        return false;
+    }
 }

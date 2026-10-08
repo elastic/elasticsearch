@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 161281
-pr: 161424
-summary: Unmute partition datetime projector test
-type: enhancement

@@ -475,8 +475,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             // Construction can return before an admission ticket grants; drive the consumer to
             // readiness before checking the retained overshoot rather than inspecting its queue.
             assertTrue("first iterator must read the current group", first.hasNext());
-            first.next().releaseBlocks();
-            assertTrue("first iterator must retain the node-wide overshoot", watermark.used() > 1);
+            assertNotNull("first iterator must retain the node-wide overshoot owner", watermark.overshootOwner());
             int firstQueued = opi1.pendingPrefetchCount();
             int secondQueued = opi2.pendingPrefetchCount();
             growPrefetchDepth(opi1, 3);
@@ -488,15 +487,20 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             assertEquals("look-ahead must not queue extra groups over the cap", firstQueued, opi1.pendingPrefetchCount());
             assertEquals(secondQueued, opi2.pendingPrefetchCount());
             assertEquals(32_000_000L, OptimizedParquetColumnIterator.MAX_QUEUED_PREFETCH_BYTES);
+            first.next().releaseBlocks();
         }
         assertEquals("closing both iterators must release watermark bytes", 0, watermark.used());
+        assertNull("closing both iterators must release the overshoot owner", watermark.overshootOwner());
         try (
             CloseableIterator<Page> next = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
                 .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx)
         ) {
             assertTrue("release on close allows the next iterator to read", next.hasNext());
+            assertNotNull("third iterator must take the vacant overshoot owner", watermark.overshootOwner());
             next.next().releaseBlocks();
         }
+        assertEquals("closing the third iterator must release watermark bytes", 0, watermark.used());
+        assertNull("closing the third iterator must release the overshoot owner", watermark.overshootOwner());
     }
 
     /**

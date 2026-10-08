@@ -1185,6 +1185,7 @@ public class SharedBlobCacheWarmingService {
                         final var elapsed = TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - startedMillis);
                         final var newTimeout = cappedToTotalBudget(newPlan.timeout(), elapsed);
                         if (newTimeout.compareTo(searchRecoveryTimeoutCalculationService.reevaluationAbortThreshold()) >= 0) {
+                            final var previousPlan = latestPlan;
                             latestPlan = newPlan;
                             scheduledTask = threadPool.schedule(this, newTimeout, threadPool.generic());
                             // The race may have completed while this run was in flight, in which case cancel() already ran and missed the
@@ -1197,7 +1198,7 @@ public class SharedBlobCacheWarmingService {
                             logger.debug(
                                 "Search shard recovery cache warming timeout extended by [{}] ({} -> {}) for [{}]. Total timeout: [{}]",
                                 newTimeout,
-                                latestPlan.timeoutContext().description(),
+                                previousPlan.timeoutContext().description(),
                                 newPlan.timeoutContext().description(),
                                 indexShard.shardId(),
                                 TimeValue.timeValueMillis(elapsed.millis() + newTimeout.millis())

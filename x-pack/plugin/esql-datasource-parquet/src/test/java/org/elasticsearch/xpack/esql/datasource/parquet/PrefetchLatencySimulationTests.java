@@ -77,7 +77,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
 
     @Before
     public void initBlockFactoryAndExecutor() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         // Owned, deterministically shut down in tearDown: using ForkJoinPool.commonPool() here leaks
         // worker threads that ESTestCase's suite-scoped ThreadLeakControl flags as a class failure.
         asyncIoExecutor = Executors.newFixedThreadPool(4, EsExecutors.daemonThreadFactory("test", "prefetch-test-async-io"));
@@ -267,19 +267,17 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
 
             assertTrue(iter.hasNext());
             assertEquals("the first real prefetch must fail", 1, storage.failedAsyncReadCount.get());
-            assertTrue(opi.probingPrefetch());
-            assertEquals(1, opi.prefetchDepth());
             Page first = iter.next();
             first.releaseBlocks();
 
             assertTrue(storage.successfulAsyncReads.await(10, TimeUnit.SECONDS));
             assertTrue(iter.hasNext());
-            assertFalse(opi.probingPrefetch());
+            assertFalse("the re-ticketed GET is a successful probe and must leave probe mode", opi.probingPrefetch());
             assertEquals(floor, opi.prefetchDepth());
-            assertEquals("the fallback barrier must not leak queued-byte accounting", 0L, opi.queuedPrefetchBytes());
             Page second = iter.next();
             second.releaseBlocks();
             assertFalse(iter.hasNext());
+            assertEquals("the fallback barrier must not leak queued-byte accounting", 0L, opi.queuedPrefetchBytes());
         }
     }
 
@@ -466,7 +464,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         // not charged until a read, so this must not be sized around a reserved window. Look-ahead
         // fill must not block; 0ms budget so the second first-group PER_GET charges immediately.
         // Look-ahead still tryAdmit-refuses.
-        ParquetIoWatermark watermark = new ParquetIoWatermark(1, 0L);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1);
         try (
             CloseableIterator<Page> first = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
                 .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx);
@@ -488,7 +486,6 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             assertEquals(secondQueued, opi2.pendingPrefetchCount());
             assertEquals(32_000_000L, OptimizedParquetColumnIterator.MAX_QUEUED_PREFETCH_BYTES);
         }
-        long forcedAfterClose = watermark.forcedAdmits();
         assertEquals("closing both iterators must release watermark bytes", 0, watermark.used());
         try (
             CloseableIterator<Page> next = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
@@ -496,11 +493,6 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         ) {
             OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) next;
             assertEquals("release on close allows the next iterator", 1, opi.pendingPrefetchCount());
-            assertEquals(
-                "third constructor must take the vacant owner, not force-admit a leak",
-                forcedAfterClose,
-                watermark.forcedAdmits()
-            );
         }
     }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.highlight;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers.Resolved;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -147,6 +149,21 @@ public class HighlightAnalyzersTests extends ESTestCase {
         );
     }
 
+    // A data stream can have hundreds of backing indices; naming them all overflows the Warning header.
+    public void testFallbackWarningCapsIndices() {
+        List<String> warnings = new ArrayList<>();
+        Set<String> indices = new HashSet<>();
+        for (int i = 0; i < 200; i++) {
+            indices.add(Strings.format("index_%03d", i));
+        }
+        FieldAttribute field = textFieldWithGroups("title", new IndexAnalyzerGroup(null, true, DEFAULT_POSITION_INCREMENT_GAP, indices));
+        resolve(List.of(field), null, true, warnings);
+        assertThat(
+            warnings,
+            contains(containsString("for indices [index_000, index_001, index_002, ...and 197 more]: its analyzer is defined in"))
+        );
+    }
+
     // The shard withheld an index.analysis name, so resolve falls back to standard and warns.
     public void testIndexLocalAnalyzerFallsBackAndWarns() {
         List<String> warnings = new ArrayList<>();
@@ -227,6 +244,51 @@ public class HighlightAnalyzersTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    /**
+     * Indices that disagree are a mismatch unless each row can use its index's own analyzer. Without that, every row uses
+     * standard, so one named analyzer next to index-local or unreported ones, such as {@code semantic_text}'s, is a
+     * mismatch too. Index-local and unreported analyzers alone fall back to standard either way, so they are not.
+     */
+    public void testAnalyzerMismatch() {
+        String indicesDisagree = "the queried indices disagree on the analyzer for this field";
+        assertThat(mismatch(conflictingField("title"), false), equalTo(indicesDisagree));
+        assertNull(mismatch(conflictingField("title"), true));
+
+        FieldAttribute withUnreported = textFieldWithGroups(
+            "title",
+            new IndexAnalyzerGroup("whitespace", false, DEFAULT_POSITION_INCREMENT_GAP, Set.of("books")),
+            new IndexAnalyzerGroup(null, true, DEFAULT_POSITION_INCREMENT_GAP, Set.of("custom")),
+            new IndexAnalyzerGroup(null, false, DEFAULT_POSITION_INCREMENT_GAP, Set.of("semantic"))
+        );
+        assertThat(mismatch(withUnreported, false), equalTo(indicesDisagree));
+        assertNull(mismatch(withUnreported, true));
+
+        FieldAttribute onlyUnreported = textFieldWithGroups(
+            "title",
+            new IndexAnalyzerGroup(null, true, DEFAULT_POSITION_INCREMENT_GAP, Set.of("custom")),
+            new IndexAnalyzerGroup(null, false, DEFAULT_POSITION_INCREMENT_GAP, Set.of("semantic"))
+        );
+        assertNull(mismatch(onlyUnreported, randomBoolean()));
+
+        // A conflict that names no indices, like a merged LOOKUP JOIN field's, cannot be routed.
+        FieldAttribute noGroups = textField("title", null, DEFAULT_POSITION_INCREMENT_GAP, TextEsField.UnknownAnalyzer.CONFLICT);
+        assertThat(mismatch(noGroups, randomBoolean()), equalTo(indicesDisagree));
+
+        assertThat(
+            mismatch(unknownAnalyzerField(TextEsField.UnknownAnalyzer.BRANCH_CONFLICT), randomBoolean()),
+            equalTo("the FORK or UNION ALL branches disagree on the analyzer for this column")
+        );
+
+        assertNull(mismatch(unknownAnalyzerField(TextEsField.UnknownAnalyzer.INDEX_LOCAL), randomBoolean()));
+        assertNull(mismatch(unknownAnalyzerField(TextEsField.UnknownAnalyzer.NOT_REPORTED), randomBoolean()));
+        assertNull(mismatch(textField("title", "whitespace"), randomBoolean()));
+        assertNull(mismatch(declaredField("note", "simple"), randomBoolean()));
+    }
+
+    private static String mismatch(NamedExpression field, boolean perIndex) {
+        return HighlightAnalyzers.analyzerMismatch(field, Map.of(), perIndex);
     }
 
     /** A {@code title} field whose analyzer name never reached the coordinator, for the given reason. */

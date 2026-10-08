@@ -9,5 +9,5 @@ test:
         - read
       field_security:
         grant: [ '*' ]
-        except: [ 'year', 'hidden' ]
+        except: [ 'year', 'hidden', 'hidden_values_count' ]
 

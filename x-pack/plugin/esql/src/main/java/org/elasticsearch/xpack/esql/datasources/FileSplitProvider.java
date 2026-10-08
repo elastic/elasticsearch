@@ -3162,10 +3162,9 @@ public class FileSplitProvider implements SplitProvider {
         if (reader == null) {
             return false;
         }
-        // This covers a new coordinator planning for old data nodes, not the reverse. An old coordinator splits an
-        // inferred headered file as it always has, and until the upgrade finishes a new data node binds its split by the
-        // header's names while an old node binds a sibling split of the same file by position. Each row is then either
-        // correct or what the old version returns for it today.
+        // Old data nodes cannot bind a split by columns read elsewhere, so the file stays whole. Over the same window a new
+        // data node binds headered files as the old ones do (see FileSourceFactory#bindsHeaderByProvenance), whichever
+        // coordinator planned the query, so one result never mixes the two bindings.
         if (reader.readsHeaderLine() && minTransportVersion.supports(ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT) == false) {
             return true;
         }

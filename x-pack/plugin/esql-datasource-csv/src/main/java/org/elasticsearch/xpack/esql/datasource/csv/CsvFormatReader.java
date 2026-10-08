@@ -524,6 +524,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * one by position, bounded by the schema's width. A headered file binds by its own header whatever the provenance.
      */
     private final boolean declaredProvenanceBinding;
+    /**
+     * True while a node that predates {@code esql_external_text_header_every_split} may read a sibling split of the same
+     * query, see {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReader#withHeaderBindingByProvenance}. A
+     * headered file then binds as that node does: a declared schema by the header's names, an inferred one by position.
+     */
+    private final boolean headerBindingByProvenance;
 
     /**
      * When {@code true} (default), eligible non-bracket reads use the direct-to-block path that parses
@@ -549,6 +555,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             true,
             Map.of(),
             false,
+            false,
             List.of()
         );
     }
@@ -566,6 +573,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             "",
             true,
             Map.of(),
+            false,
             false,
             List.of()
         );
@@ -585,6 +593,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             true,
             Map.of(),
             false,
+            false,
             List.of()
         );
     }
@@ -602,6 +611,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         boolean directBlockEnabled,
         Map<String, String> declaredDateFormats,
         boolean declaredProvenanceBinding,
+        boolean headerBindingByProvenance,
         List<String> configWarnings
     ) {
         this.blockFactory = blockFactory;
@@ -616,6 +626,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.directBlockEnabled = directBlockEnabled;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
         this.declaredProvenanceBinding = declaredProvenanceBinding;
+        this.headerBindingByProvenance = headerBindingByProvenance;
         this.configWarnings = List.copyOf(configWarnings);
         this.sharedCsvMapper = createMapper(options);
     }
@@ -641,6 +652,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             enabled,
             declaredDateFormats,
             declaredProvenanceBinding,
+            headerBindingByProvenance,
             configWarnings
         );
     }
@@ -1004,6 +1016,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding,
+            headerBindingByProvenance,
             configWarnings
         );
     }
@@ -1023,6 +1036,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding,
+            headerBindingByProvenance,
             configWarnings
         );
     }
@@ -1045,6 +1059,30 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             binding,
+            headerBindingByProvenance,
+            configWarnings
+        );
+    }
+
+    @Override
+    public CsvFormatReader withHeaderBindingByProvenance(boolean byProvenance) {
+        if (byProvenance == headerBindingByProvenance) {
+            return this;
+        }
+        return new CsvFormatReader(
+            blockFactory,
+            options,
+            format,
+            extensions,
+            resolvedSchema,
+            schemaSampleSize,
+            effectivePolicy,
+            canonicalConfig,
+            readConfig,
+            directBlockEnabled,
+            declaredDateFormats,
+            declaredProvenanceBinding,
+            byProvenance,
             configWarnings
         );
     }
@@ -1192,6 +1230,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             physicalNameToPattern,
             declaredProvenanceBinding,
+            headerBindingByProvenance,
             configWarnings
         );
     }
@@ -1214,6 +1253,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding,
+            headerBindingByProvenance,
             configWarnings
         );
     }
@@ -1254,6 +1294,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             result.directBlockEnabled,
             result.declaredDateFormats,
             result.declaredProvenanceBinding,
+            result.headerBindingByProvenance,
             parsedOptions.configWarnings()
         );
         // The vended identity IS canon — the same string this reader stamps on a harvest. The coordinator seeds a
@@ -2159,6 +2200,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
         if (readSchema != null) {
+            // While an older node may read a sibling split, an inferred schema binds a headered file by position, as that
+            // node does; see headerBindingByProvenance.
+            boolean headeredByName = options.headerRow() && (headerBindingByProvenance == false || declaredProvenanceBinding);
             // Runs before ownership of the stream chain transfers to the returned iterator, so a failure must release the
             // stream here or the file handle leaks (caught by LeakFS in CI). It is aborted rather than closed: a failure
             // such as a duplicate header name says nothing about the rest of the file, which a close may drain.
@@ -2168,23 +2212,24 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // headered or not.
                     skipLeadingPartialRecord(recordReader, effective);
                 }
-                if (options.headerRow()) {
+                if (headeredByName) {
                     headerBinding = bindHeaderedColumns(
                         context.firstSplit() ? leadingColumns : context.fileHeaderColumns(),
                         context,
                         object
                     );
-                } else if (declaredProvenanceBinding) {
+                } else if (options.headerRow() == false && declaredProvenanceBinding) {
                     // A headerless file's physical names ARE positions (col4 -> field 4), so binding needs no file content
                     // and runs on EVERY split. Its rows are not bounded by a width the file does not state.
                     headerBinding = HeaderBinding.withoutFileWidth(fieldIndexes(readSchema, null, object));
                 }
-                // An inferred headerless schema binds positionally: no binding, rows bounded by the schema's width.
+                // An inferred headerless schema binds positionally, as does an inferred headered one under
+                // headerBindingByProvenance: no binding, rows bounded by the schema's width.
             } catch (Exception e) {
                 abortRead(object, rawStream, e);
                 throw e;
             }
-            if (options.headerRow() && context.firstSplit() == false && context.fileHeaderColumns() != null) {
+            if (headeredByName && context.firstSplit() == false && context.fileHeaderColumns() != null) {
                 if (context.fileHeaderColumns().isEmpty()) {
                     // The file has no header record anywhere, so it has no rows to bind and this split holds only the
                     // comment, blank or skipped lines that precede one. Reading them positionally would emit them as rows.
@@ -2472,6 +2517,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * The header's own column names via {@link #leadingColumns}, as the read that owns the file's start derives them;
      * {@code null} for a headerless file, which has no header to read.
      * <p>
+     * A header record that runs into the end of {@code file} without a line terminator reads as no header (an empty
+     * list): {@code file} may be a range or chunk that cut it short, and its names would then be a prefix of the real
+     * ones. A whole file ending in such a header has no rows to bind either.
+     * <p>
      * Aborts the stream rather than closing it: providers like S3 drain the remaining bytes on close() to reuse the
      * connection, which on a multi-GB file would block for the full transfer.
      */
@@ -2482,7 +2531,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         InputStream stream = file.newStream();
         try (Closeable abortOnExit = () -> file.abortStream(stream)) {
-            return leadingColumns(openLeadingRecords(stream));
+            CsvLogicalRecordReader leading = openLeadingRecords(stream);
+            List<String> columns = leadingColumns(leading);
+            return columns.isEmpty() || leading.lastRecordTerminated() ? columns : List.of();
         }
     }
 

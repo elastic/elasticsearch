@@ -2368,17 +2368,36 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
-    /** Columns the caller already read are handed to every segment, the leader's included, and read no further. */
-    public void testHandedHeaderColumnsReachEverySegmentAndAreNotReadAgain() throws Exception {
+    /**
+     * Columns the caller already read are handed to every segment, the leader's included. They name the file but say
+     * nothing about where its header ends, so the leader range is still probed for that, and only for that.
+     */
+    public void testHandedHeaderColumnsReachEverySegmentAndTheLeaderIsStillProbed() throws Exception {
         HeaderReadingLineReader reader = new HeaderReadingLineReader(blockFactory(), HeaderAnswer.FIRST_LINE);
 
         readAllWithHeader(reader, new InMemoryStorageObject(lines(200)), List.of("handed"));
 
-        assertEquals(List.of(), reader.headerReadsOf);
+        assertEquals("the leader range only", 1, reader.headerReadsOf.size());
+        assertThat(reader.headerReadsOf.get(0), Matchers.instanceOf(HeaderPrefixProbe.class));
         assertThat(reader.contexts.size(), Matchers.greaterThan(1));
         for (FormatReadContext ctx : reader.contexts) {
             assertEquals(List.of("handed"), ctx.fileHeaderColumns());
         }
+    }
+
+    /**
+     * Handed columns do not keep a file whose header ends past segment 0 segmented: later segments would emit the
+     * leading rows and the header as data. The read goes single-shot, as when nothing was handed.
+     */
+    public void testHandedHeaderColumnsWithTheHeaderPastTheLeaderSegmentReadTheFileSingleShot() throws Exception {
+        HeaderReadingLineReader reader = new HeaderReadingLineReader(blockFactory(), HeaderAnswer.NONE);
+
+        int rows = readAllWithHeader(reader, new InMemoryStorageObject(lines(200)), List.of("handed"));
+
+        assertEquals(1, reader.headerReadsOf.size());
+        assertEquals("one read, not one per segment", 1, reader.contexts.size());
+        assertTrue(reader.contexts.get(0).firstSplit());
+        assertEquals(200, rows);
     }
 
     private static byte[] lines(int count) {

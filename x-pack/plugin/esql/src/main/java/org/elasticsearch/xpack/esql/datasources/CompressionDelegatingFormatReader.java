@@ -149,6 +149,12 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public FormatReader withHeaderBindingByProvenance(boolean byProvenance) {
+        FormatReader configured = inner.withHeaderBindingByProvenance(byProvenance);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec, maxDecompressionRatio);
+    }
+
+    @Override
     public boolean readsHeaderLine() {
         return inner.readsHeaderLine();
     }

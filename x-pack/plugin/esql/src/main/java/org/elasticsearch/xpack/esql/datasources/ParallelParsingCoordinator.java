@@ -588,20 +588,20 @@ public final class ParallelParsingCoordinator {
         // schema they bind against the schema inferred from that same header and need nothing.
         List<String> segmentHeaderColumns = fileHeaderColumns;
         // An empty pin infers from the file (the read context normalises it to none), so it needs nothing either.
-        if (splitIncludesFileLeader
-            && readSchema != null
-            && readSchema.isEmpty() == false
-            && segmentHeaderColumns == null
-            && parallelReader.readsHeaderLine()) {
+        if (splitIncludesFileLeader && readSchema != null && readSchema.isEmpty() == false && parallelReader.readsHeaderLine()) {
             // The header sits at the front of the leader segment, so a ranged read of that segment finds it without an
             // unranged GET from byte 0. Finding none there (a skip_rows or comment run longer than the segment), or a
             // header the segment's end cut short, means the header does not end inside segment 0. Only segment 0 steps
-            // over the leading rows and the header, so a later segment would emit them as data: read single-shot.
+            // over the leading rows and the header, so a later segment would emit them as data: read single-shot. Columns
+            // handed in name the file but say nothing about where its header ends, so the probe runs for them too.
             long[] leader = segments.get(0);
             HeaderPrefixProbe leaderRange = new HeaderPrefixProbe(storageObject, leader[0], leader[1]);
-            segmentHeaderColumns = parallelReader.fileHeaderColumns(leaderRange);
-            if (segmentHeaderColumns != null && (segmentHeaderColumns.isEmpty() || leaderRange.reachedEnd())) {
+            List<String> leaderColumns = parallelReader.fileHeaderColumns(leaderRange);
+            if (leaderColumns != null && (leaderColumns.isEmpty() || leaderRange.reachedEnd())) {
                 return parallelReader.read(storageObject, baseCtx);
+            }
+            if (segmentHeaderColumns == null) {
+                segmentHeaderColumns = leaderColumns;
             }
         }
 

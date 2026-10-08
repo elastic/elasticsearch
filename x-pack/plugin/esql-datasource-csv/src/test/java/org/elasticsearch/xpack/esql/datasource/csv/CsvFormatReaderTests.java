@@ -8210,6 +8210,79 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(List.of("emp_no", "first_name"), new CsvFormatReader(blockFactory).fileHeaderColumns(object));
     }
 
+    /**
+     * While a node that predates header binding on every split may read part of the query, a headered file binds as that
+     * node does: an inferred schema by position, a declared one by the header's names. Otherwise both bind by name.
+     */
+    public void testHeaderBindingByProvenanceBindsAnInferredSchemaByPosition() throws Exception {
+        String content = "b,a\n2,1\n";
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "b", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        assertEquals("by name", List.of("1", "2"), firstRow(reader, content, readSchema, true));
+        assertEquals(
+            "inferred, by position",
+            List.of("2", "1"),
+            firstRow(reader.withHeaderBindingByProvenance(true), content, readSchema, true)
+        );
+        assertEquals(
+            "declared, by name",
+            List.of("1", "2"),
+            firstRow(reader.withDeclaredProvenanceBinding(true).withHeaderBindingByProvenance(true), content, readSchema, true)
+        );
+    }
+
+    /**
+     * A later split of a headered file under an inferred schema binds by position while an older node may read part of
+     * the query, so it needs no header columns: an older coordinator hands none.
+     */
+    public void testHeaderBindingByProvenanceReadsALaterSplitWithoutHeaderColumns() throws Exception {
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "b", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withHeaderBindingByProvenance(true);
+
+        assertEquals(List.of("2", "1"), firstRow(reader, "2,1\n", readSchema, false));
+    }
+
+    private List<String> firstRow(CsvFormatReader reader, String content, List<Attribute> readSchema, boolean firstSplit)
+        throws IOException {
+        try (
+            CloseableIterator<Page> it = reader.read(
+                new TrackingStorageObject(content),
+                FormatReadContext.builder().firstSplit(firstSplit).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            Page page = it.next();
+            try {
+                List<String> row = new ArrayList<>();
+                for (int b = 0; b < page.getBlockCount(); b++) {
+                    row.add(((BytesRefBlock) page.getBlock(b)).getBytesRef(0, new BytesRef()).utf8ToString());
+                }
+                return row;
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * A header record that runs into the end of what the object serves, with no line terminator, may have been cut short
+     * by the end of a chunk or range: its names would be a prefix of the file's. It reads as no header, including when the
+     * cut lands inside a quoted name that spans a line break.
+     */
+    public void testFileHeaderColumnsOfAnUnterminatedHeaderAreNone() throws Exception {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        assertEquals(List.of(), reader.fileHeaderColumns(new TrackingStorageObject("emp_no,first_na")));
+        assertEquals(List.of(), reader.fileHeaderColumns(new TrackingStorageObject("emp_no,\"first\nna")));
+        assertEquals(List.of("emp_no", "first_name"), reader.fileHeaderColumns(new TrackingStorageObject("emp_no,first_name\n")));
+        assertEquals(List.of("emp_no", "first_name"), reader.fileHeaderColumns(new TrackingStorageObject("emp_no,first_name\r\n")));
+    }
+
     /** The header is read from the leading bytes and the stream is aborted, never drained by a close. */
     public void testFileHeaderColumnsAbortsTheStream() throws Exception {
         TrackingStorageObject object = new TrackingStorageObject("id,name\n" + "1,alice\n".repeat(10_000));

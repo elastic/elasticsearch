@@ -1864,7 +1864,8 @@ public class ComputeService {
                 remoteFetchService,
                 parallelWorkerExecutor,
                 esqlWorkerPoolSize,
-                grokMatcherWatchdog.get()
+                grokMatcherWatchdog.get(),
+                clusterService.state().getMinTransportVersion()
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

@@ -346,6 +346,21 @@ public interface FormatReader extends Closeable {
     }
 
     /**
+     * Returns a reader that binds a header-bearing file as a node before {@code esql_external_text_header_every_split}
+     * does: a pinned schema of DECLARED provenance by the header's names, an INFERRED one by position. Set while such a
+     * node is in the cluster, so that one query never binds splits of a glob both ways and mixes their rows into one
+     * result that neither version returns.
+     * <p>
+     * Only the text readers that read a header line need it; every other reader keeps the no-op default.
+     *
+     * @param byProvenance true while a node of an earlier version may read part of the query
+     * @return a new reader honoring the binding mode, or {@code this} when it does not apply
+     */
+    default FormatReader withHeaderBindingByProvenance(boolean byProvenance) {
+        return this;
+    }
+
+    /**
      * Returns a reader that stamps {@code readConfig} onto the statistics it harvests — the caller-computed identity of
      * how THIS file is being read (see {@code ReadConfigFingerprint}). Opaque to the reader, exactly like the canonical
      * config string it sits beside: the reader carries it through onto its contributions and never interprets it.

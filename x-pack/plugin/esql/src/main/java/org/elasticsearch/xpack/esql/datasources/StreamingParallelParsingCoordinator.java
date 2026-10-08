@@ -1360,8 +1360,9 @@ public final class StreamingParallelParsingCoordinator {
             }
             try {
                 List<String> columns = reader.fileHeaderColumns(chunkStorageObject(0, buffer, 0, length));
-                // An empty list means chunk 0 holds no header line (a skip_rows or comment run longer than the chunk), which
-                // says nothing about the file: it stays unset so later chunks fail loudly, as the javadoc above promises.
+                // An empty list means chunk 0 holds no whole header line (a skip_rows or comment run longer than the chunk, or
+                // a header the chunk's end cut short), which says nothing about the file: it stays unset so later chunks
+                // fail loudly, as the javadoc above promises.
                 if (columns != null && columns.isEmpty() == false) {
                     fileHeaderColumns = columns;
                 }

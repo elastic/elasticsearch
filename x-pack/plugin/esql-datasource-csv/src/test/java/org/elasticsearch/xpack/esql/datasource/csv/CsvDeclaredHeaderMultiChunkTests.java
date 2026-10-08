@@ -243,8 +243,11 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
         StorageObject object = new BytesObject(csv.toString().getBytes(StandardCharsets.UTF_8));
 
         long[] counted = readParallel(reader, object, true, salaryThenName(), null);
-
         assertEquals("every data row and no header row", rows, counted[0]);
+        assertEquals((long) (rows - 1) * rows, counted[1]);
+
+        counted = readParallel(reader, object, true, salaryThenName(), List.of("emp_no", "first_name", "salary"));
+        assertEquals("handed columns do not say where the header ends", rows, counted[0]);
         assertEquals((long) (rows - 1) * rows, counted[1]);
     }
 

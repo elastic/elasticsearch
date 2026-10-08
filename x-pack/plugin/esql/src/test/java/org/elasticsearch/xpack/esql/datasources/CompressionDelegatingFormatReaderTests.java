@@ -12,11 +12,13 @@ import net.jpountz.lz4.LZ4FrameOutputStream;
 import com.github.luben.zstd.ZstdOutputStream;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.SuppressForbidden;
@@ -164,6 +166,36 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
             tracking.bytesConsumed.get(),
             Matchers.lessThan((long) compressed.length / 2)
         );
+    }
+
+    /**
+     * The header binding of a mixed-version cluster reaches the wrapped reader: a compressed headered file binds an
+     * inferred schema by position exactly like the plain file, not by name.
+     */
+    public void testHeaderBindingByProvenanceReachesTheWrappedReader() throws IOException {
+        byte[] compressed = gzip("b,a\n2,1\n".getBytes(StandardCharsets.UTF_8));
+        StorageObject object = DrainSimulatingStorageObject.create(
+            compressed,
+            new DrainSimulatingStorageObject.Tracking(),
+            StoragePath.of("s3://bucket/data.csv.gz")
+        );
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, "a", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, "b", DataType.KEYWORD)
+        );
+        FormatReader reader = new CompressionDelegatingFormatReader(new CsvFormatReader(blockFactory), new GzipDecompressionCodec())
+            .withHeaderBindingByProvenance(true);
+        assertThat(reader, Matchers.instanceOf(CompressionDelegatingFormatReader.class));
+
+        try (CloseableIterator<Page> it = reader.read(object, FormatReadContext.builder().batchSize(10).readSchema(schema).build())) {
+            Page page = it.next();
+            try {
+                assertEquals("2", ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()).utf8ToString());
+                assertEquals("1", ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()).utf8ToString());
+            } finally {
+                page.releaseBlocks();
+            }
+        }
     }
 
     /**

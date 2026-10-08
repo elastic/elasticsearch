@@ -237,8 +237,8 @@ public class SliceSelectionIT extends ESRestTestCase {
     }
 
     /**
-     * {@code _slice} is null on an index without slices, so a filter on it matches none of its documents. Nothing fails,
-     * and nothing fails.
+     * {@code _slice} is null on an index without slices, so a filter on it matches none of its documents and
+     * nothing fails.
      */
     public void testIndexWithoutSlices() throws IOException {
         createPlainIndex("plain", 3);

@@ -22,6 +22,9 @@ esplugin {
 }
 
 dependencies {
+  // The pausable field the suite uses to hold requests in flight.
+  clusterModules project(':test:external-modules:test-pausable-field')
+
   javaRestTestImplementation project(':x-pack:plugin:esql:compute')
   javaRestTestImplementation project(':libs:swisshash')
 

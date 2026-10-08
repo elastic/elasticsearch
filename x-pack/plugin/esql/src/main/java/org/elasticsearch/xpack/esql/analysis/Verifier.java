@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
@@ -154,9 +155,11 @@ public class Verifier {
         checkTStepIncompatibleWithTRange(plan, failures);
         checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
         checkHighlightSupported(plan, failures, context.minimumVersion());
+        checkDenseVectorSupported(plan, failures, context.minimumVersion());
 
         // collect plan checkers
-        var planCheckers = planCheckers(plan, context.analysisRegistry());
+        Consumer<String> warnings = context.deferredHeaderWarnings()::add;
+        var planCheckers = planCheckers(plan, context.analysisRegistry(), warnings);
         planCheckers.addAll(extraCheckers);
 
         // Concrete verifications
@@ -169,7 +172,7 @@ public class Verifier {
             planCheckers.forEach(c -> c.accept(p, failures));
             p.forEachExpression(e -> {
                 if (e instanceof PostAnalysisVerificationAware va) {
-                    va.postAnalysisVerification(context.analysisRegistry(), failures);
+                    va.postAnalysisVerification(context.analysisRegistry(), warnings, failures);
                 }
             });
 
@@ -235,6 +238,23 @@ public class Verifier {
                 );
             }
         });
+    }
+
+    /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */
+    private static void checkDenseVectorSupported(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
+        if (minimumVersion.supports(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION)) {
+            return;
+        }
+        plan.forEachDown(
+            DenseVector.class,
+            denseVector -> failures.add(
+                fail(
+                    denseVector,
+                    "DENSE_VECTOR is not supported on every participating node; "
+                        + "rolling upgrade in progress, or a remote cluster is on an older version"
+                )
+            )
+        );
     }
 
     private static void checkTStepIncompatibleWithTRange(LogicalPlan plan, Failures failures) {
@@ -344,7 +364,11 @@ public class Verifier {
     /**
      * Build a list of checkers based on the components in the plan.
      */
-    private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(LogicalPlan plan, AnalysisRegistry analysisRegistry) {
+    private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(
+        LogicalPlan plan,
+        AnalysisRegistry analysisRegistry,
+        Consumer<String> warnings
+    ) {
         List<BiConsumer<LogicalPlan, Failures>> planCheckers = new ArrayList<>();
         Consumer<? super Node<?>> collectPlanCheckers = p -> {
             if (p instanceof PostAnalysisPlanVerificationAware pva) {
@@ -358,7 +382,7 @@ public class Verifier {
             if (p instanceof PostAnalysisVerificationAware va) {
                 planCheckers.add((lp, failures) -> {
                     if (lp.getClass().equals(va.getClass())) {
-                        va.postAnalysisVerification(analysisRegistry, failures);
+                        va.postAnalysisVerification(analysisRegistry, warnings, failures);
                     }
                 });
             }
@@ -621,7 +645,8 @@ public class Verifier {
             || plan instanceof Enrich
             || plan instanceof Fork
             || (plan instanceof UnionAll && plan instanceof ViewUnionAll == false)
-            || (plan instanceof Subquery && plan instanceof NamedSubquery == false);
+            || (plan instanceof Subquery && plan instanceof NamedSubquery == false)
+            || plan instanceof AbstractSubqueryJoin;
     }
 
     /**

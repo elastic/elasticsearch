@@ -215,6 +215,18 @@ public final class ColumnarTestUtils {
     }
 
     /**
+     * As {@link #columnarBinaryFieldType()}, carrying {@link ColumNARDocValuesFormat#SINGLE_VALUED_ATTRIBUTE}, as the mapper
+     * writes a {@code multi_value: false} string field: each document's blob is its one value's own bytes, not a payload.
+     */
+    public static FieldType singleValuedBinaryFieldType() {
+        final FieldType type = new FieldType();
+        type.setDocValuesType(DocValuesType.BINARY);
+        type.putAttribute(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE, "true");
+        type.freeze();
+        return type;
+    }
+
+    /**
      * One value as the {@link StringBinaryPayload} a string field is written as. The surface carries slots
      * rather than bare bytes — the count travels with them, so a document holding several is not a document
      * holding one long one — so a test building documents encodes even a single value the same way.

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
@@ -77,7 +78,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     // --- TIMESTAMP_MILLIS (INT64) ---
@@ -562,22 +563,44 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     }
 
     /**
-     * The allow-list's identity case and its unsigned decline: an un-annotated signed INT64 declared
-     * {@code date_nanos} is the unit convention's identity read (raw stats == scan values bit-for-bit), so it
-     * pushes with divisor 1 — declining it would be a needless lost-pruning cost; an unsigned INT64
-     * ({@code intType(64, false)}) decodes sign-wrapped and must decline.
+     * An un-annotated signed INT64 declared {@code date_nanos} holds epoch millis (the unit rule), so a nanos literal
+     * pushes as its raw millis value; a literal that is not a whole millisecond matches no stored value and pushes
+     * nothing. An unsigned INT64 ({@code intType(64, false)}) decodes sign-wrapped and must decline.
      */
-    public void testDeclaredDateNanosOverPlainInt64PushesIdentityAndUnsignedDeclines() {
-        long nanos = 1_700_000_000_123_456_789L;
+    public void testDeclaredDateNanosOverPlainInt64PushesScaledMillisAndUnsignedDeclines() {
+        long millis = 1_719_828_000_123L;
+        long nanos = millis * 1_000_000L;
         MessageType plain = Types.buildMessage().required(INT64).named("n").named("test");
         FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("n", DataType.DATE_NANOS, nanos))).toFilterPredicate(plain);
-        assertNotNull("un-annotated signed INT64 is the identity case and must push", fp);
-        assertThat(fp.toString(), containsString(String.valueOf(nanos)));
+        assertNotNull("un-annotated signed INT64 is the scaled epoch-millis case and must push", fp);
+        assertThat(fp.toString(), containsString("eq(n, " + millis + ")"));
+        assertThat("the nanos literal never reaches the footer", fp.toString(), not(containsString(String.valueOf(nanos))));
+        assertNull(
+            "a sub-millisecond literal has no stored counterpart",
+            new ParquetPushedExpressions(List.of(eq("n", DataType.DATE_NANOS, nanos + 1))).toFilterPredicate(plain)
+        );
 
         MessageType unsigned = Types.buildMessage().required(INT64).as(LogicalTypeAnnotation.intType(64, false)).named("n").named("test");
         assertNull(
             "date_nanos over unsigned INT64 must not push",
             new ParquetPushedExpressions(List.of(eq("n", DataType.DATE_NANOS, nanos))).toFilterPredicate(unsigned)
+        );
+    }
+
+    /**
+     * A bare INT64 declared {@code date_nanos} and the same column declared {@code {date_nanos, format: epoch_millis}}
+     * decode identically, so their raw-to-decoded relations must be identical too — {@code ScaleUp(1e6)} — or the
+     * pushdown and TopN rails would prune against a different unit than the scan produces. Under {@code date} the bare
+     * column stays the identity.
+     */
+    public void testBareInt64DateNanosRelationEqualsEpochMillisFormat() {
+        PrimitiveType bare = Types.required(INT64).named("ts");
+        DeclaredTypeCoercions.RawDecodeRelation noFormat = ParquetColumnDecoding.rawDecodeRelation(bare, DataType.DATE_NANOS, null);
+        assertEquals(new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(1_000_000L), noFormat);
+        assertEquals(ParquetColumnDecoding.rawDecodeRelation(bare, DataType.DATE_NANOS, "epoch_millis"), noFormat);
+        assertEquals(
+            new DeclaredTypeCoercions.RawDecodeRelation.Identity(),
+            ParquetColumnDecoding.rawDecodeRelation(bare, DataType.DATETIME, null)
         );
     }
 
@@ -607,22 +630,25 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     }
 
     /**
-     * A bare INT64 declared {@code date_nanos} is the identity read (raw stats == scan values), so every element of an
-     * IN has an exact raw counterpart and all of them push — nothing drops.
+     * A bare INT64 declared {@code date_nanos} holds epoch millis, scaled x1e6 by the scan, so every whole-millisecond
+     * element of an IN pushes its raw millis value and a sub-millisecond element — which no stored value can equal —
+     * drops without declining the rest.
      */
-    public void testDateNanosInBareInt64PushesEveryElement() {
+    public void testDateNanosInBareInt64PushesMillisTicksDropsNonTicks() {
         MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
-        long a = 1_700_000_000_123_456_789L;
-        long b = 1_700_000_000_987_654_321L;
+        long a = 1_719_828_000_123L;
+        long b = 1_719_828_000_987L;
+        long nonTick = b * 1_000_000L + 654_321L;
         Expression inExpr = new In(
             Source.EMPTY,
             attr("ts", DataType.DATE_NANOS),
-            List.of(lit(a, DataType.DATE_NANOS), lit(b, DataType.DATE_NANOS))
+            List.of(lit(a * 1_000_000L, DataType.DATE_NANOS), lit(b * 1_000_000L, DataType.DATE_NANOS), lit(nonTick, DataType.DATE_NANOS))
         );
         FilterPredicate fp = new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema);
         assertNotNull(fp);
-        assertThat(fp.toString(), containsString(String.valueOf(a)));
-        assertThat(fp.toString(), containsString(String.valueOf(b)));
+        assertThat(fp.toString(), containsString("eq(ts, " + a + ")"));
+        assertThat(fp.toString(), containsString("eq(ts, " + b + ")"));
+        assertThat("the sub-millisecond element is dropped", fp.toString(), not(containsString(String.valueOf(nonTick))));
     }
 
     /**
@@ -1236,13 +1262,13 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat("the raw seconds point, not the millis literal", fp.toString(), containsString("noteq(ts, 1704067200)"));
     }
 
-    /** date_nanos != over a bare INT64 pushes notEq too. */
+    /** date_nanos != over a bare INT64 pushes notEq too, at the raw epoch-millis point. */
     public void testDateNanosNotEqPushesNotEq() {
         MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
         Expression ne = new NotEquals(Source.EMPTY, attr("ts", DataType.DATE_NANOS), lit(1704067200000000000L, DataType.DATE_NANOS), null);
         FilterPredicate fp = new ParquetPushedExpressions(List.of(ne)).toFilterPredicate(schema);
         assertNotNull(fp);
-        assertThat(fp.toString(), containsString("noteq(ts, 1704067200000000000)"));
+        assertThat(fp.toString(), containsString("noteq(ts, 1704067200000)"));
     }
 
     // --- annotated TIMESTAMP(MICROS) declared `date`: a truncating decode, every operator ---

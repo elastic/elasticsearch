@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.action.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -67,7 +68,6 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
         ClusterState state,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
-
         datafeedManager.updateDatafeed(request, state, securityContext, threadPool, listener);
     }
 
@@ -79,6 +79,12 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
     @Override
     protected void doExecute(Task task, UpdateDatafeedAction.Request request, ActionListener<PutDatafeedAction.Response> listener) {
         final ActionListener<PutDatafeedAction.Response> releasingListener = ActionListener.releaseAfter(listener, request);
+        try {
+            DatafeedEsqlGates.validateDatafeedUpdateTransportOnCoordinator(request.getUpdate(), clusterService.state());
+        } catch (ElasticsearchStatusException e) {
+            releasingListener.onFailure(e);
+            return;
+        }
         datafeedManager.carryCallerCredential(threadPool, securityContext, request::setCloudCredential);
         super.doExecute(task, request, releasingListener);
     }

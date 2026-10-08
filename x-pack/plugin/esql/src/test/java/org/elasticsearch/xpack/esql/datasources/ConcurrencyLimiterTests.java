@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ConcurrencyLimiterTests extends ESTestCase {
 
@@ -135,5 +137,93 @@ public class ConcurrencyLimiterTests extends ESTestCase {
     public void testUnlimitedTryAcquireAlwaysSucceeds() {
         assertTrue(ConcurrencyLimiter.UNLIMITED.tryAcquire());
         ConcurrencyLimiter.UNLIMITED.release();
+    }
+
+    public void testUncontendedAcquireDoesNotRecordWait() throws Exception {
+        RecordingTracker tracker = new RecordingTracker();
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter(
+            "s3",
+            new ExternalSourceSettings.BlobStoreConcurrency(2, false),
+            60_000L,
+            tracker
+        );
+        limiter.acquire();
+        limiter.acquire();
+        assertEquals(0, tracker.outstanding.get());
+        assertEquals(0, tracker.grants.get());
+        limiter.release();
+        limiter.release();
+    }
+
+    public void testTimeoutRecordsFinished() throws Exception {
+        RecordingTracker tracker = new RecordingTracker();
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false), 50L, tracker);
+        limiter.acquire();
+        expectThrows(TimeoutException.class, limiter::acquire);
+        assertEquals(0, tracker.outstanding.get());
+        assertEquals(0, tracker.grants.get());
+        assertEquals(1, tracker.finished.get());
+        limiter.release();
+    }
+
+    public void testContendedAcquireRecordsWaitAndGrant() throws Exception {
+        RecordingTracker tracker = new RecordingTracker();
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter(
+            "s3",
+            new ExternalSourceSettings.BlobStoreConcurrency(1, false),
+            60_000L,
+            tracker
+        );
+        limiter.acquire();
+        CountDownLatch parked = new CountDownLatch(1);
+        tracker.onWait = parked::countDown;
+        Thread blocker = new Thread(() -> {
+            try {
+                limiter.acquire();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        try {
+            blocker.start();
+            assertTrue(parked.await(5, TimeUnit.SECONDS));
+            assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, blocker.getState()));
+            assertEquals(1, tracker.outstanding.get());
+            limiter.release();
+            blocker.join(TimeUnit.SECONDS.toMillis(5));
+            assertFalse(blocker.isAlive());
+            assertEquals(0, tracker.outstanding.get());
+            assertEquals(1, tracker.grants.get());
+            assertEquals(0, tracker.finished.get());
+        } finally {
+            blocker.interrupt();
+            blocker.join(TimeUnit.SECONDS.toMillis(5));
+        }
+    }
+
+    private static final class RecordingTracker implements AdmissionTracker {
+        private final AtomicInteger outstanding = new AtomicInteger();
+        private final AtomicInteger grants = new AtomicInteger();
+        private final AtomicInteger finished = new AtomicInteger();
+        private volatile Runnable onWait = () -> {};
+
+        @Override
+        public Wait waitStarted(String gate, String waiter) {
+            outstanding.incrementAndGet();
+            onWait.run();
+            return new Wait() {
+                @Override
+                public void granted() {
+                    outstanding.decrementAndGet();
+                    grants.incrementAndGet();
+                }
+
+                @Override
+                public void finished() {
+                    outstanding.decrementAndGet();
+                    finished.incrementAndGet();
+                }
+            };
+        }
     }
 }

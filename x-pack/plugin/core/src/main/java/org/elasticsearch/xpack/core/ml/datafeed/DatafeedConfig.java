@@ -112,6 +112,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     static final TransportVersion DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES = TransportVersion.fromName(
         "datafeed_max_consecutive_extraction_failures"
     );
+    static final TransportVersion DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED = TransportVersion.fromName(
+        "datafeed_max_consecutive_extraction_failures_removed"
+    );
 
     // Accessing `Job.ID` here causes an NPE in tests as a DatafeedConfig parser is referenced in the Job parser
     public static final ParseField JOB_ID = new ParseField("job_id");

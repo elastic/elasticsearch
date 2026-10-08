@@ -42,12 +42,14 @@ import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -72,6 +74,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
@@ -82,7 +85,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -267,6 +270,45 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         List<Attribute> schema = reader.metadata(object).schema();
         assertEquals("inferred schema names only columns from the widest sampled row, not from later wider rows", 2, schema.size());
+    }
+
+    /**
+     * The type axis (within-sample widening) and the width axis (headerless column count) must share
+     * one sampling boundary: for a given {@code schema_sample_size}, an anomaly on the last sampled row
+     * is absorbed on both axes, and the identical anomaly one row later is absorbed on neither. Nothing
+     * here pins a literal row number, so the test survives {@code schema_sample_size}'s default
+     * changing again — it is the "the two boundaries must agree" guard that was missing, which is
+     * exactly what let the two axes silently drift apart (the type axis doubled its effective window
+     * while the width axis stayed on the single original window) before the two CSV sampling windows
+     * were merged back into one.
+     */
+    public void testTypeAndWidthAxesShareOneSamplingBoundary() throws IOException {
+        int n = 3;
+        Map<String, Object> config = Map.of("header_row", false, "schema_sample_size", n);
+
+        CsvFormatReader typeAtBoundaryReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        List<Attribute> typeAtBoundary = typeAtBoundaryReader.metadata(createStorageObject("1\n2\noops\n")).schema();
+        assertEquals(
+            "a type anomaly on the last sampled row must be absorbed (widened)",
+            DataType.KEYWORD,
+            typeAtBoundary.get(0).dataType()
+        );
+
+        CsvFormatReader typePastBoundaryReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        List<Attribute> typePastBoundary = typePastBoundaryReader.metadata(createStorageObject("1\n2\n3\noops\n")).schema();
+        assertEquals(
+            "the same type anomaly one row past the sample must not be absorbed",
+            DataType.INTEGER,
+            typePastBoundary.get(0).dataType()
+        );
+
+        CsvFormatReader widthAtBoundaryReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        List<Attribute> widthAtBoundary = widthAtBoundaryReader.metadata(createStorageObject("1,a\n2,b\n3,c,extra\n")).schema();
+        assertEquals("a width anomaly on the last sampled row must be absorbed (widened)", 3, widthAtBoundary.size());
+
+        CsvFormatReader widthPastBoundaryReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        List<Attribute> widthPastBoundary = widthPastBoundaryReader.metadata(createStorageObject("1,a\n2,b\n3,c\n4,d,extra\n")).schema();
+        assertEquals("the same width anomaly one row past the sample must not be absorbed", 2, widthPastBoundary.size());
     }
 
     public void testSchema() throws IOException {
@@ -1578,12 +1620,16 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(DataType.DATE_NANOS, schema.get(1).dataType());
     }
 
+    /**
+     * A bare number in a {@code date_nanos} column is epoch MILLIS, as under {@code datetime}: the type fixes the
+     * stored precision, not the unit of the number.
+     */
     public void testReadDateNanosType() throws IOException {
         String csv = """
             event:keyword,ts:date_nanos
             login,2024-01-15T12:34:56.123456789Z
             logout,2024-01-15T12:35:00.000000000Z
-            raw,1737030896123456789
+            raw,1719828000000
             """;
 
         StorageObject object = createStorageObject(csv);
@@ -1599,10 +1645,78 @@ public class CsvFormatReaderTests extends ESTestCase {
             LongBlock tsBlock = (LongBlock) page.getBlock(1);
             assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:34:56.123456789Z"), tsBlock.getLong(0));
             assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:35:00.000000000Z"), tsBlock.getLong(1));
-            assertEquals(1737030896123456789L, tsBlock.getLong(2));
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-07-01T10:00:00.000000000Z"), tsBlock.getLong(2));
 
             assertFalse(iterator.hasNext());
         }
+    }
+
+    /**
+     * The same instant in both units a {@code date_nanos} column accepts as a bare number, on CSV and TSV (one reader):
+     * epoch millis with no format, epoch seconds with a declared {@code epoch_second}.
+     */
+    public void testReadDateNanosBareNumberUnitsCsvAndTsv() throws IOException {
+        long expected = EsqlDataTypeConverter.dateNanosToLong("2024-07-01T10:00:00.000000000Z");
+        for (String delimiter : List.of(",", "\t")) {
+            CsvFormatReader base = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("delimiter", delimiter));
+            String header = "ms:date_nanos" + delimiter + "s:date_nanos\n";
+            StorageObject object = createStorageObject(header + "1719828000000" + delimiter + "1719828000\n");
+            CsvFormatReader reader = base.withDeclaredDateFormats(Map.of("s", "epoch_second"));
+            try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+                Page page = iterator.next();
+                try {
+                    assertEquals("millis, delimiter [" + delimiter + "]", expected, ((LongBlock) page.getBlock(0)).getLong(0));
+                    assertEquals("epoch_second, delimiter [" + delimiter + "]", expected, ((LongBlock) page.getBlock(1)).getLong(0));
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+    }
+
+    /**
+     * A bare nanosecond count is out of range as epoch millis: it nulls the cell under {@code null_field} and fails the
+     * read under {@code fail_fast}, rather than reading as an instant.
+     */
+    public void testReadDateNanosBareNanosecondCountIsOutOfRange() throws IOException {
+        String csv = """
+            event:keyword,ts:date_nanos
+            nanos,1719828000000000000
+            millis,1719828000000
+            """;
+        ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                createStorageObject(csv),
+                FormatReadContext.builder().batchSize(10).errorPolicy(permissive).build()
+            )
+        ) {
+            Page page = iterator.next();
+            try {
+                LongBlock tsBlock = (LongBlock) page.getBlock(1);
+                assertTrue(tsBlock.isNull(0));
+                assertEquals(
+                    EsqlDataTypeConverter.dateNanosToLong("2024-07-01T10:00:00.000000000Z"),
+                    tsBlock.getLong(tsBlock.getFirstValueIndex(1))
+                );
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    createStorageObject(csv),
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("[1719828000000000000]"));
     }
 
     public void testReadDateNanosNullFieldOnBadValue() throws IOException {
@@ -2123,15 +2237,16 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * When the initial sample (rows 1..N) is all-numeric but later rows contain text, the inferred
-     * schema must widen that column to KEYWORD so the text values are readable without errors.
-     * A tiny {@code schema_sample_size=2} makes "hello" appear after the sample window.
+     * When the early rows of the sample are all-numeric but a later row in that same sample contains
+     * text, the inferred schema must widen that column to KEYWORD so the text value is readable
+     * without errors.
      */
-    public void testInferredSchemaWidensOnPostSampleTextConflict() throws IOException {
-        // Rows 1-2 are numeric (inferred as INTEGER from sample). Row 3 is text — contradicts INTEGER.
+    public void testInferredSchemaWidensOnTextConflict() throws IOException {
+        // Rows 1-2 are numeric (inferred as INTEGER from the first two rows seen). Row 3 is text —
+        // contradicts INTEGER — and the sample is sized to cover all three rows in its one window.
         String csv = "id\n1\n2\nhello\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 2));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 3));
 
         List<Attribute> schema = reader.schema(object);
         assertEquals(1, schema.size());
@@ -3905,55 +4020,101 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testPinnedSchemaBindsByNameWhenAByteOrderMarkAndAHeaderLongerThanTheReaderBufferPrecedeTheRows() throws IOException {
+        // The first split reads the header with a reader of its own on the data stream, so a header longer than the
+        // reader's buffer, behind a byte-order mark, must still leave every row after it intact.
+        String longName = "c".repeat(20_000);
+        byte[] bom = new byte[] { (byte) 0xEF, (byte) 0xBB, (byte) 0xBF };
+        byte[] body = (longName + ",id,name\nx,1,bob\ny,2,eve\n").getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = new byte[bom.length + body.length];
+        System.arraycopy(bom, 0, bytes, 0, bom.length);
+        System.arraycopy(body, 0, bytes, bom.length, body.length);
+
+        List<Attribute> pinned = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.KEYWORD)
+        );
+        List<String> warnings = new ArrayList<>();
+        List<String> rows = new ArrayList<>();
+        try (
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(
+                createStorageObject(bytes),
+                FormatReadContext.builder()
+                    .firstSplit(true)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(pinned)
+                    .informationalWarningSink(warnings::add)
+                    .build()
+            )
+        ) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                try {
+                    for (int i = 0; i < page.getPositionCount(); i++) {
+                        rows.add(
+                            ((BytesRefBlock) page.getBlock(0)).getBytesRef(i, new BytesRef()).utf8ToString()
+                                + "/"
+                                + ((BytesRefBlock) page.getBlock(1)).getBytesRef(i, new BytesRef()).utf8ToString()
+                        );
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        assertEquals(List.of("bob/1", "eve/2"), rows);
+        assertThat(warnings, Matchers.empty());
+    }
+
     /**
      * Julian's report: a header {@code "a,b",c} has TWO columns — the first field is quoted and embeds
-     * the delimiter — but a naive comma split counts three. The pinned-inferred-schema width tripwire and the
-     * inferred-schema column count both go through {@code splitFieldsForOptions}; with the naive split a
-     * 3-column pinned schema was wrongly admitted over a 2-column file and then null-spliced every row.
-     * The quote-aware split counts two, so the tripwire fires and inference reports two columns.
+     * the delimiter — but a naive comma split counts three. Header binding and the inferred-schema column
+     * count both go through {@code splitFieldsForOptions}; with the naive split the header would name three
+     * columns and a pinned schema would bind the wrong fields. The quote-aware split names two, so a pinned
+     * schema binds {@code a,b} and {@code c} by name, a third pinned column reads null, and inference reports
+     * two columns.
      */
-    public void testDeclaredWidthTripwireCountsQuotedHeaderFieldsCorrectly() throws IOException {
+    public void testPinnedSchemaBindsQuotedHeaderFieldsByName() throws IOException {
         String csv = "\"a,b\",c\n1,2\n";
         StorageObject object = createStorageObject(csv);
 
         // Inferred-schema count (the metadata caller): two columns, not three.
         assertEquals(2, new CsvFormatReader(blockFactory).metadata(object).schema().size());
 
-        // Width tripwire (the pinned inferred schema case, i.e. declaredProvenanceBinding=false): a 3-column pinned
-        // schema cannot bind a 2-column file positionally — this means the file has drifted. The pinned schema is
-        // plumbed through FormatReadContext.readSchema without setting withDeclaredProvenanceBinding.
-        List<Attribute> tooWide = List.of(
-            new ReferenceAttribute(Source.EMPTY, null, "x", DataType.KEYWORD),
-            new ReferenceAttribute(Source.EMPTY, null, "y", DataType.KEYWORD),
+        // A pinned schema wider than the file: its columns bind by the header's two names, and the third, which the
+        // file does not supply, reads null with a warning rather than failing the read.
+        List<Attribute> wider = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "c", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "a,b", DataType.KEYWORD),
             new ReferenceAttribute(Source.EMPTY, null, "z", DataType.KEYWORD)
         );
         FormatReader reader = new CsvFormatReader(blockFactory);
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> reader.read(
-                object,
-                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(tooWide).build()
-            ).close()
-        );
-        assertThat(e.getMessage(), Matchers.containsString("[test.csv] has [2] columns, the schema has [3]"));
-        assertThat(e.getMessage(), Matchers.containsString("] has [2] columns, the schema has [3]"));
-
-        // A 2-column pinned schema matches the two real columns and reads.
-        List<Attribute> exact = List.of(
-            new ReferenceAttribute(Source.EMPTY, null, "first", DataType.KEYWORD),
-            new ReferenceAttribute(Source.EMPTY, null, "second", DataType.KEYWORD)
-        );
+        List<String> warnings = new ArrayList<>();
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
-                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(exact).build()
+                FormatReadContext.builder()
+                    .firstSplit(true)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(wider)
+                    .informationalWarningSink(warnings::add)
+                    .build()
             )
         ) {
             assertTrue(it.hasNext());
             Page page = it.next();
-            assertEquals(1, page.getPositionCount());
-            page.releaseBlocks();
+            try {
+                assertEquals(1, page.getPositionCount());
+                assertEquals("2", ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()).utf8ToString());
+                assertEquals("1", ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()).utf8ToString());
+                assertTrue("a column the header does not name reads null", page.getBlock(2).isNull(0));
+            } finally {
+                page.releaseBlocks();
+            }
         }
+        assertThat(warnings, Matchers.contains(SkipWarnings.absentColumnMessage("z")));
     }
 
     /**
@@ -4103,7 +4264,9 @@ public class CsvFormatReaderTests extends ESTestCase {
             Page page = iterator.next();
             assertEquals(2, page.getPositionCount());
             IntBlock valuesBlock = (IntBlock) page.getBlock(1);
-            assertTrue(valuesBlock.isNull(0));
+            assertEquals("the bad element is removed, the readable ones kept", 2, valuesBlock.getValueCount(0));
+            assertEquals(1, valuesBlock.getInt(valuesBlock.getFirstValueIndex(0)));
+            assertEquals(3, valuesBlock.getInt(valuesBlock.getFirstValueIndex(0) + 1));
             assertEquals(2, valuesBlock.getValueCount(1));
         }
     }
@@ -6287,8 +6450,10 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     private StorageObject createStorageObject(String csvContent) {
-        byte[] bytes = csvContent.getBytes(StandardCharsets.UTF_8);
+        return createStorageObject(csvContent.getBytes(StandardCharsets.UTF_8));
+    }
 
+    private StorageObject createStorageObject(byte[] bytes) {
         return new StorageObject() {
             @Override
             public StorageIdentity storageIdentity() {
@@ -7003,25 +7168,6 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals("String length (12) is over the limit (10)", CsvFormatReader.rowErrorReason(reworded));
     }
 
-    public void testCsvErrorMessagesSummarizeShortValuePassesThrough() {
-        assertEquals("hello", CsvErrorMessages.summarize("hello"));
-        assertEquals("null", CsvErrorMessages.summarize((String) null));
-    }
-
-    public void testCsvErrorMessagesSummarizeLongValueIsCapped() {
-        StringBuilder huge = new StringBuilder();
-        for (int i = 0; i < 5_000; i++) {
-            huge.append('x');
-        }
-        String summarized = CsvErrorMessages.summarize(huge.toString());
-        assertTrue(
-            "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length(),
-            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
-        );
-        assertTrue("expected truncation marker, got: " + summarized, summarized.contains("truncated"));
-        assertTrue("expected total-length marker, got: " + summarized, summarized.contains("5000"));
-    }
-
     public void testCsvErrorMessagesSummarizeRowEmptyIsSentinel() {
         assertEquals("<unparsed>", CsvErrorMessages.summarizeRow(new String[0]));
         assertEquals("<unparsed>", CsvErrorMessages.summarizeRow(null));
@@ -7105,7 +7251,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String summarized = CsvErrorMessages.summarizeAround(huge.toString(), faultOffset);
         assertTrue(
             "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length() + ": " + summarized,
-            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
+            summarized.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS
         );
         assertTrue(
             "expected offset annotation, got: " + summarized,
@@ -7165,7 +7311,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String summarized = CsvErrorMessages.summarizeAround(huge.toString(), -1);
         assertTrue(
             "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length(),
-            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
+            summarized.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS
         );
         assertTrue("expected truncated marker, got: " + summarized, summarized.contains("truncated"));
         assertTrue("expected total-length marker, got: " + summarized, summarized.contains("5000"));
@@ -7189,7 +7335,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String summarized = CsvErrorMessages.summarizeAround(huge.toString(), faultOffset);
         assertTrue(
             "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length(),
-            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
+            summarized.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS
         );
         assertTrue("expected offset annotation, got: " + summarized, summarized.contains("(offset " + faultOffset + " of 100000 chars)"));
         assertTrue("expected fault bytes in window, got: " + summarized, summarized.contains(marker));
@@ -7199,7 +7345,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * End-to-end: an unclosed quoted field at end-of-file produces an error excerpt anchored on the
      * opening quote, not a head/tail-truncated view of the entire row. The row is sized so the
      * opening quote sits well inside the elided middle of the legacy head/tail summary, so a
-     * regression that re-routes to {@link CsvErrorMessages#summarize} would hide the fault bytes.
+     * regression that re-routes to {@link ErrorExcerpts#summarize} would hide the fault bytes.
      */
     public void testMalformedRowErrorAnchorsOnQuoteOffset() {
         // Pad both sides of the unmatched quote so the line is much longer than MAX_EXCERPT_CHARS
@@ -7239,6 +7385,156 @@ public class CsvFormatReaderTests extends ESTestCase {
         // The unique fault marker sits at the elided middle for legacy head/tail; with offset
         // anchoring it must survive in the excerpt.
         assertTrue("expected fault bytes in excerpt, got: " + msg, msg.contains("\"unterminated_field_here_"));
+    }
+
+    /**
+     * A multi-megabyte value that does not parse as its column's type must not reach the client whole: the same
+     * message is the {@code Warning} detail under the lenient modes and the error under {@code fail_fast}. Unlike the
+     * {@link CsvErrorMessages} tests above, this reads a file, so it covers the cap's application on every walker.
+     */
+    public void testLongUnparseableValueIsTruncatedInWarningAndException() throws Exception {
+        int length = 2_000_000;
+        StorageObject object = createStorageObject("id:long,tag:keyword\n1,ok\n" + "Z".repeat(length) + ",bad\n2,ok\n");
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "tag", DataType.KEYWORD)
+        );
+        // The frame around the value is well under 64 chars. Under fail_fast the row excerpt (itself capped) and
+        // the hint come on top. A value embedded whole overshoots either bound.
+        int warningBound = ErrorExcerpts.MAX_EXCERPT_CHARS + 64;
+        int exceptionBound = 2 * ErrorExcerpts.MAX_EXCERPT_CHARS + 160;
+        for (String mvSyntax : List.of("NONE", "brackets")) {
+            for (boolean directBlock : List.of(false, true)) {
+                for (String lenient : List.of("null_field", "skip_row")) {
+                    String desc = "multi_value_syntax=" + mvSyntax + " directBlock=" + directBlock + " error_mode=" + lenient;
+                    Map<String, Object> config = Map.of(
+                        "header_row",
+                        true,
+                        "multi_value_syntax",
+                        mvSyntax,
+                        "error_mode",
+                        lenient,
+                        "max_errors",
+                        100
+                    );
+                    int rows = readRowCount(declaredReader(false, directBlock, config), object, schema, null);
+                    assertEquals(desc, lenient.equals("null_field") ? 3 : 2, rows);
+                    String detail = drainWarnings().stream().filter(w -> w.contains("cannot read [")).findFirst().orElseThrow();
+                    assertThat(desc + " warning carried the whole value", detail.length(), Matchers.lessThan(warningBound));
+                    assertThat(desc, detail, containsString("] as [long]"));
+                    assertThat(desc, detail, containsString("(truncated, " + length + " chars total)"));
+                    if (lenient.equals("null_field")) {
+                        assertThat(desc, detail, containsString("column [id]"));
+                    }
+                }
+
+                String desc = "multi_value_syntax=" + mvSyntax + " directBlock=" + directBlock + " error_mode=fail_fast";
+                Map<String, Object> config = Map.of("header_row", true, "multi_value_syntax", mvSyntax, "error_mode", "fail_fast");
+                ExternalClientException e = expectThrows(
+                    ExternalClientException.class,
+                    () -> readRowCount(declaredReader(false, directBlock, config), object, schema, null)
+                );
+                String message = e.getMessage();
+                assertThat(desc + " exception carried the whole value", message.length(), Matchers.lessThan(exceptionBound));
+                assertThat(desc, message, containsString("cannot read ["));
+                assertThat(desc, message, containsString("] as [long]"));
+                assertThat(desc, message, containsString("(truncated, " + length + " chars total)"));
+                assertThat(desc, message, containsString("set [error_mode] to [null_field]"));
+                drainWarnings();
+            }
+        }
+    }
+
+    /**
+     * Under {@code null_field} a bracket element that does not parse is removed from its cell and the readable ones
+     * are kept; a cell none of whose elements parse is null. The cell costs the error budget once, however many of
+     * its elements fail, and a row the width guard rejects reports no element drops. Both walkers.
+     */
+    public void testBracketElementFailureRemovesElementUnderNullField() throws Exception {
+        StorageObject object = createStorageObject("id:long,vals:long\n1,[1,oops,3]\n2,[oops,nope]\n3,[4,5]\n4,[6,bad],extra\n");
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "vals", DataType.LONG)
+        );
+        for (boolean directBlock : List.of(false, true)) {
+            String desc = "directBlock=" + directBlock;
+            // max_errors 3: one per bad cell (rows 1 and 2) plus the too-wide row 4. Charging per element would be 4.
+            Map<String, Object> config = Map.of(
+                "header_row",
+                true,
+                "multi_value_syntax",
+                "brackets",
+                "error_mode",
+                "null_field",
+                "max_errors",
+                3
+            );
+            List<List<Object>> rows = new ArrayList<>();
+            FormatReadContext context = FormatReadContext.builder()
+                .firstSplit(true)
+                .recordAligned(true)
+                .batchSize(10)
+                .readSchema(schema)
+                .build();
+            try (CloseableIterator<Page> it = declaredReader(false, directBlock, config).read(object, context)) {
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    try {
+                        LongBlock ids = page.getBlock(0);
+                        LongBlock vals = page.getBlock(1);
+                        for (int p = 0; p < page.getPositionCount(); p++) {
+                            List<Object> values = new ArrayList<>();
+                            if (vals.isNull(p) == false) {
+                                for (int v = 0; v < vals.getValueCount(p); v++) {
+                                    values.add(vals.getLong(vals.getFirstValueIndex(p) + v));
+                                }
+                            }
+                            rows.add(List.of(ids.getLong(ids.getFirstValueIndex(p)), values));
+                        }
+                    } finally {
+                        page.releaseBlocks();
+                    }
+                }
+            }
+            assertEquals(desc, List.of(List.of(1L, List.of(1L, 3L)), List.of(2L, List.of()), List.of(3L, List.of(4L, 5L))), rows);
+            List<String> warnings = drainWarnings();
+            assertTrue(
+                desc + " multi-value summary: " + warnings,
+                warnings.stream().anyMatch(w -> w.endsWith("cannot be read; " + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME))
+            );
+            assertEquals(
+                desc + " one detail per removed element: " + warnings,
+                3,
+                warnings.stream().filter(w -> w.contains("column [vals]")).count()
+            );
+            assertTrue(
+                desc + " a rejected row reports no element drops: " + warnings,
+                warnings.stream().noneMatch(w -> w.contains("[bad]"))
+            );
+        }
+    }
+
+    /** {@code skip_row} keeps dropping the whole row at the first bad bracket element. */
+    public void testBracketElementFailureDropsRowUnderSkipRow() throws Exception {
+        StorageObject object = createStorageObject("id:long,vals:long\n1,[1,oops,3]\n2,[4,5]\n");
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "vals", DataType.LONG)
+        );
+        for (boolean directBlock : List.of(false, true)) {
+            Map<String, Object> config = Map.of(
+                "header_row",
+                true,
+                "multi_value_syntax",
+                "brackets",
+                "error_mode",
+                "skip_row",
+                "max_errors",
+                10
+            );
+            assertEquals("directBlock=" + directBlock, 1, readRowCount(declaredReader(false, directBlock, config), object, schema, null));
+            drainWarnings();
+        }
     }
 
     // --- declared `path` binding under a pinned (declared) schema: esql-planning#1307 ---
@@ -7345,6 +7641,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
         List<String> names = reader.metadata(object).schema().stream().map(Attribute::name).toList();
         assertEquals("metadata must describe the file, not the declaration", List.of("first_name", "emp_no", "salary"), names);
+        assertEquals("the header columns must describe the file", names, reader.fileHeaderColumns(object));
     }
 
     /**
@@ -7450,6 +7747,110 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A byte-range split that is not record-aligned (a block-aligned bzip2 or indexed zstd split) starts inside a
+     * record whose head the previous split emitted. Binding a pinned schema by the carried header must not stop the
+     * reader from dropping that partial record, or it is read as a row of its own.
+     */
+    public void testNonRecordAlignedSplitDropsLeadingPartialRecordUnderPinnedSchema() throws Exception {
+        // The split starts in the middle of "1,alice": "ice" is the tail of a record the previous split owns.
+        StorageObject object = createStorageObject("ice\n2,bob\n3,carol\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true));
+        List<String> names = new ArrayList<>();
+        List<Long> ids = new ArrayList<>();
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(false)
+                    .recordAligned(false)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .fileHeaderColumns(List.of("id", "name"))
+                    .build()
+            )
+        ) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                try {
+                    for (int p = 0; p < page.getPositionCount(); p++) {
+                        names.add(((BytesRefBlock) page.getBlock(0)).getBytesRef(p, new BytesRef()).utf8ToString());
+                        ids.add(((LongBlock) page.getBlock(1)).getLong(p));
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        assertEquals(List.of("bob", "carol"), names);
+        assertEquals(List.of(2L, 3L), ids);
+    }
+
+    /**
+     * A headerless file read in byte ranges has the same leading partial record, and a declared schema binding
+     * {@code col<N>} to field N must drop it too: read as a row it would be a record the previous split already emitted.
+     */
+    public void testNonRecordAlignedHeaderlessSplitDropsLeadingPartialRecordUnderDeclaredSchema() throws Exception {
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
+            .withDeclaredProvenanceBinding(true);
+        assertNonAlignedSplitReadsOnlyWholeRecords(reader, readSchema, 1, 0);
+    }
+
+    /** As above, for a headerless schema inferred from the file, which binds by position. */
+    public void testNonRecordAlignedHeaderlessSplitDropsLeadingPartialRecordUnderInferredSchema() throws Exception {
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        assertNonAlignedSplitReadsOnlyWholeRecords(reader, readSchema, 0, 1);
+    }
+
+    /**
+     * Reads a byte-range split starting inside {@code "1,alice"} (the previous split's record) under a strict policy, so
+     * a partial record read as a row would fail the read rather than be skipped quietly.
+     */
+    private void assertNonAlignedSplitReadsOnlyWholeRecords(CsvFormatReader reader, List<Attribute> readSchema, int idBlock, int nameBlock)
+        throws Exception {
+        StorageObject object = createStorageObject("ice\n2,bob\n3,carol\n");
+        List<String> names = new ArrayList<>();
+        List<Long> ids = new ArrayList<>();
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(false)
+                    .recordAligned(false)
+                    .batchSize(10)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(readSchema)
+                    .build()
+            )
+        ) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                try {
+                    for (int p = 0; p < page.getPositionCount(); p++) {
+                        ids.add(((LongBlock) page.getBlock(idBlock)).getLong(p));
+                        names.add(((BytesRefBlock) page.getBlock(nameBlock)).getBytesRef(p, new BytesRef()).utf8ToString());
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        assertEquals(List.of(2L, 3L), ids);
+        assertEquals(List.of("bob", "carol"), names);
+    }
+
+    /**
      * With no header columns to bind against there is nothing to fall back on but position, which would shift
      * every column. Failing loudly is the correct outcome, and stays so.
      */
@@ -7511,7 +7912,89 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertTrue("absent declared column reads null", page.getBlock(0).isNull(0));
             page.releaseBlocks();
         }
-        assertThat(warnings, Matchers.hasItem(Matchers.containsString("declared column [nope] is not present in some source files")));
+        assertThat(warnings, Matchers.hasItem(Matchers.containsString("column [nope] is not present in some source files")));
+    }
+
+    /**
+     * A headered file binds by its own header whatever the schema's provenance. This reader carries no declared bit,
+     * as for a schema inferred from another file, and the file's columns are in the opposite order to the schema's:
+     * each column must still read the value under its own name, on the split that owns the file's start and on a later
+     * one handed the header columns.
+     */
+    public void testPinnedSchemaBindsAReorderedHeaderedFileByName() throws Exception {
+        String csv = "name,id\nalice,1\nbob,2\n";
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true));
+        StorageObject firstSplit = createStorageObject(csv);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                firstSplit,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
+            assertEquals(new BytesRef("alice"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("bob"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+            page.releaseBlocks();
+        }
+        // A later split has no header line of its own; it binds against the columns handed to it.
+        try (
+            CloseableIterator<Page> it = reader.read(
+                createStorageObject("carol,3\n"),
+                FormatReadContext.builder()
+                    .firstSplit(false)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .fileHeaderColumns(List.of("name", "id"))
+                    .build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(3L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("carol"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            page.releaseBlocks();
+        }
+        assertTrue(drainWarnings().isEmpty());
+    }
+
+    /** A column the schema names and the file's header lacks reads null with one warning, for a schema of any provenance. */
+    public void testPinnedSchemaColumnMissingFromHeaderReadsNullWithWarning() throws Exception {
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "nope", DataType.LONG)
+        );
+        for (boolean declared : List.of(false, true)) {
+            List<String> warnings = new ArrayList<>();
+            CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+                .withDeclaredProvenanceBinding(declared);
+            try (
+                CloseableIterator<Page> it = reader.read(
+                    createStorageObject("id,ts\n42,7\n"),
+                    FormatReadContext.builder()
+                        .firstSplit(true)
+                        .recordAligned(true)
+                        .batchSize(10)
+                        .readSchema(readSchema)
+                        .informationalWarningSink(warnings::add)
+                        .build()
+                )
+            ) {
+                Page page = it.next();
+                assertEquals(1, page.getPositionCount());
+                assertEquals("declared=" + declared, 7L, ((LongBlock) page.getBlock(0)).getLong(0));
+                assertTrue("declared=" + declared, page.getBlock(1).isNull(0));
+                page.releaseBlocks();
+            }
+            assertThat(warnings, Matchers.hasItem(Matchers.containsString("column [nope] is not present in some source files")));
+        }
     }
 
     /** A headerless declared name that is not {@code col<N>} names no physical column, so it reads null with a warning. */
@@ -7538,7 +8021,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertTrue("headerless non-col<N> declared column reads null", page.getBlock(0).isNull(0));
             page.releaseBlocks();
         }
-        assertThat(warnings, Matchers.hasItem(Matchers.containsString("declared column [EventTime] is not present in some source files")));
+        assertThat(warnings, Matchers.hasItem(Matchers.containsString("column [EventTime] is not present in some source files")));
     }
 
     /** A non-canonical headerless index ({@code col007} — inference names field 7 exactly {@code col7}) reads null. */
@@ -7564,7 +8047,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertTrue("col007 is not the canonical name for field 7, so it reads null", page.getBlock(0).isNull(0));
             page.releaseBlocks();
         }
-        assertThat(warnings, Matchers.hasItem(Matchers.containsString("declared column [col007] is not present in some source files")));
+        assertThat(warnings, Matchers.hasItem(Matchers.containsString("column [col007] is not present in some source files")));
     }
 
     /** A headerless index beyond the cap ({@code col500000000}) reads null without sizing a huge array or overflowing. */
@@ -7598,26 +8081,454 @@ public class CsvFormatReaderTests extends ESTestCase {
                 FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
             )
         );
-        assertThat(e.getMessage(), Matchers.containsString("duplicate column name [id]"));
+        assertThat(e.getMessage(), Matchers.containsString("duplicate column name [id]; columns cannot bind by name"));
+    }
+
+    /** Only a headered dialect has a header line to deliver to later splits; the answer is the setting, nothing else. */
+    public void testReadsHeaderLineFollowsHeaderRow() {
+        assertTrue(((CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))).readsHeaderLine());
+        assertFalse(((CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))).readsHeaderLine());
     }
 
     /**
-     * The split gate: a headered path-bound read must declare that it needs the file start, or the coordinators would
-     * hand it a chunk with no header and the binding would silently fall back to positional. Headerless stays
-     * splittable — that is the shape throughput-sensitive reads use.
+     * Schema inference, {@link CsvFormatReader#fileHeaderColumns} and the read that owns the file's start all read the
+     * header through one reader, so they agree on a quoted cell carrying the delimiter and on a backslash, in both the
+     * RFC 4180 dialect and the quoted-and-escaped one. The first split's binding is observed through a schema pinned in
+     * reverse order: each column must read the value under its own name.
      */
-    public void testDeclaredNameBindingNeedsFileStartOnlyWhenHeadered() {
-        CsvFormatReader headered = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true));
-        CsvFormatReader headerless = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
-        assertFalse("no declared path -> nothing to bind by name", headered.declaredNameBindingNeedsFileStart());
-        assertTrue(
-            "headered + declared path binds against the header line",
-            headered.withDeclaredProvenanceBinding(true).declaredNameBindingNeedsFileStart()
+    public void testHeaderNamesAgreeAcrossInferenceHeaderReadAndFirstSplit() throws Exception {
+        String csv = "\"x,y\",p\\q,z\n1,2,3\n";
+        for (Map<String, Object> config : List.of(
+            Map.<String, Object>of("header_row", true, "multi_value_syntax", "NONE"),
+            Map.<String, Object>of("header_row", true, "multi_value_syntax", "NONE", "mode", "quoted", "escape", "\\")
+        )) {
+            CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+            List<String> inferred = reader.metadata(createStorageObject(csv)).schema().stream().map(Attribute::name).toList();
+            assertEquals(config.toString(), inferred, reader.fileHeaderColumns(createStorageObject(csv)));
+            List<Attribute> reversed = new ArrayList<>();
+            for (int i = inferred.size() - 1; i >= 0; i--) {
+                reversed.add(new ReferenceAttribute(Source.EMPTY, null, inferred.get(i), DataType.KEYWORD));
+            }
+            List<String> values = new ArrayList<>();
+            try (
+                CloseableIterator<Page> it = reader.read(
+                    createStorageObject(csv),
+                    FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(reversed).build()
+                )
+            ) {
+                Page page = it.next();
+                for (int b = 0; b < page.getBlockCount(); b++) {
+                    values.add(((BytesRefBlock) page.getBlock(b)).getBytesRef(0, new BytesRef()).utf8ToString());
+                }
+                page.releaseBlocks();
+            }
+            assertEquals(config + " names " + inferred, List.of("3", "2", "1"), values);
+            assertTrue(config + " unexpected warnings", drainWarnings().isEmpty());
+        }
+    }
+
+    /**
+     * An escaped quote followed by a line break inside a quoted header cell is where an escape-aware and an
+     * escape-unaware reader disagree on where the header record ends. The header read must end it where schema
+     * inference does, or a later split binds against names the pinned schema was never resolved from.
+     */
+    public void testFileHeaderColumnsEndTheHeaderWhereInferenceDoes() throws Exception {
+        String csv = "\"a\\\",b\nc\",d\n1,2\n";
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", true, "multi_value_syntax", "NONE", "mode", "quoted", "escape", "\\", "error_mode", "skip_row")
         );
-        assertFalse(
-            "headerless names encode their own positions, so any split can bind",
-            headerless.withDeclaredProvenanceBinding(true).declaredNameBindingNeedsFileStart()
+        List<String> inferred = reader.metadata(createStorageObject(csv)).schema().stream().map(Attribute::name).toList();
+        assertEquals(inferred, reader.fileHeaderColumns(createStorageObject(csv)));
+    }
+
+    /** A file of only blank and comment lines has no header record, which is an answer (no columns), not a gap. */
+    public void testFileHeaderColumnsOfAFileOfOnlyCommentsAreEmptyNotNull() throws Exception {
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true, "comment", "#"));
+        assertEquals(List.of(), reader.fileHeaderColumns(createStorageObject("# one\n\n# two\n")));
+    }
+
+    /** A headerless reader has no header line: it hands none to later splits, and says so with {@code null}. */
+    public void testFileHeaderColumnsOfAHeaderlessReaderAreNotDelivered() throws Exception {
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        assertNull(reader.fileHeaderColumns(createStorageObject("1,2\n3,4\n")));
+    }
+
+    /**
+     * A later split of a file the header read found no columns in has nothing to bind and nothing to read, so it reads
+     * no rows. This differs from a split handed no columns at all, which cannot tell and fails loudly (above).
+     */
+    public void testNonFirstChunkOfAFileWithoutColumnsReadsNoRows() throws Exception {
+        StorageObject object = createStorageObject("# one\n# two\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true, "comment", "#"));
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(false)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .fileHeaderColumns(List.of())
+                    .build()
+            )
+        ) {
+            assertFalse(it.hasNext());
+        }
+    }
+
+    /** The header's names in file order; an empty file has none. */
+    public void testFileHeaderColumnsForHeaderedFile() throws Exception {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        assertEquals(List.of("id", "city", "name"), reader.fileHeaderColumns(createStorageObject("id,city,name\n3,tokyo,bob\n")));
+        assertEquals("an empty file has no header", List.of(), reader.fileHeaderColumns(createStorageObject("")));
+    }
+
+    /** A leading UTF-8 BOM is not part of the first column's name, exactly as on the split that owns the file's start. */
+    public void testFileHeaderColumnsStripBom() throws Exception {
+        byte[] body = "id,name\n1,alice\n".getBytes(StandardCharsets.UTF_8);
+        byte[] withBom = new byte[body.length + 3];
+        withBom[0] = (byte) 0xEF;
+        withBom[1] = (byte) 0xBB;
+        withBom[2] = (byte) 0xBF;
+        System.arraycopy(body, 0, withBom, 3, body.length);
+        assertEquals(List.of("id", "name"), new CsvFormatReader(blockFactory).fileHeaderColumns(createStorageObject(withBom)));
+    }
+
+    /** {@code skip_rows} and leading comment lines come before the header, as they do on the first split. */
+    public void testFileHeaderColumnsHonourSkipRowsAndComments() throws Exception {
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", true, "skip_rows", 2, "comment", "#")
         );
+        StorageObject object = createStorageObject("exported by tool\nversion 3\n# a comment\n\nid,name\n1,alice\n");
+        assertEquals(List.of("id", "name"), reader.fileHeaderColumns(object));
+    }
+
+    /** A typed header names its columns without the type annotation, as inference and the first split do. */
+    public void testFileHeaderColumnsStripTypeAnnotations() throws Exception {
+        StorageObject object = createStorageObject("emp_no:integer,first_name:keyword\n1,Alice\n");
+        assertEquals(List.of("emp_no", "first_name"), new CsvFormatReader(blockFactory).fileHeaderColumns(object));
+    }
+
+    /**
+     * While a node that predates header binding on every split may read part of the query, a headered file binds as that
+     * node does: an inferred schema by position, a declared one by the header's names. Otherwise both bind by name.
+     */
+    public void testHeaderBindingByProvenanceBindsAnInferredSchemaByPosition() throws Exception {
+        String content = "b,a\n2,1\n";
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "b", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        assertEquals("by name", List.of("1", "2"), firstRow(reader, content, readSchema, true));
+        assertEquals(
+            "inferred, by position",
+            List.of("2", "1"),
+            firstRow(reader.withHeaderBindingByProvenance(true), content, readSchema, true)
+        );
+        assertEquals(
+            "declared, by name",
+            List.of("1", "2"),
+            firstRow(reader.withDeclaredProvenanceBinding(true).withHeaderBindingByProvenance(true), content, readSchema, true)
+        );
+    }
+
+    /**
+     * A later split of a headered file under an inferred schema binds by position while an older node may read part of
+     * the query, so it needs no header columns: an older coordinator hands none.
+     */
+    public void testHeaderBindingByProvenanceReadsALaterSplitWithoutHeaderColumns() throws Exception {
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "b", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withHeaderBindingByProvenance(true);
+
+        assertEquals(List.of("2", "1"), firstRow(reader, "2,1\n", readSchema, false));
+    }
+
+    /**
+     * While an older node may read part of the query, the first split of a headered file keeps main's header read: the
+     * escape-aware data reader steps over the header and names the columns, for a declared and an inferred schema alike.
+     * This is the same escaped header as {@link #testFirstSplitStepsOverAHeaderWhereItsColumnsAreRead}, read with the gate
+     * on. The escape-aware header record runs on past its line break, so the rows are the ones an older node reads: none.
+     */
+    public void testHeaderBindingByProvenanceFirstSplitStepsOverTheHeaderAsMainDoes() throws Exception {
+        String content = "id,name,\"x\\\"\n1,alice,a\n2,bob,b\n";
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("trim_spaces", false));
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+        );
+        assertEquals(
+            "declared, gate on",
+            List.of(),
+            rowsOfFirstSplit(reader.withDeclaredProvenanceBinding(true).withHeaderBindingByProvenance(true), content, readSchema)
+        );
+        assertEquals("inferred, gate on", List.of(), rowsOfFirstSplit(reader.withHeaderBindingByProvenance(true), content, readSchema));
+    }
+
+    private List<String> rowsOfFirstSplit(CsvFormatReader reader, String content, List<Attribute> readSchema) throws IOException {
+        List<String> rows = new ArrayList<>();
+        try (
+            CloseableIterator<Page> it = reader.read(
+                new TrackingStorageObject(content),
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                LongBlock ids = page.getBlock(0);
+                BytesRefBlock names = page.getBlock(1);
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    rows.add(ids.getLong(p) + ":" + (names.isNull(p) ? "null" : names.getBytesRef(p, new BytesRef()).utf8ToString()));
+                }
+                page.releaseBlocks();
+            }
+        }
+        return rows;
+    }
+
+    private List<String> firstRow(CsvFormatReader reader, String content, List<Attribute> readSchema, boolean firstSplit)
+        throws IOException {
+        try (
+            CloseableIterator<Page> it = reader.read(
+                new TrackingStorageObject(content),
+                FormatReadContext.builder().firstSplit(firstSplit).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            Page page = it.next();
+            try {
+                List<String> row = new ArrayList<>();
+                for (int b = 0; b < page.getBlockCount(); b++) {
+                    row.add(((BytesRefBlock) page.getBlock(b)).getBytesRef(0, new BytesRef()).utf8ToString());
+                }
+                return row;
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * A header record that runs into the end of what the object serves, with no line terminator, may have been cut short
+     * by the end of a chunk or range: its names would be a prefix of the file's. It reads as no header, including when the
+     * cut lands inside a quoted name that spans a line break.
+     */
+    public void testFileHeaderColumnsOfAnUnterminatedHeaderAreNone() throws Exception {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        assertEquals(List.of(), reader.fileHeaderColumns(new TrackingStorageObject("emp_no,first_na")));
+        assertEquals(List.of(), reader.fileHeaderColumns(new TrackingStorageObject("emp_no,\"first\nna")));
+        assertEquals(List.of("emp_no", "first_name"), reader.fileHeaderColumns(new TrackingStorageObject("emp_no,first_name\n")));
+        assertEquals(List.of("emp_no", "first_name"), reader.fileHeaderColumns(new TrackingStorageObject("emp_no,first_name\r\n")));
+    }
+
+    /** The header is read from the leading bytes and the stream is aborted, never drained by a close. */
+    public void testFileHeaderColumnsAbortsTheStream() throws Exception {
+        TrackingStorageObject object = new TrackingStorageObject("id,name\n" + "1,alice\n".repeat(10_000));
+        assertEquals(List.of("id", "name"), new CsvFormatReader(blockFactory).fileHeaderColumns(object));
+        assertEquals(1, object.opened);
+        assertEquals("the stream must be aborted, not closed", 1, object.aborted);
+    }
+
+    /**
+     * The first split reads the file's columns from the stream it reads its rows from, in the pass that steps over the
+     * header: it opens no second stream, and buffers nothing however long the run of comments before the header.
+     */
+    public void testFirstSplitReadsItsHeaderFromItsRowStream() throws Exception {
+        TrackingStorageObject object = new TrackingStorageObject("# note\n".repeat(50_000) + "id,name\n1,alice\n2,bob\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true, "comment", "#"));
+        List<Long> ids = new ArrayList<>();
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    ids.add(((LongBlock) page.getBlock(1)).getLong(p));
+                }
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(List.of(1L, 2L), ids);
+        assertEquals("only the row stream is opened", 1, object.opened);
+        assertEquals(0, object.aborted);
+    }
+
+    /**
+     * Under an escaping dialect, a header holding an escaped quote before its line break ends where the header columns
+     * are read, not where an escape-aware reader would end it: the first split steps over the header the way it names
+     * the columns, so its rows are read as rows and bound by those names.
+     */
+    public void testFirstSplitStepsOverAHeaderWhereItsColumnsAreRead() throws Exception {
+        String content = "id,name,\"x\\\"\n1,alice,a\n2,bob,b\n";
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("trim_spaces", false));
+        List<String> columns = reader.fileHeaderColumns(new TrackingStorageObject(content));
+        assertEquals("the header ends at the line break", 3, columns.size());
+        assertEquals(List.of("id", "name"), columns.subList(0, 2));
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+        );
+        List<String> rows = new ArrayList<>();
+        try (
+            CloseableIterator<Page> it = reader.read(
+                new TrackingStorageObject(content),
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                LongBlock ids = page.getBlock(0);
+                BytesRefBlock names = page.getBlock(1);
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    rows.add(ids.getLong(p) + ":" + (names.isNull(p) ? "null" : names.getBytesRef(p, new BytesRef()).utf8ToString()));
+                }
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(List.of("1:alice", "2:bob"), rows);
+    }
+
+    /**
+     * A first split handed the file's columns reads its own header from its row stream and ignores the handed ones, so it
+     * opens no second stream to find them: the header is read once, from the bytes it already has.
+     */
+    public void testFirstSplitHandedItsHeaderColumnsOpensOnlyTheRowStream() throws Exception {
+        TrackingStorageObject object = new TrackingStorageObject("id,name\n1,alice\n2,bob\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG)
+        );
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        long rows = 0;
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(true)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .fileHeaderColumns(List.of("id", "name"))
+                    .build()
+            )
+        ) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(2, rows);
+        assertEquals("only the row stream is opened", 1, object.opened);
+        assertEquals(0, object.aborted);
+    }
+
+    /**
+     * A read that fails while binding, here on a duplicate header name, releases its stream by aborting it: the failure
+     * says nothing about the rest of the file, which closing the stream may drain from the object store.
+     */
+    public void testBindingFailureAbortsTheStreamInsteadOfDrainingIt() throws Exception {
+        TrackingStorageObject object = new TrackingStorageObject("id,id\n1,2\n" + "3,4\n".repeat(10_000));
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG));
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+
+        assertThat(e.getMessage(), containsString("duplicate column name"));
+        assertEquals(1, object.opened);
+        assertEquals("aborted, not closed", 1, object.aborted);
+    }
+
+    /**
+     * A later split of a file the header read found no columns in reads no rows, and releases its stream by aborting it
+     * rather than draining it.
+     */
+    public void testSplitOfAFileWithoutColumnsAbortsItsStream() throws Exception {
+        TrackingStorageObject object = new TrackingStorageObject("# one\n# two\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true, "comment", "#"));
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(false)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .fileHeaderColumns(List.of())
+                    .build()
+            )
+        ) {
+            assertFalse(it.hasNext());
+            expectThrows(NoSuchElementException.class, it::next);
+        }
+        assertEquals(1, object.opened);
+        assertEquals(1, object.aborted);
+    }
+
+    /** A {@link StorageObject} over a string that counts how often it was opened and aborted. */
+    private static final class TrackingStorageObject extends AbstractTestStorageObject {
+        private final byte[] bytes;
+        int opened;
+        int aborted;
+
+        TrackingStorageObject(String content) {
+            this.bytes = content.getBytes(StandardCharsets.UTF_8);
+        }
+
+        @Override
+        public InputStream newStream() {
+            opened++;
+            return new ByteArrayInputStream(bytes);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            return new ByteArrayInputStream(bytes, (int) position, (int) length);
+        }
+
+        @Override
+        public void abortStream(InputStream stream) throws IOException {
+            aborted++;
+            stream.close();
+        }
+
+        @Override
+        public long length() {
+            return bytes.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("memory://tracking.csv");
+        }
     }
 
     public void testStrictHeaderlessPathBindsByColumnIndex() throws Exception {
@@ -7697,11 +8608,11 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * A row wider than the file's own header is drift under a DECLARED schema exactly as it is under a pinned inferred
-     * one. The declared branch used to bound rows at Integer.MAX_VALUE, so the 5-field row was
-     * accepted, `tags` read the fragment "[alpha", and nothing warned. Both walkers, both bindings.
+     * A row wider than the file's own header is drift for a headered file whatever the schema's provenance: the row
+     * bound is the file's own header width. The declared branch used to bound rows at Integer.MAX_VALUE, so the 5-field
+     * row was accepted, `tags` read the fragment "[alpha", and nothing warned. Both walkers, both provenances.
      */
-    public void testDeclaredBindingKeepsRowWidthValidation() throws Exception {
+    public void testHeaderedBindingKeepsRowWidthValidation() throws Exception {
         for (boolean declared : List.of(false, true)) {
             for (boolean directBlock : List.of(false, true)) {
                 String desc = "declared=" + declared + " directBlock=" + directBlock;
@@ -7709,7 +8620,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 int rows = readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), List.of("id", "tags"));
                 List<String> warnings = drainWarnings();
                 assertEquals(desc, 1, rows);
-                String expected = declared ? "[5] columns, the header has [3]" : "[5] columns, the schema has [3]";
+                String expected = "[5] columns, the header has [3]";
                 assertTrue(desc + " expected " + expected + ", got: " + warnings, warnings.stream().anyMatch(w -> w.contains(expected)));
             }
         }
@@ -9635,7 +10546,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * sample rows are consumed.
      */
     public void testReadSchemaDoesNotDrainStream_inferredSchema() throws IOException {
-        // Plain headers trigger type inference from a sample (default 20 000 rows).
+        // Plain headers trigger type inference from a sample (default 40 000 rows).
         // The file contains 200 000 rows so most of it should remain unread after schema().
         StringBuilder csv = new StringBuilder("id,name,value\n");
         for (int i = 0; i < 200_000; i++) {
@@ -9933,7 +10844,8 @@ public class CsvFormatReaderTests extends ESTestCase {
             .recordAligned(recordAligned)
             .splitStartByte(splitStartByte);
         if (recordAligned) {
-            ctxBuilder.readSchema(schema);
+            // A later split of a headered file binds the pinned schema by the header columns handed to it.
+            ctxBuilder.readSchema(schema).fileHeaderColumns(List.of("id", "name"));
         }
         List<Long> result = new ArrayList<>();
         try (CloseableIterator<Page> iterator = reader.read(object, ctxBuilder.build())) {

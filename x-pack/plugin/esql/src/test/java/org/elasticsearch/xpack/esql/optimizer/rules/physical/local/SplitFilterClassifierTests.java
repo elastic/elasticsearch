@@ -161,6 +161,14 @@ public class SplitFilterClassifierTests extends ESTestCase {
 
     // --- AND conjunction ---
 
+    public void testClassifySplitSingleConjunctRewritesMixedLiteral() {
+        // size==1 must rewrite like the multi-conjunct path; else mixed stays AMBIGUOUS via
+        // disagreeingPushdownLiteral. age < 5.5 → age <= 5 is MISS against [10, 20].
+        Expression mixed = lessThanOf(AGE, of(5.5));
+        assertEquals(MISS, classifySplit(List.of(mixed), STATS_10_20, true));
+        assertEquals(MISS, classifySplit(List.of(mixed, greaterThanOrEqualOf(AGE, of(10L))), STATS_10_20, true));
+    }
+
     public void testConjunctionAllMatch() {
         assertEquals(MATCH, classifySplit(List.of(greaterThanOrEqualOf(AGE, of(10L)), lessThanOrEqualOf(AGE, of(20L))), STATS_10_20, true));
     }

@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
@@ -1239,11 +1241,23 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
             FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
             assertTrue(filter + " should push", result.hasPushedFilter());
             assertEquals(filter + " RECHECK must keep the original predicate in FilterExec", List.of(filter), result.remainder());
+            // Mirror PushStatsToExternalSource.hasScanOnlyPushedPredicates coverage: every pushed
+            // expression must appear in splitAnd(rewrite(FilterExec remainder)).
+            List<Expression> coveredByRemainder = Predicates.splitAnd(
+                PushdownLiteralConversion.rewrite(Predicates.combineAnd(result.remainder()))
+            );
             for (Expression pushed : result.pushedExpressions()) {
                 assertEquals(
                     filter + " pushed expression must be RECHECK for stats fold",
                     FilterPushdownSupport.Pushability.RECHECK,
                     support.canPush(pushed)
+                );
+                assertTrue(
+                    filter + " pushed expression must be covered by rewrite(remainder) for stats fold: pushed="
+                        + pushed
+                        + " covered="
+                        + coveredByRemainder,
+                    coveredByRemainder.contains(pushed)
                 );
             }
         }

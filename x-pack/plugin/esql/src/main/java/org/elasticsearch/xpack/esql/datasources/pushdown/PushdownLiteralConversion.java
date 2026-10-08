@@ -239,7 +239,8 @@ public final class PushdownLiteralConversion {
             return null;
         }
         Object value = ((Literal) literalExpr).value();
-        if (value == null) {
+        // Scalar only: MV array literals hold a List (still typed INTEGER/LONG/DOUBLE).
+        if (value instanceof Number == false) {
             return null;
         }
         Source source = literalExpr.source();
@@ -254,9 +255,6 @@ public final class PushdownLiteralConversion {
 
     @Nullable
     private static Converted convertTemporal(Source source, DataType columnType, DataType literalType, Object value, BoundOp op) {
-        if (value instanceof Number == false) {
-            return null;
-        }
         long raw = ((Number) value).longValue();
         if (columnType == DataType.DATE_NANOS && literalType == DataType.DATETIME) {
             try {
@@ -403,26 +401,17 @@ public final class PushdownLiteralConversion {
             }
         }
         // In-range non-integral: op-aware outward bound (int_col < 5.5 → int_col <= 5).
+        // LT/LTE and GT/GTE collapse: for integers, col < 5.5 and col <= 5.5 are both col <= 5.
         return switch (op) {
             case EQ -> Converted.contradiction();
             case NOT_EQ -> Converted.tautology();
-            case LT -> {
-                // col < d → col <= floor(d)
+            case LT, LTE -> {
+                // col < d / col <= d → col <= floor(d)
                 long bound = (long) Math.floor(d);
                 yield Converted.converted(integralLiteral(source, columnType, bound), BoundOp.LTE);
             }
-            case LTE -> {
-                // col <= d → col <= floor(d)
-                long bound = (long) Math.floor(d);
-                yield Converted.converted(integralLiteral(source, columnType, bound), BoundOp.LTE);
-            }
-            case GT -> {
-                // col > d → col >= ceil(d)
-                long bound = (long) Math.ceil(d);
-                yield Converted.converted(integralLiteral(source, columnType, bound), BoundOp.GTE);
-            }
-            case GTE -> {
-                // col >= d → col >= ceil(d)
+            case GT, GTE -> {
+                // col > d / col >= d → col >= ceil(d)
                 long bound = (long) Math.ceil(d);
                 yield Converted.converted(integralLiteral(source, columnType, bound), BoundOp.GTE);
             }

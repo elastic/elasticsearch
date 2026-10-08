@@ -236,6 +236,22 @@ public class PushdownLiteralConversionTests extends ESTestCase {
         assertSame(original, PushdownLiteralConversion.rewrite(original));
     }
 
+    public void testMultiValueNumericLiteralDeclinesWithoutClassCast() {
+        // MV array literals are still typed INTEGER/LONG/DOUBLE but hold a List — must decline,
+        // not ClassCastException on (Number) value. Same-type MV never enters convertNumeric
+        // (columnType == literalType), so use mixed types that used to throw.
+        Equals original = new Equals(SRC, field("id", DataType.LONG), new Literal(SRC, List.of(1, 2), DataType.INTEGER), null);
+        assertSame(original, PushdownLiteralConversion.rewrite(original));
+
+        LessThan mixed = new LessThan(
+            SRC,
+            field("id", DataType.INTEGER),
+            new Literal(SRC, List.of(1.5, 2.5), DataType.DOUBLE),
+            null
+        );
+        assertSame(mixed, PushdownLiteralConversion.rewrite(mixed));
+    }
+
     public void testRangeAgreeingNonLiteralAndMixedLiteralUnchanged() {
         // Reverse of testRangeNonLiteralBoundUnchanged: agreeing lower is foldable non-Literal,
         // upper is a mixed Literal. Must decline rather than ClassCastException on the cast.

@@ -2225,7 +2225,6 @@ public class ExternalSourceResolver {
         }
     }
 
-
     /**
      * Returns {@code safeMetadata} without the coordinator-cache stripe bookkeeping ({@code _stats.stripe.<k>},
      * {@code _stats.stripe_last_index}, {@code _stats.stripe_grid}) — those feed the cache-side 0..K fold and are

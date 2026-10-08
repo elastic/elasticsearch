@@ -1,0 +1,137 @@
+// Test against multiple indices, including one with mappings but no data.
+
+four_rates
+required_capability: disable_replace_null_rule_for_time_series
+required_capability: ts_command_v0
+TS k8s, empty-k8s
+| STATS r1 = sum(rate(network.total_bytes_in)),
+        r2 = sum(rate(network.total_bytes_out)),
+        r3 = sum(rate(extra.total_bytes_in)),
+        r4 = sum(rate(extra.total_bytes_out))
+  BY cluster
+| SORT cluster
+| LIMIT 5
+;
+r1:double          | r2:double | r3:double | r4:double | cluster:keyword
+24.49149357711476  | null      | null      | null      | prod
+33.308519044441084 | null      | null      | null      | qa
+18.610708062016123 | null      | null      | null      | staging
+;
+
+by_four_dims
+required_capability: disable_replace_null_rule_for_time_series
+required_capability: ts_command_v0
+TS k8s, empty-k8s
+| STATS r = sum(rate(network.total_bytes_in)) BY cluster, pod, extra.cluster, extra.pod
+| SORT cluster, pod
+| LIMIT 5
+;
+r:double           | cluster:keyword | pod:keyword | extra.cluster:keyword | extra.pod:keyword
+8.716707021791768  | prod            | one         | null                  | null
+8.434290687554395  | prod            | three       | null                  | null
+7.340495867768595  | prod            | two         | null                  | null
+10.649149922720246 | qa              | one         | null                  | null
+9.485643970467596  | qa              | three       | null                  | null
+;
+
+four_rates_by_four_dims
+required_capability: disable_replace_null_rule_for_time_series
+required_capability: ts_command_v0
+TS k8s, empty-k8s
+| STATS r1 = sum(rate(network.total_bytes_in)),
+        r2 = sum(rate(network.total_bytes_out)),
+        r3 = sum(rate(extra.total_bytes_in)),
+        r4 = sum(rate(extra.total_bytes_out))
+  BY cluster, pod, extra.cluster, extra.pod
+| SORT cluster, pod
+| LIMIT 5
+;
+r1:double          | r2:double | r3:double | r4:double | cluster:keyword | pod:keyword | extra.cluster:keyword | extra.pod:keyword
+8.716707021791768  | null      | null      | null      | prod            | one         | null                  | null
+8.434290687554395  | null      | null      | null      | prod            | three       | null                  | null
+7.340495867768595  | null      | null      | null      | prod            | two         | null                  | null
+10.649149922720246 | null      | null      | null      | qa              | one         | null                  | null
+9.485643970467596  | null      | null      | null      | qa              | three       | null                  | null
+;
+
+
+one_rate_no_grouping
+required_capability: disable_replace_null_rule_for_time_series
+required_capability: ts_command_v0
+TS k8s, empty-k8s
+| STATS r = sum(rate(extra.total_bytes_in))
+;
+r:double
+null
+;
+
+one_gauge_by_one_dimension
+required_capability: disable_replace_null_rule_for_time_series
+required_capability: ts_command_v0
+TS k8s, empty-k8s
+| STATS g = max(last_over_time(extra.tx)) BY cluster
+| SORT cluster
+| LIMIT 3
+;
+g:integer | cluster:keyword
+;
+
+
+one_rate_one_gauge_by_two_dimensions
+required_capability: disable_replace_null_rule_for_time_series
+required_capability: ts_command_v0
+TS k8s, empty-k8s
+| STATS r = sum(rate(extra.total_bytes_in)),
+        g = max(last_over_time(extra.tx))
+  BY cluster, pod
+| SORT cluster, pod
+| LIMIT 5
+;
+r:double | g:integer | cluster:keyword | pod:keyword
+;
+
+
+two_rates_by_three_dimensions
+required_capability: disable_replace_null_rule_for_time_series
+required_capability: ts_command_v0
+TS k8s, empty-k8s
+| STATS r1 = sum(rate(extra.total_bytes_in)),
+        r2 = sum(rate(extra.total_bytes_out))
+  BY cluster, pod, extra.cluster
+| SORT cluster, pod
+| LIMIT 5
+;
+r1:double | r2:double | cluster:keyword | pod:keyword | extra.cluster:keyword
+;
+
+
+two_gauges_without
+skip_flattened_rewrite: without_unsupported
+required_capability: disable_replace_null_rule_for_time_series
+required_capability: esql_without_grouping
+required_capability: ts_command_v0
+TS k8s, empty-k8s
+| STATS g1 = max(last_over_time(extra.tx)),
+        g2 = max(last_over_time(extra.rx))
+  BY WITHOUT(pod, region, extra.cluster, extra.pod, extra.proc)
+| SORT g1
+| LIMIT 5
+;
+g1:integer | g2:integer | _timeseries:keyword
+;
+
+
+two_rates_two_gauges
+required_capability: disable_replace_null_rule_for_time_series
+required_capability: ts_command_v0
+TS k8s, empty-k8s
+| STATS r1 = sum(rate(extra.total_bytes_in)),
+        r2 = sum(rate(extra.total_bytes_out)),
+        g1 = max(last_over_time(extra.tx)),
+        g2 = max(last_over_time(extra.rx))
+  BY cluster
+| SORT cluster
+| LIMIT 3
+;
+r1:double | r2:double | g1:integer | g2:integer | cluster:keyword
+;

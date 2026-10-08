@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -37,7 +38,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Scalb extends EsqlScalarFunction {
+public class Scalb extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Scalb", Scalb::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Scalb.class).binary(Scalb::new).name("scalb");
 
@@ -164,19 +165,14 @@ public class Scalb extends EsqlScalarFunction {
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var dEval = Cast.cast(source(), d.dataType(), DataType.DOUBLE, toEvaluator.apply(d));
         if (scaleFactor.foldable()) {
-            return switch (scaleFactor.dataType()) {
-                case DataType.INTEGER -> new ScalbConstantIntEvaluator.Factory(
-                    source(),
-                    dEval,
-                    (Integer) (scaleFactor.fold(toEvaluator.foldCtx()))
-                );
-                case DataType.LONG -> new ScalbConstantLongEvaluator.Factory(
-                    source(),
-                    dEval,
-                    (Long) (scaleFactor.fold(toEvaluator.foldCtx()))
-                );
-                default -> throw new IllegalStateException("Invalid type for scaleFactor, should be int or long.");
-            };
+            // instanceof is null-safe: falls through to the row-level evaluator when fold() returns null
+            // (e.g. a missing field resolved to null in a per-shard plan).
+            Object folded = scaleFactor.fold(toEvaluator.foldCtx());
+            if (folded instanceof Integer scaleInt) {
+                return new ScalbConstantIntEvaluator.Factory(source(), dEval, scaleInt);
+            } else if (folded instanceof Long scaleLong) {
+                return new ScalbConstantLongEvaluator.Factory(source(), dEval, scaleLong);
+            }
         }
         var scaleFactorEval = toEvaluator.apply(scaleFactor);
         return switch (scaleFactor.dataType()) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.lucene.RamUsageEstimates;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
@@ -31,7 +32,6 @@ import static org.apache.lucene.util.RamUsageEstimator.sizeOfCollection;
 public class TokenListCategory implements Accountable {
 
     private static final long SHALLOW_SIZE = shallowSizeOfInstance(TokenListCategory.class);
-    private static final long SHALLOW_SIZE_OF_ARRAY_LIST = shallowSizeOfInstance(ArrayList.class);
 
     /**
      * ID that's locally unique for a given {@link TokenListCategorizer}.
@@ -613,11 +613,11 @@ public class TokenListCategory implements Accountable {
             // method called for baseWeightedTokenIds and commonUniqueTokenIds, but taking advantage of the fact
             // that TokenAndWeight objects have fixed size.
             + alignObjectSize(
-                SHALLOW_SIZE_OF_ARRAY_LIST + NUM_BYTES_ARRAY_HEADER + baseWeightedTokenIds.size() * (TokenAndWeight.SHALLOW_SIZE
-                    + NUM_BYTES_OBJECT_REF)
+                RamUsageEstimates.ARRAY_LIST_SHALLOW_SIZE + NUM_BYTES_ARRAY_HEADER + baseWeightedTokenIds.size()
+                    * (TokenAndWeight.SHALLOW_SIZE + NUM_BYTES_OBJECT_REF)
             ) + alignObjectSize(
-                SHALLOW_SIZE_OF_ARRAY_LIST + NUM_BYTES_ARRAY_HEADER + commonUniqueTokenIds.size() * (TokenAndWeight.SHALLOW_SIZE
-                    + NUM_BYTES_OBJECT_REF)
+                RamUsageEstimates.ARRAY_LIST_SHALLOW_SIZE + NUM_BYTES_ARRAY_HEADER + commonUniqueTokenIds.size()
+                    * (TokenAndWeight.SHALLOW_SIZE + NUM_BYTES_OBJECT_REF)
             );
     }
 

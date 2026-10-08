@@ -282,6 +282,10 @@ When the target is not an indexed field, `MATCH` evaluates by scanning values
 row by row instead of using the inverted index, which is slower on large
 datasets. For best performance, prefer searching indexed fields when possible.
 
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+`MATCH_PHRASE` can target `text` and `keyword` expressions in the same way,
+with the same performance characteristics.
+
 :::{tip}
 To learn more about using {{esql}} for search use cases, refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.md).
 :::
@@ -477,6 +481,17 @@ Cancel a specific task:
 POST _tasks/<task_id>/_cancel
 ```
 
+
+## Optimize queries for {{esql}} Data Federation
+
+```{applies_to}
+stack: preview =9.5
+serverless: preview
+```
+
+The advice on this page, particularly adding a [`WHERE`](/reference/query-languages/esql/commands/where.md), a [`KEEP`](/reference/query-languages/esql/commands/keep.md), and a [`LIMIT`](/reference/query-languages/esql/commands/limit.md), applies to [external datasets](/reference/query-languages/esql/esql-data-federation-querying.md) as well as indices. Because datasets read from object storage rather than local disk, every unnecessary column or row translates directly into additional network I/O.
+
+Datasets also have their own performance characteristics, including partition pruning, Parquet row-group skipping, late materialization, and metadata caching. For details, refer to [query external datasets](/reference/query-languages/esql/esql-data-federation-querying.md#how-external-data-is-read).
 
 ## Related pages
 

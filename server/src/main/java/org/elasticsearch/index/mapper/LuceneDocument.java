@@ -52,6 +52,13 @@ public class LuceneDocument implements Iterable<IndexableField> {
         this("", null);
     }
 
+    public LuceneDocument(List<IndexableField> fields) {
+        this.fields = fields;
+        this.path = "";
+        this.prefix = "";
+        this.parent = null;
+    }
+
     /**
      * Return the path associated with this document.
      */

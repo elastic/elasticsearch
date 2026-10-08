@@ -121,6 +121,7 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

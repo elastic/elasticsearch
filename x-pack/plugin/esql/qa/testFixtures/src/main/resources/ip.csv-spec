@@ -257,6 +257,22 @@ eth1           |beta           |127.0.0.1                |127.0.0.2
 eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
 ;
 
+// Exercises CIDR_MATCH:blockX with a keyword field reference (ip1 from hosts_ip_is_kwd)
+// so that field_extract coverage is recorded for the blockX parameter slot.
+cidrMatchWithKeywordBlock
+
+FROM hosts_ip_is_kwd
+| WHERE host == "alpha"
+| EVAL r = CIDR_MATCH(ip0::IP, ip1)
+| SORT card
+| KEEP host, card, ip0, ip1, r
+;
+
+host:keyword | card:keyword | ip0:keyword | ip1:keyword | r:boolean
+alpha        | eth0         | 127.0.0.1   | 127.0.0.1   | true
+alpha        | eth1         | ::1         | ::1         | true
+;
+
 convertFromIP
 from hosts | keep ip0 | eval ip0ip = to_ip(ip0) | sort ip0ip desc | limit 2;
 
@@ -401,7 +417,6 @@ lo0            |gamma          |fe80::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:f
 ;
 
 cdirMatchEqualsInsOrs
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: combine_disjunctive_cidrmatches
 
 FROM hosts
@@ -427,7 +442,6 @@ lo0            |gamma          |fe80::cae2:65ff:fece:feb9                       
 ;
 
 cidrMatchEqualsInsOrsIPs
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: combine_disjunctive_cidrmatches
 
 FROM hosts
@@ -928,6 +942,21 @@ warning:Line 2:20: java.lang.IllegalArgumentException: 'invalid_network' is not 
 
 ip0:ip      |ip1:ip    |direction:keyword
 127.0.0.1   |8.8.8.8   |null
+;
+
+networkDirectionWithKeywordNetworksField
+required_capability: network_direction
+
+FROM network_direction_networks
+| EVAL direction = NETWORK_DIRECTION(src_ip, dst_ip, network)
+| SORT src_ip, dst_ip
+| KEEP src_ip, dst_ip, network, direction;
+
+src_ip:ip   | dst_ip:ip    | network:keyword | direction:keyword
+8.8.8.8     | 10.0.0.1     | private         | inbound
+10.0.0.1    | 8.8.8.8      | private         | outbound
+10.0.0.1    | 192.168.1.1  | private         | internal
+127.0.0.1   | 127.0.0.2    | loopback        | internal
 ;
 
 mvMinRow

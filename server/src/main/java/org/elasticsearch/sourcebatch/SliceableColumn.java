@@ -10,18 +10,21 @@
 package org.elasticsearch.sourcebatch;
 
 /**
- * A column that carries its own window ({@code [from, from + count)}) and can produce a
- * sub-range view on demand. Slicing a {@code SliceableColumn} yields a new instance sharing
- * the same backing data but adjusted to the sub-range — no copying occurs.
+ * A column that carries its own window ({@code [from, from + count)}) over backing data.
+ * Slicing yields a new instance sharing the same backing data but adjusted to a
+ * sub-range — no copying occurs.
+ *
+ * <p>Implementations that can also produce Lucene fields for indexing should extend
+ * {@link LuceneColumn}.
  */
 public interface SliceableColumn {
 
     /**
-     * Returns a view over {@code [from, from + count)} of this column's document range.
+     * Returns a view over {@code [from, from + count)} of this column's row range.
      *
      * @param from  start (inclusive) relative to this window, must be ≥ 0
-     * @param count number of documents in the new window, must be ≥ 0 and {@code from + count}
-     *              must be ≤ this column's document count
+     * @param count number of rows in the new window, must be ≥ 0 and {@code from + count}
+     *              must be ≤ this column's row count
      */
     SliceableColumn slice(int from, int count);
 }

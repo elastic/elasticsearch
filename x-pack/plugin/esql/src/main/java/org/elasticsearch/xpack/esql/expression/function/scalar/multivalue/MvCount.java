@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -34,7 +35,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 /**
  * Reduce a multivalued field to a single valued field containing the count of values.
  */
-public class MvCount extends AbstractMultivalueFunction {
+public class MvCount extends AbstractMultivalueFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvCount", MvCount::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvCount.class)
         .unary(MvCount::new)
@@ -60,6 +61,7 @@ public class MvCount extends AbstractMultivalueFunction {
                 "date_nanos",
                 "date_range",
                 "double",
+                "double_range",
                 "flattened",
                 "geo_point",
                 "geo_shape",
@@ -152,12 +154,11 @@ public class MvCount extends AbstractMultivalueFunction {
         protected Block evalNullable(Block block) {
             try (var builder = driverContext.blockFactory().newIntBlockBuilder(block.getPositionCount())) {
                 for (int p = 0; p < block.getPositionCount(); p++) {
-                    int valueCount = block.getValueCount(p);
-                    if (valueCount == 0) {
+                    if (block.isNull(p)) {
                         builder.appendNull();
                         continue;
                     }
-                    builder.appendInt(valueCount);
+                    builder.appendInt(block.getValueCount(p));
                 }
                 return builder.build();
             }

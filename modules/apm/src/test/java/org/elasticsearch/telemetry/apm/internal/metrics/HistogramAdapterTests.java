@@ -13,7 +13,6 @@ import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
 
-import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -37,6 +36,44 @@ public class HistogramAdapterTests extends ESTestCase {
         reader = InMemoryMetricReader.create();
         SdkMeterProvider provider = SdkMeterProvider.builder().registerMetricReader(reader).build();
         registry = new APMMeterRegistry(provider.get("elasticsearch"));
+    }
+
+    public void testLongHistogramUsesCustomBoundaries() {
+        List<Long> customBoundaries = List.of(10L, 100L, 1_000L, 10_000L, 100_000L);
+        String name = "es.test.custom.long.histogram";
+        registry.registerLongHistogram(name, "desc", "ms", customBoundaries).record(randomNonNegativeLong());
+
+        List<Double> actualBoundaries = reader.collectAllMetrics()
+            .stream()
+            .filter(m -> m.getName().equals(name))
+            .findFirst()
+            .orElseThrow()
+            .getHistogramData()
+            .getPoints()
+            .iterator()
+            .next()
+            .getBoundaries();
+
+        assertThat(actualBoundaries, equalTo(customBoundaries.stream().map(Long::doubleValue).toList()));
+    }
+
+    public void testDoubleHistogramUsesCustomBoundaries() {
+        List<Double> customBoundaries = List.of(0.01, 0.1, 1.0, 10.0, 100.0);
+        String name = "es.test.custom.double.histogram";
+        registry.registerDoubleHistogram(name, "desc", "ms", customBoundaries).record(randomDoubleBetween(0.0, 100.0, true));
+
+        List<Double> actualBoundaries = reader.collectAllMetrics()
+            .stream()
+            .filter(m -> m.getName().equals(name))
+            .findFirst()
+            .orElseThrow()
+            .getHistogramData()
+            .getPoints()
+            .iterator()
+            .next()
+            .getBoundaries();
+
+        assertThat(actualBoundaries, equalTo(customBoundaries));
     }
 
     public void testHistogramsUseApmDefaultBoundaries() {

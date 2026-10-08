@@ -12,11 +12,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 
@@ -24,6 +21,8 @@ import java.io.IOException;
 import java.util.Deque;
 import java.util.Objects;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.parseObjects;
 
 public class GoogleVertexAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSentEvent>, InferenceServiceResults.Result> {
 
@@ -35,23 +34,22 @@ public class GoogleVertexAiStreamingProcessor extends DelegatingProcessor<Deque<
         if (results.isEmpty()) {
             upstream().request(1);
         } else {
-            downstream().onNext(new StreamingChatCompletionResults.Results(results));
+            downstream().onNext(new StreamingCompletionResults.Results(results));
         }
     }
 
-    public static Stream<StreamingChatCompletionResults.Result> parse(XContentParserConfiguration parserConfig, ServerSentEvent event) {
-        String data = event.data();
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
-            var chunk = GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser.parse(jsonParser);
-
-            return chunk.choices()
-                .stream()
-                .map(choice -> choice.delta())
-                .filter(Objects::nonNull)
-                .map(delta -> delta.content())
-                .filter(content -> Strings.isNullOrEmpty(content) == false)
-                .map(StreamingChatCompletionResults.Result::new);
-
+    public static Stream<StreamingCompletionResults.Result> parse(XContentParserConfiguration parserConfig, ServerSentEvent event) {
+        try {
+            return parseObjects(parserConfig, event.data(), p -> {
+                var chunk = GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser.parse(p);
+                return chunk.choices()
+                    .stream()
+                    .map(choice -> choice.message())
+                    .filter(Objects::nonNull)
+                    .map(message -> message.content())
+                    .filter(content -> Strings.isNullOrEmpty(content) == false)
+                    .map(StreamingCompletionResults.Result::new);
+            });
         } catch (IOException e) {
             throw new ElasticsearchStatusException(
                 "Failed to parse event from inference provider: {}",

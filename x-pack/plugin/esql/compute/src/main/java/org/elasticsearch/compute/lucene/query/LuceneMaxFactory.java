@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.lucene.query;
 
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.LongValues;
@@ -106,6 +107,14 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
             return bytesToLong(pointValues.getMaxPackedValue());
         }
 
+        public final long fromSkipper(DocValuesSkipper skipper) {
+            return skipper.maxValue();
+        }
+
+        public final boolean canSkipLeaf(DocValuesSkipper skipper, long currentResult) {
+            return skipper.maxValue() <= currentResult;
+        }
+
         public final long evaluate(long value1, long value2) {
             return Math.max(value1, value2);
         }
@@ -132,7 +141,7 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
             contexts,
             queryFunction,
             dataPartitioning,
-            query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+            (ctx, query) -> LuceneSliceQueue.PartitioningStrategy.SHARD,
             LuceneOperator.SMALL_INDEX_BOUNDARY,
             taskConcurrency,
             limit,

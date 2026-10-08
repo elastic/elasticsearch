@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.IntBlock;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRan
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDoubleRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
@@ -109,6 +111,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
@@ -162,6 +165,7 @@ public class EsqlDataTypeConverter {
         // ToDegrees, typeless
         Map.entry(DENSE_VECTOR, ToDenseVector::new),
         Map.entry(DOUBLE, ToDouble::new),
+        Map.entry(DOUBLE_RANGE, ToDoubleRange::new),
         Map.entry(EXPONENTIAL_HISTOGRAM, ToExponentialHistogram::new),
         Map.entry(GEO_POINT, ToGeoPoint::new),
         Map.entry(GEO_SHAPE, ToGeoShape::new),
@@ -309,13 +313,13 @@ public class EsqlDataTypeConverter {
                 return l -> EsqlDataTypeConverter.stringToSpatial(BytesRefs.toString(l));
             }
             if (to == DataType.GEOHASH) {
-                return l -> Geohash.longEncode(BytesRefs.toString(l));
+                return l -> EsqlDataTypeConverter.stringToGeohash(BytesRefs.toString(l));
             }
             if (to == DataType.GEOTILE) {
-                return l -> GeoTileUtils.longEncode(BytesRefs.toString(l));
+                return l -> EsqlDataTypeConverter.stringToGeotile(BytesRefs.toString(l));
             }
             if (to == DataType.GEOHEX) {
-                return l -> H3.stringToH3(BytesRefs.toString(l));
+                return l -> EsqlDataTypeConverter.stringToGeohex(BytesRefs.toString(l));
             }
             if (to == DataType.TIME_DURATION) {
                 return l -> EsqlDataTypeConverter.parseTemporalAmount(l, DataType.TIME_DURATION);
@@ -636,6 +640,91 @@ public class EsqlDataTypeConverter {
         };
     }
 
+    /*
+     * Validation of geo-grid values. Without these checks an invalid value would only fail (or produce garbage)
+     * much later, when rendered in the results. Error messages always show the input as the user provided it,
+     * so long inputs are reported as longs, and string inputs as strings.
+     */
+
+    public static long stringToGeohash(String field) {
+        if (field.isEmpty() || field.length() > Geohash.PRECISION) {
+            throw new IllegalArgumentException(
+                "Invalid geohash [" + field + "]: length must be between 1 and " + Geohash.PRECISION + " characters"
+            );
+        }
+        long geohash = Geohash.longEncode(field);
+        // Geohash.longEncode does not reject characters outside the geohash alphabet, but they do not survive a round trip
+        if (Geohash.stringEncode(geohash).equals(field) == false) {
+            throw new IllegalArgumentException("Invalid geohash [" + field + "]: contains characters outside the geohash alphabet");
+        }
+        return geohash;
+    }
+
+    /**
+     * A valid geohash long has the level (1 to 12) in the four least significant bits, and five bits per level above that,
+     * with all higher bits unset. At level 12 all 64 bits are used, so some valid geohash longs are negative.
+     */
+    public static long longToGeohash(long field) {
+        int level = (int) (field & 15);
+        if (level < 1 || level > Geohash.PRECISION) {
+            throw new IllegalArgumentException(
+                "Invalid geohash long [" + field + "]: level [" + level + "] must be between 1 and " + Geohash.PRECISION
+            );
+        }
+        if (((field >>> 4) >>> (5 * level)) != 0) {
+            throw new IllegalArgumentException("Invalid geohash long [" + field + "]: has bits set above level [" + level + "]");
+        }
+        return field;
+    }
+
+    /**
+     * A valid geotile has a zoom between 0 and 29, and x and y tiles between 0 and 2^zoom - 1.
+     */
+    public static long stringToGeotile(String field) {
+        // parseHash and checkPrecisionRange throw IllegalArgumentException with messages containing the original string
+        int[] zxy = GeoTileUtils.parseHash(field);
+        int tiles = 1 << GeoTileUtils.checkPrecisionRange(zxy[0]);
+        if (zxy[1] < 0 || zxy[2] < 0 || zxy[1] >= tiles || zxy[2] >= tiles) {
+            throw new IllegalArgumentException(
+                "Invalid geotile [" + field + "]: x and y must be between 0 and " + (tiles - 1) + " for zoom " + zxy[0]
+            );
+        }
+        return GeoTileUtils.longEncodeTiles(zxy[0], zxy[1], zxy[2]);
+    }
+
+    /**
+     * A valid geotile long has the zoom (0 to 29) in the high bits, followed by the x and y tiles,
+     * each between 0 and 2^zoom - 1. Since the highest bit is never used, all negative longs are invalid geotiles.
+     */
+    public static long longToGeotile(long field) {
+        try {
+            // stringEncode validates the zoom, x and y values, and throws an IllegalArgumentException if any are invalid
+            GeoTileUtils.stringEncode(field);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid geotile long [" + field + "]: " + e.getMessage(), e);
+        }
+        return field;
+    }
+
+    public static long stringToGeohex(String field) {
+        // stringToH3 throws a NumberFormatException (an IllegalArgumentException) containing the string if it is not hexadecimal
+        long geohex = H3.stringToH3(field);
+        if (H3.h3IsValid(geohex) == false) {
+            throw new IllegalArgumentException("Invalid geohex [" + field + "]: not a valid H3 cell address");
+        }
+        return geohex;
+    }
+
+    /**
+     * A valid geohex long is a valid H3 cell index. Since the highest bit is never used, all negative longs are invalid geohexes.
+     */
+    public static long longToGeohex(long field) {
+        if (H3.h3IsValid(field) == false) {
+            throw new IllegalArgumentException("Invalid geohex long [" + field + "]: not a valid H3 cell index");
+        }
+        return field;
+    }
+
     public static BytesRef geoGridToShape(long field, DataType dataType) {
         return switch (dataType) {
             case GEOHASH -> StGeohash.toBounds(field);
@@ -751,8 +840,78 @@ public class EsqlDataTypeConverter {
         return dateTimeToString(from, formatter) + ".." + dateTimeToString(to, formatter);
     }
 
+    /**
+     * Parses the string representation used for double range response values.
+     */
+    public static DoubleRangeBlockBuilder.DoubleRange parseDoubleRange(String value) {
+        String[] bounds = value.split("\\.\\.", -1);
+        if (bounds.length != 2) {
+            throw new IllegalArgumentException("expected double range in the form 'from..to', got [" + value + "]");
+        }
+        double from = Double.parseDouble(bounds[0]);
+        double to = Double.parseDouble(bounds[1]);
+        if (Double.isNaN(from) || Double.isNaN(to) || from >= to) {
+            throw new IllegalArgumentException("double range 'from' [" + bounds[0] + "] must be less than 'to' [" + bounds[1] + "]");
+        }
+        return new DoubleRangeBlockBuilder.DoubleRange(from, to);
+    }
+
+    /**
+     * Formats a half-open double range for response serialization.
+     */
+    public static String doubleRangeToString(DoubleRangeBlockBuilder.DoubleRange range) {
+        return doubleRangeToString(range.from(), range.to());
+    }
+
+    /**
+     * Formats half-open double range bounds for response serialization.
+     */
+    public static String doubleRangeToString(double from, double to) {
+        return Double.toString(from) + ".." + Double.toString(to);
+    }
+
     public static BytesRef numericBooleanToString(Object field) {
         return new BytesRef(String.valueOf(field));
+    }
+
+    private static final BytesRef BYTES_TRUE = new BytesRef("true");
+    private static final BytesRef BYTES_FALSE = new BytesRef("false");
+
+    public static BytesRef booleanToString(boolean b) {
+        return b ? BYTES_TRUE : BYTES_FALSE;
+    }
+
+    public static BytesRef intToString(int integer) {
+        byte[] buf = new byte[11]; // "-2147483648" is 11 bytes
+        int pos = 11;
+        boolean negative = integer < 0;
+        int q = negative ? integer : -integer;
+        while (q <= -10) {
+            buf[--pos] = (byte) ('0' - (q % 10));
+            q /= 10;
+        }
+        buf[--pos] = (byte) ('0' - q);
+        if (negative) {
+            buf[--pos] = (byte) '-';
+        }
+        return new BytesRef(buf, pos, 11 - pos);
+    }
+
+    public static BytesRef longToString(long lng) {
+        // Work in negated space throughout to handle Long.MIN_VALUE without overflow.
+        byte[] buf = new byte[20]; // "-9223372036854775808" needs 20 bytes
+        int pos = 20;
+        boolean negative = lng < 0;
+        long q = negative ? lng : -lng;
+        while (q <= -10) {
+            buf[--pos] = (byte) ('0' - (int) (q % 10));
+            q /= 10;
+        }
+        buf[--pos] = (byte) ('0' - (int) q);
+        if (negative) {
+            buf[--pos] = (byte) '-';
+        }
+        return new BytesRef(buf, pos, 20 - pos);
     }
 
     public static boolean stringToBoolean(String field) {
@@ -788,6 +947,10 @@ public class EsqlDataTypeConverter {
     }
 
     public static BytesRef unsignedLongToString(long number) {
+        if (number < 0) {
+            // stored biased value < 0 means unsigned value <= Long.MAX_VALUE: recover it and write directly
+            return longToString(number ^ Long.MIN_VALUE);
+        }
         return new BytesRef(unsignedLongAsNumber(number).toString());
     }
 

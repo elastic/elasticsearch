@@ -98,8 +98,11 @@ Dates
 [`search_as_you_type`](/reference/elasticsearch/mapping-reference/search-as-you-type.md)
 :   `text`-like type for as-you-type completion.
 
+[`semantic`](/reference/elasticsearch/mapping-reference/semantic-field.md) {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+:   Used for performing semantic search on multimodal content.
+
 [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md)
-:   Used for performing [semantic search](docs-content://solutions/search/semantic-search.md).
+:   Used for performing [semantic search](docs-content://solutions/search/semantic-search.md) on text.
 
 [`token_count`](/reference/elasticsearch/mapping-reference/token-count.md)
 :   A count of tokens in a text.
@@ -112,6 +115,9 @@ Dates
 
 [`sparse_vector`](/reference/elasticsearch/mapping-reference/sparse-vector.md)
 :   Records sparse vectors of float values.
+
+[`rank_vectors`](/reference/elasticsearch/mapping-reference/rank-vectors.md)
+:   Records multiple dense vectors per document for late-interaction (max-sim) reranking.
 
 [`rank_feature`](/reference/elasticsearch/mapping-reference/rank-feature.md)
 :   Records a numeric feature to boost hits at query time.

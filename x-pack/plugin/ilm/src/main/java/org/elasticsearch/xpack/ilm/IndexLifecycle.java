@@ -152,7 +152,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            services.featureService()
         );
         ilmTemplateRegistry.initialize();
         ilmHistoryStore.set(
@@ -180,7 +181,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
                 nowSupplier,
                 services.xContentRegistry(),
                 ilmHistoryStore.get(),
-                getLicenseState()
+                getLicenseState(),
+                services.dataStreamLifecycleSettings()
             )
         );
         components.add(indexLifecycleInitialisationService.get());
@@ -191,7 +193,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
                 new IlmHealthIndicatorService.StagnatingIndicesFinder(
                     services.clusterService(),
                     IlmHealthIndicatorService.RULES_BY_ACTION_CONFIG.values(),
-                    System::currentTimeMillis
+                    System::currentTimeMillis,
+                    services.dataStreamLifecycleSettings()
                 )
             )
         );

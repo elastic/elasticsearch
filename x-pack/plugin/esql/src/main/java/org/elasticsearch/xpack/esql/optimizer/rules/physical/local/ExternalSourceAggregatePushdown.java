@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.ColumnStatTypeSupport;
 import org.elasticsearch.xpack.esql.datasources.MergedSplitStats;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -130,9 +131,12 @@ public final class ExternalSourceAggregatePushdown {
             // Double / BytesRef). Serve only the representation buildBlock's matching arm can materialize without a crash
             // (BOOLEAN: parseBoolean(BytesRef.toString()=hex); BYTES_REF: toBytesRef((Number).toString()); DOUBLE:
             // (Number) cast) or a silent wrong answer; anything else safe-misses so the aggregate re-scans and is correct.
-            // This gate cannot catch a foreign value of the SAME Java type (a sibling column's Long min on a LONG column,
-            // or a keyword min that is exactly this IP column's 16 bytes): that wrong-VALUE channel closes only when the
-            // declared schema enters the cross-node stats fingerprint (tracked in the declared-schema-fingerprint follow-up).
+            // This gate cannot catch a foreign value of the SAME Java type on its own (a sibling column's Long min on
+            // a LONG column, or a keyword min that is exactly this IP column's 16 bytes). That wrong-VALUE channel is
+            // closed upstream now that the resolved read configuration is part of the stats identity: a harvest may
+            // only enrich, and an entry may only serve, a read whose configuration matches, so a differently-declared
+            // dataset's extremum no longer reaches this arm. This gate remains as the crash-safety net for the rails
+            // that legitimately carry no read configuration -- the columnar readers, which harvest without stamping.
             case DOUBLE -> value instanceof Number ? value : null;
             case BOOLEAN -> value instanceof Boolean ? value : null;
             case BYTES_REF -> servableBytesRef(value, type);
@@ -471,6 +475,8 @@ public final class ExternalSourceAggregatePushdown {
         boolean implicitNullsForAbsentColumn
     ) {
         List<? extends ExternalSplit> splits = externalExec.splits();
+        // Rewrite mixed literals once for all splits — classifyExpression would redo it per call.
+        Expression rewrittenFilter = PushdownLiteralConversion.rewrite(filterCondition);
 
         if (splits.isEmpty() || splits.size() == 1) {
             org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats = null;
@@ -491,8 +497,8 @@ public final class ExternalSourceAggregatePushdown {
             if (stats == null) {
                 return null;
             }
-            SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyExpression(
-                filterCondition,
+            SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyRewritten(
+                rewrittenFilter,
                 stats,
                 implicitNullsForAbsentColumn
             );
@@ -513,8 +519,8 @@ public final class ExternalSourceAggregatePushdown {
             // The classifier compares the filter literal against the split's stats. Those stats are normalized
             // to the reconciled query type at split construction (FileSplitProvider), so the compare is in one
             // unit -- no reconciliation is needed or done here.
-            SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyExpression(
-                filterCondition,
+            SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyRewritten(
+                rewrittenFilter,
                 stats,
                 implicitNullsForAbsentColumn
             );

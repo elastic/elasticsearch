@@ -23,7 +23,6 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
@@ -67,7 +66,6 @@ public class RemoteReindexRelocationOnShutdownIT extends ESIntegTestCase {
     }
 
     public void testRemoteReindexTaskRelocatesOnNodeShutdown() throws Exception {
-        assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();

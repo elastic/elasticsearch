@@ -1,0 +1,6 @@
+{
+    "dynamic": "false",
+    "properties": {
+        "bar": { "type": "keyword" }
+    }
+}

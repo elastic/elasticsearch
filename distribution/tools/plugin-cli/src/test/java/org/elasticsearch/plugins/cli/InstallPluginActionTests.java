@@ -147,10 +147,8 @@ public class InstallPluginActionTests extends ESTestCase {
         System.setProperty("java.io.tmpdir", temp.apply("tmpdir").toString());
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initPluginInstallEnvironment() throws Exception {
         pluginDir = createPluginDir(temp);
         terminal = MockTerminal.create();
         env = createEnv(temp);
@@ -164,15 +162,13 @@ public class InstallPluginActionTests extends ESTestCase {
         defaultAction = new InstallPluginAction(terminal, env.v2(), false);
     }
 
-    @Override
     @After
     @SuppressForbidden(reason = "resets java.io.tmpdir")
-    public void tearDown() throws Exception {
+    public void closePluginInstallActions() throws Exception {
         defaultAction.close();
         skipJarHellAction.close();
         System.setProperty("java.io.tmpdir", javaIoTmpdir);
         PathUtilsForTesting.teardown();
-        super.tearDown();
     }
 
     @ParametersFactory

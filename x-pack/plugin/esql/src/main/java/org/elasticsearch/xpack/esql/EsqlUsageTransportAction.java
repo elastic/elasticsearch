@@ -10,7 +10,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
@@ -21,6 +23,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.esql.EsqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryCounters;
 import org.elasticsearch.xpack.esql.plugin.EsqlStatsAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlStatsRequest;
 import org.elasticsearch.xpack.esql.plugin.EsqlStatsResponse;
@@ -32,6 +35,19 @@ import java.util.stream.Collectors;
 public class EsqlUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     private final Client client;
+    private final ProjectResolver projectResolver;
+    private final DataSourceInventoryCounters inventoryCounters;
+
+    public EsqlUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        Client client,
+        ProjectResolver projectResolver
+    ) {
+        this(transportService, clusterService, threadPool, actionFilters, client, projectResolver, null);
+    }
 
     @Inject
     public EsqlUsageTransportAction(
@@ -39,10 +55,14 @@ public class EsqlUsageTransportAction extends XPackUsageFeatureTransportAction {
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        Client client
+        Client client,
+        ProjectResolver projectResolver,
+        @Nullable DataSourceInventoryCounters inventoryCounters
     ) {
         super(XPackUsageFeatureAction.ESQL.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
+        this.projectResolver = projectResolver;
+        this.inventoryCounters = inventoryCounters == null ? new DataSourceInventoryCounters() : inventoryCounters;
     }
 
     @Override
@@ -63,8 +83,10 @@ public class EsqlUsageTransportAction extends XPackUsageFeatureTransportAction {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
             Counters mergedCounters = Counters.merge(countersPerNode);
+            inventoryCounters.populate(projectResolver.getProjectMetadata(state), mergedCounters);
             EsqlFeatureSetUsage usage = new EsqlFeatureSetUsage(mergedCounters.toNestedMap());
             l.onResponse(new XPackUsageFeatureResponse(usage));
         }));
     }
+
 }

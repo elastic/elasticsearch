@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopBooleanAggregatorFunctionSupplier;
@@ -47,6 +48,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -62,7 +64,9 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -87,8 +91,9 @@ public class Top extends AggregateFunction
         TwoOptionalArguments,
         ToAggregator,
         SurrogateExpression,
-        PostOptimizationVerificationAware {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Top", Top::new);
+        PostOptimizationVerificationAware,
+        AnyNullIsNull {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Top", Top::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Top.class)
         .quaternary(Top::new)
         .capabilities("output_field_string")
@@ -100,6 +105,15 @@ public class Top extends AggregateFunction
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword" },
+        signatures = {
+            @Signature(params = { "boolean|ip|date|double|integer|long|STRING", "integer" }, returnType = "$0.noText"),
+            @Signature(params = { "boolean|ip|date|double|integer|long|STRING", "integer", "keyword" }, returnType = "$0.noText"),
+            // outputField present: return follows the 4th argument.
+            // Narrower than 2/3-arg forms on purpose — matches current TopTests (no boolean/ip 4-arg coverage yet).
+            @Signature(
+                params = { "date|double|integer|long|STRING", "integer", "keyword", "date|double|integer|long|STRING" },
+                returnType = "$3.noText"
+            ) },
         briefSummary = "Collects the top values for a field, including repeated values.",
         description = "Collects the top values for a field. Includes repeated values.",
         type = FunctionType.AGGREGATE,
@@ -133,33 +147,56 @@ public class Top extends AggregateFunction
                 + "{applies_to}`stack: ga 9.3`"
         ) Expression outputField
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, limit, order == null ? Literal.keyword(source, ORDER_ASC) : order, outputField);
+        this(source, field, outputField, Literal.TRUE, NO_WINDOW, limit, order == null ? Literal.keyword(source, ORDER_ASC) : order);
     }
 
     public Top(
         Source source,
         Expression field,
+        @Nullable Expression outputField,
         Expression filter,
         Expression window,
         Expression limit,
-        Expression order,
-        @Nullable Expression outputField
+        Expression order
     ) {
-        super(source, field, filter, window, outputField != null ? asList(limit, order, outputField) : asList(limit, order));
+        super(source, outputField != null ? asList(field, outputField) : List.of(field), filter, window, asList(limit, order));
     }
 
-    private Top(StreamInput in) throws IOException {
-        super(in);
+    private static Top readFrom(StreamInput in) throws IOException {
+        // Legacy serialization format for backwards compatibility
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        List<Expression> parameters = in.readNamedWriteableCollectionAsList(Expression.class);
+        Expression limit = parameters.get(0);
+        Expression order = parameters.get(1);
+        Expression outputField = parameters.size() > 2 ? parameters.get(2) : null;
+        return new Top(source, field, outputField, filter, window, limit, order);
     }
 
     @Override
-    public Top withFilter(Expression filter) {
-        return new Top(source(), field(), filter, window(), limitField(), orderField(), outputField());
+    public void writeTo(StreamOutput out) throws IOException {
+        // Legacy serialization format for backwards compatibility
+        source().writeTo(out);
+        out.writeNamedWriteable(field());
+        out.writeNamedWriteable(filter());
+        if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {
+            out.writeNamedWriteable(window());
+        }
+        List<Expression> parameters = outputField() == null
+            ? List.of(limitField(), orderField())
+            : List.of(limitField(), orderField(), outputField());
+        out.writeNamedWriteableCollection(parameters);
     }
 
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    public Expression field() {
+        return fields().get(0);
     }
 
     Expression limitField() {
@@ -172,7 +209,9 @@ public class Top extends AggregateFunction
 
     @Nullable
     Expression outputField() {
-        return parameters().size() > 2 ? parameters().get(2) : null;
+        // The optional output field is an extra input field, so it lives in fields() (fields[1]) rather than in the configuration
+        // parameters (limit, order).
+        return fields().size() > 1 ? fields().get(1) : null;
     }
 
     private Integer limitValue() {
@@ -331,20 +370,21 @@ public class Top extends AggregateFunction
 
     @Override
     protected NodeInfo<Top> info() {
-        return NodeInfo.create(this, Top::new, field(), filter(), window(), limitField(), orderField(), outputField());
+        return NodeInfo.create(this, Top::new, field(), outputField(), filter(), window(), limitField(), orderField());
     }
 
     @Override
     public Top replaceChildren(List<Expression> newChildren) {
-        return new Top(
-            source(),
-            newChildren.get(0),
-            newChildren.get(1),
-            newChildren.get(2),
-            newChildren.get(3),
-            newChildren.get(4),
-            newChildren.size() > 5 ? newChildren.get(5) : null
-        );
+        // children layout: field, [outputField], filter, window, limit, order
+        boolean hasOutputField = newChildren.size() > 5;
+        int i = 0;
+        Expression field = newChildren.get(i++);
+        Expression outputField = hasOutputField ? newChildren.get(i++) : null;
+        Expression filter = newChildren.get(i++);
+        Expression window = newChildren.get(i++);
+        Expression limit = newChildren.get(i++);
+        Expression order = newChildren.get(i);
+        return new Top(source(), field, outputField, filter, window, limit, order);
     }
 
     private static final Map<DataType, BiFunction<Integer, Boolean, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
@@ -435,7 +475,7 @@ public class Top extends AggregateFunction
         var s = source();
         // If the `outputField` is specified but its value is the same as `field` then we do not need to handle `outputField` separately.
         if (outputField() != null && field().semanticEquals(outputField())) {
-            return new Top(s, field(), limitField(), orderField(), null);
+            return new Top(s, field(), null, filter(), window(), limitField(), orderField());
         }
         // To replace Top by Min or Max, we cannot have an `outputField`
         if (orderField() instanceof Literal && limitField() instanceof Literal && limitValue() == 1 && outputField() == null) {

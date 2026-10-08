@@ -49,7 +49,10 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                     null,
                     randomFieldCaps(),
                     randomBoolean(),
-                    randomFrom(IndexMode.availableModes())
+                    randomFrom(IndexMode.availableModes()),
+                    0,
+                    0,
+                    0
                 )
             );
         }
@@ -77,7 +80,10 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                     null,
                     randomFieldCaps(),
                     randomBoolean(),
-                    randomFrom(IndexMode.availableModes())
+                    randomFrom(IndexMode.availableModes()),
+                    0,
+                    0,
+                    0
                 )
             );
             case 1 -> {
@@ -93,7 +99,10 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         null,
                         randomFieldCaps(),
                         randomBoolean(),
-                        randomFrom(IndexMode.availableModes())
+                        randomFrom(IndexMode.availableModes()),
+                        0,
+                        0,
+                        0
                     )
                 );
             }
@@ -107,7 +116,10 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         UUIDs.randomBase64UUID(),
                         resp.get(),
                         true,
-                        randomFrom(IndexMode.availableModes())
+                        randomFrom(IndexMode.availableModes()),
+                        resp.getNumberOfShards(),
+                        resp.getIndexSettingsVersion(),
+                        resp.getMappingVersion()
                     )
                 );
             }
@@ -136,12 +148,31 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
             "vectordb_document index mode requires transport version " + IndexMode.VECTORDB_DOCUMENT_INDEX_MODE,
             hasVectordbMode == false || version.supports(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE)
         );
+        final boolean hasVectordbColumnarMode = indexResponses.stream().anyMatch(r -> r.getIndexMode() == IndexMode.VECTORDB_COLUMNAR);
+        assumeTrue(
+            "vectordb_columnar index mode requires transport version " + IndexMode.VECTORDB_COLUMNAR_INDEX_MODE,
+            hasVectordbColumnarMode == false || version.supports(IndexMode.VECTORDB_COLUMNAR_INDEX_MODE)
+        );
         final boolean hasInferenceField = indexResponses.stream()
             .flatMap(r -> r.get().values().stream())
             .anyMatch(IndexFieldCapabilities::isInference);
         assumeTrue(
             "inference field flag requires transport version " + FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD,
             hasInferenceField == false || version.supports(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD)
+        );
+        final boolean hasIndexAnalyzer = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(fc -> fc.indexAnalyzer() != null || fc.indexLocalAnalyzer());
+        assumeTrue(
+            "index analyzer requires transport version " + FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER,
+            hasIndexAnalyzer == false || version.supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)
+        );
+        final boolean hasPassthrough = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(fc -> fc.isPassthrough() != null);
+        assumeTrue(
+            "passthrough flag requires transport version " + FieldCapabilities.FIELD_CAPS_PASSTHROUGH,
+            hasPassthrough == false || version.supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)
         );
 
         final FieldCapabilitiesNodeResponse outNode = copyInstance(inNode, version);

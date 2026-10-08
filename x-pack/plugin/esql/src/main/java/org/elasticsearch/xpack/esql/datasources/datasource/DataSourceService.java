@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Setting;
@@ -33,13 +34,18 @@ import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionKeyNotYetAvailableException;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.encryption.spi.EncryptionServiceUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.ConfigChangeTelemetry;
+import org.elasticsearch.xpack.esql.datasources.MaxDataSourcesCountException;
+import org.elasticsearch.xpack.esql.datasources.UnknownDataSourceTypeException;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -49,6 +55,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 
 /** Orchestrates create / replace / delete of data sources in cluster state. */
 public class DataSourceService {
@@ -68,6 +76,8 @@ public class DataSourceService {
     private final Map<String, DataSourceValidator> validatorsByType;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
     private final EncryptionService encryptionService;
+    private final ExternalSourceMetrics metrics;
+    private final Executor encryptionExecutor;
 
     private volatile int maxDataSourcesCount;
 
@@ -76,19 +86,54 @@ public class DataSourceService {
         Map<String, DataSourceValidator> validatorsByType,
         EncryptionService encryptionService
     ) {
+        this(clusterService, validatorsByType, encryptionService, ExternalSourceMetrics.NOOP);
+    }
+
+    public DataSourceService(
+        ClusterService clusterService,
+        Map<String, DataSourceValidator> validatorsByType,
+        EncryptionService encryptionService,
+        ExternalSourceMetrics metrics
+    ) {
+        this(clusterService, validatorsByType, encryptionService, metrics, Runnable::run);
+    }
+
+    /**
+     * Creates the service using {@code encryptionExecutor} for secrets that can only be classified
+     * after validation against authoritative master state.
+     */
+    public DataSourceService(
+        ClusterService clusterService,
+        Map<String, DataSourceValidator> validatorsByType,
+        EncryptionService encryptionService,
+        ExternalSourceMetrics metrics,
+        Executor encryptionExecutor
+    ) {
         this.clusterService = clusterService;
         this.validatorsByType = Map.copyOf(validatorsByType);
         this.encryptionService = Objects.requireNonNull(encryptionService, "encryptionService");
+        this.metrics = metrics == null ? ExternalSourceMetrics.NOOP : metrics;
+        this.encryptionExecutor = Objects.requireNonNull(encryptionExecutor, "encryptionExecutor");
         this.taskQueue = clusterService.createTaskQueue(
             "update-esql-data-source-metadata",
             Priority.NORMAL,
             new SequentialAckingBatchedTaskExecutor<>()
         );
-        clusterService.getClusterSettings().initializeAndWatch(MAX_DATA_SOURCES_COUNT_SETTING, v -> this.maxDataSourcesCount = v);
+        // The ceiling is watched while the setting exists, which is while the federation feature is registered (see
+        // Federation#settings). Where the feature is unregistered the ceiling is the setting's default and cannot be
+        // changed, which no request observes because the CRUD REST routes are not registered either.
+        clusterService.getClusterSettings()
+            .initializeAndWatchIfRegistered(MAX_DATA_SOURCES_COUNT_SETTING, v -> this.maxDataSourcesCount = v);
     }
 
     protected DataSourceMetadata getMetadata(ProjectMetadata projectMetadata) {
         return DataSourceMetadata.get(projectMetadata);
+    }
+
+    /** Validator registered for {@code type}, or {@code null} when the type is unknown. */
+    @Nullable
+    public DataSourceValidator validatorFor(String type) {
+        return validatorsByType.get(type);
     }
 
     /**
@@ -97,7 +142,7 @@ public class DataSourceService {
     public DataSource validatePutDataSource(ProjectMetadata project, PutDataSourceAction.Request request) {
         DataSourceValidator validator = validatorsByType.get(request.type());
         if (validator == null) {
-            throw new IllegalArgumentException("unknown data source type [" + request.type() + "]");
+            throw new UnknownDataSourceTypeException(request.type());
         }
         final DataSource current = getMetadata(project).get(request.name());
         Set<String> existingSecretKeys = new HashSet<>();
@@ -121,33 +166,117 @@ public class DataSourceService {
      * also re-validates against that same fresh state, so a concurrent change to a secret this request relies
      * on carrying forward fails the PUT instead of silently persisting an incomplete data source. Every other
      * field is a full replace, matching the pre-existing PUT semantics.
+     *
+     * <p>Pre-submit validation reads {@link ClusterService#state()}, which is applied state. The master
+     * applies a publication only after every node has applied -- or {@code cluster.publish.timeout} fires --
+     * so a committed create can be missing from that snapshot. A {@link ValidationException} against a
+     * missing current entry is therefore checked by a no-op CAS task against MasterService state. If that
+     * authoritative validation finds newly-supplied secrets, they are encrypted off the master thread before
+     * the update is submitted.
      */
     public void putDataSource(ProjectId projectId, PutDataSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         final ProjectMetadata projectSnapshot = clusterService.state().metadata().getProject(projectId);
-        final DataSource validated = validatePutDataSource(projectSnapshot, request);
-        final DataSourceSettings encryptedNew = applyEncryption(validated.name(), validated.settings());
-        logger.debug("submitting put data source [{}] of type [{}]", validated.name(), validated.type());
-        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
+        final DataSourceSettings encryptedNew;
+        try {
+            final DataSource validated = validatePutDataSource(projectSnapshot, request);
+            encryptedNew = applyEncryption(validated.name(), validated.settings());
+        } catch (Exception e) {
+            if (getMetadata(projectSnapshot).get(request.name()) != null || e instanceof ValidationException == false) {
+                recordRejected(request.type(), e);
+                listener.onFailure(e);
+                return;
+            }
+            preparePutDataSource(projectId, request, listener);
+            return;
+        }
+        submitPutDataSource(projectId, request, encryptedNew, listener);
+    }
+
+    /**
+     * Validate against authoritative master state without changing it. This path is needed only when
+     * applied state may be missing the data source whose secrets an update carries forward.
+     */
+    private void preparePutDataSource(
+        ProjectId projectId,
+        PutDataSourceAction.Request request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        final AtomicReference<DataSource> validatedRef = new AtomicReference<>();
+        final ActionListener<AcknowledgedResponse> preparationListener = ActionListener.wrap(ignored -> {
+            final DataSource validated = validatedRef.get();
+            assert validated != null;
+            if (hasPlaintextSecrets(validated.settings())) {
+                try {
+                    encryptionExecutor.execute(() -> {
+                        try {
+                            submitPutDataSource(projectId, request, applyEncryption(validated.name(), validated.settings()), listener);
+                        } catch (Exception e) {
+                            failPutDataSource(request.type(), listener, e);
+                        }
+                    });
+                } catch (Exception e) {
+                    failPutDataSource(request.type(), listener, e);
+                }
+            } else {
+                submitPutDataSource(projectId, request, validated.settings(), listener);
+            }
+        }, e -> failPutDataSource(request.type(), listener, e));
+        final AckedClusterStateUpdateTask preparationTask = new AckedClusterStateUpdateTask(request, preparationListener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                validatedRef.set(validatePutDataSource(currentState.metadata().getProject(projectId), request));
+                return currentState;
+            }
+        };
+        taskQueue.submitTask("prepare-esql-data-source-metadata-[" + request.name() + "]", preparationTask, preparationTask.timeout());
+    }
+
+    private static boolean hasPlaintextSecrets(DataSourceSettings settings) {
+        for (var entry : settings) {
+            DataSourceSetting setting = entry.getValue();
+            if (setting.secret() && setting.rawValue() != null && setting.isEncrypted() == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void failPutDataSource(String type, ActionListener<AcknowledgedResponse> listener, Exception e) {
+        recordRejected(type, e);
+        listener.onFailure(e);
+    }
+
+    private void submitPutDataSource(
+        ProjectId projectId,
+        PutDataSourceAction.Request request,
+        DataSourceSettings encryptedNew,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        logger.debug("submitting put data source [{}] of type [{}]", request.name(), request.type());
+        final AtomicReference<String> pendingOp = new AtomicReference<>();
+        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(
+            request,
+            recordingListener(listener, request.type(), pendingOp)
+        ) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
                 final DataSourceMetadata metadata = getMetadata(project);
-                final DataSource current = metadata.get(validated.name());
+                final DataSource current = metadata.get(request.name());
                 if (current == null && metadata.dataSources().size() >= maxDataSourcesCount) {
-                    logger.warn("rejected put for data source [{}]: maximum count [{}] reached", validated.name(), maxDataSourcesCount);
-                    throw new IllegalArgumentException(
-                        "cannot add data source, the maximum number of data sources is reached: " + maxDataSourcesCount
-                    );
+                    logger.warn("rejected put for data source [{}]: maximum count [{}] reached", request.name(), maxDataSourcesCount);
+                    throw new MaxDataSourcesCountException(maxDataSourcesCount);
                 }
                 // Re-validate here, against the state just read, not the pre-encryption snapshot above: a
                 // concurrent operation could have cleared or removed a secret this request relies on carrying
                 // forward between that snapshot and this task running. Cheap (no I/O); throwing here fails the
                 // whole PUT instead of silently persisting a data source with incomplete credentials.
-                validatePutDataSource(project, request);
+                final DataSource validated = validatePutDataSource(project, request);
                 final DataSourceSettings merged = mergeCarriedForwardSecrets(current, validated.type(), encryptedNew, request);
-                final DataSource encrypted = new DataSource(validated.name(), validated.type(), validated.description(), merged);
+                final DataSource stored = new DataSource(validated.name(), validated.type(), validated.description(), merged);
                 final Map<String, DataSource> updated = new HashMap<>(metadata.dataSources());
-                updated.put(encrypted.name(), encrypted);
+                updated.put(stored.name(), stored);
+                pendingOp.set(current == null ? ConfigChangeTelemetry.OP_CREATED : ConfigChangeTelemetry.OP_UPDATED);
                 return ClusterState.builder(currentState)
                     .putProjectMetadata(
                         ProjectMetadata.builder(project).putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(updated))
@@ -156,6 +285,11 @@ public class DataSourceService {
             }
         };
         taskQueue.submitTask("update-esql-data-source-metadata-[" + request.name() + "]", task, task.timeout());
+    }
+
+    /** Records a PUT refusal (unknown type, validation failure, and similar). */
+    public void recordRejected(String type, Exception e) {
+        ConfigChangeTelemetry.recordRejected(metrics, ConfigChangeTelemetry.KIND_DATASOURCE, type, e);
     }
 
     /**
@@ -286,18 +420,30 @@ public class DataSourceService {
         final DataSourceMetadata metadata = getMetadata(projectMetadata);
         final Optional<String> notFound = names.stream().filter(n -> metadata.get(n) == null).findAny();
         if (notFound.isPresent()) {
-            listener.onFailure(new ResourceNotFoundException("data source [{}] not found", notFound.get()));
+            ResourceNotFoundException e = new ResourceNotFoundException("data source [{}] not found", notFound.get());
+            recordRejected(null, e);
+            listener.onFailure(e);
             return;
         }
         logger.debug("submitting delete data sources {}", names);
-        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(masterNodeTimeout, ackTimeout, listener) {
+        final AtomicReference<List<String>> removedTypes = new AtomicReference<>();
+        final AtomicReference<String> failureType = new AtomicReference<>();
+        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(
+            masterNodeTimeout,
+            ackTimeout,
+            deleteRecordingListener(listener, removedTypes, failureType)
+        ) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
                 final DataSourceMetadata current = getMetadata(project);
                 final Map<String, DataSource> updated = new HashMap<>(current.dataSources());
+                List<String> typesRemoved = new ArrayList<>();
                 for (String name : names) {
-                    if (updated.containsKey(name) == false) {
+                    DataSource existing = updated.get(name);
+                    if (existing == null) {
+                        // Do not keep a prior name's type: this refusal is for a missing name.
+                        failureType.set(null);
                         throw new ResourceNotFoundException("data source [{}] not found", name);
                     }
                     final DatasetMetadata datasets = DatasetMetadata.get(project);
@@ -309,13 +455,16 @@ public class DataSourceService {
                         .toList();
                     if (dependents.isEmpty() == false) {
                         logger.warn("rejected delete for data source [{}]: referenced by datasets {}", name, dependents);
+                        failureType.set(existing.type());
                         throw new ElasticsearchStatusException(
                             "cannot delete data source [" + name + "]: referenced by datasets " + dependents,
                             RestStatus.CONFLICT
                         );
                     }
                     updated.remove(name);
+                    typesRemoved.add(existing.type());
                 }
+                removedTypes.set(typesRemoved);
                 return ClusterState.builder(currentState)
                     .putProjectMetadata(
                         ProjectMetadata.builder(project).putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(updated))
@@ -324,6 +473,47 @@ public class DataSourceService {
             }
         };
         taskQueue.submitTask("delete-esql-data-source-metadata-" + names, task, task.timeout());
+    }
+
+    private ActionListener<AcknowledgedResponse> recordingListener(
+        ActionListener<AcknowledgedResponse> delegate,
+        String type,
+        AtomicReference<String> pendingOp
+    ) {
+        return ActionListener.wrap(r -> {
+            String op = pendingOp.get();
+            if (op != null) {
+                metrics.recordConfigChange(ConfigChangeTelemetry.KIND_DATASOURCE, op, ConfigChangeTelemetry.typeToken(type), null);
+            }
+            delegate.onResponse(r);
+        }, e -> {
+            recordRejected(type, e);
+            delegate.onFailure(e);
+        });
+    }
+
+    private ActionListener<AcknowledgedResponse> deleteRecordingListener(
+        ActionListener<AcknowledgedResponse> delegate,
+        AtomicReference<List<String>> removedTypes,
+        AtomicReference<String> failureType
+    ) {
+        return ActionListener.wrap(r -> {
+            List<String> types = removedTypes.get();
+            if (types != null) {
+                for (String type : types) {
+                    metrics.recordConfigChange(
+                        ConfigChangeTelemetry.KIND_DATASOURCE,
+                        ConfigChangeTelemetry.OP_DELETED,
+                        ConfigChangeTelemetry.typeToken(type),
+                        null
+                    );
+                }
+            }
+            delegate.onResponse(r);
+        }, e -> {
+            recordRejected(failureType.get(), e);
+            delegate.onFailure(e);
+        });
     }
 
 }

@@ -42,6 +42,12 @@ import java.util.stream.Collectors;
 /**
  * A shard-free {@link SearchExecutionContext} for runtime ES|QL columns. It exposes each column as an indexed text
  * field and provides the analyzer callers need when indexing values for the resulting query.
+ *
+ * <p>Exact field names outside the exposed columns cause {@link #getMatchingFieldNames} to throw an
+ * {@link IllegalArgumentException}. This lets callers reject queries that reference unavailable fields. When the context
+ * is created with {@code lenientFields}, such names resolve to an empty set instead, so the referencing clause becomes a
+ * match-none query rather than failing; implicit HIGHLIGHT queries borrowed from an upstream WHERE use this. Direct
+ * {@link #getFieldType} lookups return {@code null} for unmapped names, as required by the base contract.
  */
 public final class RuntimeSearchExecutionContext extends SearchExecutionContext {
 
@@ -58,20 +64,58 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
 
     private final Map<String, MappedFieldType> fields;
     private final IndexAnalyzers indexAnalyzers;
-    private final NamedAnalyzer searchAnalyzer;
+    private final boolean lenientFields;
 
     public static RuntimeSearchExecutionContext create(List<String> fieldNames) {
         return create(fieldNames, Lucene.STANDARD_ANALYZER);
     }
 
     public static RuntimeSearchExecutionContext create(List<String> fieldNames, NamedAnalyzer searchAnalyzer) {
-        Map<String, MappedFieldType> fields = new LinkedHashMap<>();
-        TextSearchInfo tsi = new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, searchAnalyzer, searchAnalyzer);
+        return create(fieldNames, searchAnalyzer, false);
+    }
+
+    /**
+     * Creates a context whose fields are exactly {@code fieldNames}.
+     *
+     * @param lenientFields when {@code true}, {@link #getMatchingFieldNames} returns an empty set for an exact field
+     *                      name outside {@code fieldNames} instead of throwing, so a query referencing such a field
+     *                      translates to a match-none clause rather than failing translation. Used for implicit
+     *                      HIGHLIGHT queries borrowed from an upstream WHERE, which may legitimately name fields
+     *                      HIGHLIGHT does not target.
+     */
+    public static RuntimeSearchExecutionContext create(List<String> fieldNames, NamedAnalyzer searchAnalyzer, boolean lenientFields) {
+        Map<String, NamedAnalyzer> fieldAnalyzers = new LinkedHashMap<>();
         for (String name : fieldNames) {
-            fields.put(name, new TextFieldMapper.TextFieldType(name, true, false, tsi, false, false, null, Map.of(), false, false));
+            fieldAnalyzers.put(name, searchAnalyzer);
         }
-        IndexAnalyzers analyzers = IndexAnalyzers.of(Map.of(DEFAULT_ANALYZER_KEY, searchAnalyzer));
-        return new RuntimeSearchExecutionContext(fields, analyzers, searchAnalyzer);
+        return create(fieldAnalyzers, Map.of(), lenientFields);
+    }
+
+    /**
+     * Each field's {@link TextSearchInfo} uses its own analyzer. {@code extraAnalyzers} are registered by name
+     * ({@code quote_analyzer}, leaf analyzers on fields outside ON). A name already used by a field is ignored.
+     *
+     * @param lenientFields see {@link #create(List, NamedAnalyzer, boolean)}
+     */
+    public static RuntimeSearchExecutionContext create(
+        Map<String, NamedAnalyzer> fieldAnalyzers,
+        Map<String, NamedAnalyzer> extraAnalyzers,
+        boolean lenientFields
+    ) {
+        Map<String, MappedFieldType> fields = new LinkedHashMap<>();
+        Map<String, NamedAnalyzer> analyzers = new LinkedHashMap<>();
+        fieldAnalyzers.forEach((name, analyzer) -> {
+            TextSearchInfo tsi = new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, analyzer, analyzer);
+            fields.put(name, new TextFieldMapper.TextFieldType(name, true, false, tsi, false, false, null, Map.of(), false, false));
+            analyzers.putIfAbsent(analyzer.name(), analyzer);
+        });
+        extraAnalyzers.forEach(analyzers::putIfAbsent);
+        // QueryStringQueryParser needs a "default" fallback; only add it when no real analyzer claims that name.
+        // "default" is a prebuilt analyzer name, so an unconditional put would clobber MATCH(..., {"analyzer": "default"}).
+        if (fieldAnalyzers.isEmpty() == false) {
+            analyzers.putIfAbsent(DEFAULT_ANALYZER_KEY, fieldAnalyzers.values().iterator().next());
+        }
+        return new RuntimeSearchExecutionContext(fields, IndexAnalyzers.of(analyzers), lenientFields);
     }
 
     private static IndexSettings syntheticIndexSettings() {
@@ -86,11 +130,7 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
         return new IndexSettings(meta, Settings.EMPTY);
     }
 
-    private RuntimeSearchExecutionContext(
-        Map<String, MappedFieldType> fields,
-        IndexAnalyzers indexAnalyzers,
-        NamedAnalyzer searchAnalyzer
-    ) {
+    private RuntimeSearchExecutionContext(Map<String, MappedFieldType> fields, IndexAnalyzers indexAnalyzers, boolean lenientFields) {
         super(
             0,                              // shardId
             0,                              // shardRequestIndex
@@ -117,17 +157,12 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
         );
         this.fields = fields;
         this.indexAnalyzers = indexAnalyzers;
-        this.searchAnalyzer = searchAnalyzer;
-    }
-
-    /** Returns the analyzer configured on the synthetic fields. */
-    public NamedAnalyzer searchAnalyzer() {
-        return searchAnalyzer;
+        this.lenientFields = lenientFields;
     }
 
     @Override
     public MappedFieldType getFieldType(String name) {
-        return fields.get(name);
+        return fieldType(name);
     }
 
     @Override
@@ -138,7 +173,17 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
     @Override
     public Set<String> getMatchingFieldNames(String pattern) {
         if (Regex.isSimpleMatchPattern(pattern) == false) {
-            return fields.containsKey(pattern) ? Set.of(pattern) : Set.of();
+            if (fields.containsKey(pattern)) {
+                return Set.of(pattern);
+            }
+            if (lenientFields) {
+                // An implicit query may name a field HIGHLIGHT does not target. Resolving it to nothing makes the
+                // referencing clause a match-none query (QueryStringQueryParser.getFieldQuery -> newUnmappedFieldQuery,
+                // KqlAstBuilder -> MatchNoneQueryBuilder) instead of failing translation.
+                return Set.of();
+            }
+            // Exact fields outside this context must fail instead of silently matching nothing.
+            throw new IllegalArgumentException("field [" + pattern + "] is not one of the searchable fields " + fields.keySet());
         }
         return fields.keySet().stream().filter(f -> Regex.simpleMatch(pattern, f)).collect(Collectors.toSet());
     }

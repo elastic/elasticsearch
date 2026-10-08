@@ -8,14 +8,16 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -38,19 +40,28 @@ import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
-public class FromBase64 extends UnaryScalarFunction {
+public class FromBase64 extends UnaryScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "FromBase64",
         FromBase64::new
     );
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(FromBase64.class).unary(FromBase64::new).name("from_base64");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(FromBase64.class)
+        .unary(FromBase64::new)
+        // Reject decoded bytes that are not well-formed UTF-8 (null + warning instead of a broken keyword).
+        .capabilities("validate_utf8")
+        .name("from_base64");
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "keyword",
         briefSummary = "Decodes a base64 string.",
         description = "Decode a base64 string.",
+        detailedDescription = """
+            {applies_to}`stack: ga 9.4.5+`
+            Returns `null` and adds a warning header to the response if the decoded bytes are not
+            well-formed UTF-8.
+            """,
         examples = @Example(file = "string", tag = "from_base64")
     )
     public FromBase64(
@@ -92,20 +103,27 @@ public class FromBase64 extends UnaryScalarFunction {
         return NodeInfo.create(this, FromBase64::new, field());
     }
 
-    @Evaluator()
-    static BytesRef process(BytesRef field, @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRefBuilder oScratch) {
+    @Evaluator(warnExceptions = { IllegalArgumentException.class })
+    static BytesRef process(BytesRef field, @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder oScratch) {
         byte[] bytes = new byte[field.length];
         System.arraycopy(field.bytes, field.offset, bytes, 0, field.length);
         oScratch.grow(field.length);
         oScratch.clear();
         int decodedSize = Base64.getDecoder().decode(bytes, oScratch.bytes());
+        if (Utf8Sanitizer.isWellFormed(oScratch.bytes(), 0, decodedSize) == false) {
+            throw new IllegalArgumentException("decoded value is not valid UTF-8, which is not supported yet");
+        }
         return new BytesRef(oScratch.bytes(), 0, decodedSize);
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(field.dataType())) {
-            case BYTES_REF -> new FromBase64Evaluator.Factory(source(), toEvaluator.apply(field), context -> new BytesRefBuilder());
+            case BYTES_REF -> new FromBase64Evaluator.Factory(
+                source(),
+                toEvaluator.apply(field),
+                context -> new BreakingBytesRefBuilder(context.breaker(), "from_base64")
+            );
             case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };

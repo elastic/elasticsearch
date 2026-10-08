@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.cfg.JsonNodeFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -158,6 +161,29 @@ public final class KeywordToFlattenedTransformer {
     private static final String FLATTENED_TYPE = "flattened";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    /**
+     * Mapper used exclusively for the <em>document source</em> round-trip in
+     * {@link #wrapKeywordValuesAsFlattened(String, Set, FlattenedJunkConfig)}. Wrapping even a single
+     * keyword field forces the whole source document to be re-parsed and re-serialized, which — with
+     * a default {@link ObjectMapper} — silently normalizes every unquoted JSON number in the document:
+     * {@code readTree} turns {@code -1.90} into a {@code double} and {@code writeValueAsString} emits
+     * {@code -1.9}. That corrupts fields the rewrite never touches. In particular a numeric field with
+     * a {@code keyword} multi-field (e.g. {@code salary_change} / {@code salary_change.keyword} in the
+     * {@code employees} dataset) captures the number's <em>source text</em> in the keyword sub-field,
+     * so the lost trailing zero shows up as a {@code keyword} value mismatch ({@code -1.90} vs
+     * {@code -1.9}) even though neither field was converted to {@code flattened}.
+     * <p>
+     * Reading floats as {@link java.math.BigDecimal} and disabling
+     * {@link JsonNodeFeature#STRIP_TRAILING_BIGDECIMAL_ZEROES} preserves the exact decimal text through
+     * the round-trip, so untouched numeric literals survive verbatim. The mapping-transform path keeps
+     * using the plain {@link #MAPPER}: mappings carry no precision-sensitive numbers, and their JSON is
+     * only ever rewritten, never compared value-for-value.
+     */
+    private static final ObjectMapper DOC_MAPPER = JsonMapper.builder()
+        .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+        .disable(JsonNodeFeature.STRIP_TRAILING_BIGDECIMAL_ZEROES)
+        .build();
+
     private KeywordToFlattenedTransformer() {}
 
     /**
@@ -306,7 +332,7 @@ public final class KeywordToFlattenedTransformer {
         if (keywordFieldPaths.isEmpty()) {
             return documentJson;
         }
-        JsonNode root = MAPPER.readTree(documentJson);
+        JsonNode root = DOC_MAPPER.readTree(documentJson);
         if (root.isObject() == false) {
             return documentJson;
         }
@@ -317,7 +343,7 @@ public final class KeywordToFlattenedTransformer {
             if (existing == null) {
                 continue;
             }
-            ObjectNode wrapped = MAPPER.createObjectNode();
+            ObjectNode wrapped = DOC_MAPPER.createObjectNode();
             wrapped.set(WRAPPER_SUBKEY, existing);
             if (junkConfig.junkFields().contains(path)) {
                 generateJunkEntries(wrapped);
@@ -325,7 +351,7 @@ public final class KeywordToFlattenedTransformer {
             doc.set(path, wrapped);
             modified = true;
         }
-        return modified ? MAPPER.writeValueAsString(doc) : documentJson;
+        return modified ? DOC_MAPPER.writeValueAsString(doc) : documentJson;
     }
 
     /**
@@ -362,12 +388,12 @@ public final class KeywordToFlattenedTransformer {
             case 2 -> node.put(key, randomBoolean());                     // boolean
             case 3 -> node.putNull(key);                                             // null
             case 4 -> {                                                               // nested object
-                ObjectNode obj = MAPPER.createObjectNode();
+                ObjectNode obj = DOC_MAPPER.createObjectNode();
                 obj.put("k", randomAlphaOfLengthBetween(2, 5));
                 node.set(key, obj);
             }
             case 5 -> {                                                               // array of strings
-                ArrayNode arr = MAPPER.createArrayNode();
+                ArrayNode arr = DOC_MAPPER.createArrayNode();
                 int n = randomIntBetween(1, 3);
                 for (int i = 0; i < n; i++) {
                     arr.add(randomAlphaOfLengthBetween(2, 6));

@@ -15,5 +15,16 @@ import java.util.List;
  * A {@link StructModel} whose Java surface is an interface. Instances of the generated
  * implementation wrap a native {@link java.lang.foreign.MemorySegment} and expose VarHandle-backed
  * field access.
+ *
+ * <p>Field shape is platform-independent; the resolved per-platform memory layouts live in
+ * {@link #layouts()}.
+ *
+ * @param sizeofMethodName the name of the {@code @Sizeof}-annotated method, or {@code null} if the
+ *                          interface declares none
  */
-public record StructInterfaceModel(String simpleName, List<StructFieldModel> fields) implements StructModel {}
+public record StructInterfaceModel(
+    String simpleName,
+    List<StructFieldModel> fields,
+    List<StructLayoutModel> layouts,
+    String sizeofMethodName
+) implements StructModel {}

@@ -1,0 +1,7 @@
+Project[[c{r}#0, gender{f}#1, b{r}#2]]
+\_Eval[[$$SUM$c$0{r$}#3 / $$COUNT$c$1{r$}#4 AS c#0]]
+  \_Limit[1000[INTEGER],false,false]
+    \_InsertEmptyBuckets[{b{r}#2=BUCKET(salary{f}#5,10[INTEGER],0[INTEGER],100000[INTEGER],MapExpression[[include_empty_buckets[KEYWORD], true[BOOLEAN]]])},[gender{f}#1],{$$SUM$c$0{r$}#3=DefaultValue[type=LONG, value=null], $$COUNT$c$1{r$}#4=DefaultValue[type=LONG, value=0]}]
+      \_Aggregate[[gender{f}#1, b{r}#2],[SUM(salary{f}#5,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS $$SUM$c$0#3, COUNT(salary{f}#5,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$c$1#4, gender{f}#1, b{r}#2]]
+        \_Eval[[BUCKET(salary{f}#5,10[INTEGER],0[INTEGER],100000[INTEGER],MapExpression[[include_empty_buckets[KEYWORD], true[BOOLEAN]]]) AS b#2]]
+          \_EsRelation[employees][avg_worked_seconds{f}#6, birth_date{f}#7, emp_no{f}#8, first_name{f}#9, gender{f}#1, height{f}#10, height.float{f}#11, height.half_float{f}#12, height.scaled_float{f}#13, hire_date{f}#14, is_rehired{f}#15, job_positions{f}#16, languages{f}#17, languages.byte{f}#18, languages.long{f}#19, languages.short{f}#20, last_name{f}#21, salary{f}#5, salary_change{f}#22, salary_change.int{f}#23, salary_change.keyword{f}#24, salary_change.long{f}#25, still_hired{f}#26]

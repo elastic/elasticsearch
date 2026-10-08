@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.inference.services.groq.completion;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTest
 import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
@@ -29,6 +31,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.ORGANIZATION;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 
 public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<GroqChatCompletionServiceSettings> {
@@ -70,28 +74,25 @@ public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializ
 
     public void testFromMap_MissingModelId_Failure() {
         var thrownException = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> GroqChatCompletionServiceSettings.fromMap(
                 buildServiceSettingsMap(null, TEST_URI.toString(), TEST_ORGANIZATION_ID, TEST_RATE_LIMIT),
                 randomFrom(ConfigurationParseContext.values())
             )
         );
-        assertThat(thrownException.validationErrors().size(), is(1));
-        assertThat(
-            thrownException.validationErrors().getFirst(),
-            is("[service_settings] does not contain the required setting [model_id]")
-        );
+        assertThat(thrownException.getMessage(), containsString(MODEL_ID));
     }
 
-    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
-        var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, TEST_URI.toString(), TEST_ORGANIZATION_ID, TEST_RATE_LIMIT);
+    public void testUpdateServiceSettings_OnlyRateLimit_IsUpdated() {
         var originalServiceSettings = new GroqChatCompletionServiceSettings(
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_URI,
             INITIAL_TEST_ORGANIZATION_ID,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(settingsMap);
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            buildServiceSettingsMap(null, null, null, TEST_RATE_LIMIT)
+        );
 
         assertThat(
             updatedServiceSettings,
@@ -99,7 +100,7 @@ public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializ
                 new GroqChatCompletionServiceSettings(
                     INITIAL_TEST_MODEL_ID,
                     INITIAL_TEST_URI,
-                    TEST_ORGANIZATION_ID,
+                    INITIAL_TEST_ORGANIZATION_ID,
                     new RateLimitSettings(TEST_RATE_LIMIT)
                 )
             )
@@ -116,6 +117,151 @@ public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializ
         var serviceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
 
         assertThat(serviceSettings, is(originalServiceSettings));
+    }
+
+    public void testUpdateServiceSettings_RateLimitNull_ResetsToDefault() {
+        var originalServiceSettings = new GroqChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_ORGANIZATION_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var updateMap = new HashMap<String, Object>();
+        updateMap.put(RateLimitSettings.FIELD_NAME, null);
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(updateMap);
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new GroqChatCompletionServiceSettings(
+                    INITIAL_TEST_MODEL_ID,
+                    INITIAL_TEST_URI,
+                    INITIAL_TEST_ORGANIZATION_ID,
+                    new RateLimitSettings(DEFAULT_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_RateLimitAbsent_KeepsExisting() {
+        var originalServiceSettings = new GroqChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_ORGANIZATION_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
+
+        assertThat(updatedServiceSettings.rateLimitSettings(), is(new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)));
+    }
+
+    public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {
+        var originalServiceSettings = new GroqChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_ORGANIZATION_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        for (String immutableField : List.of(MODEL_ID, URL)) {
+            var e = expectThrows(
+                XContentParseException.class,
+                () -> originalServiceSettings.updateServiceSettings(new HashMap<>(Map.of(immutableField, "value")))
+            );
+            assertThat(
+                e.getMessage(),
+                endsWith(Strings.format("[%s] unknown field [%s]", ModelConfigurations.SERVICE_SETTINGS, immutableField))
+            );
+        }
+    }
+
+    public void testUpdateServiceSettings_OrganizationId_IsUpdated() {
+        var originalServiceSettings = new GroqChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_ORGANIZATION_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var updateMap = new HashMap<String, Object>();
+        updateMap.put(ORGANIZATION, TEST_ORGANIZATION_ID);
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(updateMap);
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new GroqChatCompletionServiceSettings(
+                    INITIAL_TEST_MODEL_ID,
+                    INITIAL_TEST_URI,
+                    TEST_ORGANIZATION_ID,
+                    new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_OrganizationIdNull_ClearsExisting() {
+        var originalServiceSettings = new GroqChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_ORGANIZATION_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var updateMap = new HashMap<String, Object>();
+        updateMap.put(ORGANIZATION, null);
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(updateMap);
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new GroqChatCompletionServiceSettings(
+                    INITIAL_TEST_MODEL_ID,
+                    INITIAL_TEST_URI,
+                    null,
+                    new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_OrganizationIdAbsent_KeepsExisting() {
+        var originalServiceSettings = new GroqChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_ORGANIZATION_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
+
+        assertThat(updatedServiceSettings.organizationId(), is(INITIAL_TEST_ORGANIZATION_ID));
+    }
+
+    public void testUpdateServiceSettings_OrganizationIdEmptyString_Rejected() {
+        var originalServiceSettings = new GroqChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_ORGANIZATION_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var updateMap = new HashMap<String, Object>();
+        updateMap.put(ORGANIZATION, "");
+
+        var e = expectThrows(XContentParseException.class, () -> originalServiceSettings.updateServiceSettings(updateMap));
+        assertThat(
+            e.getCause().getMessage(),
+            is(
+                Strings.format(
+                    "[%s] Invalid value empty string. [%s] must be a non-empty string",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    ORGANIZATION
+                )
+            )
+        );
     }
 
     public void testToXContent_WritesAllValues() throws IOException {

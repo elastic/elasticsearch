@@ -38,6 +38,12 @@ public class XPackRestIT extends AbstractXPackRestTest {
         .setting("xpack.security.transport.ssl.verification_mode", "certificate")
         .setting("xpack.security.audit.enabled", "true")
         .setting("xpack.license.self_generated.type", "trial")
+        // Federation is opt-in for users; this suite runs the ES|QL data source and dataset YAML tests, which are
+        // skipped when their REST routes are unregistered. Known limitation: dropping this setting silently skips
+        // those tests rather than failing them. Their capability gate cannot be tightened into a hard failure because
+        // other runners of the same YAML files legitimately have federation off. Spelled out rather than taken from
+        // Federation.FEDERATION_ENABLED because this source set does not have the ES|QL plugin on its classpath.
+        .setting("esql.federation.enabled", "true")
         // disable ILM history, since it disturbs tests using _all
         .setting("indices.lifecycle.history_index_enabled", "false")
         .keystore("bootstrap.password", "x-pack-test-password")
@@ -46,6 +52,8 @@ public class XPackRestIT extends AbstractXPackRestTest {
         .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
         .user("x_pack_rest_user", "x-pack-test-password")
         .feature(FeatureFlag.TIME_SERIES_MODE)
+        // _test connectivity probe is FeatureFlag-gated (release-off); enable so 210_data_source.yml cases run.
+        .feature(FeatureFlag.ESQL_DATA_SOURCE_TEST_CONNECTION)
         .configFile("testnode.pem", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
         .configFile("testnode.crt", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
         .configFile("service_tokens", Resource.fromClasspath("service_tokens"))

@@ -1,4 +1,4 @@
-import type { FailureKind, FlakinessReport } from "./analyze.ts";
+import type { FailureKind, FlakinessReport } from "./junit-reports-analyzer.ts";
 
 // Buildkite rejects annotation bodies larger than ~1 MiB.
 const MAX_FAILING_ROWS = 100;
@@ -22,11 +22,21 @@ function summarizeKinds(kinds: FailureKind[]): string {
   return [...counts.entries()].map(([k, n]) => (n > 1 ? `${k} x${n}` : k)).join(", ");
 }
 
-export function renderMarkdown(report: FlakinessReport): string {
+export function renderMarkdown(report: FlakinessReport, buildFailed = false): string {
   const { totals } = report;
   const lines: string[] = [];
   lines.push("## Flakiness summary");
   lines.push("");
+  // The compile phase failed, so every batch was skipped and the
+  // totals below are all zero. Explain that up front so the run does not read
+  // as a clean pass.
+  if (buildFailed) {
+    lines.push("> ⚠️ One or more of the affected test source sets failed to compile, so *all*");
+    lines.push("> flakiness re-runs were skipped - they all depend on one compile of those source sets.");
+    lines.push("> See the `resolve · compile · scan` step's log for the compile error; this makes no");
+    lines.push("> claim about the rest of the build.");
+    lines.push("");
+  }
   lines.push(`- Iterations attempted: ${totals.iterations}`);
   lines.push(`- Successful cases: ${totals.successfulCases}`);
   lines.push(`- Real failures: ${totals.realFailures}`);
@@ -78,7 +88,10 @@ export function renderMarkdown(report: FlakinessReport): string {
   return body.slice(0, MAX_ANNOTATION_BYTES - TRUNCATION_MARKER.length) + TRUNCATION_MARKER;
 }
 
-export function severity(report: FlakinessReport): "error" | "warning" | "success" {
+export function severity(report: FlakinessReport, buildFailed = false): "error" | "warning" | "success" {
+  // A compile-gate failure is not the PR's flakiness problem (the batches never
+  // ran), so it is a warning (orange), not an error - and never a false-green.
+  if (buildFailed) return "warning";
   if (report.totals.realFailures > 0) return "error";
   if (report.totals.suiteTimeoutMarkers > 0) return "warning";
   return "success";

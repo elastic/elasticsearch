@@ -26,5 +26,8 @@ serverless: ga
 :::{include} ../types/tbucket.md
 :::
 
+:::{include} ../functionNamedParams/tbucket.md
+:::
+
 :::{include} ../examples/tbucket.md
 :::

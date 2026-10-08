@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -51,6 +52,7 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
     private final IndicesService indicesService;
     private final ThrottlingRecoveryService throttlingRecoveryService;
     private final ExecutorService executor;
+    private final ThreadContext threadContext;
 
     @Inject
     public TransportCancelRecoveriesAction(
@@ -71,6 +73,7 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
         this.indicesService = indicesService;
         this.throttlingRecoveryService = throttlingRecoveryService;
         this.executor = transportService.getThreadPool().executor(ThreadPool.Names.GENERIC);
+        this.threadContext = transportService.getThreadPool().getThreadContext();
     }
 
     @Override
@@ -79,7 +82,7 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
             request.clusterStateVersion(),
             clusterService,
             executor,
-            null,
+            threadContext,
             listener,
             l -> processCancellations(request, l)
         );
@@ -87,6 +90,14 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
 
     private void processCancellations(CancelRecoveriesAction.Request request, ActionListener<CancelRecoveriesAction.Response> listener) {
         assert Transports.assertNotTransportThread("TransportCancelRecoveriesAction must not run on a transport thread");
+        final long currentTerm = clusterService.state().term();
+        assert currentTerm >= request.term();
+        if (currentTerm > request.term()) {
+            logger.debug("ignoring direct recovery cancellation request for term [{}], local term is [{}]", request.term(), currentTerm);
+            listener.onResponse(new CancelRecoveriesAction.Response(Set.of()));
+            return;
+        }
+
         final Map<String, ShardId> toCancel = new HashMap<>(request.cancellations().size());
         for (ShardRecoveryCancellation cancellation : request.cancellations()) {
             toCancel.put(cancellation.allocationId(), cancellation.shardId());

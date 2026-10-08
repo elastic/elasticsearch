@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 147359
-summary: Port Parquet I/O coalescing and row-group prefetch pipeline
-type: enhancement

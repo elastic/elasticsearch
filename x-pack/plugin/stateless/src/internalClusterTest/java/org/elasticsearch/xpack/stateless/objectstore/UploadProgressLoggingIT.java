@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.greaterThan;
@@ -93,10 +94,11 @@ public class UploadProgressLoggingIT extends AbstractStatelessPluginIntegTestCas
                 String blobName,
                 long blobSize,
                 BlobContainer.BlobMultiPartInputStreamProvider provider,
-                boolean failIfAlreadyExists
+                boolean failIfAlreadyExists,
+                Executor executor
             ) throws IOException {
                 delayBccUploadIfNeeded(purpose);
-                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, blobSize, provider, failIfAlreadyExists);
+                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, blobSize, provider, failIfAlreadyExists, executor);
             }
 
             private void delayBccUploadIfNeeded(OperationPurpose purpose) {

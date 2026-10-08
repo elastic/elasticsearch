@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -15,14 +16,19 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
@@ -35,9 +41,13 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -46,19 +56,23 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
@@ -70,15 +84,24 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Negative tests for subquery analysis in {@code FROM} (and the related {@code ViewUnionAll}/{@code UnionAll} planning), or those don't
  * fit the golden tests. The successful plan-shape (positive) tests over real CSV datasets now live in {@code AnalyzerSubqueryGoldenTests}.
  */
-public class AnalyzerSubqueryTests extends ESTestCase {
+// @TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
+public class AnalyzerSubqueryTests extends AnalyzerTestCase {
+
+    public AnalyzerSubqueryTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     private static final String SALARIES_INT_RESOURCE = "s3://bucket/salaries_int.parquet";
     private static final String SALARIES_LONG_RESOURCE = "s3://bucket/salaries_long.parquet";
@@ -100,7 +123,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      * Project[[!avg_worked_seconds, birth_date{r}#961, !emp_no, !gender, height{r}#965, height.float{r}#966, height.half_float{r}#967,
      *          height.scaled_float{r}#968, hire_date{r}#969, !job_positions, languages{r}#972, languages.byte{r}#973,
      *          languages.long{r}#974, languages.short{r}#975, !last_name, !salary, salary_change{r}#978, salary_change.int{r}#979,
-     *          salary_change.keyword{r}#980, salary_change.long{r}#981, height.double{r}#983, languages.int{r}#984, x{r}#891, y{r}#894,
+     *          salary_change.keygord{r}#980, salary_change.long{r}#981, height.double{r}#983, languages.int{r}#984, x{r}#891, y{r}#894,
      *          z{r}#897, first_name{r}#900, still_hired{r}#904, is_rehired{r}#907]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_OrderBy[[Order[still_hired{r}#904,ASC,LAST], Order[is_rehired{r}#907,ASC,LAST]]]
@@ -688,6 +711,91 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertUnsupportedAttribute(xAttr, "x", List.of(INTEGER.esType(), KEYWORD.esType()));
     }
 
+    /**
+     * The same conversion applied twice to the same union output attribute (e.g. twice in one WHERE) must analyze:
+     * {@code ResolveUnionTypesInUnionAll} dedupes the equal converts into a single pushed-down alias and must replace
+     * <em>every</em> equal occurrence in the plan with the union output's new attribute. Matching occurrences by identity
+     * instead used to leave the second one behind, re-pushing a fresh alias on every Resolution pass until the rule
+     * execution limit — see elasticsearch-serverless#7693.
+     */
+    public void testSameConversionTwiceOverSubqueryUnion() {
+        LogicalPlan plan = analyzer().addSampleData().query("""
+            FROM (FROM sample_data), (FROM sample_data)
+            | WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "L2"
+            | LIMIT 5
+            """);
+
+        List<Filter> filters = new ArrayList<>();
+        plan.forEachDown(Filter.class, filters::add);
+        assertThat(filters, hasSize(1));
+        Filter filter = filters.getFirst();
+        // Both conversions have been pushed below the union and replaced with one shared synthetic attribute.
+        filter.condition()
+            .forEachDown(AbstractConvertFunction.class, convert -> fail("conversion left unreplaced above the subquery union: " + convert));
+        List<Attribute> converted = new ArrayList<>();
+        filter.condition().forEachDown(Attribute.class, attribute -> {
+            if (attribute.name().contains("converted_to")) {
+                converted.add(attribute);
+            }
+        });
+        assertThat(converted, hasSize(2));
+        assertEquals(converted.get(0).id(), converted.get(1).id());
+    }
+
+    /**
+     * With {@code unmapped_fields="nullify"} the unmapped {@code does_not_exist} only resolves once {@code ResolveUnmapped} has run,
+     * so the {@code EVAL} above the {@code WHERE} resolves one Resolution pass later than the {@code WHERE}'s own conversion.
+     * {@code ResolveUnionTypesInUnionAll} has already pushed {@code TO_STRING(client_ip)} into the branches by then; the later,
+     * equal conversion must be replaced with that same union output attribute instead of pushing another same-named alias.
+     */
+    public void testSameConversionResolvedOnLaterPassOverSubqueryUnionNullify() {
+        requireNullifySupport();
+        assertSameConversionResolvedOnLaterPassOverSubqueryUnion("nullify");
+    }
+
+    /**
+     * Same as {@link #testSameConversionResolvedOnLaterPassOverSubqueryUnionNullify}, with the unmapped field loaded instead.
+     */
+    public void testSameConversionResolvedOnLaterPassOverSubqueryUnionLoad() {
+        assertSameConversionResolvedOnLaterPassOverSubqueryUnion("load");
+    }
+
+    /**
+     * Same trigger as {@link #testSameConversionResolvedOnLaterPassOverSubqueryUnionNullify}, under {@code LOAD_ALL}.
+     * The subquery union is allowed, so analysis has to terminate and reuse the converted attribute.
+     */
+    public void testSameConversionResolvedOnLaterPassOverSubqueryUnionLoadAll() {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        assertSameConversionResolvedOnLaterPassOverSubqueryUnion("LOAD_ALL");
+    }
+
+    private void assertSameConversionResolvedOnLaterPassOverSubqueryUnion(String unmappedFields) {
+        LogicalPlan plan = analyzer().addSampleData().statement(LoggerMessageFormat.format(null, """
+            SET unmapped_fields="{}";
+            FROM (FROM sample_data), (FROM sample_data)
+            | WHERE TO_STRING(client_ip) == "172.21.3.15" OR does_not_exist IS NOT NULL
+            | EVAL ip = TO_STRING(client_ip)
+            | LIMIT 5
+            """, unmappedFields));
+
+        List<Attribute> converted = new ArrayList<>();
+        plan.forEachDown(p -> {
+            if ((p instanceof Filter || p instanceof Eval) && p.anyMatch(UnionAll.class::isInstance)) {
+                p.forEachExpression(
+                    AbstractConvertFunction.class,
+                    convert -> fail("conversion left unreplaced above the subquery union: " + convert)
+                );
+                p.forEachExpression(Attribute.class, attribute -> {
+                    if (attribute.name().contains("converted_to")) {
+                        converted.add(attribute);
+                    }
+                });
+            }
+        });
+        assertThat(converted, hasSize(2));
+        assertEquals(converted.get(0).id(), converted.get(1).id());
+    }
+
     /*
      * Limit[1000[INTEGER],false,false]
      * \_Project[[!client_ip]]
@@ -951,14 +1059,13 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *               null[KEYWORD] AS message#2357]]
      *   |     \_Subquery[]
      *   |       \_Project[[m{r}#6, cluster{r}#11]]
-     *   |         \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#56) AS cluster#11]]
-     *   |           \_Aggregate[[pack_cluster_$1{r}#55 AS group_cluster_$1#56],
-     *                           [MAX(RATE_$1{r}#53,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#6, group_cluster_$1{r}#56]]
-     *   |             \_Eval[[PACKDIMENSION(cluster{r}#54) AS pack_cluster_$1#55]]
-     *   |               \_TimeSeriesAggregate[[_tsid{m}#52],[RATE(network.total_bytes_in{f}#24,true[BOOLEAN],PT0S[TIME_DURATION],
-     *                                         @timestamp{f}#10) AS RATE_$1#53, DIMENSIONVALUES(cluster{f}#11,true[BOOLEAN],
-     *                                         PT0S[TIME_DURATION]) AS cluster#54, _tsid{m}#52],null,null,@timestamp{f}#10,TS_COMMAND]
-     *   |                 \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#10, client.ip{f}#14, cluster{f}#11, e..]
+     *   |         \_UnpackDims[packed, [cluster]]
+     *   |           \_Aggregate[[_$packed_dims AS packed],
+     *                           [MAX(RATE_$1,true[BOOLEAN],PT0S[TIME_DURATION]) AS m, packed]]
+     *   |             \_PackDims[[cluster], _$packed_dims]
+     *   |               \_TimeSeriesAggregate[[_tsid],[RATE(network.total_bytes_in,...) AS RATE_$1,
+     *                                         VALUES(cluster,...) AS cluster, _tsid],...,TS_COMMAND]
+     *   |                 \_EsRelation[k8s][TIME_SERIES][...]
      *   \_Project[[m{r}#2366, cluster{r}#2358, @timestamp{f}#2349, client_ip{f}#2350, event_duration{f}#2351, message{f}#2352]]
      *     \_Eval[[null[KEYWORD] AS m#2366]]
      *       \_Eval[[null[KEYWORD] AS cluster#2358]]
@@ -967,7 +1074,10 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *             \_EsRelation[sample_data][@timestamp{f}#2349, client_ip{f}#2350, event_durati..]
      */
     public void testTSSubqueryWithConflictingTypesInUnionAll() {
-        LogicalPlan plan = analyzer().addK8sDownsampled().addSampleData().query("""
+        TransportVersion minVersion = randomBoolean()
+            ? TransportVersionUtils.randomVersionNotSupporting(PackDimsAgg.PACK_DIMS_AGG_VERSION)
+            : TransportVersionUtils.randomVersionSupporting(PackDimsAgg.PACK_DIMS_AGG_VERSION);
+        LogicalPlan plan = analyzer().minimumTransportVersion(minVersion).addK8sDownsampled().addSampleData().query("""
             FROM (TS k8s | STATS m = max(rate(network.total_bytes_in)) BY cluster),
               (FROM sample_data | EVAL m = "abc")
             """);
@@ -993,15 +1103,22 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         Eval tsNullSampleFields = as(tsNullM.child(), Eval.class);
         assertEquals(4, tsNullSampleFields.fields().size());
         Subquery tsSubquery = as(tsNullSampleFields.child(), Subquery.class);
-        // The TS STATS BY clause is now expanded: Project -> Eval[UNPACK] -> Aggregate -> Eval[PACK] -> TimeSeriesAggregate
         Project tsInnerProject = as(tsSubquery.child(), Project.class);
-        Eval tsUnpackEval = as(tsInnerProject.child(), Eval.class);
-        assertEquals(1, tsUnpackEval.fields().size());
-        Aggregate tsOuterAggregate = as(tsUnpackEval.child(), Aggregate.class);
+        UnpackDims tsUnpack = as(tsInnerProject.child(), UnpackDims.class);
+        assertEquals(1, tsUnpack.dims().size());
+        Aggregate tsOuterAggregate = as(tsUnpack.child(), Aggregate.class);
         assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
         assertEquals(1, tsOuterAggregate.groupings().size());
-        Eval tsPackEval = as(tsOuterAggregate.child(), Eval.class);
-        TimeSeriesAggregate tsAggregate = as(tsPackEval.child(), TimeSeriesAggregate.class);
+        TimeSeriesAggregate tsAggregate;
+        if (minVersion.supports(PackDimsAgg.PACK_DIMS_AGG_VERSION)) {
+            // PackDims is folded into TimeSeriesAggregate as a PackDimsAgg
+            tsAggregate = as(tsOuterAggregate.child(), TimeSeriesAggregate.class);
+            assertTrue(tsAggregate.aggregates().stream().anyMatch(agg -> agg instanceof Alias a && a.child() instanceof PackDimsAgg));
+        } else {
+            PackDims tsPack = as(tsOuterAggregate.child(), PackDims.class);
+            assertEquals(1, tsPack.dims().size());
+            tsAggregate = as(tsPack.child(), TimeSeriesAggregate.class);
+        }
         EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
         assertEquals("k8s", tsRelation.indexPattern());
         assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
@@ -1046,15 +1163,13 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *                       null[KEYWORD] AS message#46]]
      *         |       \_Subquery[]
      *         |         \_Project[[m{r}#6, cluster{r}#15]]
-     *         |           \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#63) AS cluster#15]]
-     *         |             \_Aggregate[[pack_cluster_$1{r}#62 AS group_cluster_$1#63],
-     *                                   [MAX(RATE_$1{r}#60,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#6, group_cluster_$1{r}#63]]
-     *         |               \_Eval[[PACKDIMENSION(cluster{r}#61) AS pack_cluster_$1#62]]
-     *         |                 \_TimeSeriesAggregate[[_tsid{m}#59],[RATE(network.total_bytes_in{f}#28,true[BOOLEAN],PT0S[TIME_DURATION],
-     *                                                  @timestamp{f}#14) AS RATE_$1#60, VALUES(cluster{f}#15,true[BOOLEAN],
-     *                                                  PT0S[TIME_DURATION]) AS cluster#61, _tsid{m}#59],null,null,@timestamp{f}#14,
-     *                                                  TS_COMMAND]
-     *         |                   \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#14, client.ip{f}#18, cluster{f}#15, e..]
+     *         |           \_UnpackDims[packed, [cluster]]
+     *         |             \_Aggregate[[_$packed_dims AS packed],
+     *                                   [MAX(RATE_$1,true[BOOLEAN],PT0S[TIME_DURATION]) AS m, packed]]
+     *         |               \_PackDims[[cluster], _$packed_dims]
+     *         |                 \_TimeSeriesAggregate[[_tsid],[RATE(network.total_bytes_in,...) AS RATE_$1,
+     *                                                  VALUES(cluster,...) AS cluster, _tsid],...,TS_COMMAND]
+     *         |                   \_EsRelation[k8s][TIME_SERIES][...]
      *         \_Project[[m{r}#58, $$m$converted_to$keyword{r$}#55, cluster{r}#47, @timestamp{f}#38, client_ip{f}#39,
      *                    event_duration{f}#40, message{f}#41]]
      *           \_Eval[[null[KEYWORD] AS m#58]]
@@ -1065,7 +1180,10 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *                     \_EsRelation[sample_data][@timestamp{f}#38, client_ip{f}#39, event_duration{f..]
      */
     public void testTSSubqueryWithConflictingTypesAndExplicitCast() {
-        LogicalPlan plan = analyzer().addK8sDownsampled().addSampleData().query("""
+        TransportVersion minVersion = randomBoolean()
+            ? TransportVersionUtils.randomVersionNotSupporting(PackDimsAgg.PACK_DIMS_AGG_VERSION)
+            : TransportVersionUtils.randomVersionSupporting(PackDimsAgg.PACK_DIMS_AGG_VERSION);
+        LogicalPlan plan = analyzer().minimumTransportVersion(minVersion).addK8sDownsampled().addSampleData().query("""
             FROM (TS k8s | STATS m = max(rate(network.total_bytes_in)) BY cluster),
               (FROM sample_data | EVAL m = "abc")
             | EVAL m = m::string
@@ -1111,13 +1229,21 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         Eval tsNullSampleFields = as(tsCastEval.child(), Eval.class);
         assertEquals(4, tsNullSampleFields.fields().size());
         Subquery tsSubquery = as(tsNullSampleFields.child(), Subquery.class);
-        // The TS STATS BY clause is now expanded: Project -> Eval[UNPACK] -> Aggregate -> Eval[PACK] -> TimeSeriesAggregate
         Project tsInnerProject = as(tsSubquery.child(), Project.class);
-        Eval tsUnpackEval = as(tsInnerProject.child(), Eval.class);
-        Aggregate tsOuterAggregate = as(tsUnpackEval.child(), Aggregate.class);
+        UnpackDims tsUnpack = as(tsInnerProject.child(), UnpackDims.class);
+        assertEquals(1, tsUnpack.dims().size());
+        Aggregate tsOuterAggregate = as(tsUnpack.child(), Aggregate.class);
         assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
-        Eval tsPackEval = as(tsOuterAggregate.child(), Eval.class);
-        TimeSeriesAggregate tsAggregate = as(tsPackEval.child(), TimeSeriesAggregate.class);
+        TimeSeriesAggregate tsAggregate;
+        if (minVersion.supports(PackDimsAgg.PACK_DIMS_AGG_VERSION)) {
+            // PackDims is folded into TimeSeriesAggregate as a PackDimsAgg
+            tsAggregate = as(tsOuterAggregate.child(), TimeSeriesAggregate.class);
+            assertTrue(tsAggregate.aggregates().stream().anyMatch(agg -> agg instanceof Alias a && a.child() instanceof PackDimsAgg));
+        } else {
+            PackDims tsPack = as(tsOuterAggregate.child(), PackDims.class);
+            assertEquals(1, tsPack.dims().size());
+            tsAggregate = as(tsPack.child(), TimeSeriesAggregate.class);
+        }
         EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
         assertEquals("k8s", tsRelation.indexPattern());
         assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
@@ -1279,6 +1405,43 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertEquals(DOUBLE, as(castSampleInnerEval.fields().get(0).child(), Literal.class).dataType());
         EsRelation castSampleRelation = as(castSampleInnerEval.child(), EsRelation.class);
         assertEquals("sample_data", castSampleRelation.indexPattern());
+    }
+
+    public void testTimeSeriesAggregateFunctionAfterUnionAllSubquery() {
+        // The outer STATS must reject time-series aggregate functions with a descriptive error
+        // explaining that TS aggregations cannot span a union.
+        analyzer().addK8s()
+            .error(
+                """
+                    FROM (FROM k8s), (FROM k8s)
+                    | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+                    """,
+                containsString(
+                    "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
+                )
+            );
+
+        analyzer().addK8s()
+            .error(
+                """
+                    FROM (TS k8s), (FROM k8s)
+                    | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+                    """,
+                containsString(
+                    "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
+                )
+            );
+
+        analyzer().addK8s()
+            .error(
+                """
+                    FROM (TS k8s), (TS k8s)
+                    | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+                    """,
+                containsString(
+                    "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
+                )
+            );
     }
 
     /*
@@ -1642,15 +1805,295 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Cannot use field [date_and_date_nanos_and_long] due to ambiguities"));
     }
 
+    public void testNestedUnionAllWithConflictingTypesInInnerUnion() {
+        analyzer().addDefaultIndex().addDefaultIncompatible().error("""
+            FROM test,
+                 (FROM (FROM test | KEEP emp_no),
+                       (FROM test_mixed_types | KEEP emp_no)
+                  | WHERE emp_no > 10000)
+            | KEEP emp_no
+            """, containsString("Column [emp_no] has conflicting data types in subqueries: [integer, long]"));
+    }
+
     /**
-     * Analyzes a subquery query over two external datasets ({@code salaries_int}/{@code salaries_long}) that share
-     * {@code emp_no}/{@code name} but type {@code salary} differently ({@code integer} vs {@code long}). Mirrors the
-     * production pipeline: {@link DatasetRewriter} turns each {@code FROM <dataset>} into the
-     * {@code UnresolvedExternalRelation} the {@code EXTERNAL} command produces, which the analyzer resolves against the
-     * configured external source schemas — so a dataset branch is backed by an {@link ExternalRelation}, exactly like a
-     * real dataset subquery. The plan is analyzed (not optimized) to match the neighbouring tests.
+     * The outer {@code METADATA} request must not be applied until the subquery's output is final.
+     * A body ending in {@code KEEP *} still exposes an unresolved star when the Initialize batch runs, so
+     * injecting there used to throw {@code UnresolvedException}. The body does produce {@code _index}, so
+     * the outer request must pass the real metadata attribute through, not null-fill it.
      */
-    private static LogicalPlan analyzeExternalDatasetSubquery(String query) {
+    public void testOuterMetadataWithWildcardKeepInSubqueryPassesThrough() {
+        LogicalPlan plan = analyzer().addDefaultIndex().query("""
+            FROM (FROM test METADATA _index | KEEP *) METADATA _index
+            | KEEP emp_no, _index
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        assertEquals(List.of("emp_no", "_index"), Expressions.names(project.projections()));
+        as(project.projections().get(1), MetadataAttribute.class);
+        // no null-fill anywhere in the plan
+        plan.forEachDown(Eval.class, eval -> fail("unexpected null-fill: " + eval));
+    }
+
+    /**
+     * Same wildcard shape as above, but the body does not produce {@code _index}, so the outer request is
+     * null-filled once the wildcard has been expanded.
+     */
+    public void testOuterMetadataWithWildcardKeepInSubqueryNullInjected() {
+        LogicalPlan plan = analyzer().addDefaultIndex().query("""
+            FROM (FROM test | KEEP emp*, first_name) METADATA _index
+            | KEEP emp_no, _index
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        assertEquals(List.of("emp_no", "_index"), Expressions.names(project.projections()));
+        ReferenceAttribute index = as(project.projections().get(1), ReferenceAttribute.class);
+        Eval eval = as(project.child(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        Alias alias = eval.fields().get(0);
+        assertEquals(index.id(), alias.id());
+        Literal nullLiteral = as(alias.child(), Literal.class);
+        assertNull(nullLiteral.value());
+        assertEquals(DataType.KEYWORD, nullLiteral.dataType());
+    }
+
+    /**
+     * An unknown outer {@code METADATA} field on a subquery is reported by the Verifier with the same wording
+     * used for a plain {@code FROM}, and never reaches the physical planner.
+     */
+    public void testUnknownOuterMetadataOnSubqueryIsVerificationError() {
+        analyzer().addDefaultIndex()
+            .error(
+                "FROM (FROM test) METADATA _bogus",
+                equalTo(
+                    "Found 2 problems\nline 1:6: unresolved metadata fields: [?_bogus]\nline 1:27: Unresolved metadata pattern [_bogus]"
+                )
+            );
+    }
+
+    /**
+     * Regression test for the interplay between the outer {@code METADATA} wrapper and union-type handling.
+     * {@code client_ip} is {@code ip} in one branch and {@code keyword} in another, so {@code client_ip::ip} is pushed
+     * into the branches and the multi-typed union column is null-filled. If the wrapper delays the resolution of the
+     * outer {@code EVAL} by a pass, the push-down happens after the null-fill and converts the null-filled attribute
+     * instead of the original one, silently dropping every subquery row. The pushed-down conversion must therefore
+     * never read a null-filled {@code client_ip}.
+     */
+    public void testOuterMetadataDoesNotDelayUnionTypeConversionPushDown() {
+        Map<String, EsField> mapping = new HashMap<>(loadMapping("mapping-sample_data.json"));
+        mapping.put("client_ip", new EsField("client_ip", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        String name = "sample_data_str";
+        Map<String, List<String>> grouped = Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, List.of(name));
+        EsIndex sampleDataStr = new EsIndex(name, mapping, Map.of(name, new IndexProperties(IndexMode.STANDARD, 0)), grouped, grouped);
+
+        LogicalPlan plan = analyzer().addEmployees("employees").addSampleData().addIndex(sampleDataStr).query("""
+            FROM employees,
+                 (FROM sample_data METADATA _index | STATS cnt = count(*) BY _index, client_ip),
+                 (FROM sample_data_str METADATA _index | STATS cnt = count(*) BY _index, client_ip)
+                 METADATA _index
+            | EVAL client_ip = client_ip::ip
+            | WHERE emp_no == 10091 OR client_ip == "172.21.3.15"
+            | KEEP _index, emp_no, cnt, client_ip
+            """);
+
+        Set<NameId> nullFilledClientIps = new HashSet<>();
+        List<ConvertFunction> pushedDownConversions = new ArrayList<>();
+        plan.forEachDown(Eval.class, eval -> {
+            for (Alias alias : eval.fields()) {
+                // The keyword-typed null is the union-type null-fill of the multi-typed column; the ip-typed null that the
+                // UnionAll alignment adds to the employees branch is a legitimate conversion input.
+                if (alias.name().equals("client_ip")
+                    && alias.child() instanceof Literal literal
+                    && literal.value() == null
+                    && literal.dataType() == DataType.KEYWORD) {
+                    nullFilledClientIps.add(alias.id());
+                } else if (alias.child() instanceof ConvertFunction convert && convert.dataType() == DataType.IP) {
+                    pushedDownConversions.add(convert);
+                }
+            }
+        });
+        assertThat("expected client_ip::ip to be pushed into the UnionAll branches", pushedDownConversions, not(empty()));
+        assertThat("expected the multi-typed client_ip column to be null-filled", nullFilledClientIps, not(empty()));
+        for (ConvertFunction convert : pushedDownConversions) {
+            Attribute converted = as(convert.field(), Attribute.class);
+            assertFalse(
+                "client_ip::ip must convert the original branch column, not the null-fill: " + convert,
+                nullFilledClientIps.contains(converted.id())
+            );
+        }
+    }
+
+    // consecutive forks are not supported yet
+    public void testConsecutiveForksInMainQuery() {
+        analyzer().addEmployees("test").error("""
+            FROM test
+            | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
+            | FORK (WHERE salary > 100) (WHERE salary <= 100)
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    public void testConsecutiveForksInsideInSubquery() {
+        analyzer().addEmployees("test").error("""
+            FROM test
+            | WHERE emp_no IN (
+                FROM test
+                | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
+                | FORK (WHERE salary > 100) (WHERE salary <= 100)
+                | KEEP emp_no
+            )
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    public void testNestedForksInMainQuery() {
+        analyzer().addEmployees("test").error("""
+                FROM test
+                | FORK (FORK (WHERE emp_no > 10) (WHERE emp_no <= 10))
+                       (WHERE emp_no > 100)
+                | KEEP emp_no
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    public void testNestedForksInsideInSubquery() {
+        analyzer().addEmployees("test").error("""
+            FROM test
+            | WHERE emp_no IN (
+                FROM test
+                | FORK (FORK (WHERE emp_no > 10) (WHERE emp_no <= 10))
+                       (WHERE emp_no > 100)
+                | KEEP emp_no
+            )
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    public void testForkBeforeAndAfterInSubqueryInMainQuery() {
+        analyzer().addEmployees("test").error("""
+            FROM test
+            | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
+            | WHERE emp_no IN (FROM test | KEEP emp_no)
+            | FORK (WHERE salary > 100) (WHERE salary <= 100)
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    public void testForkInsideAndAfterFork() {
+        String message = analyzer().addEmployees("test").error("""
+                FROM test
+                | FORK
+                  (FORK (FORK (WHERE emp_no > 10) (WHERE emp_no <= 10))
+                        (WHERE emp_no > 50))
+                  (WHERE emp_no > 100)
+                | KEEP emp_no
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    // TODO a single subquery is promoted as the main query, so this query behaves similarly as consecutive FORKs in the main query.
+    // once consecutive FORKs are supported, this query will be supported as well, but for now it is rejected. Alternatively find a way to
+    // differentiate this case from the consecutive FORKs.
+    public void testConsecutiveForksWithFromSubquery() {
+        analyzer().addEmployees("test").error("""
+            FROM (
+                FROM test
+                | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
+            )
+            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    // TODO a single subquery is promoted as the main query, so this query behaves similarly as consecutive FORKs in the main query.
+    // once consecutive FORKs are supported, this query will be supported as well, but for now it is rejected. Alternatively find a way to
+    // differentiate this case from the consecutive FORKs.
+    public void testConsecutiveForksWithNestedView() {
+        analyzer().addEmployees("test").addView("fork_view", "FROM test | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)").error("""
+            FROM fork_view
+            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    /**
+     * TODO FORK alignment fills a dropped column with {@code null[T]} using the pre-widen type. After implicit date/date_nanos widening the
+     *  sibling branch is {@code date_nanos} while the filler stays {@code datetime}. {@code alignMergeOutputToChildren} does not update the
+     *  FORK output when children disagree, so {@code checkFork} reports the conflict. The following test can complete successfully if
+     *  filling the dropped column as {@code date_nanos}.
+     */
+
+    public void testForkNullFillsImplicitDateNanosCastColumnInFirstBranch() {
+        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | FORK (KEEP message) (KEEP @timestamp, message)
+            | KEEP @timestamp, _fork
+            """, allOf(containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
+    }
+
+    public void testForkNullFillsImplicitDateNanosCastColumnInSecondBranch() {
+        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | FORK (KEEP @timestamp, message) (KEEP message)
+            | KEEP @timestamp, _fork
+            """, allOf(containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
+    }
+
+    public void testForkNullFillsImplicitDateNanosCastColumnAfterNestedSubquery() {
+        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
+            FROM sample_data, (FROM sample_data_ts_nanos, (FROM sample_data))
+            | FORK (KEEP @timestamp) (KEEP message)
+            | KEEP @timestamp, _fork
+            """, allOf(containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
+    }
+
+    public void testForkNullFillsImplicitDateNanosCastColumnWithEval() {
+        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | FORK (EVAL x = @timestamp) (WHERE true)
+            | KEEP x, _fork
+            """, allOf(containsString("Column [x] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
+    }
+
+    public void testForkNullFillsImplicitDateNanosCastColumnWithStats() {
+        analyzer().addSampleData()
+            .addIndex(sampleDataTsNanosIndex())
+            .error(
+                """
+                    FROM sample_data, (FROM sample_data_ts_nanos)
+                    | FORK (STATS m = MAX(@timestamp)) (WHERE true | KEEP @timestamp)
+                    | KEEP m, @timestamp
+                    """,
+                allOf(
+                    containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]"),
+                    containsString("Column [m] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")
+                )
+            );
+    }
+
+    public void testForkNullFillsAtEveryLevelOfNestedUnionAlls() {
+        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
+            FROM (FROM (FROM sample_data, (FROM sample_data_ts_nanos)
+                        | FORK (KEEP @timestamp, message) (KEEP message)),
+                       (FROM sample_data | KEEP @timestamp, message)
+                  | FORK (EVAL t = @timestamp) (KEEP message)),
+                 (FROM sample_data_ts_nanos | KEEP @timestamp, message)
+            | RENAME t AS u
+            | KEEP @timestamp, u, message, _fork
+            | SORT @timestamp, u
+            """, allOf(containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
+    }
+
+    public void testForkNullFillsInsideAndAfterUnionAllThroughViews() {
+        analyzer().addSampleData()
+            .addIndex(sampleDataTsNanosIndex())
+            .addView(
+                "fork_over_union_view",
+                "FROM sample_data, (FROM sample_data_ts_nanos) | FORK (KEEP @timestamp, message) (KEEP message)"
+            )
+            .error("""
+                FROM (FROM fork_over_union_view, (FROM sample_data | KEEP @timestamp, message)
+                          | FORK (WHERE message IS NOT NULL) (KEEP message)),
+                         (FROM sample_data | KEEP @timestamp, message)
+                    | KEEP @timestamp, message, _fork
+                    | SORT @timestamp
+                """, containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]"));
+    }
+
+    private LogicalPlan analyzeExternalDatasetSubquery(String query) {
         DataSource dataSource = new DataSource("external_ds", "test", null, Map.of());
         Dataset intDataset = new Dataset("salaries_int", new DataSourceReference("external_ds"), SALARIES_INT_RESOURCE, null, Map.of());
         Dataset longDataset = new Dataset("salaries_long", new DataSourceReference("external_ds"), SALARIES_LONG_RESOURCE, null, Map.of());
@@ -1661,7 +2104,9 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
             TEST_PARSER.parseQuery(query),
             projectMetadata,
-            TestIndexNameExpressionResolver.newInstance()
+            TestIndexNameExpressionResolver.newInstance(),
+            // These cases name their datasets exactly, which reaches them at the wildcards_match_datasets default.
+            false
         );
         ExternalSourceResolution resolution = new ExternalSourceResolution(
             Map.of(
@@ -1797,9 +2242,17 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      * so we reuse {@code mapping-sample_data.json} (as {@link TestAnalyzer#addSampleData()} does) instead of re-declaring the fields.
      */
     private static EsIndex sampleDataTsLongIndex() {
+        return sampleDataIndexWithTimestampType("sample_data_ts_long", LONG);
+    }
+
+    private static EsIndex sampleDataTsNanosIndex() {
+        return sampleDataIndexWithTimestampType("sample_data_ts_nanos", DataType.DATE_NANOS);
+    }
+
+    private static EsIndex sampleDataIndexWithTimestampType(String name, DataType timestampType) {
         Map<String, EsField> mapping = new LinkedHashMap<>(loadMapping("mapping-sample_data.json"));
-        mapping.put("@timestamp", new EsField("@timestamp", LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
-        return new EsIndex("sample_data_ts_long", mapping, Map.of("sample_data_ts_long", IndexMode.STANDARD), Map.of(), Map.of());
+        mapping.put("@timestamp", new EsField("@timestamp", timestampType, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        return new EsIndex(name, mapping, Map.of(name, new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of());
     }
 
     /**

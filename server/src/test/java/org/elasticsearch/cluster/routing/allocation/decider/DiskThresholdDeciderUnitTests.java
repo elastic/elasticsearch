@@ -85,7 +85,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             true,
             EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         DiscoveryNode node_0 = DiscoveryNodeUtils.builder("node_0").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
         DiscoveryNode node_1 = DiscoveryNodeUtils.builder("node_1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
@@ -155,7 +156,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             true,
             EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         DiscoveryNode node_0 = DiscoveryNodeUtils.builder("node_0").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
         DiscoveryNode node_1 = DiscoveryNodeUtils.builder("node_1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
@@ -257,7 +259,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             true,
             EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         test_0 = ShardRoutingHelper.initialize(test_0, node_0.getId());
         test_0 = ShardRoutingHelper.moveToStarted(test_0);
@@ -268,7 +271,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             true,
             EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         test_1 = ShardRoutingHelper.initialize(test_1, node_1.getId());
         test_1 = ShardRoutingHelper.moveToStarted(test_1);
@@ -279,7 +283,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             true,
             EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         test_2 = ShardRoutingHelper.initialize(test_2, node_1.getId());
         test_2 = ShardRoutingHelper.moveToStarted(test_2);
@@ -290,7 +295,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             true,
             EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         test_3 = ShardRoutingHelper.initialize(test_3, node_1.getId());
         test_3 = ShardRoutingHelper.moveToStarted(test_3);
@@ -445,29 +451,32 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             false,
             PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );
         test_0 = ShardRoutingHelper.initialize(test_0, "node1");
         test_0 = ShardRoutingHelper.moveToStarted(test_0);
-        test_0 = ShardRoutingHelper.relocate(test_0, "node2");
+        test_0 = ShardRoutingHelper.relocate(test_0, "node2", ShardRouting.RecoveryPriority.RELOCATE_REBALANCING);
 
         ShardRouting test_1 = ShardRouting.newUnassigned(
             new ShardId(index, 1),
             false,
             PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );
         test_1 = ShardRoutingHelper.initialize(test_1, "node2");
         test_1 = ShardRoutingHelper.moveToStarted(test_1);
-        test_1 = ShardRoutingHelper.relocate(test_1, "node1");
+        test_1 = ShardRoutingHelper.relocate(test_1, "node1", ShardRouting.RecoveryPriority.RELOCATE_REBALANCING);
 
         ShardRouting test_2 = ShardRouting.newUnassigned(
             new ShardId(index, 2),
             false,
             PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );
         test_2 = ShardRoutingHelper.initialize(test_2, "node1");
         test_2 = ShardRoutingHelper.moveToStarted(test_2);
@@ -493,7 +502,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             false,
             PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );
         test_3 = ShardRoutingHelper.initialize(test_3, "node1");
         test_3 = ShardRoutingHelper.moveToStarted(test_3);
@@ -505,11 +515,12 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             primary,
             primary ? EmptyStoreRecoverySource.INSTANCE : PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            primary ? ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY : ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );
         other_0 = ShardRoutingHelper.initialize(other_0, "node2");
         other_0 = ShardRoutingHelper.moveToStarted(other_0);
-        other_0 = ShardRoutingHelper.relocate(other_0, "node1");
+        other_0 = ShardRoutingHelper.relocate(other_0, "node1", ShardRouting.RecoveryPriority.RELOCATE_REBALANCING);
 
         node = RoutingNodesHelper.routingNode(
             "node1",
@@ -584,19 +595,6 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             unaccountedSearchableSnapshotSizes + relocatingShardsSizes,
             sizeOfUnaccountedShards(allocation, clusterState.getRoutingNodes().node(nodeId), false, "/dev/null")
         );
-    }
-
-    private ShardRouting createShard(Index index, String nodeId, int i, int expectedSize) {
-        var unassigned = ShardRouting.newUnassigned(
-            new ShardId(index, i),
-            true,
-            EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
-        );
-        var initialized = ShardRoutingHelper.initialize(unassigned, nodeId, expectedSize);
-        var started = ShardRoutingHelper.moveToStarted(initialized, expectedSize);
-        return started;
     }
 
     public long sizeOfUnaccountedShards(RoutingAllocation allocation, RoutingNode node, boolean subtractShardsMovingAway, String dataPath) {
@@ -679,7 +677,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             true,
             LocalShardsRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         test_0 = ShardRoutingHelper.initialize(test_0, "node1");
         test_0 = ShardRoutingHelper.moveToStarted(test_0);
@@ -689,7 +688,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             true,
             LocalShardsRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         test_1 = ShardRoutingHelper.initialize(test_1, "node2");
         test_1 = ShardRoutingHelper.moveToStarted(test_1);
@@ -699,7 +699,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             true,
             LocalShardsRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         test_2 = ShardRoutingHelper.initialize(test_2, "node1");
 
@@ -708,7 +709,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             true,
             LocalShardsRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         test_3 = ShardRoutingHelper.initialize(test_3, "node1");
         assertEquals(500L, getExpectedShardSize(test_3, 0L, allocation));
@@ -721,7 +723,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             true,
             LocalShardsRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         assertEquals(1110L, getExpectedShardSize(target, 0L, allocation));
 
@@ -730,7 +733,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             true,
             LocalShardsRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         assertEquals(510L, getExpectedShardSize(target2, 0L, allocation));
 
@@ -739,7 +743,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             true,
             LocalShardsRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         assertEquals(600L, getExpectedShardSize(target2, 0L, allocation));
 
@@ -853,7 +858,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             true,
             EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         DiscoveryNode node_0 = DiscoveryNodeUtils.builder("node_0").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
         DiscoveryNode node_1 = DiscoveryNodeUtils.builder("node_1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
@@ -918,7 +924,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             true,
             EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         DiscoveryNode node_0 = DiscoveryNodeUtils.builder("node_0").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
         DiscoveryNode node_1 = DiscoveryNodeUtils.builder("node_1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();

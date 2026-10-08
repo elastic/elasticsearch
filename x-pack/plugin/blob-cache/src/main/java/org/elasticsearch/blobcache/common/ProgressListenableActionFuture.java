@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
 
 /**
@@ -55,7 +56,6 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
     private List<PositionAndListener> listeners;
     private long progress;
     private volatile boolean completed;
-    private volatile boolean success;
 
     /**
      * Creates a {@link ProgressListenableActionFuture} that accepts the progression
@@ -87,7 +87,6 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
         this.end = end;
         this.progress = start;
         this.completed = false;
-        this.success = false;
         this.unconditionalProgressConsumer = unconditionalProgressConsumer;
         this.progressConsumer = progressConsumer;
         assert invariant();
@@ -99,8 +98,8 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
      * <ul>
      *   <li>Lower's byte-level progress is forwarded unconditionally to this future.</li>
      *   <li>Upper's progress is forwarded once lower has completed.</li>
-     *   <li>When lower completes, this future advances to upper's current progress (at least {@code splitPoint})
-     *       via {@link #onProgressAtLeast}, catching up to any progress upper made while lower was pending.</li>
+     *   <li>When lower completes, this future advances to upper's current progress (at least {@code splitPoint}),
+     *       catching up to any progress upper made while lower was pending.</li>
      *   <li>When both halves complete, this future completes; on failure the failure propagates.</li>
      * </ul>
      */
@@ -109,25 +108,36 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
         assert splitPoint < end : splitPoint + " >= " + end;
 
         final LongConsumer originalProgressConsumer = this.progressConsumer;
+        // Splitting turns this future into a multi-producer sink fed by lower, the catch-up below, and upper. Delivery is
+        // serialized so that the strict onProgress contract still holds on the forwards: lower forwards until it completes,
+        // then the catch-up forwards upper's current progress to this future and only afterwards opens the gate
+        // (lowerForwarding) that allows upper to forward. The single value that both the catch-up and upper could deliver
+        // (upper's progress at catch-up time) is delivered only by the catch-up; upper skips it and forwards only beyond it.
         final ProgressListenableActionFuture lower = new ProgressListenableActionFuture(
             start,
             splitPoint,
             this::onProgress,
             originalProgressConsumer
         );
-        final ProgressListenableActionFuture upper = new ProgressListenableActionFuture(
-            splitPoint,
-            end,
-            p -> { if (lower.success) onProgress(p); },
-            originalProgressConsumer == null ? null : p -> {
-                if (lower.success) originalProgressConsumer.accept(p);
+        final long lowerForwardingUnassigned = Long.MIN_VALUE;
+        final var lowerForwarding = new AtomicLong(lowerForwardingUnassigned);
+        final ProgressListenableActionFuture upper = new ProgressListenableActionFuture(splitPoint, end, p -> {
+            final long captured = lowerForwarding.get();
+            if (captured != lowerForwardingUnassigned && p != captured) {
+                onProgress(p);
             }
-        );
+        }, originalProgressConsumer == null ? null : p -> {
+            if (lowerForwarding.get() != lowerForwardingUnassigned) originalProgressConsumer.accept(p);
+        });
 
-        // When lower completes we catch up to wherever upper has already progressed, not just splitPoint.
-        // upper.progress is always < upper.end (onProgress(end) returns early without updating the field),
-        // so passing it to onProgressAtLeast is always within the valid [start+1, end-1] range.
-        lower.addListener(ActionListener.wrap(ignored -> onProgressAtLeast(upper.getProgress()), e -> {}), splitPoint);
+        lower.addListener(ActionListener.wrap(ignored -> {
+            // Catch up to wherever upper has already progressed, not just splitPoint. So far only
+            // lower has forwarded (< splitPoint), while upperProgress is in [splitPoint, end-1] (onProgress(end) is a no-op,
+            // so upper.progress never reaches end). Delivering before opening the gate keeps upper's later forwards ordered.
+            final long upperProgress = upper.getProgress();
+            onProgress(upperProgress);
+            lowerForwarding.set(upperProgress);
+        }, e -> {}), splitPoint);
         try (var bothFiredRef = new RefCountingListener(ActionListener.wrap(v -> onResponse(end), this::onFailure))) {
             lower.addListener(bothFiredRef.acquire(l -> {}), splitPoint);
             upper.addListener(bothFiredRef.acquire(l -> {}), end);
@@ -155,27 +165,6 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
      * @param progressValue the new progress value; must be strictly greater than the current progress
      */
     public void onProgress(final long progressValue) {
-        doOnProgress(progressValue, true);
-    }
-
-    /**
-     * Like {@link #onProgress(long)} but a no-op if progress has already advanced to or past {@code progressValue}.
-     * Unlike {@link #onProgress}, this method is safe to call concurrently with other progress updates that may
-     * have already advanced past the given value — it simply returns without asserting ordering.
-     */
-    void onProgressAtLeast(final long progressValue) {
-        assert progressValue < end;
-        doOnProgress(progressValue, false);
-    }
-
-    /**
-     * Shared implementation for {@link #onProgress} and {@link #onProgressAtLeast}.
-     *
-     * @param strict if {@code true} the current progress must be strictly less than {@code progressValue} (normal
-     *               {@link #onProgress} contract); if {@code false} the method is a no-op when progress has already
-     *               advanced to or past {@code progressValue}, without asserting ordering.
-     */
-    private void doOnProgress(final long progressValue, final boolean strict) {
         ensureNotCompleted();
         if (progressValue <= start) {
             assert false : progressValue + " <= " + start;
@@ -191,11 +180,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
 
         List<ActionListener<Long>> listenersToExecute = null;
         synchronized (this) {
-            if (strict) {
-                assert this.progress < progressValue : this.progress + " < " + progressValue;
-            } else if (this.progress >= progressValue) {
-                return;
-            }
+            assert this.progress < progressValue : this.progress + " < " + progressValue;
             this.progress = progressValue;
 
             final List<PositionAndListener> listenersCopy = this.listeners;
@@ -254,8 +239,6 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
     @Override
     protected void done(boolean success) {
         super.done(success);
-        assert this.success == false : "success cannot be set twice";
-        this.success = success;
         final List<PositionAndListener> listenersToExecute;
         assert invariant();
         synchronized (this) {

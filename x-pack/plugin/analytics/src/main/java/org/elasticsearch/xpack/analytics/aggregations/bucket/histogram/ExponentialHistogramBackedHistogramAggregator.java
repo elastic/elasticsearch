@@ -82,7 +82,7 @@ public final class ExponentialHistogramBackedHistogramAggregator extends Abstrac
                     ExponentialHistogram histo = values.histogramValue();
                     forEachBucketCenter(histo, (center, count) -> {
                         double key = Math.floor((center - offset) / interval);
-                        if (hardBounds == null || hardBounds.contain(key * interval)) {
+                        if (hardBounds == null || hardBounds.contain(key * interval + offset)) {
                             long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
                             if (bucketOrd < 0) { // already seen
                                 bucketOrd = -1 - bucketOrd;

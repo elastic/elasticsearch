@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.elasticsearch.test.TransportVersionUtils;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
@@ -16,6 +18,16 @@ import java.util.EnumSet;
 import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressionToFieldLoadGoldenTests.SEARCH_STATS;
 
 public class ForkGoldenTests extends GoldenTestCase {
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public ForkGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
+
     // TODO: Add NODE_REDUCE and NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION stages
     // We need to extend golden tests to support more than a single data node plan.
     private static final EnumSet<Stage> STAGES = EnumSet.of(
@@ -34,14 +46,14 @@ public class ForkGoldenTests extends GoldenTestCase {
     }
 
     public void testHybridSearch() {
-        // we set an explicit transport version to `ESQL_SUM_LONG_OVERFLOW_FIX` transport version to plan SUM(_score) consistently.
-        runGoldenTest("""
+        // SUM(_score) planning changed at ESQL_SUM_LONG_OVERFLOW_FIX; the older shape is unrelated to this FORK/FUSE test.
+        builder("""
             FROM books METADATA _id, _index, _score
             | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
                    ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
             | FUSE
             | SORT _score DESC
-            """, STAGES, SEARCH_STATS, TransportVersionUtils.randomVersionSupporting(Sum.ESQL_SUM_LONG_OVERFLOW_FIX));
+            """).stages(STAGES).searchStats(SEARCH_STATS).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     public void testWithTopResultsAndStats() {

@@ -1,5 +1,0 @@
-area: PromQL
-issues: []
-pr: 151486
-summary: "Implement PromQL set operator: top-level `or` (UNION)"
-type: enhancement

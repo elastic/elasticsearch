@@ -33,7 +33,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
@@ -52,6 +52,14 @@ import static org.hamcrest.Matchers.notNullValue;
 public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStatelessPluginIntegTestCase {
 
     private static final int MAX_CONCURRENT_RUNNING_MERGES = 2;
+
+    /**
+     * Parked merges and the gated pre-flush upload are held across {@code startIndexNode} /
+     * {@code ensureStableCluster} / reroute / assertions. That window can exceed
+     * {@link org.elasticsearch.test.ESTestCase#SAFE_AWAIT_TIMEOUT} on slow CI (see #156224),
+     * and timing out on a merge thread fatally closes the IndexWriter.
+     */
+    private static final TimeValue PARKED_OPERATION_TIMEOUT = TimeValue.THIRTY_SECONDS;
 
     @Override
     protected boolean addMockFsRepository() {
@@ -283,9 +291,9 @@ public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStateless
         private final AtomicBoolean blockNextCommitUpload = new AtomicBoolean(true);
 
         void maybeBlock(String blobName) {
-            if (StatelessCompoundCommit.startsWithBlobPrefix(blobName) && blockNextCommitUpload.compareAndSet(true, false)) {
+            if (BatchedCompoundCommit.startsWithBlobPrefix(blobName) && blockNextCommitUpload.compareAndSet(true, false)) {
                 blocked.countDown();
-                safeAwait(proceed);
+                safeAwait(proceed, PARKED_OPERATION_TIMEOUT);
             }
         }
 
@@ -322,7 +330,7 @@ public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStateless
 
         private void maybeBlockMerge(String indexName) {
             if (indexName.equals(blockMergesForIndex)) {
-                safeAwait(proceedMerge);
+                safeAwait(proceedMerge, PARKED_OPERATION_TIMEOUT);
             }
         }
 

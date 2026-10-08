@@ -19,6 +19,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -50,7 +51,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
  * Note that this function is currently only intended for usage in surrogates and not available as a user-facing function.
  * Therefore, it is intentionally not registered in {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
  */
-public class ExtractHistogramComponent extends EsqlScalarFunction {
+public class ExtractHistogramComponent extends EsqlScalarFunction implements AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -74,10 +75,14 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
 
     public static final PromqlFunctionDefinition PROMQL_HISTOGRAM_AVG = PromqlFunctionDefinition.def()
         .histogramUnary(
+            // A histogram holding no observations divides 0 by 0, which PromQL reports as NaN rather than dropping the
+            // series, so the division must preserve non-finite results.
             (source, field) -> new Div(
                 source,
                 ExtractHistogramComponent.create(source, field, ExponentialHistogramBlock.Component.SUM),
-                ExtractHistogramComponent.create(source, field, ExponentialHistogramBlock.Component.COUNT)
+                ExtractHistogramComponent.create(source, field, ExponentialHistogramBlock.Component.COUNT),
+                null,
+                true
             )
         )
         .description("Returns the arithmetic average of observations stored in a native histogram.")

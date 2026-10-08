@@ -1,0 +1,2 @@
+FROM employees
+| STATS cnt = COUNT(*) WHERE emp_no IN (FROM emps_view | KEEP emp_no)

@@ -316,6 +316,35 @@ setup:
           sort: [ { metric.value_count: desc } ]
 
 ---
+"Sort on multi-metric field without sum and value_count returns 400":
+  - do:
+      indices.create:
+        index: unsortable_amd
+        body:
+          mappings:
+            properties:
+              metric:
+                type: aggregate_metric_double
+                metrics: [min, max]
+
+  - do:
+      index:
+        index: unsortable_amd
+        id: "1"
+        body:
+          metric:
+            min: 1.0
+            max: 10.0
+        refresh: true
+
+  - do:
+      catch: /Sorting by field \[metric\] of type \[aggregate_metric_double\] is not supported/
+      search:
+        index: unsortable_amd
+        body:
+          sort: metric
+
+---
 "Test fields api":
   - do:
       allowed_warnings:

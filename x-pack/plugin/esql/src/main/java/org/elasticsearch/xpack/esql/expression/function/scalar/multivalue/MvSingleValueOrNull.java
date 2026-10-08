@@ -19,6 +19,7 @@ import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -56,7 +57,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
  * several expressions still get a distinct warning per expression.
  * </p>
  */
-public class MvSingleValueOrNull extends AbstractMultivalueFunction {
+public class MvSingleValueOrNull extends AbstractMultivalueFunction implements AnyNullIsNull {
     public static final TransportVersion MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION = TransportVersion.fromName(
         "esql_mv_single_value_or_null"
     );
@@ -173,7 +174,7 @@ public class MvSingleValueOrNull extends AbstractMultivalueFunction {
             if (warningsList == null) {
                 warningsList = new ArrayList<>(warningSources.size());
                 for (Source s : warningSources) {
-                    warningsList.add(Warnings.createWarnings(driverContext.warningsMode(), s));
+                    warningsList.add(driverContext.createWarnings(s));
                 }
             }
             return warningsList;

@@ -16,11 +16,18 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -1073,6 +1080,316 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
     }
 
+    /**
+     * And(realCol LIKE "x*", _file.name LIKE "y*"): canConvert is disjunctive so the And converts
+     * (left arm), but isFullyEvaluable must be RECHECK because the virtual-column conjunct has no
+     * predicate block at runtime and must not be dropped from FilterExec.
+     * See elastic/esql-planning#2052.
+     */
+    public void testAndWithRealAndVirtualLikeIsRecheck() {
+        Attribute realCol = attr("url", DataType.KEYWORD);
+        Attribute virtualCol = virtualAttr("_file.name", DataType.KEYWORD);
+        Expression realLike = new WildcardLike(Source.EMPTY, realCol, new WildcardPattern("*google*"));
+        Expression virtualLike = new WildcardLike(Source.EMPTY, virtualCol, new WildcardPattern("*.parquet"));
+        Expression and = new And(Source.EMPTY, realLike, virtualLike);
+        // The And converts (realLike arm) but must not be YES because virtualLike is not evaluable.
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(and));
+    }
+
+    public void testMixedDateComparisonConvertsToRecheck() {
+        Attribute nanos = attr("ts", DataType.DATE_NANOS);
+        assertEquals(
+            FilterPushdownSupport.Pushability.RECHECK,
+            support.canPush(new Equals(Source.EMPTY, nanos, datetimeLit(1_700_000_000_000L), null))
+        );
+        assertEquals(
+            FilterPushdownSupport.Pushability.RECHECK,
+            support.canPush(new Equals(Source.EMPTY, attr("ts", DataType.DATETIME), dateNanosLit(1_700_000_000_000_000_000L), null))
+        );
+    }
+
+    public void testMixedDateInConvertsToRecheck() {
+        Attribute nanos = attr("ts", DataType.DATE_NANOS);
+        Expression filter = new In(Source.EMPTY, nanos, List.of(datetimeLit(1_000L), datetimeLit(2_000L)));
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(filter));
+        Expression reverse = new In(
+            Source.EMPTY,
+            attr("ts", DataType.DATETIME),
+            List.of(dateNanosLit(1_000_000_000L), dateNanosLit(2_000_000_000L))
+        );
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(reverse));
+    }
+
+    public void testMixedDateRangeConvertsToRecheck() {
+        Attribute nanos = attr("ts", DataType.DATE_NANOS);
+        Expression filter = new Range(Source.EMPTY, nanos, datetimeLit(1_000L), true, datetimeLit(2_000L), true, ZoneOffset.UTC);
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(filter));
+        Attribute date = attr("ts", DataType.DATETIME);
+        Expression reverse = new Range(
+            Source.EMPTY,
+            date,
+            dateNanosLit(1_000_000_000L),
+            true,
+            dateNanosLit(2_000_000_000L),
+            true,
+            ZoneOffset.UTC
+        );
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(reverse));
+    }
+
+    public void testMixedNumericComparisonInAndRangeConvertsToRecheck() {
+        Attribute id = attr("id", DataType.INTEGER);
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(new LessThan(Source.EMPTY, id, doubleLit(5.5), null)));
+        // IN (5.5) alone is a domain contradiction (i < MIN) — still pushable as RECHECK.
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(new In(Source.EMPTY, id, List.of(doubleLit(5.5)))));
+        assertEquals(
+            FilterPushdownSupport.Pushability.RECHECK,
+            support.canPush(new Range(Source.EMPTY, id, intLit(0), true, doubleLit(5.5), true, ZoneOffset.UTC))
+        );
+    }
+
+    public void testMatchingTemporalAndNumericStillRecheck() {
+        assertEquals(
+            FilterPushdownSupport.Pushability.RECHECK,
+            support.canPush(new Equals(Source.EMPTY, attr("ts", DataType.DATETIME), datetimeLit(1_700_000_000_000L), null))
+        );
+        assertEquals(
+            FilterPushdownSupport.Pushability.RECHECK,
+            support.canPush(new Equals(Source.EMPTY, attr("ts", DataType.DATE_NANOS), dateNanosLit(1_700_000_000_000_000_000L), null))
+        );
+        assertEquals(
+            FilterPushdownSupport.Pushability.RECHECK,
+            support.canPush(new Equals(Source.EMPTY, attr("id", DataType.INTEGER), intLit(42), null))
+        );
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(new IsNull(Source.EMPTY, attr("ts", DataType.DATE_NANOS))));
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(new IsNotNull(Source.EMPTY, attr("id", DataType.INTEGER))));
+    }
+
+    public void testNestedMixedDateOrAndPushesAfterConvert() {
+        Attribute ts = attr("ts", DataType.DATE_NANOS);
+        Attribute id = attr("id", DataType.INTEGER);
+        Attribute other = attr("other", DataType.INTEGER);
+        Expression mixed = new Equals(Source.EMPTY, ts, datetimeLit(1_700_000_000_000L), null);
+        Expression intEq = new Equals(Source.EMPTY, id, intLit(1), null);
+        Expression otherEq = new Equals(Source.EMPTY, other, intLit(2), null);
+        Expression filter = new Or(Source.EMPTY, new And(Source.EMPTY, mixed, intEq), otherEq);
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(filter));
+        assertTrue(support.pushFilters(List.of(filter)).hasPushedFilter());
+    }
+
+    public void testNestedMixedDateNotAndPushesAfterConvert() {
+        Attribute ts = attr("ts", DataType.DATE_NANOS);
+        Attribute id = attr("id", DataType.INTEGER);
+        Expression mixed = new Equals(Source.EMPTY, ts, datetimeLit(1_700_000_000_000L), null);
+        Expression intEq = new Equals(Source.EMPTY, id, intLit(1), null);
+        Expression filter = new Not(Source.EMPTY, new And(Source.EMPTY, mixed, intEq));
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(filter));
+        assertTrue(support.pushFilters(List.of(filter)).hasPushedFilter());
+    }
+
+    public void testNestedMixedDateInOrAndPushesAfterConvert() {
+        Attribute ts = attr("ts", DataType.DATE_NANOS);
+        Attribute id = attr("id", DataType.INTEGER);
+        Attribute other = attr("other", DataType.INTEGER);
+        Expression mixedIn = new In(Source.EMPTY, ts, List.of(datetimeLit(1_700_000_000_000L)));
+        Expression intEq = new Equals(Source.EMPTY, id, intLit(1), null);
+        Expression otherEq = new Equals(Source.EMPTY, other, intLit(2), null);
+        Expression filter = new Or(Source.EMPTY, new And(Source.EMPTY, mixedIn, intEq), otherEq);
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(filter));
+        assertTrue(support.pushFilters(List.of(filter)).hasPushedFilter());
+    }
+
+    public void testNestedMixedNumericOrAndPushesAfterConvert() {
+        Attribute id = attr("id", DataType.INTEGER);
+        Attribute other = attr("other", DataType.INTEGER);
+        Expression mixed = new LessThan(Source.EMPTY, id, doubleLit(5.5), null);
+        Expression otherEq = new Equals(Source.EMPTY, other, intLit(2), null);
+        Expression filter = new Or(Source.EMPTY, new And(Source.EMPTY, mixed, otherEq), otherEq);
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(filter));
+        assertTrue(support.pushFilters(List.of(filter)).hasPushedFilter());
+    }
+
+    public void testMixedRecheckRemainderKeepsOriginalExpression() {
+        Attribute id = attr("id", DataType.INTEGER);
+        Expression mixed = new LessThan(Source.EMPTY, id, doubleLit(5.5), null);
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(mixed));
+        assertTrue(result.hasPushedFilter());
+        assertTrue("RECHECK remainder must keep the original mixed predicate", result.remainder().contains(mixed));
+        assertThat(result.pushedExpressions().getFirst(), instanceOf(LessThanOrEqual.class));
+    }
+
+    /**
+     * Pins the pushability contract {@code PushStatsToExternalSource.hasScanOnlyPushedPredicates}
+     * relies on: after {@link FilterPushdownSupport#pushFilters}, comparison / {@code IN} /
+     * {@code Range} (including mixed rewritten bounds) are
+     * {@link FilterPushdownSupport.Pushability#RECHECK} with a non-empty remainder, while
+     * {@link WildcardLike} is {@link FilterPushdownSupport.Pushability#YES} with an empty remainder.
+     * The fold-rule unit tests use a stub that mirrors this; this method ties that stub to the real
+     * reader.
+     */
+    public void testPushFiltersOutputMatchesStatsFoldGateAssumptions() {
+        Attribute id = attr("id", DataType.INTEGER);
+        Attribute name = attr("name", DataType.KEYWORD);
+
+        Expression comparison = new GreaterThan(Source.EMPTY, id, intLit(20), null);
+        Expression in = new In(Source.EMPTY, id, List.of(intLit(1), intLit(2)));
+        Expression range = new Range(Source.EMPTY, id, intLit(0), true, intLit(10), true, ZoneOffset.UTC);
+        Expression mixed = new LessThan(Source.EMPTY, id, doubleLit(5.5), null);
+        Expression like = new WildcardLike(Source.EMPTY, name, new WildcardPattern("A*"));
+
+        for (Expression filter : List.of(comparison, in, range, mixed)) {
+            FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+            assertTrue(filter + " should push", result.hasPushedFilter());
+            assertEquals(filter + " RECHECK must keep the original predicate in FilterExec", List.of(filter), result.remainder());
+            // Mirror PushStatsToExternalSource.hasScanOnlyPushedPredicates coverage: every pushed
+            // expression must appear in splitAnd(rewrite(FilterExec remainder)).
+            List<Expression> coveredByRemainder = Predicates.splitAnd(
+                PushdownLiteralConversion.rewrite(Predicates.combineAnd(result.remainder()))
+            );
+            for (Expression pushed : result.pushedExpressions()) {
+                assertEquals(
+                    filter + " pushed expression must be RECHECK for stats fold",
+                    FilterPushdownSupport.Pushability.RECHECK,
+                    support.canPush(pushed)
+                );
+                assertTrue(
+                    filter
+                        + " pushed expression must be covered by rewrite(remainder) for stats fold: pushed="
+                        + pushed
+                        + " covered="
+                        + coveredByRemainder,
+                    coveredByRemainder.contains(pushed)
+                );
+            }
+        }
+
+        FilterPushdownSupport.PushdownResult likeResult = support.pushFilters(List.of(like));
+        assertTrue(likeResult.hasPushedFilter());
+        assertTrue("YES LIKE must drop FilterExec remainder", likeResult.remainder().isEmpty());
+        for (Expression pushed : likeResult.pushedExpressions()) {
+            assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(pushed));
+        }
+    }
+
+    public void testColumnColumnDateAndIntegerStillPushesInteger() {
+        Attribute dateCol = attr("ts", DataType.DATETIME);
+        Attribute nanosCol = attr("ts2", DataType.DATE_NANOS);
+        Attribute id = attr("id", DataType.INTEGER);
+        Expression colCol = new Equals(Source.EMPTY, dateCol, nanosCol, null);
+        Expression intEq = new Equals(Source.EMPTY, id, intLit(1), null);
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(colCol, intEq));
+        assertTrue(result.hasPushedFilter());
+        assertTrue(result.pushedExpressions().contains(intEq));
+        assertFalse(result.pushedExpressions().contains(colCol));
+        assertTrue(result.remainder().contains(colCol));
+        assertTrue(result.remainder().contains(intEq));
+    }
+
+    // --- multivalue comparison functions ---
+    // The shapes the out-of-band request filter translates into. Each pushes as RECHECK: the pruning bound is its
+    // scalar sibling's, and the exact predicate stays in the remainder for the retained FilterExec. hasPushedFilter()
+    // is what makes these gates rather than decoration — it is false if canConvert declines, and a filter that never
+    // pushes is trivially correct.
+
+    public void testMvContainsPushedAsRecheck() {
+        Expression filter = new MvContains(Source.EMPTY, attr("status", DataType.LONG), longLit(200L));
+
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(filter));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertTrue(result.pushedExpressions().contains(filter));
+        assertEquals(1, result.remainder().size());
+        assertTrue(result.remainder().contains(filter));
+    }
+
+    public void testMvIntersectsPushedAsRecheck() {
+        Literal values = new Literal(Source.EMPTY, List.of(new BytesRef("alpha"), new BytesRef("beta")), DataType.KEYWORD);
+        Expression filter = new MvIntersects(Source.EMPTY, attr("category", DataType.KEYWORD), values);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(1, result.remainder().size());
+    }
+
+    public void testMvInRangePushedAsRecheck() {
+        Expression filter = new MvInRange(Source.EMPTY, attr("@timestamp", DataType.DATETIME), datetimeLit(1000L), datetimeLit(2000L));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(1, result.remainder().size());
+    }
+
+    public void testMvGreaterAndMvLessPushedAsRecheck() {
+        Expression greater = new MvGreater(Source.EMPTY, attr("id", DataType.LONG), longLit(100L));
+        Expression less = new MvLess(Source.EMPTY, attr("id", DataType.LONG), longLit(400L));
+
+        assertTrue(support.pushFilters(List.of(greater)).hasPushedFilter());
+        assertTrue(support.pushFilters(List.of(less)).hasPushedFilter());
+    }
+
+    public void testMvInRangeOnBooleanNotPushed() {
+        // BooleanColumn implements SupportsEqNotEq but not SupportsLtGt, so an ordered bound cannot be built —
+        // the same decline Range already makes.
+        Expression filter = new MvInRange(Source.EMPTY, attr("flag", DataType.BOOLEAN), boolLit(false), boolLit(true));
+
+        assertFalse(support.pushFilters(List.of(filter)).hasPushedFilter());
+    }
+
+    public void testMvContainsOnBooleanPushed() {
+        // Equality on a boolean is fine — only the ordered forms decline.
+        Expression filter = new MvContains(Source.EMPTY, attr("flag", DataType.BOOLEAN), boolLit(true));
+
+        assertTrue(support.pushFilters(List.of(filter)).hasPushedFilter());
+    }
+
+    public void testMvContainsOnVirtualColumnNotPushed() {
+        Expression filter = new MvContains(Source.EMPTY, virtualAttr("_file.name", DataType.KEYWORD), keywordLit("a.parquet"));
+
+        assertFalse(support.pushFilters(List.of(filter)).hasPushedFilter());
+    }
+
+    public void testMvContainsWithMismatchedDateLiteralNotPushed() {
+        Expression filter = new MvContains(Source.EMPTY, attr("@timestamp", DataType.DATETIME), dateNanosLit(1000L));
+
+        assertFalse(support.pushFilters(List.of(filter)).hasPushedFilter());
+    }
+
+    public void testMvFormsOnDateNanosColumnPushedAsRecheck() {
+        // A time filter over a nanosecond-resolution column is the other half of the time-picker shape; the
+        // datetime half is covered by testMvInRangePushedAsRecheck. Both types are in the supported set, so a
+        // decline here would mean a time filter silently stops pruning on one of them.
+        Attribute ts = attr("@timestamp", DataType.DATE_NANOS);
+        assertTrue(
+            support.pushFilters(List.of(new MvInRange(Source.EMPTY, ts, dateNanosLit(1_000L), dateNanosLit(2_000L)))).hasPushedFilter()
+        );
+        assertTrue(support.pushFilters(List.of(new MvContains(Source.EMPTY, ts, dateNanosLit(1_000L)))).hasPushedFilter());
+        assertTrue(support.pushFilters(List.of(new MvGreater(Source.EMPTY, ts, dateNanosLit(1_000L)))).hasPushedFilter());
+        assertTrue(support.pushFilters(List.of(new MvLess(Source.EMPTY, ts, dateNanosLit(2_000L)))).hasPushedFilter());
+    }
+
+    public void testMvInRangeWithMismatchedDateBoundNotPushed() {
+        // The bound types have to agree with the column, the same way the scalar Range does — a datetime bound
+        // on a date_nanos column is a thousand-fold error, not a rescale.
+        Attribute ts = attr("@timestamp", DataType.DATE_NANOS);
+        assertFalse(
+            support.pushFilters(List.of(new MvInRange(Source.EMPTY, ts, datetimeLit(1_000L), datetimeLit(2_000L)))).hasPushedFilter()
+        );
+    }
+
+    public void testMvGreaterAndMvLessOnBooleanNotPushed() {
+        // Same reason as the mv_in_range case: BooleanColumn has no ordered comparison to build.
+        assertFalse(
+            support.pushFilters(List.of(new MvGreater(Source.EMPTY, attr("flag", DataType.BOOLEAN), boolLit(false)))).hasPushedFilter()
+        );
+        assertFalse(
+            support.pushFilters(List.of(new MvLess(Source.EMPTY, attr("flag", DataType.BOOLEAN), boolLit(true)))).hasPushedFilter()
+        );
+    }
+
     // --- helpers ---
 
     private static Attribute attr(String name, DataType type) {
@@ -1105,5 +1422,9 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
 
     private static Literal datetimeLit(long millis) {
         return new Literal(Source.EMPTY, millis, DataType.DATETIME);
+    }
+
+    private static Literal dateNanosLit(long nanos) {
+        return new Literal(Source.EMPTY, nanos, DataType.DATE_NANOS);
     }
 }

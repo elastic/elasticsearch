@@ -37,7 +37,7 @@ public interface CapturingExternalSourceStatus {
 
     /**
      * Whether this operator returned partial results because a lenient policy dropped data during the
-     * read (e.g. a {@code max_record_size} truncation under a non-strict {@code error_mode}).
+     * read (e.g. a {@code external_max_record_size} truncation under a non-strict {@code error_mode}).
      * {@link DriverCompletionInfo}'s factories OR this across all completed operators so the coordinator
      * can flip the response's {@code is_partial} flag. Defaults to {@code false}; only operators that can
      * lose data under a lenient policy override it.

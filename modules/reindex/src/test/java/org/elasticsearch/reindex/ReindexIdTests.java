@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.doThrow;
@@ -89,11 +90,11 @@ public class ReindexIdTests extends AbstractAsyncBulkByPaginatedSearchActionTest
             randomTimeValue(),
             null,
             new ReindexSettings(),
-            new NoopCircuitBreaker("test")
+            NoopCircuitBreaker.INSTANCE
         );
         expectThrows(
             XContentParseException.class,
-            equalTo("[1:5] failed to convert hit [source_index][doc_123] from JSON to CBOR"),
+            containsString("failed to convert hit [source_index][doc_123] from JSON to CBOR"),
             () -> action.buildRequest(hit)
         );
     }
@@ -127,7 +128,7 @@ public class ReindexIdTests extends AbstractAsyncBulkByPaginatedSearchActionTest
             randomTimeValue(),
             null,
             new ReindexSettings(),
-            new NoopCircuitBreaker("test")
+            NoopCircuitBreaker.INSTANCE
         );
         expectThrows(
             UncheckedIOException.class,
@@ -202,7 +203,7 @@ public class ReindexIdTests extends AbstractAsyncBulkByPaginatedSearchActionTest
             randomPositiveTimeValue(),
             null,
             new ReindexSettings(),
-            new NoopCircuitBreaker("test")
+            NoopCircuitBreaker.INSTANCE
         );
     }
 }

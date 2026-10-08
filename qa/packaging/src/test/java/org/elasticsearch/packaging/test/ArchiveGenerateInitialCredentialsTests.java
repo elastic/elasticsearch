@@ -32,15 +32,17 @@ import static org.junit.Assume.assumeTrue;
 
 public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
 
+    // The auto-configuration banner prints each value on the line following its label, and when attached to a
+    // terminal it wraps text in ANSI escape codes. Strip ANSI (see stripAnsi) before matching, and capture the
+    // value from the next line via `\s+(\S+)`.
     private static final Pattern PASSWORD_REGEX = Pattern.compile(
-        "Password for the elastic user \\(reset with `bin/elasticsearch-reset-password -u elastic`\\): (.+)$",
-        Pattern.MULTILINE
+        "Password for the elastic user \\(reset with `bin/elasticsearch-reset-password -u elastic`\\):\\s+(\\S+)"
     );
     private static final Pattern TOKEN_REGEX = Pattern.compile(
-        "Copy the following enrollment token and paste it into Kibana in your browser \\(valid for the next 30 minutes\\):\n(.+)$",
-        Pattern.MULTILINE
+        "Copy the following enrollment token and paste it into Kibana in your browser \\(valid for the next 30 minutes\\):\\s+(\\S+)"
     );
-    private static final Pattern FINGERPRINT_REGEX = Pattern.compile("HTTP CA certificate SHA-256 fingerprint:\n(.+)$", Pattern.MULTILINE);
+    private static final Pattern FINGERPRINT_REGEX = Pattern.compile("HTTP CA certificate SHA-256 fingerprint:\\s+(\\S+)");
+    private static final Pattern ANSI_ESCAPE_REGEX = Pattern.compile("\\u001B\\[[0-9;]*m");
 
     private static final String OUTPUT_MATCH = "Configure other nodes to join this cluster*";
 
@@ -99,15 +101,21 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
     public void test50CredentialAutogenerationOnlyOnce() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
-        stopElasticsearch();
+        // test40 already stopped the node it started, so this is a genuine second startup against the
+        // already auto-configured node1 installation and must not regenerate any credentials.
         Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true));
         assertThat(parseElasticPassword(result.stdout()), nullValue());
         assertThat(parseKibanaToken(result.stdout()), nullValue());
         assertThat(parseFingerprint(result.stdout()), nullValue());
+        stopElasticsearch();
+    }
+
+    private static String stripAnsi(String output) {
+        return ANSI_ESCAPE_REGEX.matcher(output).replaceAll("");
     }
 
     private String parseElasticPassword(String output) {
-        Matcher matcher = PASSWORD_REGEX.matcher(output);
+        Matcher matcher = PASSWORD_REGEX.matcher(stripAnsi(output));
         assertNotNull(matcher);
         if (matcher.find()) {
             return matcher.group(1);
@@ -117,7 +125,7 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
     }
 
     private String parseKibanaToken(String output) {
-        Matcher matcher = TOKEN_REGEX.matcher(output);
+        Matcher matcher = TOKEN_REGEX.matcher(stripAnsi(output));
         assertNotNull(matcher);
         if (matcher.find()) {
             return matcher.group(1);
@@ -127,7 +135,7 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
     }
 
     private String parseFingerprint(String output) {
-        Matcher matcher = FINGERPRINT_REGEX.matcher(output);
+        Matcher matcher = FINGERPRINT_REGEX.matcher(stripAnsi(output));
         assertNotNull(matcher);
         if (matcher.find()) {
             return matcher.group(1);

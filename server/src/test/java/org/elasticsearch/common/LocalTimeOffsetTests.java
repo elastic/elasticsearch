@@ -198,7 +198,8 @@ public class LocalTimeOffsetTests extends ESTestCase {
         long localOverlapEnds = secondMidnightOffset.utcToLocalTime(overlapEnds);
         assertThat(localOverlapEnds - localSecondMidnight, equalTo(overlapMillis));
 
-        long localOverlappingTime = randomLongBetween(localFirstMidnight, localOverlapEnds);
+        // Half-open overlap: firstNonOverlappingLocalTime is exclusive. See #158343.
+        long localOverlappingTime = randomLongBetween(localFirstMidnight, localOverlapEnds - 1);
 
         assertThat(firstMidnightOffset.localToUtcInThisOffset(localFirstMidnight - 1), equalTo(firstMidnight - 1));
         assertThat(secondMidnightOffset.localToUtcInThisOffset(localFirstMidnight - 1), equalTo(secondMidnight - 1));
@@ -219,6 +220,26 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertThat(secondMidnightOffset.localToUtc(localFirstMidnight, useValueForOverlap(overlapValue)), equalTo(overlapValue));
         assertThat(secondMidnightOffset.localToUtc(localOverlapEnds, unusedStrategy()), equalTo(overlapEnds));
         assertThat(secondMidnightOffset.localToUtc(localOverlappingTime, useValueForOverlap(overlapValue)), equalTo(overlapValue));
+    }
+
+    /**
+     * Verifies that {@code localToUtc} treats a DST overlap as
+     * {@code [firstOverlappingLocalTime, firstNonOverlappingLocalTime)}.
+     */
+    public void testOverlapDoesNotIncludeFirstNonOverlappingLocalTime() {
+        ZoneId tz = ZoneId.of("Europe/Rome");
+        long firstMidnight = utcTime("1978-09-30T22:00:00");
+        long secondMidnight = utcTime("1978-09-30T23:00:00");
+        long overlapEnds = utcTime("1978-10-01T0:00:00");
+        LocalTimeOffset.Lookup lookup = LocalTimeOffset.lookup(tz, firstMidnight, overlapEnds);
+        LocalTimeOffset overlapOffset = lookup.lookup(secondMidnight);
+        long localFirstMidnight = lookup.lookup(firstMidnight).utcToLocalTime(firstMidnight);
+        long localOverlapEnds = overlapOffset.utcToLocalTime(overlapEnds);
+
+        long overlapValue = 1L;
+        assertThat(overlapOffset.localToUtc(localFirstMidnight, useValueForOverlap(overlapValue)), equalTo(overlapValue));
+        assertThat(overlapOffset.localToUtc(localOverlapEnds - 1, useValueForOverlap(overlapValue)), equalTo(overlapValue));
+        assertThat(overlapOffset.localToUtc(localOverlapEnds, unusedStrategy()), equalTo(overlapEnds));
     }
 
     public void testGap() {
@@ -244,7 +265,8 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertThat(gapOffset.localToUtc(localBeforeTransition, useValueForBeforeGap(beforeGapValue)), equalTo(beforeGapValue));
         assertThat(gapOffset.localToUtc(localAtTransition, unusedStrategy()), equalTo(transition));
         long gapValue = randomLong();
-        long localSkippedTime = randomLongBetween(localBeforeTransition, localAtTransition);
+        // Half-open gap: localBeforeTransition and localAtTransition are exclusive.
+        long localSkippedTime = randomLongBetween(localBeforeTransition + 1, localAtTransition - 1);
         assertThat(gapOffset.localToUtc(localSkippedTime, useValueForGap(gapValue)), equalTo(gapValue));
     }
 

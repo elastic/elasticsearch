@@ -20,11 +20,6 @@ import java.util.Objects;
 
 public class Explain extends LeafPlan implements TelemetryAware {
 
-    public enum Type {
-        PARSED,
-        ANALYZED
-    }
-
     /**
      * Output columns for EXPLAIN command.
      * - cluster: the cluster alias (empty string for local cluster)

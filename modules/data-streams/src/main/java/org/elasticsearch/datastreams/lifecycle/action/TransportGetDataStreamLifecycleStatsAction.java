@@ -75,16 +75,16 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
 
     // Visible for testing
     GetDataStreamLifecycleStatsAction.Response collectStats(ProjectMetadata project) {
-        Set<String> indicesInErrorStore = lifecycleService.getErrorStore().getAllIndices(project.id());
+        Set<Index> indicesInErrorStore = lifecycleService.getErrorStore().getAllIndices(project.id());
         List<GetDataStreamLifecycleStatsAction.Response.DataStreamStats> dataStreamStats = new ArrayList<>();
         for (DataStream dataStream : project.dataStreams().values()) {
             if (dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled()) {
                 int total = 0;
                 int inError = 0;
                 for (Index index : dataStream.getIndices()) {
-                    if (dataStream.isIndexManagedByDataStreamLifecycle(index, project::index)) {
+                    if (dataStream.isIndexManagedByDataStreamLifecycle(index, project::index, false)) {
                         total++;
-                        if (indicesInErrorStore.contains(index.getName())) {
+                        if (indicesInErrorStore.contains(index)) {
                             inError++;
                         }
                     }

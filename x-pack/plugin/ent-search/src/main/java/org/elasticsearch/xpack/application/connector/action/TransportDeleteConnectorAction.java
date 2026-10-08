@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -23,9 +24,14 @@ public class TransportDeleteConnectorAction extends TransportAction<DeleteConnec
     protected final ConnectorIndexService connectorIndexService;
 
     @Inject
-    public TransportDeleteConnectorAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+    public TransportDeleteConnectorAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionFilters actionFilters,
+        Client client
+    ) {
         super(DeleteConnectorAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        this.connectorIndexService = new ConnectorIndexService(client);
+        this.connectorIndexService = new ConnectorIndexService(client, clusterService.getClusterSettings());
     }
 
     @Override

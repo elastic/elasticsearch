@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.action.shard.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardFailedTaskExecutor;
-import org.elasticsearch.cluster.action.shard.ShardFailedTaskExecutor.Task;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -172,7 +171,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
             clusterState,
             failedClusterStateTaskExecutor,
             List.of(
-                new Task(
+                new ShardFailedTaskExecutor.Task(
                     new FailedShardEntry(
                         shardRoutingTable.shardId(),
                         replicaShard.allocationId().getId(),
@@ -205,15 +204,15 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
         long primaryTerm = clusterState.metadata().getProject().index("test").primaryTerm(0);
 
-        List<Task> failureEntries = new ArrayList<>();
+        List<ShardFailedTaskExecutor.Task> failureEntries = new ArrayList<>();
         failureEntries.add(
-            new Task(
+            new ShardFailedTaskExecutor.Task(
                 new FailedShardEntry(shardRoutingTable.shardId(), primaryShard.allocationId().getId(), 0L, "dummy", null, true),
                 createTestListener()
             )
         );
         failureEntries.add(
-            new Task(
+            new ShardFailedTaskExecutor.Task(
                 new FailedShardEntry(shardRoutingTable.shardId(), replicaShard.allocationId().getId(), primaryTerm, "dummy", null, true),
                 createTestListener()
             )
@@ -373,7 +372,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
             clusterState,
             failedClusterStateTaskExecutor,
             List.of(
-                new Task(
+                new ShardFailedTaskExecutor.Task(
                     new FailedShardEntry(shardRoutingTable.shardId(), primaryShard.allocationId().getId(), 0L, "dummy", null, true),
                     createTestListener()
                 )

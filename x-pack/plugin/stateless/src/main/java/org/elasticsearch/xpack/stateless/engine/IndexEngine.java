@@ -15,6 +15,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
@@ -23,6 +24,8 @@ import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -42,6 +45,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.ElasticsearchMergeScheduler;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineException;
@@ -51,6 +55,7 @@ import org.elasticsearch.index.engine.MergeMemoryEstimateProvider;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -61,6 +66,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -80,6 +86,7 @@ import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -89,7 +96,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -109,6 +115,19 @@ public class IndexEngine extends InternalEngine {
     public static final Setting<ByteSizeValue> MERGE_FORCE_REFRESH_SIZE = Setting.byteSizeSetting(
         "stateless.merge.force_refresh_size",
         ByteSizeValue.ofMb(64),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    /**
+     * Multiplier applied to the merge thread count to derive the active-merge threshold above which indexing throttling kicks in.
+     * Throttling activates when {@code activeMerges > factor * mergeThreadCount} and deactivates when the count drops to or below the
+     * threshold. A higher value tolerates larger merge backlogs before slowing indexing; set to {@link Integer#MAX_VALUE} to disable.
+     */
+    public static final Setting<Integer> MERGE_BACKLOG_THROTTLE_FACTOR = Setting.intSetting(
+        "stateless.merge.backlog_throttle_factor",
+        10,
+        1,
+        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
     // A flag for whether the flush call is originated from a refresh
@@ -120,8 +139,9 @@ public class IndexEngine extends InternalEngine {
     private final Function<String, BlobContainer> translogBlobContainer;
     private final RefreshManager refreshManager;
     private final ReshardIndexService reshardIndexService;
-    private final long mergeForceRefreshSize;
+    private final IndexEngineDynamicSettings indexEngineDynamicSettings;
     private final CommitBCCResolver commitBCCResolver;
+    private final DocumentParsingProvider documentParsingProvider;
     private final DocumentSizeAccumulator documentSizeAccumulator;
     private final DocumentSizeReporter documentParsingReporter;
     private final TranslogRecoveryMetrics translogRecoveryMetrics;
@@ -150,6 +170,7 @@ public class IndexEngine extends InternalEngine {
         CommitBCCResolver commitBCCResolver,
         DocumentParsingProvider documentParsingProvider,
         EngineMetrics metrics,
+        IndexEngineDynamicSettings indexEngineDynamicSettings,
         ShardLocalReadersTracker shardLocalReadersTracker
     ) {
         this(
@@ -164,6 +185,7 @@ public class IndexEngine extends InternalEngine {
             commitBCCResolver,
             documentParsingProvider,
             metrics,
+            indexEngineDynamicSettings,
             (shardId) -> false,
             shardLocalReadersTracker
         );
@@ -182,6 +204,7 @@ public class IndexEngine extends InternalEngine {
         CommitBCCResolver commitBCCResolver,
         DocumentParsingProvider documentParsingProvider,
         EngineMetrics metrics,
+        IndexEngineDynamicSettings indexEngineDynamicSettings,
         Predicate<ShardId> shouldSkipMerges,
         ShardLocalReadersTracker shardLocalReadersTracker
     ) {
@@ -194,8 +217,9 @@ public class IndexEngine extends InternalEngine {
         this.cacheWarmingService = cacheWarmingService;
         this.refreshManager = refreshManagerService.createRefreshManager(engineConfig.getIndexSettings(), this::doExternalRefresh);
         this.reshardIndexService = reshardIndexService;
-        this.mergeForceRefreshSize = MERGE_FORCE_REFRESH_SIZE.get(config().getIndexSettings().getSettings()).getBytes();
+        this.indexEngineDynamicSettings = indexEngineDynamicSettings;
         this.commitBCCResolver = commitBCCResolver;
+        this.documentParsingProvider = documentParsingProvider;
         this.documentSizeAccumulator = documentParsingProvider.createDocumentSizeAccumulator();
         this.documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
             shardId.getIndex(),
@@ -219,6 +243,37 @@ public class IndexEngine extends InternalEngine {
             throw new EngineCreationFailureException(engineConfig.getShardId(), "Failed to create an index engine", e);
         }
         this.translogRecoveryMetrics = metrics.translogRecoveryMetrics();
+    }
+
+    /**
+     * Prefetches the min/max {@code _id} .tim blocks in the last {@code maxSegments} segments so the first id
+     * lookups after a primary relocation do not block on a cold read from the object store. Best-effort: only boundary blocks of
+     * the most recent segments are prefetched; other lookups will still cold-read on first access. Segments without {@code _id}
+     * terms still count towards {@code maxSegments}, as the bound limits how far back the leaves are visited.
+     */
+    public void prewarmIdLookups(int maxSegments) {
+        performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
+            prewarmIdLookups(reader.leaves(), maxSegments);
+            return null;
+        });
+    }
+
+    static void prewarmIdLookups(List<LeafReaderContext> leaves, int maxSegments) throws IOException {
+        final int lowestLeaf = Math.max(0, leaves.size() - maxSegments);
+        for (int i = leaves.size() - 1; i >= lowestLeaf; i--) {
+            var terms = leaves.get(i).reader().terms(IdFieldMapper.NAME);
+            if (terms == null) {
+                continue; // no-op segment
+            }
+            BytesRef min = terms.getMin();
+            if (min != null) {
+                terms.iterator().prepareSeekExact(min);
+            }
+            BytesRef max = terms.getMax();
+            if (max != null) {
+                terms.iterator().prepareSeekExact(max);
+            }
+        }
     }
 
     /**
@@ -341,7 +396,7 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
-    protected LongConsumer translogPersistedSeqNoConsumer() {
+    protected Consumer<LongsRef> translogPersistedSeqNosConsumer() {
         return seqNo -> {};
     }
 
@@ -350,11 +405,11 @@ public class IndexEngine extends InternalEngine {
         return false;
     }
 
-    public LongConsumer objectStorePersistedSeqNoConsumer() {
+    public Consumer<LongsRef> objectStorePersistedSeqNoConsumer() {
         return seqNo -> {
             final LocalCheckpointTracker tracker = getLocalCheckpointTracker();
             if (tracker != null) {
-                tracker.markSeqNoAsPersisted(seqNo);
+                tracker.markSeqNosAsPersisted(seqNo);
             }
         };
     }
@@ -501,9 +556,31 @@ public class IndexEngine extends InternalEngine {
         IndexResult result = super.index(index);
 
         if (result.getResultType() == Result.Type.SUCCESS) {
-            documentParsingReporter.onIndexingCompleted(parsedDocument);
+            documentParsingReporter.onIndexingCompleted(parsedDocument, index.origin());
         }
         return result;
+    }
+
+    @Override
+    public XContentMeteringParserDecorator newMeteringParserDecorator() {
+        return documentParsingProvider.newMeteringParserDecorator();
+    }
+
+    @Override
+    public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
+        checkNoNewOperationsWhileHollow();
+        List<Index> operations = engineBatch.batch().materializeIndexOps();
+        for (Index operation : operations) {
+            documentParsingReporter.onParsingCompleted(operation.parsedDoc());
+        }
+        List<IndexResult> results = super.indexBatch(engineBatch);
+        for (int i = 0; i < results.size(); i++) {
+            if (results.get(i).getResultType() == Result.Type.SUCCESS) {
+                Index operation = operations.get(i);
+                documentParsingReporter.onIndexingCompleted(operation.parsedDoc(), operation.origin());
+            }
+        }
+        return results;
     }
 
     @Override
@@ -851,6 +928,12 @@ public class IndexEngine extends InternalEngine {
         }
     }
 
+    public void waitForCurrentCommitDurability(ActionListener<Void> listener) {
+        // The current Lucene generation may have been produced by a flush-by-refresh, which is never queued for BCC upload.
+        long genToWaitFor = Math.min(getCurrentGeneration(), statelessCommitService.getMaxPendingOrUploadedGeneration(shardId));
+        waitForCommitDurability(genToWaitFor, listener);
+    }
+
     @Override
     protected void waitForCommitDurability(long generation, ActionListener<Void> listener) {
         try {
@@ -883,6 +966,8 @@ public class IndexEngine extends InternalEngine {
     // For cleanup after resharding
     public void deleteUnownedDocuments(ShardSplittingQuery query) throws Exception {
         super.deleteByQuery(query);
+        // Bypasses ES delete ops (no seqno); bump force-merge UUID so getShardStateId changes.
+        onShardContentChanged();
     }
 
     @Override
@@ -918,7 +1003,7 @@ public class IndexEngine extends InternalEngine {
     private void onAfterMerge(OnGoingMerge merge) {
         // A merge can occupy a lot of disk space that can't be reused until it has been pushed into the object store, so it
         // can be worth refreshing immediately to allow that space to be reclaimed faster.
-        if (merge.getTotalBytesSize() >= mergeForceRefreshSize) {
+        if (merge.getTotalBytesSize() >= indexEngineDynamicSettings.mergeForceRefreshSizeBytes()) {
             try {
                 maybeRefresh("large merge", ActionListener.noop());
             } catch (AlreadyClosedException e) {
@@ -961,6 +1046,12 @@ public class IndexEngine extends InternalEngine {
         return queuedOrRunningMergesCount.get() > 0;
     }
 
+    // for testing
+    @Override
+    protected ElasticsearchMergeScheduler getMergeScheduler() {
+        return super.getMergeScheduler();
+    }
+
     @Override
     protected void notifyLastDocIdAndVersionLookup() {
         lastDocIdAndVersionLookupMillis.accumulateAndGet(engineConfig.getThreadPool().relativeTimeInMillis(), Math::max);
@@ -975,6 +1066,8 @@ public class IndexEngine extends InternalEngine {
     @Override
     protected MergePolicy wrapMergePolicy(MergePolicy mergePolicy) {
         return new OneMergeWrappingMergePolicy(mergePolicy, oneMerge -> new MergePolicy.OneMerge(oneMerge) {
+            private volatile boolean isComplete = false;
+
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
                 return oneMerge.wrapForMerge(reader);
@@ -986,12 +1079,23 @@ public class IndexEngine extends InternalEngine {
                     return true;
                 }
 
+                // No need to check if the merge should be skipped if it's already finished.
+                if (isComplete) {
+                    return super.isAborted();
+                }
+
                 if (shouldSkipMerge()) {
                     // If a merge is considered to be aborted due to running relocation, we want to keep that for
                     // the entire merge lifecycle even if the relocation is canceled to avoid any inconsistencies.
                     setAborted();
                 }
                 return super.isAborted();
+            }
+
+            @Override
+            public void mergeFinished(boolean success, boolean segmentDropped) throws IOException {
+                isComplete = true;
+                super.mergeFinished(success, segmentDropped);
             }
         });
     }
@@ -1000,7 +1104,7 @@ public class IndexEngine extends InternalEngine {
         return forceMergesInProgress.get() == 0 && shouldSkipMerges.test(shardId);
     }
 
-    private final class StatelessThreadPoolMergeScheduler extends org.elasticsearch.index.engine.ThreadPoolMergeScheduler {
+    final class StatelessThreadPoolMergeScheduler extends org.elasticsearch.index.engine.ThreadPoolMergeScheduler {
         private final boolean prewarm;
 
         StatelessThreadPoolMergeScheduler(
@@ -1048,6 +1152,28 @@ public class IndexEngine extends InternalEngine {
         }
 
         @Override
+        protected void enableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
+            logger.info(
+                "now throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
+                numRunningMerges,
+                numQueuedMerges,
+                configuredMaxMergeCount
+            );
+            IndexEngine.this.activateThrottling();
+        }
+
+        @Override
+        protected void disableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
+            logger.info(
+                "stop throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
+                numRunningMerges,
+                numQueuedMerges,
+                configuredMaxMergeCount
+            );
+            IndexEngine.this.deactivateThrottling();
+        }
+
+        @Override
         protected boolean shouldSkipMerge() {
             return IndexEngine.this.shouldSkipMerge();
         }
@@ -1059,7 +1185,11 @@ public class IndexEngine extends InternalEngine {
 
         @Override
         protected int getMaxMergeCount() {
-            return Integer.MAX_VALUE;
+            return (int) Math.min(
+                (long) IndexEngine.this.indexEngineDynamicSettings.mergeBacklogThrottleFactor() * getThreadPoolMergeExecutorService()
+                    .getMaxConcurrentMerges(),
+                Integer.MAX_VALUE
+            );
         }
 
         @Override

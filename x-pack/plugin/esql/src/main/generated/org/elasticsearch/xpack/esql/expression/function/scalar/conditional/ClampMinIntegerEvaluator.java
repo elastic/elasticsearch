@@ -71,10 +71,11 @@ public final class ClampMinIntegerEvaluator implements ExpressionEvaluator {
   public IntBlock eval(int positionCount, IntBlock fieldBlock, IntBlock minBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (fieldBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (fieldBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -82,10 +83,11 @@ public final class ClampMinIntegerEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (minBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (minBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -124,7 +126,7 @@ public final class ClampMinIntegerEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

@@ -1,6 +1,0 @@
-area: Geo
-issues:
- - 152066
-pr: 152096
-summary: Fix infinite loop in `GeoLineDecomposer` dateline crossing checks
-type: bug

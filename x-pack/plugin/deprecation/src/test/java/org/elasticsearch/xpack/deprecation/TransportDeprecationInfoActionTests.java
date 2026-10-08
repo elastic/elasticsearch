@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
@@ -105,6 +106,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         boolean indexTemplateIssueFound = randomBoolean();
         boolean componentTemplateIssueFound = randomBoolean();
         boolean ilmPolicyIssueFound = randomBoolean();
+        boolean repositoryIssueFound = randomBoolean();
         DeprecationIssue foundIssue = createTestDeprecationIssue();
         ClusterDeprecationChecker clusterDeprecationChecker = mock(ClusterDeprecationChecker.class);
         when(clusterDeprecationChecker.check(any())).thenReturn(clusterIssueFound ? List.of(foundIssue) : List.of());
@@ -130,6 +132,11 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         }), createResourceChecker("ilm_policies", (cs, req) -> {
             if (ilmPolicyIssueFound) {
                 return Map.of("my-policy", List.of(foundIssue));
+            }
+            return Map.of();
+        }), createResourceChecker("repositories", (cs, req) -> {
+            if (repositoryIssueFound) {
+                return Map.of("my-repository", List.of(foundIssue));
             }
             return Map.of();
         }));
@@ -177,6 +184,11 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
             assertThat(response.getIlmPolicyDeprecationIssues(), IsEqual.equalTo(Map.of("my-policy", List.of(foundIssue))));
         } else {
             assertTrue(response.getIlmPolicyDeprecationIssues().isEmpty());
+        }
+        if (repositoryIssueFound) {
+            assertThat(response.getRepositoryDeprecationIssues(), IsEqual.equalTo(Map.of("my-repository", List.of(foundIssue))));
+        } else {
+            assertTrue(response.getRepositoryDeprecationIssues().isEmpty());
         }
         if (componentTemplateIssueFound == false && indexTemplateIssueFound == false) {
             assertTrue(response.getTemplateDeprecationIssues().isEmpty());
@@ -529,6 +541,8 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
 
             IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
             when(indexNameExpressionResolver.concreteIndexNames(any(ProjectMetadata.class), any())).thenReturn(new String[0]);
+            RepositoriesService repositoriesService = mock(RepositoriesService.class);
+            when(repositoriesService.getProjectRepositories(projectResolver.getProjectId())).thenReturn(Map.of());
             TransportDeprecationInfoAction action = new TransportDeprecationInfoAction(
                 settings,
                 mock(TransportService.class),
@@ -539,7 +553,8 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
                 client,
                 NamedXContentRegistry.EMPTY,
                 clusterInfoService,
-                projectResolver
+                projectResolver,
+                repositoriesService
             );
 
             DiskUsage diskUsage = new DiskUsage(nodeId, "node1", "/data", 100L, 0L);

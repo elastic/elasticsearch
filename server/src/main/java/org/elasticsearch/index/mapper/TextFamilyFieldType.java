@@ -15,11 +15,17 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.BinaryDocValuesQueries;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -30,6 +36,112 @@ public abstract class TextFamilyFieldType extends StringFieldType {
     public static final String FALLBACK_FIELD_NAME_SUFFIX = "._original";
     private final boolean isSyntheticSourceEnabled;
     private final boolean isWithinMultiField;
+
+    /**
+     * The queries below match a document's value whole, rather than the tokens that value analyzes into, which is what
+     * a predicate over the value means. Each is answered from the values this field keeps; where it keeps none, the
+     * field's own query answers, over the tokens.
+     */
+    @Override
+    public Query wildcardLikeQuery(
+        String value,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        boolean caseInsensitive,
+        SearchExecutionContext context
+    ) {
+        final BinaryDocValuesQueries values = valueQueries();
+        return values == null
+            ? super.wildcardLikeQuery(value, method, caseInsensitive, context)
+            : values.wildcard(name(), value, caseInsensitive);
+    }
+
+    /** A regular expression matched against the value whole. */
+    public Query regexpLikeQuery(
+        String value,
+        int syntaxFlags,
+        int matchFlags,
+        int maxDeterminizedStates,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        SearchExecutionContext context
+    ) {
+        final BinaryDocValuesQueries values = valueQueries();
+        return values == null
+            ? regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context)
+            : values.regexp(name(), value, syntaxFlags, matchFlags, maxDeterminizedStates, context.getCircuitBreaker());
+    }
+
+    /** The value itself. */
+    public Query termLikeQuery(Object value, SearchExecutionContext context) {
+        final BinaryDocValuesQueries values = valueQueries();
+        return values == null ? termQuery(value, context) : values.term(name(), indexedValueForSearch(value));
+    }
+
+    /** Any of the given values. */
+    public Query termsLikeQuery(Collection<?> values, SearchExecutionContext context) {
+        final BinaryDocValuesQueries queries = valueQueries();
+        if (queries == null) {
+            return termsQuery(values, context);
+        }
+        return queries.terms(name(), values.stream().map(this::indexedValueForSearch).toList());
+    }
+
+    /** The values between the given bounds, either of which may be absent. */
+    public Query rangeLikeQuery(
+        @Nullable Object lower,
+        @Nullable Object upper,
+        boolean includeLower,
+        boolean includeUpper,
+        SearchExecutionContext context
+    ) {
+        final BinaryDocValuesQueries values = valueQueries();
+        if (values == null) {
+            return rangeQuery(lower, upper, includeLower, includeUpper, null, null, null, context);
+        }
+        return values.range(
+            name(),
+            lower == null ? null : indexedValueForSearch(lower),
+            upper == null ? null : indexedValueForSearch(upper),
+            includeLower,
+            includeUpper
+        );
+    }
+
+    /**
+     * The queries this field answers over the values its doc values hold, rather than over the terms its index holds, or
+     * null where it keeps no values a query can read. The framing of those values picks the reader; see
+     * {@link BinaryDocValuesQueries#forFormat}.
+     *
+     * <p>These match a document's value whole; this field type's own queries match the tokens that value analyzes into.
+     */
+    @Nullable
+    public BinaryDocValuesQueries valueQueries() {
+        return null;
+    }
+
+    /**
+     * Whether this field's doc values keep array order in a column with a companion {@code .counts}, the layout a strictly columnar
+     * index uses without the ColumNAR codec. See {@link #existsQuery}.
+     */
+    protected boolean keepsArrayOrderWithSeparateCounts() {
+        return false;
+    }
+
+    /**
+     * The field is there if the document wrote at least one slot for it, null slots included — which is the rule a strictly
+     * columnar index applies whichever format is writing.
+     *
+     * <p>Under the ColumNAR codec the payload carries its own count and is written for such a document, so the plain doc-values
+     * query already answers this. The in-order column writes no value for a document whose slots are all null, only the companion
+     * count, so there the count is what says the field is there. Asking the wrong one of the two is how {@code exists} came to
+     * disagree between them for {@code f: [null]}.
+     */
+    @Override
+    public Query existsQuery(SearchExecutionContext context) {
+        if (keepsArrayOrderWithSeparateCounts()) {
+            return new FieldExistsQuery(name() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
+        }
+        return super.existsQuery(context);
+    }
 
     public TextFamilyFieldType(
         String name,

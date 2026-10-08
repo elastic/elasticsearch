@@ -523,6 +523,21 @@ str:keyword              | result:keyword
 "{""name"":""Alice""}"  | null
 ;
 
+jsonExtractKeywordStringField
+required_capability: fn_json_extract
+
+FROM json_logs
+| EVAL v = JSON_EXTRACT(json_kwd, "x")
+| SORT @timestamp
+| LIMIT 3
+| KEEP json_kwd, v;
+
+json_kwd:keyword              | v:keyword
+"{""x"":""alpha""}"    | alpha
+"{""x"":""beta""}"     | beta
+"{""x"":""gamma""}"    | gamma
+;
+
 // Both arguments are multi-value (the original issue reproduction).
 jsonExtractMvBothArgs
 required_capability: fn_json_extract

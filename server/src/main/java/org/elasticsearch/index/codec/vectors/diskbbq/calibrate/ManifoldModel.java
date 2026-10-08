@@ -21,15 +21,25 @@ import java.util.Arrays;
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * Manifold model for distance/similarity as a function of rank and corpus size.
+ * Manifold model for distance as a function of rank and corpus size.
  * Fits a log-linear model: log(distance at rank k) ~ alpha + invDim * (log(k) - log(N)).
  * Used in calibration to predict expected distances and compute expected recall@k.
+ * <p>
+ * The model is fit in <em>distance</em> units for every metric: the squared distance {@code ||q - x||^2} for
+ * Euclidean and the half squared distance {@code r = 0.5 (||q||^2 + ||x||^2) - q.x} ({@code 1 - cos} for unit
+ * vectors) for dot, cosine and maximum-inner-product. The power law {@code dist(k) ~ (k/N)^(1/d)} describes
+ * distances in a locally uniform neighbourhood; fitting it to the similarity level instead (as this code used
+ * to for dot-like metrics) gives an exponent near zero for typical embeddings, whose 10th-neighbour similarity
+ * sits in a narrow band (0.75-0.9 for E5) whatever the neighbourhood, and an exponent near zero tells the recall
+ * model that gaps do not shrink with corpus size at all (measured on FiQA/E5 the rank-10-to-30 gap shrinks 4%
+ * per doubling of N; the similarity-space fit said 0.6%, the distance-space fit says 3.3%). {@code r} is affine
+ * in {@code -similarity} for a fixed query, so rank-to-rank gaps -- all the recall integral uses -- are the
+ * similarity gaps, and the quantization error measured in similarity units needs no conversion. {@code invDim}
+ * is therefore positive for every metric and {@link #expectedRankDistance} increases with rank for every metric.
  * <p>
  * Average rank-distance estimation:
  * per-query {@code TopK} heaps of capacity {@code 6 * k} are fed successive corpus slices
  * without reset, so each sweep step uses the cumulative corpus prefix (not disjoint chunks).
- * Dot, cosine, and maximum-inner-product metrics use negated float dot product in the heap
- * (no extra L2 normalization).
  */
 public final class ManifoldModel {
     private static final Logger logger = LogManager.getLogger(ManifoldModel.class);
@@ -73,11 +83,19 @@ public final class ManifoldModel {
     private ManifoldModel() {}
 
     /**
-     * Estimate manifold parameters (alpha, invDim) using default sample sizes.
-     * Query buffers are sized from {@link CalibrationUtils#calibrationQueryDimension(int, boolean)}
-     * so cosine normalization and Neyshabur lift are supported.
+     * Parameters of the log-linear manifold model: {@code log(dist at rank k) = alpha + invDim * (log(k) - log(N))}.
+     *
+     * @param alpha  OLS intercept (log-scale)
+     * @param invDim OLS slope (approximates 1/intrinsic-dimension of the corpus)
      */
-    public static double[] estimateManifoldParameters(CalibrationSource source) throws IOException {
+    public record ManifoldParams(double alpha, double invDim) {}
+
+    /**
+     * Estimate manifold parameters (alpha, invDim) using default sample sizes.
+     * Query buffers are sized to {@link CalibrationSource#workingDim()}, which already incorporates
+     * any Neyshabur lift or cosine normalization applied when the source was built.
+     */
+    public static ManifoldParams estimateManifoldParameters(CalibrationSource source) throws IOException {
         return estimateManifoldParameters(source, ranksFromMultipliers(source.k()));
     }
 
@@ -96,13 +114,13 @@ public final class ManifoldModel {
      *
      * @param source    calibration context (similarity function, vectors, query set, target k)
      * @param ranksForK the rank values to sweep
-     * @return double[2] containing {log(alpha), invDim}
+     * @return {@link ManifoldParams} containing {log(alpha), invDim}
      */
-    static double[] estimateManifoldParameters(CalibrationSource source, int[] ranksForK) throws IOException {
+    static ManifoldParams estimateManifoldParameters(CalibrationSource source, int[] ranksForK) throws IOException {
         int nQueries = source.queryOrdinals().length;
         int nDocsTotal = source.corpusOrdinals().length;
         int m = Math.min(ranksForK.length, ManifoldModel.SAMPLE_SIZES.length);
-        int dimWork = CalibrationUtils.calibrationQueryDimension(source.baseDim(), source.neyshabur());
+        int dimWork = source.workingDim();
 
         int logCount = 0;
         double[] logRanks = new double[m];
@@ -133,7 +151,7 @@ public final class ManifoldModel {
 
         ManifoldTopK[] topKs = new ManifoldTopK[nQueries];
         for (int qi = 0; qi < nQueries; qi++) {
-            topKs[qi] = new ManifoldTopK(source.similarityFunction(), 6 * source.k());
+            topKs[qi] = new ManifoldTopK(dotLike, 6 * source.k(), ESVectorUtil.dotProduct(queries[qi], queries[qi]));
         }
         float[] bulkDistances = new float[4];
 
@@ -149,14 +167,17 @@ public final class ManifoldModel {
             int bulkLimit = nQueries - 3;
             for (int d = sampleStart; d < sampleEnd; d++) {
                 float[] cv = vectors.vectorValue(corpusOrdinals[d]);
+                // For dot-like metrics the heap key is r = 0.5 ||x||^2 - q.x (plus the per-query constant
+                // 0.5 ||q||^2 on output): the half squared distance. One extra dot product per document per step.
+                float docNormSq = dotLike ? ESVectorUtil.dotProduct(cv, cv) : 0f;
                 int qi = 0;
                 for (; qi < bulkLimit; qi += 4) {
                     if (dotLike) {
                         ESVectorUtil.dotProductBulk(cv, queries[qi], queries[qi + 1], queries[qi + 2], queries[qi + 3], 0, bulkDistances);
-                        topKs[qi].considerCandidate(-bulkDistances[0]);
-                        topKs[qi + 1].considerCandidate(-bulkDistances[1]);
-                        topKs[qi + 2].considerCandidate(-bulkDistances[2]);
-                        topKs[qi + 3].considerCandidate(-bulkDistances[3]);
+                        topKs[qi].considerCandidate(-bulkDistances[0], docNormSq);
+                        topKs[qi + 1].considerCandidate(-bulkDistances[1], docNormSq);
+                        topKs[qi + 2].considerCandidate(-bulkDistances[2], docNormSq);
+                        topKs[qi + 3].considerCandidate(-bulkDistances[3], docNormSq);
                     } else {
                         ESVectorUtil.squareDistanceBulk(
                             cv,
@@ -176,7 +197,7 @@ public final class ManifoldModel {
                 }
                 for (; qi < nQueries; qi++) {
                     float dist = dotLike ? -ESVectorUtil.dotProduct(cv, queries[qi]) : ESVectorUtil.squareDistance(cv, queries[qi]);
-                    topKs[qi].considerCandidate(dist);
+                    topKs[qi].considerCandidate(dist, docNormSq);
                 }
             }
             double sum = 0;
@@ -191,7 +212,7 @@ public final class ManifoldModel {
             sampleStart = sampleEnd;
         }
         if (logCount < 2) {
-            return new double[] { 0, 0 };
+            return new ManifoldParams(0, 0);
         }
         // build regression variables
         // x = log(rank) - log(sampleSize) = log(k/N)
@@ -208,6 +229,7 @@ public final class ManifoldModel {
         // fit regression model (log(alpha) and 1/d) and compute R²
         Regression.OLSResult res = Regression.fitOls(x, y);
         double r2 = Regression.rSquared(x, y, res); // coefficient of determination for the fitted model
+
         logger.debug(
             () -> format(
                 "Estimated manifold parameters: dist(k) = [%.4f] * (k/N)^[%.4f] (R² = [%.4f])",
@@ -216,36 +238,60 @@ public final class ManifoldModel {
                 r2
             )
         );
-        return new double[] { res.beta0(), res.beta1() };
+        return new ManifoldParams(res.beta0(), res.beta1());
     }
 
     /**
-     * Tracks up to {@code capacity} smallest distances (negated dot product for dot-like metrics).
+     * Tracks up to {@code capacity} smallest distances: squared distances for Euclidean, and for dot-like metrics
+     * the half squared distance {@code r = 0.5 ||x||^2 - q.x + 0.5 ||q||^2}, of which the heap stores the
+     * document-dependent part {@code 0.5 ||x||^2 - q.x} (the caller supplies {@code -q.x} and {@code ||x||^2}) and
+     * {@link #ithDistance} adds the per-query constant. For unit vectors this orders exactly like {@code -q.x}.
      * {@link #ithDistance} sorts a reusable scratch buffer instead of cloning and draining a heap.
      */
     static final class ManifoldTopK {
-        private final VectorSimilarityFunction similarityFunction;
+        private final boolean isDotLike;
         private final int capacity;
         private final float[] buffer;
         private final float[] scratch;
+        private float queryNormSq;
         private int size;
         private int maxIndex;
 
-        ManifoldTopK(VectorSimilarityFunction similarityFunction, int capacity) {
-            this.similarityFunction = similarityFunction;
+        ManifoldTopK(boolean isDotLike, int capacity) {
+            this(isDotLike, capacity, 0f);
+        }
+
+        /** @param queryNormSq {@code ||q||^2}, needed for dot-like metrics to report {@code r} rather than {@code r - 0.5 ||q||^2} */
+        ManifoldTopK(boolean isDotLike, int capacity, float queryNormSq) {
+            this.isDotLike = isDotLike;
             this.capacity = capacity;
             this.buffer = new float[capacity];
             this.scratch = new float[capacity];
+            this.queryNormSq = queryNormSq;
         }
 
+        void setQueryNormSq(float queryNormSq) {
+            this.queryNormSq = queryNormSq;
+        }
+
+        /** Euclidean: the squared distance. Dot-like callers must use {@link #considerCandidate(float, float)}. */
         void considerCandidate(float dist) {
+            considerCandidate(dist, 0f);
+        }
+
+        /**
+         * @param dist   squared distance for Euclidean; {@code -q.x} for dot-like metrics
+         * @param normSq {@code ||x||^2} of the candidate (ignored for Euclidean)
+         */
+        void considerCandidate(float dist, float normSq) {
+            float key = isDotLike ? dist + 0.5f * normSq : dist;
             if (size < capacity) {
-                buffer[size++] = dist;
+                buffer[size++] = key;
                 if (size == capacity) {
                     updateMaxIndex();
                 }
-            } else if (dist < buffer[maxIndex]) {
-                buffer[maxIndex] = dist;
+            } else if (key < buffer[maxIndex]) {
+                buffer[maxIndex] = key;
                 updateMaxIndex();
             }
         }
@@ -262,7 +308,7 @@ public final class ManifoldModel {
         }
 
         /**
-         * {@code rank}-th smallest stored distance (1-based).
+         * {@code rank}-th smallest stored distance (1-based), in the units the model is fit in.
          */
         float ithDistance(int rank) {
             if (size == 0 || rank <= 0) {
@@ -271,12 +317,14 @@ public final class ManifoldModel {
             System.arraycopy(buffer, 0, scratch, 0, size);
             Arrays.sort(scratch, 0, size);
             float val = scratch[Math.min(rank, size) - 1];
-            return isDotLike(similarityFunction) ? -val : val;
+            return isDotLike ? val + 0.5f * queryNormSq : val;
         }
     }
 
     /**
-     * Expected distance/similarity value at rank k in a corpus of size N from the manifold model.
+     * Expected distance at rank k in a corpus of size N from the manifold model: positive and increasing in k for
+     * every metric (squared distance for Euclidean, the half squared distance {@code r} for dot-like, see the class
+     * Javadoc). {@code similarityFunction} is kept for signature compatibility; the units differ, the convention does not.
      */
     public static double expectedRankDistance(
         VectorSimilarityFunction similarityFunction,
@@ -287,13 +335,10 @@ public final class ManifoldModel {
     ) {
         double logK = Math.log(k);
         double logN = Math.log(numDocs);
-        if (isDotLike(similarityFunction)) {
-            return -Math.exp(alpha + (logK - logN) * invDim);
-        }
         return Math.exp(alpha + (logK - logN) * invDim);
     }
 
-    static boolean isDotLike(VectorSimilarityFunction similarityFunction) {
+    public static boolean isDotLike(VectorSimilarityFunction similarityFunction) {
         return similarityFunction == VectorSimilarityFunction.DOT_PRODUCT
             || similarityFunction == VectorSimilarityFunction.COSINE
             || similarityFunction == VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;

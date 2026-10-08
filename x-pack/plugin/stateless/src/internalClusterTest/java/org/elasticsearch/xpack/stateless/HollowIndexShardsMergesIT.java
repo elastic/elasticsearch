@@ -12,17 +12,19 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.MergeMetrics;
-import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -92,19 +94,21 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
             // Use the DIRECT executor to be able to block blob store reads in the merge threads
             return new StatelessSharedBlobCacheService(
                 nodeEnvironment,
                 settings,
+                clusterService.getClusterSettings(),
                 threadPool,
                 blobCacheMetrics,
-                clusterService,
-                indicesService,
+                new DefaultEvictionPolicy<>(),
                 threadPool::relativeTimeInNanos,
-                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
-            );
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                metricHolder
+            ) {};
         }
 
         @Override

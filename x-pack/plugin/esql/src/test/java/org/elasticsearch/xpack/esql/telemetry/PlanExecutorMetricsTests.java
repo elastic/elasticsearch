@@ -11,22 +11,28 @@ import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
@@ -37,10 +43,12 @@ import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.ProjectRoutingRequestInfo;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -49,11 +57,13 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
+import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
+import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
@@ -61,8 +71,10 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionReg
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
@@ -81,6 +93,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
@@ -88,6 +101,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLogTests.mockLogFieldProvider;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -95,15 +109,25 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class PlanExecutorMetricsTests extends ESTestCase {
 
     private static final EncryptionService ENCRYPTION_SERVICE = mock(EncryptionService.class);
 
-    private static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = createTransportActionServices();
+    private static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = createTransportActionServices(
+        new UsageService(),
+        CrossProjectModeDecider.NOOP
+    );
 
-    private static TransportActionServices createTransportActionServices() {
+    private static TransportActionServices createTransportActionServices(UsageService usageService, CrossProjectModeDecider cpsDecider) {
+        return createTransportActionServices(usageService, cpsDecider, new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY));
+    }
+
+    private static TransportActionServices createTransportActionServices(
+        UsageService usageService,
+        CrossProjectModeDecider cpsDecider,
+        BlockFactoryProvider blockFactoryProvider
+    ) {
         ClusterService clusterService = createMockClusterService();
         return new TransportActionServices(
             createMockTransportService(),
@@ -112,13 +136,13 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             clusterService,
             mock(ProjectResolver.class),
             mock(IndexNameExpressionResolver.class),
-            null,
+            usageService,
             new InferenceService(mock(Client.class), clusterService),
             UserAgentParserRegistry.NOOP,
             IpLocationService.NOOP,
-            new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
+            blockFactoryProvider,
             new PlannerSettings.Holder(clusterService),
-            CrossProjectModeDecider.NOOP
+            cpsDecider
         );
     }
 
@@ -131,8 +155,11 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         Set<Setting<?>> settings = new HashSet<>();
         settings.addAll(InferenceSettings.getSettings());
         settings.addAll(PlannerSettings.settings());
+        settings.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
         var clusterSettings = new ClusterSettings(Settings.EMPTY, settings);
         doReturn(clusterSettings).when(service).getClusterSettings();
+        // Query-setting resolution reads the cluster-state settings for operator-supplied defaults.
+        doReturn(ClusterState.EMPTY_STATE).when(service).state();
         return service;
     }
 
@@ -150,7 +177,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
 
     private static Result createPlanRunnerResult(Configuration configuration, EsqlExecutionInfo executionInfo) {
         executionInfo.markEndQuery();
-        return new Result(List.of(), List.of(), null, configuration, DriverCompletionInfo.EMPTY, executionInfo);
+        return new Result(List.of(), List.of(), null, configuration, DriverCompletionInfo.EMPTY, executionInfo, null);
     }
 
     @SuppressWarnings("unchecked")
@@ -182,45 +209,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     }
 
     public void testFailedMetric() throws Exception {
-        String[] indices = new String[] { "test" };
+        IndexResolver indexResolver = mockIndexResolver();
 
-        Client qlClient = mock(Client.class);
-        IndexResolver idxResolver = new IndexResolver(qlClient, () -> true);
-        // simulate a valid field_caps response so we can parse and correctly analyze de query
-        FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
-        when(fieldCapabilitiesResponse.getIndices()).thenReturn(indices);
-        when(fieldCapabilitiesResponse.get()).thenReturn(fields(indices));
-        doAnswer((Answer<Void>) invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
-            // simulate a valid field_caps response so we can parse and correctly analyze de query
-            listener.onResponse(new EsqlResolveFieldsResponse(fieldCapabilitiesResponse));
-            return null;
-        }).when(qlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
-
-        Client esqlClient = mock(Client.class);
-        IndexResolver indexResolver = new IndexResolver(esqlClient, () -> true);
-        doAnswer((Answer<Void>) invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
-            // simulate a valid field_caps response so we can parse and correctly analyze de query
-            listener.onResponse(new EsqlResolveFieldsResponse(new FieldCapabilitiesResponse(indexFieldCapabilities(indices), List.of())));
-            return null;
-        }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
-
-        // Create a minimal DataSourceModule for testing
-        List<DataSourcePlugin> plugins = List.of(new DataSourcePlugin() {});
-        try (
-            DataSourceModule dataSourceModule = new DataSourceModule(
-                plugins,
-                DataSourceCapabilities.build(plugins),
-                Settings.EMPTY,
-                blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(ENCRYPTION_SERVICE),
-                () -> false
-            )
-        ) {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
             var enrichResolver = mockEnrichResolver();
 
@@ -228,7 +219,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             // test a failed query: xyz field doesn't exist
             request.query("from test | stats m = max(xyz)");
             request.allowPartialResults(false);
-            EsqlSession.PlanRunner runPhase = (p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen");
+            EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen");
             IndicesExpressionGrouper groupIndicesByCluster = (indicesOptions, indexExpressions, returnLocalAll) -> Map.of(
                 "",
                 new OriginalIndices(new String[] { "test" }, IndicesOptions.DEFAULT)
@@ -272,7 +263,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             // fix the failing query: foo field does exist
             request.query("from test | stats m = max(foo)");
             var successExecutionInfo = createEsqlExecutionInfo(randomBoolean());
-            runPhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
+            runPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
                 createPlanRunnerResult(configuration, successExecutionInfo)
             );
             try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
@@ -310,32 +301,80 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@link PlanExecutor#esql} owns the query's external-planning reservation: it binds one to the execution info and
+     * closes it when the session completes, on success, on failure, and when the session throws synchronously, so no
+     * transport action has to. The plan runner stands in for resolution and compute by charging the query-scoped
+     * reservation and a {@link ExternalPlanningReservation.Run} it leaves open, so a missing release of either shows up
+     * on a real request breaker.
+     */
+    public void testExternalPlanningReservationReleasedOnSuccessAndFailure() throws Exception {
+        CircuitBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(1));
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        TransportActionServices services = createTransportActionServices(
+            new UsageService(),
+            CrossProjectModeDecider.NOOP,
+            new BlockFactoryProvider(blockFactory)
+        );
+        long baseline = breaker.getUsed();
+        long queryCharge = randomLongBetween(1, 64 * 1024);
+        long runCharge = randomLongBetween(1, 64 * 1024);
+
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            var planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            var request = new EsqlQueryRequest();
+            request.query("from test | stats m = max(foo)");
+            request.allowPartialResults(false);
+
+            for (Outcome outcome : Outcome.values()) {
+                var executionInfo = createEsqlExecutionInfo(randomBoolean());
+                AtomicReference<ExternalPlanningReservation.Run> openRun = new AtomicReference<>();
+                EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> {
+                    ExternalPlanningReservation reservation = executionInfo.externalPlanning();
+                    reservation.chargeQuery(queryCharge);
+                    // Left open on purpose: closing the query reservation must refund a run its owner never closed.
+                    ExternalPlanningReservation.Run run = reservation.openRun();
+                    run.charge(runCharge);
+                    openRun.set(run);
+                    assertEquals(baseline + queryCharge + runCharge, breaker.getUsed());
+                    switch (outcome) {
+                        case SUCCESS -> r.onResponse(createPlanRunnerResult(configuration, executionInfo));
+                        case FAILURE -> r.onFailure(new IllegalStateException("simulated compute failure"));
+                        case THROW -> throw new IllegalStateException("simulated synchronous failure");
+                    }
+                };
+                PlainActionFuture<Versioned<Result>> future = new PlainActionFuture<>();
+                executeEsql(planExecutor, services, request, executionInfo, runPhase, future);
+                switch (outcome) {
+                    case SUCCESS -> future.actionGet();
+                    case FAILURE, THROW -> expectThrows(IllegalStateException.class, future::actionGet);
+                }
+
+                ExternalPlanningReservation reservation = executionInfo.externalPlanning();
+                assertNotNull(reservation);
+                assertNotNull("plan runner did not run for " + outcome, openRun.get());
+                assertEquals(0L, reservation.queryHeld());
+                assertEquals(0L, openRun.get().held());
+                assertEquals(baseline, breaker.getUsed());
+                expectThrows(IllegalStateException.class, reservation::openRun);
+
+                // A second close, e.g. from a caller that still releases it itself, must not refund again.
+                reservation.close();
+                assertEquals(baseline, breaker.getUsed());
+            }
+        }
+    }
+
+    private enum Outcome {
+        SUCCESS,
+        FAILURE,
+        THROW
+    }
+
     public void testSettingsMetric() throws Exception {
-        String[] indices = new String[] { "test" };
+        IndexResolver indexResolver = mockIndexResolver();
 
-        Client esqlClient = mock(Client.class);
-        IndexResolver indexResolver = new IndexResolver(esqlClient, () -> true);
-        doAnswer((Answer<Void>) invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
-            listener.onResponse(new EsqlResolveFieldsResponse(new FieldCapabilitiesResponse(indexFieldCapabilities(indices), List.of())));
-            return null;
-        }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
-
-        // Create a minimal DataSourceModule for testing
-        List<DataSourcePlugin> plugins = List.of(new DataSourcePlugin() {});
-        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
-        try (
-            DataSourceModule dataSourceModule = new DataSourceModule(
-                List.of(plugins.get(0)),
-                capabilities,
-                Settings.EMPTY,
-                blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(ENCRYPTION_SERVICE),
-                () -> false
-            )
-        ) {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
 
             // Initial values should be 0
@@ -347,7 +386,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET time_zone=\"UTC\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
             final var executionInfo1 = createEsqlExecutionInfo(randomBoolean());
-            EsqlSession.PlanRunner runTimeZonePhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
+            EsqlSession.PlanRunner runTimeZonePhase = (role, p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
                 createPlanRunnerResult(configuration, executionInfo1)
             );
 
@@ -370,7 +409,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET unmapped_fields=\"NULLIFY\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
             final var executionInfo2 = createEsqlExecutionInfo(randomBoolean());
-            EsqlSession.PlanRunner runUnmappedFieldsPhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
+            EsqlSession.PlanRunner runUnmappedFieldsPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
                 createPlanRunnerResult(configuration, executionInfo2)
             );
             executeEsql(planExecutor, request, executionInfo2, runUnmappedFieldsPhase, new ActionListener<>() {
@@ -392,7 +431,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET time_zone=\"America/New_York\"; SET unmapped_fields=\"NULLIFY\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
             final var executionInfo3 = createEsqlExecutionInfo(randomBoolean());
-            EsqlSession.PlanRunner runBothSettingsPhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
+            EsqlSession.PlanRunner runBothSettingsPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
                 createPlanRunnerResult(configuration, executionInfo3)
             );
             executeEsql(planExecutor, request, executionInfo3, runBothSettingsPhase, new ActionListener<>() {
@@ -415,31 +454,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         // Verify that when the same setting is SET multiple times in a single query,
         // it's only counted once for telemetry purposes.
 
-        String[] indices = new String[] { "test" };
+        IndexResolver indexResolver = mockIndexResolver();
 
-        Client esqlClient = mock(Client.class);
-        IndexResolver indexResolver = new IndexResolver(esqlClient, () -> true);
-        doAnswer((Answer<Void>) invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
-            listener.onResponse(new EsqlResolveFieldsResponse(new FieldCapabilitiesResponse(indexFieldCapabilities(indices), List.of())));
-            return null;
-        }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
-
-        // Create a minimal DataSourceModule for testing
-        List<DataSourcePlugin> plugins = List.of(new DataSourcePlugin() {});
-        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
-        try (
-            DataSourceModule dataSourceModule = new DataSourceModule(
-                List.of(plugins.get(0)),
-                capabilities,
-                Settings.EMPTY,
-                blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(ENCRYPTION_SERVICE),
-                () -> false
-            )
-        ) {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
 
             // Initial value should be 0
@@ -450,7 +467,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET time_zone=\"UTC\"; SET time_zone=\"America/New_York\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
             final var executionInfo1 = createEsqlExecutionInfo(randomBoolean());
-            EsqlSession.PlanRunner runDedupPhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
+            EsqlSession.PlanRunner runDedupPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
                 createPlanRunnerResult(configuration, executionInfo1)
             );
 
@@ -472,7 +489,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET time_zone=\"UTC\"; SET time_zone=\"UTC\"; SET time_zone=\"UTC\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
             final var executionInfo2 = createEsqlExecutionInfo(randomBoolean());
-            EsqlSession.PlanRunner runTripleSetPhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
+            EsqlSession.PlanRunner runTripleSetPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
                 createPlanRunnerResult(configuration, executionInfo2)
             );
             executeEsql(planExecutor, request, executionInfo2, runTripleSetPhase, new ActionListener<>() {
@@ -493,31 +510,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     public void testApproximationSettingMetric() throws Exception {
         assumeTrue("approximation setting requires snapshot build", Build.current().isSnapshot());
 
-        String[] indices = new String[] { "test" };
+        IndexResolver indexResolver = mockIndexResolver();
 
-        Client esqlClient = mock(Client.class);
-        IndexResolver indexResolver = new IndexResolver(esqlClient, () -> true);
-        doAnswer((Answer<Void>) invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
-            listener.onResponse(new EsqlResolveFieldsResponse(new FieldCapabilitiesResponse(indexFieldCapabilities(indices), List.of())));
-            return null;
-        }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
-
-        // Create a minimal DataSourceModule for testing
-        List<DataSourcePlugin> plugins = List.of(new DataSourcePlugin() {});
-        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
-        try (
-            DataSourceModule dataSourceModule = new DataSourceModule(
-                List.of(plugins.get(0)),
-                capabilities,
-                Settings.EMPTY,
-                blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(ENCRYPTION_SERVICE),
-                () -> false
-            )
-        ) {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
 
             // Initial value should be 0
@@ -530,7 +525,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET approximation=true; FROM test | STATS COUNT(foo)");
             request.allowPartialResults(false);
             var executionInfo = createEsqlExecutionInfo(randomBoolean());
-            EsqlSession.PlanRunner runPhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onFailure(
+            EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> r.onFailure(
                 new IllegalStateException("skip approximation execution; telemetry collected at parse time")
             );
 
@@ -557,31 +552,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         // because cross-project search is not enabled.
         // Additionally, the project_routing metric should not be registered at all in stateful mode.
 
-        String[] indices = new String[] { "test" };
+        IndexResolver indexResolver = mockIndexResolver();
 
-        Client esqlClient = mock(Client.class);
-        IndexResolver indexResolver = new IndexResolver(esqlClient, () -> true);
-        doAnswer((Answer<Void>) invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
-            listener.onResponse(new EsqlResolveFieldsResponse(new FieldCapabilitiesResponse(indexFieldCapabilities(indices), List.of())));
-            return null;
-        }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
-
-        // Create a minimal DataSourceModule for testing
-        List<DataSourcePlugin> plugins = List.of(new DataSourcePlugin() {});
-        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
-        try (
-            DataSourceModule dataSourceModule = new DataSourceModule(
-                List.of(plugins.get(0)),
-                capabilities,
-                Settings.EMPTY,
-                blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(ENCRYPTION_SERVICE),
-                () -> false
-            )
-        ) {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
 
             // In stateful mode, project_routing metric should not be registered at all
@@ -594,7 +567,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             var request = new EsqlQueryRequest();
             request.query("SET project_routing=\"test\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
-            EsqlSession.PlanRunner runPhase = (p, configuration, foldContext, planTimeProfile, r) -> fail(
+            EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> fail(
                 "should not reach execution phase"
             );
 
@@ -614,8 +587,122 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }
     }
 
+    private IndexResolver mockIndexResolver() {
+        return new IndexResolver(mockClient(), () -> true);
+    }
+
+    private Client mockClient() {
+        String[] indices = new String[] { "test" };
+        Client esqlClient = mock(Client.class);
+        doAnswer((Answer<Void>) invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
+            // Must supply non-null resolvedLocally so EsqlResolvedIndexExpression.from() doesn't NPE
+            // when CPS is enabled and the flat-index resolution path is taken.
+            FieldCapabilitiesResponse fcResponse = FieldCapabilitiesResponse.builder()
+                .withIndexResponses(indexFieldCapabilities(indices))
+                .withResolvedLocally(new ResolvedIndexExpressions(List.of(), null))
+                .build();
+            listener.onResponse(new EsqlResolveFieldsResponse(fcResponse));
+            return null;
+        }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
+        return esqlClient;
+    }
+
+    /**
+     * Verifies that {@code in_SET} only increments when {@code project_routing} comes from an in-query
+     * {@code SET} clause, not from the request body parameter.
+     *
+     * <p>Both cases use the same routing expression; the only difference is where it is supplied.
+     * {@code planTelemetry.settings()} is populated exclusively from SET-clause settings (via
+     * {@code gatherPlanTelemetry}), so request-body routing leaves it empty and {@code setClauseUsed=false}.
+     */
+    public void testProjectRoutingInSetClause() throws Exception {
+        CrossProjectModeDecider cpsDecider = new CrossProjectModeDecider(Settings.EMPTY) {
+            @Override
+            public boolean crossProjectEnabled() {
+                return true;
+            }
+        };
+
+        Client esqlClient = mockClient();
+        IndexResolver indexResolver = new IndexResolver(esqlClient, () -> true);
+
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            UsageService usageService = new UsageService();
+            TransportActionServices services = createTransportActionServices(usageService, cpsDecider);
+            PlanExecutor planExecutor = buildPlanExecutor(indexResolver, dataSourceModule, cpsDecider);
+
+            ProjectRoutingRequestInfo routingInfo = ProjectRoutingRequestInfo.NONE;
+
+            // --- Request body: project_routing supplied via request.set(), not the SET clause ---
+            var execInfo1 = createEsqlExecutionInfo(true);
+            execInfo1.setProjectRoutingInfo(routingInfo, true);
+
+            var request1 = new EsqlQueryRequest();
+            request1.query("FROM test | KEEP foo");
+            request1.set(QuerySettings.PROJECT_ROUTING, "_alias:_origin");
+            request1.allowPartialResults(false);
+            final var runPhase1 = planRunnerFor(execInfo1);
+
+            ActionListener<Versioned<Result>> listener = ActionListener.wrap(r -> {}, e -> fail("unexpected failure: " + e.getMessage()));
+            executeEsql(planExecutor, services, request1, execInfo1, runPhase1, listener);
+
+            long afterRequestBody = usageService.getProjectRoutingUsageHolder().getSnapshot().getEsqlWithSet();
+            assertEquals("request-body project_routing must not increment in_SET", 0L, afterRequestBody);
+            assertThat(usageService.getProjectRoutingUsageHolder().getSnapshot().getEsqlQueriesTotal(), equalTo(1L));
+
+            // --- SET clause: project_routing supplied via the in-query SET command ---
+            var execInfo2 = createEsqlExecutionInfo(true);
+            execInfo2.setProjectRoutingInfo(routingInfo, true);
+
+            var request2 = new EsqlQueryRequest();
+            request2.query("SET project_routing=\"_alias:_origin\"; FROM test | KEEP foo");
+            request2.allowPartialResults(false);
+            final var runPhase2 = planRunnerFor(execInfo2);
+
+            executeEsql(planExecutor, services, request2, execInfo2, runPhase2, listener);
+
+            long afterSetClause = usageService.getProjectRoutingUsageHolder().getSnapshot().getEsqlWithSet();
+            assertEquals("SET-clause project_routing must increment in_SET by 1", 1L, afterSetClause);
+            assertThat(usageService.getProjectRoutingUsageHolder().getSnapshot().getEsqlQueriesTotal(), equalTo(2L));
+
+            // No linked projects - ignore
+            var execInfo3 = createEsqlExecutionInfo(true);
+            execInfo3.setProjectRoutingInfo(routingInfo, false);
+
+            var request3 = new EsqlQueryRequest();
+            request3.query("SET project_routing=\"_alias:_origin\"; FROM test | KEEP foo");
+            request3.allowPartialResults(false);
+            final var runPhase3 = planRunnerFor(execInfo3);
+
+            executeEsql(planExecutor, services, request3, execInfo3, runPhase3, listener);
+
+            long afterSetClause2 = usageService.getProjectRoutingUsageHolder().getSnapshot().getEsqlWithSet();
+            assertEquals("Should not increment when no linked projects", 1L, afterSetClause2);
+            assertThat(usageService.getProjectRoutingUsageHolder().getSnapshot().getEsqlQueriesTotal(), equalTo(2L));
+        }
+    }
+
+    private EsqlSession.PlanRunner planRunnerFor(EsqlExecutionInfo executionInfo) {
+        return (role, p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
+            createPlanRunnerResult(configuration, executionInfo)
+        );
+    }
+
     private void executeEsql(
         PlanExecutor planExecutor,
+        EsqlQueryRequest request,
+        EsqlExecutionInfo executionInfo,
+        EsqlSession.PlanRunner runPhase,
+        ActionListener<Versioned<Result>> listener
+    ) {
+        executeEsql(planExecutor, MOCK_TRANSPORT_ACTION_SERVICES, request, executionInfo, runPhase, listener);
+    }
+
+    private void executeEsql(
+        PlanExecutor planExecutor,
+        TransportActionServices services,
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         EsqlSession.PlanRunner runPhase,
@@ -637,7 +724,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 executionInfo,
                 groupIndicesByCluster,
                 runPhase,
-                MOCK_TRANSPORT_ACTION_SERVICES,
+                services,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 1,
                 () -> false,
@@ -648,10 +735,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
 
     /**
      * These tests register no datasets, so the resolver short-circuits before ever touching a client,
-     * executor, or the cross-project remote leg — nulls are never dereferenced.
+     * executor, cross-project remote leg, or license state — nulls are never dereferenced.
      */
     private static DatasetResolver noDatasetsResolver() {
-        return new DatasetResolver(null, null, CrossProjectModeDecider.NOOP);
+        return new DatasetResolver(null, null, CrossProjectModeDecider.NOOP, true, new FederationLicense(() -> null));
     }
 
     private List<FieldCapabilitiesIndexResponse> indexFieldCapabilities(String[] indices) {
@@ -666,7 +753,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                         Map.entry("bar", new IndexFieldCapabilitiesBuilder("bar", "long").build())
                     ),
                     true,
-                    IndexMode.STANDARD
+                    IndexMode.STANDARD,
+                    0,
+                    0,
+                    0
                 )
             );
         }
@@ -687,14 +777,35 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         return withDefaultLimitWarning(super.filteredWarnings());
     }
 
+    private DataSourceModule makeDataSourceModule() {
+        List<DataSourcePlugin> plugins = List.of(new DataSourcePlugin() {});
+        return new DataSourceModule(
+            plugins,
+            DataSourceCapabilities.build(plugins),
+            Settings.EMPTY,
+            blockFactory(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+    }
+
     private PlanExecutor buildPlanExecutor(IndexResolver indexResolver, DataSourceModule dataSourceModule) {
+        return buildPlanExecutor(indexResolver, dataSourceModule, CrossProjectModeDecider.NOOP);
+    }
+
+    private PlanExecutor buildPlanExecutor(
+        IndexResolver indexResolver,
+        DataSourceModule dataSourceModule,
+        CrossProjectModeDecider cpsDecider
+    ) {
         return new PlanExecutor(
             indexResolver,
             MeterRegistry.NOOP,
             new XPackLicenseState(() -> 0L),
             mockQueryLog(),
             List.of(),
-            CrossProjectModeDecider.NOOP,
+            cpsDecider,
             dataSourceModule,
             TEST_FUNCTION_REGISTRY,
             PromqlFunctionRegistry.INSTANCE,
@@ -705,6 +816,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     }
 
     private BlockFactory blockFactory() {
-        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 }

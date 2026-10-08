@@ -12,7 +12,6 @@ package org.elasticsearch.common.network;
 import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.AllocateReshardSplitTargetPrimaryCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
@@ -104,11 +103,6 @@ public final class NetworkModule {
             AllocateStalePrimaryAllocationCommand::new,
             AllocateStalePrimaryAllocationCommand::fromXContent,
             AllocateStalePrimaryAllocationCommand.COMMAND_NAME_FIELD
-        );
-        registerAllocationCommand(
-            AllocateReshardSplitTargetPrimaryCommand::new,
-            AllocateReshardSplitTargetPrimaryCommand::fromXContent,
-            AllocateReshardSplitTargetPrimaryCommand.COMMAND_NAME_FIELD
         );
         namedWriteables.add(new NamedWriteableRegistry.Entry(Task.Status.class, ReplicationTask.Status.NAME, ReplicationTask.Status::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new));

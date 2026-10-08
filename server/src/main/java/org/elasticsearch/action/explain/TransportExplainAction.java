@@ -30,6 +30,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.IndexShard;
@@ -181,14 +182,16 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             request.filteringAlias(),
             null,
             request.getSplitShardCountSummary(),
-            // Provide the _slice routing to the search request for downstream filter application
+            // Provide the slice routing to the search request for downstream filter application
             request.isRoutingFromSlice() ? request.routing() : null
         );
         SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         Engine.GetResult result = null;
         try {
-            // No need to check the type, IndexShard#get does it for us
-            result = context.indexShard().get(new Engine.Get(false, false, request.id()), request.getSplitShardCountSummary());
+            // No need to check the type, IndexShard#get does it for us. For slice indices the routing is the slice
+            // (validated upstream), so the uid is the compound identity term.
+            final Uid uid = Uid.create(context.indexShard().indexSettings().isSliceEnabled(), request.id(), request.routing());
+            result = context.indexShard().get(new Engine.Get(false, false, uid), request.getSplitShardCountSummary());
             if (result.exists() == false) {
                 return new ExplainResponse(shardId.getIndexName(), request.id(), false);
             }

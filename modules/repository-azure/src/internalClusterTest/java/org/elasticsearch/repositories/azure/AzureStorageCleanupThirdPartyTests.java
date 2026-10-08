@@ -19,14 +19,14 @@ import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.models.AccessTier;
 import com.azure.storage.blob.models.BlobProperties;
 import com.azure.storage.blob.models.BlobStorageException;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -75,38 +75,14 @@ import static org.hamcrest.Matchers.not;
 /**
  * These tests sometimes run against a genuine Azure endpoint with credentials obtained from Vault. These credentials expire periodically
  * and must be manually renewed; the process is in the onboarding/process docs.
+ * Most tests that run against a genuine Azure endpoint can take between 1 and 3 minutes, hence the large suite timeout.
  */
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
     private static final Logger logger = LogManager.getLogger(AzureStorageCleanupThirdPartyTests.class);
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
 
     private static final String AZURE_ACCOUNT = System.getProperty("test.azure.account");
-
-    /**
-     * AzureRepositoryPlugin that sets a low value for getUploadBlockSize()
-     */
-    public static class TestAzureRepositoryPlugin extends AzureRepositoryPlugin {
-
-        public TestAzureRepositoryPlugin(Settings settings) {
-            super(settings);
-        }
-
-        @Override
-        AzureStorageService createAzureStorageService(
-            Settings settings,
-            AzureClientProvider azureClientProvider,
-            ClusterService clusterService,
-            ProjectResolver projectResolver
-        ) {
-            final long blockSize = ByteSizeValue.ofKb(64L).getBytes() * randomIntBetween(1, 15);
-            return new AzureStorageService(settings, azureClientProvider, clusterService, projectResolver) {
-                @Override
-                long getUploadBlockSize() {
-                    return blockSize;
-                }
-            };
-        }
-    }
 
     @ClassRule
     public static AzureHttpFixture fixture = new AzureHttpFixture(
@@ -122,7 +98,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(TestAzureRepositoryPlugin.class);
+        return pluginList(AzureRepositoryPlugin.class);
     }
 
     @Override
@@ -160,6 +136,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     @Override
     protected void createRepository(String repoName) {
+        final long blockSizeBytes = ByteSizeValue.ofKb(64L).getBytes() * randomIntBetween(5, 15);
         AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
             TEST_REQUEST_TIMEOUT,
             TEST_REQUEST_TIMEOUT,
@@ -170,7 +147,8 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                 Settings.builder()
                     .put("container", System.getProperty("test.azure.container"))
                     .put("base_path", System.getProperty("test.azure.base") + randomAlphaOfLength(8))
-                    .put("max_single_part_upload_size", ByteSizeValue.of(1, ByteSizeUnit.MB))
+                    .put(AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
+                    .put(AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(blockSizeBytes))
             )
             .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -253,7 +231,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                         }
                         assert channel.position() == offset;
                         return new BufferedInputStream(limitStream(Channels.newInputStream(channel), length));
-                    }, false);
+                    }, false, Runnable::run);
                 }
 
                 long bytesCount = 0L;
@@ -292,7 +270,14 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         assertBusy(() -> assertTrue(sourceBlobContainer.blobExists(randomPurpose(), sourceBlobName)));
 
         final var destinationBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("target"));
-        destinationBlobContainer.copyBlob(randomPurpose(), sourceBlobContainer, sourceBlobName, destinationBlobName, blobBytes.length());
+        destinationBlobContainer.copyBlob(
+            randomPurpose(),
+            sourceBlobContainer,
+            sourceBlobName,
+            destinationBlobName,
+            blobBytes.length(),
+            null
+        );
         assertThat(Streams.readFully(destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName)), equalBytes(blobBytes));
 
         sourceBlobContainer.delete(randomPurpose());
@@ -303,7 +288,8 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                 sourceBlobContainer,
                 sourceBlobName,
                 destinationBlobName,
-                blobBytes.length()
+                blobBytes.length(),
+                null
             )
         );
         destinationBlobContainer.delete(randomPurpose());
@@ -332,6 +318,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                     .put("container", System.getProperty("test.azure.container"))
                     .put("base_path", System.getProperty("test.azure.base") + randomAlphaOfLength(8))
                     .put(AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
+                    .put(AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
                     .put(AzureRepository.Repository.DATA_ACCESS_TIER_SETTING.getKey(), dataAccessTier.toString())
                     .put(AzureRepository.Repository.METADATA_ACCESS_TIER_SETTING.getKey(), metadataAccessTier.toString())
             )
@@ -375,7 +362,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
                     // server-side copy (source is the small single-part blob written above)
                     final String copyName = randomIdentifier();
-                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length());
+                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length(), null);
                     assertAccessTier(blobStore, keyPrefix + copyName, expectedTier, "server-side copy", purpose);
                 }
             } finally {

@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DocumentExtractionRequest;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -37,6 +38,7 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
@@ -55,6 +57,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInva
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveInferenceTimeout;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedDocumentExtractionOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
 
 public class SageMakerService implements InferenceService, RerankingInferenceService {
@@ -251,7 +254,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
             var sageMakerModel = (SageMakerModel) model;
             var regionAndSecrets = regionAndSecrets(sageMakerModel);
             var schema = schemas.streamSchemaFor(sageMakerModel);
-            var sagemakerRequest = schema.chatCompletionStreamRequest(sageMakerModel, request);
+            var sagemakerRequest = schema.chatCompletionStreamRequest(sageMakerModel, request.body());
             client.invokeStream(
                 regionAndSecrets,
                 sagemakerRequest,
@@ -270,6 +273,16 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
     @Override
     public void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         throwUnsupportedEmbeddingOperation(NAME);
+    }
+
+    @Override
+    public void documentExtractionInfer(
+        Model model,
+        DocumentExtractionRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throwUnsupportedDocumentExtractionOperation(NAME);
     }
 
     @Override
@@ -343,6 +356,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
             var batchedRequests = new EmbeddingRequestChunker<>(
                 input,
                 sageMakerModel.batchSize().orElse(DEFAULT_BATCH_SIZE),
+                clusterService.getClusterSettings().get(RecursiveChunkingSettings.REGEX_READ_LIMIT_FACTOR_SETTING),
                 sageMakerModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 

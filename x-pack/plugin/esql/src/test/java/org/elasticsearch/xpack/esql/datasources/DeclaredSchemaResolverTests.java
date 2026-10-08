@@ -21,6 +21,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+
 public class DeclaredSchemaResolverTests extends ESTestCase {
 
     private static DatasetMapping mapping(Map<String, DatasetFieldMapping> props) {
@@ -68,22 +73,43 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("duplicate column [y]"));
     }
 
-    public void testOverlayNonStrictErrorsOnDeclaredColumnMissingFromSource() {
+    /**
+     * A declared column absent from the inferred schema is kept at its declared type and reported in
+     * {@link DeclaredSchemaResolver.Overlaid#absent()}, whether the schema was sampled (a sparse field the sample did
+     * not reach) or is complete (a column the source does not carry, which reads null with a warning).
+     */
+    public void testOverlayNonStrictKeepsADeclaredColumnMissingFromTheInferredSchema() {
         List<Attribute> inferred = List.of(attr("a", DataType.KEYWORD));
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
-        props.put("b", new DatasetFieldMapping("long", null)); // 'b' is not in the inferred source
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> DeclaredSchemaResolver.overlayNonStrict(inferred, mapping(props))
-        );
-        assertTrue(e.getMessage(), e.getMessage().contains("b"));
+        props.put("b", new DatasetFieldMapping("long", null)); // 'b' is not in the inferred schema
+
+        DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(inferred, mapping(props));
+
+        assertEquals(List.of("a", "b"), o.output().stream().map(Attribute::name).toList());
+        assertEquals(DataType.LONG, o.output().get(1).dataType());
+        assertEquals(List.of("a", "b"), o.fileSchema().stream().map(Attribute::name).toList());
+        assertThat("absent must carry the missing declared column", o.absent(), hasSize(1));
+        assertEquals("b", o.absent().get(0).name());
+        assertEquals(DataType.LONG, o.absent().get(0).dataType());
+    }
+
+    /** Lenient (per-file) overlay skips a declared column the file lacks; the caller decides what that file carries. */
+    public void testOverlayNonStrictLenientSkipsADeclaredColumnMissingFromTheFile() {
+        List<Attribute> inferred = List.of(attr("a", DataType.KEYWORD));
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("b", new DatasetFieldMapping("long", null));
+
+        DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(inferred, mapping(props), true);
+
+        assertEquals(List.of("a"), o.output().stream().map(Attribute::name).toList());
+        assertThat(o.absent(), hasSize(0));
     }
 
     public void testOverlayNonStrictNoMappingsPassesThrough() {
         List<Attribute> inferred = List.of(attr("a", DataType.KEYWORD));
         DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(
             inferred,
-            new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of(), "row_id"))
+            new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of()))
         );
         assertSame(inferred, o.output());
         assertSame(inferred, o.fileSchema());
@@ -122,21 +148,92 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
     }
 
     public void testNoMappingsYieldsEmpty() {
-        DatasetMapping roleOnly = new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of(), "row_id"));
-        assertTrue(DeclaredSchemaResolver.declaredAttributes(roleOnly).isEmpty());
-        assertTrue(DeclaredSchemaResolver.renameMap(roleOnly).isEmpty());
+        DatasetMapping noProperties = new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of()));
+        assertTrue(DeclaredSchemaResolver.declaredAttributes(noProperties).isEmpty());
+        assertTrue(DeclaredSchemaResolver.renameMap(noProperties).isEmpty());
         assertTrue(DeclaredSchemaResolver.declaredAttributes(null).isEmpty());
         assertTrue(DeclaredSchemaResolver.renameMap(null).isEmpty());
     }
 
     public void testUnsupportedTypeThrowsDefensively() {
+        // Both shapes the backstop rejects: a name that is not a type, and a real ES|QL type that is not
+        // declarable. `text` is the one exception (see testStoredTextResolvesToKeyword).
+        for (String bad : new String[] { "not_a_type", "geo_point" }) {
+            Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+            props.put("c", new DatasetFieldMapping(bad, null));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> DeclaredSchemaResolver.declaredAttributes(mapping(props))
+            );
+            assertThat(e.getMessage(), containsString(bad));
+        }
+    }
+
+    /**
+     * Cluster state can hold a mapping that declares `text`. It reads as keyword rather than failing the query, on
+     * both rails. The warning is asserted at ExternalSourceResolver level, which is where it reaches the response.
+     */
+    public void testStoredTextResolvesToKeyword() {
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
-        props.put("c", new DatasetFieldMapping("not_a_type", null));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> DeclaredSchemaResolver.declaredAttributes(mapping(props))
+        props.put("msg", new DatasetFieldMapping("text", null));
+        props.put("id", new DatasetFieldMapping("integer", null));
+
+        List<Attribute> declared = DeclaredSchemaResolver.declaredAttributes(mapping(props));
+
+        assertThat(declared, hasSize(2));
+        assertThat(declared.get(0).name(), equalTo("msg"));
+        assertThat(declared.get(0).dataType(), equalTo(DataType.KEYWORD));
+        assertThat(declared.get(1).dataType(), equalTo(DataType.INTEGER));
+
+        // The same substitution on the non-strict rail, which retypes an inferred column rather than minting one.
+        DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(
+            List.of(attr("msg", DataType.KEYWORD), attr("id", DataType.INTEGER)),
+            mapping(props)
         );
-        assertTrue(e.getMessage(), e.getMessage().contains("not_a_type"));
+        assertThat(o.output().get(0).dataType(), equalTo(DataType.KEYWORD));
+    }
+
+    /**
+     * The substitution on its own, apart from the whitelist {@code resolveType} layers on top. Every site that
+     * turns a stored declared type into an ES|QL type calls it, including the columnar type check, which has to
+     * see the type the reader is handed.
+     */
+    public void testDeclaredTypeAsReadSubstitutesOnlyText() {
+        assertThat(DeclaredSchemaResolver.declaredTypeAsRead("text"), equalTo(DataType.KEYWORD));
+        assertThat(DeclaredSchemaResolver.declaredTypeAsRead("keyword"), equalTo(DataType.KEYWORD));
+        assertThat(DeclaredSchemaResolver.declaredTypeAsRead("long"), equalTo(DataType.LONG));
+        // No whitelist here: a type this layer does not substitute comes back as itself, declarable or not, and
+        // resolveType is what rejects it.
+        assertThat(DeclaredSchemaResolver.declaredTypeAsRead("geo_point"), equalTo(DataType.GEO_POINT));
+        assertThat(DeclaredSchemaResolver.declaredTypeAsRead("not_a_type"), equalTo(DataType.UNSUPPORTED));
+    }
+
+    /**
+     * Only the columns whose read type differs from the declared one, and each carrying both types so the caller
+     * describes the substitution it found rather than a hard-coded pair.
+     */
+    public void testSubstitutionsCarryTheColumnAndBothTypes() {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("a", new DatasetFieldMapping("keyword", null));
+        props.put("msg", new DatasetFieldMapping("text", null));
+        props.put("body", new DatasetFieldMapping("text", "body_raw"));
+        props.put("n", new DatasetFieldMapping("long", null));
+
+        assertThat(
+            DeclaredSchemaResolver.substitutions(mapping(props)),
+            equalTo(
+                List.of(
+                    new DeclaredSchemaResolver.Substitution("msg", DataType.TEXT, DataType.KEYWORD),
+                    new DeclaredSchemaResolver.Substitution("body", DataType.TEXT, DataType.KEYWORD)
+                )
+            )
+        );
+        assertThat(DeclaredSchemaResolver.substitutions(null), empty());
+    }
+
+    /** A mapping with no properties block at all: the same empty answer as a null mapping, not a failure. */
+    public void testSubstitutionsEmptyWhenMappingHasNoMappingsBlock() {
+        assertThat(DeclaredSchemaResolver.substitutions(new DatasetMapping((Mappings) null)), empty());
     }
 
     public void testMoveConsumesPhysicalInPlace() {

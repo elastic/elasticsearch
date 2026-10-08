@@ -109,7 +109,7 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
                     new SearchLookup(
                         field -> null,
                         (ft, lookup, fdt) -> null,
-                        SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+                        SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP, null)
                     ),
                     DateFormatter.forPattern("epoch_millis"),
                     OnScriptError.FAIL

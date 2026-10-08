@@ -54,11 +54,13 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
@@ -114,6 +116,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private final ThreadPool threadPool;
     private final TimeValue forceConnectTimeoutSecs;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private volatile FieldCapsCache cache = new FieldCapsCache();
 
     @Inject
     public TransportFieldCapabilitiesAction(
@@ -144,6 +147,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.threadPool = threadPool;
         this.forceConnectTimeoutSecs = clusterService.getSettings().getAsTime("search.ccs.force_connect_timeout", null);
         this.crossProjectModeDecider = crossProjectModeDecider;
+        // _id aggregate depends on this setting
+        clusterService.getClusterSettings().initializeAndWatch(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING, v -> {
+            if (v) {
+                cache = null;
+            } else {
+                cache = new FieldCapsCache();
+            }
+        });
     }
 
     @Override
@@ -310,7 +321,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         curr.getIndexMappingHash(),
                         curr.get(),
                         true,
-                        curr.getIndexMode()
+                        curr.getIndexMode(),
+                        resp.getNumberOfShards(),
+                        resp.getIndexSettingsVersion(),
+                        resp.getMappingVersion()
                     );
                 }
             }
@@ -323,12 +337,16 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     }
                     Map<String, IndexFieldCapabilities> mergedCaps = new HashMap<>(a.get());
                     mergedCaps.putAll(b.get());
+                    // Same index, same shard count — keep a's count.
                     return new FieldCapabilitiesIndexResponse(
                         a.getIndexName(),
                         a.getIndexMappingHash(),
                         mergedCaps,
                         true,
-                        a.getIndexMode()
+                        a.getIndexMode(),
+                        a.getNumberOfShards(),
+                        a.getIndexSettingsVersion(),
+                        a.getMappingVersion()
                     );
                 });
             }
@@ -347,12 +365,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
         };
         final var finishedOrCancelled = new AtomicBoolean();
-        fieldCapTask.addListener(() -> {
-            if (finishedOrCancelled.compareAndSet(false, true)) {
-                singleThreadedExecutor.execute(releaseResourcesOnCancel);
-                LOGGER.trace("clear index responses on cancellation submitted");
-            }
-        });
         try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
             finishedOrCancelled.set(true);
             if (fieldCapTask.notifyIfCancelled(listener)) {
@@ -384,7 +396,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
         })) {
             // local cluster
-            final RequestDispatcher requestDispatcher = new RequestDispatcher(
+            var requestDispatcher = new RequestDispatcher(
                 clusterService,
                 transportService,
                 projectResolver,
@@ -397,9 +409,16 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 singleThreadedExecutor,
                 handleIndexResponse,
                 handleIndexFailure,
-                refs.acquire()::close
+                refs.acquire()::close,
+                canCache(request, remoteClusterIndices, concreteLocalIndices) ? cache : null
             );
-            requestDispatcher.execute();
+            requestDispatcher.start();
+            fieldCapTask.addListener(() -> {
+                if (finishedOrCancelled.compareAndSet(false, true)) {
+                    singleThreadedExecutor.execute(releaseResourcesOnCancel);
+                    LOGGER.trace("clear index responses on cancellation submitted");
+                }
+            });
 
             // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
             // send us back all individual index results.
@@ -432,7 +451,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 resp.getIndexMappingHash(),
                                 resp.get(),
                                 resp.canMatch(),
-                                resp.getIndexMode()
+                                resp.getIndexMode(),
+                                resp.getNumberOfShards(),
+                                resp.getIndexSettingsVersion(),
+                                resp.getMappingVersion()
                             )
                         );
                     }
@@ -493,6 +515,28 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     .maybeEnsureConnectedAndGetConnection(clusterAlias, ensureConnected, connectionListener);
             }
         }
+    }
+
+    private boolean canCache(FieldCapabilitiesRequest request, Map<String, OriginalIndices> remoteIndices, String[] concreteLocalIndices) {
+        if (remoteIndices.isEmpty() == false) {
+            // This cache targets low-latency local requests. A request that fans out to remote clusters already pays
+            // a remote round trip, so the saving is negligible; keep the slots for local requests.
+            return false;
+        }
+        if (concreteLocalIndices.length > FieldCapsCache.MAX_INDICES) {
+            return false;
+        }
+        if (request.cacheable() == false) {
+            return false;
+        }
+        final Function<String, FieldPredicate> fieldFilter = indicesService.getFieldFilter();
+        for (String index : concreteLocalIndices) {
+            // disable cache with field-level security
+            if (fieldFilter.apply(index) != FieldPredicate.ACCEPT_ALL) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static ResolvedIndexExpression createResolvedIndexExpression(String original, String[] concreteIndexNames) {
@@ -671,6 +715,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final Map<String, Map<String, FieldCapabilities.Builder>> fieldsBuilder = new HashMap<>();
         int lastPendingIndex = 0;
         for (int i = 1; i <= indexResponses.length; i++) {
+            if (i % 64 == 0) {
+                task.ensureNotCancelled();
+            }
             if (i == indexResponses.length || hasSameMappingHash(indexResponses[lastPendingIndex], indexResponses[i]) == false) {
                 final String[] subIndices;
                 if (lastPendingIndex == 0 && i == indexResponses.length) {
@@ -814,7 +861,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     false,
                     false,
                     null,
+                    null,
                     diff,
+                    null,
                     null,
                     null,
                     null,
@@ -857,6 +906,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 fieldCap.isInference(),
                 fieldCap.isDimension(),
                 fieldCap.metricType(),
+                fieldCap.isPassthrough(),
                 fieldCap.meta()
             );
         }
@@ -934,13 +984,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 } catch (TooComplexToDeterminizeException e) {
                     throw new IllegalArgumentException("The field names are too complex to process. " + e.getMessage());
                 }
+                final CancellableTask cancellableTask = (CancellableTask) task;
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
+                    cancellableTask.ensureNotCancelled();
                     final Map<ShardId, Exception> failures = new HashMap<>();
                     final Set<ShardId> unmatched = new HashSet<>();
                     for (ShardId shardId : shardIds) {
                         try {
                             final FieldCapabilitiesIndexResponse response = fetcher.fetch(
-                                (CancellableTask) task,
+                                cancellableTask,
                                 shardId,
                                 fieldNameFilter,
                                 request.filters(),
@@ -960,6 +1012,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 unmatched.add(shardId);
                             }
                         } catch (Exception e) {
+                            if (e instanceof TaskCancelledException) {
+                                throw e;
+                            }
+                            cancellableTask.ensureNotCancelled();
                             failures.put(shardId, e);
                         }
                     }

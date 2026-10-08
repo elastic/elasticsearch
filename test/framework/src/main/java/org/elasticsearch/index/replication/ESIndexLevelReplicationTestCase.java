@@ -68,13 +68,13 @@ import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.RetentionLeases;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -198,6 +198,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
             primary = newShard(
                 primaryRouting,
+                null,
                 indexMetadata,
                 null,
                 getEngineFactory(primaryRouting),
@@ -214,8 +215,12 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         private ShardRouting createShardRouting(String nodeId, boolean isPrimary) {
             return shardRoutingBuilder(shardId, nodeId, isPrimary, ShardRoutingState.INITIALIZING).withRecoverySource(
-                isPrimary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
+                isPrimary ? primaryRecoverySource() : RecoverySource.PeerRecoverySource.INSTANCE
             ).build();
+        }
+
+        protected RecoverySource primaryRecoverySource() {
+            return RecoverySource.EmptyStoreRecoverySource.INSTANCE;
         }
 
         protected EngineFactory getEngineFactory(ShardRouting routing) {
@@ -317,6 +322,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             final ShardRouting replicaRouting = createShardRouting("s" + replicaId.incrementAndGet(), false);
             final IndexShard replica = newShard(
                 replicaRouting,
+                getDiscoveryNode(primary.routingEntry().currentNodeId()),
                 indexMetadata,
                 null,
                 getEngineFactory(replicaRouting),
@@ -338,8 +344,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         protected synchronized void recoverPrimary(IndexShard primaryShard) {
-            final DiscoveryNode pNode = getDiscoveryNode(primaryShard.routingEntry().currentNodeId());
-            primaryShard.markAsRecovering("store", new RecoveryState(primaryShard.routingEntry(), pNode, null));
+            primaryShard.markAsRecovering("store");
             recoverFromStore(primaryShard);
         }
 
@@ -347,9 +352,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             final ShardRouting shardRouting = shardRoutingBuilder(shardId, nodeId, false, ShardRoutingState.INITIALIZING)
                 .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
                 .build();
-
             final IndexShard newReplica = newShard(
                 shardRouting,
+                getDiscoveryNode(primary.routingEntry().currentNodeId()),
                 shardPath,
                 indexMetadata,
                 null,
@@ -357,7 +362,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 getEngineFactory(shardRouting),
                 NOOP_GCP_SYNCER,
                 retentionLeaseSyncer,
-                EMPTY_EVENT_LISTENER
+                IndexEventListener.NOOP
             );
             replicas.add(newReplica);
             if (replicationTargets != null) {

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158567
+summary: Choose FFW schema file with `file_sort_by`
+type: enhancement

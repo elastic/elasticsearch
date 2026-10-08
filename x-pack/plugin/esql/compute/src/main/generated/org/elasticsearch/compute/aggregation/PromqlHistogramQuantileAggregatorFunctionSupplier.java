@@ -10,7 +10,6 @@ import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.WarningSourceLocation;
-import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link PromqlHistogramQuantileAggregator}.
@@ -40,14 +39,14 @@ public final class PromqlHistogramQuantileAggregatorFunctionSupplier implements 
   @Override
   public PromqlHistogramQuantileAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    var warnings = driverContext.createWarnings(warningsSource);
     return new PromqlHistogramQuantileAggregatorFunction(warnings, driverContext, channels, quantile);
   }
 
   @Override
   public PromqlHistogramQuantileGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    var warnings = driverContext.createWarnings(warningsSource);
     return new PromqlHistogramQuantileGroupingAggregatorFunction(warnings, channels, driverContext, quantile);
   }
 

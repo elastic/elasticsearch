@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser.promql;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.HexLiteralContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.IntegerLiteralContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelListContext;
+import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelListItemContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelNameContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.StringContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
@@ -36,6 +38,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.AtContext;
@@ -94,7 +97,36 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
     @Override
     public List<String> visitLabelList(LabelListContext ctx) {
-        return ctx != null ? visitList(this, ctx.labelName(), String.class) : emptyList();
+        return ctx != null ? visitList(this, ctx.labelListItem(), String.class) : emptyList();
+    }
+
+    @Override
+    public String visitLabelListItem(LabelListItemContext ctx) {
+        if (ctx.labelName() != null) {
+            return visitLabelName(ctx.labelName());
+        }
+
+        TerminalNode paramNode = ctx.NAMED_OR_POSITIONAL_DOUBLE_PARAMS();
+        Source paramSource = source(paramNode);
+        QueryParam param = ExpressionBuilder.paramByNameOrPosition(paramNode, paramSource, params);
+        if (param == null) {
+            throw new ParsingException(paramSource, "Parameter [{}] value not found", paramNode.getText());
+        }
+        if (param.classification() == PATTERN) {
+            throw new ParsingException(
+                paramSource,
+                "Query parameter [{}]{}, cannot be used as an identifier",
+                paramNode.getText(),
+                "[" + param.name() + "] declared as a pattern"
+            );
+        }
+        if (param.value() == null) {
+            throw new ParsingException(paramSource, "Query parameter [{}] is null", paramNode.getText());
+        }
+        if (param.value() instanceof List<?>) {
+            throw new ParsingException(paramSource, "Query parameter [{}] is a list; expected a single label name", paramNode.getText());
+        }
+        return String.valueOf(param.value());
     }
 
     @Override
@@ -152,7 +184,8 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         }
         OffsetContext offsetContext = ctx.offset();
         if (offsetContext != null) {
-            offset = visitDuration(offsetContext.duration());
+            // an offset may be zero or negative (`offset (5s - 8)`); a range may not
+            offset = duration(offsetContext.duration(), false);
             // PromQL durations are unsigned magnitudes; the optional leading `-` (look ahead) is a separate token.
             // Fold the sign into a single signed duration literal, mirroring how the `@` modifier is handled above.
             if (offsetContext.MINUS() != null && offset.value() instanceof Duration d) {
@@ -162,8 +195,13 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         return new Evaluation(offset, at);
     }
 
+    /** A range or resolution: a duration greater than zero. */
     @Override
     public Literal visitDuration(DurationContext ctx) {
+        return duration(ctx, true);
+    }
+
+    private Literal duration(DurationContext ctx, boolean positive) {
         if (ctx == null) {
             return Literal.NULL;
         }
@@ -192,13 +230,31 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
         Duration d = switch (o) {
             case Duration duration -> duration;
-            // Handle numeric scalars interpreted as seconds
+            // A number is a duration in seconds - a float literal, or a duration literal spelled with units, which the
+            // expression grammar already reads as its number of seconds; truncated to the millisecond, like Prometheus.
             case Number num -> {
-                long seconds = num.longValue();
-                if (seconds <= 0) {
-                    throw new ParsingException(source(ctx), "Duration must be positive, got [{}]s", seconds);
+                double seconds = num.doubleValue();
+                if (Double.isFinite(seconds) == false || (positive && seconds <= 0)) {
+                    throw new ParsingException(source(ctx), "Duration must be positive, got [{}]s", num);
                 }
-                Duration duration = Duration.ofSeconds(seconds);
+                double millis = seconds * 1000.0;
+                if (millis >= Long.MAX_VALUE) {
+                    throw new ParsingException(source(ctx), "Duration out of range");
+                }
+                long wholeMillis = (long) millis;
+                // Below a millisecond a range truncates to zero, which would read as no window at all; plans only keep
+                // milliseconds, so it becomes the shortest range there is, with a warning.
+                if (positive && wholeMillis == 0) {
+                    Source source = source(ctx);
+                    HeaderWarning.addWarning(
+                        "Line {}:{}: duration [{}] is shorter than 1ms, using 1ms instead",
+                        source.source().getLineNumber(),
+                        source.source().getColumnNumber(),
+                        source.text()
+                    );
+                    wholeMillis = 1;
+                }
+                Duration duration = Duration.ofMillis(wholeMillis);
                 // Validate the resulting duration is within acceptable range
                 validateDurationRange(source(ctx), duration);
                 yield duration;

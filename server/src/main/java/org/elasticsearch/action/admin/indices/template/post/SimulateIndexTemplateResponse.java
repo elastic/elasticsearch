@@ -60,6 +60,16 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         this.rolloverConfiguration = rolloverConfiguration;
     }
 
+    @Nullable
+    public Template getResolvedTemplate() {
+        return resolvedTemplate;
+    }
+
+    @Nullable
+    public Map<String, List<String>> getOverlappingTemplates() {
+        return overlappingTemplates;
+    }
+
     public RolloverConfiguration getRolloverConfiguration() {
         return rolloverConfiguration;
     }

@@ -17,8 +17,6 @@ import org.hamcrest.Matcher;
 import java.util.List;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class ToRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
@@ -33,6 +31,11 @@ public class ToRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, i) -> "date"));
+        DataType fromType = signature.get(0);
+        if (fromType != DataType.DATETIME && fromType != DataType.DOUBLE && fromType != DataType.NULL) {
+            return typeErrorMessage(signature, 0, "date or double");
+        }
+        String expected = fromType == DataType.NULL ? "date or double" : fromType.esType();
+        return typeErrorMessage(signature, 1, expected);
     }
 }

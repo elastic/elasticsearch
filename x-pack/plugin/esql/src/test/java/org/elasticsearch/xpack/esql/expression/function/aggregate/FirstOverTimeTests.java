@@ -73,7 +73,7 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new FirstOverTime(source, args.get(0), Literal.TRUE, AggregateFunction.NO_WINDOW, args.get(1));
+        return new FirstOverTime(source, args.get(0), args.get(1), Literal.TRUE, AggregateFunction.NO_WINDOW);
     }
 
     @Override

@@ -22,10 +22,6 @@ import java.util.Locale;
  * Built once at local-execution-planning time from the (foldable) {@link MapExpression} so the operator factory only
  * deals with primitives.
  * <p>
- * {@code boundary_chars}, {@code boundary_max_scan} and {@code phrase_limit} are accepted for Query DSL parity but are
- * only honoured by the FastVectorHighlighter. HIGHLIGHT always uses the unified highlighter, so they are grammar-only
- * no-ops that never reach this record.
- * <p>
  * The validation done while building this record is also the single source of truth for analysis-time checks:
  * {@link Highlight#postAnalysisVerification} reuses {@link #validate} so invalid values fail during analysis rather
  * than only later during local planning.
@@ -66,6 +62,8 @@ public record HighlightOptions(
     public static final List<String> ALLOWED_ORDERS = List.of(ORDER_NONE, ORDER_SCORE);
     // -1 means "use the index setting"; the current coordinator-side operator uses the default index value.
     public static final int DEFAULT_MAX_ANALYZED_OFFSET = -1;
+    // Tags wrap every match, so their length multiplies the size of the output.
+    private static final int MAX_TAG_LENGTH = 256;
 
     /**
      * A string-valued enum option together with its allowed values and case-sensitivity. Shared by
@@ -92,8 +90,8 @@ public record HighlightOptions(
             return defaults();
         }
         return new HighlightOptions(
-            string(Highlight.PRE_TAGS, options.get(Highlight.PRE_TAGS), foldContext, DEFAULT_PRE_TAG),
-            string(Highlight.POST_TAGS, options.get(Highlight.POST_TAGS), foldContext, DEFAULT_POST_TAG),
+            tag(Highlight.PRE_TAGS, options.get(Highlight.PRE_TAGS), foldContext, DEFAULT_PRE_TAG),
+            tag(Highlight.POST_TAGS, options.get(Highlight.POST_TAGS), foldContext, DEFAULT_POST_TAG),
             ENCODER_OPTION.normalize(string(Highlight.ENCODER, options.get(Highlight.ENCODER), foldContext, DEFAULT_ENCODER)),
             analyzerName(Highlight.ANALYZER, options.get(Highlight.ANALYZER), foldContext),
             integer(Highlight.NUMBER_OF_FRAGMENTS, options.get(Highlight.NUMBER_OF_FRAGMENTS), foldContext, DEFAULT_NUMBER_OF_FRAGMENTS),
@@ -127,26 +125,18 @@ public record HighlightOptions(
     /**
      * Type/range-checks a single (non-null, foldable) option value by parsing it exactly as {@link #from} would and
      * discarding the result, throwing {@link IllegalArgumentException} on a bad value. Enum options ({@code encoder},
-     * {@code boundary_scanner}, {@code order}) are checked separately against their {@link EnumOption} descriptor, and
-     * {@code phrase_limit} is grammar-only, so all of them are no-ops here. {@code boundary_chars} and
-     * {@code boundary_max_scan} are FastVectorHighlighter-only at execution but we still type-check them for Query DSL
-     * parity.
+     * {@code boundary_scanner}, {@code order}) are no-ops here because they are checked separately against their
+     * {@link EnumOption} descriptor.
      */
     public static void validate(String name, Expression value, FoldContext foldContext) {
         switch (name) {
-            case Highlight.PRE_TAGS, Highlight.POST_TAGS -> string(name, value, foldContext, null);
+            case Highlight.PRE_TAGS, Highlight.POST_TAGS -> tag(name, value, foldContext, null);
             case Highlight.ANALYZER -> analyzerName(name, value, foldContext);
-            case Highlight.BOUNDARY_CHARS -> requireString(name, value.fold(foldContext));
             case Highlight.BOUNDARY_SCANNER_LOCALE -> locale(name, value, foldContext);
-            case Highlight.NUMBER_OF_FRAGMENTS, Highlight.FRAGMENT_SIZE, Highlight.NO_MATCH_SIZE, Highlight.BOUNDARY_MAX_SCAN -> integer(
-                name,
-                value,
-                foldContext,
-                0
-            );
+            case Highlight.NUMBER_OF_FRAGMENTS, Highlight.FRAGMENT_SIZE, Highlight.NO_MATCH_SIZE -> integer(name, value, foldContext, 0);
             case Highlight.MAX_ANALYZED_OFFSET -> maxAnalyzedOffset(name, value, foldContext);
-            case Highlight.ENCODER, Highlight.BOUNDARY_SCANNER, Highlight.ORDER, Highlight.PHRASE_LIMIT -> {
-                // Handled elsewhere (enums against EnumOption, phrase_limit is grammar-only).
+            case Highlight.ENCODER, Highlight.BOUNDARY_SCANNER, Highlight.ORDER -> {
+                // Handled separately against their EnumOption descriptor.
             }
             // Unreachable: the parser already rejected anything not in VALID_OPTION_NAMES.
             default -> throw new AssertionError("Unexpected option [" + name + "] in HIGHLIGHT");
@@ -171,6 +161,16 @@ public record HighlightOptions(
             return list.isEmpty() ? defaultValue : requireString(name, list.getFirst());
         }
         return requireString(name, folded);
+    }
+
+    private static String tag(String name, Expression value, FoldContext foldContext, String defaultValue) {
+        String tag = string(name, value, foldContext, defaultValue);
+        if (tag != null && tag.length() > MAX_TAG_LENGTH) {
+            throw new IllegalArgumentException(
+                "Option [" + name + "] must be at most [" + MAX_TAG_LENGTH + "] characters, found [" + tag.length() + "]"
+            );
+        }
+        return tag;
     }
 
     /** Reads the {@code analyzer} name without resolving it. */
@@ -216,11 +216,15 @@ public record HighlightOptions(
         if (value == null) {
             return defaultValue;
         }
-        int intValue = integral(name, value.fold(foldContext));
-        if (intValue < 0) {
-            throw new IllegalArgumentException("Option [" + name + "] must be >= 0, found [" + intValue + "]");
+        Object folded = value.fold(foldContext);
+        long longValue = integral(name, folded);
+        if (longValue < 0) {
+            throw new IllegalArgumentException("Option [" + name + "] must be >= 0, found [" + folded + "]");
         }
-        return intValue;
+        if (longValue > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Option [" + name + "] must be <= " + Integer.MAX_VALUE + ", found [" + folded + "]");
+        }
+        return (int) longValue;
     }
 
     /**
@@ -232,18 +236,19 @@ public record HighlightOptions(
         if (value == null) {
             return DEFAULT_MAX_ANALYZED_OFFSET;
         }
-        int intValue = integral(name, value.fold(foldContext));
-        if (intValue < -1 || intValue == 0) {
-            throw new IllegalArgumentException("Option [" + name + "] must be a positive integer, or -1, found [" + intValue + "]");
+        Object folded = value.fold(foldContext);
+        long longValue = integral(name, folded);
+        if (longValue < -1 || longValue == 0) {
+            throw new IllegalArgumentException("Option [" + name + "] must be a positive integer, or -1, found [" + folded + "]");
         }
-        return intValue;
+        if (longValue > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Option [" + name + "] must be <= " + Integer.MAX_VALUE + ", found [" + folded + "]");
+        }
+        return (int) longValue;
     }
 
-    /**
-     * Extracts an int from a folded numeric option, rejecting non-numbers and fractional values (e.g. {@code 0.9})
-     * rather than silently truncating them.
-     */
-    private static int integral(String name, Object folded) {
+    /** Extracts a long from a numeric option without silently truncating fractional values. */
+    private static long integral(String name, Object folded) {
         if (folded instanceof Number number) {
             if (number instanceof Float || number instanceof Double) {
                 double doubleValue = number.doubleValue();
@@ -251,7 +256,7 @@ public record HighlightOptions(
                     throw new IllegalArgumentException("Option [" + name + "] must be an integer, found [" + folded + "]");
                 }
             }
-            return number.intValue();
+            return number.longValue();
         }
         throw new IllegalArgumentException("Option [" + name + "] must be numeric, found [" + folded + "]");
     }

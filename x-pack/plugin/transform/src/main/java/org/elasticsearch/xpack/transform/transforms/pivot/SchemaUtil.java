@@ -117,6 +117,7 @@ public final class SchemaUtil {
         final SettingsConfig settingsConfig,
         final PivotConfig pivotConfig,
         final SourceConfig sourceConfig,
+        final IndicesOptions indicesOptions,
         final ActionListener<Map<String, String>> listener
     ) {
         // collects the fieldnames used as source for aggregations
@@ -164,6 +165,7 @@ public final class SchemaUtil {
             client,
             headers,
             sourceConfig,
+            indicesOptions,
             allFieldNames.values().stream().filter(Objects::nonNull).toArray(String[]::new),
             ActionListener.wrap(
                 sourceMappings -> listener.onResponse(
@@ -285,6 +287,7 @@ public final class SchemaUtil {
         Client client,
         Map<String, String> headers,
         SourceConfig sourceConfig,
+        IndicesOptions indicesOptions,
         String[] fields,
         ActionListener<Map<String, String>> listener
     ) {
@@ -297,8 +300,10 @@ public final class SchemaUtil {
             .indexFilter(sourceConfig.getQueryConfig().getQuery())
             .fields(fields)
             .runtimeFields(sourceConfig.getRuntimeMappings())
-            .indicesOptions(sourceConfig.indicesOptions());
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+            .indicesOptions(indicesOptions);
+        // project_routing may only be set when the request actually resolves cross-project; otherwise
+        // FieldCapabilitiesRequest.validate() rejects it. Keep the two in lockstep with the scoped options.
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && indicesOptions.resolveCrossProjectIndexExpression()) {
             fieldCapabilitiesRequest.projectRouting(sourceConfig.getProjectRouting());
         }
         ClientHelper.executeWithHeadersAsync(

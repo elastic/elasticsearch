@@ -253,7 +253,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
             }
 
             final String id = deriveId(values);
-            final boolean excluded = getLinuxExclusionList().contains(id);
+            final boolean excluded = getLinuxExclusionList(getParameters().getExclusionsFile()).contains(id);
 
             if (excluded) {
                 LOGGER.warn("Linux OS id [{}] is present in the Docker exclude list. Tasks requiring Docker will be disabled.", id);
@@ -265,15 +265,15 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         return false;
     }
 
-    private List<String> getLinuxExclusionList() {
-        File exclusionsFile = getParameters().getExclusionsFile();
-
+    // visible for testing
+    static List<String> getLinuxExclusionList(File exclusionsFile) {
         if (exclusionsFile.exists()) {
             try {
                 return Files.readAllLines(exclusionsFile.toPath())
                     .stream()
+                    .map(line -> line.contains("#") ? line.substring(0, line.indexOf('#')) : line)
                     .map(String::trim)
-                    .filter(line -> (line.isEmpty() || line.startsWith("#")) == false)
+                    .filter(line -> line.isEmpty() == false)
                     .collect(Collectors.toList());
             } catch (IOException e) {
                 throw new GradleException("Failed to read " + exclusionsFile.getAbsolutePath(), e);

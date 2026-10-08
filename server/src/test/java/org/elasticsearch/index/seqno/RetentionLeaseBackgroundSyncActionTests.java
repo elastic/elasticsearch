@@ -98,7 +98,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet())
+            ActionFilters.EMPTY
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseBackgroundSyncAction.Request request = new RetentionLeaseBackgroundSyncAction.Request(
@@ -137,7 +137,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet())
+            ActionFilters.EMPTY
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseBackgroundSyncAction.Request request = new RetentionLeaseBackgroundSyncAction.Request(
@@ -179,7 +179,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet())
+            ActionFilters.EMPTY
         );
 
         assertNull(action.indexBlockLevel());

@@ -26,6 +26,10 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -615,6 +619,88 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     public static void awaitNumberOfSnapshotsInProgress(Logger logger, int count) {
         logger.info("--> wait for [{}] snapshots to show up in the cluster state", count);
         awaitClusterState(state -> SnapshotsInProgress.get(state).count() == count);
+    }
+
+    /**
+     * Waits until the primary shard of the given index is {@link ShardRoutingState#INITIALIZING}
+     * with a {@link RecoverySource.Type#SNAPSHOT} recovery source, confirming that a restore is
+     * actively in progress. At this point {@code RestoreInProgress} is guaranteed to be present in
+     * the cluster state (both are set in the same cluster state update by {@code RestoreService}).
+     */
+    public static void awaitPrimaryInSnapshotRestore(String indexName) {
+        awaitClusterState(state -> {
+            final IndexRoutingTable indexRouting = state.routingTable().index(indexName);
+            if (indexRouting == null) {
+                return false;
+            }
+            final ShardRouting primary = indexRouting.shard(0).primaryShard();
+            return primary != null
+                && primary.state() == ShardRoutingState.INITIALIZING
+                && primary.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
+        });
+    }
+
+    /**
+     * Blocks all data nodes for the given repository, kicks off a non-blocking restore of
+     * {@code snapshotName} to reconstruct {@code indexName}, and waits until the primary shard is
+     * INITIALIZING with a snapshot recovery source and a data node has actually
+     * hit the block.
+     *
+     * <p>Pair with {@link #unblockAndDeleteRestoringIndex(String, String)} in a {@code finally}
+     * block to clean up after each test.
+     */
+    protected void blockAndStartRestore(String repoName, String snapshotName, String indexName) throws Exception {
+        blockAllDataNodes(repoName);
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setIndices(indexName)
+            .setWaitForCompletion(false)
+            .execute();
+        awaitPrimaryInSnapshotRestore(indexName);
+        waitForBlockOnAnyDataNode(repoName);
+    }
+
+    /**
+     * Unblocks all data nodes for the given repository and deletes {@code indexName}, cancelling
+     * any in-progress restore.
+     *
+     * <p>Designed to be called from a {@code finally} block after
+     * {@link #blockAndStartRestore(String, String, String)}.
+     */
+    protected void unblockAndDeleteRestoringIndex(String repoName, String indexName) throws Exception {
+        unblockAllDataNodes(repoName);
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+    }
+
+    /**
+     * Waits until the named snapshot has at least one shard in {@link SnapshotsInProgress.ShardSnapshotStatus#UNASSIGNED_QUEUED},
+     * confirming the shard is queued behind another in-progress operation.
+     */
+    public static void awaitSnapshotShardQueued(String repoName, String snapshotName) {
+        awaitClusterState(state -> SnapshotsInProgress.get(state).forRepo(repoName).stream().anyMatch(entry -> {
+            if (entry.snapshot().getSnapshotId().getName().equals(snapshotName) == false) {
+                return false;
+            }
+            return entry.shardSnapshotStatusByRepoShardId()
+                .values()
+                .stream()
+                .anyMatch(s -> s == SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED);
+        }));
+    }
+
+    /**
+     * Waits until the named snapshot has at least one shard in {@link SnapshotsInProgress.ShardState#MISSING},
+     * confirming the master has already recorded the restoring shard as failed.
+     */
+    public static void awaitSnapshotShardMissing(String repoName, String snapshotName) {
+        awaitClusterState(
+            state -> SnapshotsInProgress.get(state)
+                .forRepo(repoName)
+                .stream()
+                .anyMatch(
+                    e -> e.snapshot().getSnapshotId().getName().equals(snapshotName)
+                        && e.shards().values().stream().anyMatch(s -> s.state() == SnapshotsInProgress.ShardState.MISSING)
+                )
+        );
     }
 
     protected SnapshotInfo assertSuccessful(ActionFuture<CreateSnapshotResponse> future) throws Exception {

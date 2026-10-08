@@ -7,15 +7,27 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -25,9 +37,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Unit tests for {@link NdJsonFormatReader#openForSchemaInference(StorageObject, boolean)}.
@@ -42,7 +59,132 @@ public class NdJsonFormatReaderTests extends ESTestCase {
 
     @Before
     public void setUpBlockFactory() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+    }
+
+    /**
+     * esql-planning#2143: planning-time inference charges the reader's breaker, and a refusal leaves
+     * {@code metadata()} as a {@link CircuitBreakingException} (HTTP 429), not as an {@code ExternalClientException}
+     * about the user's data, and without having been retried on later records.
+     */
+    public void testMetadataSurfacesBreakerTripAndReleasesReservation() {
+        StringBuilder record = new StringBuilder("{");
+        for (int i = 0; i < 5_000; i++) {
+            record.append(i == 0 ? "" : ",").append("\"column_").append(i).append("\":1");
+        }
+        byte[] bytes = (record + "}\n").repeat(3).getBytes(StandardCharsets.UTF_8);
+        LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofKb(100));
+        BlockFactory limited = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+
+        expectThrows(CircuitBreakingException.class, () -> new NdJsonFormatReader(null, limited).metadata(new BytesObject(bytes)));
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /** A schema that fits is returned and leaves nothing reserved, since the caller accounts for what it keeps. */
+    public void testMetadataReleasesReservationOnSuccess() throws IOException {
+        LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        BlockFactory limited = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        byte[] bytes = "{\"a\":1,\"b\":{\"c\":\"x\"}}\n".getBytes(StandardCharsets.UTF_8);
+
+        assertEquals(2, new NdJsonFormatReader(null, limited).metadata(new BytesObject(bytes)).schema().size());
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /** The default cap follows {@code index.mapping.total_fields.limit}: 1000 fields infer, the next one is refused. */
+    public void testMetadataAppliesTheDefaultFieldCap() throws IOException {
+        int limit = ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS;
+        NdJsonFormatReader reader = new NdJsonFormatReader(null, blockFactory);
+        assertEquals(limit, reader.metadata(new BytesObject(flatRecord(limit))).schema().size());
+        expectThrows(IllegalArgumentException.class, () -> reader.metadata(new BytesObject(flatRecord(limit + 1))));
+    }
+
+    /** A dataset raises or lowers the cap with {@code schema_max_fields}, and registration refuses one outside 1 to the ceiling. */
+    public void testSchemaMaxFieldsConfiguresTheCap() throws IOException {
+        int limit = ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS;
+        FormatReader raised = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
+            Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, limit + 1)
+        ).value();
+        assertEquals(limit + 1, raised.metadata(new BytesObject(flatRecord(limit + 1))).schema().size());
+
+        FormatReader lowered = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
+            Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 2)
+        ).value();
+        expectThrows(IllegalArgumentException.class, () -> lowered.metadata(new BytesObject(flatRecord(3))));
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> NdJsonFormatReader.validateConfig(Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 0))
+        );
+        NdJsonFormatReader.validateConfig(
+            Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> NdJsonFormatReader.validateConfig(
+                Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS + 1)
+            )
+        );
+    }
+
+    /** The node setting replaces the default, and a dataset's {@code schema_max_fields} still overrides it. */
+    public void testNodeSettingSetsTheDefaultFieldCap() throws IOException {
+        Settings settings = Settings.builder().put(ExternalSourceSettings.SCHEMA_MAX_FIELDS.getKey(), 2).build();
+        NdJsonFormatReader reader = new NdJsonFormatReader(settings, blockFactory);
+        assertEquals(2, reader.metadata(new BytesObject(flatRecord(2))).schema().size());
+        expectThrows(IllegalArgumentException.class, () -> reader.metadata(new BytesObject(flatRecord(3))));
+
+        FormatReader overridden = reader.withConfigTrackingConsumedKeys(Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 3)).value();
+        assertEquals(3, overridden.metadata(new BytesObject(flatRecord(3))).schema().size());
+    }
+
+    /** A value that is not a number at all is refused with a message naming the key, not the JDK's bare one. */
+    public void testSchemaMaxFieldsRejectsNonIntegerNamingTheKey() {
+        for (Object value : new Object[] { "abc", "", 500.0 }) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> NdJsonFormatReader.validateConfig(Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, value))
+            );
+            assertEquals("[schema_max_fields] must be an integer between 1 and 100000, got [" + value + "]", e.getMessage());
+        }
+        assertEquals(500, ExternalSourceSettings.parseDatasetSchemaMaxFields("500", NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 1));
+    }
+
+    /** At the ceiling, the refusal does not tell the user to raise a cap that cannot go higher. */
+    public void testFieldCapAtCeilingDoesNotSuggestRaisingIt() throws IOException {
+        int ceiling = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;
+        FormatReader atCeiling = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
+            Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, ceiling)
+        ).value();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> atCeiling.metadata(new BytesObject(flatRecord(ceiling + 1)))
+        );
+        assertThat(e.getMessage(), containsString("the most [schema_max_fields] allows"));
+        assertThat(e.getMessage(), not(containsString("raise")));
+
+        FormatReader below = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
+            Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 2)
+        ).value();
+        e = expectThrows(IllegalArgumentException.class, () -> below.metadata(new BytesObject(flatRecord(3))));
+        assertThat(e.getMessage(), containsString("raise [schema_max_fields]"));
+    }
+
+    /** The node setting is bounded like the dataset key, so neither can lift the cap past the ceiling. */
+    public void testNodeSettingRejectsValuesAboveTheCeiling() {
+        int ceiling = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;
+        Settings atCeiling = Settings.builder().put(ExternalSourceSettings.SCHEMA_MAX_FIELDS.getKey(), ceiling).build();
+        assertEquals(ceiling, (int) ExternalSourceSettings.SCHEMA_MAX_FIELDS.get(atCeiling));
+
+        Settings aboveCeiling = Settings.builder().put(ExternalSourceSettings.SCHEMA_MAX_FIELDS.getKey(), ceiling + 1).build();
+        expectThrows(IllegalArgumentException.class, () -> new NdJsonFormatReader(aboveCeiling, blockFactory));
+    }
+
+    private static byte[] flatRecord(int columns) {
+        StringBuilder record = new StringBuilder("{");
+        for (int i = 0; i < columns; i++) {
+            record.append(i == 0 ? "" : ",").append("\"c").append(i).append("\":1");
+        }
+        return (record + "}\n").getBytes(StandardCharsets.UTF_8);
     }
 
     public void testSkipFirstLineFalseReturnsStreamUnchanged() throws IOException {
@@ -289,9 +431,152 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, stringSchema.get(1).dataType());
     }
 
+    /**
+     * A field whose sampled records disagree (here {@code integer} then {@code string}) must fold to
+     * {@code keyword} and report the widen — naming the field and the forced type — via both
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata#warnings()} and
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata#widenedColumns()}, matching
+     * the CSV/TSV behaviour.
+     */
+    public void testFieldTypeDisagreementEmitsWarningAndWidenedColumn() throws IOException {
+        byte[] bytes = "{\"a\":1}\n{\"a\":2}\n{\"a\":\"oops\"}\n".getBytes(StandardCharsets.UTF_8);
+        SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(new BytesObject(bytes));
+
+        assertEquals(DataType.KEYWORD, metadata.schema().get(0).dataType());
+        assertFalse("a field type disagreement must be reported as a warning", metadata.warnings().isEmpty());
+        assertTrue(
+            "the warning must name the field and the forced type",
+            metadata.warnings().stream().anyMatch(w -> w.contains("column [a]") && w.contains("[keyword]"))
+        );
+        assertEquals(1, metadata.widenedColumns().size());
+        WidenedColumn widened = metadata.widenedColumns().get(0);
+        assertEquals("a", widened.columnName());
+        assertEquals(DataType.INTEGER, widened.fromType());
+        assertEquals(DataType.KEYWORD, widened.toType());
+        assertEquals("oops", widened.value());
+    }
+
+    /**
+     * The fold to KEYWORD must be blamed on the row that actually completed it, not on whichever
+     * distinct type happened to be seen last. {@code boolean} (row 1) then {@code integer} (row 2)
+     * already fold to KEYWORD at row 2 — {@code TypeWidening.join} has no edge between them below
+     * KEYWORD — so a later, unrelated datetime string at row 3 must not be reported as the cause. The
+     * inferrer tracks the fold incrementally (like {@code CsvSchemaInferrer.narrowCandidate})
+     * specifically to get this right: reporting "first distinct type seen" / "last distinct type seen"
+     * instead would name row 3's datetime as the culprit, which is wrong.
+     */
+    public void testKeywordFoldIsBlamedOnTheRowThatCompletedItNotTheLastDistinctType() throws IOException {
+        byte[] bytes = "{\"a\":true}\n{\"a\":1}\n{\"a\":\"2023-10-23T12:15:03Z\"}\n".getBytes(StandardCharsets.UTF_8);
+        SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(new BytesObject(bytes));
+
+        assertEquals(DataType.KEYWORD, metadata.schema().get(0).dataType());
+        assertEquals(1, metadata.widenedColumns().size());
+        WidenedColumn widened = metadata.widenedColumns().get(0);
+        assertEquals(DataType.BOOLEAN, widened.fromType());
+        assertEquals(DataType.KEYWORD, widened.toType());
+        assertEquals("the boolean/integer disagreement at row 2 is what forced the fold, not row 3's datetime", "1", widened.value());
+        assertEquals(2, widened.sampleRow());
+    }
+
+    /** A lossless promotion ({@code integer -> long}) must stay silent, matching the CSV/TSV gating. */
+    public void testFieldLosslessPromotionEmitsNoWidening() throws IOException {
+        byte[] bytes = "{\"a\":1}\n{\"a\":9999999999}\n".getBytes(StandardCharsets.UTF_8);
+        SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(new BytesObject(bytes));
+
+        assertEquals(DataType.LONG, metadata.schema().get(0).dataType());
+        assertEquals(List.of(), metadata.widenedColumns());
+        assertEquals(List.of(), metadata.warnings());
+    }
+
+    /**
+     * The reverse order of a long/double merge: a field resolved to {@code double} by a genuine decimal
+     * first, then a later value that happens to be exactly long-representable. The running fold doesn't
+     * visibly move ({@code join(DOUBLE, LONG) == DOUBLE}), so the merge has to be detected by set
+     * membership ({@code LONG} and {@code DOUBLE} both contributing), not by whether the fold changed —
+     * this is exactly the case {@code emitPrecisionLossWarnings} exists to report cross-file: a column
+     * unified to {@code double} that silently loses precision above 2^53. {@code fromType} reports
+     * {@code LONG} (this value's own shape), not {@code DOUBLE} (the field's unchanged resolved type),
+     * since the latter would say {@code fromType == toType}.
+     */
+    public void testLongDoubleMergeReversedOrderIsReported() throws IOException {
+        // 9007199254740993 is 2^53 + 1, the smallest long a double cannot represent exactly.
+        byte[] bytes = "{\"a\":1.5}\n{\"a\":9007199254740993}\n".getBytes(StandardCharsets.UTF_8);
+        SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(new BytesObject(bytes));
+
+        assertEquals(DataType.DOUBLE, metadata.schema().get(0).dataType());
+        assertEquals(1, metadata.widenedColumns().size());
+        WidenedColumn widened = metadata.widenedColumns().get(0);
+        assertEquals(DataType.LONG, widened.fromType());
+        assertEquals(DataType.DOUBLE, widened.toType());
+        assertEquals("9007199254740993", widened.value());
+        assertEquals(2, widened.sampleRow());
+    }
+
+    /**
+     * A field confirmed {@code LONG} by a modest value (past int32, nowhere near 2^53) must still
+     * report the merge once a <em>later</em> {@code LONG} value crosses the precision threshold —
+     * even though {@code LONG} is already a member of {@code types} by then, so the usual
+     * "added the second of LONG/DOUBLE" check never runs for that call. Catches a regression where
+     * the precision-loss latch flipping on an already-seen type was silently dropped by the early
+     * return in {@code FieldInfo#addType}.
+     */
+    public void testLongDoubleMergeReportedWhenLaterLongCrossesThreshold() throws IOException {
+        // 3000000000 is past int32 but nowhere near 2^53: no precision lost by itself.
+        // 1152921504606846976 is 2^60, well past 2^53: the value that actually crosses the threshold.
+        byte[] bytes = "{\"a\":1.5}\n{\"a\":3000000000}\n{\"a\":1152921504606846976}\n".getBytes(StandardCharsets.UTF_8);
+        SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(new BytesObject(bytes));
+
+        assertEquals(DataType.DOUBLE, metadata.schema().get(0).dataType());
+        assertEquals(1, metadata.widenedColumns().size());
+        WidenedColumn widened = metadata.widenedColumns().get(0);
+        assertEquals(DataType.LONG, widened.fromType());
+        assertEquals(DataType.DOUBLE, widened.toType());
+        assertEquals("1152921504606846976", widened.value());
+        assertEquals(3, widened.sampleRow());
+    }
+
+    /**
+     * A field mixing whole numbers and decimals entirely within the range a double represents
+     * exactly (e.g. {@code 1}, {@code 2}, {@code 1.5}) must not be flagged — nothing is lost there.
+     */
+    public void testOrdinaryWholeNumberAndDecimalMixReportsNoWidening() throws IOException {
+        byte[] bytes = "{\"a\":1.5}\n{\"a\":2}\n".getBytes(StandardCharsets.UTF_8);
+        SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(new BytesObject(bytes));
+
+        assertEquals(DataType.DOUBLE, metadata.schema().get(0).dataType());
+        assertEquals(List.of(), metadata.widenedColumns());
+    }
+
+    /**
+     * {@code read()} re-infers its own schema inline (via {@code inferSchemaIfNeeded}) whenever the
+     * caller hands it no pre-resolved {@code readSchema} — a separate path from {@code metadata()},
+     * taken when planning has not already attached a schema to the request (e.g. a cold first-split
+     * read). A within-file widen discovered there must still reach the client as a warning, the same
+     * as one discovered through {@code metadata()}; this path has no {@code SourceMetadata} to attach a
+     * {@code widenedColumns()} to, so only the warning is expected here.
+     */
+    public void testReadWithoutPreResolvedSchemaStillWarnsOnWidening() throws IOException {
+        byte[] bytes = "{\"a\":1}\n{\"a\":2}\n{\"a\":\"oops\"}\n".getBytes(StandardCharsets.UTF_8);
+        StorageObject object = new BytesObject(bytes);
+        NdJsonFormatReader reader = new NdJsonFormatReader(null, blockFactory);
+
+        List<String> warnings = new ArrayList<>();
+        FormatReadContext context = FormatReadContext.builder().batchSize(100).informationalWarningSink(warnings::add).build();
+        try (CloseableIterator<Page> pages = reader.read(object, context)) {
+            while (pages.hasNext()) {
+                pages.next().releaseBlocks();
+            }
+        }
+
+        assertTrue(
+            "a within-file widen discovered on the no-pre-resolved-schema read path must still warn, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("column [a]") && w.contains("[keyword]"))
+        );
+    }
+
     // -- helpers --
 
-    private static class BytesObject implements StorageObject {
+    private static class BytesObject extends AbstractTestStorageObject {
         protected final byte[] bytes;
 
         BytesObject(byte[] bytes) {

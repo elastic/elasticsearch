@@ -315,6 +315,38 @@ teardown:
         transform_id: "airline-transform-start-stop"
 
 ---
+"Test start continuous transform with initial_delay parameter":
+  - do:
+      transform.start_transform:
+        initial_delay: "0s"
+        transform_id: "airline-transform-start-stop-continuous"
+  - match: { acknowledged: true }
+
+---
+"Test start batch transform with initial_delay parameter":
+  - do:
+      catch: /\[initial_delay\] parameter is only supported for continuous transforms with a time sync configuration/
+      transform.start_transform:
+        initial_delay: "1s"
+        transform_id: "airline-transform-start-stop"
+
+---
+"Test start continuous transform with initial_delay greater than delay":
+  - do:
+      catch: /\[initial_delay\] \[120m\] must not be greater than \[delay\] \[90m\]/
+      transform.start_transform:
+        initial_delay: "120m"
+        transform_id: "airline-transform-start-stop-continuous"
+
+---
+"Test start continuous transform with negative initial_delay":
+  - do:
+      catch: /\[initial_delay\] \[-1s\] must not be negative/
+      transform.start_transform:
+        initial_delay: "-1s"
+        transform_id: "airline-transform-start-stop-continuous"
+
+---
 "Test stop missing transform":
   - do:
       catch: missing

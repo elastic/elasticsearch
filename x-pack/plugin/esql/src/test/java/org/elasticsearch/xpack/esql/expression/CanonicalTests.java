@@ -49,6 +49,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOrEqualOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.notEqualsOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 
 public class CanonicalTests extends ESTestCase {
@@ -131,6 +132,49 @@ public class CanonicalTests extends ESTestCase {
         Expression shuffledExpression = combiner.apply(children);
         assertTrue(expression.semanticEquals(shuffledExpression));
         assertEquals(expression.semanticHash(), shuffledExpression.semanticHash());
+    }
+
+    /**
+     * Ordering commutative children must stay transitive when they mix expression types. Comparing a
+     * {@link FieldAttribute} against a ReferenceAttribute by their fields, while comparing either of them
+     * against a {@link Literal} by class name, produced a cyclic order, so the result depended on the order
+     * the children happened to be written in. The names below invert the class name order on purpose.
+     */
+    public void testCommutativeOrderIsIndependentOfInputOrderAcrossTypes() {
+        assertCanonicalIgnoresOrder(asList(fieldAttribute("zzz", DataType.LONG), referenceAttribute("aaa", DataType.LONG), of(1L)));
+    }
+
+    /**
+     * Same as above, but with enough children to push {@code List#sort} onto its merge path, which rejects
+     * an intransitive comparator outright instead of silently returning an input-dependent order.
+     */
+    public void testCommutativeOrderIsIndependentOfInputOrderForManyChildren() {
+        List<Expression> children = new ArrayList<>();
+        for (int i = 0; i < 64; i += 3) {
+            children.add(fieldAttribute("zzz" + i, DataType.LONG));
+            children.add(referenceAttribute("aaa" + i, DataType.LONG));
+            children.add(of((long) i));
+        }
+        assertCanonicalIgnoresOrder(children);
+    }
+
+    private void assertCanonicalIgnoresOrder(List<Expression> children) {
+        Expression expected = combineAdd(children);
+        List<Expression> shuffled = new ArrayList<>(children);
+        for (int i = 0; i < 16; i++) {
+            Collections.shuffle(shuffled, random());
+            Expression actual = combineAdd(shuffled);
+            assertEquals(expected.canonical(), actual.canonical());
+            assertEquals(expected.semanticHash(), actual.semanticHash());
+        }
+    }
+
+    private static Expression combineAdd(List<Expression> children) {
+        Expression combined = children.get(0);
+        for (int i = 1; i < children.size(); i++) {
+            combined = new Add(EMPTY, combined, children.get(i), TEST_CFG);
+        }
+        return combined;
     }
 
     public void testBinaryOperatorCombinations() throws Exception {

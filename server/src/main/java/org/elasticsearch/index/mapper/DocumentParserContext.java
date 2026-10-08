@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.set.Sets;
@@ -217,12 +216,15 @@ public abstract class DocumentParserContext {
     private final SourceToParse sourceToParse;
 
     private final Set<String> ignoredFields;
+    private final Set<String> ignoredFieldsView;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private final Set<String> singleValuedFields;
+    private final Map<String, BytesRef> pendingMultiValueViolations;
     private Scope currentScope;
 
     private final Map<String, List<Mapper.Builder>> dynamicMappers;
     private final DynamicMapperSize dynamicMappersSize;
+    private final NewFieldsBudget dynamicFieldBudget;
     private final Map<String, ObjectMapper.Builder> dynamicObjectMappers;
     private final Map<String, Mapper> builtDynamicMappers;
     private final Map<String, List<RuntimeField>> dynamicRuntimeFields;
@@ -276,14 +278,18 @@ public abstract class DocumentParserContext {
         DynamicMapperSize dynamicMapperSize,
         ObjectArrayElementCounter objectArrayElementCounter,
         boolean recordedSource,
-        Set<String> singleValuedFields
+        Set<String> singleValuedFields,
+        Map<String, BytesRef> pendingMultiValueViolations,
+        NewFieldsBudget dynamicFieldBudget
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
         this.ignoredFields = ignoreFields;
+        this.ignoredFieldsView = Collections.unmodifiableSet(this.ignoredFields);
         this.ignoredFieldValues = ignoredFieldValues;
         this.singleValuedFields = singleValuedFields;
+        this.pendingMultiValueViolations = pendingMultiValueViolations;
         this.currentScope = currentScope;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
@@ -300,6 +306,7 @@ public abstract class DocumentParserContext {
         assert this.mappingCopyToFields == Set.copyOf(this.mappingCopyToFields); // ensure that we've been passed an ImmutableSet(12|N)
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
+        this.dynamicFieldBudget = dynamicFieldBudget;
         this.objectArrayElementCounter = objectArrayElementCounter;
         this.recordedSource = recordedSource;
         this.fieldNamesFieldMapper = mappingLookup.getMapping().fieldNamesFieldMapper();
@@ -329,8 +336,18 @@ public abstract class DocumentParserContext {
             in.dynamicMappersSize,
             in.objectArrayElementCounter,
             in.recordedSource,
-            in.singleValuedFields
+            in.singleValuedFields,
+            in.pendingMultiValueViolations,
+            in.dynamicFieldBudget
         );
+    }
+
+    private static NewFieldsBudget createDynamicFieldBudget(MappingLookup mappingLookup, IndexSettings indexSettings) {
+        long totalFieldsLimit = indexSettings.getMappingTotalFieldsLimit();
+        long remaining = mappingLookup.remainingFieldsUntilLimit(totalFieldsLimit);
+        return indexSettings.isIgnoreDynamicFieldsBeyondLimit()
+            ? NewFieldsBudget.dropping(remaining)
+            : NewFieldsBudget.throwing(remaining, totalFieldsLimit);
     }
 
     protected DocumentParserContext(
@@ -363,7 +380,9 @@ public abstract class DocumentParserContext {
             new DynamicMapperSize(),
             new ObjectArrayElementCounter(),
             false,
-            new HashSet<>()
+            new HashSet<>(),
+            new HashMap<>(),
+            createDynamicFieldBudget(mappingLookup, mappingParserContext.getIndexSettings())
         );
     }
 
@@ -416,11 +435,10 @@ public abstract class DocumentParserContext {
      * IllegalArgumentException}, rejecting the whole document. When it is {@code IGNORE}, the violating value is instead written to a
      * per-field failure column (see {@link OnFailureStoredValues}) and the field is marked ignored, so indexing continues without the
      * value ever reaching the field's own doc values.
-     * <p>
-     * {@code IGNORE} redirects fields that fail validation to a failure column and proceeds.
      *
-     * @return {@code true} if this value was redirected to the failure column and the caller must skip normal parsing (including
-     * multi-fields) for it; {@code false} if the caller should parse and index this value normally.
+     * @return {@code true} if this value was redirected to the failure column and the caller must skip {@link
+     * FieldMapper#parseCreateField} for it; {@code false} if the caller should parse and index this value normally.
+     *         Multi-fields are parsed either way — each applies its own {@code doc_values} configuration.
      */
     public final boolean enforceSingleValue(String fieldName, FieldMapper.DocValuesParameter.Values.OnFailure onFailure)
         throws IOException {
@@ -438,13 +456,18 @@ public abstract class DocumentParserContext {
                 "Field [" + fieldName + "] is configured with [multi_value=false] but encountered multiple values in the same document"
             );
         }
-        if (mappingLookup.isSourceSynthetic() || mappingLookup.isSourceColumnarStored()) {
-            // Stored source already retains the offending value; only synthetic (and columnar_stored, which reconstructs
-            // its per-document source the same way) need the value copied out to survive reconstruction.
-            OnFailureStoredValues.storeValueForOnFailureIgnore(this, fieldName, parser());
-        }
+        // Stash the encoded violating value; FieldMapper.parse drains this via takePendingMultiValueViolation at its end.
+        pendingMultiValueViolations.put(fieldName, XContentDataHelper.encodeToken(parser()));
         addIgnoredField(fieldName);
         return true;
+    }
+
+    /**
+     * Returns and removes the pending multi-value violation stash for {@code fieldName}, or {@code null} if none.
+     * Called by {@link FieldMapper#parse} at its end to collect any violation into a {@link FieldMapper.ParseResult.MultiValueViolation}.
+     */
+    final BytesRef takePendingMultiValueViolation(String fieldName) {
+        return pendingMultiValueViolations.remove(fieldName);
     }
 
     /**
@@ -512,10 +535,21 @@ public abstract class DocumentParserContext {
     }
 
     /**
+     * Returns {@code true} if {@code field} has been added to the ignored-fields set.
+     */
+    public final boolean isFieldIgnored(String field) {
+        return ignoredFields.contains(field);
+    }
+
+    public final boolean fieldBudgetExhausted() {
+        return dynamicFieldBudget.hasCapacityFor(1) == false;
+    }
+
+    /**
      * Return the collection of fields that have been ignored so far.
      */
-    public final Collection<String> getIgnoredFields() {
-        return Collections.unmodifiableCollection(ignoredFields);
+    public final Set<String> getIgnoredFields() {
+        return ignoredFieldsView;
     }
 
     /**
@@ -552,7 +586,14 @@ public abstract class DocumentParserContext {
             assert ignoredFieldWithNoSource != null;
             assert ignoredFieldWithNoSource.value() == null;
             Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(this);
-            addIgnoredField(ignoredFieldWithNoSource.cloneWithValue(XContentDataHelper.encodeXContentBuilder(tuple.v2())));
+            IgnoredSourceFieldMapper.NameValue withValue = ignoredFieldWithNoSource.cloneWithValue(
+                XContentDataHelper.encodeXContentBuilder(tuple.v2())
+            );
+            // Remove any void placeholder that an earlier copy-to traversal added for this field and document.
+            // A real _ignored_source entry suppresses the native loader just as the void would; keeping both
+            // produces ordering-dependent stored-field bytes on round-trip re-indexing.
+            ignoredFieldValues.removeIf(e -> e.name().equals(withValue.name()) && e.doc() == withValue.doc() && e.hasValue() == false);
+            addIgnoredField(withValue);
             return tuple.v1();
         }
         return this;
@@ -792,7 +833,7 @@ public abstract class DocumentParserContext {
     public boolean addDynamicMapper(Mapper.Builder builder, String fullPath) {
         // eagerly check object depth limit here to avoid stack overflow errors
         if (builder instanceof ObjectMapper.Builder) {
-            MappingLookup.checkObjectDepthLimit(indexSettings().getMappingDepthLimit(), fullPath);
+            mappingParserContext.checkObjectDepthLimit(fullPath);
         }
 
         // eagerly check field name limit here to avoid OOM errors
@@ -802,38 +843,26 @@ public abstract class DocumentParserContext {
             && mappingLookup.objectMappers().containsKey(fullPath) == false
             && dynamicMappers.containsKey(fullPath) == false) {
             int mapperSize = builder.getTotalFieldsCount();
-            int additionalFieldsToAdd = getNewFieldsSize() + mapperSize;
-            if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
-                if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
-                    if (canAddIgnoredField()) {
-                        try {
-                            addIgnoredField(IgnoredSourceFieldMapper.NameValue.fromContext(this, fullPath, encodeFlattenedToken()));
-                        } catch (IOException e) {
-                            throw new IllegalArgumentException("failed to parse field [" + fullPath + " ]", e);
-                        }
-                    }
-                    addIgnoredField(fullPath);
-                    return false;
+            if (dynamicFieldBudget.decrementIfPossible(mapperSize) == false) {
+                try {
+                    FallbackPostMapper.capture(this, fullPath, FallbackPostMapper.Reason.FIELD_LIMIT_EXCEEDED);
+                } catch (IOException e) {
+                    throw new IllegalArgumentException("failed to parse field [" + fullPath + " ]", e);
                 }
-            } else {
-                mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd);
+                addIgnoredField(fullPath);
+                return false;
             }
             dynamicMappersSize.add(mapperSize);
 
-            if (indexSettings().isIgnoreDynamicFieldNamesBeyondLimit()) {
-                if (builder.leafName().length() > indexSettings().getMappingFieldNameLengthLimit()) {
-                    if (canAddIgnoredField()) {
-                        try {
-                            addIgnoredField(IgnoredSourceFieldMapper.NameValue.fromContext(this, fullPath, encodeFlattenedToken()));
-                        } catch (IOException e) {
-                            throw new IllegalArgumentException("failed to parse field [" + fullPath + "]", e);
-                        }
-                    }
-                    addIgnoredField(fullPath);
-                    return false;
-                } else {
-                    mappingLookup.checkFieldNameLengthLimit(indexSettings().getMappingFieldNameLengthLimit());
+            if (indexSettings().isIgnoreDynamicFieldNamesBeyondLimit()
+                && builder.leafName().length() > indexSettings().getMappingFieldNameLengthLimit()) {
+                try {
+                    FallbackPostMapper.capture(this, fullPath, FallbackPostMapper.Reason.FIELD_NAME_TOO_LONG);
+                } catch (IOException e) {
+                    throw new IllegalArgumentException("failed to parse field [" + fullPath + "]", e);
                 }
+                addIgnoredField(fullPath);
+                return false;
             }
         }
         if (builder instanceof ObjectMapper.Builder objectBuilder) {
@@ -1003,13 +1032,9 @@ public abstract class DocumentParserContext {
      */
     final boolean addDynamicRuntimeField(RuntimeField runtimeField) {
         if (dynamicRuntimeFields.containsKey(runtimeField.name()) == false) {
-            if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
-                if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), getNewFieldsSize() + 1)) {
-                    addIgnoredField(runtimeField.name());
-                    return false;
-                }
-            } else {
-                mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), getNewFieldsSize() + 1);
+            if (dynamicFieldBudget.decrementIfPossible(1) == false) {
+                addIgnoredField(runtimeField.name());
+                return false;
             }
         }
         dynamicRuntimeFields.computeIfAbsent(runtimeField.name(), k -> new ArrayList<>(1)).add(runtimeField);
@@ -1080,11 +1105,12 @@ public abstract class DocumentParserContext {
         // documents inside the Lucene index (document blocks) will be incorrect, as nested documents of different root
         // documents are then aligned with other root documents. This will lead to the nested query, sorting, aggregations
         // and inner hits to fail or yield incorrect results.
-        IndexableField idField = doc.getParent().getField(IdFieldMapper.NAME);
-        if (idField != null) {
-            // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
-            // delete it when the root document is deleted too.
-            doc.add(standardIdField(idField.binaryValue(), Field.Store.NO));
+        IdFieldMapper idFieldMapper = (IdFieldMapper) getMetadataMapper(IdFieldMapper.NAME);
+        BytesRef identityTerm = idFieldMapper == null ? null : idFieldMapper.nestedIdentityTerm(this);
+        if (identityTerm != null) {
+            // Store the identity term as an indexed field so IndexWriter#deleteDocuments(term) removes the child when the
+            // root is deleted. It must match the engine uid: a slice index scopes that by (id, slice), not the plain id.
+            doc.add(standardIdField(identityTerm, Field.Store.NO));
         } else if (indexSettings().getMode().isTsdb()) {
             // For time series indices, the _id is generated from the _tsid, which in turn is generated from the values of the configured
             // routing fields. At this point in document parsing, we can't guarantee that we've parsed all the routing fields yet, so the
@@ -1140,7 +1166,21 @@ public abstract class DocumentParserContext {
             // 3. copy_to points at dynamic field which is not yet applied to mapping, we will process it properly after the dynamic update
             if (parent != null) {
                 int offset = parent.isRoot() ? 0 : parent.fullPath().length() + 1;
-                ignoredFieldValues.add(new IgnoredSourceFieldMapper.NameValue(copyToField, offset, XContentDataHelper.voidValue(), doc));
+                // Only add the void placeholder when no real _ignored_source entry for this (field, doc) pair
+                // exists yet. A real entry already suppresses the native loader; adding a void alongside it
+                // produces ordering-dependent stored-field bytes on round-trip re-indexing.
+                boolean hasRealValueForThisDoc = false;
+                for (IgnoredSourceFieldMapper.NameValue e : ignoredFieldValues) {
+                    if (e.name().equals(copyToField) && e.doc() == doc && e.hasValue()) {
+                        hasRealValueForThisDoc = true;
+                        break;
+                    }
+                }
+                if (hasRealValueForThisDoc == false) {
+                    ignoredFieldValues.add(
+                        new IgnoredSourceFieldMapper.NameValue(copyToField, offset, XContentDataHelper.voidValue(), doc)
+                    );
+                }
             }
         }
 
@@ -1208,7 +1248,9 @@ public abstract class DocumentParserContext {
             containsDimensions,
             dynamic,
             MergeReason.MAPPING_UPDATE,
-            false
+            false,
+            false,
+            mappingLookup.isSourceColumnarStored()
         );
     }
 

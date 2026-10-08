@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Nullable;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -32,6 +34,14 @@ import java.util.function.Consumer;
  * is relayed and re-emitted on the correct thread instead of being silently dropped. Instances are
  * stateful and not thread-safe: create one per reader iterator or decoder.
  * <p>
+ * A correctly bound thread is necessary but not sufficient: a scan the planner ships to another node runs its
+ * drivers there, and that node's response headers reach the client only by chance, so a read-time notice written
+ * straight to {@link HeaderWarning} from a driver thread is still lost (elastic/esql-planning#1837). Read paths
+ * therefore relay to a sink that ends in {@code DriverContext#addWarning}, the channel
+ * {@code DriverCompletionInfo} carries back for the coordinator to emit. Plan-time work has the same problem in a
+ * different coat: schema resolution runs on the metadata-read executor, so {@code ExternalSourceResolver} buffers
+ * its notices onto the resolution rather than writing headers there.
+ * <p>
  * Callers working against an {@link ErrorPolicy} should use {@link #of(ErrorPolicy, String)} (or the
  * sink-aware {@link #of(ErrorPolicy, String, Consumer)}) to obtain either a live collector or the
  * shared {@link #NOOP} sink, so that call sites never have to null-guard subsequent {@link #add(String)}
@@ -47,6 +57,17 @@ public class SkipWarnings {
     public static final int MAX_ADDED_WARNINGS = 20;
 
     /**
+     * Formats the standard absent-declared-column informational warning for {@code columnName}.
+     * Used when a declared column is entirely absent from a source file (Parquet, ORC, CSV, NDJSON).
+     * SchemaAdaptingIterator, ParquetFormatReader, OrcFormatReader, CsvFormatReader, NdJsonPageDecoder
+     * and, for a column a complete schema lacks, ExternalSourceResolver use this method so that
+     * InformationalWarningBudget's exact-string deduplication stays reliable across formats.
+     */
+    public static String absentDeclaredColumnMessage(String columnName) {
+        return "declared column [" + columnName + "] is not present in some source files and reads null there";
+    }
+
+    /**
      * The single "further warnings suppressed" line emitted once per collector when the per-event
      * cap is exceeded. Exposed as the one source of truth for the overflow text so a central budget
      * that caps the same channel (see {@code InformationalWarningBudget}) emits a byte-identical
@@ -60,26 +81,48 @@ public class SkipWarnings {
     private static final String OVERFLOW_MESSAGE = "... further warnings suppressed (more than " + MAX_ADDED_WARNINGS + " recorded)";
 
     /**
+     * The outcome phrase for values dropped from a multi-valued cell whose other values are kept. Readers end their
+     * multi-value summary with it, so a client can tell a cell that lost values from one that held fewer.
+     */
+    public static final String REMOVED_FROM_MULTI_VALUE_OUTCOME = "removing them from their multi-valued cells";
+
+    private static final String DEFAULT_MULTI_VALUE_SUMMARY = "Some values cannot be read; " + REMOVED_FROM_MULTI_VALUE_OUTCOME;
+
+    /**
      * Shared sink used when the current {@link ErrorPolicy} never triggers skip/null-fill behavior
      * (e.g. {@link ErrorPolicy#isStrict()}). All {@link #add(String)} calls are silently dropped.
      */
     public static final SkipWarnings NOOP = new SkipWarnings("") {
         @Override
         public void add(String detail) {}
+
+        // Also overridden (rather than left to delegate to the no-op add) because NOOP is a shared
+        // static: letting it populate an instance dedup set would accumulate unbounded state across
+        // every reader in the JVM, and from several threads at once.
+        @Override
+        public void addOnce(String detail) {}
+
+        @Override
+        public void addRemovedFromMultiValue(String detail) {}
     };
 
     private final String summary;
+    /** Summary for {@link #addRemovedFromMultiValue}; emitted once, before the first such detail. */
+    private final String multiValueSummary;
     /**
-     * Where emitted messages go. {@code null} (the default) preserves the original direct-to-
-     * {@link HeaderWarning} behavior, which is only safe on a thread whose response headers are
-     * actually collected into the client response.
+     * Where emitted messages go. {@code null} preserves the direct-to-{@link HeaderWarning} write, which only reaches
+     * the client from the request thread; read paths never are, so they always supply a sink.
      */
     @Nullable
     private final Consumer<String> sink;
     // Mutable state: not thread-safe, one instance per reader iterator/decoder.
     private int added;
     private boolean summaryEmitted;
+    private boolean multiValueSummaryEmitted;
     private boolean overflowEmitted;
+    /** Details already emitted through {@link #addOnce(String)}; {@code null} until that method is first used. */
+    @Nullable
+    private Set<String> emittedOnce;
 
     public SkipWarnings(String summary) {
         this(summary, null);
@@ -87,11 +130,23 @@ public class SkipWarnings {
 
     /**
      * @param sink when non-{@code null}, every emitted message is handed to this consumer instead of
-     *             {@link HeaderWarning#addWarning(String, Object...)}. Use this on any code path whose
-     *             {@link #add(String)} calls may run off the request/driver thread.
+     *             {@link HeaderWarning#addWarning(String, Object...)}. Every read path must supply one that ends in
+     *             {@code DriverContext#addWarning}: reader and driver threads alike have response headers that never
+     *             reach the client (see {@code FormatReadContext#informationalWarningSink}). {@code null} is for
+     *             plan-time callers on the request thread, and for tests.
      */
     public SkipWarnings(String summary, @Nullable Consumer<String> sink) {
+        this(summary, null, sink);
+    }
+
+    /**
+     * @param multiValueSummary the summary emitted before the first {@link #addRemovedFromMultiValue} detail, or
+     *                          {@code null} for a generic one; it should end with
+     *                          {@link #REMOVED_FROM_MULTI_VALUE_OUTCOME}
+     */
+    public SkipWarnings(String summary, @Nullable String multiValueSummary, @Nullable Consumer<String> sink) {
         this.summary = summary;
+        this.multiValueSummary = multiValueSummary != null ? multiValueSummary : DEFAULT_MULTI_VALUE_SUMMARY;
         this.sink = sink;
     }
 
@@ -108,7 +163,15 @@ public class SkipWarnings {
      * of directly through {@link HeaderWarning}. See {@link #SkipWarnings(String, Consumer)}.
      */
     public static SkipWarnings of(ErrorPolicy policy, String summary, @Nullable Consumer<String> sink) {
-        return policy.isStrict() ? NOOP : new SkipWarnings(summary, sink);
+        return of(policy, summary, null, sink);
+    }
+
+    /**
+     * Like {@link #of(ErrorPolicy, String, Consumer)}, with the summary for {@link #addRemovedFromMultiValue}. See
+     * {@link #SkipWarnings(String, String, Consumer)}.
+     */
+    public static SkipWarnings of(ErrorPolicy policy, String summary, @Nullable String multiValueSummary, @Nullable Consumer<String> sink) {
+        return policy.isStrict() ? NOOP : new SkipWarnings(summary, multiValueSummary, sink);
     }
 
     /**
@@ -124,12 +187,51 @@ public class SkipWarnings {
             emit(summary);
             summaryEmitted = true;
         }
+        addDetail(detail);
+    }
+
+    /**
+     * Records a value removed from a multi-valued cell whose readable values are kept (a cell nulls only when none
+     * survives). Emits the multi-value summary once, then the detail under the same cap as {@link #add(String)}.
+     */
+    public void addRemovedFromMultiValue(String detail) {
+        if (multiValueSummaryEmitted == false) {
+            emit(multiValueSummary);
+            multiValueSummaryEmitted = true;
+        }
+        addDetail(detail);
+    }
+
+    private void addDetail(String detail) {
         if (added < MAX_ADDED_WARNINGS) {
             emit(detail);
             added++;
         } else if (overflowEmitted == false) {
             emit(overflowMessage());
             overflowEmitted = true;
+        }
+    }
+
+    /**
+     * Records a skip/null-fill event whose detail is constant for the affected column rather than distinct per
+     * value, emitting each distinct message at most once. A decode loop that rediscovers such a condition on
+     * every batch must use this rather than {@link #add(String)}, because {@code add} counts duplicates against
+     * {@link #MAX_ADDED_WARNINGS}: after that many batches one self-repeating column would emit
+     * {@link #overflowMessage()}, telling the client warnings were dropped when in fact every distinct message
+     * had already been delivered, and with enough such columns it would spend the whole budget on the first one.
+     * Downstream value-dedup does not prevent that — the overflow line is itself a distinct message.
+     */
+    public void addOnce(String detail) {
+        if (overflowEmitted) {
+            // The cap has already been reported, so add() would emit nothing: returning here keeps the dedup set
+            // from growing without bound for a caller whose details are numerous rather than few-and-repeated.
+            return;
+        }
+        if (emittedOnce == null) {
+            emittedOnce = new HashSet<>();
+        }
+        if (emittedOnce.add(detail)) {
+            add(detail);
         }
     }
 

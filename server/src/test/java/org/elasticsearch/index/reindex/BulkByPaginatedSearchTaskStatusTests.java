@@ -58,6 +58,7 @@ public class BulkByPaginatedSearchTaskStatusTests extends AbstractXContentTestCa
      * Assert that two task statuses are equal after serialization.
      */
     public static void assertTaskStatusEquals(BulkByPaginatedSearchTask.Status expected, BulkByPaginatedSearchTask.Status actual) {
+        assertEquals(expected.getSliceId(), actual.getSliceId());
         assertEquals(expected.getTotal(), actual.getTotal());
         assertEquals(expected.getUpdated(), actual.getUpdated());
         assertEquals(expected.getCreated(), actual.getCreated());
@@ -76,13 +77,17 @@ public class BulkByPaginatedSearchTaskStatusTests extends AbstractXContentTestCa
             BulkByPaginatedSearchTask.StatusOrException sliceStatus = expected.getSliceStatuses().get(i);
             if (sliceStatus == null) {
                 assertNull(actual.getSliceStatuses().get(i));
-            } else if (sliceStatus.getException() == null) {
-                assertNull(actual.getSliceStatuses().get(i).getException());
-                assertTaskStatusEquals(sliceStatus.getStatus(), actual.getSliceStatuses().get(i).getStatus());
             } else {
-                assertNull(actual.getSliceStatuses().get(i).getStatus());
-                // Just check the message because we're not testing exception serialization in general here.
-                assertEquals(sliceStatus.getException().getMessage(), actual.getSliceStatuses().get(i).getException().getMessage());
+                BulkByPaginatedSearchTask.StatusOrException actualSliceStatus = actual.getSliceStatuses().get(i);
+                assertNotNull(actualSliceStatus);
+                if (sliceStatus.getException() == null) {
+                    assertNull(actualSliceStatus.getException());
+                    assertTaskStatusEquals(sliceStatus.getStatus(), actualSliceStatus.getStatus());
+                } else {
+                    assertNull(actualSliceStatus.getStatus());
+                    // Just check the message because we're not testing exception serialization in general here.
+                    assertEquals(sliceStatus.getException().getMessage(), actualSliceStatus.getException().getMessage());
+                }
             }
         }
     }

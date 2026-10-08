@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Collections;
 
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
+import static org.hamcrest.Matchers.containsString;
 
 public class MultiplexerTokenFilterTests extends ESTokenStreamTestCase {
 
@@ -89,7 +90,45 @@ public class MultiplexerTokenFilterTests extends ESTokenStreamTestCase {
             assertNotNull(analyzer);
             assertAnalyzesTo(analyzer, "ONe tHree", new String[] { "on", "ONE", "th", "THREE" }, new int[] { 1, 0, 1, 0, });
         }
-
     }
 
+    public void testSelfReferentialFilterIsRejected() {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.filter.mux.type", "multiplexer")
+            .putList("index.analysis.filter.mux.filters", "mux")
+            .put("index.analysis.analyzer.myAnalyzer.type", "custom")
+            .put("index.analysis.analyzer.myAnalyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.myAnalyzer.filter", "mux")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildAnalyzers(settings, idxSettings));
+        assertThat(e.getMessage(), containsString("Token filter [mux] refers to itself"));
+    }
+
+    public void testFilterReferenceCycleIsRejected() {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.filter.mux1.type", "multiplexer")
+            .putList("index.analysis.filter.mux1.filters", "mux2")
+            .put("index.analysis.filter.mux2.type", "multiplexer")
+            .putList("index.analysis.filter.mux2.filters", "mux1")
+            .put("index.analysis.analyzer.myAnalyzer.type", "custom")
+            .put("index.analysis.analyzer.myAnalyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.myAnalyzer.filter", "mux1")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildAnalyzers(settings, idxSettings));
+        assertThat(e.getMessage(), containsString("refers to itself, either directly or via a cycle of filters"));
+    }
+
+    private static IndexAnalyzers buildAnalyzers(Settings settings, IndexSettings idxSettings) throws IOException {
+        return new AnalysisModule(
+            TestEnvironment.newEnvironment(settings),
+            Collections.singletonList(new CommonAnalysisPlugin()),
+            new StablePluginsRegistry()
+        ).getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings);
+    }
 }

@@ -14,7 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentParser;
@@ -118,8 +118,26 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         private final SourceFilter sourceFilter;
         private final Reader<T> reader;
         private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
-        private final MultiValuedSortedBinaryDocValues ignoredSourceDocValues;
+        /**
+         * Only set for {@link IgnoredSourceFieldMapper.IgnoredSourceFormat#DOC_VALUES_IGNORED_SOURCE}. Unlike the stored field formats,
+         * this is a forward-only iterator, so it is what makes this reader unable to revisit a document. See {@link #canReuse}.
+         */
+        private final MultiValuedSortableBinaryDocValues ignoredSourceDocValues;
+        private final Thread creationThread;
+        /** What this reader has accounted for on the breaker, released by {@link #close}. */
+        private final long accountedBytes;
+        private int docId = -1;
 
+        /**
+         * Besides the flat {@link BlockSourceReader#ESTIMATED_SIZE}, a reader on the doc values format also accounts for the block buffer
+         * of its private {@link MultiValuedSortableBinaryDocValues}. The buffer is allocated lazily, once the reader decodes a block, and
+         * can be as large as the segment's largest block, so a query that reads many fields would otherwise hold one copy per field while
+         * the breaker only sees the flat estimate. What it accounts for is the upper bound the doc values report, added before any block is
+         * decompressed. It does not break the reader that has just opened its doc values, but it leaves the breaker over its limit when it
+         * does not fit, so the next reader fails while accounting for its flat estimate with a
+         * {@link org.elasticsearch.common.breaker.CircuitBreakingException} rather than the query running out of memory. Everything is
+         * released if opening the doc values fails, as {@code TrackingBinaryDocValues#get} does.
+         */
         IgnoredSourceRowStrideReader(
             CircuitBreaker breaker,
             String fieldName,
@@ -128,23 +146,45 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
             IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
             LeafReader leafReader
         ) throws IOException {
-            breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
+            breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "account for ignored source block estimation");
+            long accounted = ESTIMATED_SIZE;
+            MultiValuedSortableBinaryDocValues docValues = null;
+            boolean success = false;
+            try {
+                if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
+                    docValues = Objects.requireNonNull(
+                        MultiValuedSortableBinaryDocValues.fromMultiValued(leafReader, IgnoredSourceFieldMapper.NAME)
+                    );
+                    // 0 means no buffer beyond a value's own bytes and -1 means no estimate, so neither adds to what is accounted for
+                    long retained = docValues.maxDecodeBytes();
+                    if (retained > 0) {
+                        // No breaking here, we managed to create docValues instance.
+                        // The next reader will do the first breaker check and this would then break.
+                        breaker.addWithoutBreaking(retained, "account for ignored source block estimation based on max decode bytes");
+                        accounted += retained;
+                    }
+                }
+                success = true;
+            } finally {
+                if (success == false) {
+                    breaker.addWithoutBreaking(-accounted);
+                }
+            }
             this.breaker = breaker;
+            this.creationThread = Thread.currentThread();
             this.fieldName = fieldName;
             this.sourceFilter = sourceFilter;
             this.reader = reader;
             this.ignoredSourceFormat = ignoredSourceFormat;
-            if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
-                this.ignoredSourceDocValues = Objects.requireNonNull(
-                    MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, IgnoredSourceFieldMapper.NAME)
-                );
-            } else {
-                this.ignoredSourceDocValues = null;
-            }
+            this.ignoredSourceDocValues = docValues;
+            this.accountedBytes = accounted;
         }
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+            assert ignoredSourceDocValues == null || docId >= this.docId
+                : "docs must be read in order, got [" + docId + "] after [" + this.docId + "]";
+            this.docId = docId;
             Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesGroupedByParent = ignoredSourceFormat.loadIgnoredFields(
                 sourceFilter,
                 storedFields.storedFields(),
@@ -276,12 +316,17 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
         @Override
         public boolean canReuse(int startingDocID) {
-            return true;
+            if (ignoredSourceDocValues == null) {
+                // The stored field formats read _ignored_source through the shared StoredFields, which the caller repositions per
+                // document, so this reader keeps no position of its own.
+                return true;
+            }
+            return creationThread == Thread.currentThread() && docId <= startingDocID;
         }
 
         @Override
         public void close() {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+            breaker.addWithoutBreaking(-accountedBytes);
         }
 
         @Override

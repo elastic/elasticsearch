@@ -73,7 +73,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.hamcrest.Matchers.equalTo;
 
 /// Mirrors [DirectRecoveryCancellationIT] tests for the stateless path
@@ -122,6 +122,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
             List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
@@ -164,6 +165,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
             List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
@@ -207,6 +209,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
             List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
@@ -252,6 +255,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
             List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
@@ -299,6 +303,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
             List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
@@ -385,6 +390,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         final var clusterService = internalCluster().getInstance(ClusterService.class, targetNode);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
             List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
@@ -439,6 +445,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         final var clusterService = internalCluster().getInstance(ClusterService.class, searchNode);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
             List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
@@ -584,8 +591,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
                 @Override
                 public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
-                    if (indexShard.recoveryState() == null
-                        || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER) {
+                    if (indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER) {
                         listener.onResponse(null);
                         return;
                     }

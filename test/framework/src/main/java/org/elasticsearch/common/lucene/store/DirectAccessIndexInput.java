@@ -13,8 +13,6 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.DirectAccessInput;
-import org.elasticsearch.foreign.CloseableByteBuffer;
-import org.elasticsearch.nativeaccess.NativeAccess;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
@@ -23,8 +21,8 @@ import java.lang.foreign.ValueLayout;
 
 /**
  * A test utility that wraps an {@link IndexInput} and implements {@link DirectAccessInput},
- * serving direct {@link MemorySegment} slices backed by {@link CloseableByteBuffer} for
- * deterministic native memory management. The buffers are allocated via {@link NativeAccess}
+ * serving direct {@link MemorySegment} slices backed by a confined {@link Arena} for
+ * deterministic native memory management. The arena is allocated per call
  * and freed eagerly when the action completes.
  */
 public class DirectAccessIndexInput extends FilterIndexInput implements DirectAccessInput {
@@ -47,18 +45,24 @@ public class DirectAccessIndexInput extends FilterIndexInput implements DirectAc
     }
 
     @Override
-    public boolean withMemorySegmentSlices(long[] offsets, int length, int count, CheckedConsumer<MemorySegment[], IOException> action)
-        throws IOException {
-        if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
+    public boolean withSliceAddresses(
+        long[] offsets,
+        int length,
+        int count,
+        MemorySegment addressesScratch,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException {
+        if (DirectAccessInput.checkSlicesArgs(offsets, count, addressesScratch)) {
             return true;
         }
+        // Test impl: allocate each slice into a confined arena that lives for the action, write the addresses.
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment[] segments = new MemorySegment[count];
             for (int i = 0; i < count; i++) {
-                segments[i] = arena.allocate(length);
-                MemorySegment.copy(data, (int) offsets[i], segments[i], ValueLayout.JAVA_BYTE, 0L, length);
+                MemorySegment seg = arena.allocate(length);
+                MemorySegment.copy(data, (int) offsets[i], seg, ValueLayout.JAVA_BYTE, 0L, length);
+                addressesScratch.setAtIndex(ValueLayout.JAVA_LONG, i, seg.address());
             }
-            action.accept(segments);
+            action.accept(addressesScratch);
         }
         return true;
     }

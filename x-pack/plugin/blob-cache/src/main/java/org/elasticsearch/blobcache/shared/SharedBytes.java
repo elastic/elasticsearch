@@ -434,6 +434,22 @@ public class SharedBytes extends AbstractRefCounted {
             return null;
         }
 
+        /**
+         * Returns the raw native address of the byte at {@code position} within this
+         * memory-mapped region, or {@code -1L} if the region is not memory-mapped.
+         *
+         * <p>Callers are responsible for ensuring {@code position} is within bounds.
+         *
+         * @param position the starting position within the region, in bytes
+         * @return the raw native address, or {@code -1L} if not memory-mapped
+         */
+        public long addressAt(int position) {
+            if (mmap && mmapSegment.address() > 0) {
+                return mmapSegment.address() + position;
+            }
+            return -1L;
+        }
+
         @SuppressForbidden(reason = "Use positional writes on purpose")
         public int write(ByteBuffer src, int position) throws IOException {
             // check if writes are page size aligned for optimal performance

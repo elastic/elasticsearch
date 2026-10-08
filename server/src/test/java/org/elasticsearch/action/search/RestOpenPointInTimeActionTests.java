@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -57,5 +58,28 @@ public class RestOpenPointInTimeActionTests extends RestActionTestCase {
             OpenPointInTimeRequest transportRequest = transportRequests.remove();
             assertThat(transportRequest.maxConcurrentShardRequests(), equalTo(maxConcurrentRequests));
         }
+    }
+
+    public void testSliceParameter() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        RestOpenPointInTimeAction action = new RestOpenPointInTimeAction(CrossProjectModeDecider.NOOP);
+        controller().registerHandler(action);
+        Queue<OpenPointInTimeRequest> transportRequests = ConcurrentCollections.newQueue();
+        verifyingClient.setExecuteVerifier(((actionType, transportRequest) -> {
+            assertThat(transportRequest, instanceOf(OpenPointInTimeRequest.class));
+            transportRequests.add((OpenPointInTimeRequest) transportRequest);
+            return new OpenPointInTimeResponse(new BytesArray("n/a"), 1, 1, 0, 0, SearchResponse.Clusters.EMPTY);
+        }));
+
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            .withPath("/slice-index/_pit")
+            .withParams(Map.of("slice", "tenant-a", "keep_alive", "5m"))
+            .build();
+        dispatchRequest(request);
+        assertThat(transportRequests, hasSize(1));
+        OpenPointInTimeRequest transportRequest = transportRequests.remove();
+        assertThat(transportRequest.searchSlice(), equalTo("tenant-a"));
+        assertThat(transportRequest.routing(), equalTo("tenant-a"));
+        assertThat(transportRequest.isRoutingFromSlice(), equalTo(true));
     }
 }

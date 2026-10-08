@@ -77,7 +77,7 @@ public class RestClusterSearchShardsActionTests extends RestActionTestCase {
             .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1", "routing", "r1"))
             .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
-        assertEquals("[routing] is not allowed together with [_slice]", e.getMessage());
+        assertEquals("[routing] is not allowed together with [slice]", e.getMessage());
     }
 
     public void testParseSearchShardsRequestRejectsSliceWhenFeatureDisabled() {
@@ -87,7 +87,7 @@ public class RestClusterSearchShardsActionTests extends RestActionTestCase {
             .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1"))
             .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
-        assertEquals("request does not support [_slice]", e.getMessage());
+        assertEquals("request does not support [slice]", e.getMessage());
     }
 
     private static ClusterSearchShardsResponse emptyResponse() {

@@ -1,0 +1,31 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.foreign-library'
+apply plugin: 'elasticsearch.foreign-api'
+
+dependencies {
+  api project(':libs:core')
+  api project(':libs:logging')
+  api project(':libs:foreign-adapter')
+  // server depends on libs:zstd, and test:framework depends on server, which would otherwise pull
+  // this project's own jar back onto its test runtime classpath alongside its raw compiled classes
+  // (jar hell). libs:columnar excludes itself from test:framework the same way for the same reason.
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'zstd'
+  }
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  replaceSignatureFiles 'jdk-signatures'
+}

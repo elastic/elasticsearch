@@ -105,9 +105,9 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
                     continue;
                 }
 
-                if (entry.hasShardsInInitState() == false) {
-                    // this snapshot has no running shard snapshots
-                    // (NB this means we let ABORTED shards move without waiting for them to complete)
+                if (entry.hasActiveShards() == false) {
+                    // this snapshot has no active shard snapshots (e.g. all complete, or all QUEUED) so it cannot
+                    // affect allocation decisions, skip the more expensive per-shard lookup
                     continue;
                 }
 
@@ -118,8 +118,8 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
                     continue;
                 }
 
-                if (shardSnapshotStatus.state().completed()) {
-                    // this shard snapshot is complete
+                if (shardSnapshotStatus.isActive() == false) {
+                    // shard snapshot is complete or QUEUED, we'll let the move proceed
                     continue;
                 }
 

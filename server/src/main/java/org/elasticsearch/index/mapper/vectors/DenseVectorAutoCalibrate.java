@@ -39,7 +39,7 @@ public record DenseVectorAutoCalibrate(@Nullable Object originalValue, IvfAutoCa
     }
 
     /** Accepts a boolean, a boolean string, or a profile name. */
-    static DenseVectorAutoCalibrate parse(
+    public static DenseVectorAutoCalibrate parse(
         @Nullable Object node,
         IndexVersion indexVersion,
         Predicate<NodeFeature> clusterSupportsFeature,

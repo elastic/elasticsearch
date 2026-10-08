@@ -312,7 +312,7 @@ public class KnnIndexTester {
                 } else {
                     var encoding = resolveQuantEncoding(quantizeBits, args.queryQuantizeBits());
                     IvfMergeConfigResolver mergeConfigResolver = args.autoCalibrate()
-                        ? IvfAutoCalibration.mergeConfigResolver(args.ivfClusterSize())
+                        ? IvfAutoCalibration.mergeConfigResolver(args.ivfClusterSize(), args.autoCalibrationProfile())
                         : IvfMergeConfigResolver.useCodecDefault();
                     yield new ESNextDiskBBQVectorsFormat(
                         encoding,
@@ -909,7 +909,7 @@ public class KnnIndexTester {
     /**
      * Logs a concise per-segment summary of the auto-calibrated IVF configuration: quantization
      * encoding, rescore oversample factor, and whether preconditioning is active. Only meaningful
-     * when {@code auto_calibrate} is {@code true} and the index type is IVF.
+     * when auto-calibration is enabled and the index type is IVF.
      */
     static void logAutoCalibrationSegmentReport(Path indexPath, Directory sharedDir) throws IOException {
         Directory dir = sharedDir != null ? sharedDir : KnnIndexer.getDirectory(indexPath);

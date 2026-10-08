@@ -140,6 +140,7 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
                 dropHelper != null
                     ? "Some values cannot be read as the merged column type; skipping their rows"
                     : "Some values cannot be read as the merged column type; returning null",
+                "Some values cannot be read as the merged column type; " + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME,
                 informationalWarningSink
             );
         }
@@ -256,6 +257,11 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
     @Override
     public SubscribableListener<Void> waitForReady() {
         return delegate.waitForReady();
+    }
+
+    @Override
+    public void revokeOvershootOnPark() {
+        delegate.revokeOvershootOnPark();
     }
 
     @Override

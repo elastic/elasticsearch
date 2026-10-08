@@ -38,6 +38,7 @@ import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xpack.async.AsyncResultsIndexPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncResultsTestUtils;
 import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
@@ -120,6 +121,12 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     @After
     public void releaseQueryLatch() {
         BlockingQueryBuilder.releaseQueryLatch();
+    }
+
+    @Override
+    protected void beforeIndexDeletion() throws Exception {
+        AsyncResultsTestUtils.awaitAsyncTasksAndDeleteResultsIndex();
+        super.beforeIndexDeletion();
     }
 
     @Override

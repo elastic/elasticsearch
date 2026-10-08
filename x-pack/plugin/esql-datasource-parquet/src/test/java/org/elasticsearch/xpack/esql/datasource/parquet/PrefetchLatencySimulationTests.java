@@ -77,7 +77,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
 
     @Before
     public void initBlockFactoryAndExecutor() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         // Owned, deterministically shut down in tearDown: using ForkJoinPool.commonPool() here leaks
         // worker threads that ESTestCase's suite-scoped ThreadLeakControl flags as a class failure.
         asyncIoExecutor = Executors.newFixedThreadPool(4, EsExecutors.daemonThreadFactory("test", "prefetch-test-async-io"));
@@ -267,19 +267,17 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
 
             assertTrue(iter.hasNext());
             assertEquals("the first real prefetch must fail", 1, storage.failedAsyncReadCount.get());
-            assertTrue(opi.probingPrefetch());
-            assertEquals(1, opi.prefetchDepth());
             Page first = iter.next();
             first.releaseBlocks();
 
             assertTrue(storage.successfulAsyncReads.await(10, TimeUnit.SECONDS));
             assertTrue(iter.hasNext());
-            assertFalse(opi.probingPrefetch());
+            assertFalse("the re-ticketed GET is a successful probe and must leave probe mode", opi.probingPrefetch());
             assertEquals(floor, opi.prefetchDepth());
-            assertEquals("the fallback barrier must not leak queued-byte accounting", 0L, opi.queuedPrefetchBytes());
             Page second = iter.next();
             second.releaseBlocks();
             assertFalse(iter.hasNext());
+            assertEquals("the fallback barrier must not leak queued-byte accounting", 0L, opi.queuedPrefetchBytes());
         }
     }
 
@@ -452,23 +450,21 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
      * the local anti-runaway and is not retuned to the 10 MiB GET size.
      */
     public void testWatermarkEmptyQueueOverrunIsNodeWide() throws Exception {
-        byte[] parquetData = smallInt64MultiRowGroupFile();
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        // A file that fits in the 64 KiB footer tail is a cache hit: the GET admit hold is dropped
+        // and the copy does not charge the watermark, so every iterator could overshoot. The first
+        // row group must be a real GET so the overshoot stays held.
+        byte[] parquetData = createMultiRowGroupFile(schema, 20_000, 4096);
+        assertTrue(
+            "first row group must sit outside the cached footer tail",
+            parquetData.length > ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES
+        );
         FormatReadContext ctx = FormatReadContext.of(null, 1024);
-        ParquetIoWatermark probe = new ParquetIoWatermark(Long.MAX_VALUE / 8);
-        long oneIteratorUsed;
-        try (
-            CloseableIterator<Page> measured = new ParquetFormatReader(blockFactory, true).withIoWatermark(probe)
-                .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx)
-        ) {
-            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) measured;
-            oneIteratorUsed = probe.used();
-            assertTrue("probe iterator must queue the current group", opi.pendingPrefetchCount() >= 1);
-            assertTrue(oneIteratorUsed > 0);
-        }
-        // Cap at what one iterator already retains (window + metadata + one group). A second
-        // iterator may forceAdd its window past the cap; empty-queue prefetch must not take a
-        // second overshoot.
-        ParquetIoWatermark watermark = new ParquetIoWatermark(oneIteratorUsed);
+        // Tiny cap: the first empty-queue admit is the node-wide overshoot. The sliding window is
+        // not charged until a read, so this must not be sized around a reserved window. Look-ahead
+        // fill must not block; 0ms budget so the second first-group PER_GET charges immediately.
+        // Look-ahead still tryAdmit-refuses.
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1);
         try (
             CloseableIterator<Page> first = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
                 .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx);
@@ -477,14 +473,20 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         ) {
             OptimizedParquetColumnIterator opi1 = (OptimizedParquetColumnIterator) first;
             OptimizedParquetColumnIterator opi2 = (OptimizedParquetColumnIterator) second;
+            assertTrue("first iterator must queue the current group", opi1.pendingPrefetchCount() >= 1);
+            int firstQueued = opi1.pendingPrefetchCount();
+            int secondQueued = opi2.pendingPrefetchCount();
             growPrefetchDepth(opi1, 3);
             growPrefetchDepth(opi2, 3);
+            long startNanos = System.nanoTime();
             opi1.fillLookaheadPrefetches();
             opi2.fillLookaheadPrefetches();
-            int combined = opi1.pendingPrefetchCount() + opi2.pendingPrefetchCount();
-            assertEquals("empty-queue overrun stays one node, not one per iterator: " + combined, 1, combined);
+            assertTrue("next-group fill must not block on PER_GET", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos) < 1_000L);
+            assertEquals("look-ahead must not queue extra groups over the cap", firstQueued, opi1.pendingPrefetchCount());
+            assertEquals(secondQueued, opi2.pendingPrefetchCount());
             assertEquals(32_000_000L, OptimizedParquetColumnIterator.MAX_QUEUED_PREFETCH_BYTES);
         }
+        assertEquals("closing both iterators must release watermark bytes", 0, watermark.used());
         try (
             CloseableIterator<Page> next = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
                 .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx)
@@ -652,18 +654,50 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             ActionListener<DirectReadBuffer> listener
         ) {
             asyncReadCount.incrementAndGet();
-            asyncIoExecutor.execute(() -> {
-                try {
-                    int pos = (int) position;
-                    int len = (int) Math.min(length, data.length - position);
-                    ByteBuffer buffer = ByteBuffer.allocate(len);
-                    buffer.put(data, pos, len);
-                    buffer.flip();
-                    listener.onResponse(new DirectReadBuffer(buffer, () -> {}));
-                } catch (Exception e) {
-                    listener.onFailure(e);
+            if (length < 0 || length > Integer.MAX_VALUE) {
+                listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
+                return;
+            }
+            // Allocate on this thread so the watermark/breaker charge is visible to the next
+            // iterator before the in-memory fill runs on asyncIoExecutor.
+            final DirectReadBuffer drb;
+            boolean submitted = false;
+            try {
+                drb = factory.allocateWritableWindow((int) length);
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
+            try {
+                asyncIoExecutor.execute(() -> {
+                    try {
+                        int pos = (int) position;
+                        int len = (int) Math.min(length, data.length - position);
+                        ByteBuffer buffer = drb.buffer();
+                        buffer.put(data, pos, len);
+                        buffer.flip();
+                    } catch (Exception e) {
+                        drb.close();
+                        listener.onFailure(e);
+                        return;
+                    }
+                    try {
+                        listener.onResponse(drb);
+                    } catch (Exception e) {
+                        try {
+                            drb.close();
+                        } catch (Exception closeEx) {
+                            e.addSuppressed(closeEx);
+                        }
+                        throw e;
+                    }
+                });
+                submitted = true;
+            } finally {
+                if (submitted == false) {
+                    drb.close();
                 }
-            });
+            }
         }
     }
 

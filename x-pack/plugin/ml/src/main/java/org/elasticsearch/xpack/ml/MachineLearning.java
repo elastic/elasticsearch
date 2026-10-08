@@ -869,6 +869,14 @@ public class MachineLearning extends Plugin
     );
 
     /**
+     * Temporary gate on creation and execution of ES|QL-backed anomaly detection datafeeds, enabled automatically in
+     * snapshot builds and via {@code -Des.esql_datafeeds_feature_flag_enabled=true} in release builds. Removed once
+     * ES|QL datafeeds reach GA (see {@link FeatureFlag}). The flag is fixed for the lifetime of the process and cannot be
+     * toggled per-cluster/per-project at runtime.
+     */
+    public static final FeatureFlag ESQL_DATAFEEDS_FEATURE_FLAG = new FeatureFlag("esql_datafeeds");
+
+    /**
      * The time that has to pass after scaling up, before scaling down is allowed.
      * Note that the ML autoscaling has its own cooldown time to release the hardware.
      */
@@ -1522,13 +1530,9 @@ public class MachineLearning extends Plugin
             client,
             inferenceAuditor,
             telemetryProvider.getMeterRegistry(),
-            new NodeLoadDetector(memoryTracker),
             nlpEnabled,
             settings
         );
-        // Feed observed-memory data from the 10-second adaptive-allocations stats response back into
-        // TrainedModelAssignmentClusterService so its 60-second loop can skip those deployments.
-        adaptiveAllocationsScalerService.setStatsResponseConsumer(trainedModelAllocationClusterService.get()::processObservedMemoryStats);
 
         MlInitializationService mlInitializationService = new MlInitializationService(
             settings,
@@ -1537,7 +1541,6 @@ public class MachineLearning extends Plugin
             anomalyDetectionAuditor,
             client,
             adaptiveAllocationsScalerService,
-            trainedModelAllocationClusterService.get(),
             mlAssignmentNotifier,
             indexNameExpressionResolver,
             anomalyDetectionEnabled,
@@ -1767,6 +1770,8 @@ public class MachineLearning extends Plugin
         // Included in this section as it's used by MlMemoryAction
         actionHandlers.add(new ActionHandler(TrainedModelCacheInfoAction.INSTANCE, TransportTrainedModelCacheInfoAction.class));
         actionHandlers.add(new ActionHandler(GetMlAutoscalingStats.INSTANCE, TransportGetMlAutoscalingStats.class));
+        // Required by vector query builders regardless of which ML features are enabled
+        actionHandlers.add(new ActionHandler(CoordinatedInferenceAction.INSTANCE, TransportCoordinatedInferenceAction.class));
         if (anomalyDetectionEnabled) {
             actionHandlers.add(new ActionHandler(GetJobsAction.INSTANCE, TransportGetJobsAction.class));
             actionHandlers.add(new ActionHandler(GetJobsStatsAction.INSTANCE, TransportGetJobsStatsAction.class));
@@ -1891,7 +1896,6 @@ public class MachineLearning extends Plugin
                         TransportUpdateTrainedModelAssignmentStateAction.class
                     )
                 );
-                actionHandlers.add(new ActionHandler(CoordinatedInferenceAction.INSTANCE, TransportCoordinatedInferenceAction.class));
             }
         }
         return actionHandlers;

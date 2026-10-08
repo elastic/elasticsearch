@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 161232
-pr: 161420
-summary: Accept partition count metadata folds
-type: enhancement

@@ -18,6 +18,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -41,6 +42,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.lucene.search.cost.TermsQueryCostEstimator;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -52,6 +54,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -70,6 +73,9 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
     private static final String RARE_LEAD = "rare";
     private static final String COMMON_LEAD = "common";
     private static final int RARE_DOCS = 5;
+
+    private static final int DOCS_PER_SEGMENT = 500;
+    private static final int FEW_TERMS = 5;
 
     private Directory directory;
     private DirectoryReader reader;
@@ -247,6 +253,37 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
         }
     }
 
+    public void testEachLeafChargedAndReleasedOnItsOwn() throws Exception {
+        withMultiSegmentReader(new int[] { NUM_TERMS, NUM_TERMS, NUM_TERMS }, multiSegmentReader -> {
+            List<Long> expectedCharges = expectedSearchPerLeafCharges(multiSegmentReader, termInSetQuery());
+            assertThat("test setup: every leaf must have a scorer", expectedCharges.size(), equalTo(multiSegmentReader.leaves().size()));
+
+            TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+            int hits = runSearch(multiSegmentReader, termInSetQuery(), breaker);
+            assertThat(hits, equalTo(multiSegmentReader.maxDoc()));
+            assertThat("every leaf is charged once, for its own doc-id set", breaker.charges(), equalTo(expectedCharges));
+            assertThat(
+                "a leaf's charge is released before the next leaf charges",
+                breaker.peak(),
+                equalTo(expectedCharges.stream().mapToLong(Long::longValue).max().orElseThrow())
+            );
+            assertThat(breaker.getUsed(), equalTo(0L));
+        });
+    }
+
+    public void testSkipDecisionIsMadePerLeaf() throws Exception {
+        withMultiSegmentReader(new int[] { NUM_TERMS, FEW_TERMS, NUM_TERMS }, multiSegmentReader -> {
+            List<Long> perLeafCharges = expectedSearchPerLeafCharges(multiSegmentReader, termInSetQuery());
+            List<Long> expectedCharges = List.of(perLeafCharges.get(0), perLeafCharges.get(2));
+
+            TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+            int hits = runSearch(multiSegmentReader, termInSetQuery(), breaker);
+            assertThat(hits, equalTo(multiSegmentReader.maxDoc()));
+            assertThat("the leaf holding only a few of the terms is run as a disjunction", breaker.charges(), equalTo(expectedCharges));
+            assertThat(breaker.getUsed(), equalTo(0L));
+        });
+    }
+
     public void testAccountingNotAllocatedWithoutMultiTermQuery() throws IOException {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         ContextIndexSearcher searcher = newContextIndexSearcher(reader);
@@ -319,10 +356,14 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
     }
 
     private List<Long> expectedSearchPerLeafCharges(Query query) throws IOException {
-        ContextIndexSearcher searcher = newContextIndexSearcher(reader);
+        return expectedSearchPerLeafCharges(reader, query);
+    }
+
+    private static List<Long> expectedSearchPerLeafCharges(IndexReader indexReader, Query query) throws IOException {
+        ContextIndexSearcher searcher = newContextIndexSearcher(indexReader);
         Weight weight = searcher.createWeight(searcher.rewrite(new ConstantScoreQuery(query)), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         List<Long> charges = new ArrayList<>();
-        for (LeafReaderContext leaf : reader.leaves()) {
+        for (LeafReaderContext leaf : indexReader.leaves()) {
             ScorerSupplier scorerSupplier = weight.scorerSupplier(leaf);
             if (scorerSupplier != null) {
                 charges.add(TermsQueryCostEstimator.executionBytesForLeaf(scorerSupplier.cost(), leaf.reader().maxDoc()));
@@ -345,9 +386,41 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
     }
 
     private int runSearch(Query query, CircuitBreaker breaker) throws IOException {
-        ContextIndexSearcher searcher = newContextIndexSearcher(reader);
+        return runSearch(reader, query, breaker);
+    }
+
+    private static int runSearch(IndexReader indexReader, Query query, CircuitBreaker breaker) throws IOException {
+        ContextIndexSearcher searcher = newContextIndexSearcher(indexReader);
         searcher.setCircuitBreaker(breaker);
         return searcher.search(query, new CountingCollectorManager());
+    }
+
+    /**
+     * Opens an index with one segment per entry of {@code termsPerSegment}: segment {@code i} holds
+     * {@link #DOCS_PER_SEGMENT} docs spread over the first {@code termsPerSegment[i]} terms.
+     */
+    private static void withMultiSegmentReader(int[] termsPerSegment, CheckedConsumer<DirectoryReader, Exception> body) throws Exception {
+        try (Directory multiSegmentDirectory = newDirectory()) {
+            IndexWriterConfig config = new IndexWriterConfig(null).setMergePolicy(NoMergePolicy.INSTANCE);
+            try (IndexWriter writer = new IndexWriter(multiSegmentDirectory, config)) {
+                for (int numTerms : termsPerSegment) {
+                    for (int docId = 0; docId < DOCS_PER_SEGMENT; docId++) {
+                        Document doc = new Document();
+                        doc.add(new StringField(FIELD, term(docId % numTerms), Field.Store.NO));
+                        writer.addDocument(doc);
+                    }
+                    writer.commit();
+                }
+            }
+            try (DirectoryReader multiSegmentReader = DirectoryReader.open(multiSegmentDirectory)) {
+                assertThat(
+                    "the fixture must produce one leaf per segment to exercise cross-leaf behaviour",
+                    multiSegmentReader.leaves().size(),
+                    equalTo(termsPerSegment.length)
+                );
+                body.accept(multiSegmentReader);
+            }
+        }
     }
 
     private static ContextIndexSearcher newContextIndexSearcher(IndexReader reader) throws IOException {
@@ -364,6 +437,7 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
         private final long limit;
         private final AtomicLong used = new AtomicLong();
         private final AtomicLong peak = new AtomicLong();
+        private final List<Long> charges = new CopyOnWriteArrayList<>();
 
         TrackingCircuitBreaker(long limit) {
             super("request");
@@ -378,6 +452,7 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
                 throw new CircuitBreakingException("test breaker tripped", bytes, limit, Durability.TRANSIENT);
             }
             peak.accumulateAndGet(current, Math::max);
+            charges.add(bytes);
         }
 
         @Override
@@ -397,6 +472,11 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
 
         long peak() {
             return peak.get();
+        }
+
+        /** Every reservation that was accepted, in the order it was made. */
+        List<Long> charges() {
+            return charges;
         }
     }
 

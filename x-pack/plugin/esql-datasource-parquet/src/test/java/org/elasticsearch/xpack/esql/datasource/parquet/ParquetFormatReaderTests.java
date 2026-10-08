@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -137,6 +138,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -175,7 +177,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -6103,6 +6105,201 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A DECLARED column whose type in the file cannot be read as declared (int32 for a declared boolean: the boolean
+     * mapper takes no numbers) is a read failure of the whole column in that file, so {@code error_mode} decides:
+     * {@code fail_fast} fails naming column, file, both types and {@code [error_mode]}; {@code null_field} nulls the
+     * column with the summary + detail warnings; {@code skip_row} drops every row of the file, charged to the budget.
+     * Both the optimized and the baseline row-at-a-time iterator.
+     */
+    public void testDeclaredUncoercibleColumnFollowsErrorMode() throws Exception {
+        assertDeclaredUncoercibleColumnFollowsErrorMode(declaredReader("flag"));
+        assertDeclaredUncoercibleColumnFollowsErrorMode(
+            (ParquetFormatReader) new ParquetFormatReader(blockFactory, false).withDeclaredTypeColumns(Set.of("flag"))
+        );
+    }
+
+    private void assertDeclaredUncoercibleColumnFollowsErrorMode(ParquetFormatReader r) throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("flag")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("id")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group a = factory.newGroup();
+            a.add("flag", 1);
+            a.add("id", 1);
+            Group b = factory.newGroup();
+            b.add("flag", 0);
+            b.add("id", 2);
+            return List.of(a, b);
+        });
+        List<Attribute> plannerTypes = List.of(
+            new ReferenceAttribute(Source.EMPTY, "flag", DataType.BOOLEAN),
+            new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER)
+        );
+        String location = StoragePath.of("s3://bucket/drift.parquet").objectName();
+
+        Exception e = expectThrows(Exception.class, () -> {
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    createStorageObject(parquetData, "s3://bucket/drift.parquet"),
+                    new RangeReadContext(List.of("flag", "id"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
+                )
+            ) {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "column [flag] in ["
+                    + location
+                    + "] is [integer] in the file and cannot be read as its declared type "
+                    + "[boolean]; set [error_mode] to [null_field]"
+            )
+        );
+
+        try (
+            CloseableIterator<Page> it = r.readRange(
+                createStorageObject(parquetData, "s3://bucket/drift.parquet"),
+                new RangeReadContext(List.of("flag", "id"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.PERMISSIVE)
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            assertTrue(page.getBlock(0).isNull(0));
+            assertTrue(page.getBlock(0).isNull(1));
+            assertEquals(2, ((IntBlock) page.getBlock(1)).getInt(1));
+            page.releaseBlocks();
+        }
+        assertEquals(
+            List.of(
+                DeclaredTypeCoercions.uncoercibleColumnsNullSummary(location),
+                "column [flag]: [integer] in the file, [boolean] in the query"
+            ),
+            drainWarnings()
+        );
+
+        ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 0.0, false);
+        try (
+            CloseableIterator<Page> it = r.readRange(
+                createStorageObject(parquetData, "s3://bucket/drift.parquet"),
+                new RangeReadContext(List.of("flag", "id"), 10, 0, parquetData.length, plannerTypes, skipRow)
+            )
+        ) {
+            int rows = 0;
+            while (it.hasNext()) {
+                Page page = it.next();
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+            assertEquals("every row of the file is dropped", 0, rows);
+        }
+        assertEquals(
+            List.of(
+                DeclaredTypeCoercions.uncoercibleColumnsDropSummary(location),
+                "column [flag]: [integer] in the file, [boolean] in the query"
+            ),
+            drainWarnings()
+        );
+
+        // The dropped rows count against the budget: two rows over max_errors 1 fails, naming why.
+        ErrorPolicy tight = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 1, 0.0, false);
+        Exception budget = expectThrows(Exception.class, () -> {
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    createStorageObject(parquetData, "s3://bucket/drift.parquet"),
+                    new RangeReadContext(List.of("flag", "id"), 10, 0, parquetData.length, plannerTypes, tight)
+                )
+            ) {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(budget.getMessage(), containsString("column [flag]: [integer] in the file, [boolean] in the query"));
+        drainWarnings();
+    }
+
+    /**
+     * The {@code skip_row} whole-file drop of a declared uncoercible column charges the budget with the rows of the
+     * row groups a split covers, not the whole file's: a split over the first row group stays within a
+     * {@code max_errors} equal to that group's rows, and exceeds one row fewer.
+     */
+    public void testDeclaredUncoercibleColumnSkipRowChargesOnlyTheRangeRows() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("flag")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("id")
+            .named("test_schema");
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(outputStream))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withRowGroupSize(1024L)
+                .withPageSize(256)
+                .build()
+        ) {
+            for (int i = 0; i < 600; i++) {
+                writer.write(groupFactory.newGroup().append("flag", i % 2).append("id", i));
+            }
+        }
+        byte[] parquetData = outputStream.toByteArray();
+        BlockMetaData firstGroup;
+        try (
+            ParquetFileReader pfr = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(createStorageObject(parquetData), footerByteCache, blockFactory.breaker()),
+                ParquetReadOptions.builder(new PlainParquetConfiguration()).build()
+            )
+        ) {
+            assertThat("the fixture must span several row groups", pfr.getRowGroups().size(), greaterThan(1));
+            firstGroup = pfr.getRowGroups().get(0);
+        }
+        long firstGroupRows = firstGroup.getRowCount();
+        long rangeEnd = firstGroup.getStartingPos() + firstGroup.getCompressedSize();
+        List<Attribute> plannerTypes = List.of(
+            new ReferenceAttribute(Source.EMPTY, "flag", DataType.BOOLEAN),
+            new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER)
+        );
+        ParquetFormatReader r = declaredReader("flag");
+
+        ErrorPolicy withinBudget = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, firstGroupRows, 0.0, false);
+        try (
+            CloseableIterator<Page> it = r.readRange(
+                createStorageObject(parquetData, "s3://bucket/drift.parquet"),
+                new RangeReadContext(List.of("flag", "id"), 1000, 0, rangeEnd, plannerTypes, withinBudget)
+            )
+        ) {
+            assertFalse("every row of the split is dropped", it.hasNext());
+        }
+        drainWarnings();
+
+        ErrorPolicy overBudget = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, firstGroupRows - 1, 0.0, false);
+        Exception e = expectThrows(Exception.class, () -> {
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    createStorageObject(parquetData, "s3://bucket/drift.parquet"),
+                    new RangeReadContext(List.of("flag", "id"), 1000, 0, rangeEnd, plannerTypes, overBudget)
+                )
+            ) {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(e.getMessage(), containsString("[" + firstGroupRows + "]"));
+        drainWarnings();
+    }
+
+    /**
      * Fixture of {@code count} rows in a single {@code ts} keyword column, every value a DISTINCT
      * unparseable date token (namespaced by {@code offset} so tokens never repeat across fixtures).
      * Declared as {@code datetime}, each value fails the fused string-&gt;datetime coercion and, under a
@@ -6287,10 +6484,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
-    public void testListStringDeclaredDatetimeBadTokenNullsWholePosition() throws Exception {
-        // LIST<string> declared datetime: castBlock's bulk semantics on the fused list arm — a bad
-        // element nulls the WHOLE position + warns under the default policy, the clean row still
-        // decodes; under fail_fast the read fails.
+    public void testListStringDeclaredDatetimeBadTokenRemovesElement() throws Exception {
+        // LIST<string> declared datetime on the fused list arm: under null_field a bad element is
+        // removed from its position and the readable one kept, with the multi-value summary; the clean
+        // row still decodes; under fail_fast the read fails.
         Type listType = Types.optionalList()
             .optionalElement(PrimitiveType.PrimitiveTypeName.BINARY)
             .as(LogicalTypeAnnotation.stringType())
@@ -6319,10 +6516,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertEquals(2, page.getPositionCount());
             LongBlock longs = (LongBlock) page.getBlock(0);
             assertEquals(971211336000L, longs.getLong(longs.getFirstValueIndex(0)));
-            assertTrue("bulk semantics null the whole position, not one element", longs.isNull(1));
+            assertEquals("only the bad element is removed", 1, longs.getValueCount(1));
+            assertEquals(971211338000L, longs.getLong(longs.getFirstValueIndex(1)));
         }
         List<String> warnings = drainWarnings();
         assertEquals("Expected summary + 1 detail, got: " + warnings, 2, warnings.size());
+        assertThat(warnings.get(0), endsWith(SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME));
         try (
             CloseableIterator<Page> it = r.readRange(
                 createStorageObject(parquetData),
@@ -9736,7 +9935,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
         try {
             assertTrue("a heap-backed delegate yields array-backed buffers", buffer.hasArray());
             assertFalse(buffer.isDirect());
-            assertEquals("allocation must be charged to the request breaker", before + buffer.capacity(), breaker.getUsed());
+            assertEquals(
+                "allocation must be charged to the request breaker",
+                before + HeapFootprint.byteArrayBytes(buffer.capacity()),
+                breaker.getUsed()
+            );
         } finally {
             allocator.release(buffer);
         }

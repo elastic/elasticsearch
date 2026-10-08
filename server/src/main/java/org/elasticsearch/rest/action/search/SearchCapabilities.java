@@ -77,6 +77,9 @@ public final class SearchCapabilities {
     /** A numeric value script that returns {@code null} treats that value as missing instead of failing with an NPE. */
     private static final String NUMERIC_VALUE_SCRIPT_NULL_IS_MISSING = "numeric_value_script_null_is_missing";
 
+    /** A text field that indexes no positions answers positional queries from the values it keeps. */
+    private static final String POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS = "positional_queries_on_text_without_positions";
+
     public static final Set<String> CAPABILITIES;
     static {
         HashSet<String> capabilities = new HashSet<>();
@@ -116,6 +119,7 @@ public final class SearchCapabilities {
         capabilities.add(KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES);
         capabilities.add(KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST);
         capabilities.add(NUMERIC_VALUE_SCRIPT_NULL_IS_MISSING);
+        capabilities.add(POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

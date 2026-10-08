@@ -16,7 +16,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
@@ -466,6 +465,7 @@ public final class EsqlTestUtils {
      *     <li>isIndexed</li>
      *     <li>hasDocValues</li>
      *     <li>hasExactSubfield</li>
+     *     <li>hasValueQueries (off unless included)</li>
      * </ol>
      * The default will return true for all fields. The include/exclude methods can be used to configure the settings for specific fields.
      * If you call 'include' with no fields, it will switch to return false for all fields.
@@ -475,7 +475,8 @@ public final class EsqlTestUtils {
             EXISTS,
             INDEXED,
             DOC_VALUES,
-            EXACT_SUBFIELD
+            EXACT_SUBFIELD,
+            VALUE_QUERIES
         }
 
         private final Map<Config, Set<String>> includes = new HashMap<>();
@@ -523,6 +524,12 @@ public final class EsqlTestUtils {
         @Override
         public boolean hasExactSubfield(FieldName field) {
             return isConfigationSet(Config.EXACT_SUBFIELD, field.string());
+        }
+
+        @Override
+        public boolean hasValueQueries(FieldName field) {
+            // Off unless a test asks for it: answering over values is what the columnar modes give, not a default.
+            return includes.getOrDefault(Config.VALUE_QUERIES, Set.of()).contains(field.string());
         }
 
         public TestConfigurableSearchStats withConstantValue(String field, String value) {
@@ -1042,9 +1049,7 @@ public final class EsqlTestUtils {
      * add to this, you must also add to {@code EsqlSpecTestCase#tables};
      */
     public static Map<String, Map<String, Column>> tables() {
-        BlockFactory factory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-            .breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST))
-            .build();
+        BlockFactory factory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         Map<String, Map<String, Column>> tables = new TreeMap<>();
         try (
             IntBlock.Builder ints = factory.newIntBlockBuilder(10);

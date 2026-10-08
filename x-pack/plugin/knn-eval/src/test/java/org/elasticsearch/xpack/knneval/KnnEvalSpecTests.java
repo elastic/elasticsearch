@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.knneval;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.search.vectors.VectorData;
@@ -176,12 +177,12 @@ public class KnnEvalSpecTests extends ESTestCase {
         String body = """
             {"field": "emb", "k": 10, "query_source": {"from": "docs", "size": 10},
              "baseline": {"exact": true}, "knn_settings": [{"visit_percentage": 5}]%s}""";
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, body.formatted(", \"allow_exact_baseline\": true"))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.format(body, ", \"allow_exact_baseline\": true"))) {
             KnnEvalSpec spec = KnnEvalSpec.parse(parser);
             assertTrue(spec.isAllowExactBaseline());
             assertTrue(spec.getBaseline().isExact());
         }
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, body.formatted(""))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.format(body, ""))) {
             XContentParseException e = expectThrows(XContentParseException.class, () -> KnnEvalSpec.parse(parser));
             // the parser wraps the constructor's exception
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));

@@ -372,9 +372,13 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
      * The two publish through different commit paths, and only the whole-file one filed a foreign read's
      * measurement. A retyping declaration resolves to a read whose stamp never equals the schema record's, so no
      * per-file record was written for a segmented read of such a dataset and it re-read every byte forever
-     * (esql-planning#2246). Every other arm carrying a declaration writes ~0.5 MiB files, well under the split
-     * threshold, so none of them reaches that path; the unmapped arms whose files are larger do reach it and
-     * produce no foreign read for it to refuse.
+     * (esql-planning#2246). A file reaches that path two ways, and size is only one of them: it is split when it
+     * is at least twice its reader's own minimum segment (1 MiB for csv, the 4 MiB {@code segment_size} for
+     * ndjson), which is what this arm arranges; or a declaration that binds by header name forces the streaming
+     * whole-file path, which publishes per-stripe fragments at ANY size. {@code testDeclaringAnAbsentColumnWarmsCount}
+     * takes the second route - its appended column upgrades csv provenance to DECLARED - so it reaches the chunked
+     * commit on ~0.5 MiB files. No arm in this class is large enough to be split except this one: the biggest
+     * unmapped writers stay under their readers' thresholds.
      * <p>
      * {@code segment_size} is 64 KiB (the minimum) so the files need only be ~360 KiB rather than megabytes. It is
      * identity-inert, so it does not move the cache address this test is about.

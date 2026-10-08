@@ -691,3 +691,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalWarmDatasetAggregatePartialEvictionIT
   method: testNdjsonWarmCountSurvivesOneMissingPerFileEntry
   issue: https://github.com/elastic/elasticsearch/issues/161381
+- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonManyFileWarmFoldIT
+  method: testNdjsonFileSetChangeInvalidatesDatasetAggregate
+  issue: https://github.com/elastic/elasticsearch/issues/161390

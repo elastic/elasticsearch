@@ -351,7 +351,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
                 100,
                 ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS,
                 custom,
-                new NoopCircuitBreaker("test")
+                NoopCircuitBreaker.INSTANCE
             );
             assertEquals(1, result.size());
             assertEquals(DataType.DATETIME, result.get(0).dataType());
@@ -803,7 +803,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
                 100,
                 ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS,
                 null,
-                new NoopCircuitBreaker("test")
+                NoopCircuitBreaker.INSTANCE
             );
 
             assertEquals(expected.length, result.size());

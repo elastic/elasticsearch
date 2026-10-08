@@ -34,6 +34,7 @@ import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.FrozenTransitionInfoProvider;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -58,6 +59,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
     private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
     private final FrozenTransitionInfoProvider frozenTransitionInfoProvider;
     private final LongSupplier nowSupplier;
+    private final boolean dlmOnly;
 
     @Inject
     public TransportExplainDataStreamLifecycleAction(
@@ -87,6 +89,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
         this.frozenTransitionInfoProvider = frozenTransitionInfoProvider;
         this.nowSupplier = threadPool::absoluteTimeInMillis;
+        this.dlmOnly = DataStreamLifecycle.isDataStreamsLifecycleOnlyMode(clusterService.getSettings());
     }
 
     @Override
@@ -113,16 +116,20 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             DataStream parentDataStream = indexAbstraction.getParentDataStream();
             if (parentDataStream == null
                 || parentDataStream.isIndexManagedByDataStreamLifecycle(idxMetadata.getIndex(), metadata::index, false) == false) {
-                explainIndices.add(new ExplainIndexDataStreamLifecycle(index, false, false, null, null, null, null, null));
+                explainIndices.add(
+                    ExplainIndexDataStreamLifecycle.unmanagedIndexResponse(
+                        index,
+                        describeNotManagedByDlmReason(parentDataStream, idxMetadata, dlmOnly)
+                    )
+                );
                 continue;
             }
 
             RolloverInfo rolloverInfo = idxMetadata.getRolloverInfos().get(parentDataStream.getName());
             TimeValue generationDate = parentDataStream.getGenerationLifecycleDate(idxMetadata);
             DataStreamLifecycle lifecycle = parentDataStream.getDataLifecycleForIndex(idxMetadata.getIndex());
-            ExplainIndexDataStreamLifecycle explainIndexDataStreamLifecycle = new ExplainIndexDataStreamLifecycle(
+            ExplainIndexDataStreamLifecycle explainIndexDataStreamLifecycle = ExplainIndexDataStreamLifecycle.managedIndexResponse(
                 index,
-                true,
                 parentDataStream.isInternal(),
                 idxMetadata.getCreationDate(),
                 rolloverInfo == null ? null : rolloverInfo.getTime(),
@@ -143,6 +150,47 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
                 dataStreamLifecycleSettings.getGlobalRetention(true)
             )
         );
+    }
+
+    private String describeNotManagedByDlmReason(DataStream parentDataStream, IndexMetadata indexMetadata, boolean dlmOnly) {
+        String indexName = indexMetadata.getIndex().getName();
+        if (indexMetadata.getIndexMode() == IndexMode.LOOKUP) {
+            return "Index [" + indexName + "] is a lookup index which is not compatible with lifecycle management.";
+        }
+        if (parentDataStream == null) {
+            return "Index [" + indexName + "] does not belong to a data stream, so it cannot be managed by data stream lifecycle.";
+        }
+        DataStreamLifecycle lifecycle = parentDataStream.getDataLifecycleForIndex(indexMetadata.getIndex());
+        if (lifecycle == null) {
+            return "Index ["
+                + indexName
+                + "] belongs to data stream ["
+                + parentDataStream.getName()
+                + "] which does not have data stream lifecycle configuration.";
+        }
+        if (lifecycle.enabled() == false) {
+            return "Index ["
+                + indexName
+                + "] belongs to data stream ["
+                + parentDataStream.getName()
+                + "] which has disabled data stream lifecycle.";
+        }
+        assert dlmOnly == false : "In DLM only mode, the only way an index is unmanaged is if the configuration is missing or is disabled.";
+        String ilmPolicy = indexMetadata.getLifecyclePolicyName();
+        if (DataStream.lifecycleManagedBy(
+            ilmPolicy,
+            lifecycle,
+            indexMetadata.getSettings(),
+            indexMetadata.getIndexMode()
+        ) == DataStream.LifecycleManagedBy.ILM) {
+            // At this point, we know that the lifecycle is not null and enabled, so it is safe to suggest flipping the prefer_ilm flag
+            return "Index ["
+                + indexName
+                + "] is managed by Index Lifecycle Management (ILM) policy ["
+                + ilmPolicy
+                + "], you can switch to data stream lifecycle by setting prefer_ilm to false.";
+        }
+        return null;
     }
 
     /**

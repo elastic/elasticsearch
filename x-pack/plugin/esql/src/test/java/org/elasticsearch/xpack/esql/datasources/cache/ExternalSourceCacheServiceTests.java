@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
@@ -232,6 +233,52 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * The default size itself, which nothing anchored. The slice assertions below restate the carve's own
+     * fractions, so they stay green whatever the default is - and the figure exists in exactly one place, the
+     * deprecated key's literal, because the new key resolves through it as a fallback. Give the new key its own
+     * default and the fallback chain silently stops governing.
+     * <p>
+     * The percentages, not this default, are what keep a slice from shrinking against the pre-split carve: a
+     * cluster that pins {@code esql.external.cache.size} never reads a default at all. This pins the default so
+     * the headroom the raise bought is deliberate rather than incidental, and so reverting it is a visible
+     * change rather than a silent one.
+     */
+    public void testCacheSizeDefaultIsHalfAPercentOfHeapAndResolvesThroughTheOldKey() {
+        ByteSizeValue expected = MemorySizeValue.parseBytesSizeValueOrHeapRatio("0.5%", ExternalSourceCacheSettings.CACHE_SIZE.getKey());
+        assertEquals(expected, ExternalSourceCacheSettings.CACHE_SIZE.get(Settings.EMPTY));
+        assertEquals(
+            "the new key has no literal default of its own - it resolves through the deprecated one",
+            expected,
+            ExternalSourceCacheSettings.CACHE_SIZE_OLD.get(Settings.EMPTY)
+        );
+
+        Settings pinned = Settings.builder().put(ExternalSourceCacheSettings.CACHE_SIZE.getKey(), "100mb").build();
+        assertEquals(ByteSizeValue.ofMb(100), ExternalSourceCacheSettings.CACHE_SIZE.get(pinned));
+    }
+
+    /**
+     * The schema slice against a PINNED size, which is the configuration the default cannot compensate. Its
+     * fraction is main's, so the ceiling {@code SchemaFanOutAdmission#tryAdmit} sizes a whole glob against is
+     * the same byte figure it was before the split, for an operator who set the size by hand.
+     */
+    public void testAPinnedCacheSizeKeepsTheSchemaSliceItHadBeforeTheSplit() throws Exception {
+        long pinned = ByteSizeValue.ofMb(100).getBytes();
+        Settings settings = Settings.builder()
+            .put("esql.external.cache.size", pinned + "b")
+            .put("esql.external.cache.enabled", true)
+            .build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            Map<String, Object> stats = service.usageStats();
+            assertEquals("the pinned total is honoured verbatim", pinned, ((Number) stats.get("max_total_bytes")).longValue());
+            assertEquals(
+                "a fifth, which is what the cache allocated before the statistics store existed",
+                pinned / 5,
+                ((Number) stats.get("schema_budget_bytes")).longValue()
+            );
+        }
+    }
+
     public void testListingTtlDefaultIsFiveMinutesAndNewKeyWins() {
         assertEquals(TimeValue.timeValueMinutes(5), ExternalSourceCacheSettings.LISTING_TTL.get(Settings.EMPTY));
         assertEquals(TimeValue.timeValueMinutes(5), ExternalSourceCacheSettings.LISTING_TTL_OLD.get(Settings.EMPTY));
@@ -248,7 +295,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * Startup log and slice budgets. The identity caches take a third of the budget between them (schema 16%, statistics 17%), now split by
+     * Startup log and slice budgets. Schema keeps main's fifth and statistics takes 15% carved from listing, split by
      * kind of fact: schema records and the measurements taken against them have separate slices, so a
      * divergent-heavy listing filling one cannot evict the other. The listing slice is what remains after those
      * and the dataset-aggregate slice.
@@ -262,15 +309,17 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 long schema = (long) stats.get("schema_budget_bytes");
                 long statistics = (long) stats.get("statistics_budget_bytes");
                 assertEquals(ByteSizeValue.ofMb(10).getBytes(), total);
-                // Each store keeps the absolute budget it had before the split and CACHE_SIZE grew by the new
-                // consumer, so the identity pair is deliberately MORE than the old fifth: the schema slice keeps
-                // the absolute bytes fan-out admission is sized against (SchemaFanOutAdmission#tryAdmit reads a
-                // COLD record, which carries no SCAN-DERIVED measurements), and statistics is funded on top of it.
-                assertEquals("the schema slice keeps its pre-split ABSOLUTE size", total * 4 / 25, schema);
-                assertEquals("statistics is funded on top, not carved out of schema", total * 17 / 100, statistics);
-                // Measurements get the larger share: for a text file with harvested extrema the _stats.* map
-                // outweighs the schema it was measured against, several stat keys per column against one name.
-                assertThat("measurements are the heavier half", statistics, greaterThan(schema));
+                // Schema keeps the FRACTION main gave it, not merely the bytes that fraction happened to yield at
+                // the default size - a cluster that pins esql.external.cache.size never sees the default, so a
+                // carve compensated by raising it would have cut that cluster's schema slice and, with it, the
+                // ceiling SchemaFanOutAdmission#tryAdmit sizes a whole glob against. Statistics comes from
+                // listing instead.
+                assertEquals("the schema slice keeps the FRACTION it had before the split", total / 5, schema);
+                assertEquals("statistics is carved from listing, not from schema", total * 3 / 20, statistics);
+                // A harvested _stats.* map outweighs the schema it was measured against, so per FILE the
+                // measurements are the heavier fact - but the slice is smaller, because schema's fraction is
+                // fixed by what main gave it and the new consumer is funded from listing.
+                assertThat("statistics is the smaller slice, funded from listing", schema, greaterThan(statistics));
             }
         },
             ExternalSourceCacheService.class,
@@ -3864,16 +3913,18 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * Separate budgets: schema records survive the weight of the measurements taken against them.
      * <p>
      * This is the warmth property the separation buys. Both kinds of fact used to share one slice, and a
-     * measurement is the heavier half — for a wide file the harvested {@code _stats.*} map outweighs the schema
+     * measurement is heavier per file — for a wide file the harvested {@code _stats.*} map outweighs the schema
      * it was measured against, several stat keys per column against one column name. So a dataset's own
      * measurements evicted the dataset's own schema records, and every evicted file re-inferred on the next
      * query. Now the measurements land in their own slice and cannot reach the schema one.
      * <p>
      * Each file is harvested once under its OWN read, which is where the duplication actually was: a foreign
      * read's harvest was already filed separately, so piling foreign reads on would not exercise this. The
-     * fixture is sized so the bare schema records fit their slice with room to spare while the same records
-     * carrying their measurements would overrun it several times over — asserted as a precondition, so a
-     * mis-sized fixture fails loudly instead of passing vacuously.
+     * fixture is sized so the bare schema records fit their slice with room to spare while the measurements
+     * overrun the statistics slice - both asserted as preconditions, so a mis-sized fixture fails loudly
+     * instead of passing vacuously. The pressure is asserted on the statistics store's own evictions rather
+     * than by comparing its weight against the schema budget: the statistics slice is the smaller of the two,
+     * so that comparison could never hold and would make the precondition unsatisfiable rather than strict.
      * <p>
      * Inject the defect by having the reconcile also write the admitted measurements onto the schema record:
      * the schema slice is overrun and the seeded records are evicted.
@@ -3907,11 +3958,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             }
 
             Map<String, Object> stats = service.usageStats();
-            long measuredWeight = ((Number) stats.get("statistics_cache.weight_bytes")).longValue();
+            long statisticsEvictions = ((Number) stats.get("statistics_cache.evictions")).longValue();
             assertThat(
-                "precondition: the measurements really are heavier than the schema slice, or this proves nothing",
-                measuredWeight,
-                greaterThan(schemaBudget)
+                "precondition: the measurements must overrun their OWN slice, or this proves nothing - a fixture that "
+                    + "fits leaves the stores untested rather than isolated",
+                statisticsEvictions,
+                greaterThan(0L)
             );
             assertEquals(
                 "the schema records must all survive the weight of their own measurements",

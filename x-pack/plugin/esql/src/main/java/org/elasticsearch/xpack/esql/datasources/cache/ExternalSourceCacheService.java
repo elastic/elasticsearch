@@ -48,19 +48,20 @@ import java.util.function.LongFunction;
 /**
  * Coordinator-only, in-memory cache service for external source metadata. Maintains five independent caches, one per kind of fact:
  * <ul>
- *   <li>Per-file schema cache (~16% of budget) — keyed by {@code (dataset identity, path, mtime,
+ *   <li>Per-file schema cache (~20% of budget) — keyed by {@code (dataset identity, path, mtime,
  *       declaredStrict)}. One kind of record: what the file contains. No measurement, and one entry per file.
  *       No time expiry: a changed file has a new mtime, hence a new key.</li>
- *   <li>Statistics cache (~17% of budget) — what ONE read measured about one file, keyed by the file's own
+ *   <li>Statistics cache (~15% of budget) — what ONE read measured about one file, keyed by the file's own
  *       address plus the read that measured it, so one entry per file per read configuration. Its own slice,
- *       so the measurements cannot evict the schema records they were measured against. The larger of the two
- *       because a harvested {@code _stats.*} map outweighs the schema it was measured against.</li>
+ *       so the measurements cannot evict the schema records they were measured against. Heavier than a schema
+ *       record per FILE - a harvested {@code _stats.*} map outweighs the schema it was measured against - but
+ *       the smaller SLICE, because schema keeps the fraction it had and this consumer is funded from listing.</li>
  *   <li>Dataset-aggregate cache (~2% of budget) — the memoized whole-dataset row count, keyed by the
  *       file-set fingerprint. No time expiry; kept separate so per-file churn cannot evict it.</li>
  *   <li>File-metadata cache (count-bounded, listing TTL, five minutes by default) — {@code {length, mtime}}
  *       per path, so a repeated resolve skips the stat. Like listing it is freshness-discovery (it holds the
  *       CURRENT mtime, which gates the identity-keyed caches above), so it keeps that TTL.</li>
- *   <li>Listing cache (~65% of budget, five minutes by default) — the file set under a prefix, isolated by
+ *   <li>Listing cache (~63% of budget, five minutes by default) — the file set under a prefix, isolated by
  *       credential hash. Discovers file identity and has no per-file key to invalidate on, hence the TTL.</li>
  * </ul>
  * The identity-keyed caches (schema, dataset-aggregate) are bounded by weight + LRU, never by a clock — a
@@ -186,19 +187,25 @@ public class ExternalSourceCacheService implements Closeable {
         TimeValue listingTtl = ExternalSourceCacheSettings.LISTING_TTL.get(settings);
 
         // The statistics store is a NEW consumer, not a share of an existing one. Before the split those
-        // bytes sat inside the schema record and were charged to the schema slice — but a COLD record never
-        // carried SCAN-DERIVED ones (a columnar file's footer statistics do ride its schema record), and the fan-out admission gate
-        // (SchemaFanOutAdmission#tryAdmit) sizes a glob against
-        // the schema budget using exactly that cold record. So funding statistics out of the schema slice
-        // halves how many files a dataset may have before NOTHING is cached for it, and the "entries are
-        // smaller now" argument buys nothing at admission time. Each store therefore keeps the absolute
-        // budget it had, and CACHE_SIZE grew by the new consumer instead: at every heap size the schema,
-        // statistics, dataset-aggregate and listing slices are all at least as large as before the split,
-        // equal to within integer truncation (two totals floor independently, so schema can land one byte under).
-        long schemaBudget = maxTotalBytes * 4 / 25;          // 16%: the same ABSOLUTE slice as before the split
-        long statisticsBudget = maxTotalBytes * 17 / 100;    // 17%: the heavier half, as the measurements are
+        // bytes sat inside the schema record and were charged to the schema slice - but a COLD record never
+        // carried SCAN-DERIVED ones (a columnar file's footer statistics do ride its schema record), and the
+        // fan-out admission gate (SchemaFanOutAdmission#tryAdmit) sizes a whole glob against the schema budget
+        // using exactly that cold record. So funding statistics out of the schema slice shrinks how many files
+        // a dataset may have before NOTHING is cached for it, and the "entries are smaller now" argument buys
+        // nothing at admission time.
+        //
+        // Schema and dataset-aggregate therefore keep the FRACTIONS they had before the split, not merely the
+        // absolute bytes they happened to get at the default size. The difference matters: a cluster that pins
+        // esql.external.cache.size in elasticsearch.yml never sees the default, so a carve that compensated by
+        // raising the default would have silently cut that cluster's schema slice and its admission ceiling.
+        // Statistics is funded from listing instead, which is the slice that can afford it - it expires on
+        // LISTING_TTL and so is not long-lived capacity, where schema and statistics are identity-keyed and are
+        // the warm path itself. At the default the raised CACHE_SIZE more than covers the smaller listing share:
+        // every slice, listing included, is at least as large as it was before the split at every heap size.
+        long schemaBudget = maxTotalBytes / 5;               // 20%: the fraction main used, so a pinned size is unchanged
+        long statisticsBudget = maxTotalBytes * 3 / 20;      // 15%: new, carved from listing rather than from schema
         long datasetAggregateBudget = maxTotalBytes / 50;    // 2%: one row count per dataset, its own slice
-        long listingBudget = maxTotalBytes - schemaBudget - statisticsBudget - datasetAggregateBudget; // 65%
+        long listingBudget = maxTotalBytes - schemaBudget - statisticsBudget - datasetAggregateBudget; // 63%
         // Each store refuses a single entry heavier than its own per-entry ceiling, so one oversized harvest
         // cannot admit-then-flush that store's working set. See WeightedStore#perEntryCeiling.
 
@@ -353,7 +360,7 @@ public class ExternalSourceCacheService implements Closeable {
         putSchemaIfWithinCeiling(key, entry);
     }
 
-    /** Byte budget of the per-file schema cache (four twenty-fifths of the external cache). */
+    /** Byte budget of the per-file schema cache (one fifth of the external cache, as before the split). */
     public long schemaBudget() {
         return schemaStore.budgetBytes();
     }
@@ -1877,8 +1884,12 @@ public class ExternalSourceCacheService implements Closeable {
         schemaStore.reportInto(stats);
         statisticsStore.reportInto(stats);
 
+        // No weight_bytes for this one. It is the only cache here with no weigher, so Cache#weight accumulates
+        // the default one-per-entry and returns exactly what count() already reports - publishing that under a
+        // bytes name would read as 100,000 bytes where the real figure is the key strings, which nothing bounds
+        // (see the cap on FILE_METADATA_CACHE_MAX_ENTRIES). Reporting an entry count as bytes is worse than
+        // reporting nothing, because it answers the question an operator actually asked, wrongly.
         stats.put("file_metadata_cache.count", fileMetadataCache.count());
-        stats.put("file_metadata_cache.weight_bytes", fileMetadataCache.weight());
         stats.put("file_metadata_cache.hits", fileMetadataCache.stats().getHits());
         stats.put("file_metadata_cache.misses", fileMetadataCache.stats().getMisses());
         stats.put("file_metadata_cache.evictions", fileMetadataCache.stats().getEvictions());

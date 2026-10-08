@@ -3075,7 +3075,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * The budget threshold itself, derived rather than hardcoded. Whether the stop fires at all is
-     * {@code fileCount * entry.estimatedBytes() > schemaBudget}, and {@code schemaBudget} is 4/25 of
+     * {@code fileCount * entry.estimatedBytes() > schemaBudget}, and {@code schemaBudget} is a fifth of
      * {@code esql.external.cache.size} — so the firing condition is arithmetic on a number no API exposes.
      * This computes the real entry size for the fixture's schema, then runs the identical resolve either side
      * of the resulting boundary: below it admission refuses and the gather stops; above it admission admits
@@ -3091,12 +3091,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         long entryBytes = SchemaCacheEntry.from(new SimpleSourceMetadata(schema, "ndjson", "s3://bucket/nd/a.ndjson")).estimatedBytes();
         assertThat("a real entry must cost something, or the threshold below is meaningless", entryBytes, greaterThan(0L));
 
-        // The schema slice is 4/25 of esql.external.cache.size (see ExternalSourceCacheService), so inverting
-        // that carve - total = target * 25/4 - lands the slice one byte under fileCount * entryBytes. Inverted
-        // rather than hardcoded so a reshare of the carve moves this boundary with it instead of silently
-        // leaving the refusing side far below it, where the test would still pass without pinning anything.
-        long refusingCacheBytes = Math.max(1024L, (3 * entryBytes - 1) * 25 / 4);
-        long admittingCacheBytes = (3 * entryBytes) * 25 / 4 * 64;
+        // The schema slice is a fifth of esql.external.cache.size (see ExternalSourceCacheService), so a total
+        // of (3e - 1) * 5 lands the slice one byte under fileCount * entryBytes. Inverted from the carve rather
+        // than hardcoded, so a reshare moves this boundary with it instead of silently leaving the refusing
+        // side below it, where the test would still pass without pinning anything.
+        long refusingCacheBytes = Math.max(1024L, (3 * entryBytes - 1) * 5);
+        long admittingCacheBytes = (3 * entryBytes) * 5 * 64;
 
         assertEquals(
             "below the boundary admission refuses, so nothing is retained and the gather stops",
@@ -6090,12 +6090,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
     public void testOversizedMultiFileListingDoesNotFillSchemaCache() throws Exception {
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
         long entryBytes = SchemaCacheEntry.from(new SimpleSourceMetadata(schema, "parquet", "s3://bucket/data/a.parquet")).estimatedBytes();
-        // A total whose SCHEMA slice holds about two of these entries. The schema store takes 4/25 of the total,
-        // so 13 entry-widths of total give a 2.08-entry schema slice - 13 is the smallest integer that does:
-        // 12 gives 1.92 and fails the premise asserted below. That premise is asserted rather than trusted, so
-        // a reshare of the slices fails here with a figure instead of as an eviction.
+        // A total whose SCHEMA slice holds exactly two of these entries. The schema store takes a fifth of the
+        // total, so 10 entry-widths give a 2-entry schema slice. The premise is asserted below rather than
+        // trusted, so a reshare of the slices fails here with a figure instead of as an eviction.
         Settings settings = Settings.builder()
-            .put("esql.external.cache.size", (entryBytes * 13) + "b")
+            .put("esql.external.cache.size", (entryBytes * 10) + "b")
             .put("esql.external.cache.enabled", true)
             .put("esql.external.cache.listing.ttl", "30s")
             .build();

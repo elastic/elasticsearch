@@ -18,6 +18,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -1389,7 +1390,7 @@ public class QuerySettingsTests extends ESTestCase {
      * settings are resolved, so that every phase of the query sees {@code LOAD}.
      */
     public void testLoadAllResolvesToLoadWhenTheLoadAllFieldLimitIsZero() {
-        assumeTrue("LOAD_ALL is snapshot-only", Build.current().isSnapshot());
+        assumeTrue("requires the LOAD_ALL field limit", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled());
 
         ResolvedSettings resolved = resolveWithLoadAllFieldLimit(clusterSetting(QuerySettings.UNMAPPED_FIELDS, "LOAD_ALL"), 0);
 
@@ -1397,7 +1398,7 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     public void testLoadAllStaysLoadAllWhenTheLoadAllFieldLimitIsPositive() {
-        assumeTrue("LOAD_ALL is snapshot-only", Build.current().isSnapshot());
+        assumeTrue("requires the LOAD_ALL field limit", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled());
 
         ResolvedSettings resolved = resolveWithLoadAllFieldLimit(
             clusterSetting(QuerySettings.UNMAPPED_FIELDS, "LOAD_ALL"),
@@ -1408,7 +1409,7 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     public void testOtherUnmappedFieldsResolutionsAreLeftAloneByAZeroLoadAllFieldLimit() {
-        assumeTrue("LOAD is snapshot-only", Build.current().isSnapshot());
+        assumeTrue("requires the LOAD_ALL field limit", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled());
         for (UnmappedResolution resolution : new UnmappedResolution[] {
             UnmappedResolution.DEFAULT,
             UnmappedResolution.NULLIFY,

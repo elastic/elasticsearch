@@ -10,6 +10,7 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
@@ -18,7 +19,7 @@ import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
  * Stores the automaton so it can be surfaced to {@link QueryVisitor#consumeTermsMatching} for
  * highlighter support, and provides a shared {@link #matchCost()} estimate and {@link #visit} implementation.
  */
-abstract class AbstractBinaryDocValuesAutomatonQuery extends AbstractBinaryDocValuesQuery {
+abstract class AbstractBinaryDocValuesAutomatonQuery extends AbstractBinaryDocValuesQuery implements Accountable {
 
     final ByteRunAutomaton automaton;
 
@@ -32,6 +33,11 @@ abstract class AbstractBinaryDocValuesAutomatonQuery extends AbstractBinaryDocVa
         if (visitor.acceptField(fieldName)) {
             visitor.consumeTermsMatching(this, fieldName, () -> automaton);
         }
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return automaton.ramBytesUsed();
     }
 
     @Override

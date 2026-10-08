@@ -36,6 +36,10 @@ class NativeArtifactRepository {
     private static final int CONNECT_TIMEOUT_MILLIS = 30_000;
     private static final int READ_TIMEOUT_MILLIS = 60_000;
 
+    /** Runbook covering problems publishing the native libraries. */
+    private static final String PUBLISHING_RUNBOOK =
+        "https://codex.elastic.dev/r/elasticsearch-team/development/artifactory-credentials-for-ci-jobs";
+
     private final String baseUrl;
 
     NativeArtifactRepository(String baseUrl) {
@@ -55,7 +59,7 @@ class NativeArtifactRepository {
                 return Optional.empty();
             }
             if (status != HttpURLConnection.HTTP_OK) {
-                throw new GradleException("Unexpected status " + status + " fetching " + url);
+                throw new GradleException("Unexpected status " + status + " fetching " + url + ". See " + PUBLISHING_RUNBOOK);
             }
             try (InputStream in = connection.getInputStream()) {
                 return Optional.of(in.readAllBytes());
@@ -105,12 +109,12 @@ class NativeArtifactRepository {
 
     private void requirePublishedCorrect(String artifactName, String hash, Consumer<byte[]> checkCorrectness, String failure) {
         byte[] published = download(artifactName, hash).orElseThrow(
-            () -> new GradleException(failure + ", but nothing is published for this hash")
+            () -> new GradleException(failure + ", but nothing is published for this hash. See " + PUBLISHING_RUNBOOK)
         );
         try {
             checkCorrectness.accept(published);
         } catch (RuntimeException e) {
-            throw new GradleException(failure + ", but the artifact published for this hash is not usable", e);
+            throw new GradleException(failure + ", but the artifact published for this hash is not usable. See " + PUBLISHING_RUNBOOK, e);
         }
     }
 

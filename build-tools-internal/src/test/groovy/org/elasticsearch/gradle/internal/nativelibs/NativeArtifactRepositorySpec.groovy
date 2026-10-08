@@ -26,6 +26,7 @@ class NativeArtifactRepositorySpec extends Specification {
     static final String HASH = "abc123"
     static final byte[] CONTENT = "zip-bytes".getBytes("UTF-8")
     static final byte[] DEBUG_INFO = "debuginfo-zip-bytes".getBytes("UTF-8")
+    static final String RUNBOOK = "https://codex.elastic.dev/r/elasticsearch-team/development/artifactory-credentials-for-ci-jobs"
 
     HttpServer server
 
@@ -65,6 +66,7 @@ class NativeArtifactRepositorySpec extends Specification {
         then:
         def e = thrown(Exception)
         e.message.contains("500") || e.cause?.message?.contains("500")
+        e.message.contains(RUNBOOK)
     }
 
     def "publish with correct credentials correctly uploads the content"() {
@@ -105,7 +107,8 @@ class NativeArtifactRepositorySpec extends Specification {
         repository.publish(NAME, HASH, CONTENT, "secret-key", { throw new GradleException("truncated") })
 
         then:
-        thrown(GradleException)
+        def e = thrown(GradleException)
+        e.message.contains(RUNBOOK)
     }
 
     def "publish accepts an upload replaced by another build's usable artifact"() {
@@ -141,7 +144,8 @@ class NativeArtifactRepositorySpec extends Specification {
         repository.publish(NAME, HASH, CONTENT, "secret-key", {})
 
         then:
-        thrown(GradleException)
+        def e = thrown(GradleException)
+        e.message.contains(RUNBOOK)
     }
 
     def "publish accepts a refused upload when another build already published a usable artifact"() {
@@ -179,6 +183,7 @@ class NativeArtifactRepositorySpec extends Specification {
         then:
         def e = thrown(GradleException)
         e.message.contains("403")
+        e.message.contains(RUNBOOK)
     }
 
     def "publish fails when the upload is rejected and nothing is published"() {
@@ -198,6 +203,7 @@ class NativeArtifactRepositorySpec extends Specification {
         then:
         def e = thrown(GradleException)
         e.message.contains("403")
+        e.message.contains(RUNBOOK)
     }
 
     def "publishDebugInfo with correct credentials correctly uploads the debuginfo"() {

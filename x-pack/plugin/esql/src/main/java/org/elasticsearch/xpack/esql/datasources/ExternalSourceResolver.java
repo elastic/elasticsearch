@@ -608,9 +608,23 @@ public class ExternalSourceResolver {
         metrics.recordDiscovery(durationMs, list.fileCount(), list.estimatedBytes(), scheme, schemaResolution, list.isTruncated());
     }
 
-    /** Records one failed discovery/resolution attempt. Best-effort ({@link ExternalSourceMetrics#recordDiscoveryFailure} self-guards). */
-    private void recordDiscoveryFailure() {
-        metrics.recordDiscoveryFailure();
+    /**
+     * Records one failed discovery/resolution attempt, classified from the exception the caller will see (so the
+     * recorded status is the one the client gets) and attributed to the storage scheme of {@code path}.
+     * Best-effort ({@link ExternalSourceMetrics#recordDiscoveryFailure} self-guards).
+     */
+    private void recordDiscoveryFailure(String path, Throwable mapped) {
+        QueryFailureTelemetry.Failure failure = QueryFailureTelemetry.classify(mapped);
+        metrics.recordDiscoveryFailure(schemeOf(path), failure.errorType(), failure.status());
+    }
+
+    /**
+     * The scheme of {@code path} ({@code s3} of {@code s3://bucket/key}), or {@code null} when it has none. Deliberately
+     * not {@link StoragePath#of}: this runs on a failure path where {@code path} may be what failed to parse.
+     */
+    private static String schemeOf(String path) {
+        int end = path == null ? -1 : path.indexOf("://");
+        return end > 0 ? path.substring(0, end) : null;
     }
 
     /** Returns {@code true} when the originating query has been cancelled. Safe to call when no supplier is wired. */
@@ -946,9 +960,21 @@ public class ExternalSourceResolver {
      * masked as a non-retryable client error and the client's retry path would never engage. An interrupt during permit
      * acquisition arrives the same way as an {@link EsRejectedExecutionException} (429) and is recovered identically so a
      * node-level rejection is not masked as a 400.
+     * <p>
+     * As a side effect, a failure that is not a cancellation is recorded as a discovery failure in the external-source
+     * telemetry, once per failed discovery, classified from the exception returned here.
      */
     // Package-private so the client-status recovery gate below can be tested directly.
     RuntimeException mapResolveFailure(String path, Exception e) {
+        RuntimeException mapped = doMapResolveFailure(path, e);
+        // A cancellation is the query's outcome, not a discovery failure, and is not counted.
+        if (ExceptionsHelper.unwrap(mapped, TaskCancelledException.class) == null) {
+            recordDiscoveryFailure(path, mapped);
+        }
+        return mapped;
+    }
+
+    private RuntimeException doMapResolveFailure(String path, Exception e) {
         if (e instanceof TaskCancelledException tce) {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
             return ExternalFailures.detach(tce);
@@ -964,7 +990,6 @@ public class ExternalSourceResolver {
             ExternalUnavailableException.class
         );
         if (unavailable != null) {
-            recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
             return unavailable.withoutCause();
         }
@@ -975,7 +1000,6 @@ public class ExternalSourceResolver {
             ExternalCredentialsExpiredException.class
         );
         if (expired != null) {
-            recordDiscoveryFailure();
             logClientResolveFailure(path, expired.getMessage(), e);
             return expired.withoutCause();
         }
@@ -987,14 +1011,12 @@ public class ExternalSourceResolver {
             EsRejectedExecutionException.class
         );
         if (rejected != null) {
-            recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
             return ExternalFailures.detach(rejected);
         }
         // A breaker trip carries its own 429 and must survive a wrapper for the same reason.
         CircuitBreakingException breaking = (CircuitBreakingException) ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
         if (breaking != null) {
-            recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, breaking.getMessage(), e);
             return ExternalFailures.detach(breaking);
         }
@@ -1010,13 +1032,11 @@ public class ExternalSourceResolver {
         // an IllegalArgumentException, which would otherwise shadow the typed condition.
         ExternalClientException clientException = (ExternalClientException) ExceptionsHelper.unwrap(e, ExternalClientException.class);
         if (clientException != null) {
-            recordDiscoveryFailure();
             logClientResolveFailure(path, clientException.getMessage(), e);
             return clientException.withoutCause();
         }
         IllegalArgumentException clientError = (IllegalArgumentException) ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
         if (clientError != null) {
-            recordDiscoveryFailure();
             logClientResolveFailure(path, clientError.getMessage(), e);
             String forwardable = ExternalFailures.forwardableDetail(clientError);
             // With no cause, rootCause is clientError itself, so a non-null forwardable is its message.
@@ -1044,7 +1064,6 @@ public class ExternalSourceResolver {
         // is non-retryable and is the caller's fault.
         IOException ioError = (IOException) ExceptionsHelper.unwrap(e, IOException.class);
         if (ioError != null) {
-            recordDiscoveryFailure();
             // rootDetail reads through the cache's ExecutionException, whose own message is the cause's toString().
             String ioDetail = ExternalFailures.rootDetail(ioError);
             logClientResolveFailure(path, ioDetail, e);
@@ -1062,7 +1081,6 @@ public class ExternalSourceResolver {
             }
             return ioEx;
         }
-        recordDiscoveryFailure();
         // rootDetail: the file-metadata rail raises a plain IOException that arrives inside the
         // cache's ExecutionException whose message is the cause's toString(). Reading the top message there would
         // print "java.io.IOException: Object not found: ..." at the user.
@@ -1323,6 +1341,7 @@ public class ExternalSourceResolver {
             fileConfig,
             schemaResolution,
             cacheable,
+            declaredMapping,
             demand,
             ActionListener.wrap(listing -> {
                 // Listing is done; release the lease before the (potentially async) anchor footer read.
@@ -1811,6 +1830,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         FormatReader.SchemaResolution schemaResolution,
         boolean cacheable,
+        @Nullable DatasetMapping declaredMapping,
         ResolutionDemand demand,
         ActionListener<FileList> listener
     ) {
@@ -1827,7 +1847,7 @@ public class ExternalSourceResolver {
             assert listing.isTruncated() == false || extents.boundsFileSet()
                 : "a listing was truncated without a file-set extent being asked for";
             pendingListingWarnings.addAll(listing.listingWarnings());
-            emitPartitionSpecNotices(listing, hints, config);
+            emitPartitionSpecNotices(listing, hints, config, declaredMapping);
             recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), schemaResolution);
             listener.onResponse(listing);
         }, listener::onFailure);
@@ -1892,14 +1912,15 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Unmatched-bind and wrong-unit notices. Recomputed on every resolve (cold and
+     * Unmatched-bind, wrong-unit, and identity-on-date notices. Recomputed on every resolve (cold and
      * cached) so they do not depend on listing-cache identity. Uses the resolver
      * sink, not {@code HeaderWarning}, because this runs on the metadata executor.
      */
     private void emitPartitionSpecNotices(
         FileList listing,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        Map<String, Object> config
+        Map<String, Object> config,
+        @Nullable DatasetMapping declaredMapping
     ) {
         String unusable = PartitionSpec.unusableNotice(config);
         if (unusable != null) {
@@ -1911,10 +1932,40 @@ public class ExternalSourceResolver {
             return;
         }
         PartitionMetadata meta = listing.partitionMetadata();
-        // null metadata: listing never produced keys (do not warn). Empty key set:
-        // detection ran and found nothing — every bind is unmatched.
-        Set<String> detected = meta == null ? null : meta.partitionColumns().keySet();
-        spec.emitListingNotices(detected, hints, pendingListingWarnings::add);
+        // Hive EMPTY and FileList.EMPTY both store null metadata. That is "no files", not mixed
+        // layout. Unmatched-key and mixed notices fire only when files were listed.
+        boolean mixed = listing.fileCount() > 0 && meta == null;
+        Set<String> detected = mixed ? Set.of() : meta == null ? null : meta.partitionColumns().keySet();
+        spec.emitListingNotices(
+            detected,
+            hints,
+            declaredColumnTypes(declaredMapping),
+            PartitionSpec.pathToLogical(declaredMapping),
+            pendingListingWarnings::add
+        );
+        if (mixed) {
+            pendingListingWarnings.add(
+                "["
+                    + PartitionSpec.CONFIG_PARTITION_SPEC
+                    + "] listing did not detect partition keys; the layout is mixed and binds are ignored"
+            );
+        }
+    }
+
+    @Nullable
+    private static Map<String, DataType> declaredColumnTypes(@Nullable DatasetMapping mapping) {
+        if (mapping == null) {
+            return null;
+        }
+        List<Attribute> attrs = DeclaredSchemaResolver.declaredAttributes(mapping);
+        if (attrs.isEmpty()) {
+            return null;
+        }
+        Map<String, DataType> types = new LinkedHashMap<>(attrs.size());
+        for (Attribute attr : attrs) {
+            types.put(attr.name(), attr.dataType());
+        }
+        return types;
     }
 
     /**
@@ -4479,16 +4530,16 @@ public class ExternalSourceResolver {
      * number the shared entry serves — and the file+config-shared entry is exact for the one statistic it serves.
      * <p>
      * The direction that IS open runs the other way, and is a pre-existing property of the {@code FAIL_FAST}
-     * licence rather than anything this identity introduces. A read bound POSITIONALLY — a pinned-inferred read —
-     * carries a row-width tripwire set by the PINNED schema's width, so a file whose later rows are wider than that
-     * aborts on {@code COUNT(*)} when read that way. A declared read of the same file+config can still complete where
-     * the positional one aborts, commit the physical count, and stamp it read-configuration-independent; the entry
-     * matches on path, mtime and config fingerprint, so the licence carries that count back to the positional reader,
-     * which then answers where its own scan errors. A masked abort, not a wrong number, and it flaps with cache
-     * state. The gap is narrower than it was: a headered declared read now aborts on any row wider than that file's
-     * own header, so the two diverge only where the pinned width differs from the file's header (a glob whose later
-     * files are wider than the first), or for a HEADERLESS declared read, which carries no width bound at all. Withdrawing the licence
-     * would close it and stop every strict dataset warming; scoping it to the binding mode that produced the count
+     * licence rather than anything this identity introduces. It exists only for HEADERLESS files. A headered file binds
+     * by its own header whatever the schema's provenance, and bounds rows by that header's width, so a declared and an
+     * inferred read of it abort on the same rows. A headerless file binds differently by provenance: an inferred read is
+     * bound positionally and carries a row-width tripwire set by the PINNED schema's width, so a file whose later rows
+     * are wider than that aborts on {@code COUNT(*)} when read that way, while a declared read of the same file+config
+     * carries no width bound at all and completes, commits the physical count, and stamps it
+     * read-configuration-independent; the entry matches on path, mtime and config fingerprint, so the licence carries
+     * that count back to the positional reader, which then answers where its own scan errors. A masked abort, not a
+     * wrong number, and it flaps with cache state. Withdrawing the licence would close it and stop every strict dataset
+     * warming; scoping it to the binding mode that produced the count
      * would close it without that cost, and is the shape of the fix if this is ever worth closing.
      * File-typed (columnar) formats are excluded: they already warm via split-discovery per-split stats, and the strict
      * columnar coercibility check seeds a physical-schema entry under the inferred key. The non-cacheable branch (e.g.
@@ -4713,7 +4764,7 @@ public class ExternalSourceResolver {
     ) {
         try {
             pendingListingWarnings.addAll(listing.listingWarnings());
-            emitPartitionSpecNotices(listing, hints, config);
+            emitPartitionSpecNotices(listing, hints, config, declaredMapping);
             recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), effectiveSchemaResolution(config));
             chargeListingPlanning(listing);
             if (listing.fileCount() == 0) {
@@ -5154,7 +5205,7 @@ public class ExternalSourceResolver {
             for (Attribute a : unified.absent()) {
                 DatasetFieldMapping field = declaredMapping.mappings().properties().get(a.name());
                 String physical = field != null && field.path() != null ? field.path() : a.name();
-                pendingSchemaWarnings.add(SkipWarnings.absentDeclaredColumnMessage(physical));
+                pendingSchemaWarnings.add(SkipWarnings.absentColumnMessage(physical));
             }
         }
         DeclaredReadSpec declaredReadSpec = declaredReadSpecOf(declaredMapping);

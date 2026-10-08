@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
@@ -155,6 +156,7 @@ public class Verifier {
         checkTStepIncompatibleWithTRange(plan, failures);
         checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
         checkHighlightSupported(plan, failures, context.minimumVersion());
+        checkHighlightAnalyzersAgree(plan, failures, context.minimumVersion());
         checkDenseVectorSupported(plan, failures, context.minimumVersion());
 
         // collect plan checkers
@@ -238,6 +240,16 @@ public class Verifier {
                 );
             }
         });
+    }
+
+    /**
+     * An older node cannot route rows by index, so until every node can, analyzer mismatches that routing would resolve
+     * keep the {@code standard} fallback and its warning.
+     */
+    private static void checkHighlightAnalyzersAgree(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
+        if (minimumVersion.supports(TextEsField.TEXT_FIELD_ANALYZER)) {
+            plan.forEachDown(Highlight.class, highlight -> highlight.verifyAnalyzersAgree(failures));
+        }
     }
 
     /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */

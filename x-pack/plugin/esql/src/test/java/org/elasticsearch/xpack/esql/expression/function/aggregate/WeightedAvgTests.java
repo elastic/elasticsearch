@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.Supplier;
@@ -62,6 +64,24 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
                 suppliers.add(makeSupplier(number, weight));
             }
         }
+
+        // More overflowing rows than Warnings records: the -Infinity of the last row is never reported
+        var overflowingNumbers = new ArrayList<Object>(Collections.nCopies(Warnings.MAX_ADDED_WARNINGS, Double.MAX_VALUE));
+        overflowingNumbers.add(-Double.MAX_VALUE);
+        var overflowingWeights = Collections.<Object>nCopies(overflowingNumbers.size(), 2d);
+        suppliers.add(
+            makeSupplier(
+                new TestCaseSupplier.TypedDataSupplier(
+                    "<Infinity products, then -Infinity>",
+                    () -> overflowingNumbers,
+                    DataType.DOUBLE,
+                    false,
+                    true,
+                    List.of()
+                ),
+                new TestCaseSupplier.TypedDataSupplier("<2 doubles>", () -> overflowingWeights, DataType.DOUBLE, false, true, List.of())
+            )
+        );
 
         suppliers.addAll(
             List.of(
@@ -149,16 +169,18 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
                 // Calculate the results one by one to correctly track overflows and exceptions
                 var validMulResults = new ArrayList<Double>();
                 var validMulLongResults = new ArrayList<Long>();
+                int mulFailures = 0;
                 for (int i = 0; i < fieldValues.size(); i++) {
                     Number fieldNum = (Number) fieldValues.get(i);
                     Number weightNum = (Number) weightValues.get(i);
 
+                    String mulFailure = null;
                     if (mulType == DataType.INTEGER) {
                         try {
                             int result = Math.multiplyExact(fieldNum.intValue(), weightNum.intValue());
                             validMulResults.add((double) result);
                         } catch (ArithmeticException e) {
-                            warnings.add("Line 1:1: java.lang.ArithmeticException: integer overflow");
+                            mulFailure = "Line 1:1: java.lang.ArithmeticException: integer overflow";
                         }
                     } else if (mulType == DataType.LONG) {
                         try {
@@ -166,15 +188,19 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
                             validMulResults.add((double) result);
                             validMulLongResults.add(result);
                         } catch (ArithmeticException e) {
-                            warnings.add("Line 1:1: java.lang.ArithmeticException: long overflow");
+                            mulFailure = "Line 1:1: java.lang.ArithmeticException: long overflow";
                         }
                     } else {
                         double result = fieldNum.doubleValue() * weightNum.doubleValue();
                         if (Double.isFinite(result)) {
                             validMulResults.add(result);
                         } else {
-                            warnings.add("Line 1:1: java.lang.ArithmeticException: not a finite double number: " + result);
+                            mulFailure = "Line 1:1: java.lang.ArithmeticException: not a finite double number: " + result;
                         }
+                    }
+                    // The multiplication evaluator only records its first MAX_ADDED_WARNINGS failures, in row order
+                    if (mulFailure != null && mulFailures++ < Warnings.MAX_ADDED_WARNINGS) {
+                        warnings.add(mulFailure);
                     }
                 }
 

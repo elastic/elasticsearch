@@ -13,10 +13,14 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
@@ -140,6 +144,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent.Params;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
@@ -205,6 +210,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(
             FailOnRewriteQueryPlugin.class,
+            ParkedScrollQueryPlugin.class,
             CustomScriptPlugin.class,
             ReaderWrapperCountPlugin.class,
             InternalOrPrivateSettingsPlugin.class,
@@ -328,6 +334,64 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertAcked(indicesAdmin().prepareDelete("index"));
         awaitIndexShardCloseAsyncTasks();
         assertEquals(0, service.getActiveContexts());
+    }
+
+    /**
+     * A scroll continuation builds its {@link SearchContext} inside {@code executeFetchPhase} and closes it only when
+     * that runnable returns. {@link SearchService#afterIndexRemoved} frees the reader context and leaves the in-flight
+     * phase context open. This parks the scroll fetch after the context exists and requires index removal to finish
+     * the scroll, which happens once that task is cancelled.
+     */
+    public void testScrollFetchContextClosedWhenIndexRemoved() throws Exception {
+        ParkedScrollQueryBuilder.reset();
+        createIndex("index");
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchResponse opened = client().prepareSearch("index")
+            .setSize(1)
+            .setScroll(TimeValue.timeValueMinutes(2))
+            .setTimeout(TimeValue.timeValueMinutes(2))
+            .setQuery(new ParkedScrollQueryBuilder())
+            .get();
+        PlainActionFuture<SearchResponse> scrollFuture = new PlainActionFuture<>();
+        Thread remover = null;
+        try {
+            ParkedScrollQueryBuilder.arm.set(true);
+            client().prepareSearchScroll(opened.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute(scrollFuture);
+            assertTrue("scroll fetch did not reach the open SearchContext", ParkedScrollQueryBuilder.parked.await(10, TimeUnit.SECONDS));
+
+            SearchService service = getInstanceFromNode(SearchService.class);
+            IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+            IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+            remover = new Thread(
+                () -> service.afterIndexRemoved(indexService.index(), indexService.getIndexSettings(), DELETED),
+                "index-removal"
+            );
+            remover.start();
+            // Shorter than the search timeout, so a timeout cannot count as index removal cancelling the fetch.
+            assertBusy(
+                () -> assertTrue(
+                    "in-flight scroll SearchContext was not cancelled by index removal",
+                    ParkedScrollQueryBuilder.cancelled.get()
+                ),
+                2,
+                TimeUnit.SECONDS
+            );
+        } finally {
+            ParkedScrollQueryBuilder.release.set(true);
+            if (remover != null) {
+                remover.join(10_000);
+            }
+            opened.decRef();
+            try {
+                // Wait until the parked fetch observes release and closes its SearchContext, before reset() clears the flag.
+                // The transport may already have released the response.
+                scrollFuture.actionGet(10, TimeUnit.SECONDS).decRef();
+            } catch (Exception | AssertionError e) {
+                // A cancelled scroll has no response. A delivered response may already be closed by the transport.
+            }
+            ParkedScrollQueryBuilder.reset();
+        }
     }
 
     public void testCloseSearchContextOnRewriteException() {
@@ -1748,6 +1812,116 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 throw new IllegalStateException("Fail on rewrite phase");
             }
             return this;
+        }
+    }
+
+    /**
+     * Query that runs normally until {@link ParkedScrollQueryBuilder#arm} is set, then parks inside weight creation
+     * until the search task is cancelled or {@link ParkedScrollQueryBuilder#release} is set. The parked state is how a
+     * scroll continuation holds its {@link SearchContext}.
+     */
+    public static class ParkedScrollQueryPlugin extends Plugin implements SearchPlugin {
+        @Override
+        public List<QuerySpec<?>> getQueries() {
+            return singletonList(new QuerySpec<>("parked_scroll", ParkedScrollQueryBuilder::new, parseContext -> {
+                throw new UnsupportedOperationException("No query parser for this plugin");
+            }));
+        }
+    }
+
+    public static class ParkedScrollQueryBuilder extends LeafQueryBuilder<ParkedScrollQueryBuilder> {
+        static final AtomicBoolean arm = new AtomicBoolean();
+        static final AtomicBoolean release = new AtomicBoolean();
+        static final AtomicBoolean cancelled = new AtomicBoolean();
+        static volatile CountDownLatch parked = new CountDownLatch(1);
+
+        static void reset() {
+            arm.set(false);
+            release.set(false);
+            cancelled.set(false);
+            parked = new CountDownLatch(1);
+        }
+
+        public ParkedScrollQueryBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public ParkedScrollQueryBuilder() {}
+
+        @Override
+        protected Query doToQuery(SearchExecutionContext context) {
+            Query delegate = Queries.ALL_DOCS_INSTANCE;
+            return new Query() {
+                @Override
+                public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+                    if (arm.get()) {
+                        parked.countDown();
+                        try {
+                            while (release.get() == false) {
+                                if (searcher instanceof ContextIndexSearcher contextSearcher) {
+                                    try {
+                                        contextSearcher.checkCancelled();
+                                    } catch (RuntimeException e) {
+                                        cancelled.set(true);
+                                        throw e;
+                                    }
+                                }
+                                Thread.sleep(10);
+                            }
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IOException(e);
+                        }
+                    }
+                    return delegate.createWeight(searcher, scoreMode, boost);
+                }
+
+                @Override
+                public String toString(String field) {
+                    return delegate.toString(field);
+                }
+
+                @Override
+                public boolean equals(Object obj) {
+                    return false;
+                }
+
+                @Override
+                public int hashCode() {
+                    return 0;
+                }
+
+                @Override
+                public void visit(QueryVisitor visitor) {
+                    visitor.visitLeaf(this);
+                }
+            };
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {}
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {}
+
+        @Override
+        protected boolean doEquals(ParkedScrollQueryBuilder other) {
+            return false;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "parked_scroll";
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.zero();
         }
     }
 

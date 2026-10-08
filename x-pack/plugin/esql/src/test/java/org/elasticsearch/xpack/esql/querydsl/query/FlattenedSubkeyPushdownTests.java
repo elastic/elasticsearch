@@ -13,6 +13,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xpack.esql.core.querydsl.query.ExistsQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
@@ -27,9 +29,9 @@ import static org.hamcrest.Matchers.equalTo;
  * A shard where {@code category} is {@code flattened} resolves {@code category.raw} to a keyed sub-field type,
  * but field caps and field extraction treat {@code category.raw} as unmapped there. This happens when another
  * index in the same {@code FROM} maps {@code category.raw} as a {@code keyword} multi-field. A
- * {@link SingleValueQuery} on that name must then match nothing, just like on a missing field.
+ * {@link SingleValueQuery} or {@link ExistsQuery} on that name must then behave as on a missing field.
  */
-public class SingleValueQueryFlattenedSubkeyTests extends MapperServiceTestCase {
+public class FlattenedSubkeyPushdownTests extends MapperServiceTestCase {
 
     public void testTermOnDynamicSubkeyMatchesNothing() throws IOException {
         assertThat(count(new SingleValueQuery(new TermQuery(Source.EMPTY, "category.raw", "alpha"), "category.raw", false)), equalTo(0));
@@ -48,6 +50,18 @@ public class SingleValueQueryFlattenedSubkeyTests extends MapperServiceTestCase 
 
     public void testMappedMultiFieldStillMatches() throws IOException {
         assertThat(count(new SingleValueQuery(new TermQuery(Source.EMPTY, "kw.raw", "alpha"), "kw.raw", false)), equalTo(1));
+    }
+
+    public void testExistsOnDynamicSubkeyMatchesNothing() throws IOException {
+        assertThat(count(new ExistsQuery(Source.EMPTY, "category.raw")), equalTo(0));
+    }
+
+    public void testNotExistsOnDynamicSubkeyMatchesEverything() throws IOException {
+        assertThat(count(new NotQuery(Source.EMPTY, new ExistsQuery(Source.EMPTY, "category.raw"))), equalTo(2));
+    }
+
+    public void testExistsOnMappedMultiFieldStillMatches() throws IOException {
+        assertThat(count(new ExistsQuery(Source.EMPTY, "kw.raw")), equalTo(2));
     }
 
     private int count(Query query) throws IOException {

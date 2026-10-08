@@ -135,6 +135,24 @@ setup:
   - match: { values: [ [ "kw", "alpha" ] ] }
 
 ---
+'is not null':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | WHERE category.raw IS NOT NULL | KEEP _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "kw", "alpha" ] ] }
+
+---
+'is null':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | WHERE category.raw IS NULL | KEEP _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "flat", null ], [ "flat", null ] ] }
+
+---
 'count':
   - do:
       esql.query:

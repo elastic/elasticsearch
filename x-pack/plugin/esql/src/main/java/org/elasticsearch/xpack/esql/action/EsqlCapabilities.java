@@ -4303,7 +4303,8 @@ public class EsqlCapabilities {
          * A predicate pushed to Lucene on a dotted field (e.g. {@code category.raw} mapped as a {@code keyword}
          * multi-field in one index) matches nothing on shards where the name is only a dynamic sub-key of a
          * {@code flattened} root, consistent with field extraction returning {@code null} there. Previously
-         * {@code LIKE}/{@code RLIKE} failed those shards and {@code ==} matched rows whose value read as {@code null}.
+         * {@code LIKE}/{@code RLIKE} failed those shards, and {@code ==} and {@code IS NOT NULL} matched rows whose
+         * value read as {@code null}.
          * See <a href="https://github.com/elastic/elasticsearch/issues/148190">#148190</a>.
          */
         FIX_FLATTENED_SUBKEY_PUSHDOWN,

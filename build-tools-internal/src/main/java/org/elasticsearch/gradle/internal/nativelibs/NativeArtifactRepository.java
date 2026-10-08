@@ -37,8 +37,7 @@ class NativeArtifactRepository {
     private static final int READ_TIMEOUT_MILLIS = 60_000;
 
     /** Runbook covering problems publishing the native libraries. */
-    private static final String PUBLISHING_RUNBOOK =
-        "https://codex.elastic.dev/r/elasticsearch-team/development/native-ci-publish";
+    private static final String PUBLISHING_RUNBOOK = "https://codex.elastic.dev/r/elasticsearch-team/development/native-ci-publish";
 
     private final String baseUrl;
 

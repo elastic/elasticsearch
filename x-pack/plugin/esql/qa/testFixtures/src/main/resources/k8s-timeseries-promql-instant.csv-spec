@@ -370,36 +370,39 @@ bytes:double | step:datetime
 NaN          | 2024-05-10T00:03:00.000Z
 ;
 
-instant_sort_by_label_open_header_keeps_schema
+instant_sort_by_label_open_header
 required_capability: promql_command_v0
 required_capability: promql_instant_query
 required_capability: promql_sort_by_label
-// "pod" is materialized internally to sort by, then projected away, so it is not a column of the result: the header
-// below fails if it leaks. _timeseries is dropped because its packed value is not stable enough to assert.
-PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(last_over_time(network.bytes_in[1m]), "pod"))
-| DROP _timeseries | SORT bytes;
+// Ordered by pod ("three" before "two"), ties broken by series identity, whose first label is cluster. "pod" is
+// materialized internally to sort by, then projected away, so the header below fails if it leaks.
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(last_over_time(network.bytes_in[1m]), "pod"));
 
-bytes:double | step:datetime
-178.0        | 2024-05-10T00:03:00.000Z
-369.0        | 2024-05-10T00:03:00.000Z
-585.0        | 2024-05-10T00:03:00.000Z
-587.0        | 2024-05-10T00:03:00.000Z
-855.0        | 2024-05-10T00:03:00.000Z
-913.0        | 2024-05-10T00:03:00.000Z
+bytes:double | step:datetime            | _timeseries:keyword
+369.0        | 2024-05-10T00:03:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+585.0        | 2024-05-10T00:03:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+178.0        | 2024-05-10T00:03:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+855.0        | 2024-05-10T00:03:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+913.0        | 2024-05-10T00:03:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+587.0        | 2024-05-10T00:03:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
 ;
 
-instant_sort_by_label_open_header_same_series_count
+instant_sort_by_label_open_header_non_dimension_label
 required_capability: promql_command_v0
 required_capability: promql_instant_query
 required_capability: promql_sort_by_label
-
 // client.ip is not a dimension and differs between the in-window samples of one series (staging/two), so grouping by it
-// would split that series. Sorting must not change the series set: 6, as for the bare selector.
-PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(last_over_time(network.bytes_in[1m]), "client.ip"))
-| STATS c = COUNT();
+// would split that series. It is no usable sort key: the 6 series of the bare selector are ordered by series identity
+// alone (cluster, then pod).
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(last_over_time(network.bytes_in[1m]), "client.ip"));
 
-c:long
-6
+bytes:double | step:datetime            | _timeseries:keyword
+369.0        | 2024-05-10T00:03:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+855.0        | 2024-05-10T00:03:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+585.0        | 2024-05-10T00:03:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+913.0        | 2024-05-10T00:03:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+178.0        | 2024-05-10T00:03:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+587.0        | 2024-05-10T00:03:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
 ;
 
 instant_sort_by_label_unmapped_label
@@ -410,45 +413,6 @@ required_capability: promql_unmapped_fields_filter_nulls
 // A label that exists in no index resolves to null, so it is no usable sort key and the remaining identity orders
 // the result. Prometheus reads an unmapped label as "" on every series, which ties for the same reason.
 PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(avg by (cluster) (last_over_time(network.bytes_in[1m])), "unmapped.label"));
-
-bytes:double | step:datetime            | cluster:keyword
-612.0        | 2024-05-10T00:03:00.000Z | prod
-749.0        | 2024-05-10T00:03:00.000Z | qa
-382.5        | 2024-05-10T00:03:00.000Z | staging
-;
-
-instant_sort_by_label_closed_header_by_cluster
-required_capability: promql_command_v0
-required_capability: promql_instant_query
-required_capability: promql_sort_by_label
-
-PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(avg by (cluster) (last_over_time(network.bytes_in[1m])), "cluster"));
-
-bytes:double | step:datetime            | cluster:keyword
-612.0        | 2024-05-10T00:03:00.000Z | prod
-749.0        | 2024-05-10T00:03:00.000Z | qa
-382.5        | 2024-05-10T00:03:00.000Z | staging
-;
-
-instant_sort_by_label_desc_closed_header_by_cluster
-required_capability: promql_command_v0
-required_capability: promql_instant_query
-required_capability: promql_sort_by_label
-
-PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label_desc(avg by (cluster) (last_over_time(network.bytes_in[1m])), "cluster"));
-
-bytes:double | step:datetime            | cluster:keyword
-382.5        | 2024-05-10T00:03:00.000Z | staging
-749.0        | 2024-05-10T00:03:00.000Z | qa
-612.0        | 2024-05-10T00:03:00.000Z | prod
-;
-
-instant_sort_by_label_closed_header_skipped_label_tie_break
-required_capability: promql_command_v0
-required_capability: promql_instant_query
-required_capability: promql_sort_by_label
-// "pod" is not in the closed header, so it is skipped; remaining identity (cluster) is the tie-break.
-PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(avg by (cluster) (last_over_time(network.bytes_in[1m])), "pod"));
 
 bytes:double | step:datetime            | cluster:keyword
 612.0        | 2024-05-10T00:03:00.000Z | prod
@@ -473,17 +437,21 @@ bytes:double | step:datetime            | pod:keyword | cluster:keyword
 587.0        | 2024-05-10T00:03:00.000Z | two         | staging
 ;
 
-instant_sort_by_label_multi_label_first_key_wins
+instant_sort_by_label_multi_label_first_usable_key_wins
 required_capability: promql_command_v0
 required_capability: promql_instant_query
 required_capability: promql_sort_by_label
-// "pod" is skipped on the closed header; "cluster" is the first usable key.
-PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(avg by (cluster) (last_over_time(network.bytes_in[1m])), "pod", "cluster"));
+// "region" is not in the closed header and is skipped, so the first usable key (pod) orders the result, unlike the
+// identity tie-break, which would put cluster first.
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(avg by (pod, cluster) (last_over_time(network.bytes_in[1m])), "region", "pod", "cluster"));
 
-bytes:double | step:datetime            | cluster:keyword
-612.0        | 2024-05-10T00:03:00.000Z | prod
-749.0        | 2024-05-10T00:03:00.000Z | qa
-382.5        | 2024-05-10T00:03:00.000Z | staging
+bytes:double | step:datetime            | pod:keyword | cluster:keyword
+369.0        | 2024-05-10T00:03:00.000Z | three       | prod
+585.0        | 2024-05-10T00:03:00.000Z | three       | qa
+178.0        | 2024-05-10T00:03:00.000Z | three       | staging
+855.0        | 2024-05-10T00:03:00.000Z | two         | prod
+913.0        | 2024-05-10T00:03:00.000Z | two         | qa
+587.0        | 2024-05-10T00:03:00.000Z | two         | staging
 ;
 
 instant_sort_by_label_natural_order
@@ -514,6 +482,21 @@ PROMQL index=prom-metrics-name time="2024-05-10T01:00:00.000Z" result=(sort_by_l
 result:double | step:datetime            | pod:keyword
 20.0          | 2024-05-10T01:00:00.000Z | pod10
 10.0          | 2024-05-10T01:00:00.000Z | pod2
+;
+
+instant_sort_by_label_long_label_natural_order
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_by_label
+// Label values are strings in Prometheus, so a long label sorts by the natural order of its text: "-" precedes every
+// digit, and -5 precedes -10 because 5 < 10. Numeric order would put -10 first; plain text order would put 10 before 9.
+PROMQL index=promql-long-dimension time="2024-05-10T00:01:00.000Z" load=(sort_by_label(sum by (shard) (last_over_time(load[5m])), "shard"));
+
+load:double | step:datetime            | shard:long
+3.0         | 2024-05-10T00:01:00.000Z | -5
+4.0         | 2024-05-10T00:01:00.000Z | -10
+2.0         | 2024-05-10T00:01:00.000Z | 9
+1.0         | 2024-05-10T00:01:00.000Z | 10
 ;
 
 instant_sort_by_label_missing_label_as_empty

@@ -261,7 +261,9 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
             ) {
                 assertThat(reader.leaves(), hasSize(2));
                 for (var leafCtx : reader.leaves()) {
-                    assertTrue(ESNextRescoreOversampleTestFixture.persistedPreconditionOnLeaf(leafCtx.reader()));
+                    IvfSegmentConfig ivfSegmentConfig = ESNextRescoreOversampleTestFixture.readPersistedSegmentConfig(leafCtx.reader());
+                    assertNotNull(ivfSegmentConfig);
+                    assertTrue(ivfSegmentConfig.usePrecondition());
                 }
 
                 IndexSearcher searcher = newSearcher(reader);

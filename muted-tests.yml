@@ -150,9 +150,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=ml/delete_expired_data/Test delete expired data with path parameters}
   issue: https://github.com/elastic/elasticsearch/issues/152311
-- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
-  method: testWriteLargeBlob
-  issue: https://github.com/elastic/elasticsearch/issues/152914
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testMultiTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/150101
@@ -192,9 +189,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
   method: test {csv-spec:scoring.testMatchAndQueryStringFunctionsWithScore}
   issue: https://github.com/elastic/elasticsearch/issues/153614
-- class: org.elasticsearch.xpack.esql.parser.ParamsParserTests
-  method: testMixedSingleDoubleParams
-  issue: https://github.com/elastic/elasticsearch/issues/153746
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.afterWhere}
   issue: https://github.com/elastic/elasticsearch/issues/152591
@@ -601,12 +595,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
   issue: https://github.com/elastic/elasticsearch/issues/160055
-- class: org.elasticsearch.exponentialhistogram.ExponentialScaleUtilsTests
-  method: testRandomValueIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/160716
-- class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
-  method: testCancelOnExpiry
-  issue: https://github.com/elastic/elasticsearch/issues/160823
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationContinuesAfterMasterFailover
   issue: https://github.com/elastic/elasticsearch/issues/160824
@@ -616,9 +604,6 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testRemoteReductionRejectionWithPendingCoordinatorReduction
   issue: https://github.com/elastic/elasticsearch/issues/160620
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryDatastreamIT
-  method: testProfileFailureStore
-  issue: https://github.com/elastic/elasticsearch/issues/160877
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   method: testStatsBlowupParquet
   issue: https://github.com/elastic/elasticsearch/issues/160899
@@ -631,24 +616,9 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testCancelNewShardRecoveryAndUsesExistingShardCopy
   issue: https://github.com/elastic/elasticsearch/issues/160953
-- class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
-  method: testGetAsyncWhileQueryTaskIsBeingCancelled
-  issue: https://github.com/elastic/elasticsearch/issues/160983
-- class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
-  method: testDeleteNestedSubquery
-  issue: https://github.com/elastic/elasticsearch/issues/160984
-- class: org.elasticsearch.xpack.transform.integration.RestoringShardTransformIT
-  method: testPutTransformValidationWhileRestoringParks
-  issue: https://github.com/elastic/elasticsearch/issues/160991
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   method: testStatsBlowupNdjson
   issue: https://github.com/elastic/elasticsearch/issues/161026
-- class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
-  method: testAsyncSearchFailingQueryErrorTraceFalse
-  issue: https://github.com/elastic/elasticsearch/issues/161045
-- class: org.elasticsearch.xpack.stateless.StatelessPersistedStateIT
-  method: testTransportVersions
-  issue: https://github.com/elastic/elasticsearch/issues/161055
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   method: testStatsBlowupCsv
   issue: https://github.com/elastic/elasticsearch/issues/161060
@@ -691,3 +661,33 @@ tests:
 - class: org.elasticsearch.xpack.watcher.actions.webhook.WebhookTokenIntegrationTests
   method: testWebhook
   issue: https://github.com/elastic/elasticsearch/issues/160935
+- class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
+  method: testCloseWhileSegmentatorParkedOnBufferPool
+  issue: https://github.com/elastic/elasticsearch/issues/161247
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {yaml=indices.sort/30_multi_value/Index Sort with doc_values multi_value false - secondary sort field}
+  issue: https://github.com/elastic/elasticsearch/issues/161280
+- class: org.elasticsearch.xpack.esql.datasources.PartitionSpecProjectorTests
+  method: testOverlapsExpressionsDatetimeLongIsNotScaledAsSeconds
+  issue: https://github.com/elastic/elasticsearch/issues/161281
+- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/161304
+- class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
+  method: testRandomActivities
+  issue: https://github.com/elastic/elasticsearch/issues/161309
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testRemoveAsyncIndex
+  issue: https://github.com/elastic/elasticsearch/issues/161316
+- class: org.elasticsearch.xpack.esql.action.ExternalSchemaDiscoveryBoundIT
+  method: testReadingQueryAfterSchemaDiscoverySeesEveryFile
+  issue: https://github.com/elastic/elasticsearch/issues/161359
+- class: org.elasticsearch.xpack.esql.action.ExternalSchemaDiscoveryBoundIT
+  method: testReadingQueryAfterSchemaDiscoveryOnDeclaredDatasetSeesEveryFile
+  issue: https://github.com/elastic/elasticsearch/issues/161360
+- class: org.elasticsearch.xpack.esql.action.ExternalSchemaDiscoveryBoundIT
+  method: testRepeatedSchemaDiscoveryAnswersTheSameSchema
+  issue: https://github.com/elastic/elasticsearch/issues/161361
+- class: org.elasticsearch.xpack.esql.action.ExternalWarmDatasetAggregatePartialEvictionIT
+  method: testNdjsonWarmCountSurvivesOneMissingPerFileEntry
+  issue: https://github.com/elastic/elasticsearch/issues/161381

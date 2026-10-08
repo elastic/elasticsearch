@@ -117,6 +117,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntPredicate;
 
 /**
  * Default {@link SplitProvider} for file-based sources.
@@ -754,10 +755,11 @@ public class FileSplitProvider implements SplitProvider {
         try {
             PartitionMetadata partitionInfo = context.partitionInfo();
             Set<String> partitionKeys = partitionInfo == null ? Set.of() : partitionInfo.partitionColumns().keySet();
-            List<PartitionFilterHintExtractor.PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            List<PartitionFilterHintExtractor.PartitionFilterHint> hints = listingHintsForQuery(
                 context.filterHints(),
                 context.metadataColumnNames(),
-                partitionKeys
+                partitionKeys,
+                PartitionSpec.fromConfig(config)
             );
             List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
             if (extents.boundsFileSet()) {
@@ -803,6 +805,48 @@ public class FileSplitProvider implements SplitProvider {
         } finally {
             StorageProviderCache.closeLease(provider);
         }
+    }
+
+    /**
+     * Listing-cache hints: hive keys and requested {@code _file.*} from the LISTING
+     * extract, plus spec-projected {@code year IN} / identity remaps. Data columns
+     * such as {@code @timestamp} never join the listing cache identity.
+     */
+    static List<PartitionFilterHintExtractor.PartitionFilterHint> listingHintsForQuery(
+        List<Expression> filters,
+        Set<String> requestedMetadata,
+        Set<String> partitionKeys,
+        PartitionSpec spec
+    ) {
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            filters,
+            requestedMetadata,
+            partitionKeys
+        );
+        if (spec == null || spec.isEmpty()) {
+            return hints;
+        }
+        List<PartitionFilterHintExtractor.PartitionFilterHint> merged = new ArrayList<>(hints);
+        merged.addAll(
+            PartitionFilterHintExtractor.fromConjuncts(filters, Set.of(), spec.boundColumns(), PartitionFilterHintExtractor.TEMPORAL)
+        );
+        return dropNonListingKeys(spec.projectListingHints(merged), partitionKeys, requestedMetadata);
+    }
+
+    static List<PartitionFilterHintExtractor.PartitionFilterHint> dropNonListingKeys(
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Set<String> partitionKeys,
+        Set<String> requestedMetadata
+    ) {
+        List<PartitionFilterHintExtractor.PartitionFilterHint> kept = new ArrayList<>(hints.size());
+        for (PartitionFilterHintExtractor.PartitionFilterHint hint : hints) {
+            String column = hint.columnName();
+            if (partitionKeys.contains(column)
+                || (FileMetadataColumns.isFileMetadataColumn(column) && requestedMetadata.contains(column))) {
+                kept.add(hint);
+            }
+        }
+        return kept;
     }
 
     @Override
@@ -4359,35 +4403,25 @@ public class FileSplitProvider implements SplitProvider {
         IdentityHashMap<Expression, ByteRunAutomaton> regexAutomata
     ) {
         return switch (filter) {
-            case Equals eq -> evaluateComparison(eq.left(), eq.right(), partitionValues, PartitionValueMatcher::compareEquals);
+            case Equals eq -> evaluateComparison(eq.left(), eq.right(), partitionValues, PartitionValueMatcher::equalIfComparable);
             case NotEquals neq -> {
-                Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, PartitionValueMatcher::compareEquals);
+                Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, PartitionValueMatcher::equalIfComparable);
                 yield result != null ? result == false : null;
             }
             case GreaterThanOrEqual gte -> evaluateComparison(
                 gte.left(),
                 gte.right(),
                 partitionValues,
-                (a, b) -> PartitionValueMatcher.compareValues(a, b) >= 0
+                (a, b) -> ordered(a, b, cmp -> cmp >= 0)
             );
-            case GreaterThan gt -> evaluateComparison(
-                gt.left(),
-                gt.right(),
-                partitionValues,
-                (a, b) -> PartitionValueMatcher.compareValues(a, b) > 0
-            );
+            case GreaterThan gt -> evaluateComparison(gt.left(), gt.right(), partitionValues, (a, b) -> ordered(a, b, cmp -> cmp > 0));
             case LessThanOrEqual lte -> evaluateComparison(
                 lte.left(),
                 lte.right(),
                 partitionValues,
-                (a, b) -> PartitionValueMatcher.compareValues(a, b) <= 0
+                (a, b) -> ordered(a, b, cmp -> cmp <= 0)
             );
-            case LessThan lt -> evaluateComparison(
-                lt.left(),
-                lt.right(),
-                partitionValues,
-                (a, b) -> PartitionValueMatcher.compareValues(a, b) < 0
-            );
+            case LessThan lt -> evaluateComparison(lt.left(), lt.right(), partitionValues, (a, b) -> ordered(a, b, cmp -> cmp < 0));
             case In in -> {
                 String columnName = extractColumnName(in.value());
                 if (columnName == null || partitionValues.containsKey(columnName) == false) {
@@ -4402,9 +4436,14 @@ public class FileSplitProvider implements SplitProvider {
                     if (listItem instanceof Literal lit) {
                         if (zerosOfOppositeSign(partitionValue, lit.value())) {
                             found = null;
-                        } else if (PartitionValueMatcher.compareEquals(partitionValue, lit.value())) {
-                            found = true;
-                            break;
+                        } else {
+                            Boolean eq = PartitionValueMatcher.equalIfComparable(partitionValue, lit.value());
+                            if (eq == null) {
+                                found = null;
+                            } else if (eq) {
+                                found = true;
+                                break;
+                            }
                         }
                     } else {
                         yield null;
@@ -4433,7 +4472,7 @@ public class FileSplitProvider implements SplitProvider {
                 mvContains.left(),
                 mvContains.right(),
                 partitionValues,
-                PartitionValueMatcher::compareEquals
+                PartitionValueMatcher::equalIfComparable
             );
             case MvIntersects mvIntersects -> evaluateMvIntersects(mvIntersects, partitionValues);
             case MvInRange mvInRange -> {
@@ -4598,15 +4637,22 @@ public class FileSplitProvider implements SplitProvider {
         }
         List<?> values = literalValue instanceof List<?> list ? list : List.of(literalValue);
         boolean sawValue = false;
+        boolean undecidable = false;
         for (Object value : values) {
             if (value != null) {
                 sawValue = true;
-                if (PartitionValueMatcher.compareEquals(partitionValue, value)) {
+                Boolean eq = PartitionValueMatcher.equalIfComparable(partitionValue, value);
+                if (eq == null) {
+                    undecidable = true;
+                } else if (eq) {
                     return true;
                 }
             }
         }
-        return sawValue ? false : null;
+        if (sawValue == false) {
+            return null;
+        }
+        return undecidable ? null : false;
     }
 
     /**
@@ -4625,15 +4671,27 @@ public class FileSplitProvider implements SplitProvider {
         return options == null ? defaultInclusive : null;
     }
 
-    /** TRUE strictly above {@code bound}, FALSE strictly below, {@code onBound} exactly on it. */
+    /** Ordered comparison that keeps the file when the values are not the same kind. */
+    private static Boolean ordered(Object a, Object b, IntPredicate pred) {
+        Integer cmp = PartitionValueMatcher.orderedCompare(a, b);
+        return cmp == null ? null : pred.test(cmp);
+    }
+
+    /** TRUE strictly above {@code bound}, FALSE strictly below, {@code onBound} exactly on it. Kind mismatch keeps. */
     private static Boolean above(Object value, Object bound, Boolean onBound) {
-        int cmp = PartitionValueMatcher.compareValues(value, bound);
+        Integer cmp = PartitionValueMatcher.orderedCompare(value, bound);
+        if (cmp == null) {
+            return null;
+        }
         return cmp > 0 ? Boolean.TRUE : cmp < 0 ? Boolean.FALSE : onBound;
     }
 
-    /** TRUE strictly below {@code bound}, FALSE strictly above, {@code onBound} exactly on it. */
+    /** TRUE strictly below {@code bound}, FALSE strictly above, {@code onBound} exactly on it. Kind mismatch keeps. */
     private static Boolean below(Object value, Object bound, Boolean onBound) {
-        int cmp = PartitionValueMatcher.compareValues(value, bound);
+        Integer cmp = PartitionValueMatcher.orderedCompare(value, bound);
+        if (cmp == null) {
+            return null;
+        }
         return cmp < 0 ? Boolean.TRUE : cmp > 0 ? Boolean.FALSE : onBound;
     }
 

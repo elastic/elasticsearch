@@ -54,7 +54,7 @@ final class DatasourceBenchmarks {
      * for the produced blocks. Matches the setup used by the existing CSV benchmarks.
      */
     static BlockFactory newBlockFactory() {
-        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("bench")).build();
+        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**

@@ -382,7 +382,7 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
      * keep-alive to make sure that it contains any time that we might wait.
      */
     public Self setRequestsPerSecond(float requestsPerSecond) {
-        if (requestsPerSecond <= 0) {
+        if (requestsPerSecond <= 0 || Float.isNaN(requestsPerSecond)) {
             throw new IllegalArgumentException(
                 "[requests_per_second] must be greater than 0. Use Float.POSITIVE_INFINITY to disable throttling."
             );

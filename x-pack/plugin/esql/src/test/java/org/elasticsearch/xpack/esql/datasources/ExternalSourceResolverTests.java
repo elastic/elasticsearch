@@ -10526,4 +10526,104 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertNotEquals("datasetAggregateKey must produce different keys for different _datasource.endpoint values", keyA, keyB);
     }
 
+    /**
+     * The overlaid-read derivation is the one owner of the pair a statistics lookup addresses by and the serve gate
+     * compares against. Each case asserts the pair against an independently built expectation, never against another
+     * call of the same helper: a test that derived both sides from production code would pass whatever the production
+     * code did.
+     * <p>
+     * The rename case is the control. A pure {@code path} move must NOT move the fingerprint - both sides physicalize
+     * through the rename map - so a derivation that reddened it would be hashing logical names, which would split a
+     * renamed dataset off from its own harvests.
+     */
+    public void testOverlaidReadOfDerivesTheReadTheDataNodeWillBind() {
+        List<Attribute> inferred = List.of(
+            attr("id", DataType.INTEGER),
+            attr("order_id", DataType.INTEGER),
+            attr("value", DataType.INTEGER)
+        );
+
+        // 1. Retype: the declared type replaces the inferred one in place, and the read is a different read.
+        Map<String, DatasetFieldMapping> retype = new LinkedHashMap<>();
+        retype.put("order_id", new DatasetFieldMapping("keyword", null));
+        ExternalSourceResolver.OverlaidRead retyped = ExternalSourceResolver.overlaidReadOf(
+            inferred,
+            inferred,
+            new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, retype)),
+            "csv"
+        );
+        assertEquals(
+            "the overlaid read schema is the inferred one with the declared type substituted",
+            List.of(DataType.INTEGER, DataType.KEYWORD, DataType.INTEGER),
+            retyped.readSchema().stream().map(Attribute::dataType).toList()
+        );
+        assertEquals("a retype appends no column", 3, retyped.readSchema().size());
+        assertEquals(SchemaProvenance.INFERRED, retyped.spec().provenance());
+        assertNotEquals(
+            "a retyping declaration must resolve to a DIFFERENT read than inference - this inequality is the defect in "
+                + "esql-planning#2246: the lookup used to address by the inferred side while the harvest hashed the overlaid one",
+            ReadConfigFingerprint.of(inferred, DeclaredReadSpec.NONE),
+            ReadConfigFingerprint.of(retyped.readSchema(), retyped.spec())
+        );
+
+        // 2. Rename only (the control): same read, different names.
+        Map<String, DatasetFieldMapping> rename = new LinkedHashMap<>();
+        rename.put("order_ref", new DatasetFieldMapping("integer", "order_id"));
+        ExternalSourceResolver.OverlaidRead renamed = ExternalSourceResolver.overlaidReadOf(
+            inferred,
+            inferred,
+            new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, rename)),
+            "csv"
+        );
+        assertEquals(
+            "a pure path rename resolves to the SAME read: both sides physicalize, so no statistic changes meaning",
+            ReadConfigFingerprint.of(inferred, DeclaredReadSpec.NONE),
+            ReadConfigFingerprint.of(renamed.readSchema(), renamed.spec())
+        );
+
+        // 3. A declared date format on a renamed column: the format decides which values parse, so it is a new read.
+        Map<String, DatasetFieldMapping> renameWithFormat = new LinkedHashMap<>();
+        renameWithFormat.put("order_ref", DatasetFieldMapping.withFormat("integer", "order_id", "epoch_second"));
+        ExternalSourceResolver.OverlaidRead formatted = ExternalSourceResolver.overlaidReadOf(
+            inferred,
+            inferred,
+            new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, renameWithFormat)),
+            "csv"
+        );
+        assertNotEquals(
+            "a declared format on a renamed column is a second way the pre-overlay derivation diverged from the harvest",
+            ReadConfigFingerprint.of(renamed.readSchema(), renamed.spec()),
+            ReadConfigFingerprint.of(formatted.readSchema(), formatted.spec())
+        );
+
+        // 4. A declared column the files do not carry: appended, and for CSV/TSV the binding becomes by-name.
+        Map<String, DatasetFieldMapping> absent = new LinkedHashMap<>();
+        absent.put("sparse", new DatasetFieldMapping("keyword", null));
+        DatasetMapping absentMapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, absent));
+        ExternalSourceResolver.OverlaidRead appendedCsv = ExternalSourceResolver.overlaidReadOf(inferred, inferred, absentMapping, "csv");
+        assertEquals("the absent declared column is appended to the per-file read schema", 4, appendedCsv.readSchema().size());
+        assertEquals("sparse", appendedCsv.readSchema().get(3).name());
+        assertEquals(
+            "CSV/TSV bind an appended absent column by header name, so provenance becomes DECLARED and the read differs",
+            SchemaProvenance.DECLARED,
+            appendedCsv.spec().provenance()
+        );
+
+        // The same mapping over NDJSON resolves fields by JSON key, so the binding mode does not change. Without this
+        // the provenance assertion above would pass for a derivation that upgraded unconditionally.
+        ExternalSourceResolver.OverlaidRead appendedNdjson = ExternalSourceResolver.overlaidReadOf(
+            inferred,
+            inferred,
+            absentMapping,
+            "ndjson"
+        );
+        assertEquals(4, appendedNdjson.readSchema().size());
+        assertEquals(SchemaProvenance.INFERRED, appendedNdjson.spec().provenance());
+        assertNotEquals(
+            "the two formats bind an appended column differently, so they are different reads",
+            ReadConfigFingerprint.of(appendedCsv.readSchema(), appendedCsv.spec()),
+            ReadConfigFingerprint.of(appendedNdjson.readSchema(), appendedNdjson.spec())
+        );
+    }
+
 }

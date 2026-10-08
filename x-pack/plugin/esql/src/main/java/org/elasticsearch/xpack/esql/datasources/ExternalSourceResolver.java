@@ -5469,6 +5469,74 @@ public class ExternalSourceResolver {
     }
 
     /**
+     * One file's resolved read under a non-strict declaration: the schema the reader will bind, and the spec it binds
+     * under. The pair every consumer of a read configuration needs, derived in one place so that the address a
+     * statistics lookup asks and the expectation the serve gate compares against cannot drift apart - which is the
+     * agreement {@code ReadConfigFingerprintDerivationSitesTests} exists to hold.
+     */
+    record OverlaidRead(List<Attribute> readSchema, DeclaredReadSpec spec) {}
+
+    /**
+     * The per-file overlaid read schema: the lenient per-file overlay, plus any declared column absent from the
+     * unified inferred schema.
+     * <p>
+     * Absent declared columns (missing from the unified inferred schema, because the sample did not reach them or the
+     * source does not carry them) are appended to every per-file schema. NDJSON resolves field values by JSON key and
+     * Parquet/ORC by column name; for CSV/TSV {@link #resolveNextPath} upgrades provenance to
+     * {@link SchemaProvenance#DECLARED} so the reader binds by header name (or {@code col<N>} to field N) rather than
+     * by schema position. In every case, rows that do not carry the field null-fill the slot and the reader warns.
+     * <p>
+     * Under union-by-name, {@code absent} is empty whenever the column appeared in at least one file's inferred
+     * schema - the lenient per-file overlay correctly skips truly absent columns in the other files, leaving their
+     * column-mapping slots as null-fill, which is the intended behavior.
+     */
+    private static List<Attribute> overlaidPerFileSchema(
+        List<Attribute> fileSchema,
+        DatasetMapping declaredMapping,
+        List<Attribute> absent
+    ) {
+        List<Attribute> perFile = DeclaredSchemaResolver.overlayNonStrict(fileSchema, declaredMapping, true).fileSchema();
+        if (absent.isEmpty()) {
+            return perFile;
+        }
+        ArrayList<Attribute> extended = new ArrayList<>(perFile);
+        extended.addAll(absent);
+        return List.copyOf(extended);
+    }
+
+    /**
+     * The read spec a non-strict declaration resolves to, including the provenance upgrade a by-name binding requires.
+     * Mirrors the upgrade the outer resolver applies (see {@link #resolveNextPath}) so the fingerprint hashes what the
+     * data node's read will produce.
+     */
+    private static DeclaredReadSpec overlaidReadSpec(DatasetMapping declaredMapping, boolean hasAbsentColumns, String sourceType) {
+        DeclaredReadSpec spec = declaredReadSpecOf(declaredMapping);
+        if (bindsAbsentDeclaredColumnsByName(hasAbsentColumns, sourceType) == false) {
+            return spec;
+        }
+        return DeclaredReadSpec.of(spec.renames(), spec.dateFormats(), spec.declaredTypeColumns(), SchemaProvenance.DECLARED);
+    }
+
+    /**
+     * The read one file resolves to under a non-strict declaration, computed from the file's own inferred schema and
+     * the unified inferred schema the declaration is overlaid onto. Used where only a resolved schema is in hand (a
+     * statistics lookup); {@link #applyNonStrictOverlay} composes the two halves directly, because it already holds
+     * one unified overlay for the whole listing and must not recompute it per file.
+     */
+    static OverlaidRead overlaidReadOf(
+        List<Attribute> fileSchema,
+        List<Attribute> unifiedSchema,
+        DatasetMapping declaredMapping,
+        String sourceType
+    ) {
+        DeclaredSchemaResolver.Overlaid unified = DeclaredSchemaResolver.overlayNonStrict(unifiedSchema, declaredMapping, false);
+        return new OverlaidRead(
+            overlaidPerFileSchema(fileSchema, declaredMapping, unified.absent()),
+            overlaidReadSpec(declaredMapping, unified.absent().isEmpty() == false, sourceType)
+        );
+    }
+
+    /**
      * Apply a non-strict declared mapping onto an already-resolved (inferred) source: retype/rename the declared
      * columns in the user-facing schema and in each per-file schema (lenient — a column may be absent from one
      * file under union-by-name), preserving the inferred stats/sourceMetadata and the per-file column mappings.
@@ -5519,17 +5587,7 @@ public class ExternalSourceResolver {
                 pendingSchemaWarnings.add(SkipWarnings.absentColumnMessage(physical));
             }
         }
-        DeclaredReadSpec declaredReadSpec = declaredReadSpecOf(declaredMapping);
-        // Mirror the provenance upgrade the outer resolver applies (see resolveNextPath) so the fingerprint hashes
-        // what the data-node's read will produce.
-        if (bindsAbsentDeclaredColumnsByName(unified.absent().isEmpty() == false, inferred.sourceType())) {
-            declaredReadSpec = DeclaredReadSpec.of(
-                declaredReadSpec.renames(),
-                declaredReadSpec.dateFormats(),
-                declaredReadSpec.declaredTypeColumns(),
-                SchemaProvenance.DECLARED
-            );
-        }
+        DeclaredReadSpec declaredReadSpec = overlaidReadSpec(declaredMapping, unified.absent().isEmpty() == false, inferred.sourceType());
         // S1 boundary: the warm-aggregate _stats.* map on sourceMetadata is keyed PHYSICAL and holds INFERRED-type values;
         // the declared overlay renames/retypes the plan afterwards. Rekey renames (a pure `path` move changes no value, so
         // the rekeyed stats stay exactly correct — warm serving survives the rename) and poison extrema + drop counts for
@@ -5606,27 +5664,7 @@ public class ExternalSourceResolver {
                     e.getKey().objectName()
                 );
             }
-            DeclaredSchemaResolver.Overlaid perFile = DeclaredSchemaResolver.overlayNonStrict(
-                info.fileSchema().attributes(),
-                declaredMapping,
-                true
-            );
-            // Absent declared columns (missing from the unified inferred schema, because the sample did not reach
-            // them or the source does not carry them) are appended to every per-file schema. NDJSON resolves field
-            // values by JSON key and Parquet/ORC by column name; for CSV/TSV resolveNextPath upgrades provenance to
-            // DECLARED so the reader binds by header name (or col<N> to field N) rather than by schema position. In
-            // every case, rows that do not carry the field null-fill the slot and the reader warns.
-            // Under union-by-name, absent() is empty whenever the column appeared in at least one file's
-            // inferred schema — the lenient per-file overlay correctly skips truly absent columns in the other
-            // files, leaving their column-mapping slots as null-fill, which is the intended behavior.
-            List<Attribute> perFileSchema;
-            if (unified.absent().isEmpty()) {
-                perFileSchema = perFile.fileSchema();
-            } else {
-                ArrayList<Attribute> extended = new ArrayList<>(perFile.fileSchema());
-                extended.addAll(unified.absent());
-                perFileSchema = List.copyOf(extended);
-            }
+            List<Attribute> perFileSchema = overlaidPerFileSchema(info.fileSchema().attributes(), declaredMapping, unified.absent());
             String perFileReadConfig = ReadConfigFingerprint.of(perFileSchema, declaredReadSpec);
             if (expectedReadConfig == null) {
                 expectedReadConfig = perFileReadConfig;

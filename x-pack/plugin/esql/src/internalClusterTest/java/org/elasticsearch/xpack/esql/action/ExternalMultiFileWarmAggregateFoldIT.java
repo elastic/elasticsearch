@@ -370,10 +370,11 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
      * and publishes stripe fragments rather than one whole-file measurement.
      * <p>
      * The two publish through different commit paths, and only the whole-file one filed a foreign read's
-     * measurement. A retyping declaration resolves to a read whose stamp never equals the schema record's, so a
-     * segmented read of such a dataset filed nothing at any address and re-read every byte forever
-     * (esql-planning#2246). Every other arm in this class writes files under the 1 MiB default minimum segment, so
-     * none of them reaches that path.
+     * measurement. A retyping declaration resolves to a read whose stamp never equals the schema record's, so no
+     * per-file record was written for a segmented read of such a dataset and it re-read every byte forever
+     * (esql-planning#2246). Every other arm carrying a declaration writes ~0.5 MiB files, well under the split
+     * threshold, so none of them reaches that path; the unmapped arms whose files are larger do reach it and
+     * produce no foreign read for it to refuse.
      * <p>
      * {@code segment_size} is 64 KiB (the minimum) so the files need only be ~360 KiB rather than megabytes. It is
      * identity-inert, so it does not move the cache address this test is about.

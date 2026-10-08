@@ -4924,52 +4924,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * A warm columnar resolve must cost ONE schema-cache lookup per file, not two.
-     * <p>
-     * The read-addressed statistics record is consulted only when the schema record cannot answer the bound read.
-     * A columnar record is never stamped ({@code stampInferredReadConfig} returns it unchanged for
-     * {@code FILE_TYPED_FORMATS}) and no statistics record is ever filed for one, so asking for that address is a
-     * guaranteed miss. {@code Cache#get} counts an absent key, so the cost is both a doubled lookup per file and a
-     * per-file distortion of {@code schema_cache.misses} — the ratio an operator reads to size this cache — on the
-     * format that dominates.
-     * <p>
-     * It has to be a MULTI-file first-file-wins resolve: that is the rail that binds a read configuration. A
-     * single-file resolve passes no bound read at all, so it never reaches the arm under test and would pass
-     * whatever the predicate said.
-     * <p>
-     * Inject the defect by dropping the {@code FILE_TYPED_FORMATS} arm of {@code schemaRecordAnswersTheRead}: the
-     * warm resolve then books one miss per file and the miss assertion turns red.
-     */
-    public void testAWarmColumnarResolveBooksNoExtraSchemaCacheMiss() throws Exception {
-        String glob = "s3://bucket/data/*.parquet";
-        List<Attribute> schema = List.of(attr("x", DataType.INTEGER), attr("y", DataType.KEYWORD));
-        Map<String, List<Attribute>> schemas = new HashMap<>();
-        List<StorageEntry> listing = new ArrayList<>();
-        for (String n : List.of("a", "b", "c")) {
-            schemas.put("s3://bucket/data/" + n + ".parquet", schema);
-            listing.add(entry("s3://bucket/data/" + n + ".parquet", 100));
-        }
-        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemas);
-
-        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
-            ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
-
-            assertNotNull(resolveWith(resolver, glob, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS).resolvedSource(glob));
-            long missesAfterCold = ((Number) cacheService.usageStats().get("schema_cache.misses")).longValue();
-
-            assertNotNull(resolveWith(resolver, glob, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS).resolvedSource(glob));
-
-            Map<String, Object> after = cacheService.usageStats();
-            assertEquals(
-                "a warm columnar resolve must book no further miss: there is no statistics address to ask for",
-                missesAfterCold,
-                ((Number) after.get("schema_cache.misses")).longValue()
-            );
-            assertTrue("and it must book a hit per file", ((Number) after.get("schema_cache.hits")).longValue() >= listing.size());
-        }
-    }
-
-    /**
      * Every arm of {@code schemaRecordAnswersTheRead}, asserted directly. The predicate decides whether the
      * read-addressed statistics record is consulted at all, so an arm nobody exercises is an unguarded branch on
      * the warm path — and mutation testing found that the empty-read arm was reached by none of this class's
@@ -5067,8 +5021,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * key, so the cost is a per-file distortion of the ratio an operator reads to size the store - on the
      * format that dominates.
      * <p>
-     * Asserted on {@code statistics_cache.misses}, which is where the lookup now lands. A sibling case asserts
-     * {@code schema_cache.misses} and cannot see this: the two counters moved apart when the stores did.
+     * Asserted on {@code statistics_cache.misses}, which is where the lookup lands. The single-file case below
+     * is the other half: the gate lives inside {@code cachedStatistics}, and a glob and a lone file reach it
+     * by different rails.
      */
     public void testAWarmColumnarResolveBooksNoStatisticsStoreMiss() throws Exception {
         String glob = "s3://bucket/data/*.parquet";
@@ -5088,6 +5043,36 @@ public class ExternalSourceResolverTests extends ESTestCase {
             long warmMisses = ((Number) cacheService.usageStats().get("statistics_cache.misses")).longValue();
             assertEquals(
                 "a warm columnar resolve must book no statistics-store miss (cold=" + coldMisses + " warm=" + warmMisses + ")",
+                coldMisses,
+                warmMisses
+            );
+        }
+    }
+
+    /**
+     * The single-file half of the case above, and the one that was unguarded. {@code resolveSingleFileSource}
+     * reaches {@code cachedStatistics} on a path {@code GlobExpander.isMultiFile} calls single, so a lone
+     * {@code .parquet} never passes through the glob rail the sibling exercises. Both sites now consult
+     * {@code publishesScanDerivedStatistics} because the gate moved inside the lookup rather than sitting at
+     * each call site.
+     * <p>
+     * Inject the defect by dropping the {@code publishesScanDerivedStatistics} arm of
+     * {@code cachedStatistics}: the warm resolve then asks for {@code StatisticsKey.UNSTAMPED}, where nothing
+     * is ever filed for a columnar file, and {@code Cache#get} counts the absent key.
+     */
+    public void testAWarmSingleFileColumnarResolveBooksNoStatisticsStoreMiss() throws Exception {
+        String file = "s3://bucket/data/a.parquet";
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER), attr("y", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemas = Map.of(file, schema);
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", List.of(entry(file, 100))), schemas);
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
+            assertNotNull(resolveWith(resolver, file, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS).resolvedSource(file));
+            long coldMisses = ((Number) cacheService.usageStats().get("statistics_cache.misses")).longValue();
+            assertNotNull(resolveWith(resolver, file, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS).resolvedSource(file));
+            long warmMisses = ((Number) cacheService.usageStats().get("statistics_cache.misses")).longValue();
+            assertEquals(
+                "a warm single-file columnar resolve must book no statistics-store miss (cold=" + coldMisses + " warm=" + warmMisses + ")",
                 coldMisses,
                 warmMisses
             );

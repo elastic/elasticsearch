@@ -1253,7 +1253,7 @@ public class ExternalSourceResolver {
                     schemaEntry,
                     schema,
                     fileConfig,
-                    cachedStatistics(schemaKey, readConfigStampOf(schemaEntry)),
+                    cachedStatistics(schemaKey, schemaEntry, readConfigStampOf(schemaEntry)),
                     harvestedStatistics
                 );
                 storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
@@ -1898,9 +1898,7 @@ public class ExternalSourceResolver {
         if (record == null) {
             return null;
         }
-        // Same gate as the serve path: a columnar file can have no statistics record, and its footer statistics
-        // are already on the schema record, so asking would miss on every file.
-        Map<String, Object> statistics = publishesScanDerivedStatistics(record) ? cachedStatistics(key, readConfigStampOf(record)) : null;
+        Map<String, Object> statistics = cachedStatistics(key, record, readConfigStampOf(record));
         return new CachedFile(record, statistics);
     }
 
@@ -3216,7 +3214,7 @@ public class ExternalSourceResolver {
             Map<String, Object> statistics = null;
             if (publishesScanDerivedStatistics(cached)) {
                 String measuredUnder = schemaRecordAnswersTheRead(cached, boundReadConfig) ? readConfigStampOf(cached) : boundReadConfig;
-                statistics = cachedStatistics(schemaKey, measuredUnder);
+                statistics = cachedStatistics(schemaKey, cached, measuredUnder);
             }
             pendingMetadataWarnings.addAll(cached.warnings());
             // Served with no statistics when nothing has been harvested under that read yet: a correct schema
@@ -3262,10 +3260,15 @@ public class ExternalSourceResolver {
      * What the given read measured about this file, or {@code null} when nothing has been harvested at that
      * address. A statistics record is written by the reconcile and never computed on demand, so a miss means
      * "not measured yet" and the caller falls through to the schema record or to a scan.
+     * <p>
+     * The columnar exclusion is decided HERE rather than at each call site, which is what
+     * {@link #publishesScanDerivedStatistics} says it is for. A columnar rail files no statistics record, so
+     * asking is a guaranteed miss - and {@code Cache#get} counts an absent key, so each ask also distorts the
+     * ratio an operator reads to size the store. Two call sites used to skip the gate and book that miss.
      */
     @Nullable
-    private Map<String, Object> cachedStatistics(SchemaCacheKey schemaKey, @Nullable String readConfig) {
-        if (cacheService == null) {
+    private Map<String, Object> cachedStatistics(SchemaCacheKey schemaKey, SchemaCacheEntry entry, @Nullable String readConfig) {
+        if (cacheService == null || publishesScanDerivedStatistics(entry) == false) {
             return null;
         }
         return cacheService.getStatistics(StatisticsKey.of(schemaKey, readConfig));
@@ -4860,7 +4863,7 @@ public class ExternalSourceResolver {
                 entry,
                 logicalSchema,
                 config,
-                cachedStatistics(schemaKey, readConfigStampOf(entry)),
+                cachedStatistics(schemaKey, entry, readConfigStampOf(entry)),
                 null
             );
             return replaceSourceMetadata(full, rowCountOnlyStats(full.sourceMetadata()));
@@ -5723,7 +5726,13 @@ public class ExternalSourceResolver {
         // The measurements are a separate store now, so a single-file resolve has to ask for them: the schema
         // record carries none. Addressed by the read this record was resolved under, which for a single file
         // IS the read the query performs - there is no anchor to bind a different one.
-        return buildMetadataFromCache(entry, entry.toAttributes(), config, cachedStatistics(schemaKey, readConfigStampOf(entry)), null);
+        return buildMetadataFromCache(
+            entry,
+            entry.toAttributes(),
+            config,
+            cachedStatistics(schemaKey, entry, readConfigStampOf(entry)),
+            null
+        );
     }
 
     private ExternalSourceMetadata wrapAsExternalSourceMetadata(

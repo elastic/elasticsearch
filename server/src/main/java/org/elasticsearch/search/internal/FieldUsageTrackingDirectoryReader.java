@@ -333,6 +333,13 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
             private final String field;
 
+            // notifier.onXXXUsed has a ConcurrentHashMap lookup, so only call it if we need to
+            private boolean termFreqUsed;
+            private boolean postingsUsed;
+            private boolean positionsUsed;
+            private boolean offsetsUsed;
+            private boolean payloadsUsed;
+
             FieldUsageTrackingTermsEnum(String field, TermsEnum in) {
                 super(in);
                 this.field = field;
@@ -341,7 +348,10 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             @Override
             public long totalTermFreq() throws IOException {
                 long totalTermFreq = super.totalTermFreq();
-                notifier.onTermFrequenciesUsed(field);
+                if (!termFreqUsed) {
+                    notifier.onTermFrequenciesUsed(field);
+                    termFreqUsed = true;
+                }
                 return totalTermFreq;
             }
 
@@ -349,8 +359,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
                 PostingsEnum postingsEnum = super.postings(reuse, flags);
                 if (postingsEnum != null) {
-                    notifier.onPostingsUsed(field);
-                    checkPostingsFlags(flags);
+                    registerPostingsUsage(flags);
                 }
                 return postingsEnum;
             }
@@ -359,24 +368,31 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             public ImpactsEnum impacts(int flags) throws IOException {
                 ImpactsEnum impactsEnum = super.impacts(flags);
                 if (impactsEnum != null) {
-                    notifier.onPostingsUsed(field);
-                    checkPostingsFlags(flags);
+                    registerPostingsUsage(flags);
                 }
                 return impactsEnum;
             }
 
-            private void checkPostingsFlags(int flags) {
-                if (PostingsEnum.featureRequested(flags, PostingsEnum.FREQS)) {
+            private void registerPostingsUsage(int flags) {
+                if (!postingsUsed) {
+                    notifier.onPostingsUsed(field);
+                    postingsUsed = true;
+                }
+                if (PostingsEnum.featureRequested(flags, PostingsEnum.FREQS) && !termFreqUsed) {
                     notifier.onTermFrequenciesUsed(field);
+                    termFreqUsed = true;
                 }
-                if (PostingsEnum.featureRequested(flags, PostingsEnum.POSITIONS)) {
+                if (PostingsEnum.featureRequested(flags, PostingsEnum.POSITIONS) && !positionsUsed) {
                     notifier.onPositionsUsed(field);
+                    positionsUsed = true;
                 }
-                if (PostingsEnum.featureRequested(flags, PostingsEnum.OFFSETS)) {
+                if (PostingsEnum.featureRequested(flags, PostingsEnum.OFFSETS) && !offsetsUsed) {
                     notifier.onOffsetsUsed(field);
+                    offsetsUsed = true;
                 }
-                if (PostingsEnum.featureRequested(flags, PostingsEnum.PAYLOADS)) {
+                if (PostingsEnum.featureRequested(flags, PostingsEnum.PAYLOADS) && !payloadsUsed) {
                     notifier.onPayloadsUsed(field);
+                    payloadsUsed = true;
                 }
             }
 

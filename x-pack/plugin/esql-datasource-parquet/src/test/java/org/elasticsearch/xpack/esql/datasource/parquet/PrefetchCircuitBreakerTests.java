@@ -1082,11 +1082,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
         try (
             ParquetFileReader reader = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(
-                    new InMemoryStorageObject(parquetData),
-                    footerByteCache,
-                    new NoopCircuitBreaker("phase-two-barrier-ranges")
-                ),
+                new ParquetStorageObjectAdapter(new InMemoryStorageObject(parquetData), footerByteCache, NoopCircuitBreaker.INSTANCE),
                 PlainParquetReadOptions.builder(codecFactory).build()
             )
         ) {

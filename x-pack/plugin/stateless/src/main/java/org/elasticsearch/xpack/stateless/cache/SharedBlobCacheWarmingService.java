@@ -1195,8 +1195,9 @@ public class SharedBlobCacheWarmingService {
                                 return;
                             }
                             logger.debug(
-                                "Search shard recovery cache warming timeout extended by [{}] ({}) for [{}]. Total timeout: [{}]",
+                                "Search shard recovery cache warming timeout extended by [{}] ({} -> {}) for [{}]. Total timeout: [{}]",
                                 newTimeout,
+                                latestPlan.timeoutContext().description(),
                                 newPlan.timeoutContext().description(),
                                 indexShard.shardId(),
                                 TimeValue.timeValueMillis(elapsed.millis() + newTimeout.millis())

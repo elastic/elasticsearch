@@ -73,6 +73,75 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(oldLookup.fieldTypesLookup().get("cat"), nullValue());
     }
 
+    public void testMappingLookupPassthroughStatus() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc": {
+              "properties": {
+                "passthrough_object": {
+                  "type": "passthrough",
+                  "priority": 10,
+                  "properties": {
+                    "host.name": { "type": "keyword" }
+                  }
+                },
+                "plain_object": {
+                  "properties": {
+                    "field": { "type": "keyword" }
+                  }
+                },
+                "nested_object": {
+                  "type": "nested",
+                  "properties": {
+                    "field": { "type": "keyword" }
+                  }
+                },
+                "passthrough_flattened": {
+                  "type": "flattened",
+                  "passthrough": { "priority": 20 },
+                  "properties": {
+                    "service.name": { "type": "keyword" }
+                  }
+                },
+                "plain_flattened": { "type": "flattened" },
+                "keyword": { "type": "keyword" }
+              }
+            } }
+            """);
+
+        MappingLookup lookup = mapperService.mappingLookup();
+        assertEquals(Boolean.TRUE, lookup.isPassthrough("passthrough_object"));
+        assertEquals(Boolean.FALSE, lookup.isPassthrough("plain_object"));
+        assertNull(lookup.isPassthrough("nested_object"));
+        assertEquals(Boolean.TRUE, lookup.isPassthrough("passthrough_flattened"));
+        assertEquals(Boolean.FALSE, lookup.isPassthrough("plain_flattened"));
+        assertNull(lookup.isPassthrough("keyword"));
+        assertNull(lookup.isPassthrough("host.name"));
+        assertNull(lookup.isPassthrough("unknown"));
+    }
+
+    public void testMappingLookupAutoFlattenedPassthroughStatus() throws IOException {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, topMapping(b -> {
+                b.field("subobjects", false);
+                b.startObject("properties");
+                b.startObject("resource.attributes").field("type", "passthrough").field("priority", 10);
+                b.startObject("properties").startObject("host.name").field("type", "keyword").endObject().endObject();
+                b.endObject();
+                b.startObject("plain").field("dynamic", false);
+                b.startObject("properties").startObject("field").field("type", "keyword").endObject().endObject();
+                b.endObject();
+                b.endObject();
+            }));
+
+            MappingLookup lookup = mapperService.mappingLookup();
+            assertEquals(Boolean.TRUE, lookup.isPassthrough("resource.attributes"));
+            assertEquals(Boolean.FALSE, lookup.isPassthrough("plain"));
+            assertNull(lookup.isPassthrough("resource.attributes.host.name"));
+            assertNull(lookup.isPassthrough("unknown"));
+        }
+    }
+
     /**
      * Test that we can have at least the number of fields in new mappings that are defined by "index.mapping.total_fields.limit".
      * Any additional field should trigger an IllegalArgumentException.
@@ -103,6 +172,51 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("Limit of total fields [" + totalFieldsLimit + "] has been exceeded"));
     }
 
+    public void testTotalFieldsLimitThrowModeAtParseTime() throws IOException {
+        int totalFieldsLimit = randomIntBetween(1, 10);
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), totalFieldsLimit)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+
+        // parseMappings() only parses — it does not merge or build — so an exception here
+        // means the limit was enforced at parse time, not at build/merge time.
+        XContentBuilder exceedingMapping = mapping(b -> createMappingSpecifyingNumberOfFields(b, totalFieldsLimit + 1));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> mapperService.parseMappings(new CompressedXContent(BytesReference.bytes(exceedingMapping)))
+        );
+        assertThat(e.getMessage(), containsString("Limit of total fields [" + totalFieldsLimit + "] has been exceeded"));
+
+        // At the limit is fine.
+        XContentBuilder atLimitMapping = mapping(b -> createMappingSpecifyingNumberOfFields(b, totalFieldsLimit));
+        mapperService.parseMappings(new CompressedXContent(BytesReference.bytes(atLimitMapping)));
+    }
+
+    public void testDottedFieldNamesAreNotOvercountedAtParseTime() throws IOException {
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 4).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+
+        // x.a, x.b, x.c creates 4 fields (x, x.a, x.b, x.c) — fits within limit of 4.
+        // parseMappings() only parses, so an exception here means the limit was enforced at parse time.
+        XContentBuilder fourFields = mapping(b -> {
+            b.startObject("x.a").field("type", "keyword").endObject();
+            b.startObject("x.b").field("type", "keyword").endObject();
+            b.startObject("x.c").field("type", "keyword").endObject();
+        });
+        mapperService.parseMappings(new CompressedXContent(BytesReference.bytes(fourFields)));
+
+        // x.a, x.b, y.c creates 5 fields (x, x.a, x.b, y, y.c) — exceeds limit of 4.
+        MapperService mapperService2 = createMapperService(settings, mapping(b -> {}));
+        XContentBuilder fiveFields = mapping(b -> {
+            b.startObject("x.a").field("type", "keyword").endObject();
+            b.startObject("x.b").field("type", "keyword").endObject();
+            b.startObject("y.c").field("type", "keyword").endObject();
+        });
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService2, fiveFields));
+        assertThat(e.getMessage(), containsString("Limit of total fields [4] has been exceeded"));
+    }
+
     private void createMappingSpecifyingNumberOfFields(XContentBuilder b, int numberOfFields) throws IOException {
         for (int i = 0; i < numberOfFields; i++) {
             b.startObject("field" + i);
@@ -116,7 +230,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 1).build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, mapping((b -> {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> merge(mapperService, mapping((b -> {
             b.startObject("object1");
             b.field("type", "object");
             b.endObject();
@@ -291,11 +405,11 @@ public class MapperServiceTests extends MapperServiceTestCase {
             .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfNonAliasFields)
             .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
             .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createMapperService(errorSettings, mapping(b -> {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(errorSettings, mapping(b -> {
             b.startObject("alias").field("type", "alias").field("path", "field").endObject();
             b.startObject("field").field("type", "text").endObject();
         })));
-        assertEquals("Limit of total fields [" + numberOfNonAliasFields + "] has been exceeded", e.getMessage());
+        assertThat(e.getMessage(), containsString("Limit of total fields [" + numberOfNonAliasFields + "] has been exceeded"));
     }
 
     public void testFieldNameLengthLimit() throws Throwable {
@@ -306,12 +420,15 @@ public class MapperServiceTests extends MapperServiceTestCase {
             .build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "text")));
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
             () -> merge(mapperService, mapping(b -> b.startObject(testString).field("type", "text").endObject()))
         );
 
-        assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters", e.getMessage());
+        assertThat(
+            e.getMessage(),
+            containsString("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters")
+        );
     }
 
     public void testObjectNameLengthLimit() throws Throwable {
@@ -322,12 +439,15 @@ public class MapperServiceTests extends MapperServiceTestCase {
             .build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
             () -> merge(mapperService, mapping(b -> b.startObject(testString).field("type", "object").endObject()))
         );
 
-        assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters", e.getMessage());
+        assertThat(
+            e.getMessage(),
+            containsString("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters")
+        );
     }
 
     public void testAliasFieldNameLengthLimit() throws Throwable {
@@ -338,12 +458,15 @@ public class MapperServiceTests extends MapperServiceTestCase {
             .build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, mapping(b -> {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> merge(mapperService, mapping(b -> {
             b.startObject(testString).field("type", "alias").field("path", "field").endObject();
             b.startObject("field").field("type", "text").endObject();
         })));
 
-        assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters", e.getMessage());
+        assertThat(
+            e.getMessage(),
+            containsString("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters")
+        );
     }
 
     public void testMappingRecoverySkipFieldNameLengthLimit() throws Throwable {

@@ -50,7 +50,7 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         for (int iter = 0; iter < 20; iter++) {
             int d = randomIntBetween(4, 200);
             float[] input = randomGaussianVector(d);
-            AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
+            SingleQuantizeResult result = encodeOne(input, ssq);
             for (int j = 0; j < d; j++) {
                 float mag = Math.abs(result.centeredCode()[j]);
                 assertThat(mag, oneOf(0.5f, 1.5f));
@@ -62,7 +62,7 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         AshSphericalScalarQuantizer ssq = quantizerFactory.apply(2);
         int d = 50;
         float[] input = randomGaussianVector(d);
-        AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
+        SingleQuantizeResult result = encodeOne(input, ssq);
         for (int j = 0; j < d; j++) {
             if (input[j] >= 0) {
                 assertThat("Expected positive code for positive input at dim " + j, result.centeredCode()[j], greaterThan(0f));
@@ -78,7 +78,7 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         for (int iter = 0; iter < 20; iter++) {
             int d = randomIntBetween(4, 100);
             float[] input = randomGaussianVector(d);
-            AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
+            SingleQuantizeResult result = encodeOne(input, ssq);
             for (int j = 0; j < d; j++) {
                 float mag = Math.abs(result.centeredCode()[j]);
                 assertThat(mag, oneOf(0.5f, 1.5f, 2.5f, 3.5f));
@@ -92,7 +92,7 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         for (int iter = 0; iter < 10; iter++) {
             int d = randomIntBetween(4, 100);
             float[] input = randomGaussianVector(d);
-            AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
+            SingleQuantizeResult result = encodeOne(input, ssq);
             for (int j = 0; j < d; j++) {
                 float mag = Math.abs(result.centeredCode()[j]);
                 assertThat(mag, oneOf(0.5f, 1.5f, 2.5f, 3.5f, 4.5f, 5.5f, 6.5f, 7.5f));
@@ -105,14 +105,14 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
             AshSphericalScalarQuantizer ssq = quantizerFactory.apply(bits);
             int d = randomIntBetween(4, 200);
             float[] input = randomGaussianVector(d);
-            AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
+            SingleQuantizeResult result = encodeOne(input, ssq);
             assertThat(result.codeNorm(), greaterThan(0f));
         }
     }
 
     /**
      * Every row of a batch must quantize identically to the same vector passed to
-     * {@link AshSphericalScalarQuantizer#encodeOne}. Uses several rows so the batch path is
+     * {@code encodeOne}. Uses several rows so the batch path is
      * exercised at non-zero offsets into the flat input and output arrays.
      */
     public void testEncodeOneMatchesBatch() {
@@ -121,14 +121,15 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         int n = randomIntBetween(2, 5);
         float[] batchInput = randomGaussianVector(n * d);
 
-        AshSphericalScalarQuantizer.QuantizeResult batch = ssq.encode(batchInput, n, d);
+        AshSphericalScalarQuantizer.QuantizeResult batch = new AshSphericalScalarQuantizer.QuantizeResult(n, d);
+        ssq.encode(batchInput, n, d, batch);
         assertEquals(n * d, batch.centeredCodes().length);
         assertEquals(n, batch.codeNorms().length);
 
         for (int i = 0; i < n; i++) {
             int rowIdx = i * d;
             float[] row = ArrayUtil.copyOfSubArray(batchInput, rowIdx, rowIdx + d);
-            AshSphericalScalarQuantizer.SingleQuantizeResult single = ssq.encodeOne(row);
+            SingleQuantizeResult single = encodeOne(row, ssq);
             assertArrayEquals("row " + i, single.centeredCode(), ArrayUtil.copyOfSubArray(batch.centeredCodes(), rowIdx, rowIdx + d), 0f);
             assertEquals("row " + i, single.codeNorm(), batch.codeNorms()[i], 0f);
         }
@@ -136,7 +137,8 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
 
     public void testEmptyInput() {
         AshSphericalScalarQuantizer ssq = quantizerFactory.apply(2);
-        AshSphericalScalarQuantizer.QuantizeResult result = ssq.encode(new float[0], 0, 16);
+        AshSphericalScalarQuantizer.QuantizeResult result = new AshSphericalScalarQuantizer.QuantizeResult(0, 16);
+        ssq.encode(new float[0], 0, 16, result);
         assertEquals(0, result.centeredCodes().length);
         assertEquals(0, result.codeNorms().length);
     }
@@ -150,7 +152,7 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         for (int j = 1; j < d; j++) {
             input[j] = 0.01f;
         }
-        AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
+        SingleQuantizeResult result = encodeOne(input, ssq);
         // The large dimension should be at level 1.5
         assertEquals(1.5f, Math.abs(result.centeredCode()[0]), 0f);
     }
@@ -171,8 +173,8 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         double sumTrue2 = 0;
         double sumQuant2 = 0;
         for (int i = 0; i < n; i++) {
-            AshSphericalScalarQuantizer.SingleQuantizeResult enc = ssq.encodeOne(vectors[i]);
-            AshSphericalScalarQuantizer.SingleQuantizeResult qEnc = ssq.encodeOne(query);
+            SingleQuantizeResult enc = encodeOne(vectors[i], ssq);
+            SingleQuantizeResult qEnc = encodeOne(query, ssq);
             double trueDot = ESVectorUtil.dotProduct(vectors[i], query);
             double quantDot = ESVectorUtil.dotProduct(enc.centeredCode(), qEnc.centeredCode());
             sumProduct += trueDot * quantDot;
@@ -208,7 +210,7 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
             int nSteps = (1 << (bitsPerDim - 1)) - 1;
             int d = randomIntBetween(1, 200);
             float[] z = randomFlavouredVector(d, nSteps);
-            AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(z);
+            SingleQuantizeResult result = encodeOne(z, ssq);
 
             // the quantization uses doubles, where (0.5 + level)^2 is exact, so
             // the returned norm should be exact
@@ -226,7 +228,7 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
             int nSteps = (1 << (bitsPerDim - 1)) - 1;
             int d = randomIntBetween(2, 64);
             float[] z = randomFlavouredVector(d, nSteps);
-            float[] code = ssq.encodeOne(z).centeredCode();
+            float[] code = encodeOne(z, ssq).centeredCode();
             for (int i = 0; i < d; i++) {
                 for (int j = 0; j < d; j++) {
                     if (Math.abs(z[i]) > Math.abs(z[j])) {
@@ -250,14 +252,14 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
             float maxMagnitude = 0.5f + (1 << (bitsPerDim - 1)) - 1;
 
             // single dimension
-            AshSphericalScalarQuantizer.SingleQuantizeResult single = ssq.encodeOne(new float[] { randomFrom(-3f, 0.5f, 7f) });
+            SingleQuantizeResult single = encodeOne(new float[] { randomFrom(-3f, 0.5f, 7f) }, ssq);
             assertThat(Math.abs(single.centeredCode()[0]), greaterThanOrEqualTo(0.5f));
             assertThat(Math.abs(single.centeredCode()[0]), lessThanOrEqualTo(maxMagnitude));
             assertEquals(Math.abs(single.centeredCode()[0]), single.codeNorm(), 0f);
 
             // zero vector
             int d = randomIntBetween(2, 64);
-            AshSphericalScalarQuantizer.SingleQuantizeResult zeros = ssq.encodeOne(new float[d]);
+            SingleQuantizeResult zeros = encodeOne(new float[d], ssq);
             for (int j = 0; j < d; j++) {
                 assertEquals("all-zero input must stay at the base level", 0.5f, Math.abs(zeros.centeredCode()[j]), 0f);
             }
@@ -266,7 +268,7 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
             // one non-zero value
             float[] oneNonZero = new float[d];
             oneNonZero[randomIntBetween(0, d - 1)] = 7f;
-            AshSphericalScalarQuantizer.SingleQuantizeResult sparse = ssq.encodeOne(oneNonZero);
+            SingleQuantizeResult sparse = encodeOne(oneNonZero, ssq);
             for (int j = 0; j < d; j++) {
                 if (oneNonZero[j] == 0) {
                     assertEquals("zero magnitude gained a level", 0.5f, Math.abs(sparse.centeredCode()[j]), 0f);
@@ -286,7 +288,7 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
             double previousCos = -1;
             for (int bitsPerDim = 1; bitsPerDim <= 8; bitsPerDim++) {
                 AshSphericalScalarQuantizer ssq = quantizerFactory.apply(bitsPerDim);
-                AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(z);
+                SingleQuantizeResult result = encodeOne(z, ssq);
                 double cos = ESVectorUtil.dotProduct(z, result.centeredCode()) / result.codeNorm();
                 assertThat(
                     "cos similarity regressed going from fewer to more bits at bitsPerDim=" + bitsPerDim + ": " + cos + " < " + previousCos,
@@ -299,7 +301,7 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
     }
 
     private static void assertMatchesBruteForceOptimum(AshSphericalScalarQuantizer ssq, int numAbsLevels, float[] z, int iter) {
-        AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(z);
+        SingleQuantizeResult result = encodeOne(z, ssq);
         double greedyCos = ESVectorUtil.dotProduct(z, result.centeredCode()) / result.codeNorm();
         double bestCos = bruteForceBestCosSimilarity(z, numAbsLevels);
         assertEquals("Mismatch at bitsPerDim=" + ssq.bitsPerDimension() + " iter=" + iter, bestCos, greedyCos, 1e-4);
@@ -396,5 +398,14 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
             v[j] = randomBoolean() ? magnitude : -magnitude;
         }
         return v;
+    }
+
+    private record SingleQuantizeResult(float[] centeredCode, float codeNorm) {}
+
+    private static SingleQuantizeResult encodeOne(float[] xLatent, AshSphericalScalarQuantizer quantizer) {
+        int nDims = xLatent.length;
+        float[] out = new float[nDims];
+        float norm = quantizer.quantizeExact(xLatent, 0, out, 0, nDims);
+        return new SingleQuantizeResult(out, norm);
     }
 }

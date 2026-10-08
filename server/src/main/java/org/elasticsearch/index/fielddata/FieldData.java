@@ -32,9 +32,9 @@ public enum FieldData {
     ;
 
     /**
-     * Return a {@link SortedBinaryDocValues} that doesn't contain any value.
+     * Return a {@link SortableBinaryDocValues} that doesn't contain any value.
      */
-    public static SortedBinaryDocValues emptySortedBinary() {
+    public static SortableBinaryDocValues emptySortedBinary() {
         return singleton(DocValues.emptyBinary());
     }
 
@@ -48,7 +48,7 @@ public enum FieldData {
     /**
      * Returns a {@link DocValueBits} representing all documents from <code>values</code> that have a value.
      */
-    public static DocValueBits docsWithValue(final SortedBinaryDocValues values) {
+    public static DocValueBits docsWithValue(final SortableBinaryDocValues values) {
         return new DocValueBits() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
@@ -161,6 +161,20 @@ public enum FieldData {
      * Wrap the provided {@link SortedNumericDocValues} instance to cast all values to doubles.
      */
     public static SortedNumericDoubleValues castToDouble(final SortedNumericLongValues values) {
+        final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
+        if (singleton != null) {
+            return singleton(new DoubleValues() {
+                @Override
+                public double doubleValue() throws IOException {
+                    return singleton.longValue();
+                }
+
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    return singleton.advanceExact(doc);
+                }
+            });
+        }
         return new SortedNumericDoubleValues.SortedNumericLongWrapper(values) {
             @Override
             public double nextValue() throws IOException {
@@ -199,18 +213,18 @@ public enum FieldData {
     /**
      * Returns a multi-valued view over the provided {@link BinaryDocValues}.
      */
-    public static SortedBinaryDocValues singleton(BinaryDocValues values) {
-        return new SingletonSortedBinaryDocValues(values);
+    public static SortableBinaryDocValues singleton(BinaryDocValues values) {
+        return new SingletonSortableBinaryDocValues(values);
     }
 
     /**
-     * Returns a single-valued view of the {@link SortedBinaryDocValues},
+     * Returns a single-valued view of the {@link SortableBinaryDocValues},
      * if it was previously wrapped with {@link #singleton(BinaryDocValues)},
      * or null.
      */
-    public static BinaryDocValues unwrapSingleton(SortedBinaryDocValues values) {
-        if (values instanceof SingletonSortedBinaryDocValues) {
-            return ((SingletonSortedBinaryDocValues) values).getBinaryDocValues();
+    public static BinaryDocValues unwrapSingleton(SortableBinaryDocValues values) {
+        if (values instanceof SingletonSortableBinaryDocValues) {
+            return ((SingletonSortableBinaryDocValues) values).getBinaryDocValues();
         }
         return null;
     }
@@ -220,7 +234,7 @@ public enum FieldData {
      * typically used for scripts or for the `map` execution mode of terms aggs.
      * NOTE: this is very slow!
      */
-    public static SortedBinaryDocValues toString(final SortedNumericLongValues values) {
+    public static SortableBinaryDocValues toString(final SortedNumericLongValues values) {
         {
             final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
             if (singleton != null) {
@@ -266,7 +280,7 @@ public enum FieldData {
      * typically used for scripts or for the `map` execution mode of terms aggs.
      * NOTE: this is very slow!
      */
-    public static SortedBinaryDocValues toString(final SortedNumericDoubleValues values) {
+    public static SortableBinaryDocValues toString(final SortedNumericDoubleValues values) {
         {
             final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
             if (singleton != null) {
@@ -312,14 +326,14 @@ public enum FieldData {
      * typically used for scripts or for the `map` execution mode of terms aggs.
      * NOTE: this is slow!
      */
-    public static SortedBinaryDocValues toString(final SortedSetDocValues values) {
+    public static SortableBinaryDocValues toString(final SortedSetDocValues values) {
         {
             final SortedDocValues singleton = DocValues.unwrapSingleton(values);
             if (singleton != null) {
                 return FieldData.singleton(toString(singleton));
             }
         }
-        return new SortedBinaryDocValues(values) {
+        return new SortableBinaryDocValues(values) {
 
             @Override
             public boolean advanceExact(int doc) throws IOException {
@@ -363,7 +377,7 @@ public enum FieldData {
      * typically used for scripts or for the `map` execution mode of terms aggs.
      * NOTE: this is very slow!
      */
-    public static SortedBinaryDocValues toString(final MultiGeoPointValues values) {
+    public static SortableBinaryDocValues toString(final MultiGeoPointValues values) {
         {
             final GeoPointValues singleton = FieldData.unwrapSingleton(values);
             if (singleton != null) {
@@ -404,7 +418,7 @@ public enum FieldData {
         });
     }
 
-    private static SortedBinaryDocValues toString(final ToStringValues toStringValues) {
+    private static SortableBinaryDocValues toString(final ToStringValues toStringValues) {
         return new SortingBinaryDocValues() {
 
             final List<CharSequence> list = new ArrayList<>();

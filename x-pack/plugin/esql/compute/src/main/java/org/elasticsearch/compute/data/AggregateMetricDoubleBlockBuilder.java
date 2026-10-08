@@ -124,6 +124,12 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     @Override
+    public boolean reopenLastPositionEntry() {
+        // See cancelPositionEntry: the inherited implementation would leave the inner builders behind.
+        throw new UnsupportedOperationException("reopenLastPositionEntry is not supported by AggregateMetricDoubleBlockBuilder");
+    }
+
+    @Override
     public AggregateMetricDoubleBlockBuilder appendNull() {
         minBuilder.appendNull();
         maxBuilder.appendNull();

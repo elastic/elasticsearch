@@ -13,11 +13,11 @@ import org.elasticsearch.core.Strings;
 
 import java.util.function.IntFunction;
 
-class FixedSizeScratch implements IntFunction<byte[]> {
+public class FixedSizeScratch implements IntFunction<byte[]> {
     private final int size;
     private byte[] scratch;
 
-    FixedSizeScratch(int size) {
+    public FixedSizeScratch(int size) {
         this.size = size;
     }
 

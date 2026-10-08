@@ -1,0 +1,6 @@
+area: SQL
+issues:
+ - 159250
+pr: 159256
+summary: Fix NPE/CCE in `ReplaceSumWithStats` on nested SUM
+type: bug

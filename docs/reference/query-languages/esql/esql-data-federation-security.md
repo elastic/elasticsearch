@@ -1,5 +1,5 @@
 ---
-navigation_title: "Manage access"
+navigation_title: "Security"
 description: "Secure ES|QL Data Federation by controlling access to data sources and datasets, encrypting credentials, and configuring privileges."
 applies_to:
   stack: experimental =9.5
@@ -51,6 +51,7 @@ Dataset operations are authorized by the standard {{es}} [index privileges](../.
 | Read a data source definition | `global.data_source` `read_metadata` / `cluster.manage` | Global (fine-grained) / Cluster |
 | Delete a data source | `global.data_source` `delete` / `cluster.manage` | Global (fine-grained) / Cluster |
 | Reference a data source from a dataset | `global.data_source` `read` / `cluster.manage` | Global (fine-grained) / Cluster |
+| Test a data source connection | `cluster.manage` | Cluster |
 | All data source operations | `global.data_source` `manage` / `cluster.manage` | Global (fine-grained) / Cluster |
 
 Creating a dataset that references a data source also requires the `read` data source privilege for that data source. The two are authorized independently.
@@ -76,6 +77,8 @@ A role configures these privileges as follows. The example grants querying `sale
 ```
 
 ## Next steps
+
+Continue with the following security and configuration tasks:
 
 - To set up credentials for a data source, refer to [connect with static credentials](esql-data-federation-static-credentials.md) or [connect with federated identity](esql-data-federation-federated-identity.md).
 - For the operator-level settings that gate managed identity and federated identity, refer to the [authentication cluster settings](esql-data-federation-cluster-settings.md#authentication).

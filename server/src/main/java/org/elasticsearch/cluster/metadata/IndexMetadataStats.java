@@ -9,12 +9,15 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.RamUsageEstimates;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -29,7 +32,10 @@ import java.util.Objects;
 public record IndexMetadataStats(IndexWriteLoad indexWriteLoad, AverageShardSize averageShardSize)
     implements
         Writeable,
-        ToXContentFragment {
+        ToXContentFragment,
+        Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexMetadataStats.class);
 
     public static final ParseField WRITE_LOAD_FIELD = new ParseField("write_load");
     public static final ParseField AVERAGE_SIZE_FIELD = new ParseField("avg_size");
@@ -124,6 +130,11 @@ public record IndexMetadataStats(IndexWriteLoad indexWriteLoad, AverageShardSize
 
     public IndexWriteLoad writeLoad() {
         return indexWriteLoad;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + indexWriteLoad.ramBytesUsed() + RamUsageEstimates.shallowSizeOfPrimitiveOnly(averageShardSize);
     }
 
     public record AverageShardSize(long totalSizeInBytes, int numberOfShards) implements Writeable, ToXContentFragment {

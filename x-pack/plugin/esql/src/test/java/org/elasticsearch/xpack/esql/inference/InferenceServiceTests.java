@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -32,6 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -76,7 +78,10 @@ public class InferenceServiceTests extends ESTestCase {
         assertBusy(() -> {
             InferenceResolution inferenceResolution = inferenceResolutionSetOnce.get();
             assertNotNull(inferenceResolution);
-            assertThat(inferenceResolution.resolvedInferences(), contains(new ResolvedInference("rerank-plan", TaskType.RERANK)));
+            assertThat(
+                inferenceResolution.resolvedInferences(),
+                contains(new ResolvedInference("rerank-plan", TaskType.RERANK, SimilarityMeasure.DOT_PRODUCT))
+            );
             assertThat(inferenceResolution.hasError(), equalTo(false));
         });
     }
@@ -98,8 +103,8 @@ public class InferenceServiceTests extends ESTestCase {
             assertThat(
                 inferenceResolution.resolvedInferences(),
                 contains(
-                    new ResolvedInference("rerank-plan", TaskType.RERANK),
-                    new ResolvedInference("completion-plan", TaskType.COMPLETION)
+                    new ResolvedInference("rerank-plan", TaskType.RERANK, SimilarityMeasure.DOT_PRODUCT),
+                    new ResolvedInference("completion-plan", TaskType.COMPLETION, SimilarityMeasure.DOT_PRODUCT)
                 )
             );
             assertThat(inferenceResolution.hasError(), equalTo(false));
@@ -125,6 +130,93 @@ public class InferenceServiceTests extends ESTestCase {
             assertThat(inferenceResolution.hasError(), equalTo(true));
             assertThat(inferenceResolution.getError("missing-inference-id"), equalTo("inference endpoint not found"));
         });
+    }
+
+    public void testDenseVectorBatchSizeUpdatesWhileRunning() {
+        RunningInference running = runningInference();
+        assertThat(
+            running.service().inferenceSettings().denseVectorBatchSize(),
+            equalTo(InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE)
+        );
+
+        int updatedBatchSize = between(1, InferenceSettings.DENSE_VECTOR_MAX_BATCH_SIZE);
+        applyBatchSize(running.clusterSettings(), updatedBatchSize);
+
+        assertThat(running.service().inferenceSettings().denseVectorBatchSize(), equalTo(updatedBatchSize));
+    }
+
+    /**
+     * Removing the override falls back to the default: the batch size starts at the default, changes to a custom value, then
+     * returns to the default once the override is cleared (equivalent to setting it to {@code null}).
+     */
+    public void testDenseVectorBatchSizeRevertsToDefault() {
+        RunningInference running = runningInference();
+        assertThat(
+            running.service().inferenceSettings().denseVectorBatchSize(),
+            equalTo(InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE)
+        );
+
+        int customBatchSize = randomValueOtherThan(
+            InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE,
+            () -> between(1, InferenceSettings.DENSE_VECTOR_MAX_BATCH_SIZE)
+        );
+        applyBatchSize(running.clusterSettings(), customBatchSize);
+        assertThat(running.service().inferenceSettings().denseVectorBatchSize(), equalTo(customBatchSize));
+
+        running.clusterSettings().applySettings(Settings.EMPTY);
+        assertThat(
+            running.service().inferenceSettings().denseVectorBatchSize(),
+            equalTo(InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE)
+        );
+    }
+
+    /**
+     * Consecutive updates each take effect. Every value differs from the previous one, so the running service reflects the latest
+     * value after each update.
+     */
+    public void testDenseVectorBatchSizeUpdatesRepeatedly() {
+        RunningInference running = runningInference();
+
+        int previousBatchSize = InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE;
+        int iterations = between(3, 6);
+        for (int i = 0; i < iterations; i++) {
+            int nextBatchSize = randomValueOtherThan(previousBatchSize, () -> between(1, InferenceSettings.DENSE_VECTOR_MAX_BATCH_SIZE));
+            applyBatchSize(running.clusterSettings(), nextBatchSize);
+            assertThat(running.service().inferenceSettings().denseVectorBatchSize(), equalTo(nextBatchSize));
+            previousBatchSize = nextBatchSize;
+        }
+    }
+
+    /**
+     * A live update to an out-of-range value is rejected, and the value already in effect is left unchanged.
+     */
+    public void testDenseVectorBatchSizeRejectsOutOfRangeUpdate() {
+        RunningInference running = runningInference();
+
+        assertOutOfRangeUpdateRejected(running.clusterSettings(), 0, "must be >= 1");
+        assertOutOfRangeUpdateRejected(running.clusterSettings(), -1, "must be >= 1");
+        assertOutOfRangeUpdateRejected(
+            running.clusterSettings(),
+            InferenceSettings.DENSE_VECTOR_MAX_BATCH_SIZE + between(1, 100),
+            "must be <= " + InferenceSettings.DENSE_VECTOR_MAX_BATCH_SIZE
+        );
+
+        assertThat(
+            running.service().inferenceSettings().denseVectorBatchSize(),
+            equalTo(InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE)
+        );
+    }
+
+    private static void applyBatchSize(ClusterSettings clusterSettings, int batchSize) {
+        clusterSettings.applySettings(
+            Settings.builder().put(InferenceSettings.DENSE_VECTOR_BATCH_SIZE_SETTING.getKey(), batchSize).build()
+        );
+    }
+
+    private static void assertOutOfRangeUpdateRejected(ClusterSettings clusterSettings, int batchSize, String boundMessage) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> applyBatchSize(clusterSettings, batchSize));
+        assertThat(e.getMessage(), containsString(InferenceSettings.DENSE_VECTOR_BATCH_SIZE_SETTING.getKey()));
+        assertThat(e.getMessage(), containsString(boundMessage));
     }
 
     @SuppressWarnings("unchecked")
@@ -159,12 +251,14 @@ public class InferenceServiceTests extends ESTestCase {
         GetInferenceModelAction.Response response = mock(GetInferenceModelAction.Response.class);
 
         if (request.getInferenceEntityId().equals("rerank-plan")) {
-            when(response.getEndpoints()).thenReturn(List.of(mockModelConfig("rerank-plan", TaskType.RERANK)));
+            ModelConfigurations modelConfig = mockModelConfig("rerank-plan", TaskType.RERANK);
+            when(response.getEndpoints()).thenReturn(List.of(modelConfig));
             return response;
         }
 
         if (request.getInferenceEntityId().equals("completion-plan")) {
-            when(response.getEndpoints()).thenReturn(List.of(mockModelConfig("completion-plan", TaskType.COMPLETION)));
+            ModelConfigurations modelConfig = mockModelConfig("completion-plan", TaskType.COMPLETION);
+            when(response.getEndpoints()).thenReturn(List.of(modelConfig));
             return response;
         }
 
@@ -172,15 +266,27 @@ public class InferenceServiceTests extends ESTestCase {
     }
 
     private InferenceService inferenceService() {
+        return runningInference().service();
+    }
+
+    /**
+     * An {@link InferenceService} wired to a live {@link ClusterSettings}, so tests can apply setting updates and observe the
+     * service react to them.
+     */
+    private record RunningInference(InferenceService service, ClusterSettings clusterSettings) {}
+
+    private RunningInference runningInference() {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(InferenceSettings.getSettings()));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
-        return new InferenceService(mockClient(), clusterService);
+        return new RunningInference(new InferenceService(mockClient(), clusterService), clusterSettings);
     }
 
     private static ModelConfigurations mockModelConfig(String inferenceId, TaskType taskType) {
-        return new ModelConfigurations(inferenceId, taskType, randomIdentifier(), mock(ServiceSettings.class));
+        ServiceSettings serviceSettings = mock(ServiceSettings.class);
+        when(serviceSettings.similarity()).thenReturn(SimilarityMeasure.DOT_PRODUCT);
+        return new ModelConfigurations(inferenceId, taskType, randomIdentifier(), serviceSettings);
     }
 }

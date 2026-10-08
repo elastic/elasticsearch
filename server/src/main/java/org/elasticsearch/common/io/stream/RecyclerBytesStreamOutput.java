@@ -292,6 +292,48 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     @Override
+    public void writeIntsLE(int[] values, int offset, int length) throws IOException {
+        Objects.checkFromIndexSize(offset, length, values.length);
+        int i = offset;
+        int end = offset + length;
+        while (i < end) {
+            int currentOffset = this.currentOffset;
+            int fit = Math.min(end - i, (maxOffset - currentOffset) / Integer.BYTES);
+            if (fit == 0) {
+                writeIntLE(values[i++]);
+                continue;
+            }
+            byte[] page = currentBufferPool;
+            for (int j = 0; j < fit; j++) {
+                ByteUtils.writeIntLE(values[i + j], page, currentOffset + j * Integer.BYTES);
+            }
+            this.currentOffset = currentOffset + fit * Integer.BYTES;
+            i += fit;
+        }
+    }
+
+    @Override
+    public void writeLongsLE(long[] values, int offset, int length) throws IOException {
+        Objects.checkFromIndexSize(offset, length, values.length);
+        int i = offset;
+        int end = offset + length;
+        while (i < end) {
+            int currentOffset = this.currentOffset;
+            int fit = Math.min(end - i, (maxOffset - currentOffset) / Long.BYTES);
+            if (fit == 0) {
+                writeLongLE(values[i++]);
+                continue;
+            }
+            byte[] page = currentBufferPool;
+            for (int j = 0; j < fit; j++) {
+                ByteUtils.writeLongLE(values[i + j], page, currentOffset + j * Long.BYTES);
+            }
+            this.currentOffset = currentOffset + fit * Long.BYTES;
+            i += fit;
+        }
+    }
+
+    @Override
     public void legacyWriteWithSizePrefix(Writeable writeable) throws IOException {
         // TODO: do this without copying the bytes from tmp by calling writeBytes and just use the pages in tmp directly through
         // manipulation of the offsets on the pages after writing to tmp. This will require adjustments to the places in this class

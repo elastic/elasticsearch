@@ -66,6 +66,7 @@ public class InferenceFeatures implements FeatureSpecification {
     private static final NodeFeature COHERE_V2_API = new NodeFeature("inference.cohere.v2");
     public static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTING_FLAT = new NodeFeature("semantic_text.highlighter.flat_index_options");
     private static final NodeFeature SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT = new NodeFeature("semantic_text.fields_chunks_format");
+    private static final NodeFeature SEMANTIC_EXISTS_QUERY_AUTO_PREFILTER_FIX = new NodeFeature("semantic.exists_query_auto_prefilter_fix");
 
     public static final NodeFeature INFERENCE_ENDPOINT_CACHE = new NodeFeature("inference.endpoint.cache");
     public static final NodeFeature INFERENCE_CCM_CACHE = new NodeFeature("inference.ccm.cache");
@@ -81,6 +82,7 @@ public class InferenceFeatures implements FeatureSpecification {
     public static final NodeFeature INFERENCE_CCM_ENABLEMENT_SERVICE = new NodeFeature("inference.ccm.enablement_service");
 
     public static final NodeFeature EMBEDDING_TASK_TYPE = new NodeFeature("inference.embedding_task_type");
+    public static final NodeFeature DOCUMENT_EXTRACTION_TASK_TYPE = new NodeFeature("inference.document_extraction_task_type");
     public static final NodeFeature ENDPOINT_METADATA_FIELD = new NodeFeature("inference.metadata_field");
 
     /**
@@ -122,6 +124,7 @@ public class InferenceFeatures implements FeatureSpecification {
             INFERENCE_AUTH_POLLER_PERSISTENT_TASK,
             INFERENCE_CCM_ENABLEMENT_SERVICE,
             EMBEDDING_TASK_TYPE,
+            DOCUMENT_EXTRACTION_TASK_TYPE,
             ENDPOINT_METADATA_FIELD,
             INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION,
             INFERENCE_ELASTIC_REASONING_TASK_SETTINGS,
@@ -188,7 +191,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 SemanticTextFieldMapper.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES,
                 SemanticFieldMapper.SEMANTIC_FIELD_MAPPER,
                 TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_EMPTY_RESULT_FIX,
-                ENDPOINT_METADATA_CLUSTER_STATE_SUBSET
+                ENDPOINT_METADATA_CLUSTER_STATE_SUBSET,
+                SEMANTIC_EXISTS_QUERY_AUTO_PREFILTER_FIX
             )
         );
         testFeatures.addAll(getFeatures());

@@ -66,6 +66,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -140,6 +141,7 @@ public class IndexEngine extends InternalEngine {
     private final ReshardIndexService reshardIndexService;
     private final IndexEngineDynamicSettings indexEngineDynamicSettings;
     private final CommitBCCResolver commitBCCResolver;
+    private final DocumentParsingProvider documentParsingProvider;
     private final DocumentSizeAccumulator documentSizeAccumulator;
     private final DocumentSizeReporter documentParsingReporter;
     private final TranslogRecoveryMetrics translogRecoveryMetrics;
@@ -217,6 +219,7 @@ public class IndexEngine extends InternalEngine {
         this.reshardIndexService = reshardIndexService;
         this.indexEngineDynamicSettings = indexEngineDynamicSettings;
         this.commitBCCResolver = commitBCCResolver;
+        this.documentParsingProvider = documentParsingProvider;
         this.documentSizeAccumulator = documentParsingProvider.createDocumentSizeAccumulator();
         this.documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
             shardId.getIndex(),
@@ -243,28 +246,34 @@ public class IndexEngine extends InternalEngine {
     }
 
     /**
-     * Prefetches the min/max {@code _id} .tim blocks in each segment so the first id lookups after a primary relocation do not
-     * block on a cold read from the object store. Best-effort: only boundary blocks are prefetched; interior lookups will still
-     * cold-read on first access.
+     * Prefetches the min/max {@code _id} .tim blocks in the last {@code maxSegments} segments so the first id
+     * lookups after a primary relocation do not block on a cold read from the object store. Best-effort: only boundary blocks of
+     * the most recent segments are prefetched; other lookups will still cold-read on first access. Segments without {@code _id}
+     * terms still count towards {@code maxSegments}, as the bound limits how far back the leaves are visited.
      */
-    public void prewarmIdLookups() {
+    public void prewarmIdLookups(int maxSegments) {
         performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
-            for (LeafReaderContext leaf : reader.leaves()) {
-                var terms = leaf.reader().terms(IdFieldMapper.NAME);
-                if (terms == null) {
-                    continue; // no-op segment
-                }
-                BytesRef min = terms.getMin();
-                if (min != null) {
-                    terms.iterator().prepareSeekExact(min);
-                }
-                BytesRef max = terms.getMax();
-                if (max != null) {
-                    terms.iterator().prepareSeekExact(max);
-                }
-            }
+            prewarmIdLookups(reader.leaves(), maxSegments);
             return null;
         });
+    }
+
+    static void prewarmIdLookups(List<LeafReaderContext> leaves, int maxSegments) throws IOException {
+        final int lowestLeaf = Math.max(0, leaves.size() - maxSegments);
+        for (int i = leaves.size() - 1; i >= lowestLeaf; i--) {
+            var terms = leaves.get(i).reader().terms(IdFieldMapper.NAME);
+            if (terms == null) {
+                continue; // no-op segment
+            }
+            BytesRef min = terms.getMin();
+            if (min != null) {
+                terms.iterator().prepareSeekExact(min);
+            }
+            BytesRef max = terms.getMax();
+            if (max != null) {
+                terms.iterator().prepareSeekExact(max);
+            }
+        }
     }
 
     /**
@@ -547,9 +556,14 @@ public class IndexEngine extends InternalEngine {
         IndexResult result = super.index(index);
 
         if (result.getResultType() == Result.Type.SUCCESS) {
-            documentParsingReporter.onIndexingCompleted(parsedDocument);
+            documentParsingReporter.onIndexingCompleted(parsedDocument, index.origin());
         }
         return result;
+    }
+
+    @Override
+    public XContentMeteringParserDecorator newMeteringParserDecorator() {
+        return documentParsingProvider.newMeteringParserDecorator();
     }
 
     @Override
@@ -562,7 +576,8 @@ public class IndexEngine extends InternalEngine {
         List<IndexResult> results = super.indexBatch(engineBatch);
         for (int i = 0; i < results.size(); i++) {
             if (results.get(i).getResultType() == Result.Type.SUCCESS) {
-                documentParsingReporter.onIndexingCompleted(operations.get(i).parsedDoc());
+                Index operation = operations.get(i);
+                documentParsingReporter.onIndexingCompleted(operation.parsedDoc(), operation.origin());
             }
         }
         return results;
@@ -911,6 +926,12 @@ public class IndexEngine extends InternalEngine {
         } else {
             return Translog.Snapshot.EMPTY;
         }
+    }
+
+    public void waitForCurrentCommitDurability(ActionListener<Void> listener) {
+        // The current Lucene generation may have been produced by a flush-by-refresh, which is never queued for BCC upload.
+        long genToWaitFor = Math.min(getCurrentGeneration(), statelessCommitService.getMaxPendingOrUploadedGeneration(shardId));
+        waitForCommitDurability(genToWaitFor, listener);
     }
 
     @Override

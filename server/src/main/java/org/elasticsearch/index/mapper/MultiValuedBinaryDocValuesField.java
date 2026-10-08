@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutputHelper;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -34,6 +35,22 @@ import java.util.TreeSet;
  * binary doc values for fields with multiple values per document.
  */
 public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
+
+    /**
+     * Whether a {@code null} the parser is looking at is kept as a slot, or is the field being absent.
+     *
+     * <p>In a strictly columnar index a null counts only where it is an element of the field's own array, which is the position
+     * synthetic source has to put it back into; {@code f: null} and {@code f: []} say the document has nothing for the field. That
+     * is a property of the mapping, so it holds whichever layout is writing the doc values — the ColumNAR codec's payload and the
+     * in-order column give the same answer, and so does {@code exists}. Everywhere else a null is kept as it always was.
+     *
+     * <p>The immediate parent rather than {@link DocumentParserContext#isPartOfArray()}: that is also true of a null inside an array
+     * of objects, where the position belongs to the objects, and flattening {@code obj: [{f: null}, {f: "a"}]} into
+     * {@code f: [null, "a"]} is not an order to promise.
+     */
+    public static boolean keepsNullSlot(DocumentParserContext context, IndexMode mode) {
+        return mode.isStrictColumnar() == false || context.isImmediateParentAnArray();
+    }
 
     // vints are unlike normal ints in that they may require 5 bytes instead of 4
     // see BytesStreamOutput.writeVInt()

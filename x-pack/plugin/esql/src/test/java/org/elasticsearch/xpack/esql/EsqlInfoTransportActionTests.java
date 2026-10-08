@@ -196,5 +196,10 @@ public class EsqlInfoTransportActionTests extends ESTestCase {
         assertThat(ObjectPath.eval("datasources.config.datasets.count", esqlUsage.stats()), is(2L));
         assertThat(ObjectPath.eval("datasources.config.datasets.by_datasource_type.s3", esqlUsage.stats()), is(1L));
         assertThat(ObjectPath.eval("datasources.config.datasets.by_datasource_type.unknown", esqlUsage.stats()), is(1L));
+        // Dense zeros for unused type tokens; auth/format families exist even without validators.
+        assertThat(ObjectPath.eval("datasources.config.datasources.by_type.gcs", esqlUsage.stats()), is(0L));
+        assertThat(ObjectPath.eval("datasources.config.datasources.by_auth.unknown", esqlUsage.stats()), is(2L));
+        assertThat(ObjectPath.eval("datasources.config.datasets.by_format.unresolved", esqlUsage.stats()), is(2L));
+        assertThat(ObjectPath.eval("datasources.config.datasets.by_schema.inferred", esqlUsage.stats()), is(2L));
     }
 }

@@ -7,8 +7,12 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -19,7 +23,9 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -28,14 +34,19 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Direct unit tests for {@link ColumnMapping#pruneToPerFileQuery} and
@@ -58,7 +69,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ColumnMappingTests extends ESTestCase {
 
     private final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testPruneToPerFileQueryKeptZero() {
@@ -431,6 +442,29 @@ public class ColumnMappingTests extends ESTestCase {
 
     // ===== mapPage failure-cleanup =====
 
+    public void testMapPagePreservesCircuitBreakingException() {
+        BigArrays limitedBigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(0))
+            .withCircuitBreaking();
+        BlockFactory limitedBlockFactory = BlockFactory.builder(limitedBigArrays).build();
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, -1 }, null);
+        IntBlock passThrough = blockFactory.newConstantIntBlockWith(1, 1);
+        Page filePage = new Page(1, new Block[] { passThrough });
+
+        try {
+            CircuitBreakingException failure = expectThrows(
+                CircuitBreakingException.class,
+                () -> mapping.mapPage(filePage, limitedBlockFactory)
+            );
+            assertEquals(RestStatus.TOO_MANY_REQUESTS, failure.status());
+            assertFalse("cleanup must leave the input page's reference intact", passThrough.isReleased());
+        } finally {
+            filePage.releaseBlocks();
+        }
+
+        assertTrue("cleanup must undo the temporary pass-through reference", passThrough.isReleased());
+        assertEquals(0L, limitedBlockFactory.breaker().getUsed());
+    }
+
     public void testReconciliationCastMatchesDeclaredCoercion() {
         // THE one-coercion-path equivalence: casting a physical block through the reconciliation
         // route (mapPage with a cast slot) and through the declared route (DeclaredTypeCoercions
@@ -500,27 +534,34 @@ public class ColumnMappingTests extends ESTestCase {
 
     public void testCastDatetimeToDateNanosOutOfRangeIsStrictWithoutSink() {
         // Without a warnings sink the cast is strict: the unrepresentable instant fails the page
-        // (wrapped by mapPage) instead of nulling. Previously this pair silently multiplied into
-        // an overflowed long; the range rule now matches TO_DATE_NANOS (DateUtils.toNanoSeconds).
+        // with its client-error status intact instead of nulling. Previously this pair silently
+        // multiplied into an overflowed long; the range rule now matches TO_DATE_NANOS
+        // (DateUtils.toNanoSeconds).
         ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
         LongBlock src = blockFactory.newConstantLongBlockWith(-5L, 1);
         Page filePage = new Page(1, new Block[] { src });
         try {
-            RuntimeException e = expectThrows(
-                RuntimeException.class,
+            InvalidArgumentException e = expectThrows(
+                InvalidArgumentException.class,
                 () -> mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.DATETIME })
             );
-            assertTrue("wrapped under mapPage's catch", e.getMessage() != null && e.getMessage().contains("Failed to map page"));
+            assertEquals(RestStatus.BAD_REQUEST, e.status());
         } finally {
             filePage.releaseBlocks();
         }
     }
 
+    /** Records each detail; one recorded as removed from a multi-valued cell is prefixed with {@code "removed: "}. */
     private static SkipWarnings capturing(List<String> into) {
         return new SkipWarnings("summary") {
             @Override
             public void add(String detail) {
                 into.add(detail);
+            }
+
+            @Override
+            public void addRemovedFromMultiValue(String detail) {
+                into.add("removed: " + detail);
             }
         };
     }
@@ -947,6 +988,72 @@ public class ColumnMappingTests extends ESTestCase {
                     out.releaseBlocks();
                 }
             } finally {
+                filePage.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * The 6-arg {@link ColumnMapping#mapPage} overload must call {@link ColumnarRowDropHelper#markFailed}
+     * for every position where the source was non-null and the cast produced null.
+     */
+    public void testMapPageWithDropHelperMarksCastFailurePositions() {
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
+
+        long goodMillis = 1_711_800_000_000L;
+        long year3000Millis = 32_503_680_000_000L;
+
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(3)) {
+            builder.appendLong(goodMillis);
+            builder.appendLong(year3000Millis);
+            builder.appendLong(goodMillis);
+            LongBlock src = builder.build();
+            Page filePage = new Page(3, new Block[] { src });
+
+            ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, false);
+            ColumnarRowDropHelper dropHelper = ColumnarRowDropHelper.forPolicy(skipRow, "test.parquet");
+            dropHelper.beginBatch(3);
+
+            List<String> captured = new ArrayList<>();
+            SkipWarnings warnings = capturing(captured);
+            Page out = mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.DATETIME }, null, warnings, dropHelper);
+            try {
+                assertThat("only the year-3000 row must be marked failed", dropHelper.failedCount(), equalTo(1));
+                LongBlock nanosBlock = out.getBlock(0);
+                assertFalse("position 0 must survive", nanosBlock.isNull(0));
+                assertTrue("position 1 must be null-filled (cast failed)", nanosBlock.isNull(1));
+                assertFalse("position 2 must survive", nanosBlock.isNull(2));
+            } finally {
+                out.releaseBlocks();
+                filePage.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * An inferred cross-file widening runs through the same multi-value arm as a declared cast: under a lenient
+     * policy an element with no date_nanos representation is removed from its cell and the others are kept.
+     */
+    public void testMapPageMultiValueCastFailureRemovesOnlyTheFailingElement() {
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
+        long goodMillis = 1_711_800_000_000L;
+        long year3000Millis = 32_503_680_000_000L;
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(1)) {
+            builder.beginPositionEntry();
+            builder.appendLong(goodMillis);
+            builder.appendLong(year3000Millis);
+            builder.endPositionEntry();
+            Page filePage = new Page(1, new Block[] { builder.build() });
+            List<String> captured = new ArrayList<>();
+            Page out = mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.DATETIME }, null, capturing(captured), null);
+            try {
+                LongBlock nanosBlock = out.getBlock(0);
+                assertThat(nanosBlock.getValueCount(0), equalTo(1));
+                assertThat(nanosBlock.getLong(nanosBlock.getFirstValueIndex(0)), equalTo(goodMillis * 1_000_000L));
+                assertThat(captured, hasSize(1));
+                assertThat(captured.get(0), startsWith("removed: "));
+            } finally {
+                out.releaseBlocks();
                 filePage.releaseBlocks();
             }
         }

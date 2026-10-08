@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.allocation;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -45,7 +47,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.stateless.EstimatedHeapSettings;
 
 import java.util.List;
@@ -54,6 +58,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithNoExplanation;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -64,52 +70,82 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
     static final String OTHER_NODE_ID = "not-" + NODE_ID;
     static final String SEARCH_NODE_ID = "search-node";
 
-    public void testYesDecisionWhenCanRemainDisabled() {
-        final var decider = createEstimatedHeapUsageAllocationDecider(true, false, between(0, 100), between(0, 100), ByteSizeValue.ZERO);
-
-        final ShardRouting shardRouting = createShardRouting();
-        final RoutingAllocation routingAllocation = createRoutingAllocation(
-            decider,
-            shardRouting,
-            createClusterInfoWithGenNodeAndShardHeap(Map.of(NODE_ID, randomLongBetween(0, 100)), shardRouting.shardId())
+    public void testDynamicSettings() {
+        final var clusterSettings = createClusterSettings(true, true, 85, 90, ByteSizeValue.ZERO);
+        final var decider = new EstimatedHeapUsageAllocationDecider(new EstimatedHeapSettings(clusterSettings), clusterSettings);
+        assertTrue(decider.isEnabled());
+        assertTrue(decider.isHighWatermarkEnabled());
+        assertEquals(85.0, decider.getLowWatermarkPercent(), 0.0);
+        assertEquals(90.0, decider.getHighWatermarkPercent(), 0.0);
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), false)
+                .put(EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK_ENABLED.getKey(), false)
+                .put(EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK.getKey(), "70%")
+                .put(EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK.getKey(), "80%")
+                .build()
         );
-
-        final Decision canRemainDecision = decider.canRemain(
-            mock(IndexMetadata.class),
-            shardRouting,
-            routingAllocation.routingNodes().node(NODE_ID),
-            routingAllocation
-        );
-        assertThat(canRemainDecision.type(), equalTo(Decision.Type.YES));
-        assertThat(canRemainDecision.getExplanation(), equalTo("heap decider can remain disabled"));
+        assertFalse(decider.isEnabled());
+        assertFalse(decider.isHighWatermarkEnabled());
+        assertEquals(70.0, decider.getLowWatermarkPercent(), 0.0);
+        assertEquals(80.0, decider.getHighWatermarkPercent(), 0.0);
     }
 
-    public void testYesDecisionWhenDisabled() {
-        final var decider = createEstimatedHeapUsageAllocationDecider(false, between(0, 100), between(0, 100));
-
-        final ShardRouting shardRouting = createShardRouting();
-        final RoutingAllocation routingAllocation = createRoutingAllocation(
+    public void testUsesTotalHeapAndJvmCapacity() {
+        final var decider = createEstimatedHeapUsageAllocationDecider(true, 85, 90);
+        final var metrics = new NodeHeapMetrics(NODE_ID, 1000, new NodeHeapEstimates(900, 100));
+        final var shard = createShardRouting();
+        final var allocation = createRoutingAllocation(
             decider,
-            shardRouting,
-            createClusterInfoWithGenNodeAndShardHeap(Map.of(NODE_ID, randomLongBetween(0, 100)), shardRouting.shardId())
+            shard,
+            ClusterInfo.builder().nodeHeapMetrics(Map.of(NODE_ID, metrics)).hostedShardsPartitionSizeByNodeId(Map.of(NODE_ID, 200L)).build()
         );
+        assertEquals(900L, decider.getCurrentUsageBytes(metrics));
+        assertEquals(Long.valueOf(1000), decider.resolveCapacityBytes(metrics, allocation.routingNodes().node(NODE_ID), allocation));
+    }
 
-        final Decision canAllocateDecision = decider.canAllocate(
-            shardRouting,
-            routingAllocation.routingNodes().node(NODE_ID),
-            routingAllocation
+    @TestLogging(
+        value = "org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider:DEBUG",
+        reason = "verify the concrete decider logger"
+    )
+    public void testLogsToSubclassLogger() {
+        final var decider = createEstimatedHeapUsageAllocationDecider(true, true, 85, 90, ByteSizeValue.ZERO);
+        final ShardRouting shard = createShardRouting();
+        final RoutingAllocation allocation = createRoutingAllocation(
+            decider,
+            shard,
+            createClusterInfoWithGenNodeAndShardHeap(Map.of(NODE_ID, 95L), shard.shardId())
         );
-        assertThat(canAllocateDecision.type(), equalTo(Decision.Type.YES));
-        assertThat(canAllocateDecision.getExplanation(), equalTo("estimated heap allocation decider is disabled"));
-
-        final Decision canRemainDecision = decider.canRemain(
-            mock(IndexMetadata.class),
-            shardRouting,
-            routingAllocation.routingNodes().node(NODE_ID),
-            routingAllocation
-        );
-        assertThat(canRemainDecision.type(), equalTo(Decision.Type.YES));
-        assertThat(canRemainDecision.getExplanation(), equalTo("estimated heap allocation decider is disabled"));
+        allocation.debugDecision(false);
+        final var node = allocation.routingNodes().node(NODE_ID);
+        try (MockLog mockLog = MockLog.capture(EstimatedHeapUsageAllocationDecider.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "allocation rejection uses the subclass logger",
+                    EstimatedHeapUsageAllocationDecider.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "insufficient estimated heap available on node *exceeds low watermark*"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "can-remain rejection uses the subclass logger",
+                    EstimatedHeapUsageAllocationDecider.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "insufficient estimated heap available on node *exceeds high watermark*"
+                )
+            );
+            // without debug the label is retained but there is no explanation
+            assertThat(
+                decider.canAllocate(shard, node, allocation),
+                isNoDecisionWithNoExplanation(EstimatedHeapUsageAllocationDecider.NAME)
+            );
+            assertThat(
+                decider.canRemain(allocation.metadata().getProject(ProjectId.DEFAULT).index(shard.index()), shard, node, allocation),
+                isNoDecisionWithNoExplanation(EstimatedHeapUsageAllocationDecider.NAME)
+            );
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testYesDecisionWhenNodeIsNotIndexNode() {
@@ -132,137 +168,6 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
         assertThat(canRemainDecision.getExplanation(), equalTo("estimated heap allocation decider is applicable only to index nodes"));
     }
 
-    public void testYesDecisionWhenUsageMetricIsMissing() {
-        final var decider = createEstimatedHeapUsageAllocationDecider(true, between(0, 100), between(0, 100));
-        final ShardRouting shardRouting = createShardRouting();
-        final RoutingAllocation routingAllocation = createRoutingAllocation(
-            decider,
-            shardRouting,
-            createClusterInfoWithGenNodeAndShardHeap(Map.of(NODE_ID, randomLongBetween(0, 100)), shardRouting.shardId())
-        );
-        final var noHeapNode = routingAllocation.routingNodes().node(OTHER_NODE_ID);
-
-        final Decision canAllocateDecision = decider.canAllocate(shardRouting, noHeapNode, routingAllocation);
-        assertThat(canAllocateDecision.type(), equalTo(Decision.Type.YES));
-        assertThat(
-            canAllocateDecision.getExplanation(),
-            containsString("no estimated heap estimation available for node [" + OTHER_NODE_ID + "]")
-        );
-
-        final Decision canRemainDecision = decider.canRemain(mock(IndexMetadata.class), shardRouting, noHeapNode, routingAllocation);
-        assertThat(canRemainDecision.type(), equalTo(Decision.Type.YES));
-        assertThat(
-            canRemainDecision.getExplanation(),
-            containsString("no estimated heap estimation available for node [" + OTHER_NODE_ID + "]")
-        );
-    }
-
-    public void testDecisionWhenShardHeapUsageMetricIsMissing() {
-        final int watermarkPercent = between(20, 80); // represents low and high watermark
-        final var decider = createEstimatedHeapUsageAllocationDecider(true, watermarkPercent, watermarkPercent);
-        final ShardRouting shardRouting = createShardRouting();
-        final RoutingAllocation routingAllocation = createRoutingAllocation(
-            decider,
-            shardRouting,
-            createClusterInfoWithGenNodeHeapOnly(Map.of(NODE_ID, watermarkPercent + 1L, OTHER_NODE_ID, watermarkPercent - 1L))
-        );
-        final var highHeapNode = routingAllocation.routingNodes().node(NODE_ID);
-        final var lowHeapNode = routingAllocation.routingNodes().node(OTHER_NODE_ID);
-
-        // A node with heap above the low watermark should return NO regardless of an absent shard-level heap estimate.
-        final Decision highHeapCanAllocateDecision = decider.canAllocate(shardRouting, highHeapNode, routingAllocation);
-        assertThat(highHeapCanAllocateDecision.type(), equalTo(Decision.Type.NO));
-        assertThat(
-            highHeapCanAllocateDecision.getExplanation(),
-            containsString("insufficient estimated heap available on node [" + NODE_ID + "]")
-        );
-
-        final Decision highHeapCanRemainDecision = decider.canRemain(
-            mock(IndexMetadata.class),
-            shardRouting,
-            highHeapNode,
-            routingAllocation
-        );
-        assertThat(highHeapCanRemainDecision.type(), equalTo(Decision.Type.NO));
-        assertThat(
-            highHeapCanRemainDecision.getExplanation(),
-            containsString("insufficient estimated heap available on node [" + NODE_ID + "]")
-        );
-
-        // A node with heap below the low watermark should return YES regardless of an absent shard-level heap estimate.
-        final Decision lowHeapCanAllocateDecision = decider.canAllocate(shardRouting, lowHeapNode, routingAllocation);
-        assertThat(lowHeapCanAllocateDecision.type(), equalTo(Decision.Type.YES));
-        assertThat(
-            lowHeapCanAllocateDecision.getExplanation(),
-            containsString("sufficient estimated heap available on node [" + OTHER_NODE_ID + "]")
-        );
-
-        final Decision lowHeapCanRemainDecision = decider.canRemain(
-            mock(IndexMetadata.class),
-            shardRouting,
-            lowHeapNode,
-            routingAllocation
-        );
-        assertThat(lowHeapCanRemainDecision.type(), equalTo(Decision.Type.YES));
-        assertThat(
-            lowHeapCanRemainDecision.getExplanation(),
-            containsString("sufficient estimated heap available on node [" + OTHER_NODE_ID + "]")
-        );
-    }
-
-    public void testYesDecisionWhenUsageBelowWatermark() {
-        final int watermark = 85;
-        final var decider = createEstimatedHeapUsageAllocationDecider(true, watermark, watermark);
-
-        final ShardRouting shardRouting = createShardRouting();
-        final RoutingAllocation routingAllocation = createRoutingAllocation(
-            decider,
-            shardRouting,
-            createClusterInfoWithGenNodeAndShardHeap(
-                Map.of(NODE_ID, randomLongBetween(0, watermark - 1 /* keep under the watermark, shard will have a very small addition */)),
-                shardRouting.shardId()
-            )
-        );
-        var routingNode = routingAllocation.routingNodes().node(NODE_ID);
-
-        final Decision canAllocateDecision = decider.canAllocate(shardRouting, routingNode, routingAllocation);
-        assertThat(canAllocateDecision.type(), equalTo(Decision.Type.YES));
-        assertThat(canAllocateDecision.getExplanation(), containsString("sufficient estimated heap available on node [" + NODE_ID + "]"));
-
-        final Decision canRemainDecision = decider.canRemain(mock(IndexMetadata.class), shardRouting, routingNode, routingAllocation);
-        assertThat(canRemainDecision.type(), equalTo(Decision.Type.YES));
-        assertThat(canRemainDecision.getExplanation(), containsString("sufficient estimated heap available on node [" + NODE_ID + "]"));
-    }
-
-    public void testNoDecisionWhenUsageAboveWatermark() {
-        final int lowWatermark = between(40, 80);
-        final int highWatermark = between(40, 80);
-        final var decider = createEstimatedHeapUsageAllocationDecider(true, lowWatermark, highWatermark);
-
-        final ShardRouting shardRouting = createShardRouting();
-        final RoutingAllocation routingAllocation = createRoutingAllocation(
-            decider,
-            shardRouting,
-            createClusterInfoWithGenNodeAndShardHeap(
-                Map.of(NODE_ID, randomLongBetween(lowWatermark + 1, 100), OTHER_NODE_ID, randomLongBetween(highWatermark + 1, 100)),
-                shardRouting.shardId()
-            )
-        );
-        var routingNode = routingAllocation.routingNodes().node(NODE_ID);
-        var otherRoutingNode = routingAllocation.routingNodes().node(OTHER_NODE_ID);
-
-        final Decision canAllocateDecision = decider.canAllocate(shardRouting, routingNode, routingAllocation);
-        assertThat(canAllocateDecision.toString(), canAllocateDecision.type(), equalTo(Decision.Type.NO));
-        assertThat(canAllocateDecision.getExplanation(), containsString("insufficient estimated heap available on node [" + NODE_ID + "]"));
-
-        final Decision canRemainDecision = decider.canRemain(mock(IndexMetadata.class), shardRouting, otherRoutingNode, routingAllocation);
-        assertThat(canRemainDecision.toString(), canRemainDecision.type(), equalTo(Decision.Type.NO));
-        assertThat(
-            canRemainDecision.getExplanation(),
-            containsString("insufficient estimated heap available on node [" + OTHER_NODE_ID + "]")
-        );
-    }
-
     /**
      * When shard heap usage is available and adding the shard would push the node over the low watermark, canAllocate returns NO.
      */
@@ -281,77 +186,20 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
         );
 
         final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
-        final Decision decision = decider.canAllocate(shardRouting, routingAllocation.routingNodes().node(NODE_ID), routingAllocation);
-        assertThat(decision.toString(), decision.type(), equalTo(Decision.Type.NO));
-        assertThat(decision.getExplanation(), containsString("insufficient estimated heap available on node [" + NODE_ID + "]"));
-    }
-
-    /**
-     * When shard heap usage is available and adding the shard would keep the node below the low watermark, canAllocate returns YES.
-     */
-    public void testCanAllocateYesWhenShardWouldStayBelowWatermark() {
-        final int lowWatermarkPercent = 85;
-        final var decider = createEstimatedHeapUsageAllocationDecider(true, lowWatermarkPercent, lowWatermarkPercent);
-
-        final ByteSizeValue totalHeap = ByteSizeValue.ofGb(10);
-        final long additionalBytes = (long) (totalHeap.getBytes() * 0.03);
-        final ShardRouting shardRouting = createShardRouting();
-
-        // Set the node to 80% heap used, and add shard+index heap that would push the node to 83%. The low watermark percent is 85%.
-        final ClusterInfo clusterInfo = createClusterInfoWithHeapUsage(
-            Map.of(NODE_ID, createNodeHeapMetrics(NODE_ID, 80, totalHeap)),
-            createShardAndIndexHeapUsageMap(shardRouting.shardId(), additionalBytes)
-        );
-        final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
-        final Decision decision = decider.canAllocate(shardRouting, routingAllocation.routingNodes().node(NODE_ID), routingAllocation);
-        assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(decision.getExplanation(), containsString("sufficient estimated heap available on node [" + NODE_ID + "]"));
-    }
-
-    public void testYesDecisionWhenNodeHeapIsBelowMinimumThreshold() {
-        final int minimumHeapSizeForEnablementInGigabytes = between(2, 32);
-        final var decider = createEstimatedHeapUsageAllocationDecider(
-            true,
-            between(0, 100),
-            between(0, 100),
-            ByteSizeValue.ofGb(minimumHeapSizeForEnablementInGigabytes)
-        );
-
-        final ShardRouting shardRouting = createShardRouting();
-        final RoutingAllocation routingAllocation = createRoutingAllocation(
-            decider,
-            shardRouting,
-            createClusterInfoWithGenNodeAndShardHeap(
-                Map.of(NODE_ID, randomLongBetween(0, 100), OTHER_NODE_ID, randomLongBetween(0, 100)),
-                () -> ByteSizeValue.ofGb(between(1, minimumHeapSizeForEnablementInGigabytes - 1)),
-                createShardAndIndexHeapUsageMap(shardRouting.shardId(), randomLongBetween(1, 100))
-            )
-        );
-        var routingNode = routingAllocation.routingNodes().node(NODE_ID);
-        var otherRoutingNode = routingAllocation.routingNodes().node(OTHER_NODE_ID);
-
-        final Decision canAllocateDecision = decider.canAllocate(shardRouting, routingNode, routingAllocation);
-        assertThat(canAllocateDecision.type(), equalTo(Decision.Type.YES));
+        final RoutingNode node = routingAllocation.routingNodes().node(NODE_ID);
         assertThat(
-            canAllocateDecision.getExplanation(),
-            equalTo(
-                Strings.format(
-                    "estimated heap decider will not intervene if heap size is below [%s]",
-                    ByteSizeValue.ofGb(minimumHeapSizeForEnablementInGigabytes)
-                )
+            decider.canAllocate(shardRouting, node, routingAllocation),
+            isNoDecisionWithExplanationMatching(
+                EstimatedHeapUsageAllocationDecider.NAME,
+                containsString("insufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]")
             )
         );
 
-        final Decision canRemainDecision = decider.canRemain(mock(IndexMetadata.class), shardRouting, otherRoutingNode, routingAllocation);
-        assertThat(canRemainDecision.type(), equalTo(Decision.Type.YES));
+        // without debug the label is retained but there is no explanation
+        routingAllocation.debugDecision(false);
         assertThat(
-            canRemainDecision.getExplanation(),
-            equalTo(
-                Strings.format(
-                    "estimated heap decider will not intervene if heap size is below [%s]",
-                    ByteSizeValue.ofGb(minimumHeapSizeForEnablementInGigabytes)
-                )
-            )
+            decider.canAllocate(shardRouting, node, routingAllocation),
+            isNoDecisionWithNoExplanation(EstimatedHeapUsageAllocationDecider.NAME)
         );
     }
 
@@ -383,13 +231,13 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
             explanation,
             nodeDecisions,
             Decision.Type.YES,
-            "sufficient estimated heap available on node [" + NODE_ID + "]"
+            "sufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]"
         );
         assertExplanationResult(
             explanation,
             nodeDecisions,
             Decision.Type.NO,
-            "insufficient estimated heap available on node [" + OTHER_NODE_ID + "]"
+            "insufficient estimated heap available on node [" + OTHER_NODE_ID + "/" + OTHER_NODE_ID + "]"
         );
         assertExplanationResult(
             explanation,
@@ -457,7 +305,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
                 canRemainDecision.getDecisions().toString(),
                 canRemainDecision.getDecisions(),
                 Decision.Type.NO,
-                "insufficient estimated heap available on node [" + NODE_ID + "]"
+                "insufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]"
             );
         }
 
@@ -489,7 +337,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
                 canRemainDecision.getDecisions().toString(),
                 canRemainDecision.getDecisions(),
                 Decision.Type.YES,
-                "sufficient estimated heap available on node [" + NODE_ID + "]"
+                "sufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]"
             );
         }
 
@@ -585,29 +433,31 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
 
     private static EstimatedHeapUsageAllocationDecider createEstimatedHeapUsageAllocationDecider(
         boolean enabled,
+        boolean highWatermarkEnabled,
         int lowWatermarkPercent,
         int highWatermarkPercent,
         ByteSizeValue minimumHeapSizeForEnabled
     ) {
-        return createEstimatedHeapUsageAllocationDecider(
+        final var clusterSettings = createClusterSettings(
             enabled,
-            true,
+            highWatermarkEnabled,
             lowWatermarkPercent,
             highWatermarkPercent,
             minimumHeapSizeForEnabled
         );
+        return new EstimatedHeapUsageAllocationDecider(new EstimatedHeapSettings(clusterSettings), clusterSettings);
     }
 
-    private static EstimatedHeapUsageAllocationDecider createEstimatedHeapUsageAllocationDecider(
+    private static ClusterSettings createClusterSettings(
         boolean enabled,
         boolean highWatermarkEnabled,
         int lowWatermarkPercent,
         int highWatermarkPercent,
         ByteSizeValue minimumHeapSizeForEnabled
     ) {
-        final var clusterSettings = new ClusterSettings(
+        return new ClusterSettings(
             Settings.builder()
-                .put(EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT.getKey(), minimumHeapSizeForEnabled)
+                .put(AbstractEstimatedHeapAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT.getKey(), minimumHeapSizeForEnabled)
                 .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), enabled)
                 .put(
                     EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK_ENABLED.getKey(),
@@ -624,14 +474,13 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
                 .build(),
             Set.of(
                 InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED,
-                EstimatedHeapUsageAllocationDecider.MINIMUM_LOGGING_INTERVAL,
+                AbstractEstimatedHeapAllocationDecider.MINIMUM_LOGGING_INTERVAL,
                 EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK,
                 EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK,
                 EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK_ENABLED,
-                EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT
+                AbstractEstimatedHeapAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT
             )
         );
-        return new EstimatedHeapUsageAllocationDecider(new EstimatedHeapSettings(clusterSettings), clusterSettings);
     }
 
     private static ShardRouting createShardRouting() {
@@ -676,10 +525,6 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
             () -> ByteSizeValue.ofGb(between(1, 32)),
             createShardAndIndexHeapUsageMap(shardId, randomLongBetween(1, 100) /* num bytes */)
         );
-    }
-
-    private ClusterInfo createClusterInfoWithGenNodeHeapOnly(Map<String, Long> nodeEstimatedHeapUsagePercent) {
-        return createClusterInfoWithGenNodeAndShardHeap(nodeEstimatedHeapUsagePercent, () -> ByteSizeValue.ofGb(between(1, 32)), Map.of());
     }
 
     private ClusterInfo createClusterInfoWithGenNodeAndShardHeap(
@@ -776,9 +621,9 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
 
     private static DiscoveryNodes.Builder nodesBuilder() {
         return DiscoveryNodes.builder()
-            .add(newNode(NODE_ID, Set.of(DiscoveryNodeRole.INDEX_ROLE)))
-            .add(newNode(OTHER_NODE_ID, Set.of(DiscoveryNodeRole.INDEX_ROLE)))
-            .add(newNode(SEARCH_NODE_ID, Set.of(DiscoveryNodeRole.SEARCH_ROLE)));
+            .add(newNode(NODE_ID, NODE_ID, Set.of(DiscoveryNodeRole.INDEX_ROLE)))
+            .add(newNode(OTHER_NODE_ID, OTHER_NODE_ID, Set.of(DiscoveryNodeRole.INDEX_ROLE)))
+            .add(newNode(SEARCH_NODE_ID, SEARCH_NODE_ID, Set.of(DiscoveryNodeRole.SEARCH_ROLE)));
     }
 
     private NodeHeapMetrics createNodeHeapMetrics(String nodeId, long usagePercent, ByteSizeValue totalHeapSize) {
@@ -788,6 +633,6 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
     }
 
     private Map<ShardId, ShardAndIndexHeapUsage> createShardAndIndexHeapUsageMap(ShardId shardId, long additionalBytes) {
-        return Map.of(shardId, new ShardAndIndexHeapUsage(additionalBytes / 2, additionalBytes / 2));
+        return Map.of(shardId, new ShardAndIndexHeapUsage(additionalBytes / 2, additionalBytes / 2, 0L));
     }
 }

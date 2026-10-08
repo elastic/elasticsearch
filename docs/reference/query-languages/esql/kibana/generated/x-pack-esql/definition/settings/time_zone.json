@@ -7,5 +7,5 @@
   "serverlessOnly" : false,
   "preview" : false,
   "snapshotOnly" : false,
-  "description" : "The default timezone to be used in the query. Defaults to UTC, and overrides the `time_zone` request parameter. See [timezones](https://www.elastic.co/docs/reference/query-languages/esql/esql-rest#esql-timezones)."
+  "description" : "The default timezone to be used in the query. Defaults to UTC, and overrides the `time_zone` request parameter. See [timezones](https://www.elastic.co/docs/reference/query-languages/esql/esql-rest#esql-timezones).\n\nThe default itself is configurable. If a query does not specify a timezone, the `esql.query.settings.time_zone` cluster setting supplies it. If that cluster setting is not configured either, the timezone is UTC. {applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
 }

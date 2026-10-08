@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159659
+summary: Circuitbreak Base64 and `MvConcat/Zip`
+type: bug

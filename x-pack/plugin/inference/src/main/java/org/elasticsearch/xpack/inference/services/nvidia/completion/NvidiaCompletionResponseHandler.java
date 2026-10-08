@@ -13,12 +13,12 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiCompletionResponseHandler;
 
 /**
  * Handles non-streaming completion responses for Nvidia inference endpoints, extending the OpenAI completion response handler.
  */
-public class NvidiaCompletionResponseHandler extends OpenAiChatCompletionResponseHandler {
+public class NvidiaCompletionResponseHandler extends OpenAiCompletionResponseHandler {
 
     /**
      * Constructs an {@link NvidiaCompletionResponseHandler} with the specified request type and response parser.

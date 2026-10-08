@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158453
+summary: Fix `ViewResolver` stack overflow
+type: bug

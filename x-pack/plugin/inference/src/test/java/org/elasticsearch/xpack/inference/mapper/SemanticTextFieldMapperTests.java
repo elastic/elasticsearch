@@ -1514,7 +1514,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
         int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
         DenseVectorFieldMapper.RescoreVector rescoreVector = new DenseVectorFieldMapper.RescoreVector(DEFAULT_RESCORE_OVERSAMPLE);
-        return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, false, rescoreVector, -1);
+        return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, false, rescoreVector, -1, false);
     }
 
     public void testDefaultIndexOptions() throws IOException {
@@ -1546,7 +1546,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         SemanticIndexOptions expectedIndexOptions = new SemanticIndexOptions(
             SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
             new ExtendedDenseVectorIndexOptions(
-                new DenseVectorFieldMapper.Int4HnswIndexOptions(20, 90, false, null, -1),
+                new DenseVectorFieldMapper.Int4HnswIndexOptions(20, 90, false, null, -1, false),
                 DenseVectorFieldMapper.ElementType.FLOAT  // Explicitly override element type to hold it constant
             )
         );
@@ -1577,7 +1577,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             new SemanticIndexOptions(
                 SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
                 new ExtendedDenseVectorIndexOptions(
-                    new DenseVectorFieldMapper.Int4HnswIndexOptions(16, 100, false, null, -1),
+                    new DenseVectorFieldMapper.Int4HnswIndexOptions(16, 100, false, null, -1, false),
                     DenseVectorFieldMapper.ElementType.FLOAT
                 )
             )
@@ -1686,7 +1686,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         SemanticIndexOptions int4HnswWithFloatIndexOptions = new SemanticIndexOptions(
             SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
             new ExtendedDenseVectorIndexOptions(
-                new DenseVectorFieldMapper.Int4HnswIndexOptions(20, 90, false, null, -1),
+                new DenseVectorFieldMapper.Int4HnswIndexOptions(20, 90, false, null, -1, false),
                 DenseVectorFieldMapper.ElementType.FLOAT
             )
         );

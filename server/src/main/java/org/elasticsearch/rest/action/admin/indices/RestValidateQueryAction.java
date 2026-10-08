@@ -60,10 +60,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
         validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
         validateQueryRequest.allShards(request.paramAsBoolean("all_shards", false));
         final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
-        validateQueryRequest.routing(parsedRouting.routing())
-            .searchSlice(
-                parsedRouting.fromSlice() ? (parsedRouting.routing() == null ? SliceIndexing.SLICE_ALL : parsedRouting.routing()) : null
-            );
+        validateQueryRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
 
         Exception bodyParsingException = null;
         try {

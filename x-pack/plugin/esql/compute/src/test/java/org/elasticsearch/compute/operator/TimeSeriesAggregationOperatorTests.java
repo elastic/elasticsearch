@@ -13,6 +13,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.DimensionValuesByteRefGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.RateDoubleGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier;
@@ -31,6 +32,7 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.ListRowsBlockSourceOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -43,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -65,6 +68,43 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             try (GroupingAggregatorFunction aggregator = fn.apply(List.of(randomNonNegativeInt()), driverContext)) {
                 assertTrue(TimeSeriesAggregationOperator.isValuesAggregator(aggregator));
             }
+        }
+    }
+
+    public void testRateRawTimestampMustBeWithinAssignedGroup() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null, "test");
+        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+        var rate = new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, false, TestWarningsSource.INSTANCE)
+            .groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(2, 3, 4, 5, 6));
+        var factory = new TimeSeriesAggregationOperator.Factory(
+            oneMinBucket,
+            false,
+            List.of(
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            ),
+            AggregatorMode.INITIAL,
+            List.of(rate),
+            1024
+        );
+        try (var operator = (TimeSeriesAggregationOperator) factory.get(driverContext)) {
+            Page page = new Page(
+                blockFactory.newConstantBytesRefBlockWith(new BytesRef("tsid"), 1),
+                blockFactory.newConstantLongBlockWith(0, 1),
+                blockFactory.newConstantDoubleBlockWith(10, 1),
+                blockFactory.newConstantLongBlockWith(120_000, 1),
+                blockFactory.newConstantNullBlock(1),
+                blockFactory.newConstantIntBlockWith(0, 1),
+                blockFactory.newConstantLongBlockWith(Long.MAX_VALUE, 1)
+            );
+            AssertionError error = expectThrows(AssertionError.class, () -> operator.addInput(page));
+            assertThat(
+                error.getMessage(),
+                containsString("timestamp 120000 at position 0 was assigned to group 0 outside bucket [0, 60000]")
+            );
+        } finally {
+            driverContext.finish();
         }
     }
 

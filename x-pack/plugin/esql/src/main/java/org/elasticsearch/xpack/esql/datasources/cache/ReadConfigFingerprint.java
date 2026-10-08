@@ -29,7 +29,7 @@ import java.util.Map;
  * different one even though nobody configured anything. A fingerprint built from dataset settings would get both
  * cases wrong.
  * <p>
- * It sits beside {@link SchemaCacheKey#buildFormatConfig}, which fingerprints the other half of the same idea — the
+ * It sits beside the identity each format reader vends for its own configuration, which covers the other half of the same idea — the
  * {@code WITH} options. Two components rather than one is an accident of how they arrived; the end state is a single
  * read configuration owning both, so that a new parameter has one place it must be considered.
  * <p>
@@ -47,6 +47,8 @@ import java.util.Map;
  *       rows survive under a lenient policy.</li>
  *   <li><b>Binding mode</b> — a DECLARED schema binds by name and reports absent columns; an INFERRED one binds by
  *       position. Same columns, different reads.</li>
+ *   <li><b>The decode-semantics revision</b> ({@link #DECODE_SEMANTICS_REVISION}) — what the readers make of the
+ *       same bytes under the same configuration is code, not configuration, and it can change between versions.</li>
  *   <li><b>NOT nullability</b> — {@code FileSplit} normalizes the planner-internal UNKNOWN to nullable on the wire,
  *       so a coordinator hashing its in-memory schema and a data node hashing the round-tripped one would disagree.
  *       An identity the two sides compute differently is worse than no identity: it matches nothing, silently.</li>
@@ -62,7 +64,7 @@ import java.util.Map;
  *
  * <h2>Encoding</h2>
  * Every variable-length piece is length-prefixed ({@code len:bytes}). Column names are open vocabulary — an
- * {@code _id.path} rename reaches arbitrary physical names, which may contain the delimiters — so a plain join would
+ * {@code path} rename reaches arbitrary physical names, which may contain the delimiters — so a plain join would
  * let two different read configurations render identically and collide onto one cache entry. Equal encodings must genuinely mean
  * equal read configurations.
  * <p>
@@ -91,6 +93,15 @@ public final class ReadConfigFingerprint {
     public static final String MIXED = "mixed";
 
     /**
+     * Hashed into every fingerprint. Bump it whenever a reader starts decoding the same bytes into different values
+     * under an unchanged column name, type, date format and binding mode: no other hashed component moves then, so a
+     * statistic harvested under the old decode would match a read under the new one. The window is a rolling upgrade,
+     * where a data node on an older build that already computes this fingerprint contributes to an upgraded
+     * coordinator's cache. It only separates statistics; the rows such a node reads still follow its own decode.
+     */
+    static final int DECODE_SEMANTICS_REVISION = 1;
+
+    /**
      * Computes the fingerprint of one file's resolved read configuration. {@code readSchema} is the per-file effective schema the
      * reader will bind, in <b>logical</b> names as the resolution produced them; renames are applied here so both
      * sides agree on a physical-name encoding. Returns {@link #UNKNOWN} when there is no schema to describe.
@@ -104,6 +115,7 @@ public final class ReadConfigFingerprint {
         Map<String, String> dateFormats = readSpec.dateFormats();
 
         StringBuilder encoded = new StringBuilder();
+        appendLengthPrefixed(encoded, Integer.toString(DECODE_SEMANTICS_REVISION));
         for (Attribute attribute : readSchema) {
             String logicalName = attribute.name();
             // Physicalize both the name and the date-format lookup with the same mapping the reader boundary uses

@@ -55,6 +55,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
             ES920DiskBBQVectorsFormat.VERSION_START,
             ES920DiskBBQVectorsFormat.VERSION_CURRENT,
             ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO,
+            NO_ON_DISK_MERGE_IN_META,
             ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO
         );
     }

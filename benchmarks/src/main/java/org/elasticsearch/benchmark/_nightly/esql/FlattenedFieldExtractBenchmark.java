@@ -19,7 +19,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -230,7 +230,7 @@ import java.util.stream.IntStream;
 public class FlattenedFieldExtractBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final String FIELD = "field";
@@ -295,7 +295,7 @@ public class FlattenedFieldExtractBenchmark {
     /** The extracted value for a document is {@code i % VALUE_MOD}, so the checksum is order-independent. */
     private static final int VALUE_MOD = 1000;
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public static IndexSettings defaultIndexSettings() {

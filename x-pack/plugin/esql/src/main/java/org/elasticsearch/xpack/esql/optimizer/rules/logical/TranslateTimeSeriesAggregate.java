@@ -227,7 +227,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 });
                 secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
             } else if (agg instanceof Alias alias && alias.child() instanceof Literal) {
-                firstPassAggs.add(agg);
+                secondPassAggs.add(agg);
             }
         }
         // time-series aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
@@ -402,7 +402,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         AggregateFunction bucketInputAggregation = null;
         for (NamedExpression candidate : firstPassAggs) {
             if (candidate instanceof Alias alias
-                && Alias.unwrap(alias) instanceof AggregateFunction aggregation
+                && Alias.unwrap(alias) instanceof TimeSeriesAggregateFunction aggregation
                 && aggregation.field().semanticEquals(bucket.field())) {
                 if (bucketInputAggregation != null && bucketInputAggregation.semanticEquals(aggregation) == false) {
                     throw new EsqlIllegalArgumentException(
@@ -475,15 +475,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         if (attribute.isDimension()) {
             packDimensions.add(valuesAgg.toAttribute());
             unpackDimensions.add(
-                new ReferenceAttribute(
-                    group.source(),
-                    null,
-                    group.name(),
-                    attribute.dataType().noText(),
-                    Nullability.TRUE,
-                    group.id(),
-                    false
-                )
+                new ReferenceAttribute(group.source(), null, group.name(), attribute.dataType(), Nullability.TRUE, group.id(), false)
             );
             packPositions[position] = true;
         } else {

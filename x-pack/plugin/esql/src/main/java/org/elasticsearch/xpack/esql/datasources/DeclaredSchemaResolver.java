@@ -58,7 +58,7 @@ public final class DeclaredSchemaResolver {
 
     /**
      * The declared columns as ES|QL attributes, keyed by <b>logical</b> name and in declaration order. Returns an empty
-     * list when there is no {@code mappings} block (an _id-only mappings block contributes no columns).
+     * list when there is no {@code mappings} block, or when the block declares no {@code properties}.
      */
     public static List<Attribute> declaredAttributes(DatasetMapping mapping) {
         DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
@@ -100,14 +100,28 @@ public final class DeclaredSchemaResolver {
      * and never sees the physical names; a {@code path} rename is applied at the reader-facing boundary via
      * {@link PhysicalNames} (physical names then reach by-name readers; text readers read positionally). The two lists
      * pair position-for-position.
+     * <p>
+     * {@code absent} holds the declared columns absent from the inferred schema: a column the sample did not reach
+     * (a sparse field in a sample-derived format such as NDJSON), or one the source does not carry at all (a complete
+     * schema: Parquet/ORC footer, CSV/TSV header). These columns are appended to {@code output} and {@code fileSchema}
+     * at their declared type; the caller must also include them in every per-file schema so the reader looks them up
+     * by name, null-fills them where the data does not carry them, and warns. Empty when every declared column was
+     * found.
      */
-    public record Overlaid(List<Attribute> output, List<Attribute> fileSchema) {}
+    public record Overlaid(List<Attribute> output, List<Attribute> fileSchema, List<Attribute> absent) {
+        /** Convenience form: no absent columns (every declared column was found). */
+        public Overlaid(List<Attribute> output, List<Attribute> fileSchema) {
+            this(output, fileSchema, List.of());
+        }
+    }
 
     /**
      * Apply a non-strict ({@code dynamic: true}) mapping over an inferred schema: every declared column overrides the
      * inferred column of the same physical name — renamed to its logical name and pinned to its declared type — while
      * undeclared inferred columns pass through unchanged. A declared column whose physical name is absent from the
-     * inferred schema is an error (it references a column the source does not have).
+     * inferred schema is kept at its declared type and returned in {@link Overlaid#absent()}, whatever the format: a
+     * declared column the source does not carry reads null with a warning, exactly as under {@code dynamic: false}.
+     * It is not an error, since nothing failed to read (see {@link SchemaProvenance#DECLARED}).
      */
     public static Overlaid overlayNonStrict(List<Attribute> inferred, DatasetMapping mapping) {
         return overlayNonStrict(inferred, mapping, false);
@@ -115,9 +129,10 @@ public final class DeclaredSchemaResolver {
 
     /**
      * As {@link #overlayNonStrict(List, DatasetMapping)} but {@code lenient} controls the unmatched-declared-column
-     * policy: strict ({@code false}) errors when a declared column is absent from {@code inferred} (used against the
-     * unified schema, where every declared column must appear); lenient ({@code true}) skips it (used per-file, where
-     * a column may legitimately be absent from one file under union-by-name).
+     * policy: non-lenient ({@code false}) appends a declared column absent from {@code inferred} (used against the
+     * unified schema, which must carry every declared column); lenient ({@code true}) skips it (used per-file, where
+     * a column may legitimately be absent from one file under union-by-name; the caller decides what that file's
+     * read schema carries).
      */
     public static Overlaid overlayNonStrict(List<Attribute> inferred, DatasetMapping mapping, boolean lenient) {
         DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
@@ -137,16 +152,21 @@ public final class DeclaredSchemaResolver {
         for (Attribute a : inferred) {
             inferredNames.add(a.name());
         }
-        // Every physical a declared column reads must exist in the (authoritative unified) inferred schema.
-        if (lenient == false) {
-            List<String> missing = logicalByPhysical.keySet().stream().filter(p -> inferredNames.contains(p) == false).sorted().toList();
-            if (missing.isEmpty() == false) {
-                throw new IllegalArgumentException("declared columns not found in the source: " + missing);
-            }
+        // Declared columns whose physical name is absent from the inferred schema.
+        List<String> missing = lenient
+            ? List.of()
+            : logicalByPhysical.keySet().stream().filter(p -> inferredNames.contains(p) == false).sorted().toList();
+        // Append each at its declared type so the reader resolves it by name and null-fills where the data lacks it:
+        // NDJSON looks JSON keys up natively, Parquet/ORC bind by column name, and for CSV/TSV the caller upgrades the
+        // DeclaredReadSpec to DECLARED provenance so the reader binds by header name (or col<N> to field N) rather
+        // than by schema position.
+        List<Attribute> absent = new ArrayList<>(missing.size());
+        for (String physical : missing) {
+            absent.add(new ReferenceAttribute(Source.EMPTY, null, logicalByPhysical.get(physical), typeByPhysical.get(physical)));
         }
         // Walk inferred: a declared column overrides the inferred column of its physical name (renamed to its logical
         // name, retyped) at that column's position; undeclared inferred columns pass through unchanged.
-        List<Attribute> output = new ArrayList<>(inferred.size());
+        List<Attribute> output = new ArrayList<>(inferred.size() + absent.size());
         for (Attribute a : inferred) {
             DataType declaredType = typeByPhysical.get(a.name());
             if (declaredType != null) {
@@ -155,6 +175,7 @@ public final class DeclaredSchemaResolver {
                 output.add(a);
             }
         }
+        output.addAll(absent);
         // A move whose logical name collides with a surviving (undeclared) inferred column would produce two output
         // columns with the same name (declare logical `y` with path `x` when the file also has an undeclared `y`).
         // Reject against the authoritative unified schema (lenient == false); PUT cannot catch this — it needs the file.
@@ -170,18 +191,58 @@ public final class DeclaredSchemaResolver {
         }
         // Both lists carry LOGICAL names; a `path` move is physicalized at the reader boundary via PhysicalNames, so
         // the operator and reconciliation never see physical names.
-        return new Overlaid(output, output);
+        return new Overlaid(List.copyOf(output), List.copyOf(output), List.copyOf(absent));
+    }
+
+    /**
+     * The declared type as the read path sees it: {@link DataType#fromNameOrAlias} put through
+     * {@link DataType#noText}, the collapse the rest of ES|QL already applies to a string type. {@code text} is not
+     * declarable, but cluster state can still hold it, and the two decode identically — every reader's string arm
+     * is {@code case KEYWORD, TEXT}. Matching does differ, which
+     * {@code ExternalSourceResolver#warnOnSubstitutedDeclaredTypes} reports.
+     * <p>
+     * Every site that turns a stored declared type into an ES|QL type calls this. It applies no whitelist of its
+     * own: {@link #resolveType} adds that, and the columnar type check must not have a whitelist error pre-empt
+     * its own.
+     */
+    static DataType declaredTypeAsRead(String type) {
+        return DataType.fromNameOrAlias(type).noText();
     }
 
     private static DataType resolveType(String column, String type) {
-        DataType resolved = DataType.fromNameOrAlias(type);
-        // PUT-time DeclaredSchemaValidator already rejects undeclarable types; this is the defensive backstop for a
-        // mapping that reached resolution another way (e.g. a hand-edited cluster state). Mirror the validator's
-        // whitelist exactly so the backstop is as strict — a known-but-non-declarable type (e.g. geo_point) is rejected
-        // here too, not just an unknown one.
+        DataType resolved = declaredTypeAsRead(type);
+        // The validator's whitelist again, as a backstop for a mapping that reached resolution another way (a
+        // hand-edited cluster state, say). It tests the substituted type, so a stored `text` passes here as
+        // `keyword` even though PUT rejects it. Every other type outside the whitelist is rejected on both paths,
+        // a known one (`geo_point`) as much as an unknown name.
         if (resolved == DataType.UNSUPPORTED || DeclaredSchemaValidator.DECLARABLE_TYPES.contains(resolved) == false) {
             throw new IllegalArgumentException("declared type [" + type + "] for column [" + column + "] is not a declarable type");
         }
         return resolved;
+    }
+
+    /** A logical column whose {@code declared} type is not the {@code read} type the read path gives it. */
+    record Substitution(String column, DataType declared, DataType read) {}
+
+    /**
+     * The substitutions {@code mapping} carries, in declaration order. Derived from {@link #declaredTypeAsRead}
+     * rather than naming a type, so a substituted column cannot be missed here or reported here and not
+     * substituted, and it carries both types so a caller describes the one it found rather than a hard-coded pair.
+     */
+    static List<Substitution> substitutions(DatasetMapping mapping) {
+        DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
+        if (mappings == null) {
+            return List.of();
+        }
+        List<Substitution> substitutions = new ArrayList<>();
+        for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
+            String type = e.getValue().type();
+            DataType declared = DataType.fromNameOrAlias(type);
+            DataType read = declaredTypeAsRead(type);
+            if (declared != read) {
+                substitutions.add(new Substitution(e.getKey(), declared, read));
+            }
+        }
+        return substitutions;
     }
 }

@@ -1,0 +1,231 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_v2 ]
+      reason: >
+        A family of mapping parameters leaves a value present in _source but absent from the index: a keyword
+        longer than ignore_above, a value that fails ignore_malformed parsing, a value a normalizer rewrote.
+        The field is still MAPPED, so LOAD_ALL never considers it and ES|QL reads it the ordinary way -
+        which returns null, or the rewritten form.
+
+  # kw is mapped with ignore_above:3, so "toolong" is stored in _source but never indexed.
+  - do:
+      indices.create:
+        index: la_above_mapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              kw:
+                type: keyword
+                ignore_above: 3
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_above_mapped", "_id": "1" } }
+          - { "id": "m1", "kw": "toolong" }
+          - { "index": { "_index": "la_above_mapped", "_id": "2" } }
+          - { "id": "m2", "kw": "ok" }
+
+  # Same field, not mapped at all: here LOAD_ALL serves it from _source.
+  - do:
+      indices.create:
+        index: la_above_unmapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_above_unmapped", "_id": "1" } }
+          - { "id": "u1", "kw": "toolong" }
+
+  # ignore_malformed with synthetic source. Note the destination: FallbackPostMapper#route sends
+  # Reason.MALFORMED to Destination.IGNORE_MALFORMED outside strict-columnar modes, so the raw "abc" goes to
+  # the per-field ._ignore_malformed column, NOT to _ignored_source. Either way the field is mapped, so
+  # LOAD_ALL will not add a column for it; the unmapped sibling "shadow" carries the same text and shows
+  # what recovery would look like.
+  - do:
+      indices.create:
+        index: la_malformed
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              num:
+                type: integer
+                ignore_malformed: true
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_malformed", "_id": "1" } }
+          - { "id": "1", "num": "abc", "shadow": "abc" }
+          - { "index": { "_index": "la_malformed", "_id": "2" } }
+          - { "id": "2", "num": 12, "shadow": "12" }
+
+  # doc_values:false and index:false do NOT create an unmapped case - ES|QL still reads the value (falling
+  # back to a source-based block loader where needed)
+  - do:
+      indices.create:
+        index: la_no_docvalues
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              no_dv:
+                type: keyword
+                doc_values: false
+              no_index:
+                type: keyword
+                index: false
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_no_docvalues", "_id": "1" } }
+          - { "id": "1", "no_dv": "dv_value", "no_index": "idx_value" }
+
+  # A normalizer rewrites the indexed form, and the doc values hold only that rewritten form. Synthetic
+  # source is NOT the lossy part here: KeywordFieldMapper#syntheticSourceSupport returns FALLBACK when
+  # hasNormalizer(), precisely so the original value is kept verbatim in _ignored_source. The loss is in
+  # ES|QL's read path, which takes a mapped keyword from doc values.
+  - do:
+      indices.create:
+        index: la_normalized
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+              analysis:
+                normalizer:
+                  lower:
+                    type: custom
+                    filter: [ lowercase ]
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              name:
+                type: keyword
+                normalizer: lower
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_normalized", "_id": "1" } }
+          - { "id": "1", "name": "MixedCase", "name_raw": "MixedCase" }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: la_above_mapped,la_above_unmapped,la_malformed,la_no_docvalues,la_normalized
+        ignore_unavailable: true
+
+---
+'ignore_above: the mapped index returns null and LOAD_ALL adds no column for the mapped name':
+  # kw is mapped here, so it is excluded from the unmapped set even though _source holds "toolong". The
+  # over-length row reads null while the short row reads normally - and the column count proves LOAD_ALL
+  # did not quietly fabricate a second kw column from _source.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_above_mapped | SORT id | LIMIT 5'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: kw }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "m1", null ] }
+  - match: { values.1: [ "m2", "ok" ] }
+
+---
+'ignore_above: the same value is served from _source by an index that does not map the field':
+  # Identical bytes in _source, opposite outcomes: la_above_mapped reads doc values (nothing there) while
+  # la_above_unmapped reads _source. This is the cross-index shape a user actually hits when one index in a
+  # pattern has a stricter mapping than another.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_above_mapped, la_above_unmapped | SORT id | LIMIT 5'
+  - length: { columns: 2 }
+  - match: { columns.1.name: kw }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "m1", null ] }
+  - match: { values.1: [ "m2", "ok" ] }
+  - match: { values.2: [ "u1", "toolong" ] }
+
+---
+'ignore_malformed: the malformed value is kept aside but is not reachable through the mapped name':
+  # num is an integer with ignore_malformed, so row 1's "abc" is diverted to the ._ignore_malformed column
+  # and the integer column is null. LOAD_ALL adds no num column - only "shadow", which was never mapped - so
+  # the text is reachable only under a name the mapping does not claim.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_malformed | SORT id | LIMIT 5'
+  - length: { columns: 3 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: num }
+  - match: { columns.1.type: integer }
+  - match: { columns.2.name: shadow }
+  - match: { columns.2.type: keyword }
+  - match: { values.0: [ "1", null, "abc" ] }
+  - match: { values.1: [ "2", 12, "12" ] }
+
+---
+'doc_values:false and index:false do not make a field unmapped':
+  # Both values still come back, so neither parameter belongs to the LOAD_ALL story - unlike ignore_above,
+  # which suppresses the value itself rather than one access path to it.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_no_docvalues | LIMIT 5'
+  - length: { columns: 3 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: no_dv }
+  - match: { columns.2.name: no_index }
+  - match: { values.0: [ "1", "dv_value", "idx_value" ] }
+
+---
+'normalizer: the mapped field reads the normalized form while an unmapped twin keeps the original':
+  # ES|QL reads the mapped "name" from its doc values, which the normalizer lowercased, so the query sees
+  # "mixedcase" - even though synthetic source itself still has the original (FALLBACK keeps it in
+  # _ignored_source). "name_raw" was never mapped, so LOAD_ALL reads it straight from _source and returns
+  # "MixedCase" untouched. The pair shows that the same document can answer the same string two ways
+  # depending on whether the name is mapped, and that the divergence is the doc-values read, not _source.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_normalized | LIMIT 5'
+  - length: { columns: 3 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: name }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: name_raw }
+  - match: { columns.2.type: keyword }
+  - match: { values.0: [ "1", "mixedcase", "MixedCase" ] }

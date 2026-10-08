@@ -25,8 +25,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.internal.PitReaderContext;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
@@ -41,10 +43,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.cluster.routing.IndexRoutingTestHelper.makeIdThatRoutesToShard;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.indexMetadata;
-import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.makeIdThatRoutesToShard;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 
 public class StatelessReshardingPitSearchIT extends AbstractStatelessPluginIntegTestCase {
@@ -218,7 +220,7 @@ public class StatelessReshardingPitSearchIT extends AbstractStatelessPluginInteg
         closePit(donePitId);
     }
 
-    public void testPitRelocationDuringReshard() {
+    public void testPitRelocationDuringReshard() throws Exception {
         var masterNode = startMasterOnlyNode();
         String indexNode = startIndexNode();
         startSearchNode();
@@ -297,7 +299,7 @@ public class StatelessReshardingPitSearchIT extends AbstractStatelessPluginInteg
         closePit(pit);
     }
 
-    public void testLongLivedPitRelocation() {
+    public void testLongLivedPitRelocation() throws Exception {
         var masterNode = startMasterOnlyNode();
         startIndexNode();
         startSearchNode();
@@ -347,7 +349,7 @@ public class StatelessReshardingPitSearchIT extends AbstractStatelessPluginInteg
         closePit(pit);
     }
 
-    public void testReshardedLongLivedPitRelocation() {
+    public void testReshardedLongLivedPitRelocation() throws Exception {
         var masterNode = startMasterOnlyNode();
         String indexNode = startIndexNode();
         startSearchNode();
@@ -504,7 +506,7 @@ public class StatelessReshardingPitSearchIT extends AbstractStatelessPluginInteg
         assertTrue(closeResponse.isSucceeded());
     }
 
-    private void relocateSearchShard(ClusterState clusterState, Index index, int shardId) {
+    private void relocateSearchShard(ClusterState clusterState, Index index, int shardId) throws Exception {
         int currentSize = internalCluster().size();
         var newSearchNode = startSearchNode();
         ensureStableCluster(currentSize + 1);
@@ -518,6 +520,9 @@ public class StatelessReshardingPitSearchIT extends AbstractStatelessPluginInteg
         var nodeName = clusterState.nodes().get(nodeId).getName();
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(index.getName(), shardId, nodeName, newSearchNode));
         ensureGreen(index.getName());
+        var sourceSearchService = internalCluster().getInstance(SearchService.class, nodeName);
+        var shard = new ShardId(index, shardId);
+        assertBusy(() -> assertTrue(sourceSearchService.getActivePITContexts(shard).stream().allMatch(PitReaderContext::isRelocating)));
     }
 
     private void waitForReshardCompletion(Index index) {

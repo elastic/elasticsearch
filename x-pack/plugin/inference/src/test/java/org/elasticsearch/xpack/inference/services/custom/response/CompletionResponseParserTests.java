@@ -16,7 +16,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
@@ -102,11 +102,11 @@ public class CompletionResponseParserTests extends AbstractBWCWireSerializationT
             """;
 
         var parser = new CompletionResponseParser("$.result[*].text");
-        ChatCompletionResults parsedResults = (ChatCompletionResults) parser.parse(
+        CompletionResults parsedResults = (CompletionResults) parser.parse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults, is(new ChatCompletionResults(List.of(new ChatCompletionResults.Result("completion results")))));
+        assertThat(parsedResults, is(new CompletionResults(List.of(new CompletionResults.Result("completion results")))));
     }
 
     public void testParse_String() throws IOException {
@@ -126,11 +126,11 @@ public class CompletionResponseParserTests extends AbstractBWCWireSerializationT
             """;
 
         var parser = new CompletionResponseParser("$.result.text");
-        ChatCompletionResults parsedResults = (ChatCompletionResults) parser.parse(
+        CompletionResults parsedResults = (CompletionResults) parser.parse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults, is(new ChatCompletionResults(List.of(new ChatCompletionResults.Result("completion results")))));
+        assertThat(parsedResults, is(new CompletionResults(List.of(new CompletionResults.Result("completion results")))));
     }
 
     public void testParse_MultipleResults() throws IOException {
@@ -155,15 +155,15 @@ public class CompletionResponseParserTests extends AbstractBWCWireSerializationT
             """;
 
         var parser = new CompletionResponseParser("$.result[*].text");
-        ChatCompletionResults parsedResults = (ChatCompletionResults) parser.parse(
+        CompletionResults parsedResults = (CompletionResults) parser.parse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
         assertThat(
             parsedResults,
             is(
-                new ChatCompletionResults(
-                    List.of(new ChatCompletionResults.Result("completion results"), new ChatCompletionResults.Result("completion results2"))
+                new CompletionResults(
+                    List.of(new CompletionResults.Result("completion results"), new CompletionResults.Result("completion results2"))
                 )
             )
         );
@@ -196,13 +196,13 @@ public class CompletionResponseParserTests extends AbstractBWCWireSerializationT
             """;
 
         var parser = new CompletionResponseParser("$.content[*].text");
-        ChatCompletionResults parsedResults = (ChatCompletionResults) parser.parse(
+        CompletionResults parsedResults = (CompletionResults) parser.parse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
         assertThat(
             parsedResults,
-            is(new ChatCompletionResults(List.of(new ChatCompletionResults.Result("result"), new ChatCompletionResults.Result("result2"))))
+            is(new CompletionResults(List.of(new CompletionResults.Result("result"), new CompletionResults.Result("result2"))))
         );
     }
 

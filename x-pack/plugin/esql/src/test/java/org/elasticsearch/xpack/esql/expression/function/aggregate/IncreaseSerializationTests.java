@@ -22,7 +22,7 @@ public class IncreaseSerializationTests extends AbstractExpressionSerializationT
         Expression window = randomChild();
         Expression timestamp = randomChild();
         Expression temporality = randomChild();
-        return new Increase(source, field, filter, window, timestamp, temporality);
+        return new Increase(source, field, timestamp, filter, window, temporality);
     }
 
     @Override
@@ -40,6 +40,6 @@ public class IncreaseSerializationTests extends AbstractExpressionSerializationT
             case 3 -> window = randomValueOtherThan(window, AbstractExpressionSerializationTests::randomChild);
             case 4 -> temporality = randomValueOtherThan(temporality, AbstractExpressionSerializationTests::randomChild);
         }
-        return new Increase(source, field, filter, window, timestamp, temporality);
+        return new Increase(source, field, timestamp, filter, window, temporality);
     }
 }

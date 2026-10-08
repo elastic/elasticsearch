@@ -44,8 +44,6 @@ public record ParquetReaderStatus(
     boolean lateMaterializationEnabled,
     boolean lateMaterializationUsed,
     List<String> predicateColumns,
-    long readNanos,
-    long readCpuNanos,
     Map<String, PerColumnStatus> columns
 ) implements FormatReaderStatus {
 
@@ -74,10 +72,18 @@ public record ParquetReaderStatus(
             in.readBoolean(),                // lateMaterializationEnabled
             in.readBoolean(),                // lateMaterializationUsed
             in.readStringCollectionAsList(), // predicateColumns
-            in.readVLong(),                  // readNanos
-            in.getTransportVersion().supports(ESQL_READ_CPU_NANOS) ? in.readVLong() : 0L, // readCpuNanos
-            in.readMap(PerColumnStatus::new) // columns
+            readColumnsSkippingNanos(in)     // columns (skips removed readNanos/readCpuNanos fields)
         );
+    }
+
+    // readNanos and readCpuNanos were removed from the record but must still be consumed from the wire.
+    // They appear between predicateColumns and columns, so we read and discard them here before reading columns.
+    private static Map<String, PerColumnStatus> readColumnsSkippingNanos(StreamInput in) throws IOException {
+        in.readVLong(); // readNanos: removed field, preserved for wire compatibility
+        if (in.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+            in.readVLong(); // readCpuNanos: removed field, preserved for wire compatibility
+        }
+        return in.readMap(PerColumnStatus::new);
     }
 
     @Override
@@ -97,9 +103,9 @@ public record ParquetReaderStatus(
         out.writeBoolean(lateMaterializationEnabled);
         out.writeBoolean(lateMaterializationUsed);
         out.writeStringCollection(predicateColumns);
-        out.writeVLong(readNanos);
+        out.writeVLong(0L); // readNanos: removed field, preserved for wire compatibility
         if (out.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
-            out.writeVLong(readCpuNanos);
+            out.writeVLong(0L); // readCpuNanos: removed field, preserved for wire compatibility
         }
         out.writeMap(columns, StreamOutput::writeWriteable);
     }
@@ -112,16 +118,6 @@ public record ParquetReaderStatus(
     @Override
     public long rowsEmitted() {
         return rowsEmitted;
-    }
-
-    @Override
-    public long readNanos() {
-        return readNanos;
-    }
-
-    @Override
-    public long readCpuNanos() {
-        return readCpuNanos;
     }
 
     @Override
@@ -147,8 +143,6 @@ public record ParquetReaderStatus(
         builder.field("late_materialization_enabled", lateMaterializationEnabled);
         builder.field("late_materialization_used", lateMaterializationUsed);
         builder.field("predicate_columns", predicateColumns);
-        builder.field("read_nanos", readNanos);
-        builder.field("read_cpu_nanos", readCpuNanos);
         if (columns.isEmpty() == false) {
             builder.startObject("columns");
             // TreeMap for deterministic column ordering; readMap yields an unordered map on the wire.

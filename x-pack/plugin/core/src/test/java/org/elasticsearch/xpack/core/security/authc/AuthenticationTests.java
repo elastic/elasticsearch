@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContext
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.hamcrest.Matchers;
 
@@ -243,6 +244,36 @@ public class AuthenticationTests extends ESTestCase {
         // an uncapped cloud API key must keep serializing to the same node
         final Authentication uncapped = randomCloudApiKeyAuthentication();
         assertThat(uncapped.maybeRewriteForOlderVersion(olderVersion), notNullValue());
+    }
+
+    /**
+     * An older node has no notion of a user-managed account. It parses one happily, because the marker that distinguishes it is an
+     * ordinary metadata entry, then discards the assigned roles and resolves the principal as a built-in account that cannot exist.
+     * Serialization must fail on the sending node rather than leave the remote to report a missing built-in account.
+     */
+    public void testUserManagedServiceAccountCannotBeSentToNodeThatResolvesItAsBuiltIn() {
+        final TransportVersion userManagedVersion = TransportVersion.fromName("user_managed_service_account_info");
+        final TransportVersion olderVersion = TransportVersionUtils.randomVersionNotSupporting(userManagedVersion);
+        final Authentication userManaged = AuthenticationTestHelper.builder()
+            .userManagedServiceAccount(randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8), "role_a")
+            .build();
+
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> userManaged.maybeRewriteForOlderVersion(olderVersion)).getMessage(),
+            containsString("can't handle user-managed service account authentication")
+        );
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(olderVersion);
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> userManaged.writeTo(out)).getMessage(),
+                containsString("can't handle user-managed service account authentication")
+            );
+        }
+
+        // a built-in account authenticates through the same realm and must keep serializing to the same node
+        final Authentication builtIn = AuthenticationTestHelper.builder().serviceAccount().build();
+        assertThat(builtIn.maybeRewriteForOlderVersion(olderVersion), notNullValue());
     }
 
     public void testCrossClusterAccessCanAccessResourceOf() throws IOException {
@@ -934,6 +965,27 @@ public class AuthenticationTests extends ESTestCase {
         runWithAuthenticationToXContent(realmTokenAuth, m -> assertThat(m, hasEntry("token", Map.of("managed_by", "elasticsearch"))));
     }
 
+    public void testToXContentWithCloudLimitedByRoles() throws IOException {
+        final List<String> limitedByRoleNames = AuthenticationTestHelper.randomCloudLimitedByRoleNames();
+        final Authentication capped = AuthenticationTestHelper.randomCloudServiceAccountAuthentication(
+            randomAlphanumericOfLength(20),
+            limitedByRoleNames
+        );
+        runWithAuthenticationToXContent(capped, m -> {
+            assertThat(m, hasEntry("limited_by_roles", limitedByRoleNames));
+            assertThat(m, hasEntry("token", Map.of("type", "_cloud_service_account", "managed_by", "cloud")));
+        });
+
+        final Authentication uncapped = AuthenticationTestHelper.randomCloudServiceAccountAuthentication(
+            randomAlphanumericOfLength(20),
+            null
+        );
+        runWithAuthenticationToXContent(uncapped, m -> {
+            assertThat(m, not(hasKey("limited_by_roles")));
+            assertThat(m, hasEntry("token", Map.of("type", "_cloud_service_account", "managed_by", "cloud")));
+        });
+    }
+
     public void testBwcWithStoredAuthenticationHeaders() throws IOException {
         // Version 6.6.1
         final String headerV6 = "p/HxAgANZWxhc3RpYy1hZG1pbgEJc3VwZXJ1c2VyCgAAAAEABG5vZGUFZmlsZTEEZmlsZQA=";
@@ -1051,6 +1103,26 @@ public class AuthenticationTests extends ESTestCase {
             actual.getEffectiveSubject().getRealm().getDomain(),
             equalTo(authentication.getEffectiveSubject().getRealm().getDomain())
         );
+    }
+
+    public void testMaybeRewriteForOlderVersionDowngradesEnrichUser() {
+        final String nodeName = randomAlphaOfLength(8);
+        final Authentication enrichAuth = Authentication.newInternalAuthentication(
+            InternalUsers.ENRICH_USER,
+            TransportVersion.current(),
+            nodeName
+        );
+
+        // Rewriting for a version that supports the enrich user: unchanged
+        final TransportVersion newVersion = TransportVersionUtils.randomVersionSupporting(Authentication.SECURITY_ENRICH_INTERNAL_USER);
+        final Authentication rewrittenNew = enrichAuth.maybeRewriteForOlderVersion(newVersion);
+        assertThat(rewrittenNew.getEffectiveSubject().getUser(), equalTo(InternalUsers.ENRICH_USER));
+
+        // Rewriting for an older version: must become _xpack so the older node can decode it
+        final TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(Authentication.SECURITY_ENRICH_INTERNAL_USER);
+        final Authentication rewrittenOld = enrichAuth.maybeRewriteForOlderVersion(oldVersion);
+        assertThat(rewrittenOld.getEffectiveSubject().getUser(), equalTo(InternalUsers.XPACK_USER));
+        assertThat(rewrittenOld.getEffectiveSubject().getTransportVersion(), equalTo(oldVersion));
     }
 
     public void testToCrossClusterAccess() {

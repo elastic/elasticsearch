@@ -854,20 +854,20 @@ The `rescore` section in the profile response is an array with one element per r
       {
         "rescore": [
           {
-            "type": "query",
+            "type": "query",                <1>
             "description": "window_size=2",
-            "time_in_nanos": 254826,
+            "time_in_nanos": 254826,        <2>
             "breakdown": {
               "rescore": 254826,
               "rescore_count": 1
             },
             "debug": {
-              "window_size": 2,
-              "docs_before_rescore": 5,
-              "docs_after_rescore": 5,
-              "rewrite_time": 12420
+              "window_size": 2,             <3>
+              "docs_before_rescore": 5,     <4>
+              "docs_after_rescore": 5,      <5>
+              "rewrite_time": 12420         <6>
             },
-            "children": [
+            "children": [                   <7>
               {
                 "type": "TermQuery",
                 "description": "message:search",
@@ -885,17 +885,15 @@ The `rescore` section in the profile response is an array with one element per r
 % TESTRESPONSE[s/(?>=[" ])\d+(\.\d+)?/$body.$_path/]
 % TESTRESPONSE[s/"breakdown": \{\.\.\.\}/"breakdown": $body.$_path/]
 
-The `rescore` section is an array with one element per rescorer, in the order the rescorers ran. The `type` is the name of the rescorer, such as `query` or `learning_to_rank`. `time_in_nanos` and the `rescore` property of the `breakdown` measure the total time spent in the rescorer, including the time spent running its queries.
+1. The name of the rescorer, such as `query` or `learning_to_rank`.
+2. The total time spent in the rescorer, including the time spent running its queries. The `rescore` property of the `breakdown` reports the same time.
+3. The number of top documents the rescorer was configured to rescore on each shard.
+4. The number of top documents passed to the rescorer.
+5. The number of top documents returned by the rescorer. The `query` rescorer only rescores the top `window_size` documents but returns all the documents it was given, while the `learning_to_rank` rescorer only returns the top `window_size` documents.
+6. The time spent rewriting the queries of the rescorer, in nanoseconds.
+7. The queries run by the rescorer, with the same structure as the [query section](#query-section). For example, the `rescore_query` of a `query` rescorer, or the feature queries of a `learning_to_rank` model. These queries are not part of the `searches` section, and their rewrite time is not part of its `rewrite_time`.
 
-The `debug` section contains:
-
-* `window_size`: the number of top documents the rescorer was configured to rescore on each shard.
-* `docs_before_rescore`: the number of top documents passed to the rescorer.
-* `docs_after_rescore`: the number of top documents returned by the rescorer. The `query` rescorer only rescores the top `window_size` documents but returns all the documents it was given, while the `learning_to_rank` rescorer only returns the top `window_size` documents.
-* `rewrite_time`: the time spent rewriting the queries of the rescorer, in nanoseconds.
-* `timed_out`: only present if the search timed out while the rescorer was running. In that case `docs_after_rescore` is omitted and the top documents of the shard are not rescored.
-
-The `children` section lists the queries run by the rescorer, with the same structure as the [query section](#query-section). For example, the `rescore_query` of a `query` rescorer, or the feature queries of a `learning_to_rank` model. These queries are not part of the `searches` section, and their rewrite time is not part of its `rewrite_time`.
+If the search times out while a rescorer is running, its `debug` section has `"timed_out": true` and no `docs_after_rescore`, and the top documents of the shard are not rescored.
 
 
 ### Profiling fetch [profiling-fetch]

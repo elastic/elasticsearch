@@ -20,17 +20,10 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermInSetQuery;
@@ -41,10 +34,11 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.lucene.search.cost.TermsQueryCostEstimator;
+import org.elasticsearch.search.internal.BreakerWeightTestUtils.CountingCollectorManager;
+import org.elasticsearch.search.internal.BreakerWeightTestUtils.TrackingCircuitBreaker;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -52,11 +46,11 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.search.internal.BreakerWeightTestUtils.chargeAgainst;
+import static org.elasticsearch.search.internal.BreakerWeightTestUtils.conjunction;
+import static org.elasticsearch.search.internal.BreakerWeightTestUtils.newContextIndexSearcher;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -123,10 +117,6 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
             terms.add(new BytesRef(term(i)));
         }
         return terms;
-    }
-
-    private static Query conjunction(Query first, Query second) {
-        return new BooleanQuery.Builder().add(first, BooleanClause.Occur.MUST).add(second, BooleanClause.Occur.MUST).build();
     }
 
     /** More terms than the boolean-rewrite threshold, but only a few of them are actually indexed. */
@@ -259,7 +249,7 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
             assertThat("test setup: every leaf must have a scorer", expectedCharges.size(), equalTo(multiSegmentReader.leaves().size()));
 
             TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
-            int hits = runSearch(multiSegmentReader, termInSetQuery(), breaker);
+            int hits = BreakerWeightTestUtils.runSearch(multiSegmentReader, termInSetQuery(), breaker);
             assertThat(hits, equalTo(multiSegmentReader.maxDoc()));
             assertThat("every leaf is charged once, for its own doc-id set", breaker.charges(), equalTo(expectedCharges));
             assertThat(
@@ -277,7 +267,7 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
             List<Long> expectedCharges = List.of(perLeafCharges.get(0), perLeafCharges.get(2));
 
             TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
-            int hits = runSearch(multiSegmentReader, termInSetQuery(), breaker);
+            int hits = BreakerWeightTestUtils.runSearch(multiSegmentReader, termInSetQuery(), breaker);
             assertThat(hits, equalTo(multiSegmentReader.maxDoc()));
             assertThat("the leaf holding only a few of the terms is run as a disjunction", breaker.charges(), equalTo(expectedCharges));
             assertThat(breaker.getUsed(), equalTo(0L));
@@ -323,13 +313,6 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
         assertThat("the out-of-band scorer must charge execution RAM", breaker.getUsed(), greaterThan(0L));
         searcher.close();
         assertThat("closing the searcher must release the residual out-of-band charge", breaker.getUsed(), equalTo(0L));
-    }
-
-    private static void chargeAgainst(Weight weight, LeafReaderContext ctx) throws IOException {
-        ScorerSupplier scorerSupplier = weight.scorerSupplier(ctx);
-        if (scorerSupplier != null) {
-            scorerSupplier.get(Long.MAX_VALUE);
-        }
     }
 
     private void assertChargesThenReleases(Query query) throws IOException {
@@ -386,13 +369,7 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
     }
 
     private int runSearch(Query query, CircuitBreaker breaker) throws IOException {
-        return runSearch(reader, query, breaker);
-    }
-
-    private static int runSearch(IndexReader indexReader, Query query, CircuitBreaker breaker) throws IOException {
-        ContextIndexSearcher searcher = newContextIndexSearcher(indexReader);
-        searcher.setCircuitBreaker(breaker);
-        return searcher.search(query, new CountingCollectorManager());
+        return BreakerWeightTestUtils.runSearch(reader, query, breaker);
     }
 
     /**
@@ -420,101 +397,6 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
                 );
                 body.accept(multiSegmentReader);
             }
-        }
-    }
-
-    private static ContextIndexSearcher newContextIndexSearcher(IndexReader reader) throws IOException {
-        return new ContextIndexSearcher(
-            reader,
-            IndexSearcher.getDefaultSimilarity(),
-            null,
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            false
-        );
-    }
-
-    private static final class TrackingCircuitBreaker extends NoopCircuitBreaker {
-        private final long limit;
-        private final AtomicLong used = new AtomicLong();
-        private final AtomicLong peak = new AtomicLong();
-        private final List<Long> charges = new CopyOnWriteArrayList<>();
-
-        TrackingCircuitBreaker(long limit) {
-            super("request");
-            this.limit = limit;
-        }
-
-        @Override
-        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-            long current = used.addAndGet(bytes);
-            if (limit >= 0 && current > limit) {
-                used.addAndGet(-bytes);
-                throw new CircuitBreakingException("test breaker tripped", bytes, limit, Durability.TRANSIENT);
-            }
-            peak.accumulateAndGet(current, Math::max);
-            charges.add(bytes);
-        }
-
-        @Override
-        public void addWithoutBreaking(long bytes) {
-            used.addAndGet(bytes);
-        }
-
-        @Override
-        public long getUsed() {
-            return used.get();
-        }
-
-        @Override
-        public long getLimit() {
-            return limit;
-        }
-
-        long peak() {
-            return peak.get();
-        }
-
-        /** Every reservation that was accepted, in the order it was made. */
-        List<Long> charges() {
-            return charges;
-        }
-    }
-
-    private static final class CountingCollectorManager implements CollectorManager<CountingCollector, Integer> {
-        @Override
-        public CountingCollector newCollector() {
-            return new CountingCollector();
-        }
-
-        @Override
-        public Integer reduce(Collection<CountingCollector> collectors) {
-            int total = 0;
-            for (CountingCollector collector : collectors) {
-                total += collector.count;
-            }
-            return total;
-        }
-    }
-
-    private static final class CountingCollector implements Collector {
-        private int count;
-
-        @Override
-        public LeafCollector getLeafCollector(LeafReaderContext context) {
-            return new LeafCollector() {
-                @Override
-                public void setScorer(Scorable scorer) {}
-
-                @Override
-                public void collect(int doc) {
-                    count++;
-                }
-            };
-        }
-
-        @Override
-        public ScoreMode scoreMode() {
-            return ScoreMode.COMPLETE_NO_SCORES;
         }
     }
 }

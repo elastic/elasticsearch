@@ -53,6 +53,7 @@ dependencies {
   api(project(':x-pack:plugin:esql:compute'))
   api(project(':x-pack:plugin:esql:qa:testFixtures'))
   api(project(':x-pack:plugin:esql-datasource-csv'))
+  api(project(':x-pack:plugin:esql-datasource-gzip'))
   api(project(':x-pack:plugin:esql-datasource-parquet'))
   api(project(':x-pack:plugin:esql-datasource-orc'))
   api(project(':x-pack:plugin:esql-datasource-ndjson'))

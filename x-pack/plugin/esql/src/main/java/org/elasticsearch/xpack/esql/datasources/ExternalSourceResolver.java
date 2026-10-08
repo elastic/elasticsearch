@@ -2783,7 +2783,9 @@ public class ExternalSourceResolver {
             fold,
             schemaInterner,
             privateLists,
-            // Every file is read at its own schema on this rail, overlaid by any non-strict declaration. With no
+            // Every file is read at its own schema on this rail, overlaid by any non-strict declaration - which
+            // holds for strict and for a union whose files agree. A union_by_name file the reconciliation pinned to
+            // another type is read at a schema other than its own; that is #2201's and stays cold. With no
             // declaration the record's own stamp IS that read and this is null, as before.
             overlaidBoundReadOf(declaredMapping, datasetFormat),
             metadataListener
@@ -5490,7 +5492,13 @@ public class ExternalSourceResolver {
      * agreement {@code ReadConfigFingerprintDerivationSitesTests} exists to hold.
      */
     record OverlaidRead(List<Attribute> readSchema, DeclaredReadSpec spec) {
-        /** The address this read's measurements live at, and the expectation the serve gate compares against. */
+        /**
+         * The address this read's measurements live at, and the expectation the serve gate compares against.
+         * <p>
+         * One derivation for both, so a change to either moves both. It is NOT a guarantee that the two agree on
+         * every input: a caller that cannot see the unified schema passes the file's own in its place, which
+         * decides {@code absent()} differently. {@link #overlaidBoundReadOf} names the cell where that bites.
+         */
         String fingerprint() {
             return ReadConfigFingerprint.of(readSchema, spec);
         }
@@ -5515,6 +5523,7 @@ public class ExternalSourceResolver {
      * changed a column's type, date format or column set, so every such dataset re-read every byte on every repeated
      * aggregate (esql-planning#2246). An undeclared or strict read keeps the derivation it had.
      */
+    // Package-private for testing.
     static Function<SchemaCacheEntry, String> ffwBoundRead(ExternalSourceMetadata base, @Nullable DatasetMapping declaredMapping) {
         final String bound = declaredMapping == null || isDeclaredSchema(declaredMapping)
             ? ReadConfigFingerprint.of(base.schema(), declaredReadSpecOf(declaredMapping))
@@ -5538,6 +5547,7 @@ public class ExternalSourceResolver {
      * one the data node performs.
      */
     @Nullable
+    // Package-private for testing.
     static Function<SchemaCacheEntry, String> overlaidBoundReadOf(
         @Nullable DatasetMapping declaredMapping,
         @Nullable String datasetFormat
@@ -5545,12 +5555,18 @@ public class ExternalSourceResolver {
         if (declaredMapping == null || isDeclaredSchema(declaredMapping)) {
             return null;
         }
-        return record -> overlaidReadOf(
-            record.toAttributes(),
-            record.toAttributes(),
-            declaredMapping,
-            datasetFormat != null ? datasetFormat : record.sourceType()
-        ).fingerprint();
+        // The record's own schema stands in for the unified one, because a function built before the gather cannot
+        // see the union. For the rails whose record IS the unified schema - the explicit single file, the anchor
+        // resolve - that is exact. Under union_by_name it is exact for a declared column every file carries and for
+        // one no file carries; it diverges for a column SOME files carry and this one does not, where the union
+        // makes it present while this file's own schema makes it absent, so this derivation appends it and (for
+        // csv/tsv) upgrades the binding while the read does neither. Such a file is read at a schema other than its
+        // own, which is elastic/esql-planning#2201's subject and stays cold either way - it simply misses at an
+        // address of its own rather than at the record's stamp.
+        return record -> {
+            List<Attribute> own = record.toAttributes();
+            return overlaidReadOf(own, own, declaredMapping, datasetFormat != null ? datasetFormat : record.sourceType()).fingerprint();
+        };
     }
 
     /**
@@ -5600,6 +5616,7 @@ public class ExternalSourceResolver {
      * statistics lookup); {@link #applyNonStrictOverlay} composes the two halves directly, because it already holds
      * one unified overlay for the whole listing and must not recompute it per file.
      */
+    // Package-private for testing.
     static OverlaidRead overlaidReadOf(
         List<Attribute> fileSchema,
         List<Attribute> unifiedSchema,

@@ -1362,7 +1362,11 @@ public class ExternalSourceCacheService implements Closeable {
             // whole measurement: a non-strict declaration that retypes a column resolves to a read whose stamp
             // never equals the record's, so a segmented text read of a mapped dataset filed nothing, on any
             // address, forever (esql-planning#2246). Its whole-file sibling has filed a foreign read at its own
-            // address all along; this is the same rule for the chunked path.
+            // address all along, and this is that rule for the chunked path - but only half of it. The whole-file
+            // arm files a foreign contribution TWICE: the licensed row count at the record's own address, and the
+            // whole harvest at the read's. A stripe delta is an accumulating cover, so a licensed count from
+            // another read cannot be folded into this record's own cover without mixing two reads' stripes; only
+            // the second of those two writes has a chunked analogue, and it is the one made here.
             boolean deltaIsTheRecordsOwnRead = Objects.equals(readConfigStampOf(schemaRecord), delta.readConfig());
             StatisticsRecord priorStats = statisticsStore.get(statsKey);
             Map<String, Object> enriched = new HashMap<>(priorStats == null ? Map.of() : priorStats.measurements());
@@ -1404,11 +1408,12 @@ public class ExternalSourceCacheService implements Closeable {
             if (wholeFile != null) {
                 clearStripeState(enriched); // compaction: the fold subsumes the stripes; weight back to O(1)
                 enriched.putAll(wholeFile);
-                // Only the record's own read returns a fold to the caller. The returned fold feeds the pending
-                // dataset-aggregate promise, whose key carries no read configuration, so handing it a foreign
-                // read's numbers would write one read's count onto a channel every read of these files shares.
-                // The caller already folds the query's own delta when nothing is returned, so the promise keeps
-                // exactly the behaviour it has today. Stamping that channel is esql-planning#2201's step 3.
+                // Only the record's own read returns a fold to the caller. That is not what keeps a foreign read's
+                // numbers off the pending dataset-aggregate promise this feeds: the caller folds the query's own
+                // delta when nothing is returned, so they reach that promise regardless, and its key carries no
+                // read configuration to tell them apart. What the test keeps is this method's own contract - the
+                // value returned describes the record it was matched against - and with it the promise channel's
+                // behaviour, unchanged by this commit. Stamping that channel is esql-planning#2201's step 3.
                 if (completedFold == null && deltaIsTheRecordsOwnRead) {
                     completedFold = wholeFile;
                 }

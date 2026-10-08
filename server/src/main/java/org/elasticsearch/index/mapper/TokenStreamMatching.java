@@ -56,6 +56,30 @@ public final class TokenStreamMatching {
     }
 
     /**
+     * Whether the terms {@code query} analyzes into sit one to a position, from the first, which is what
+     * {@link #analyzeTerms} leaves behind when it discards their increments. A phrase of those is answered by
+     * walking a value's tokens for them in order and adjacent, as {@link Phrase} does.
+     *
+     * <p>A dropped token leaves a gap between two of them, and two terms at one position leave a choice between
+     * them, and a phrase holding either needs the positions themselves: it is answered by a query over an index of
+     * the value instead. This is the test {@link ReanalyzingTextQuery#walkablePhrase} makes of the phrase a field
+     * built, so a query is answered the same way whether its values come from a column or from a row.
+     */
+    public static boolean termsSitOneToAPosition(Analyzer analyzer, String field, String query) throws IOException {
+        try (TokenStream stream = analyzer.tokenStream(field, query)) {
+            final PositionIncrementAttribute increment = stream.addAttribute(PositionIncrementAttribute.class);
+            stream.reset();
+            while (stream.incrementToken()) {
+                if (increment.getPositionIncrement() != 1) {
+                    return false;
+                }
+            }
+            stream.end();
+        }
+        return true;
+    }
+
+    /**
      * The terms a query string analyzes into, in the order they appear, with their position increments discarded.
      */
     public static List<BytesRef> analyzeTerms(Analyzer analyzer, String field, String query) throws IOException {

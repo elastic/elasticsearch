@@ -81,7 +81,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
 
     private static final String FIELD = "kw";
-    private static final CircuitBreaker NOOP = new NoopCircuitBreaker("test");
+    private static final CircuitBreaker NOOP = NoopCircuitBreaker.INSTANCE;
 
     /** How a keyword's documents are written, and the readers the mapper picks for that framing. */
     private enum Framing {

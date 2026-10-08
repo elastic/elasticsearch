@@ -14,8 +14,10 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.ExternalIoExecutors;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupScheduler;
 
@@ -53,6 +55,24 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertEquals(80, watermark.used());
         assertFalse("tryReserve must not cross the cap", watermark.tryReserve(30));
         assertEquals(80, watermark.used());
+        assertEquals(1, watermark.holders());
+    }
+
+    public void testHoldersCountsOutstandingAdmitHolds() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(100);
+        ParquetIoWatermark.AdmitHold first = watermark.tryAdmit(40);
+        ParquetIoWatermark.AdmitHold second = watermark.tryAdmit(30);
+        assertNotNull(first);
+        assertNotNull(second);
+        assertEquals(2, watermark.holders());
+        first.drop();
+        assertEquals(1, watermark.holders());
+        second.drop();
+        assertEquals(0, watermark.holders());
+        assertTrue(watermark.tryReserve(40));
+        assertEquals("used without an AdmitHold still occupies the cap", 1, watermark.holders());
+        watermark.release(40);
+        assertEquals(0, watermark.holders());
     }
 
     public void testOneNodeWideOvershootForGroupLargerThanLimit() {
@@ -90,8 +110,8 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         ParquetIoWatermark watermark = new ParquetIoWatermark(1024);
         DirectBufferFactory factory = watermark.accountingFactory(breaker);
         DirectReadBuffer buffer = factory.allocate(64);
-        assertEquals(64, watermark.used());
-        assertEquals(64, breaker.getUsed());
+        assertEquals(HeapFootprint.byteArrayBytes(64), watermark.used());
+        assertEquals(HeapFootprint.byteArrayBytes(64), breaker.getUsed());
         buffer.close();
         assertEquals(0, watermark.used());
         assertEquals(0, breaker.getUsed());
@@ -105,9 +125,9 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertEquals(64, watermark.used());
         DirectBufferFactory factory = watermark.accountingFactory(breaker, hold);
         DirectReadBuffer buffer = factory.allocate(64);
-        assertEquals("alloc swaps the estimate for the retained array", 64, watermark.used());
+        assertEquals("alloc swaps the estimate for the retained array", HeapFootprint.byteArrayBytes(64), watermark.used());
         hold.drop();
-        assertEquals("second drop is a no-op", 64, watermark.used());
+        assertEquals("second drop is a no-op", HeapFootprint.byteArrayBytes(64), watermark.used());
         buffer.close();
         assertEquals(0, watermark.used());
         assertEquals(0, breaker.getUsed());
@@ -124,7 +144,7 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         DirectReadBuffer second = factory.allocate(10);
         assertEquals(152, watermark.used());
         hold.drop();
-        assertEquals("leftover estimate released; retained arrays remain", 20, watermark.used());
+        assertEquals("leftover estimate released; retained arrays remain", 2 * HeapFootprint.byteArrayBytes(10), watermark.used());
         first.close();
         second.close();
         assertEquals(0, watermark.used());
@@ -176,6 +196,10 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertEquals(0, watermark.used());
     }
 
+    /**
+     * Concurrent waiters share one overshoot owner and the rest become partial holders via forced
+     * admits.
+     */
     public void testConcurrentAdmitWaitTakesOneOvershootRestCharged() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(200);
         AtomicInteger admitted = new AtomicInteger();
@@ -312,6 +336,9 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertEquals(90, watermark.used());
     }
 
+    /**
+     * After the admit wait budget a waiter force-charges instead of failing.
+     */
     public void testAdmitWaitChargesAfterTimeoutInsteadOfRejecting() {
         ParquetIoWatermark watermark = new ParquetIoWatermark(100);
         RowGroupIo owner = new RowGroupIo();
@@ -379,9 +406,8 @@ public class ParquetIoWatermarkTests extends ESTestCase {
     }
 
     /**
-     * Waiters force-charge after the watermark admit budget, so the owner's release queued on the
-     * same pool can run. Worker failures are captured on this thread; the pool would otherwise
-     * swallow an AssertionError.
+     * Waiters on a shared pool force-charge after the admit budget so the owner's release queued
+     * behind them can run.
      */
     public void testWaitersOnSharedPoolBoundedByAdmitBudget() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(100, 200L);
@@ -558,6 +584,8 @@ public class ParquetIoWatermarkTests extends ESTestCase {
      */
     public void testAdmitWaitObservesAmbientCancellation() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(10);
+        RecordingTracker tracker = new RecordingTracker();
+        watermark.bindTracker(tracker);
         RowGroupIo owner = new RowGroupIo();
         watermark.admitWait(20, owner, 1_000L);
         RowGroupIo waiter = new RowGroupIo();
@@ -589,6 +617,8 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertThat(error.get().getMessage(), containsString("Cancelled"));
         assertEquals(0, watermark.forcedAdmits());
         assertEquals(usedBefore, watermark.used());
+        assertEquals(0, tracker.outstanding.get());
+        assertEquals(1, tracker.finished.get());
     }
 
     public void testExpiredAmbientCancelDoesNotTakeOwnerSlot() {
@@ -626,5 +656,27 @@ public class ParquetIoWatermarkTests extends ESTestCase {
             }
         });
         return io;
+    }
+
+    private static final class RecordingTracker implements AdmissionTracker {
+        private final AtomicInteger outstanding = new AtomicInteger();
+        private final AtomicInteger finished = new AtomicInteger();
+
+        @Override
+        public Wait waitStarted(String gate, String waiter) {
+            outstanding.incrementAndGet();
+            return new Wait() {
+                @Override
+                public void granted() {
+                    outstanding.decrementAndGet();
+                }
+
+                @Override
+                public void finished() {
+                    outstanding.decrementAndGet();
+                    finished.incrementAndGet();
+                }
+            };
+        }
     }
 }

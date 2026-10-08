@@ -207,6 +207,9 @@ public class TextFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
+        checker.registerIgnoredParameter("multi_value");
+        checker.registerIgnoredParameter("nullability");
+        checker.registerIgnoredParameter("on_failure");
         checker.registerConflictCheck("index_phrases", b -> b.field("index_phrases", true));
         checker.registerConflictCheck("index_prefixes", b -> b.startObject("index_prefixes").endObject());
         checker.registerConflictCheck("index_options", b -> b.field("index_options", "docs"));

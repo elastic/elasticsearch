@@ -131,6 +131,7 @@ public class MapperFeatures implements FeatureSpecification {
     );
     public static final NodeFeature DOC_VALUES_NULLABILITY = new NodeFeature("mapper.doc_values.nullability");
     public static final NodeFeature DOC_VALUES_ON_FAILURE = new NodeFeature("mapper.doc_values.on_failure");
+    public static final NodeFeature DOC_VALUES_TOP_LEVEL_ATTRIBUTES = new NodeFeature("mapper.doc_values.top_level_attributes");
     public static final NodeFeature COLUMNAR_BARE_NULL_IS_ABSENCE = new NodeFeature("mapper.columnar.bare_null_is_absence");
     public static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_nested_object_fix"
@@ -281,6 +282,7 @@ public class MapperFeatures implements FeatureSpecification {
             BBQ_DISK_BYTE_SUPPORT,
             ASH_QUANTIZATION_TYPE_SUPPORT,
             DOC_VALUES_ON_FAILURE,
+            DOC_VALUES_TOP_LEVEL_ATTRIBUTES,
             COLUMNAR_BARE_NULL_IS_ABSENCE,
             DISK_BBQ_STABLE_FORMAT_SELECTION,
             PUT_MAPPING_NO_TYPES_CHECK,

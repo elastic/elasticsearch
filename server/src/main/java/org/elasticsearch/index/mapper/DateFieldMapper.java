@@ -338,7 +338,7 @@ public final class DateFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.Cardinality.LOW
                 ),
                 m -> toType(m).docValuesParameters(),
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
             this.ignoreMalformed = Parameter.boolParam(
                 "ignore_malformed",
@@ -405,6 +405,9 @@ public final class DateFieldMapper extends FieldMapper {
             return new Parameter<?>[] {
                 index,
                 docValuesParameters,
+                docValuesParameters.multiValue(),
+                docValuesParameters.nullability(),
+                docValuesParameters.onFailure(),
                 store,
                 format,
                 locale,

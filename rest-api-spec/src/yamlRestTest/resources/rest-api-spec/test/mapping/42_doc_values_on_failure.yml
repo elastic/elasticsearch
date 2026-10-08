@@ -791,8 +791,8 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes, doc_values_on_failure ]
-      cluster_features: ["mapper.doc_values.on_failure"]
-      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
+      reason: "multi_value and on_failure emitted at top level since top_level_attributes"
 
   - do:
       indices.create:
@@ -812,8 +812,8 @@
       indices.get_mapping:
         index: test_on_failure_mapping_roundtrip
 
-  - match: { test_on_failure_mapping_roundtrip.mappings.properties.kw.doc_values.multi_value: false }
-  - match: { test_on_failure_mapping_roundtrip.mappings.properties.kw.doc_values.on_failure: "ignore" }
+  - match: { test_on_failure_mapping_roundtrip.mappings.properties.kw.multi_value: false }
+  - match: { test_on_failure_mapping_roundtrip.mappings.properties.kw.on_failure: "ignore" }
 
 ---
 "on_failure=ignore mapping serialization roundtrip (columnar)":
@@ -823,8 +823,8 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes, doc_values_on_failure ]
-      cluster_features: ["mapper.doc_values.on_failure"]
-      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
+      reason: "multi_value and on_failure emitted at top level since top_level_attributes"
 
   - do:
       indices.create:
@@ -844,8 +844,8 @@
       indices.get_mapping:
         index: test_on_failure_mapping_roundtrip_columnar
 
-  - match: { test_on_failure_mapping_roundtrip_columnar.mappings.properties.kw.doc_values.multi_value: false }
-  - match: { test_on_failure_mapping_roundtrip_columnar.mappings.properties.kw.doc_values.on_failure: "ignore" }
+  - match: { test_on_failure_mapping_roundtrip_columnar.mappings.properties.kw.multi_value: false }
+  - match: { test_on_failure_mapping_roundtrip_columnar.mappings.properties.kw.on_failure: "ignore" }
 
 ---
 "nullability=false with on_failure=ignore accepts a missing field (logsdb_columnar)":
@@ -1334,8 +1334,8 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes, doc_values_on_failure ]
-      cluster_features: ["mapper.doc_values.on_failure"]
-      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+      cluster_features: ["mapper.doc_values.on_failure", "mapper.doc_values.top_level_attributes"]
+      reason: "nullability and on_failure emitted at top level since top_level_attributes"
 
   - do:
       indices.create:
@@ -1355,8 +1355,8 @@
       indices.get_mapping:
         index: test_on_failure_nullability_roundtrip
 
-  - match: { test_on_failure_nullability_roundtrip.mappings.properties.kw.doc_values.nullability: false }
-  - match: { test_on_failure_nullability_roundtrip.mappings.properties.kw.doc_values.on_failure: "ignore" }
+  - match: { test_on_failure_nullability_roundtrip.mappings.properties.kw.nullability: false }
+  - match: { test_on_failure_nullability_roundtrip.mappings.properties.kw.on_failure: "ignore" }
 
 ---
 "on_failure=ignore multi-field receives all values; parent only keeps first (logsdb_columnar)":

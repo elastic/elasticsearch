@@ -44,6 +44,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.PlaceHolderFieldMapper;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.MatchBoolPrefixQueryBuilder;
@@ -330,12 +331,20 @@ public class MatchQueryParser {
             super(analyzer);
             this.fieldType = fieldType;
             setEnablePositionIncrements(enablePositionIncrements);
-            if (fieldType.getTextSearchInfo().hasPositions()) {
+            if (fieldType.getTextSearchInfo().hasPositions() || answersPositionsFromValues(fieldType)) {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
             } else {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(false);
             }
             this.queryVisitor = queryVisitor;
+        }
+
+        /**
+         * Whether {@code fieldType} answers a query about positions by reading its values. A word a synonym replaces
+         * with several is then asked for as a phrase of those, as it is for a field that indexed positions of its own.
+         */
+        private boolean answersPositionsFromValues(MappedFieldType fieldType) {
+            return fieldType instanceof TextFamilyFieldType textFamily && textFamily.answersPositionsFromValues(context);
         }
 
         @Override

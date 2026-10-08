@@ -27,9 +27,9 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class WildcardFieldWildcardHeapPressureIT extends WildcardFieldHeapPressureTestCase {
 
-    // Kept below the REST client's default of 10 connections per route, so that the status polling and the unblock request that run
-    // while these are parked can still get a connection. Five shards each, this is more than enough to occupy the search pool.
-    private static final int THREAD_COUNT = 24;
+    // More than the REST client's default of 10 connections per route, so no more than that many are parked at once and the rest wait
+    // for one to be freed. Five shards each, even ten are enough to occupy the whole search pool.
+    private static final int THREAD_COUNT = 8;
     // '*a' followed by N '?' determinizes to 2^N states: 8192 for N=11, the most the default 10,000 work limit accepts.
     private static final String HEAVY_WILDCARD = "*a???????????*";
     private static final String SMALL_WILDCARD = "*a????*";

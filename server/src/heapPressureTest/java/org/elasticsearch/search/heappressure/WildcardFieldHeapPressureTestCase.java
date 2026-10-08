@@ -39,6 +39,9 @@ import static org.hamcrest.Matchers.equalTo;
  *
  * <p>Request caching is disabled on every search so that each request builds its automaton on every shard rather than being
  * answered from the shard request cache.
+ *
+ * TODO: these tests need to be converted to be fully parallel and support PausedField, in order to check not only peak
+ * but also retained automata OOM resiliency.
  */
 public abstract class WildcardFieldHeapPressureTestCase extends ESRestTestCase {
 
@@ -118,11 +121,13 @@ public abstract class WildcardFieldHeapPressureTestCase extends ESRestTestCase {
     }
 
     protected static void blockPauseField() throws IOException {
-        client().performRequest(new Request("POST", "/_pause_field/block"));
+        // The control requests go through the admin client, which has its own connection pool: with every connection of client() held by a
+        // parked search, they would otherwise wait for a connection that only they can free.
+        adminClient().performRequest(new Request("POST", "/_pause_field/block"));
     }
 
     protected static void unblockPauseField() throws IOException {
-        client().performRequest(new Request("POST", "/_pause_field/unblock"));
+        adminClient().performRequest(new Request("POST", "/_pause_field/unblock"));
     }
 
     /**
@@ -144,7 +149,7 @@ public abstract class WildcardFieldHeapPressureTestCase extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     private Map<String, Object> searchPoolStats() throws IOException {
         Map<String, Object> nodes = (Map<String, Object>) entityAsMap(
-            client().performRequest(new Request("GET", "/_nodes/stats/thread_pool"))
+            adminClient().performRequest(new Request("GET", "/_nodes/stats/thread_pool"))
         ).get("nodes");
         Map<String, Object> node = (Map<String, Object>) nodes.values().iterator().next();
         return (Map<String, Object>) XContentMapValues.extractValue("thread_pool.search", node);

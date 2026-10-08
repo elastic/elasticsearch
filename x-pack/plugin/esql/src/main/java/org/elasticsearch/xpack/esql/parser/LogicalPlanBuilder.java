@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InfoCommandPlanUtils;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -535,6 +536,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             ? patterns.stream().filter(ne -> ne instanceof UnresolvedStar == false).toList()
             : patterns;
         return input -> new FillNull(source, input, fillValue, targetFields, allColumns);
+    }
+
+    @Override
+    public PlanFactory visitIntoCommand(EsqlBaseParser.IntoCommandContext ctx) {
+        Source source = source(ctx);
+        String destination = ctx.indexPattern().getText();
+        return input -> new Into(source, input, destination);
     }
 
     @Override

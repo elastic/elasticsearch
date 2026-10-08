@@ -84,7 +84,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -2009,88 +2008,21 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             """, containsString("Only a single FORK command is supported, but found multiple"));
     }
 
-    /**
-     * TODO FORK alignment fills a dropped column with {@code null[T]} using the pre-widen type. After implicit date/date_nanos widening the
-     *  sibling branch is {@code date_nanos} while the filler stays {@code datetime}. {@code alignMergeOutputToChildren} does not update the
-     *  FORK output when children disagree, so {@code checkFork} reports the conflict. The following test can complete successfully if
-     *  filling the dropped column as {@code date_nanos}.
-     */
-
-    public void testForkNullFillsImplicitDateNanosCastColumnInFirstBranch() {
-        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
-            FROM sample_data, (FROM sample_data_ts_nanos)
-            | FORK (KEEP message) (KEEP @timestamp, message)
+    // FORK-only queries must not implicitly widen {@code datetime} to {@code date_nanos}.
+    public void testForkOnlyDateVsDateNanosStillConflicts() {
+        analyzer().addSampleData().error("""
+            FROM sample_data
+            | FORK (KEEP @timestamp) (EVAL @timestamp = @timestamp::date_nanos)
             | KEEP @timestamp, _fork
-            """, allOf(containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
+            """, containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]"));
     }
 
-    public void testForkNullFillsImplicitDateNanosCastColumnInSecondBranch() {
-        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
-            FROM sample_data, (FROM sample_data_ts_nanos)
-            | FORK (KEEP @timestamp, message) (KEEP message)
-            | KEEP @timestamp, _fork
-            """, allOf(containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
-    }
-
-    public void testForkNullFillsImplicitDateNanosCastColumnAfterNestedSubquery() {
-        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
-            FROM sample_data, (FROM sample_data_ts_nanos, (FROM sample_data))
-            | FORK (KEEP @timestamp) (KEEP message)
-            | KEEP @timestamp, _fork
-            """, allOf(containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
-    }
-
-    public void testForkNullFillsImplicitDateNanosCastColumnWithEval() {
-        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
-            FROM sample_data, (FROM sample_data_ts_nanos)
-            | FORK (EVAL x = @timestamp) (WHERE true)
+    public void testForkOnlyEvalDateVsDateNanosStillConflicts() {
+        analyzer().addSampleData().error("""
+            FROM sample_data
+            | FORK (EVAL x = @timestamp) (EVAL x = @timestamp::date_nanos)
             | KEEP x, _fork
-            """, allOf(containsString("Column [x] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
-    }
-
-    public void testForkNullFillsImplicitDateNanosCastColumnWithStats() {
-        analyzer().addSampleData()
-            .addIndex(sampleDataTsNanosIndex())
-            .error(
-                """
-                    FROM sample_data, (FROM sample_data_ts_nanos)
-                    | FORK (STATS m = MAX(@timestamp)) (WHERE true | KEEP @timestamp)
-                    | KEEP m, @timestamp
-                    """,
-                allOf(
-                    containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]"),
-                    containsString("Column [m] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")
-                )
-            );
-    }
-
-    public void testForkNullFillsAtEveryLevelOfNestedUnionAlls() {
-        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
-            FROM (FROM (FROM sample_data, (FROM sample_data_ts_nanos)
-                        | FORK (KEEP @timestamp, message) (KEEP message)),
-                       (FROM sample_data | KEEP @timestamp, message)
-                  | FORK (EVAL t = @timestamp) (KEEP message)),
-                 (FROM sample_data_ts_nanos | KEEP @timestamp, message)
-            | RENAME t AS u
-            | KEEP @timestamp, u, message, _fork
-            | SORT @timestamp, u
-            """, allOf(containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
-    }
-
-    public void testForkNullFillsInsideAndAfterUnionAllThroughViews() {
-        analyzer().addSampleData()
-            .addIndex(sampleDataTsNanosIndex())
-            .addView(
-                "fork_over_union_view",
-                "FROM sample_data, (FROM sample_data_ts_nanos) | FORK (KEEP @timestamp, message) (KEEP message)"
-            )
-            .error("""
-                FROM (FROM fork_over_union_view, (FROM sample_data | KEEP @timestamp, message)
-                          | FORK (WHERE message IS NOT NULL) (KEEP message)),
-                         (FROM sample_data | KEEP @timestamp, message)
-                    | KEEP @timestamp, message, _fork
-                    | SORT @timestamp
-                """, containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]"));
+            """, containsString("Column [x] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]"));
     }
 
     private LogicalPlan analyzeExternalDatasetSubquery(String query) {
@@ -2243,10 +2175,6 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      */
     private static EsIndex sampleDataTsLongIndex() {
         return sampleDataIndexWithTimestampType("sample_data_ts_long", LONG);
-    }
-
-    private static EsIndex sampleDataTsNanosIndex() {
-        return sampleDataIndexWithTimestampType("sample_data_ts_nanos", DataType.DATE_NANOS);
     }
 
     private static EsIndex sampleDataIndexWithTimestampType(String name, DataType timestampType) {

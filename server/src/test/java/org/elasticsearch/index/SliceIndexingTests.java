@@ -120,6 +120,25 @@ public class SliceIndexingTests extends ESTestCase {
         return randomAlphaOfLengthBetween(1, 40) + randomFrom("", "-" + randomAlphaOfLength(3), ":" + randomInt(999));
     }
 
+    /** The BytesRef overloads must agree with the String ones (and so with routing) for offset slices, long values and non-ASCII. */
+    public void testBytesRefOverloadsMatchStringOverloads() {
+        for (int i = 0; i < 100; i++) {
+            String slice = switch (randomIntBetween(0, 2)) {
+                case 0 -> randomSliceValue();
+                case 1 -> randomAlphaOfLengthBetween(129, 700);
+                case 2 -> randomRealisticUnicodeOfLengthBetween(1, 40);
+                default -> throw new AssertionError();
+            };
+            byte[] utf8 = slice.getBytes(StandardCharsets.UTF_8);
+            int pad = randomIntBetween(0, 5);
+            byte[] padded = new byte[pad + utf8.length + pad];
+            System.arraycopy(utf8, 0, padded, pad, utf8.length);
+            BytesRef ref = new BytesRef(padded, pad, utf8.length);
+            assertThat(SliceIndexing.sliceHash(ref), equalTo(SliceIndexing.sliceHash(slice)));
+            assertThat(SliceIndexing.encodeSliceKey(ref), equalTo(SliceIndexing.encodeSliceKey(slice)));
+        }
+    }
+
     public void testSliceHashIsUnsigned32Bit() {
         for (int i = 0; i < 100; i++) {
             long hash = SliceIndexing.sliceHash(randomSliceValue());

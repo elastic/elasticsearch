@@ -81,23 +81,27 @@ public final class SliceIndexing {
         return Murmur3HashFunction.hash(slice) & 0xFFFFFFFFL;
     }
 
-    /** As {@link #sliceHash(String)} for a raw UTF-8 slice value (never an encoded key); hashed via the String form to match routing. */
+    /** As {@link #sliceHash(String)} for a raw UTF-8 slice value (never an encoded key). */
     public static long sliceHash(BytesRef slice) {
-        return sliceHash(slice.utf8ToString());
+        return Murmur3HashFunction.hash(slice) & 0xFFFFFFFFL;
     }
 
     /** Encodes a {@link #SLICE_KEY_FIELD_NAME} term: big-endian unsigned hash followed by the UTF-8 slice bytes. */
     public static BytesRef encodeSliceKey(String slice) {
-        byte[] utf8 = slice.getBytes(StandardCharsets.UTF_8);
-        byte[] key = new byte[SLICE_HASH_BYTES + utf8.length];
-        ByteUtils.writeIntBE((int) sliceHash(slice), key, 0);
-        System.arraycopy(utf8, 0, key, SLICE_HASH_BYTES, utf8.length);
-        return new BytesRef(key);
+        final byte[] utf8 = slice.getBytes(StandardCharsets.UTF_8);
+        return encodeSliceKey(sliceHash(slice), utf8, 0, utf8.length);
     }
 
     /** As {@link #encodeSliceKey(String)} for a raw UTF-8 slice value; never pass an already encoded key. */
     public static BytesRef encodeSliceKey(BytesRef slice) {
-        return encodeSliceKey(slice.utf8ToString());
+        return encodeSliceKey(sliceHash(slice), slice.bytes, slice.offset, slice.length);
+    }
+
+    private static BytesRef encodeSliceKey(long hash, byte[] utf8, int offset, int length) {
+        final byte[] key = new byte[SLICE_HASH_BYTES + length];
+        ByteUtils.writeIntBE((int) hash, key, 0);
+        System.arraycopy(utf8, offset, key, SLICE_HASH_BYTES, length);
+        return new BytesRef(key);
     }
 
     /**

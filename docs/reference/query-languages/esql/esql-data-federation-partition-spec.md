@@ -18,8 +18,8 @@ opens every file.
 :::{include} _snippets/data-federation/experimental-warning.md
 :::
 
-[`partition_detection`](esql-data-federation-datasets.md#common-settings) and
-[`partition_path`](esql-data-federation-datasets.md#common-settings) still decide how the folder
+[`partition_detection`](esql-data-federation-dataset-settings.md#partition-detection) and
+[`partition_path`](esql-data-federation-dataset-settings.md#partition-path) still decide how the folder
 names are found.
 
 ## Define a partition spec
@@ -41,7 +41,7 @@ case-insensitive. Keys and column names are case-sensitive.
 Omitted `key=` uses the transform name (`year(ts)` maps path `year`). Bare `region` is `identity(region)`.
 `@timestamp` is a legal column name. A name that is not an ES|QL identifier goes in backticks, as in
 `` year(`event time`) ``. `{second}` in `partition_path` is a folder name, not this unit. Refer to
-[Resource patterns](esql-data-federation-patterns.md#brace-groups-and-partition-placeholders).
+[Resource patterns](esql-data-federation-patterns.md#define-partition-paths).
 
 Path keys you leave out of the spec still filter on their own name. `WHERE year == 2024` still skips
 other years when a spec is set, and `WHERE region == "eu"` still skips other regions when the spec only
@@ -54,7 +54,7 @@ The query does not skip folders from that binding. A spec that does not parse wa
 not skip folders. Registration still rejects it.
 
 Omit `partition_spec` to keep path-key filters and skip this mapping. That is the default.
-[`partition_detection`](esql-data-federation-datasets.md#common-settings) set to `none` turns path keys off.
+[`partition_detection`](esql-data-federation-dataset-settings.md#partition-detection) set to `none` turns path keys off.
 A spec in that mode is rejected. `template` keeps `partition_path` and does not read Hive `key=value` names.
 `hive` reads those names only.
 

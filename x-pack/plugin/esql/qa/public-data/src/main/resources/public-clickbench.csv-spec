@@ -1,0 +1,1124 @@
+// ClickBench at full public-corpus scale, on real object storage. The 43 canonical query shapes
+// (ported from external-clickbench.csv-spec, queries only) plus one added bounded-LIMIT shape.
+// Every expected table below was derived at authoring time by the oracle (clickhouse local
+// 26.8.1.1309) against the pinned reference object
+// s3://clickhouse-public-datasets/hits_compatible/hits.parquet (99,997,497 rows), read from a
+// local scratch download of those exact pinned bytes. The oracle NEVER runs in the suite; these
+// tables are the frozen, reviewed expectation. See the README for the regeneration workflow.
+//
+// Deliberate translation notes:
+//  - count-distinct queries use the exact two-stage form (STATS BY x | STATS COUNT(*));
+//    MV_COUNT(VALUES(x)) does not scale to millions of distinct values per group.
+//  - q10/q23 drop the canonical rides-along COUNT(DISTINCT UserID) column (kept in q09/q11-q14).
+//  - every multi-row query carries an explicit SORT tie-breaker so the tables are total orders.
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS count FROM file('hits.parquet')
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 1
+q01_countHits
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | STATS count = COUNT(*);
+
+count:long
+99997497
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS count FROM file('hits.parquet') WHERE AdvEngineID != 0
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 1
+q02_countAdvEngineIdNonzero
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE AdvEngineID != 0 | STATS count = COUNT(*);
+
+count:long
+630500
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT sum(AdvEngineID) AS s, count() AS c, avg(ResolutionWidth) AS a FROM file('hits.parquet')
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 1
+q03_statsAdvEngineIdResolution
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | STATS sum_AdvEngineID = SUM(AdvEngineID), count = COUNT(*), avg_ResolutionWidth = AVG(ResolutionWidth);
+
+sum_AdvEngineID:long | count:long | avg_ResolutionWidth:double
+7280088              | 99997497   | 1513.4879349030107
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT avg(UserID) FROM file('hits.parquet')
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 1
+// defect: ES|QL AVG(long) accumulates in double precision; at +/-9.2e18 UserID magnitudes the result is 8 orders of magnitude off the exact mean
+// defect-variant: clickbench-s3-parquet-snappy-single (identical value on clickbench-s3-parquet-snappy-shards)
+// defect-oracle: clickhouse local 26.8.1.1309 exact avg = -55945124888.916016; ES|QL returns 2.528953e18, which equals ClickHouse avg(toFloat64(UserID)) bit-for-bit at compared precision
+// defect-found: 2026-08-13
+q04_statsAvgUserid-Ignore
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | STATS avg_UserID = AVG(UserID);
+
+avg_UserID:double
+-55945124888.916016
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(UserID) FROM file('hits.parquet')
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 1
+// note: exact two-stage distinct; MV_COUNT(VALUES()) cannot hold 17.6M values in one group at corpus scale
+q05_statsDistinctUserid
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | STATS BY UserID | STATS u = COUNT(*);
+
+u:long
+17630976
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(SearchPhrase) FROM file('hits.parquet')
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 1
+// note: exact two-stage distinct; see q05
+q06_statsDistinctSearchPhrase
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | STATS BY SearchPhrase | STATS u = COUNT(*);
+
+u:long
+6019103
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT min(EventDate), max(EventDate) FROM file('hits.parquet')
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 1
+q07_statsMinMaxEventDate
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | STATS min_EventDate = MIN(EventDate), max_EventDate = MAX(EventDate);
+
+min_EventDate:integer | max_EventDate:integer
+15888                 | 15917
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, AdvEngineID FROM file('hits.parquet') WHERE AdvEngineID != 0 GROUP BY AdvEngineID ORDER BY c DESC, AdvEngineID ASC LIMIT 20
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 20
+q08_statsAdvEngineIdByAdvEngineId
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE AdvEngineID != 0 | STATS c = COUNT(*) BY AdvEngineID | SORT c DESC, AdvEngineID ASC | LIMIT 20;
+
+c:long | AdvEngineID:integer
+404602 | 2
+113167 | 27
+45631  | 13
+38960  | 45
+9730   | 44
+6896   | 3
+5266   | 62
+3554   | 52
+938    | 50
+836    | 28
+350    | 53
+343    | 25
+158    | 61
+38     | 21
+20     | 42
+7      | 16
+3      | 7
+1      | 22
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(UserID) AS u, RegionID FROM file('hits.parquet') GROUP BY RegionID ORDER BY u DESC, RegionID ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+// note: exact two-stage distinct per group; see q05
+q09_statsDistinctUseridByRegion
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | STATS BY RegionID, UserID | STATS u = COUNT(*) BY RegionID | SORT u DESC, RegionID ASC | LIMIT 10;
+
+u:long  | RegionID:integer
+2845673 | 229
+1081016 | 2
+831676  | 208
+604583  | 169
+322661  | 184
+307152  | 158
+299479  | 34
+286525  | 55
+272448  | 107
+243181  | 42
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT sum(AdvEngineID) AS s, count() AS c, avg(ResolutionWidth) AS a, RegionID FROM file('hits.parquet') GROUP BY RegionID ORDER BY c DESC, RegionID ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+// note: canonical Q9 also counts distinct UserID per region; dropped here (no exact scalable translation), kept in q09
+q10_statsRegionAggregates
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | STATS sum_AdvEngineID = SUM(AdvEngineID), c = COUNT(*), avg_ResolutionWidth = AVG(ResolutionWidth) BY RegionID | SORT c DESC, RegionID ASC | LIMIT 10;
+
+sum_AdvEngineID:long | c:long   | avg_ResolutionWidth:double | RegionID:integer
+2077656              | 18295832 | 1506.085243130785          | 229
+441662               | 6687587  | 1479.8386542111527         | 2
+285925               | 4261812  | 1285.2593246722286         | 208
+100887               | 3320229  | 1465.9073732564832         | 169
+81498                | 1843518  | 1538.0376568061718         | 32
+161779               | 1792369  | 1548.360152401654          | 34
+55526                | 1755192  | 1506.8082967561384         | 184
+108820               | 1542717  | 1587.1085208758313         | 42
+120470               | 1516690  | 1548.6028970982863         | 107
+98212                | 1435578  | 1579.8860354505293         | 51
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(UserID) AS u, MobilePhoneModel FROM file('hits.parquet') WHERE MobilePhoneModel != '' GROUP BY MobilePhoneModel ORDER BY u DESC, MobilePhoneModel ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+q11_statsMobilePhoneModelUsers
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE MobilePhoneModel != "" | STATS BY MobilePhoneModel, UserID | STATS u = COUNT(*) BY MobilePhoneModel | SORT u DESC, MobilePhoneModel ASC | LIMIT 10;
+
+u:long  | MobilePhoneModel:keyword
+1090347 | iPad
+45758   | iPhone
+16046   | A500
+5565    | N8-00
+3300    | iPho
+2759    | ONE TOUCH 6030A
+1907    | GT-P7300B
+1871    | 3110000
+1598    | GT-I9500
+1492    | eagle75
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(UserID) AS u, MobilePhone, MobilePhoneModel FROM file('hits.parquet') WHERE MobilePhoneModel != '' GROUP BY MobilePhone, MobilePhoneModel ORDER BY u DESC, MobilePhone ASC, MobilePhoneModel ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+q12_statsMobilePhoneUsers
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE MobilePhoneModel != "" | STATS BY MobilePhone, MobilePhoneModel, UserID | STATS u = COUNT(*) BY MobilePhone, MobilePhoneModel | SORT u DESC, MobilePhone ASC, MobilePhoneModel ASC | LIMIT 10;
+
+u:long | MobilePhone:integer | MobilePhoneModel:keyword
+931038 | 1                   | iPad
+48385  | 5                   | iPad
+29710  | 6                   | iPad
+28391  | 7                   | iPad
+16005  | 118                 | A500
+14516  | 6                   | iPhone
+13566  | 26                  | iPhone
+11433  | 10                  | iPad
+9503   | 32                  | iPad
+9417   | 13                  | iPad
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, SearchPhrase FROM file('hits.parquet') WHERE SearchPhrase != '' GROUP BY SearchPhrase ORDER BY c DESC, SearchPhrase ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+q13_statsSearchPhraseCount
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchPhrase | SORT c DESC, SearchPhrase ASC | LIMIT 10;
+
+c:long | SearchPhrase:keyword
+70263  | карелки
+34675  | албатрутдин
+24580  | смотреть онлайн
+21647  | смотреть онлайн бесплатно
+19707  | смотреть
+19195  | мангу в зарабей грама
+17284  | дружке помещение
+16746  | galaxy table
+16620  | экзоидные
+12317  | сколько мытищи
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(UserID) AS u, SearchPhrase FROM file('hits.parquet') WHERE SearchPhrase != '' GROUP BY SearchPhrase ORDER BY u DESC, SearchPhrase ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+q14_statsSearchPhraseUsers
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE SearchPhrase != "" | STATS BY SearchPhrase, UserID | STATS u = COUNT(*) BY SearchPhrase | SORT u DESC, SearchPhrase ASC | LIMIT 10;
+
+u:long | SearchPhrase:keyword
+23673  | карелки
+19747  | смотреть онлайн
+18394  | албатрутдин
+17553  | смотреть онлайн бесплатно
+14603  | смотреть
+14529  | экзоидные
+14198  | мангу в зарабей грама
+9007   | сколько мытищи
+8792   | дружке помещение
+7572   | комбинирование смотреть
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, SearchEngineID, SearchPhrase FROM file('hits.parquet') WHERE SearchPhrase != '' GROUP BY SearchEngineID, SearchPhrase ORDER BY c DESC, SearchEngineID ASC, SearchPhrase ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+q15_statsSearchEnginePhrase
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchEngineID, SearchPhrase | SORT c DESC, SearchEngineID ASC, SearchPhrase ASC | LIMIT 10;
+
+c:long | SearchEngineID:integer | SearchPhrase:keyword
+46258  | 2                      | карелки
+18871  | 2                      | мангу в зарабей грама
+16905  | 2                      | смотреть онлайн
+16748  | 3                      | албатрутдин
+14909  | 2                      | смотреть онлайн бесплатно
+13716  | 2                      | албатрутдин
+13414  | 2                      | экзоидные
+13108  | 2                      | смотреть
+12815  | 3                      | карелки
+11946  | 2                      | дружке помещение
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, UserID FROM file('hits.parquet') GROUP BY UserID ORDER BY c DESC, UserID ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+q16_statsUseridCount
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | STATS c = COUNT(*) BY UserID | SORT c DESC, UserID ASC | LIMIT 10;
+
+c:long | UserID:long
+29097  | 1313338681122956954
+25333  | 1907779576417363396
+10597  | 2305303682471783379
+7584   | 7982623143712728547
+6678   | 6018350421959114808
+6411   | 7280399273658728997
+6197   | 1090981537032625727
+6019   | 5730251990344211405
+5211   | 835157184735512989
+4906   | 770542365400669095
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, UserID, SearchPhrase FROM file('hits.parquet') GROUP BY UserID, SearchPhrase ORDER BY c DESC, UserID ASC, SearchPhrase ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+q17_statsUseridSearchPhraseCount
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | STATS c = COUNT(*) BY UserID, SearchPhrase | SORT c DESC, UserID ASC, SearchPhrase ASC | LIMIT 10;
+
+c:long | UserID:long         | SearchPhrase:keyword
+29097  | 1313338681122956954 |
+25333  | 1907779576417363396 |
+10597  | 2305303682471783379 |
+6669   | 7982623143712728547 |
+6408   | 7280399273658728997 |
+6196   | 1090981537032625727 |
+6019   | 5730251990344211405 |
+5990   | 6018350421959114808 |
+5209   | 835157184735512989  |
+4906   | 770542365400669095  |
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, UserID, SearchPhrase FROM file('hits.parquet') GROUP BY UserID, SearchPhrase ORDER BY c DESC, UserID ASC, SearchPhrase ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+// note: canonical Q17 is the unordered GROUP BY LIMIT shape; a frozen expectation needs the q17 ordering, kept as its own leg
+q18_statsUseridSearchPhraseLimit
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | STATS c = COUNT(*) BY UserID, SearchPhrase | SORT c DESC, UserID ASC, SearchPhrase ASC | LIMIT 10;
+
+c:long | UserID:long         | SearchPhrase:keyword
+29097  | 1313338681122956954 |
+25333  | 1907779576417363396 |
+10597  | 2305303682471783379 |
+6669   | 7982623143712728547 |
+6408   | 7280399273658728997 |
+6196   | 1090981537032625727 |
+6019   | 5730251990344211405 |
+5990   | 6018350421959114808 |
+5209   | 835157184735512989  |
+4906   | 770542365400669095  |
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, UserID, intDiv(EventTime, 60) % 60 AS m, SearchPhrase FROM file('hits.parquet') WHERE CounterID = 62 AND EventDate >= 15887 AND EventDate <= 15917 GROUP BY UserID, m, SearchPhrase ORDER BY c DESC, UserID ASC, m ASC, SearchPhrase ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+// note: scoped to the canonical counter-62 July slice (the q37-q43 idiom): the unfiltered canonical form holds an aggregation state of 12.7M even filtered to searchers groups, beyond any non-spilling engine at corpus scale
+q19_statsUseridMinuteSearchPhrase
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 | EVAL m = EventTime / 60 % 60 | STATS c = COUNT(*) BY UserID, m, SearchPhrase | SORT c DESC, UserID ASC, m ASC, SearchPhrase ASC | LIMIT 10;
+
+c:long | UserID:long         | m:long | SearchPhrase:keyword
+57     | 6949028786848070043 | 45     |
+56     | 6949028786848070043 | 46     |
+56     | 6949028786848070043 | 50     |
+55     | 6949028786848070043 | 44     |
+55     | 6949028786848070043 | 47     |
+55     | 6949028786848070043 | 51     |
+55     | 6949028786848070043 | 54     |
+54     | 6949028786848070043 | 42     |
+54     | 6949028786848070043 | 48     |
+54     | 6949028786848070043 | 49     |
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT UserID FROM file('hits.parquet') WHERE UserID = 435090932899640449
+// oracle-run: 2026-08-13
+// read-shape: scan
+// max-rows: 10
+// sort-reviewed: every returned value is the needle itself; order carries no information
+q20_filterUserid
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE UserID == 435090932899640449 | KEEP UserID;
+
+UserID:long
+435090932899640449
+435090932899640449
+435090932899640449
+435090932899640449
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('hits.parquet') WHERE URL LIKE '%google%'
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 1
+q21_statsGoogleUrlCount
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE URL LIKE "*google*" | STATS count = COUNT(*);
+
+count:long
+15911
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT min(URL) AS m, count() AS c, SearchPhrase FROM file('hits.parquet') WHERE URL LIKE '%google%' AND SearchPhrase != '' GROUP BY SearchPhrase ORDER BY c DESC, SearchPhrase ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+q22_statsGoogleUrlSearchPhrase
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE URL LIKE "*google*" AND SearchPhrase != "" | STATS min_URL = MIN(URL), c = COUNT(*) BY SearchPhrase | SORT c DESC, SearchPhrase ASC | LIMIT 10;
+
+min_URL:keyword                                                                                                           | c:long | SearchPhrase:keyword
+http://smeshariki.ru/googleTBR%26ad                                                                                       | 60     | прокур горбуши
+http:%2F%2Fwwww.googlead&aktional                                                                                         | 24     | римском качественны for cry
+http://smeshariki.ru/index.ua/doc/22229/googlead%26aktion=2&input_bdsmpeople.ru/real-estate=0&state=2013070519381         | 23     | стоит похуден
+http://smeshariki.ru/recipes/show/6840872&trafkey=6d0fc12c54059/loukhaAUXI&where=all&filter/Mitsubishi/google             | 21     | испанч боб новости дейская
+http://smeshariki.ru/googleTBR%26ad                                                                                       | 14     | прокур готовки видеоэндоменя
+http://smeshariki.ru/googleTBR%26ad                                                                                       | 11     | прокур гипоаллеры
+http://video.yandex.php?com=google.ru/arts/searchAutoSearch                                                               | 9      | камедицинск автомобильних условодки на в крем
+http://smeshariki.ru/index.ua/syllanet.ru/business/hotels.turizm.ru/igooglead%26ar_sliceid%3D1216629/0/&&puid2=15&lo=http | 8      | универ 11.6/1366x768/4096mb ddressary of thing
+http://tienskaia-moda-zhienskaia-obl.irr.ru/ch/google-c-38208                                                             | 7      | вспомню о названы монстэр
+http://video.yandex.php?com=google.ru/arts/searchAutoSearch                                                               | 7      | купить трудовані резюме мертный дина кабинский лежит заднее устан
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT min(URL) AS m, count() AS c, SearchPhrase FROM file('hits.parquet') WHERE Title LIKE '%Google%' AND URL NOT LIKE '%.google.%' AND SearchPhrase != '' GROUP BY SearchPhrase ORDER BY c DESC, SearchPhrase ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+// note: canonical Q22 also counts distinct UserID; dropped here (no exact scalable translation), see q10
+q23_statsGoogleTitleNotUrl
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE Title LIKE "*Google*" AND NOT URL LIKE "*.google.*" AND SearchPhrase != "" | STATS min_URL = MIN(URL), c = COUNT(*) BY SearchPhrase | SORT c DESC, SearchPhrase ASC | LIMIT 10;
+
+min_URL:keyword                                                                                                                                                                                       | c:long | SearchPhrase:keyword
+http://smeshariki.ru/a-folder-4/#page-3.2.1; WOW64; Edition=1&input_action=2011/page_type=profiles/88436/currency                                                                                     | 801    | винки медведь смотреть фильмы 2013 смотреть
+http://kinopoisk.ru/a-albums_scroll_to_auto_id=227&option/vacancies/liver.ru/cgi-bin/click.cgi%3Fsid%3D158197%26ad                                                                                    | 214    | секретарь оверка все серии порт
+http://smeshariki.ru/a-folder-4/#page-3.2.1; WOW64; Edition=1&input_action=2013-topy%2Fproduct_price_ot=&price                                                                                        | 138    | винки медведь смотреть фильмы чеческия
+http://kinopoisk.ru/a-albums_scroll_to_auto_id=363064472354&lb_id=1559843                                                                                                                             | 114    | игры для дер блич
+http://smeshariki.ru/a-folder-4/#page-3.2.1; WOW64; Edition=1&input_age17/#page/Jeep,Lexus/rodimomu_vsegoddelki.ru/carbuznyj-90472-0-014031818%26height%3D901634571                                   | 102    | винки медведь смотреть объятный ветерин
+http://domchelove.ru/#!/search/page                                                                                                                                                                   | 90     | кино 2009) смотреть онлайн бессмерти мк в россипед
+http://smeshariki.ru/a-folder-4/#page-3.2.1; WOW64; Edition=1&input_active/?do=showCampState/renatzija-na-brietielkakh%2F&ti=С                                                                        | 87     | винки медведь смотреть
+http://smeshariki.ru/a-folder=cars/article=199980150195,0.107736/detail.aspx#location=search?text=asc&maxyear=2001216629%26sob%3D3159&input_who1=1&cid=577&oki=1&op_product_id=25&pvno=2&evlg=VC,2;VL | 64     | тайны избавитель в владимира для университет масляться
+https://produkty%2Fpulove.ru/booklyattion-war-sinij-9182/women                                                                                                                                        | 45     | коптимиквиды юриста с роуз рая
+http://smeshariki.ru/a-folder-4/#page-3.2.1; WOW64; Edition=1&input_active/                                                                                                                           | 40     | винки медведь смотрейлера начальник
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT WatchID, JavaEnable, Title, GoodEvent, EventTime, EventDate, CounterID, ClientIP, RegionID, UserID, URL, Referer FROM file('hits.parquet') WHERE URL LIKE '%google%' ORDER BY EventTime ASC, WatchID ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: topn
+// max-rows: 10
+q24_sortGoogleUrlByTime
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE URL LIKE "*google*" | SORT EventTime ASC, WatchID ASC | KEEP WatchID, JavaEnable, Title, GoodEvent, EventTime, EventDate, CounterID, ClientIP, RegionID, UserID, URL, Referer | LIMIT 10;
+
+WatchID:long        | JavaEnable:integer | Title:keyword                                                                                                                 | GoodEvent:integer | EventTime:long | EventDate:integer | CounterID:integer | ClientIP:integer | RegionID:integer | UserID:long         | URL:keyword                                                                                                     | Referer:keyword
+7675678523794456216 | 1                  | Glavnaya gorand. Цветные объявлений районе, вером                                                                             | 1                 | 1372708869     | 15888             | 64469             | 1840073959       | 2                | 3714843517822510735 | http://e96.ru/search/page.googleTBR%26ad%3D0%26rnd%3D158197%26anbietersburg                                     | http://bdsmpeople.ru/obrazom_position/?page
+6147260061318473746 | 1                  | Glavnaya gorand. Цветные объявлений районе, вером                                                                             | 1                 | 1372708889     | 15888             | 64469             | 1840073959       | 2                | 3714843517822510735 | http://e96.ru/search/page.googleTBR%26ad%3D0%26rnd%3D158197%26anbietersburg                                     | http://bdsmpeople.ru/obrazom_position/?page
+5972689683963797854 | 1                  | Glavnaya gorand. Цветные объявлений районе, вером                                                                             | 1                 | 1372708931     | 15888             | 64469             | 1840073959       | 2                | 3714843517822510735 | http://e96.ru/search/page.googleTBR%26ad%3D0%26rnd%3D158197%26anbietersburg                                     | http://bdsmpeople.ru/obrazom_position/?page
+8008688361303225116 | 1                  | Скачать онлайн играй! - Туризма - Крымский тренчкоты в интернет магазин Wildberries.ru (Работа - IRR.ru - модных словариумных | 1                 | 1372709521     | 15888             | 63217             | 1975817788       | 229              | 804133623150786791  | http://bjdswaps.google-photo                                                                                    | http://loveche.html?ctid
+7436461208655480623 | 1                  | Компании Вино в хорошие                                                                                                       | 1                 | 1372710744     | 15888             | 35534             | 1741555497       | 39               | 7082047337377160280 | http://rsdn.ru/catalog/cifrovye-advertisement=little&category=22&input_bdsmpeople.ru/index,google.ru/news/39826 | http://kalina?block/?inst_the_book.php?cPath=40_57470493958402/
+5564518777317455184 | 0                  | «set» в пробег аппах и обслуживатизиров                                                                                       | 1                 | 1372711469     | 15888             | 5822              | 1920787234       | 32               | 3712346975274085073 | http://auto_gruppy/christikha/hotel=-1&trafkey=605&from=&power_name=Платья&produkty%2Furl.google.ru/index       | http://rmnt.ru/cars/passenger/hellardous/42/~37/?suggest&id=3869551753&custom=0&undefined/undefined/under=28036,5;362;108;16762643539
+7381524648140977766 | 1                  | Ploshchad' stolitsi zwy 110911923, Г официальная Прессы и Огонек                                                              | 1                 | 1372712506     | 15888             | 63217             | 1638850281       | 59               | 1564939829982760596 | http://bjdleaksbrand=bpc bonprix%2F12.02&he=1024&location=pm;f=inbox;pmsg_1733/page.google                      | http://loveplanet.ru/url?sa=t&rct
+8614832219462424183 | 1                  | Модель для сумки - регеш (Россия)                                                                                             | 1                 | 1372713563     | 15888             | 3035              | 2022088895       | 38               | 2590751384199385434 | http://smeshariki.ru/googleTBR%26ar_ntype=citykurortmag                                                         | http://holodilnik.ru/GameMain.aspx?color=0&choos&source=web&cd
+7168314068394418899 | 1                  | по полиция +опытовой рецензии,                                                                                                | 1                 | 1372713760     | 15888             | 35534             | -1420082055      | 11579            | 4822773326251181180 | http:%2F%2Fsapozhki-advertime-2/#page.google/dodge                                                              | http://saint-peters-total=меньше 100007&text=b.akhua_deckaya-look/time-2/#page=3&oprnd=6817922197946&ei=JtHTUYWRCqXA&bvm=bv.49784469,d.ZWU&cad=rjt&fu=0&type_id=172&msid=1&marka=88&text=krasnaia-moda
+8235569889353442646 | 1                  |                                                                                                                               | 1                 | 1372713773     | 15888             | 35534             | -1420082055      | 11579            | 4822773326251181180 | http:%2F%2Fsapozhki-advertime-2/#page.google/dodge                                                              |
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT SearchPhrase FROM file('hits.parquet') WHERE SearchPhrase != '' ORDER BY EventTime ASC, WatchID ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: topn
+// max-rows: 10
+q25_sortSearchPhraseByTime
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE SearchPhrase != "" | SORT EventTime ASC, WatchID ASC | KEEP SearchPhrase | LIMIT 10;
+
+SearchPhrase:keyword
+ночно китая женщины
+galaxy s4 zoom фильм
+симптомы регистратов
+фильм небольшой бизнеса североятно
+анапа оперевянные волшебную
+компьютерапии серия нарий
+авом констеть ребенка краево
+брита ганам котлы на шерлок
+скачать читалию в духовке
+слон.руб., д. а.л. конфигурды по оргатства мультет
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT SearchPhrase FROM file('hits.parquet') WHERE SearchPhrase >= '!' ORDER BY SearchPhrase ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: topn
+// max-rows: 10
+// note: guard >= "!" (identical byte-order comparison in both engines) keeps whitespace-led phrases out of the expected table, which the pipe-table format cannot represent; replaces the extract's TRIM()==self guard
+// sort-reviewed: single-key ascending sort over the projected column itself; boundary ties are identical values
+q26_sortSearchPhraseAsc
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE SearchPhrase >= "!" | SORT SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
+
+SearchPhrase:keyword
+! hektdf gjcgjhn conster
+! скарп
+!(как ворони
+!(по горию в ясенев умер отелям вредит
+!(с) про дпо сексты с ката в спб
+!(салоны оста роботода
+!(стартер rav4 тюнинградар фотограмматики москве
+!куги для мясорубкина зимняя из виолет
+!куги маус клубника в
+!куги серии
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT SearchPhrase FROM file('hits.parquet') WHERE SearchPhrase != '' ORDER BY EventTime ASC, SearchPhrase ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: topn
+// max-rows: 10
+// sort-reviewed: ties on (EventTime, SearchPhrase) project identical SearchPhrase values
+q27_sortSearchPhraseTimeAsc
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE SearchPhrase != "" | SORT EventTime ASC, SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
+
+SearchPhrase:keyword
+galaxy s4 zoom фильм
+ночно китая женщины
+симптомы регистратов
+фильм небольшой бизнеса североятно
+авом констеть ребенка краево
+анапа оперевянные волшебную
+брита ганам котлы на шерлок
+компьютерапии серия нарий
+отдыха чем прокат
+расписание мультиварка для
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT avg(length(URL)) AS l, count() AS c, CounterID FROM file('hits.parquet') WHERE URL != '' GROUP BY CounterID HAVING c > 1000 ORDER BY l DESC, CounterID ASC LIMIT 25
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 25
+q28_statsUrlLengthByCounter
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE URL != "" | STATS l = AVG(BYTE_LENGTH(URL)), c = COUNT(*) BY CounterID | WHERE c > 1000 | SORT l DESC, CounterID ASC | LIMIT 25;
+
+l:double           | c:long  | CounterID:integer
+469.14923754578723 | 2938865 | 233773
+271.7841243964889  | 2510103 | 245438
+238.63801917567594 | 3574007 | 122612
+228.50656167979002 | 1143    | 250821
+208.1763969974979  | 4796    | 124538
+205.743417721519   | 7900    | 162892
+204.27746585100144 | 238660  | 234004
+203.7316755124451  | 43712   | 253117
+197.83080416670535 | 323229  | 1634
+186.7507135271472  | 120528  | 786
+174.11500291885582 | 1713    | 3312
+151.17003853564546 | 2076    | 3832
+149.67077344284738 | 1461    | 131286
+147.41038937815728 | 22369   | 174358
+142.91444863406159 | 216408  | 114157
+138.6078787723654  | 78134   | 59
+132.9712643678161  | 3132    | 176982
+128.97419928825622 | 4496    | 103582
+128.18448475492087 | 2591    | 157800
+128.0672316384181  | 5310    | 254303
+126.22595247333346 | 146907  | 515
+125.77221526908636 | 1598    | 196303
+125.36714011543154 | 858171  | 256004
+125.2942748628499  | 21327   | 254299
+120.2657237661165  | 374306  | 95427
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT avg(length(Referer)) AS l, count() AS c, min(Referer) AS m, k FROM (SELECT Referer, replaceRegexpOne(Referer, '^https?://(?:www\.)?([^/]+)/[\s\S]*', '\\1') AS k FROM file('hits.parquet') WHERE Referer != '') GROUP BY k HAVING c > 100000 ORDER BY l DESC, k ASC LIMIT 25
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 25
+// note: threshold raised from canonical 100k rows-per-domain equivalence at full scale; regex tail is the engine-portable [\s\S]* form (Java vs RE2 end-of-line semantics differ on the canonical /.*$)
+q29_statsRefererDomainAnalysis
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE Referer != "" | EVAL k = REPLACE(Referer, "^https?://(?:www\\.)?([^/]+)/[\\s\\S]*", "$1") | STATS l = AVG(BYTE_LENGTH(Referer)), c = COUNT(*), min_Referer = MIN(Referer) BY k | WHERE c > 100000 | SORT l DESC, k ASC | LIMIT 25;
+
+l:double           | c:long  | min_Referer:keyword                                                                                                                                                                                                                                                                                                                                                                                                             | k:keyword
+307.97233286328066 | 242526  | http://svpressa.ru/                                                                                                                                                                                                                                                                                                                                                                                                             | svpressa.ru
+263.3198055218298  | 183671  | http://msuzie-showforumdisplay/63/~2/?name=&cost_neu%3D400%26retpath=default777TWCWkI9lalUwTXpJMU1q                                                                                                                                                                                                                                                                                                                             | msuzie-showforumdisplay
+242.5211649710752  | 200520  | http://saint-peters-total=меньше 80/cash/station=search&input_age1=&int[2274/trashbox.ru/details&cad=rjt&fu=0&input_who1=2&input_who1=2&input_city-4400047.html?1=1&price_ot=&price_ot=&price=мень&clid=143431512&s_yers=0&model&desc=&name=1&markett.ru%2Frenazheltyj-95692465&text=поздравстраницу&clid=4405404/menu_29.html&ei=UIX1UZTFNJTI0ci8guSn3tW.pl?cmd=showthreadreplies=978-4121-469171&history47/11/?from=&district | saint-peters-total=меньше 80
+212.92406790679988 | 326094  | http://domics/825179.11931861234499792                                                                                                                                                                                                                                                                                                                                                                                          | domics
+210.08653357481904 | 1019246 | http://e96.ru/%3Ffrom]=&input_act[count_num=0&dff=arian-carrina1201517&cad=rjt&fu=0&input_state/apartments-sale/list.htm?size=30&input_with_photo-takovo-zuevo-shpilki.ru/real.nn.ru/yandex.ua/searchAuto=on&input_who1=2&input_online.ru/clck/51cbd&ll=&top=http://loveplane=42621/page9                                                                                                                                       | e96.ru
+131.95758485602357 | 349710  | https://gadgets.irr.ru/2jmj7l5rSw0yVb                                                                                                                                                                                                                                                                                                                                                                                           | gadgets.irr.ru
+109.23917232317794 | 2158427 | http://google.ru/                                                                                                                                                                                                                                                                                                                                                                                                               | google.ru
+108.63706955917424 | 8227786 | http://go.mail/04/detskaia-moda-zhiensmed                                                                                                                                                                                                                                                                                                                                                                                       | go.mail
+106.10463459410022 | 301774  | http://msouz.ru/?ffshop                                                                                                                                                                                                                                                                                                                                                                                                         | msouz.ru
+105.64521656316963 | 512414  | http://state=19945206/foto-4/login%20NoTs3M&where=all&filmId=u8aGGqtWs3M&where=all&server=sc.cheloveplanet.ru/forum.little&categoriya/muzhskaya_istory.com/demii-malchik_148_4055074241537][to]=&input_activalry: A Love&where=all&text=купить florer&aktion/loansert перевозобности&site_id=197&text=добавь   лазерногорский  тайская полупая автомобильника&v=1414-resp_desyachnyeprague                                      | state=19945206
+104.60039684260745 | 461140  | http://loveplanet.ru/%3Faw_opel/page=2013                                                                                                                                                                                                                                                                                                                                                                                       | loveplanet.ru
+104.41493591162283 | 1125087 | http://bonprix.ru/                                                                                                                                                                                                                                                                                                                                                                                                              | bonprix.ru
+96.75331644732393  | 133049  | http://novjob.ru/                                                                                                                                                                                                                                                                                                                                                                                                               | novjob.ru
+95.63003809905754  | 124675  | http://cn.ru/GameMain.aspx#catalog/100523&tails.xml?market_pc.html?pid=9403&lr=47&msgid=36305f39386                                                                                                                                                                                                                                                                                                                             | cn.ru
+94.78713161708883  | 115912  | https://geomethiettai.ru/GameMain.aspx?group=houses/list=266559j7077&num=7&prune_day=lastdiscussd59394303&price_ot=&priceup&page3/sankt-petushhiblock                                                                                                                                                                                                                                                                           | geomethiettai.ru
+90.27436552659836  | 120139  | http://kino/6/21/2/women.asp?whichpage4/#oversion=unreadm&uid                                                                                                                                                                                                                                                                                                                                                                   | kino
+90.17111441069063  | 124595  | http://yaroslavens.ru/main.aspx#catalog%2F1004-1100000147-otvet/actions/dislocal                                                                                                                                                                                                                                                                                                                                                | yaroslavens.ru
+89.6847199679859   | 984566  | http://mysw.info/                                                                                                                                                                                                                                                                                                                                                                                                               | mysw.info
+88.73220672271125  | 151546  | http://m.myloveplanet.ru/                                                                                                                                                                                                                                                                                                                                                                                                       | m.myloveplanet.ru
+83.96874568405933  | 144812  | http://povarenok.ru/                                                                                                                                                                                                                                                                                                                                                                                                            | povarenok.ru
+80.33040423379813  | 110728  | http://gorod/%3Fauto.ria.ua%2Fjob                                                                                                                                                                                                                                                                                                                                                                                               | gorod
+80.21485953571573  | 245970  | http://www.yandsearch/rooms=1/page2                                                                                                                                                                                                                                                                                                                                                                                             | yandsearch
+80.08091732831745  | 110582  | http://myloveplanet.ru/#associety/auto                                                                                                                                                                                                                                                                                                                                                                                          | myloveplanet.ru
+77.86451772496336  | 315318  | http://tambov.irr.ru/0/c1/tgFtaeLDK0yb01A7xvQF08sjCFqQxn51                                                                                                                                                                                                                                                                                                                                                                      | tambov.irr.ru
+75.74742374278648  | 155264  | http://kurortmag.ru/                                                                                                                                                                                                                                                                                                                                                                                                            | kurortmag.ru
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT sum(ResolutionWidth), sum(ResolutionWidth + 1), sum(ResolutionWidth + 2), sum(ResolutionWidth + 3), sum(ResolutionWidth + 4), sum(ResolutionWidth + 5), sum(ResolutionWidth + 6), sum(ResolutionWidth + 7), sum(ResolutionWidth + 8), sum(ResolutionWidth + 9) FROM file('hits.parquet')
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 1
+q30_statsResolutionWidthSums
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | STATS s0 = SUM(ResolutionWidth), s1 = SUM(ResolutionWidth + 1), s2 = SUM(ResolutionWidth + 2), s3 = SUM(ResolutionWidth + 3), s4 = SUM(ResolutionWidth + 4), s5 = SUM(ResolutionWidth + 5), s6 = SUM(ResolutionWidth + 6), s7 = SUM(ResolutionWidth + 7), s8 = SUM(ResolutionWidth + 8), s9 = SUM(ResolutionWidth + 9);
+
+s0:long      | s1:long      | s2:long      | s3:long      | s4:long      | s5:long      | s6:long      | s7:long      | s8:long      | s9:long
+151345005230 | 151445002727 | 151545000224 | 151644997721 | 151744995218 | 151844992715 | 151944990212 | 152044987709 | 152144985206 | 152244982703
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, sum(IsRefresh) AS s, avg(ResolutionWidth) AS a, SearchEngineID, ClientIP FROM file('hits.parquet') WHERE SearchPhrase != '' GROUP BY SearchEngineID, ClientIP ORDER BY c DESC, SearchEngineID ASC, ClientIP ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+q31_statsSearchEngineClientIp
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE SearchPhrase != "" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY SearchEngineID, ClientIP | SORT c DESC, SearchEngineID ASC, ClientIP ASC | LIMIT 10;
+
+c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | SearchEngineID:integer | ClientIP:integer
+1633   | 35                 | 1408.0122473974282         | 2                      | 1138507705
+1331   | 28                 | 1577.945905334335          | 2                      | 1740861572
+1144   | 35                 | 1553.1984265734266         | 2                      | -807147100
+1140   | 36                 | 1543.4140350877192         | 2                      | -497906719
+1105   | 30                 | 1557.387330316742          | 2                      | -1945757555
+1102   | 31                 | 1555.6588021778584         | 2                      | -1870623097
+1083   | 31                 | 1581.8171745152354         | 2                      | -631062503
+1082   | 30                 | 1541.253234750462          | 2                      | -465813166
+1080   | 24                 | 1559.8092592592593         | 2                      | -1743596151
+1058   | 22                 | 1587                       | 2                      | -1125673878
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, sum(IsRefresh) AS s, avg(ResolutionWidth) AS a, WatchID, ClientIP FROM file('hits.parquet') WHERE SearchPhrase != '' GROUP BY WatchID, ClientIP ORDER BY c DESC, WatchID ASC, ClientIP ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+q32_statsWatchIdClientIp
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE SearchPhrase != "" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY WatchID, ClientIP | SORT c DESC, WatchID ASC, ClientIP ASC | LIMIT 10;
+
+c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | WatchID:long        | ClientIP:integer
+1      | 0                  | 1368                       | 4611686071420045196 | 1618475002
+1      | 0                  | 1996                       | 4611686270165580596 | 1773698398
+1      | 0                  | 1368                       | 4611686294110223561 | 1593993174
+1      | 0                  | 548                        | 4611686705865451788 | -954492450
+1      | 0                  | 1990                       | 4611687123803616825 | -1169210775
+1      | 0                  | 1368                       | 4611687333949199458 | 2029546627
+1      | 0                  | 1990                       | 4611687377885419452 | 286029700
+1      | 0                  | 1368                       | 4611687393794238663 | -1176766019
+1      | 0                  | 1638                       | 4611687496390261055 | 77438170
+1      | 0                  | 1750                       | 4611688027162466482 | -1294239990
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, sum(IsRefresh) AS s, avg(ResolutionWidth) AS a, WatchID, ClientIP FROM file('hits.parquet') WHERE CounterID = 62 AND EventDate >= 15887 AND EventDate <= 15917 GROUP BY WatchID, ClientIP ORDER BY c DESC, WatchID ASC, ClientIP ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+// note: scoped to the canonical counter-62 July slice (the q37-q43 idiom): the unfiltered canonical form holds an aggregation state of ~100M groups, beyond any non-spilling engine at corpus scale
+q33_statsWatchIdClientIpAll
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY WatchID, ClientIP | SORT c DESC, WatchID ASC, ClientIP ASC | LIMIT 10;
+
+c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | WatchID:long        | ClientIP:integer
+1      | 0                  | 1750                       | 4611688177454016533 | -2097769803
+1      | 0                  | 1996                       | 4611705583041926562 | 1057241736
+1      | 0                  | 1750                       | 4611732432824466015 | 832055507
+1      | 0                  | 1638                       | 4611734045841178764 | 1220066701
+1      | 0                  | 582                        | 4611743926447747348 | 1874175689
+1      | 0                  | 582                        | 4611754861734904675 | 1006598218
+1      | 0                  | 1996                       | 4611756760136691747 | 1405080728
+1      | 0                  | 1368                       | 4611758562500004934 | 1494476808
+1      | 0                  | 1368                       | 4611758770390897206 | 1431553989
+1      | 0                  | 1087                       | 4611784832549660743 | -23331845
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, URL FROM file('hits.parquet') WHERE CounterID = 62 AND EventDate >= 15887 AND EventDate <= 15917 GROUP BY URL ORDER BY c DESC, URL ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+// note: scoped to the canonical counter-62 July slice (the q37-q43 idiom): the unfiltered canonical form holds an aggregation state of 18.3M string-keyed groups, beyond any non-spilling engine at corpus scale
+q34_statsUrlCount
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 | STATS c = COUNT(*) BY URL | SORT c DESC, URL ASC | LIMIT 10;
+
+c:long | URL:keyword
+107932 | http://irr.ru/index.php?showalbum/login-leniya7777294,938303130
+52386  | http://komme%2F27.0.1453.116
+18586  | http://irr.ru/index.php?showalbum/login-kapusta-advert2668]=0&order_by=0
+17289  | http://irr.ru/index.php?showalbum/login-kapustic/product_name
+12898  | http://irr.ru/index.php
+11097  | http://irr.ru/index.php?showalbum/login
+7811   | http://komme%2F27.0.1453.116 Safari%2F5.0 (compatible; MSIE 9.0;
+7479   | http://sslow_13507.html?aspx?naId=6r7RoWvxU9qQ=
+4791   | http://aliningrad
+4412   | http://irr.ru/index.php?showalbum/login-kupalnik
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, 1 AS const1, URL FROM file('hits.parquet') WHERE CounterID = 62 AND EventDate >= 15887 AND EventDate <= 15917 GROUP BY URL ORDER BY c DESC, URL ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+// note: scoped to the canonical counter-62 July slice (the q37-q43 idiom): the unfiltered canonical form holds an aggregation state of 18.3M string-keyed groups, beyond any non-spilling engine at corpus scale
+q35_statsConstUrlCount
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 | EVAL const1 = 1 | STATS c = COUNT(*) BY const1, URL | SORT c DESC, URL ASC | LIMIT 10;
+
+c:long | const1:integer | URL:keyword
+107932 | 1              | http://irr.ru/index.php?showalbum/login-leniya7777294,938303130
+52386  | 1              | http://komme%2F27.0.1453.116
+18586  | 1              | http://irr.ru/index.php?showalbum/login-kapusta-advert2668]=0&order_by=0
+17289  | 1              | http://irr.ru/index.php?showalbum/login-kapustic/product_name
+12898  | 1              | http://irr.ru/index.php
+11097  | 1              | http://irr.ru/index.php?showalbum/login
+7811   | 1              | http://komme%2F27.0.1453.116 Safari%2F5.0 (compatible; MSIE 9.0;
+7479   | 1              | http://sslow_13507.html?aspx?naId=6r7RoWvxU9qQ=
+4791   | 1              | http://aliningrad
+4412   | 1              | http://irr.ru/index.php?showalbum/login-kupalnik
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, ClientIP, ClientIP - 1 AS m1, ClientIP - 2 AS m2, ClientIP - 3 AS m3 FROM file('hits.parquet') GROUP BY ClientIP ORDER BY c DESC, ClientIP ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+q36_statsClientIpVariations
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | EVAL ip_m1 = ClientIP - 1, ip_m2 = ClientIP - 2, ip_m3 = ClientIP - 3 | STATS c = COUNT(*) BY ClientIP, ip_m1, ip_m2, ip_m3 | SORT c DESC, ClientIP ASC | LIMIT 10;
+
+c:long | ClientIP:integer | ip_m1:integer | ip_m2:integer | ip_m3:integer
+47008  | -39921974        | -39921975     | -39921976     | -39921977
+29121  | -1698104457      | -1698104458   | -1698104459   | -1698104460
+25333  | -1175819552      | -1175819553   | -1175819554   | -1175819555
+20220  | 1696638182       | 1696638181    | 1696638180    | 1696638179
+15778  | 1138507705       | 1138507704    | 1138507703    | 1138507702
+12768  | -927025522       | -927025523    | -927025524    | -927025525
+11348  | -1262139876      | -1262139877   | -1262139878   | -1262139879
+11314  | 1740861572       | 1740861571    | 1740861570    | 1740861569
+9880   | -807147100       | -807147101    | -807147102    | -807147103
+9718   | -631062503       | -631062504    | -631062505    | -631062506
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS PageViews, URL FROM file('hits.parquet') WHERE CounterID = 62 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits = 0 AND IsRefresh = 0 AND URL != '' GROUP BY URL ORDER BY PageViews DESC, URL ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+q37_statsCounter62JulyUrls
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND URL != "" | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC, URL ASC | LIMIT 10;
+
+PageViews:long | URL:keyword
+102341         | http://irr.ru/index.php?showalbum/login-leniya7777294,938303130
+51218          | http://komme%2F27.0.1453.116
+18315          | http://irr.ru/index.php?showalbum/login-kapusta-advert2668]=0&order_by=0
+16461          | http://irr.ru/index.php?showalbum/login-kapustic/product_name
+12577          | http://irr.ru/index.php
+10880          | http://irr.ru/index.php?showalbum/login
+7627           | http://komme%2F27.0.1453.116 Safari%2F5.0 (compatible; MSIE 9.0;
+4369           | http://irr.ru/index.php?showalbum/login-kupalnik
+4058           | http://irr.ru/index.php?showalbum/login-kapusta-advert27256.html_params
+3021           | http://komme%2F27.0.1453.116 Safari
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS PageViews, Title FROM file('hits.parquet') WHERE CounterID = 62 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits = 0 AND IsRefresh = 0 AND Title != '' GROUP BY Title ORDER BY PageViews DESC, Title ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+q38_statsCounter62JulyTitles
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND Title != "" | STATS PageViews = COUNT(*) BY Title | SORT PageViews DESC, Title ASC | LIMIT 10;
+
+PageViews:long | Title:keyword
+122407         | Тест (Россия) - Яндекс
+82935          | Шарарай), Выбрать! - обсуждаются на голд: Шоубиз - Свободная историс
+80958          | Приморск - IRR.ru
+39098          | Брюки New Era H (Асус) 258 общая выплаток, горшечными
+23123          | Теплоску на
+14329          | Dave and Hotpoint sport – самые вещие
+14053          | AUTO.ria.ua ™ - Аппер
+13912          | Приморск (Россия) - Яндекс.Видео
+10919          | OWAProfessign), продать
+10157          | Труси - Шоубиз
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS PageViews, URL FROM file('hits.parquet') WHERE CounterID = 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh = 0 AND IsLink != 0 AND IsDownload = 0 GROUP BY URL ORDER BY PageViews DESC, URL ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+q39_statsCounter62JulyLinks
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND IsLink != 0 AND IsDownload == 0 | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC, URL ASC | LIMIT 10;
+
+PageViews:long | URL:keyword
+7479           | http://sslow_13507.html?aspx?naId=6r7RoWvxU9qQ=
+4791           | http://aliningrad
+3584           | http://ekburg.irr.ru%2Fpuloveplanet
+3064           | http://smeshariki.ru/obucheyelants
+2887           | http://video.yandex.php
+1084           | http://kinopoisk.ru/news/2146555f3530316995264from]=&int[27][]=&selection/01a54d83ce&lost.1406.07.2013
+891            | http://kinopoisk.ru/news/2146555419/page=show_photo/70946/detail/55212.15&he
+855            | http://afisha.yandex.ru/index
+521            | http://sslow_13507.html?aspx?naId=6HS
+484            | http://wildberrior/uphold
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS PageViews, TraficSourceID, SearchEngineID, AdvEngineID, if(SearchEngineID = 0 AND AdvEngineID = 0, Referer, '') AS Src, URL AS Dst FROM file('hits.parquet') WHERE CounterID = 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh = 0 GROUP BY TraficSourceID, SearchEngineID, AdvEngineID, Src, Dst ORDER BY PageViews DESC, TraficSourceID ASC, SearchEngineID ASC, AdvEngineID ASC, Src ASC, Dst ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+q40_statsCounter62JulyTrafficSources
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 | EVAL Src = CASE(SearchEngineID == 0 AND AdvEngineID == 0, Referer, ""), Dst = URL | STATS PageViews = COUNT(*) BY TraficSourceID, SearchEngineID, AdvEngineID, Src, Dst | SORT PageViews DESC, TraficSourceID ASC, SearchEngineID ASC, AdvEngineID ASC, Src ASC, Dst ASC | LIMIT 10;
+
+PageViews:long | TraficSourceID:integer | SearchEngineID:integer | AdvEngineID:integer | Src:keyword                                                      | Dst:keyword
+33069          | -1                     | 0                      | 0                   | http://kinopoisk.ru/?state                                       | http://irr.ru/index.php?showalbum/login-leniya7777294,938303130
+24703          | 0                      | 0                      | 0                   |                                                                  | http://komme%2F27.0.1453.116
+15817          | -1                     | 0                      | 0                   | http://state=19945206/foto-4/login-2491724/?bundlers/search?text | http://irr.ru/index.php?showalbum/login-kapusta-advert2668]=0&order_by=0
+14233          | 0                      | 0                      | 0                   |                                                                  | http://irr.ru/index.php?showalbum/login-leniya7777294,938303130
+6549           | 1                      | 0                      | 0                   | https://google.com/fee=меньше                                    | http://komme%2F27.0.1453.116
+5257           | -1                     | 0                      | 0                   | http://state=199450984062                                        | http://irr.ru/index.php?showalbum/login-leniya7777294,938303130
+5257           | 3                      | 2                      | 0                   |                                                                  | http://komme%2F27.0.1453.116
+3547           | 5                      | 0                      | 0                   | http://state=199450984062                                        | http://sslow_13507.html?aspx?naId=6r7RoWvxU9qQ=
+3538           | -1                     | 0                      | 0                   | http://state=19945206/foto-4/login-2491724/?bundlers/search?text | http://irr.ru/index.php?showalbum/login
+3371           | -1                     | 0                      | 0                   | http://state=19945206/foto-4/login-2491724/?bundlers/search?text | http://irr.ru/index.php?showalbum/login-kupalnik
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS PageViews, URLHash, EventDate FROM file('hits.parquet') WHERE CounterID = 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh = 0 AND TraficSourceID IN (-1, 6) AND RefererHash = 3594120000172545465 GROUP BY URLHash, EventDate ORDER BY PageViews DESC, URLHash ASC, EventDate ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+q41_statsCounter62JulyRefererHash
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND TraficSourceID IN (-1, 6) AND RefererHash == 3594120000172545465 | STATS PageViews = COUNT(*) BY URLHash, EventDate | SORT PageViews DESC, URLHash ASC, EventDate ASC | LIMIT 10;
+
+PageViews:long | URLHash:long         | EventDate:integer
+3373           | 786877583695637547   | 15901
+3328           | -7370781399609543775 | 15901
+2421           | 5575639553984629836  | 15901
+757            | 7949176783462555086  | 15901
+633            | -2799183658664184391 | 15901
+450            | -9090998343276352723 | 15901
+268            | -7867523844263798504 | 15901
+217            | 428727614974842268   | 15901
+200            | -122138210592592987  | 15901
+197            | -6359454925449424667 | 15901
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS PageViews, WindowClientWidth, WindowClientHeight FROM file('hits.parquet') WHERE CounterID = 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh = 0 AND DontCountHits = 0 AND URLHash = 2868770270353813622 GROUP BY WindowClientWidth, WindowClientHeight ORDER BY PageViews DESC, WindowClientWidth ASC, WindowClientHeight ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+q42_statsCounter62JulyWindowClient
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND DontCountHits == 0 AND URLHash == 2868770270353813622 | STATS PageViews = COUNT(*) BY WindowClientWidth, WindowClientHeight | SORT PageViews DESC, WindowClientWidth ASC, WindowClientHeight ASC | LIMIT 10;
+
+PageViews:long | WindowClientWidth:integer | WindowClientHeight:integer
+3662           | 1750                      | 580
+3593           | 1750                      | 653
+1513           | 1261                      | 1017
+1479           | 1261                      | 805
+1006           | 1095                      | 872
+964            | 1509                      | 966
+937            | 531                       | 422
+887            | 1509                      | 746
+863            | 1750                      | 992
+837            | 1509                      | 936
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS PageViews, EventTime - (EventTime % 60) AS M FROM file('hits.parquet') WHERE CounterID = 62 AND EventDate >= 15900 AND EventDate <= 15901 AND IsRefresh = 0 AND DontCountHits = 0 GROUP BY M ORDER BY M ASC LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: aggregate
+// max-rows: 10
+// sort-reviewed: sorted by the group key itself, which is unique per row
+q43_statsCounter62July1415Minutes
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE CounterID == 62 AND EventDate >= 15900 AND EventDate <= 15901 AND IsRefresh == 0 AND DontCountHits == 0 | EVAL M = EventTime - EventTime % 60 | STATS PageViews = COUNT(*) BY M | SORT M ASC | LIMIT 10;
+
+PageViews:long | M:long
+466            | 1373832000
+439            | 1373832060
+422            | 1373832120
+386            | 1373832180
+450            | 1373832240
+473            | 1373832300
+446            | 1373832360
+490            | 1373832420
+444            | 1373832480
+408            | 1373832540
+;
+
+// corpus: clickbench
+// reference-variant: clickbench-s3-parquet-snappy-single
+// pinned: 1 object, 14779976446 bytes, etag 6b028bb94eecf0ff4e6cde62a0f8fa48-829
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT UserID FROM file('hits.parquet') WHERE UserID = 435090932899640449 LIMIT 10
+// oracle-run: 2026-08-13
+// read-shape: limit
+// max-rows: 10
+// note: added beyond the canonical 43: a bounded raw-row LIMIT so early termination on remote streams is a first-class shape
+// sort-reviewed: every returned value is the needle itself; order carries no information
+q44_limitUseridNeedle
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{corpus}}"
+FROM clickbench | WHERE UserID == 435090932899640449 | KEEP UserID | LIMIT 10;
+
+UserID:long
+435090932899640449
+435090932899640449
+435090932899640449
+435090932899640449
+;

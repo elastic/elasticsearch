@@ -183,10 +183,6 @@ final class ParquetIoWatermark implements AdmissionGate {
         return budget.limit();
     }
 
-    long forcedAdmits() {
-        return budget.forcedAdmits();
-    }
-
     DirectBufferFactory accountingFactory(CircuitBreaker breaker) {
         return accountingFactory(breaker, null);
     }

@@ -214,7 +214,6 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         }
         assertTrue("cap 200 plus one 50-byte overshoot admits five units", started.await(5, TimeUnit.SECONDS));
         assertBusy(() -> assertEquals(3, watermark.waiterCount()));
-        assertEquals(0, watermark.forcedAdmits());
         assertThat(watermark.used(), lessThanOrEqualTo(250L));
         assertNotNull(watermark.overshootOwner());
         for (ParquetIoWatermark.AdmitHold hold : List.copyOf(holds)) {
@@ -225,7 +224,6 @@ public class ParquetIoWatermarkTests extends ESTestCase {
             }
         }
         assertTrue(done.await(5, TimeUnit.SECONDS));
-        assertEquals(0, watermark.forcedAdmits());
     }
 
     public void testNonFavouredWaitsUntilRelease() throws Exception {
@@ -260,7 +258,6 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertSame(favoured, watermark.overshootOwner());
         awaitAdmit(watermark, 1, favoured);
         assertEquals(12, watermark.used());
-        assertEquals(0, watermark.forcedAdmits());
     }
 
     public void testSecondQueryDoesNotTakeSecondOvershoot() throws Exception {
@@ -280,7 +277,6 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         first.finish();
         watermark.clearOwner(first);
         assertTrue(granted.await(5, TimeUnit.SECONDS));
-        assertEquals(0, watermark.forcedAdmits());
     }
 
     public void testNullSchedulerCrossesOnce() throws Exception {
@@ -307,7 +303,8 @@ public class ParquetIoWatermarkTests extends ESTestCase {
 
     /**
      * T1: a waiter under a parked overshoot owner does not force-charge after a timeout. The
-     * ticket stays queued until the owner releases; {@code forcedAdmits} stays 0.
+     * ticket stays queued ({@code granted.await(50ms)==false}, {@code used} unchanged) until
+     * the owner drops, then grants.
      */
     public void testWaiterDoesNotForceChargeAfterTimeout() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(100);
@@ -323,13 +320,11 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertBusy(() -> assertEquals(1, watermark.waiterCount()));
         assertFalse("hard cap must not force-charge after 50ms", granted.await(50, TimeUnit.MILLISECONDS));
         assertEquals(150, watermark.used());
-        assertEquals(0, watermark.forcedAdmits());
         ownerHold.drop();
         watermark.clearOwner(owner);
         assertTrue(granted.await(5, TimeUnit.SECONDS));
         assertNotNull(hold.get());
         assertEquals(1, watermark.used());
-        assertEquals(0, watermark.forcedAdmits());
         hold.get().drop();
     }
 
@@ -354,7 +349,6 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         watermark.clearOwner(owner);
         assertTrue(done.await(5, TimeUnit.SECONDS));
         assertEquals(waiters, admitted.get());
-        assertEquals(0, watermark.forcedAdmits());
         assertNull("under-cap admits must not keep an owner", watermark.overshootOwner());
     }
 
@@ -376,7 +370,7 @@ public class ParquetIoWatermarkTests extends ESTestCase {
 
     /**
      * T5: waiters on a shared pool stay on tickets. The owner's release queued behind them can
-     * run because they do not pin the pool in a blocking wait. {@code forcedAdmits} stays 0.
+     * run because they do not pin the pool in a blocking wait.
      */
     public void testWaitersOnSharedPoolStayOnTickets() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(100);
@@ -385,7 +379,6 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertSame(owner, watermark.overshootOwner());
         final int poolSize = 2;
         ExecutorService pool = Executors.newFixedThreadPool(poolSize);
-        CountDownLatch waitersIn = new CountDownLatch(poolSize);
         CountDownLatch allDone = new CountDownLatch(poolSize);
         AtomicInteger granted = new AtomicInteger();
         try {
@@ -397,8 +390,6 @@ public class ParquetIoWatermarkTests extends ESTestCase {
                 }, e -> allDone.countDown()));
             }
             assertBusy(() -> assertEquals(poolSize, watermark.waiterCount()));
-            waitersIn.countDown();
-            waitersIn.countDown();
             ownerHold.drop();
             owner.finish();
             watermark.clearOwner(owner);
@@ -408,12 +399,10 @@ public class ParquetIoWatermarkTests extends ESTestCase {
             assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
         }
         assertEquals(poolSize, granted.get());
-        assertEquals(0, watermark.forcedAdmits());
     }
 
     /**
      * T6: a unit larger than the cap takes the single overshoot slot. Later tickets queue.
-     * {@code forcedAdmits} stays 0.
      */
     public void testOversizeUnitUsesOvershootOnly() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(50);
@@ -421,7 +410,6 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         ParquetIoWatermark.AdmitHold hold = awaitAdmit(watermark, 80, lease);
         assertEquals(80, watermark.used());
         assertSame(lease, watermark.overshootOwner());
-        assertEquals(0, watermark.forcedAdmits());
         CountDownLatch queued = new CountDownLatch(1);
         AtomicBoolean secondGranted = new AtomicBoolean();
         watermark.admitAsync(80, new RowGroupIo(), () -> false, Runnable::run).addListener(ActionListener.wrap(h -> {
@@ -434,7 +422,6 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         watermark.clearOwner(lease);
         queued.countDown();
         assertBusy(() -> assertEquals(0, watermark.waiterCount()));
-        assertEquals(0, watermark.forcedAdmits());
     }
 
     /**
@@ -456,7 +443,6 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         watermark.nodeByteBudget().wakeWaiters();
         assertTrue(failed.await(5, TimeUnit.SECONDS));
         assertEquals(20, watermark.used());
-        assertEquals(0, watermark.forcedAdmits());
         ownerHold.drop();
         watermark.clearOwner(owner);
         assertEquals(0, watermark.used());
@@ -486,13 +472,11 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertTrue(firstGranted.await(5, TimeUnit.SECONDS));
         assertNotNull(first.get());
         assertFalse("second unit waits on cap=1", secondGranted.await(50, TimeUnit.MILLISECONDS));
-        assertEquals(0, watermark.forcedAdmits());
         assertThat(watermark.used(), lessThanOrEqualTo(5L));
         first.get().drop();
         watermark.clearOwner(firstLease);
         assertTrue(secondGranted.await(5, TimeUnit.SECONDS));
         assertNotNull(second.get());
-        assertEquals(0, watermark.forcedAdmits());
         second.get().drop();
         watermark.clearOwner(secondLease);
         assertEquals(0, watermark.used());
@@ -523,7 +507,6 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertThat(error.get().getMessage(), containsString("Cancelled"));
         assertTrue("cancel must wake promptly, took " + elapsedMs + "ms", elapsedMs < 1_000L);
         assertEquals(usedBefore, watermark.used());
-        assertEquals(0, watermark.forcedAdmits());
         ownerHold.drop();
         watermark.clearOwner(owner);
     }
@@ -550,7 +533,6 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertTrue(granted.await(5, TimeUnit.SECONDS));
         assertNull(error.get());
         assertNotNull(hold.get());
-        assertEquals(0, watermark.forcedAdmits());
         assertEquals(100, watermark.used());
         hold.get().drop();
         watermark.clearOwner(second);
@@ -575,7 +557,6 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertThat(error.get().getMessage(), containsString("Cancelled"));
         assertNull(watermark.overshootOwner());
         assertEquals(0, watermark.used());
-        assertEquals(0, watermark.forcedAdmits());
     }
 
     private static ParquetIoWatermark.AdmitHold awaitAdmit(ParquetIoWatermark watermark, long bytes, RowGroupIo lease) throws Exception {

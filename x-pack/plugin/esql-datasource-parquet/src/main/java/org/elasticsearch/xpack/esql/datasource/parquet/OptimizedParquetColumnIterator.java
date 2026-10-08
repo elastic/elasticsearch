@@ -1106,6 +1106,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         return fresh;
     }
 
+    /**
+     * M1: drop look-ahead only. The current group's ticket/overshoot owner stays until that
+     * group releases. Clearing the owner while those bytes remain charged would admit a second
+     * overshoot. {@code waitForSpace} is the driver, not a byte-gate waiter, so this is not a
+     * deadlock. Do not re-ticket the current group here (PR7).
+     */
     @Override
     public void revokeOvershootOnPark() {
         cancelPendingPrefetch();
@@ -1914,7 +1920,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     prefetch.drainForFallback(detachPendingPrefetches(), rowGroupOrdinal);
                     Set<String> syncColumns = currentRowGroupTriviallyPasses ? projectedColumnPaths : predicateColumnPaths;
                     long syncBytes = ColumnChunkPrefetcher.computePrefetchBytes(block, syncColumns);
-                    if (parkRequiredSyncIfRefused(block, syncColumns, null, syncBytes)) {
+                    RequiredSyncAdmit syncAdmit = admitRequiredSync(block, syncColumns, null, syncBytes);
+                    if (syncAdmit.park()) {
                         return false;
                     }
                     RowGroupIo lease = leaseFor(rowGroupOrdinal);
@@ -1927,8 +1934,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                             breaker,
                             formatReader.ioWatermark(),
                             formatReader.footerBytes(),
-                            ParquetIoWatermark.ByteGate.UNGATED
+                            syncAdmit.gate(),
+                            syncAdmit.hold()
                         );
+                    } finally {
+                        syncAdmit.drop();
                     }
                     currentChunksReleasable = fetched.release();
                     heldLease = lease;
@@ -2007,7 +2017,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                             )
                         )
                         : ColumnChunkPrefetcher.computePrefetchBytes(block, projectedColumnPaths);
-                    if (parkRequiredSyncIfRefused(block, projectedColumnPaths, buildRowRanges, syncBytes)) {
+                    RequiredSyncAdmit syncAdmit = admitRequiredSync(block, projectedColumnPaths, buildRowRanges, syncBytes);
+                    if (syncAdmit.park()) {
                         return false;
                     }
                     RowGroupIo lease = leaseFor(rowGroupOrdinal);
@@ -2024,8 +2035,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                             breaker,
                             formatReader.ioWatermark(),
                             formatReader.footerBytes(),
-                            ParquetIoWatermark.ByteGate.UNGATED
+                            syncAdmit.gate(),
+                            syncAdmit.hold()
                         );
+                    } finally {
+                        syncAdmit.drop();
                     }
                     currentChunksReleasable = fetched.release();
                     heldLease = lease;
@@ -2696,22 +2710,44 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     }
 
     /**
-     * When the current group cannot {@link ParquetIoWatermark#tryAdmit}, start a ticket and park
-     * instead of {@code admitWait} on {@code esql_worker}. A successful tryAdmit is dropped here;
-     * the following sync GET charges actual buffers ungated on this thread.
+     * Local/fallback sync GET. Keep a successful {@link ParquetIoWatermark#tryAdmit} through the
+     * GET as {@code GROUP_HOLD} so two local scans cannot stack past the cap. Refuse starts a
+     * ticket and parks; do not fetch ungated after dropping the probe hold.
      */
-    private boolean parkRequiredSyncIfRefused(BlockMetaData block, Set<String> columns, @Nullable RowRanges rowRanges, long prefetchBytes) {
+    private RequiredSyncAdmit admitRequiredSync(
+        BlockMetaData block,
+        Set<String> columns,
+        @Nullable RowRanges rowRanges,
+        long prefetchBytes
+    ) {
         ParquetIoWatermark watermark = formatReader.ioWatermark();
         if (watermark == null || prefetchBytes <= 0L) {
-            return false;
+            return RequiredSyncAdmit.proceed(null);
         }
         ParquetIoWatermark.AdmitHold hold = watermark.tryAdmit(prefetchBytes);
         if (hold != null) {
-            hold.drop();
-            return false;
+            return RequiredSyncAdmit.proceed(hold);
         }
         startRequiredGroupTicket(rowGroupOrdinal, block, columns, rowRanges, prefetchBytes);
-        return true;
+        return RequiredSyncAdmit.PARK;
+    }
+
+    private record RequiredSyncAdmit(@Nullable ParquetIoWatermark.AdmitHold hold, boolean park) {
+        private static final RequiredSyncAdmit PARK = new RequiredSyncAdmit(null, true);
+
+        private static RequiredSyncAdmit proceed(@Nullable ParquetIoWatermark.AdmitHold hold) {
+            return new RequiredSyncAdmit(hold, false);
+        }
+
+        private ParquetIoWatermark.ByteGate gate() {
+            return hold == null ? ParquetIoWatermark.ByteGate.UNGATED : ParquetIoWatermark.ByteGate.GROUP_HOLD;
+        }
+
+        private void drop() {
+            if (hold != null) {
+                hold.drop();
+            }
+        }
     }
 
     /**

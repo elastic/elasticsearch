@@ -486,7 +486,6 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             assertEquals(secondQueued, opi2.pendingPrefetchCount());
             assertEquals(32_000_000L, OptimizedParquetColumnIterator.MAX_QUEUED_PREFETCH_BYTES);
         }
-        long forcedAfterClose = watermark.forcedAdmits();
         assertEquals("closing both iterators must release watermark bytes", 0, watermark.used());
         try (
             CloseableIterator<Page> next = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
@@ -494,11 +493,6 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         ) {
             OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) next;
             assertEquals("release on close allows the next iterator", 1, opi.pendingPrefetchCount());
-            assertEquals(
-                "third constructor must take the vacant owner, not force-admit a leak",
-                forcedAfterClose,
-                watermark.forcedAdmits()
-            );
         }
     }
 

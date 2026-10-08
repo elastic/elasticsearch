@@ -29,7 +29,8 @@ import java.util.function.BooleanSupplier;
  * Node-scoped {@link NodeByteBudget}. Look-ahead {@link #tryAdmit} refuses rather than wait.
  * {@link #admitAsync} is FIFO; one overshoot slot is granted only to a runnable lease. A unit
  * larger than the cap goes through that slot only. There is no blocking wait and no
- * charge-on-expiry: waiters park on a ticket until a grant or cancel.
+ * charge-on-expiry: waiters park on a ticket until a grant or cancel. Live-cluster
+ * {@code hot_threads} proof that {@code esql_worker} is absent from gate frames is deferred.
  */
 public final class NodeByteBudgetService implements NodeByteBudget {
 
@@ -58,13 +59,6 @@ public final class NodeByteBudgetService implements NodeByteBudget {
 
     public void bindTracker(AdmissionTracker tracker) {
         this.tracker = tracker == null ? AdmissionTracker.NOOP : tracker;
-    }
-
-    /**
-     * Charge-on-expiry is gone; this stays at zero so characterization tests can assert the hard cap.
-     */
-    public long forcedAdmits() {
-        return 0L;
     }
 
     @Override

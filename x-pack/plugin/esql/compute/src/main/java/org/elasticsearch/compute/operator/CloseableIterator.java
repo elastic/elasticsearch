@@ -49,10 +49,12 @@ public interface CloseableIterator<T> extends Iterator<T>, Closeable {
 
     /**
      * Called by the producer drain when it parks on downstream buffer space. The default is a
-     * no-op. Iterators that hold look-ahead I/O bytes or the node-wide overshoot slot must drop
-     * those here so a parked reader cannot stall other queries. This is not
-     * {@link #waitForReady()}: readiness parks on upstream I/O, this hook fires on downstream
-     * backpressure.
+     * no-op. Drop look-ahead I/O here. Do not drop the current group's overshoot slot while its
+     * bytes are still charged: that would let a second unit overshoot {@code used}. The slot
+     * stays until the current group releases (M1). Waiters are tickets, not parked workers, so
+     * keeping the owner is not a deadlock — the {@code waitForSpace} consumer is the driver.
+     * This is not {@link #waitForReady()}: readiness parks on upstream I/O, this hook fires on
+     * downstream backpressure.
      */
     default void revokeOvershootOnPark() {}
 }

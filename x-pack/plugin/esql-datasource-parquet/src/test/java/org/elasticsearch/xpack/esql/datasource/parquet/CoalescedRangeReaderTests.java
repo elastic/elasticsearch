@@ -1175,7 +1175,6 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         assertTrue(done.await(5, TimeUnit.SECONDS));
         assertNull(error.get());
         assertEquals(1, starts.get());
-        assertEquals(0, watermark.forcedAdmits());
         resultRef.get().release().close();
     }
 
@@ -1266,8 +1265,8 @@ public class CoalescedRangeReaderTests extends ESTestCase {
 
     /**
      * Sync: one unit ticket for three GETs. Cap fits two ranges; the third does not create a
-     * partial holder. Charge-on-expiry is gone; {@code forcedAdmits} stays 0. This path waits on
-     * {@code actionGet}; {@link #testAsyncPerGetUnitTicketNoPartialHolders} is the async proof.
+     * partial holder. Charge-on-expiry is gone. This path waits on {@code actionGet};
+     * {@link #testAsyncPerGetUnitTicketNoPartialHolders} is the async proof.
      */
     public void testPerGetUnitTicketNoPartialHolders() throws Exception {
         byte[] data = sequentialBytes(64);
@@ -1311,7 +1310,6 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         assertNull(error.get());
         try {
             assertEquals(3, storage.syncGets.get());
-            assertEquals(0, watermark.forcedAdmits());
             assertEquals(3 * HeapFootprint.byteArrayBytes(10), watermark.used());
         } finally {
             if (resultRef.get() != null) {
@@ -1343,7 +1341,6 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("over test limit"));
         assertEquals(0L, smallBreaker.getUsed());
         assertEquals(0, watermark.used());
-        assertEquals(0, watermark.forcedAdmits());
     }
 
     /**
@@ -1407,7 +1404,6 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         try {
             assertNull(error.get());
             assertNotNull(success.get());
-            assertEquals(0, watermark.forcedAdmits());
             assertEquals(3, starts.get());
             assertEquals(3 * HeapFootprint.byteArrayBytes(10), watermark.used());
         } finally {

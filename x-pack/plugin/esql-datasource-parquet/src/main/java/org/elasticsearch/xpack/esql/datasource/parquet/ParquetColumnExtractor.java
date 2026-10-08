@@ -594,22 +594,19 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         long prefetchBytes,
         ParquetIoWatermark watermark
     ) {
-        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = new CompletableFuture<>();
-        watermark.admitAsync(prefetchBytes, lease, lease::isCancelled, Runnable::run).addListener(ActionListener.wrap(granted -> {
-            try {
-                startBucketIo(block, projection, blockFactory, lease, watermark, granted).whenComplete((result, error) -> {
-                    if (error != null) {
-                        future.completeExceptionally(error);
-                    } else {
-                        future.complete(result);
-                    }
-                });
-            } catch (Exception e) {
-                granted.drop();
-                future.completeExceptionally(e);
-            }
-        }, future::completeExceptionally));
-        return future;
+        CompletableFuture<ParquetIoWatermark.AdmitHold> ticket = new CompletableFuture<>();
+        watermark.admitAsync(prefetchBytes, lease, lease::isCancelled, Runnable::run)
+            .addListener(ActionListener.wrap(ticket::complete, ticket::completeExceptionally));
+        final ParquetIoWatermark.AdmitHold granted;
+        try {
+            // Grant completes the ticket only. Start the GET on this materialize thread
+            // (esql_external_io), not on the budget releaser.
+            granted = ticket.join();
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            return CompletableFuture.failedFuture(cause);
+        }
+        return startBucketIo(block, projection, blockFactory, lease, watermark, granted);
     }
 
     private CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> startBucketIo(

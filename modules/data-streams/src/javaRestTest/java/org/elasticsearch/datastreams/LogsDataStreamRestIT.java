@@ -35,6 +35,9 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -631,6 +634,142 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
             )
         );
         assertDataStreamBackingIndexMode(columnarEnabled ? "logsdb_columnar" : "logsdb", 3, DATA_STREAM_NAME);
+    }
+
+    public void testStandardToColumnarLogsDBMigration() throws IOException {
+        assertIndexModeMigration(LOGS_STANDARD_INDEX_MODE, "standard", LOGS_LOGSDB_COLUMNAR_TEMPLATE, "logsdb_columnar");
+    }
+
+    public void testLogsDBToColumnarLogsDBMigration() throws IOException {
+        assertIndexModeMigration(LOGS_TEMPLATE, "logsdb", LOGS_LOGSDB_COLUMNAR_TEMPLATE, "logsdb_columnar");
+    }
+
+    public void testColumnarLogsDBToStandardMigration() throws IOException {
+        assertIndexModeMigration(LOGS_LOGSDB_COLUMNAR_TEMPLATE, "logsdb_columnar", LOGS_STANDARD_INDEX_MODE, "standard");
+    }
+
+    public void testColumnarLogsDBToLogsDBMigration() throws IOException {
+        assertIndexModeMigration(LOGS_LOGSDB_COLUMNAR_TEMPLATE, "logsdb_columnar", LOGS_TEMPLATE, "logsdb");
+    }
+
+    /**
+     * Creates a data stream with {@code fromTemplate}, switches the template to {@code toTemplate} and rolls over,
+     * verifying the backing index modes and the indexed documents after every step. The templates are passed explicitly
+     * (rather than through {@link #logsTemplate()}) so that the columnar randomization does not alter the modes under test.
+     */
+    private void assertIndexModeMigration(String fromTemplate, String fromMode, String toTemplate, String toMode) throws IOException {
+        final List<ExpectedDoc> expectedDocs = new ArrayList<>();
+
+        putTemplate(client, "custom-template", fromTemplate);
+        createDataStream(client, DATA_STREAM_NAME);
+        indexDocuments(expectedDocs, 0);
+        assertDataStreamBackingIndexMode(fromMode, 0, DATA_STREAM_NAME);
+        assertDocuments(expectedDocs);
+
+        // Updating the template must not affect the existing write index
+        putTemplate(client, "custom-template", toTemplate);
+        indexDocuments(expectedDocs, 0);
+        assertDataStreamBackingIndexMode(fromMode, 0, DATA_STREAM_NAME);
+        assertDocuments(expectedDocs);
+
+        rolloverDataStream(client, DATA_STREAM_NAME);
+        assertDataStreamBackingIndexMode(fromMode, 0, DATA_STREAM_NAME);
+        assertDataStreamBackingIndexMode(toMode, 1, DATA_STREAM_NAME);
+        assertDocuments(expectedDocs);
+
+        indexDocuments(expectedDocs, 1);
+        assertDataStreamBackingIndexMode(fromMode, 0, DATA_STREAM_NAME);
+        assertDataStreamBackingIndexMode(toMode, 1, DATA_STREAM_NAME);
+        assertDocuments(expectedDocs);
+    }
+
+    private record ExpectedDoc(
+        String backingIndex,
+        Instant timestamp,
+        String hostName,
+        long pid,
+        String method,
+        String message,
+        String ip
+    ) {}
+
+    /**
+     * Indexes a random number of documents into the data stream and records them, together with the backing index
+     * (identified by its position in the data stream) they are expected to land in.
+     */
+    private void indexDocuments(List<ExpectedDoc> expectedDocs, int writeBackingIndex) throws IOException {
+        final String backingIndex = getWriteBackingIndex(client, DATA_STREAM_NAME, writeBackingIndex);
+        final int numDocs = randomIntBetween(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            final ExpectedDoc doc = new ExpectedDoc(
+                backingIndex,
+                Instant.now().truncatedTo(ChronoUnit.MILLIS),
+                // unique per document so that search hits can be matched back to what was indexed
+                randomAlphaOfLength(10) + "-" + expectedDocs.size(),
+                randomNonNegativeLong(),
+                randomFrom("PUT", "POST", "GET"),
+                randomAlphaOfLength(32),
+                InetAddresses.toAddrString(randomIp(randomBoolean()))
+            );
+            indexDocument(
+                client,
+                DATA_STREAM_NAME,
+                document(
+                    doc.timestamp(),
+                    doc.hostName(),
+                    doc.pid(),
+                    doc.method(),
+                    doc.message(),
+                    InetAddresses.forString(doc.ip()),
+                    randomLongBetween(1_000_000L, 2_000_000L)
+                )
+            );
+            expectedDocs.add(doc);
+        }
+    }
+
+    /**
+     * Searches the whole data stream and verifies that exactly the expected documents are returned from the expected
+     * backing indices. Uses the fields API so the check doesn't depend on how each index mode stores {@code _source}.
+     */
+    @SuppressWarnings("unchecked")
+    private void assertDocuments(List<ExpectedDoc> expectedDocs) throws IOException {
+        final Request request = new Request("GET", "/" + DATA_STREAM_NAME + "/_search");
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {
+              "size": %d,
+              "_source": false,
+              "fields": [ { "field": "@timestamp", "format": "epoch_millis" }, "host.name", "pid", "method", "message", "ip_address" ]
+            }
+            """, expectedDocs.size()));
+        final Map<String, Object> hitsObject = (Map<String, Object>) entityAsMap(client.performRequest(request)).get("hits");
+        final List<Map<String, Object>> hits = (List<Map<String, Object>>) hitsObject.get("hits");
+        assertThat(hits.size(), equalTo(expectedDocs.size()));
+
+        final Map<String, Map<String, Object>> hitsByHostName = new HashMap<>();
+        for (Map<String, Object> hit : hits) {
+            final Map<String, Object> fields = (Map<String, Object>) hit.get("fields");
+            final String hostName = (String) ((List<Object>) fields.get("host.name")).get(0);
+            hitsByHostName.put(hostName, hit);
+        }
+        assertThat(hitsByHostName.size(), equalTo(expectedDocs.size()));
+
+        for (ExpectedDoc expected : expectedDocs) {
+            final Map<String, Object> hit = hitsByHostName.get(expected.hostName());
+            assertNotNull("missing document for host [" + expected.hostName() + "]", hit);
+            assertThat(hit.get("_index"), equalTo(expected.backingIndex()));
+            final Map<String, Object> fields = (Map<String, Object>) hit.get("fields");
+            assertThat(firstValue(fields, "@timestamp"), equalTo(Long.toString(expected.timestamp().toEpochMilli())));
+            assertThat(((Number) firstValue(fields, "pid")).longValue(), equalTo(expected.pid()));
+            assertThat(firstValue(fields, "method"), equalTo(expected.method()));
+            assertThat(firstValue(fields, "message"), equalTo(expected.message()));
+            assertThat(firstValue(fields, "ip_address"), equalTo(expected.ip()));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object firstValue(Map<String, Object> fields, String field) {
+        return ((List<Object>) fields.get(field)).get(0);
     }
 
     public void testLogsDBToStandardReindex() throws IOException {

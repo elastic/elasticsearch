@@ -29,7 +29,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.hamcrest.Matcher;
 import org.junit.AfterClass;
 import org.mockito.ArgumentCaptor;
@@ -1382,6 +1384,42 @@ public class QuerySettingsTests extends ESTestCase {
             SNAPSHOT_CTX_WITH_CPS_ENABLED
         );
         assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.NULLIFY));
+    }
+
+    /**
+     * A limit of 0 on the fields {@code LOAD_ALL} discovers makes it behave like {@code LOAD}, which is settled when the query
+     * settings are resolved, so that every phase of the query sees {@code LOAD}.
+     */
+    public void testLoadAllResolvesToLoadWhenTheLoadAllFieldLimitIsZero() {
+        ResolvedSettings resolved = ResolvedSettings.EMPTY.withOverride(QuerySettings.UNMAPPED_FIELDS, UnmappedResolution.LOAD_ALL);
+
+        ResolvedSettings settled = EsqlSession.applyLoadAllMaxFields(resolved, PlannerSettings.DEFAULTS.loadAllMaxFields(0));
+
+        assertThat(settled.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.LOAD));
+    }
+
+    public void testLoadAllStaysLoadAllWhenTheLoadAllFieldLimitIsPositive() {
+        ResolvedSettings resolved = ResolvedSettings.EMPTY.withOverride(QuerySettings.UNMAPPED_FIELDS, UnmappedResolution.LOAD_ALL);
+
+        ResolvedSettings settled = EsqlSession.applyLoadAllMaxFields(
+            resolved,
+            PlannerSettings.DEFAULTS.loadAllMaxFields(between(1, 100_000))
+        );
+
+        assertThat(settled.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.LOAD_ALL));
+    }
+
+    public void testOtherUnmappedFieldsResolutionsAreLeftAloneByAZeroLoadAllFieldLimit() {
+        for (UnmappedResolution resolution : new UnmappedResolution[] {
+            UnmappedResolution.DEFAULT,
+            UnmappedResolution.NULLIFY,
+            UnmappedResolution.LOAD }) {
+            ResolvedSettings resolved = ResolvedSettings.EMPTY.withOverride(QuerySettings.UNMAPPED_FIELDS, resolution);
+
+            ResolvedSettings settled = EsqlSession.applyLoadAllMaxFields(resolved, PlannerSettings.DEFAULTS.loadAllMaxFields(0));
+
+            assertThat(settled.get(QuerySettings.UNMAPPED_FIELDS), equalTo(resolution));
+        }
     }
 
     public void testDerivedClusterSettingRejectsMalformedValueAtWriteTime() {

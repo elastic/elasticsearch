@@ -1568,8 +1568,10 @@ public class EsqlSession {
      * {@code LOAD} is. Resolve it to {@code LOAD} then, so that every phase downstream sees {@code LOAD}: no
      * {@code _unmapped_fields} column is planned and shipped from the data nodes only to be dropped, and the restrictions
      * that only {@code LOAD_ALL} has do not apply.
+     * <p>
+     * Public so that the tests of the query settings can reach it.
      */
-    static ResolvedSettings applyLoadAllMaxFields(ResolvedSettings resolved, PlannerSettings plannerSettings) {
+    public static ResolvedSettings applyLoadAllMaxFields(ResolvedSettings resolved, PlannerSettings plannerSettings) {
         if (plannerSettings.loadAllMaxFields() == 0 && QuerySettings.UNMAPPED_FIELDS.get(resolved) == UnmappedResolution.LOAD_ALL) {
             return resolved.withOverride(QuerySettings.UNMAPPED_FIELDS, UnmappedResolution.LOAD);
         }

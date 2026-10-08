@@ -697,3 +697,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/161309
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testRemoveAsyncIndex
+  issue: https://github.com/elastic/elasticsearch/issues/161316

@@ -12,6 +12,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
 
@@ -38,10 +39,16 @@ public final class PlanningCpuTracker {
 
     private static final long SETTLED = -1;
     private static final long PAUSED = -2;
+    private static final long NOT_FINISHED = -1;
 
     private final LongSupplier cpuClock;
     private final LongAdder cpuNanos = new LongAdder();
-    private volatile boolean finished;
+    /**
+     * The total frozen by the first {@link #finish()}, or {@code NOT_FINISHED} before it. A commit that read
+     * {@code NOT_FINISHED} just before {@link #finish()} can still land in {@code cpuNanos} afterwards, so later reads
+     * report this value rather than the adder.
+     */
+    private final AtomicLong finishedCpuNanos = new AtomicLong(NOT_FINISHED);
 
     public PlanningCpuTracker() {
         this(ThreadCpuTimer::currentNanos);
@@ -132,8 +139,13 @@ public final class PlanningCpuTracker {
     /**
      * Runs the listener's {@code onResponse} and {@code onFailure} inside {@link #meteredCpu}. Apply it to the
      * listener handed to an async API, because that listener is the first thing the completing thread calls.
+     * <p>
+     * Wrapping also {@link #checkpoint() checkpoints} the calling thread's open measurement. The wrapper is built as the
+     * argument of the async dispatch, so the work done so far is committed before the completing thread can go on to
+     * call {@link #finish()}.
      */
     public <T> ActionListener<T> meteredCpu(ActionListener<T> listener) {
+        checkpoint();
         return new ActionListener<>() {
             @Override
             public void onResponse(T response) {
@@ -166,6 +178,7 @@ public final class PlanningCpuTracker {
      * Commits this thread's open measurement so far and restarts it. Call it right before signalling another thread
      * that may go on to finish planning (releasing a fan-out permit), so the work done so far survives a
      * {@link #finish()} on that other thread. Only the unwind after the signal can still be dropped.
+     * {@link #meteredCpu(ActionListener)} calls it for every async dispatch it wraps.
      */
     public void checkpoint() {
         Measurement measurement = CURRENT.get();
@@ -179,20 +192,22 @@ public final class PlanningCpuTracker {
 
     /**
      * Planning end. Settles this thread's open measurement, freezes the total and returns it. Later commits are
-     * dropped, so execution that continues on this thread inside the same measurement adds nothing. Idempotent.
+     * dropped, so execution that continues on this thread inside the same measurement adds nothing. Idempotent: later
+     * calls return the total the first call froze.
      */
     public long finish() {
         Measurement measurement = CURRENT.get();
         if (measurement != null && measurement.owner == this) {
             measurement.settle(cpuClock.getAsLong());
         }
-        finished = true;
-        return cpuNanos.sum();
+        finishedCpuNanos.compareAndSet(NOT_FINISHED, cpuNanos.sum());
+        return finishedCpuNanos.get();
     }
 
-    /** Live total. */
+    /** The total so far, or the frozen total once {@link #finish()} has run. */
     public long cpuNanos() {
-        return cpuNanos.sum();
+        long finishedNanos = finishedCpuNanos.get();
+        return finishedNanos == NOT_FINISHED ? cpuNanos.sum() : finishedNanos;
     }
 
     /** For assertions. True when a measurement of this tracker is open on this thread, or when thread CPU time is unsupported. */
@@ -202,7 +217,7 @@ public final class PlanningCpuTracker {
     }
 
     private void add(long deltaNanos) {
-        if (finished == false && deltaNanos > 0) {
+        if (deltaNanos > 0 && finishedCpuNanos.get() == NOT_FINISHED) {
             cpuNanos.add(deltaNanos);
         }
     }

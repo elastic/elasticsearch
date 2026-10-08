@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -79,6 +80,39 @@ public class PlanningCpuTrackerTests extends ESTestCase {
         assertEquals(10L, tracker.finish());
     }
 
+    /**
+     * A commit racing with {@code finish()} can still land in the running sum after it returns, so the first
+     * {@code finish()} must freeze what every later read reports. A single round hits the race only some of the time,
+     * so the test races many fresh trackers.
+     */
+    public void testFinishFreezesTotalAgainstRacingCommits() {
+        FakeCpuClock clock = new FakeCpuClock();
+        int committers = between(2, 4);
+        for (int round = 0; round < 50; round++) {
+            PlanningCpuTracker tracker = new PlanningCpuTracker(clock);
+            CountDownLatch committing = new CountDownLatch(committers);
+            AtomicBoolean stop = new AtomicBoolean();
+            long[] finished = new long[1];
+            runInParallel(committers + 1, i -> {
+                if (i < committers) {
+                    tracker.meteredCpu(() -> {
+                        committing.countDown();
+                        while (stop.get() == false) {
+                            clock.burn(1);
+                            tracker.checkpoint();
+                        }
+                    });
+                } else {
+                    safeAwait(committing);
+                    finished[0] = tracker.finish();
+                    stop.set(true);
+                }
+            });
+            assertEquals(finished[0], tracker.finish());
+            assertEquals(finished[0], tracker.cpuNanos());
+        }
+    }
+
     public void testCheckpointSurvivesFinishOnAnotherThread() throws Exception {
         FakeCpuClock clock = new FakeCpuClock();
         PlanningCpuTracker tracker = new PlanningCpuTracker(clock);
@@ -124,6 +158,38 @@ public class PlanningCpuTrackerTests extends ESTestCase {
         finished.countDown();
         worker.join();
         assertEquals(0L, tracker.cpuNanos());
+    }
+
+    /**
+     * A stage's handler does its work, then dispatches the next stage with a metered listener. The next stage completes
+     * on another thread and finishes planning while the handler's thread is still unwinding. The handler's work must
+     * still be counted, because wrapping the listener commits it.
+     */
+    public void testWrappingListenerCommitsWorkBeforeDispatch() throws Exception {
+        FakeCpuClock clock = new FakeCpuClock();
+        PlanningCpuTracker tracker = new PlanningCpuTracker(clock);
+        long[] total = new long[1];
+        CountDownLatch finished = new CountDownLatch(1);
+        ActionListener<Void> nextStage = ActionListener.wrap(r -> {
+            clock.burn(10);
+            total[0] = tracker.finish();
+            finished.countDown();
+        }, e -> fail("unexpected failure"));
+        Thread handler = new Thread(() -> tracker.meteredCpu(() -> {
+            clock.burn(1000);
+            ActionListener<Void> dispatched = tracker.meteredCpu(nextStage);
+            new Thread(() -> dispatched.onResponse(null)).start();
+            try {
+                finished.await();
+            } catch (InterruptedException e) {
+                throw new AssertionError(e);
+            }
+            clock.burn(5); // the unwind after the dispatch is still dropped
+        }));
+        handler.start();
+        handler.join();
+        assertEquals(1010L, total[0]);
+        assertEquals(1010L, tracker.cpuNanos());
     }
 
     public void testListenerMeteredOnCompletingThread() throws Exception {

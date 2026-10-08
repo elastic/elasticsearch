@@ -128,6 +128,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
@@ -8033,6 +8034,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * resolver's continuation (where it collects the metadata warnings) runs there inside the factory listener's
      * measurement, so the probe in {@code warnings()} must see an open measurement on every read-pool thread and the
      * CPU it burns there must be counted. The read-pool threads are named so the probe ignores calls on other threads.
+     * <p>
+     * Reads complete only once the initial dispatch loop has used up its permits, so the remaining files are dispatched
+     * by fan-out continuations on the resolver executor. The probe in {@code metadataAsync} checks that those
+     * dispatches run inside a measurement too.
      */
     public void testPlanningCpuMetersForeignCompletionThreads() throws Exception {
         assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
@@ -8043,6 +8048,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
         PlanningCpuTracker tracker = new PlanningCpuTracker();
         AtomicInteger meteredOnReadPool = new AtomicInteger();
         AtomicInteger unmeteredOnReadPool = new AtomicInteger();
+        AtomicInteger dispatches = new AtomicInteger();
+        AtomicInteger dispatchedByInitialLoop = new AtomicInteger();
+        AtomicInteger unmeteredDispatches = new AtomicInteger();
+        CountDownLatch initialLoopDone = new CountDownLatch(1);
 
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();
         List<StorageEntry> listing = new ArrayList<>();
@@ -8055,6 +8064,21 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExecutorService resolverExecutor = Executors.newSingleThreadExecutor();
         ExecutorService readPool = Executors.newFixedThreadPool(permits, r -> new Thread(r, readPoolThreadName));
         AsyncStubFormatReader reader = new AsyncStubFormatReader(schemasByPath, readPool, null, 0, null) {
+            @Override
+            public void metadataAsync(StorageObject object, Executor executor, ActionListener<SourceMetadata> listener) {
+                if (dispatches.getAndIncrement() == 0) {
+                    // The single resolver thread is running the initial dispatch loop, so this runs once that loop is done.
+                    resolverExecutor.execute(() -> {
+                        dispatchedByInitialLoop.set(dispatches.get());
+                        initialLoopDone.countDown();
+                    });
+                }
+                if (tracker.isMeteringCurrentThread() == false) {
+                    unmeteredDispatches.incrementAndGet();
+                }
+                super.metadataAsync(object, executor, ActionListener.runBefore(listener, () -> safeAwait(initialLoopDone)));
+            }
+
             @Override
             public SourceMetadata metadata(StorageObject object) {
                 SourceMetadata base = super.metadata(object);
@@ -8091,6 +8115,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolution resolution = future.actionGet(30, TimeUnit.SECONDS);
             assertNotNull(resolution.resolvedSource(glob));
             assertEquals(fileCount, reader.totalReads.get());
+            assertEquals("the initial dispatch loop must use up its permits", permits, dispatchedByInitialLoop.get());
+            assertEquals(fileCount, dispatches.get());
+            assertEquals(
+                "dispatches, including those from fan-out continuations, must run inside a planning CPU measurement",
+                0,
+                unmeteredDispatches.get()
+            );
             assertEquals(
                 "resolver continuations on the read pool must run inside a planning CPU measurement",
                 0,
@@ -8101,6 +8132,66 @@ public class ExternalSourceResolverTests extends ESTestCase {
         } finally {
             resolverExecutor.shutdownNow();
             readPool.shutdownNow();
+        }
+    }
+
+    /**
+     * Planning CPU, permit release: a release can complete the gather and let the rest of planning reach
+     * {@code finish()} on another thread, which drops a measurement still open here, so each read's CPU must be
+     * committed before its permit is released. With more permits than files and one resolver thread, the last read's
+     * release completes the gather and the resolve listener inline, inside that read's still-open measurement, so the
+     * committed total the listener sees shows whether the CPU the read burned was committed first.
+     */
+    public void testPlanningCpuCommittedBeforePermitRelease() throws Exception {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        int fileCount = 4;
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(5);
+        PlanningCpuTracker tracker = new PlanningCpuTracker();
+        AtomicInteger calls = new AtomicInteger();
+        AtomicLong committedBeforeLastRead = new AtomicLong();
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        List<StorageEntry> listing = new ArrayList<>();
+        List<Attribute> schema = List.of(attr("emp_no", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        for (int i = 0; i < fileCount; i++) {
+            String path = String.format(Locale.ROOT, "s3://bucket/data/file%02d.parquet", i);
+            schemasByPath.put(path, schema);
+            listing.add(entry(path, 100 + i));
+        }
+        FormatReader reader = new StubFormatReader(schemasByPath) {
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                if (calls.incrementAndGet() == fileCount) {
+                    committedBeforeLastRead.set(tracker.cpuNanos());
+                    burnCpu(burnNanos);
+                }
+                return super.metadata(object);
+            }
+        };
+        ExecutorService resolverExecutor = Executors.newSingleThreadExecutor();
+        try {
+            String glob = "s3://bucket/data/*.parquet";
+            Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+            listingsByPrefix.put(StoragePath.of(glob).patternPrefix().toString(), listing);
+            ExternalSourceResolver resolver = createResolverWithAsyncReader(
+                schemasByPath,
+                listingsByPrefix,
+                reader,
+                resolverExecutor,
+                fileCount + 1
+            );
+            resolver.planningCpu(tracker);
+            PlainActionFuture<Long> committedAtCompletion = new PlainActionFuture<>();
+            resolver.resolve(
+                List.of(glob),
+                Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))),
+                committedAtCompletion.map(resolution -> tracker.cpuNanos())
+            );
+            long committed = committedAtCompletion.actionGet(30, TimeUnit.SECONDS);
+            assertEquals(fileCount, calls.get());
+            assertThat(committed - committedBeforeLastRead.get(), greaterThanOrEqualTo(burnNanos));
+        } finally {
+            resolverExecutor.shutdownNow();
         }
     }
 

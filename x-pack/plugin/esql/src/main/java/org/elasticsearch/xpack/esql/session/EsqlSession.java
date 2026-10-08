@@ -642,12 +642,13 @@ public class EsqlSession {
 
                     var columnMetadata = new Holder<Map<NameId, Map<String, Object>>>();
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
-                        .<LogicalPlan>andThen(
-                            (l, p) -> preMapper.preMapper(
+                        .<LogicalPlan>andThen((l, p) -> {
+                            assert planningCpu.isMeteringCurrentThread() : "logical optimizer reached on an unmetered thread";
+                            preMapper.preMapper(
                                 new Versioned<>(optimizedPlan(p, logicalPlanOptimizer, planTimeProfile), minimumVersion),
                                 planningCpu.meteredCpu(l)
-                            )
-                        )
+                            );
+                        })
                         .<Result>andThen((l, p) -> {
                             columnMetadata.set(
                                 createColumnMetadata(
@@ -730,6 +731,7 @@ public class EsqlSession {
                 public void onFailure(Exception e) {
                     if (EsqlCCSUtils.returnSuccessWithEmptyResult(executionInfo, e)) {
                         EsqlCCSUtils.updateExecutionInfoToReturnEmptyResult(executionInfo, e);
+                        executionInfo.queryProfile().addPlanningCpuNanos(planningCpu.finish());
                         listener.onResponse(
                             new Versioned<>(
                                 new Result(

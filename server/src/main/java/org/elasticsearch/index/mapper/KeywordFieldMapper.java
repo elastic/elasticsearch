@@ -795,6 +795,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.preservesArrayOrder = false;
         }
 
+        @Override
         public boolean usesBinaryDocValues() {
             return diskFormat.isBinary();
         }

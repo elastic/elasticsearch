@@ -29,6 +29,15 @@ public interface SearchStats {
 
     boolean hasDocValues(FieldName field);
 
+    /**
+     * True when every mapped occurrence of {@code field} stores values in binary doc values
+     * ({@link MappedFieldType#usesBinaryDocValues()}). False if the field is missing on any shard,
+     * uses sorted-set (or another) doc values, or stats are unavailable.
+     */
+    default boolean usesBinaryDocValues(FieldName field) {
+        return false;
+    }
+
     boolean hasExactSubfield(FieldName field);
 
     long count();

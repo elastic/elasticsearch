@@ -2,4 +2,4 @@ area: ES|QL
 issues: []
 pr: 161439
 summary: Cancel async query on submit close
-type: enhancement
+type: bug

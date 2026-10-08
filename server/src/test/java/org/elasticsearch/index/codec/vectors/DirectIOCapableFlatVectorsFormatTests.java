@@ -74,14 +74,13 @@ public class DirectIOCapableFlatVectorsFormatTests extends BaseDirectIOMergeTest
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return Stream.of(
-            // the scalar-quantized reader chain does not currently propagate getMergeInstance down to the raw reader,
-            // so merges read the sources through the page cache; merge-time direct I/O writes do not depend on getMergeInstance
+            // the scalar-quantized reader chain propagates getMergeInstance down to the raw reader, as the bbq one does
             new Case(
                 "int8_hnsw, on_disk_rescore, on_disk_merge",
                 odm -> new ES94HnswScalarQuantizedVectorsFormat(16, 100, ElementType.FLOAT, 7, true, 1, null, 0, odm),
                 true,
                 true,
-                false,
+                true,
                 true
             ),
             // on_disk_rescore on, on_disk_merge on: direct I/O everywhere, the bbq reader chain propagating getMergeInstance
@@ -154,8 +153,9 @@ public class DirectIOCapableFlatVectorsFormatTests extends BaseDirectIOMergeTest
                 true,
                 false
             ),
-            // as with int8_hnsw above, no getMergeInstance override, so the flat type's merges read the sources through the
-            // page cache; bfloat16 is the element type with a raw writer of its own, float32's is the one the rows above drive
+            // no getMergeInstance override, so the flat type's merges read the sources through the page cache; merge-time
+            // direct I/O writes do not depend on getMergeInstance. bfloat16 is the element type with a raw writer of its own,
+            // float32's is the one the rows above drive
             new Case("flat bfloat16, on_disk_merge", odm -> new ES93FlatVectorFormat(ElementType.BFLOAT16, odm), true, false, false, true)
         ).map(c -> new Object[] { c }).toList();
     }

@@ -228,6 +228,16 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             this.delegate = delegate;
         }
 
+        private ESQuantizedVectorsReader(ESQuantizedVectorsReader reader, FlatVectorsReader mergeDelegate) {
+            super(reader, mergeDelegate);
+            this.delegate = mergeDelegate;
+        }
+
+        @Override
+        public FlatVectorsReader getMergeInstance() throws IOException {
+            return new ESQuantizedVectorsReader(this, delegate.getMergeInstance());
+        }
+
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
             FloatVectorValues floatVectorValues = super.getFloatVectorValues(field);

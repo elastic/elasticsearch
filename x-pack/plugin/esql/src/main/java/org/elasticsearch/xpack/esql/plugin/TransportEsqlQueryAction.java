@@ -342,12 +342,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         if (requestIsAsync(request)) {
+            assert task instanceof CancellableTask : "EsqlQueryRequest.createTask always returns CancellableTask";
             asyncTaskManagementService.asyncExecute(
                 request,
                 request.waitForCompletionTimeout(),
                 request.keepAlive(),
                 request.keepOnCompletion(),
-                listener
+                listener,
+                (CancellableTask) task
             );
         } else {
             innerExecuteWithLogging(task, request, listener);

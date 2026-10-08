@@ -21,7 +21,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -44,6 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService.addCompletionListener;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -200,7 +204,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
      */
     @After
     public void shutdownExec() {
-        executorService.shutdown();
+        assertTrue(terminate(executorService));
     }
 
     private AsyncTaskManagementService<TestRequest, TestResponse, TestTask> createManagementService(
@@ -435,6 +439,82 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         assertThat(callbackLatch.await(10, TimeUnit.SECONDS), equalTo(true));
     }
 
+    public void testSubmitCancelBeforeIdCancelsAsyncTask() throws Exception {
+        BlockingOperation operation = new BlockingOperation();
+        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service = createManagementService(operation);
+        CancellableTask submitTask = registerSubmitTask();
+        PlainActionFuture<TestResponse> submit = new PlainActionFuture<>();
+        TestRequest request = new TestRequest(randomAlphaOfLength(8), TimeValue.timeValueDays(1));
+        try {
+            service.asyncExecute(request, TimeValue.timeValueMinutes(1), request.keepAlive, false, submit, submitTask);
+            assertThat(operation.started.await(10, TimeUnit.SECONDS), equalTo(true));
+            TestTask inner = operation.running.get();
+            assertThat(inner, notNullValue());
+            transportService.getTaskManager().cancel(submitTask, "http channel closed", () -> {});
+            TaskCancelledException e = expectThrows(TaskCancelledException.class, () -> submit.actionGet(10, TimeUnit.SECONDS));
+            assertThat(e.getMessage(), containsString("http channel closed"));
+            assertThat(inner.isCancelled(), equalTo(true));
+            assertBusy(() -> assertThat(transportService.getTaskManager().getTask(inner.getId()), nullValue()));
+        } finally {
+            operation.release.countDown();
+            transportService.getTaskManager().unregister(submitTask);
+        }
+    }
+
+    public void testSubmitCancelAfterIdLeavesAsyncTaskRunning() throws Exception {
+        BlockingOperation operation = new BlockingOperation();
+        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service = createManagementService(operation);
+        CancellableTask submitTask = registerSubmitTask();
+        PlainActionFuture<TestResponse> submit = new PlainActionFuture<>();
+        TestRequest request = new TestRequest(randomAlphaOfLength(8), TimeValue.timeValueDays(1));
+        try {
+            service.asyncExecute(request, TimeValue.timeValueMillis(1), request.keepAlive, true, submit, submitTask);
+            TestResponse initial = submit.get(10, TimeUnit.SECONDS);
+            assertThat(initial.string, nullValue());
+            assertThat(initial.id, notNullValue());
+            TestTask inner = operation.running.get();
+            assertThat(inner, notNullValue());
+            transportService.getTaskManager().cancel(submitTask, "http channel closed", () -> {});
+            assertThat(inner.isCancelled(), equalTo(false));
+            operation.release.countDown();
+            assertBusy(() -> assertThat(transportService.getTaskManager().getTask(inner.getId()), nullValue()));
+            StoredAsyncResponse<TestResponse> stored = getResponse(initial.id, TimeValue.ZERO);
+            assertThat(stored.getException(), nullValue());
+            assertThat(stored.getResponse(), notNullValue());
+            assertThat(stored.getResponse().string, equalTo("response for [" + request.string + "]"));
+        } finally {
+            operation.release.countDown();
+            transportService.getTaskManager().unregister(submitTask);
+        }
+    }
+
+    public void testAlreadyCancelledSubmitDoesNotReturnId() throws Exception {
+        AtomicReference<TestTask> inner = new AtomicReference<>();
+        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service = createManagementService(new TestOperation() {
+            @Override
+            public void execute(TestRequest request, TestTask task, ActionListener<TestResponse> listener) {
+                inner.set(task);
+                super.execute(request, task, listener);
+            }
+        });
+        CancellableTask submitTask = registerSubmitTask();
+        transportService.getTaskManager().cancel(submitTask, "http channel closed", () -> {});
+        PlainActionFuture<TestResponse> submit = new PlainActionFuture<>();
+        TestRequest request = new TestRequest(randomAlphaOfLength(8), TimeValue.timeValueDays(1));
+        try {
+            // ZERO timeout: already-cancelled submit must beat the scheduled wait handler.
+            service.asyncExecute(request, TimeValue.ZERO, request.keepAlive, false, submit, submitTask);
+            TaskCancelledException e = expectThrows(TaskCancelledException.class, () -> submit.actionGet(10, TimeUnit.SECONDS));
+            assertThat(e.getMessage(), containsString("http channel closed"));
+            TestTask task = inner.get();
+            assertThat(task, notNullValue());
+            assertThat(task.isCancelled(), equalTo(true));
+            assertBusy(() -> assertThat(transportService.getTaskManager().getTask(task.getId()), nullValue()));
+        } finally {
+            transportService.getTaskManager().unregister(submitTask);
+        }
+    }
+
     public void testStoreResultFailureStatusClassification() {
         assertThat(
             AsyncTaskManagementService.storeResultFailureStatus(new IllegalStateException("boom")),
@@ -456,6 +536,70 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             ),
             equalTo(RestStatus.TOO_MANY_REQUESTS)
         );
+    }
+
+    private CancellableTask registerSubmitTask() {
+        return (CancellableTask) transportService.getTaskManager().register("transport", "test_submit", new TaskAwareRequest() {
+            private TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
+            private long requestId = -1;
+
+            @Override
+            public void setParentTask(TaskId taskId) {
+                parentTaskId = taskId;
+            }
+
+            @Override
+            public TaskId getParentTask() {
+                return parentTaskId;
+            }
+
+            @Override
+            public void setRequestId(long requestId) {
+                this.requestId = requestId;
+            }
+
+            @Override
+            public long getRequestId() {
+                return requestId;
+            }
+
+            @Override
+            public Task createTask(long id, String type, String action, TaskId parent, Map<String, String> headers) {
+                return new CancellableTask(id, type, action, "test submit", parent, headers);
+            }
+        });
+    }
+
+    private class BlockingOperation extends TestOperation {
+        final CountDownLatch started = new CountDownLatch(1);
+        final CountDownLatch release = new CountDownLatch(1);
+        final AtomicReference<TestTask> running = new AtomicReference<>();
+
+        @Override
+        public void execute(TestRequest request, TestTask task, ActionListener<TestResponse> listener) {
+            ActionListener<TestResponse> once = ActionListener.notifyOnce(listener);
+            running.set(task);
+            if (task.notifyIfCancelled(once)) {
+                started.countDown();
+                return;
+            }
+            // Execute must complete on inner cancel so the async task unregisters without waiting for release.
+            task.addListener(() -> task.notifyIfCancelled(once));
+            started.countDown();
+            executorService.submit(() -> {
+                try {
+                    if (release.await(10, TimeUnit.SECONDS) == false) {
+                        once.onFailure(new IllegalStateException("BlockingOperation release not signalled"));
+                        return;
+                    }
+                    if (task.notifyIfCancelled(once) == false) {
+                        super.execute(request, task, once);
+                    }
+                } catch (Exception e) {
+                    once.onFailure(e);
+                }
+            });
+        }
     }
 
     private StoredAsyncResponse<TestResponse> getResponse(String id, TimeValue timeout) throws InterruptedException {

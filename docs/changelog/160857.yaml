@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 160857
+summary: "ES|QL datafeeds: query validator and data extractor"
+type: enhancement

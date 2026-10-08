@@ -1321,16 +1321,19 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         Configuration config
     ) {
         var matchers = labelMatchers.matchers();
+        // A metric written as an identifier (`tx{...}`) contributes a leading name matcher with no label field; a name written
+        // inside the braces (`{__name__="tx",...}`, `{"tx",...}`) has a field like every other matcher.
+        int fieldOffset = matchers.size() - fields.size();
+        assert fieldOffset == 0 || (fieldOffset == 1 && LabelMatcher.NAME.equals(matchers.getFirst().name()))
+            : "invariant: label fields " + fields + " must align with matchers " + matchers;
         List<Expression> conditions = new ArrayList<>(matchers.size());
-        boolean hasNameMatcher = false;
         for (int i = 0, s = matchers.size(); i < s; i++) {
             LabelMatcher matcher = matchers.get(i);
             // the metric name matcher selects the series; it has no label field to filter on
             if (LabelMatcher.NAME.equals(matcher.name())) {
-                hasNameMatcher = true;
                 continue;
             }
-            Expression field = fields.get(hasNameMatcher ? i - 1 : i); // adjust index if name matcher was seen
+            Expression field = fields.get(i - fieldOffset);
             if (field.resolved() && DataType.isString(field.dataType()) == false) {
                 field = new ToString(field.source(), field, config);
             }

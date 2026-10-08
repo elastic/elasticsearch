@@ -1,0 +1,6 @@
+area: Machine Learning
+issues: []
+pr: 161387
+summary: "[8.19][ML] Do not send `max_consecutive_extraction_failures` from the removed\
+  \ transport version"
+type: bug

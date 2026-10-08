@@ -28,11 +28,10 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.finite;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.open;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.subtract;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.union;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.mapFinite;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.subtract;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.union;
 
 /**
  * Represents a PromQL aggregate function call that operates across multiple time series.
@@ -174,36 +173,36 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     }
 
     /**
-     * Translates {@code AcrossSeriesAggregate} to an ESQL {@code Aggregate}. The header transposed below the
+     * Translates {@code AcrossSeriesAggregate} to an ESQL {@code Aggregate}. The schema transposed below the
      * aggregate names every column the subtree must expose, so the child translates once and the aggregate's own
-     * columns are read off the returned header. Only {@code AcrossSeriesAggregate} creates plan-level aggregation
+     * columns are read off the returned schema. Only {@code AcrossSeriesAggregate} creates plan-level aggregation
      * nodes; within-series aggregates and function calls lower to expressions.
      */
     @Override
     public IntermediateResult translate(TranslationContext context) {
-        List<String> keys = mapFinite(groupings());
-        TranslationConstraint childRequired = switch (grouping()) {
+        List<String> keys = TranslationContext.mapFinite(groupings());
+        TranslationSchema childRequired = switch (grouping()) {
             case BY -> finite(keys);
             // without () keeps the child's label set; without (K) declares its own and widens every pending one by K
             case WITHOUT -> keys.isEmpty() ? context.required() : union(subtract(context.required(), keys), open(keys));
-            case NONE -> TranslationConstraint.EMPTY;
+            case NONE -> TranslationSchema.EMPTY;
         };
         TranslationContext childTranslation = context.withRequired(childRequired);
         IntermediateResult ir = childTranslation.translate(child());
         if (ir.kind().constant) {
             return ir;
         }
-        TranslationConstraint header = switch (grouping()) {
-            case BY -> finite(mapFinite(output()));
-            case WITHOUT -> context.regroupWithout(ir.header(), keys);
-            case NONE -> TranslationConstraint.EMPTY;
+        TranslationSchema schema = switch (grouping()) {
+            case BY -> finite(TranslationContext.mapFinite(output()));
+            case WITHOUT -> context.regroupWithout(ir.schema(), keys);
+            case NONE -> TranslationSchema.EMPTY;
         };
 
         var promqlCtx = new PromqlContext(context.time(), AggregateFunction.NO_WINDOW, ir.step(), context.configuration());
         Expression function = buildEsqlFunction(ir.value(), promqlCtx);
         // A raw operand collapses once, with the operator's function fused into the per-series aggregate; a table regroups.
         return ir.kind().afterInitialAggregation
-            ? context.regroup(ir, header, grouping() == WITHOUT, function)
-            : context.collapse(ir, header, function);
+            ? context.regroup(ir, schema, grouping() == WITHOUT, function)
+            : context.collapse(ir, schema, function);
     }
 }

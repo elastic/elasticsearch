@@ -70,20 +70,14 @@ import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROMETHEUS_LABELS_PREFIX;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.intersect;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.open;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.project;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.emitNullExpression;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.find;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.finestFirst;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.mapFinite;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.mapOpen;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.mapToRef;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.intersect;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.project;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch.Joining;
 
 /**
  * Shared state and assembly helpers for one PromQL translation. Nodes own their lowering, while this context
- * preserves the existing header bookkeeping, aggregation boundaries, and command finalization.
+ * preserves the existing schema bookkeeping, aggregation boundaries, and command finalization.
  */
 public record TranslationContext(
     PromqlCommand cmd,
@@ -91,7 +85,7 @@ public record TranslationContext(
     /* Alias for the step bucket expression used in all aggregation groupings. May be null for empty indices. */
     Alias stepBucketAlias,
     /* The columns the result subtree MUST expose. */
-    TranslationConstraint required,
+    TranslationSchema required,
     /* The current evaluation time (default: @timestamp). */
     Expression time
 ) {
@@ -106,7 +100,7 @@ public record TranslationContext(
     }
 
     /** Translate an independent child without changing the enclosing branch's timing or aggregation state. */
-    public TranslationContext withRequired(TranslationConstraint childRequired) {
+    public TranslationContext withRequired(TranslationSchema childRequired) {
         return new TranslationContext(cmd, analyzer, stepBucketAlias, childRequired, time);
     }
 
@@ -177,7 +171,7 @@ public record TranslationContext(
      * regroups left, and the command declares it as {@code _timeseries}.
      */
     private LogicalPlan emitTimeSeriesAlias(IntermediateResult table, NameId id) {
-        Set<String> skip = table.header().finestSkip();
+        Set<String> skip = table.schema().finestSkip();
         if (skip == null || skip.isEmpty()) {
             return table.plan();
         }
@@ -188,7 +182,7 @@ public record TranslationContext(
 
     /**
      * Union combinator over independently translated tabular results.
-     * {@link UnionAll} aligns columns by name and null-fills missing header, then
+     * {@link UnionAll} aligns columns by name and null-fills the missing ones, then
      * {@link TopNBy} keeps single row per {@code (step, labelset)} group ordered by incoming IR order.
      */
     private LogicalPlan doTranslateUnion(List<IntermediateResult> intermediateResults) {
@@ -255,7 +249,7 @@ public record TranslationContext(
             // TimeSeriesAggregate always applies because InstantSelectors adds implicit last_over_time().
             // TODO: with metric references without last_over_time, a plain Aggregate could do (#141501 discussion).
             if (ir.kind().afterInitialAggregation == false) {
-                IntermediateResult collapsed = collapse(ir.with(plan, ir.header(), value), ir.header(), value);
+                IntermediateResult collapsed = collapse(ir.with(plan, ir.schema(), value), ir.schema(), value);
                 plan = collapsed.plan();
                 value = collapsed.value();
             }
@@ -279,7 +273,7 @@ public record TranslationContext(
         }
 
         Kind kind = ir.kind().constant ? Kind.CONSTANT : Kind.AFTER_INITIAL_AGGREGATE;
-        return new IntermediateResult(plan, ir.header(), valueAlias.toAttribute(), ir.step(), null, kind);
+        return new IntermediateResult(plan, ir.schema(), valueAlias.toAttribute(), ir.step(), null, kind);
     }
 
     /** Folds a branch whose value depends on nothing but the step column into a compile-time step/value relation. */
@@ -293,7 +287,7 @@ public record TranslationContext(
         var plan = PromqlLogicalPlanBuilder.buildLocalRelation(cmd);
         var step = plan.output().getFirst();
         var value = result.value().transformUp(Attribute.class, attr -> attr.semanticEquals(stepAttr) ? step : attr);
-        return new IntermediateResult(plan, result.header(), value, step, result.pendingFilter(), Kind.CONSTANT);
+        return new IntermediateResult(plan, result.schema(), value, step, result.pendingFilter(), Kind.CONSTANT);
     }
 
     /**
@@ -302,10 +296,10 @@ public record TranslationContext(
      */
     public IntermediateResult eval(IntermediateResult t, Expression value) {
         if (t.kind().afterInitialAggregation == false) {
-            return t.with(t.plan(), t.header(), value);
+            return t.with(t.plan(), t.schema(), value);
         }
         Alias alias = new Alias(value.source(), cmd.valueColumnName(), value);
-        return t.with(new Eval(cmd.source(), t.plan(), List.of(alias)), t.header(), alias.toAttribute());
+        return t.with(new Eval(cmd.source(), t.plan(), List.of(alias)), t.schema(), alias.toAttribute());
     }
 
     /**
@@ -313,45 +307,45 @@ public record TranslationContext(
      * column the labels are derived columns, so only those the enclosing translation asks for are carried; a finite
      * child keeps every remaining label because they are its label set.
      */
-    public TranslationConstraint regroupWithout(TranslationConstraint child, List<String> keys) {
-        TranslationConstraint header = intersect(child, keys);
-        assert child.isOpen() == false || header.isOpen()
+    public TranslationSchema regroupWithout(TranslationSchema child, List<String> keys) {
+        TranslationSchema schema = intersect(child, keys);
+        assert child.isOpen() == false || schema.isOpen()
             : "invariant: required [" + required + "] must declare a packed column excluding " + keys + ", got " + child;
-        return header.isOpen() ? project(header, required.labels()) : header;
+        return schema.isOpen() ? project(schema, required.labels()) : schema;
     }
 
     /**
-     * The initial aggregate: a raw table collapsed to one row per step and header column by the innermost
+     * The initial aggregate: a raw table collapsed to one row per step and schema column by the innermost
      * {@link TimeSeriesAggregate}, {@code function} applied in it. Passing the table's own value collapses it as is.
      */
-    public IntermediateResult collapse(IntermediateResult input, TranslationConstraint header, Expression function) {
+    public IntermediateResult collapse(IntermediateResult input, TranslationSchema schema, Expression function) {
         assert input.kind().afterInitialAggregation == false : "invariant: a collapse takes a raw table";
         Alias value = new Alias(function.source(), cmd.valueColumnName(), function);
-        return table(emitCollapse(input, header, value), input, header, value);
+        return table(emitCollapse(input, schema, value), input, schema, value);
     }
 
     /**
-     * An aggregate over a collapsed table: regrouped by {@code header} with {@code function} as the value. The regroup
-     * packs its dimensions first when the header is open or the operator asks for it ({@code packed}).
+     * An aggregate over a collapsed table: regrouped by {@code schema} with {@code function} as the value. The regroup
+     * packs its dimensions first when the schema is open or the operator asks for it ({@code packed}).
      */
-    public IntermediateResult regroup(IntermediateResult input, TranslationConstraint header, boolean packed, Expression function) {
+    public IntermediateResult regroup(IntermediateResult input, TranslationSchema schema, boolean packed, Expression function) {
         assert input.kind().afterInitialAggregation : "invariant: a regroup takes a collapsed table";
         Alias value = new Alias(function.source(), cmd.valueColumnName(), function);
-        return table(emitRegroup(input, header, value, header.isOpen() || packed), input, header, value);
+        return table(emitRegroup(input, schema, value, schema.isOpen() || packed), input, schema, value);
     }
 
-    private static IntermediateResult table(LogicalPlan plan, IntermediateResult input, TranslationConstraint header, Alias value) {
-        return new IntermediateResult(plan, header, value.toAttribute(), input.step(), input.pendingFilter(), Kind.AFTER_INITIAL_AGGREGATE);
+    private static IntermediateResult table(LogicalPlan plan, IntermediateResult input, TranslationSchema schema, Alias value) {
+        return new IntermediateResult(plan, schema, value.toAttribute(), input.step(), input.pendingFilter(), Kind.AFTER_INITIAL_AGGREGATE);
     }
 
     /**
      * The innermost aggregate owns the physical {@code _timeseries} grouping and materializes every packed column in
-     * the header over that column's own skip set.
+     * the schema over that column's own skip set.
      */
-    private LogicalPlan emitCollapse(IntermediateResult input, TranslationConstraint header, Alias value) {
+    private LogicalPlan emitCollapse(IntermediateResult input, TranslationSchema schema, Alias value) {
         Source source = cmd.promqlPlan().source();
         LogicalPlan plan = input.plan();
-        boolean groupsBySeries = header.isOpen() || header.labels().isEmpty() == false;
+        boolean groupsBySeries = schema.isOpen() || schema.labels().isEmpty() == false;
         Expression agg = value.child();
         // TranslateTimeSeriesAggregate splits this node into two phases, replacing inner TimeSeriesAggregateFunctions
         // (e.g. LastOverTime) with references to phase-1 results; the phase-2 expression must remain a valid
@@ -368,10 +362,10 @@ public record TranslationContext(
 
         // Every packing is materialized under its derived name, finest first, and every label the relation has is a
         // key too. Every column is functionally dependent on the finest packing, so grouping by all of them
-        // preserves per-series granularity while making the full header available to the surrounding query.
+        // preserves per-series granularity while making the full schema available to the surrounding query.
         var groupKeys = new ArrayList<NamedExpression>();
         var outKeys = new ArrayList<NamedExpression>();
-        for (Set<String> skip : finestFirst(header.skips())) {
+        for (Set<String> skip : finestFirst(schema.skips())) {
             List<Expression> excluded = skip.stream().<Expression>map(label -> {
                 Attribute resolved = find(plan.output(), label);
                 return resolved != null ? resolved : mapToRef(label);
@@ -380,7 +374,7 @@ public record TranslationContext(
             groupKeys.add(packing);
             outKeys.add(packing.toAttribute());
         }
-        for (String label : header.labels()) {
+        for (String label : schema.labels()) {
             Attribute carrier = find(plan.output(), label);
             if (carrier != null) {
                 groupKeys.add(carrier);
@@ -400,11 +394,11 @@ public record TranslationContext(
     }
 
     /**
-     * Regroups an already-aggregated table. Every regroup first resolves its physical header and null-fills missing
+     * Regroups an already-aggregated table. Every regroup first resolves its physical schema and null-fills missing
      * grouping columns. A packed regroup additionally packs dimensions before aggregation to prevent multi-valued
      * dimensions from splitting rows and double-counting, then unpacks them afterwards.
      */
-    private LogicalPlan emitRegroup(IntermediateResult input, TranslationConstraint header, Alias value, boolean requiresPacking) {
+    private LogicalPlan emitRegroup(IntermediateResult input, TranslationSchema schema, Alias value, boolean requiresPacking) {
         Source source = cmd.source();
         Attribute step = input.step();
         LogicalPlan plan = input.plan();
@@ -415,12 +409,12 @@ public record TranslationContext(
 
         var nulls = new ArrayList<Alias>();
         var keys = new ArrayList<Attribute>();
-        for (Set<String> skip : finestFirst(header.skips())) {
+        for (Set<String> skip : finestFirst(schema.skips())) {
             Attribute carrier = find(available, mapOpen(skip));
             assert carrier != null : "invariant: packing " + skip + " must be carried by the child";
             keys.add(carrier);
         }
-        for (String label : header.labels()) {
+        for (String label : schema.labels()) {
             Attribute carrier = find(available, label);
             if (carrier == null) {
                 // a declared label the child lacks is absent from every series: grouped under null, like Prometheus
@@ -489,7 +483,7 @@ public record TranslationContext(
         return new Project(cmd.source(), plan, projected);
     }
 
-    /** Keeps only steps within the query range; step header are anchored at {@code start} and offset-independent. */
+    /** Keeps only steps within the query range; steps are anchored at {@code start} and offset-independent. */
     private LogicalPlan emitByStepFilter(LogicalPlan plan) {
         var source = cmd.source();
         var step = cmd.stepAttribute();
@@ -616,7 +610,7 @@ public record TranslationContext(
 
     /**
      * The single value flowing through the compiler: a table - an ESQL plan together with its defined columns. The
-     * {@link TranslationConstraint} names the label columns and the plan carries them; value and step are the two
+     * {@link TranslationSchema} names the label columns and the plan carries them; value and step are the two
      * columns every table has. Every AST node translates to one and the stitching operations (joins, unions,
      * regroups, the command coda) compose them by their declared columns. Mid-descent the value is a (possibly not
      * yet materialized) expression parents compose into larger expressions; a finished table's value is a defined
@@ -626,7 +620,7 @@ public record TranslationContext(
         /* Output ESQL plan: the source relation (cmd.child()) with this node's operators stacked on top. */
         LogicalPlan plan,
         /* The label columns this subtree exposes; the plan carries them under their canonical or derived names. */
-        TranslationConstraint header,
+        TranslationSchema schema,
         /* This node's numeric value: an expression mid-descent, a defined column once aggregated. */
         Expression value,
         /* The step column. */
@@ -654,24 +648,18 @@ public record TranslationContext(
         }
 
         /** A raw input whose value may still contain per-series aggregate expressions. */
-        public IntermediateResult(LogicalPlan plan, TranslationConstraint header, Expression value, Attribute step) {
-            this(plan, header, value, step, null, Kind.BEFORE_INITIAL_AGGREGATE);
+        public IntermediateResult(LogicalPlan plan, TranslationSchema schema, Expression value, Attribute step) {
+            this(plan, schema, value, step, null, Kind.BEFORE_INITIAL_AGGREGATE);
         }
 
         /** A raw input carrying a selector predicate until source filtering or aggregate assembly consumes it. */
-        public IntermediateResult(
-            LogicalPlan plan,
-            TranslationConstraint header,
-            Expression value,
-            Attribute step,
-            Expression selectorFilter
-        ) {
-            this(plan, header, value, step, selectorFilter, Kind.BEFORE_INITIAL_AGGREGATE);
+        public IntermediateResult(LogicalPlan plan, TranslationSchema schema, Expression value, Attribute step, Expression selectorFilter) {
+            this(plan, schema, value, step, selectorFilter, Kind.BEFORE_INITIAL_AGGREGATE);
         }
 
-        /** This table rebuilt around a new plan, header and value, keeping its other properties. */
-        public IntermediateResult with(LogicalPlan plan, TranslationConstraint header, Expression value) {
-            return new IntermediateResult(plan, header, value, step, pendingFilter, kind);
+        /** This table rebuilt around a new plan, schema and value, keeping its other properties. */
+        public IntermediateResult with(LogicalPlan plan, TranslationSchema schema, Expression value) {
+            return new IntermediateResult(plan, schema, value, step, pendingFilter, kind);
         }
 
         /** The value as a defined column; only valid on a finished table. */
@@ -718,7 +706,7 @@ public record TranslationContext(
         return new ReferenceAttribute(Source.EMPTY, name, DataType.KEYWORD);
     }
 
-    /** The skip sets of a header ordered finest first: the grain-fixing packing leads, coarser variants follow. */
+    /** The skip sets of a schema ordered finest first: the grain-fixing packing leads, coarser variants follow. */
     public static List<Set<String>> finestFirst(Set<Set<String>> skips) {
         return skips.stream().sorted(Comparator.comparingInt(Set::size)).toList();
     }

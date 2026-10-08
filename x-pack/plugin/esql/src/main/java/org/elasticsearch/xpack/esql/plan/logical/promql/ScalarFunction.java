@@ -115,6 +115,6 @@ public final class ScalarFunction extends LeafPlan implements PromqlPlan {
         var function = buildEsqlFunction(
             new PromqlContext(context.cmd().timestamp(), null, context.cmd().stepAttribute(), context.configuration())
         );
-        return new IntermediateResult(context.cmd().child(), TranslationConstraint.EMPTY, function, context.stepAttr());
+        return new IntermediateResult(context.cmd().child(), TranslationSchema.EMPTY, function, context.stepAttr());
     }
 }

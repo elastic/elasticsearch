@@ -22,17 +22,16 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.project;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.mapFinite;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.project;
 
 /**
  * Base class representing a PromQL vector selector.
@@ -131,14 +130,7 @@ public abstract sealed class Selector extends UnaryPlan implements PromqlPlan pe
                 List.of(context.cmd().valueAttribute(), context.cmd().stepAttribute()),
                 EmptyLocalSupplier.EMPTY
             );
-            return new IntermediateResult(
-                empty,
-                TranslationConstraint.EMPTY,
-                Literal.NULL,
-                context.cmd().stepAttribute(),
-                null,
-                Kind.CONSTANT
-            );
+            return new IntermediateResult(empty, TranslationSchema.EMPTY, Literal.NULL, context.cmd().stepAttribute(), null, Kind.CONSTANT);
         }
 
         List<Attribute> dimensions = input.output()
@@ -147,7 +139,7 @@ public abstract sealed class Selector extends UnaryPlan implements PromqlPlan pe
             .filter(attribute -> attribute instanceof TimeSeriesMetadataAttribute == false)
             .toList();
         // Expose only required labels that exist on the relation. Consumers null-fill any required label that is absent.
-        TranslationConstraint header = project(context.required(), mapFinite(dimensions));
-        return new IntermediateResult(input, header, value, context.stepAttr(), matcher);
+        TranslationSchema schema = project(context.required(), TranslationContext.mapFinite(dimensions));
+        return new IntermediateResult(input, schema, value, context.stepAttr(), matcher);
     }
 }

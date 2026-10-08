@@ -42,13 +42,9 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.finite;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.open;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.union;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.emitNullExpression;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.finestFirst;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.mapFinite;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.mapToRef;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.union;
 
 /**
  * Across-series reduction such as {@code topk}.
@@ -132,7 +128,7 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
      * Translates an {@link AcrossSeriesReduction} ({@code topk}/{@code bottomk}/{@code limitk}/{@code limit_ratio}):
      * collapses the child to one row per series, then keeps rows within each step and partition: ranked by value
      * for the order-statistic functions, or an approximate ratio for {@code limit_ratio}.
-     * A {@code by} clause only partitions the reduction; it does not change the output header.
+     * A {@code by} clause only partitions the reduction; it does not change the output schema.
      */
     @Override
     public IntermediateResult translate(TranslationContext context) {
@@ -144,9 +140,9 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
         // by; the partition labels must be exposed to rank within them. limit_ratio is membership-neutral:
         // its sampling key is solely the input vector's identity, so outer partitions are neither required
         // from the child nor materialized below.
-        List<String> partitions = mapFinite(groupings());
+        List<String> partitions = TranslationContext.mapFinite(groupings());
         boolean isLimitRatio = definition() == PromqlBuiltinFunctionDefinitions.LIMIT_RATIO;
-        TranslationConstraint childRequired = isLimitRatio
+        TranslationSchema childRequired = isLimitRatio
             ? union(context.required(), open())
             : union(union(context.required(), open()), finite(partitions));
         IntermediateResult childResult = context.withRequired(childRequired).translate(child());
@@ -155,19 +151,19 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
                 // A constant vector's empty label set is a valid identity: sample it directly with an
                 // empty key set, without introducing an aggregation.
                 LogicalPlan sampled = emitLimitRatioFilter(childResult);
-                return childResult.with(sampled, childResult.header(), childResult.value());
+                return childResult.with(sampled, childResult.schema(), childResult.value());
             }
             return childResult;
         }
 
-        var header = isLimitRatio ? childResult.header() : union(childResult.header(), finite(partitions));
+        var schema = isLimitRatio ? childResult.schema() : union(childResult.schema(), finite(partitions));
 
         var promqlCtx = new PromqlContext(context.time(), AggregateFunction.NO_WINDOW, childResult.step(), context.configuration());
         IntermediateResult aggregated = childResult.kind().afterInitialAggregation
-            ? context.regroup(childResult, header, false, childResult.value())
-            : context.collapse(childResult, header, childResult.value());
+            ? context.regroup(childResult, schema, false, childResult.value())
+            : context.collapse(childResult, schema, childResult.value());
         LogicalPlan result = isLimitRatio ? emitLimitRatioFilter(aggregated) : emitTopNBy(context, aggregated, partitions, promqlCtx);
-        return aggregated.with(result, aggregated.header(), aggregated.value());
+        return aggregated.with(result, aggregated.schema(), aggregated.value());
     }
 
     /** Ranks the already-collapsed per-series rows and keeps the top {@code k} within each step and partition. */
@@ -206,11 +202,11 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
             addIfMissing(keys, series);
         } else {
             // No series blob: the rows are groups. Their identity is the concrete grouping
-            // underneath -- packed label sets when the header packs labels away (for example
+            // underneath -- packed label sets when the schema packs labels away (for example
             // sum without), else the grain label columns. Packings hold only dimensions, never
             // the step, so the identity is stable across steps.
             var resolvedSkips = new ArrayList<Set<String>>();
-            for (Set<String> skip : finestFirst(table.header().skips())) {
+            for (Set<String> skip : TranslationContext.finestFirst(table.schema().skips())) {
                 Attribute packing = table.packed(skip);
                 if (packing != null) {
                     addIfMissing(keys, packing);
@@ -220,14 +216,14 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
             // A finite label carried inside any packing adds no identity: the packing already
             // determines it (for example pod inside _timeseries$region). The surviving labels
             // sort by name so grouping-key order cannot change the hashed bytes.
-            table.header()
+            table.schema()
                 .labels()
                 .stream()
                 .filter(label -> resolvedSkips.stream().allMatch(skip -> skip.contains(label)))
                 .sorted()
                 .forEach(label -> {
                     Attribute carrier = table.label(label);
-                    // Guaranteed by emitRegroup, which resolves every header label (null-filling missing ones).
+                    // Guaranteed by emitRegroup, which resolves every schema label (null-filling missing ones).
                     assert carrier != null : "invariant: grouping label [" + label + "] must be carried by the input";
                     addIfMissing(keys, carrier);
                 });
@@ -272,7 +268,7 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
                 Attribute carrier = table.label(partition);
                 if (carrier == null) {
                     // a partition label absent from every series ranks as one partition, like Prometheus
-                    nulls.add(emitNullExpression(mapToRef(partition)));
+                    nulls.add(TranslationContext.emitNullExpression(TranslationContext.mapToRef(partition)));
                     carrier = nulls.getLast().toAttribute();
                 }
                 groupings.add(carrier);

@@ -4030,6 +4030,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         /**
          * Adds the slice filter to the filter of a query whose vector format does not partition the vectors by slice.
+         * Either may be {@code null}: without a slice filter every slice is searched, without a filter only the slices restrict
+         * the search.
          */
         private static Query filterBySlice(@Nullable Query filter, @Nullable Query sliceFilter) {
             if (sliceFilter == null) {

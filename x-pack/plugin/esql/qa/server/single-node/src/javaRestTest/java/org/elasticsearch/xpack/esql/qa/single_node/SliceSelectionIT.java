@@ -143,6 +143,7 @@ public class SliceSelectionIT extends ESRestTestCase {
         List<String> rows = slices(FROM_SINGLE + "| SORT position, name | LIMIT 3 | WHERE _slice == \"far\" | KEEP _slice");
         assertThat(rows, equalTo(List.of("far")));
 
+        // a filter on a grouping key stays above the STATS, so it does not sit on the source and selects no slice
         List<List<Object>> groups = values(FROM + "| STATS c = COUNT(*) BY _slice | WHERE _slice == \"far\"");
         assertThat(groups, equalTo(List.of(List.of(FAR_DOCS, "far"))));
         assertThat(totalShards(FROM + "| STATS c = COUNT(*) BY _slice | WHERE _slice == \"far\""), equalTo(SHARDS));

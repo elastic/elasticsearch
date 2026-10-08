@@ -1737,6 +1737,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return onDiskMerge;
         }
 
+        /** whether searches rescore from disk rather than from the page cache (the {@code on_disk_rescore} option) */
+        public boolean isOnDiskRescore() {
+            return false;
+        }
+
         abstract KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers);
 
         KnnVectorsFormat getVectorsFormat(
@@ -2501,6 +2506,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return false;
         }
 
+        @Override
+        public boolean isOnDiskRescore() {
+            return onDiskRescore;
+        }
+
         public int flatIndexThreshold() {
             return flatIndexThreshold;
         }
@@ -2696,6 +2706,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public int efConstruction() {
             return efConstruction;
+        }
+
+        @Override
+        public boolean isOnDiskRescore() {
+            return onDiskRescore;
         }
 
         public int flatIndexThreshold() {
@@ -2894,6 +2909,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public boolean isFlat() {
             return false;
+        }
+
+        @Override
+        public boolean isOnDiskRescore() {
+            return onDiskRescore;
         }
 
         public int flatIndexThreshold() {
@@ -3232,6 +3252,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return defaultVisitPercentage;
         }
 
+        @Override
         public boolean isOnDiskRescore() {
             return onDiskRescore;
         }

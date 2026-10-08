@@ -19,6 +19,7 @@ import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.index.AssertingDirectoryReader;
@@ -68,6 +69,7 @@ import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
@@ -121,6 +123,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -364,6 +367,65 @@ public class IndexModuleTests extends ESTestCase {
         assertThat(((WrappedDirectory) directory).shardRouting, sameInstance(shardRouting));
         assertThat(directory, instanceOf(FilterDirectory.class));
 
+        closeIndexService(indexService);
+    }
+
+    /** A directory wrapper hands the shard's mapping to the directory factory it wraps. */
+    public void testDirectoryWrapperPassesTheMapping() throws IOException {
+        final Path homeDir = createTempDir();
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(Environment.PATH_HOME_SETTING.getKey(), homeDir.toString())
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "recording")
+            .build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        final AtomicReference<Supplier<MappingLookup>> received = new AtomicReference<>();
+        final IndexStorePlugin.DirectoryFactory recording = new IndexStorePlugin.DirectoryFactory() {
+            @Override
+            public Directory newDirectory(IndexSettings idxSettings, ShardPath shardPath) throws IOException {
+                return newDirectory(idxSettings, shardPath, null, () -> MappingLookup.EMPTY);
+            }
+
+            @Override
+            public Directory newDirectory(
+                IndexSettings idxSettings,
+                ShardPath shardPath,
+                ShardRouting shardRouting,
+                Supplier<MappingLookup> mappingLookup
+            ) throws IOException {
+                received.set(mappingLookup);
+                return new ByteBuffersDirectory();
+            }
+        };
+        final IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            new InternalEngineFactory(),
+            Map.of("recording", recording),
+            () -> true,
+            indexNameExpressionResolver,
+            Collections.emptyMap(),
+            mock(ActionLoggingFieldsProvider.class),
+            MapperMetrics.NOOP,
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            MergeMetrics.NOOP,
+            StoreMetrics.NOOP_HOLDER
+        );
+        module.setDirectoryWrapper(new TestDirectoryWrapper());
+
+        final IndexService indexService = newIndexService(module);
+        final ShardId shardId = new ShardId(indexSettings.getIndex(), 0);
+        final Path dataPath = new NodeEnvironment.DataPath(homeDir).resolve(shardId);
+        final Supplier<MappingLookup> mapping = () -> MappingLookup.EMPTY;
+        try (
+            Directory directory = indexService.getDirectoryFactory()
+                .newDirectory(indexSettings, new ShardPath(false, dataPath, dataPath, shardId), null, mapping)
+        ) {
+            assertThat(directory, instanceOf(WrappedDirectory.class));
+            assertThat(received.get(), sameInstance(mapping));
+        }
         closeIndexService(indexService);
     }
 

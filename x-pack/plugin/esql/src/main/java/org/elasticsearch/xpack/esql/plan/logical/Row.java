@@ -28,6 +28,8 @@ public class Row extends LeafPlan implements PostAnalysisVerificationAware, Tele
 
     private final List<Alias> fields;
 
+    private List<Attribute> lazyOutput;
+
     public Row(Source source, List<Alias> fields) {
         super(source);
         this.fields = fields;
@@ -49,7 +51,10 @@ public class Row extends LeafPlan implements PostAnalysisVerificationAware, Tele
 
     @Override
     public List<Attribute> output() {
-        return Expressions.asAttributes(fields);
+        if (lazyOutput == null) {
+            lazyOutput = Expressions.asAttributes(fields);
+        }
+        return lazyOutput;
     }
 
     @Override

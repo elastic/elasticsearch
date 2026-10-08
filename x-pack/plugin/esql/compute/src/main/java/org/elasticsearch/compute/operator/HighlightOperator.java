@@ -31,7 +31,6 @@ import org.apache.lucene.search.uhighlight.CharArrayMatcher;
 import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
 import org.apache.lucene.search.uhighlight.LabelledCharArrayMatcher;
 import org.apache.lucene.search.uhighlight.Passage;
-import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.util.BytesRef;
@@ -122,7 +121,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         }
     }
 
-    /** {@link SimpleHTMLEncoder} writes at most 6 chars per char, as in {@code &quot;}. */
+    /** {@link SimpleHTMLEncoder} expands one char into at most 6, such as {@code "} into {@code &quot;}. */
     private static final int MAX_HTML_ENCODED_CHARS = 6;
     /**
      * Rough upper bound on the heap per snippet char before it is copied into a block. The formatter's StringBuilder
@@ -143,9 +142,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     private final BlockFactory blockFactory;
     private final HighlightConfig config;
     private final List<String> fieldNames;
-    private final PassageFormatter formatter;
-    /** Bytes {@link BreakingPassageFormatter} charged for the field being highlighted. */
-    private long snippetBytes;
+    private final BreakingPassageFormatter formatter;
     private final int indexMaxAnalyzedOffset;
     private final QueryMaxAnalyzedOffset queryMaxAnalyzedOffset;
     private final int highlighterNumberOfFragments;
@@ -416,8 +413,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             } catch (IOException e) {
                 throw new IllegalStateException("HIGHLIGHT failed for ON field [" + field.name + "]", e);
             } finally {
-                blockFactory.adjustBreaker(-snippetBytes);
-                snippetBytes = 0;
+                formatter.releaseCharged();
             }
         }
     }
@@ -425,11 +421,16 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     /**
      * Charges the breaker for the snippet strings before {@link CustomPassageFormatter} builds them. They are not in a
      * block until {@link #appendSnippets} copies them, and the tags repeat around every match, so they can be far larger
-     * than the input. {@link #highlightRow} releases the charge after the copy.
+     * than the input. {@link #highlightRow} calls {@link #releaseCharged} after the copy.
      */
     private final class BreakingPassageFormatter extends CustomPassageFormatter {
         private final int tagsLength;
         private final int maxEncodedCharsPerChar;
+        /**
+         * Outlives {@link #format} because Lucene calls it inside {@code highlightField}, before the snippets are copied.
+         * Not volatile: only the driver thread running {@link #process} touches it.
+         */
+        private long charged;
 
         BreakingPassageFormatter(Encoder encoder, int maxEncodedCharsPerChar) {
             super(config.preTag(), config.postTag(), encoder, config.numberOfFragments());
@@ -447,8 +448,13 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             long bytes = chars * SNIPPET_BYTES_PER_CHAR + passages.length * SNIPPET_OVERHEAD_BYTES
                 + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
             blockFactory.adjustBreaker(bytes);
-            snippetBytes += bytes;
+            charged += bytes;
             return super.format(passages, content);
+        }
+
+        void releaseCharged() {
+            blockFactory.adjustBreaker(-charged);
+            charged = 0;
         }
     }
 

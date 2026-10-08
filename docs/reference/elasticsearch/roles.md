@@ -26,51 +26,11 @@ If the built-in roles do not address your use case, then you can create addition
 
 ## Available roles [available-roles]
 
-$$$built-in-roles-alertzero-alert-triage$$$ `alertzero_alert_triage` {applies_to}`stack: ga 9.6`
-:   Grants the privileges required by the service account of the AlertZero Alert Triage worker in {{kib}}, in all {{kib}} spaces.
+$$$built-in-roles-alertzero$$$ `alertzero_alert_triage`, `alertzero_attack_discovery`, `alertzero_endpoint_analysis`, `alertzero_rule_coverage`, `alertzero_rule_tuning`, `alertzero_threat_hunt` {applies_to}`stack: ga 9.6`
+:   Grants the privileges required by the service accounts of AlertZero workers in {{kib}}, in all {{kib}} spaces.
 
     ::::{note}
-    This role is intended only for the service account that {{kib}} creates for this worker. Do not assign it to users, as the granted permissions may change between releases.
-    ::::
-
-
-$$$built-in-roles-alertzero-attack-discovery$$$ `alertzero_attack_discovery` {applies_to}`stack: ga 9.6`
-:   Grants the privileges required by the service account of the AlertZero Attack Discovery worker in {{kib}}, in all {{kib}} spaces.
-
-    ::::{note}
-    This role is intended only for the service account that {{kib}} creates for this worker. Do not assign it to users, as the granted permissions may change between releases.
-    ::::
-
-
-$$$built-in-roles-alertzero-endpoint-analysis$$$ `alertzero_endpoint_analysis` {applies_to}`stack: ga 9.6`
-:   Grants the privileges required by the service account of the AlertZero Endpoint Analysis worker in {{kib}}, in all {{kib}} spaces.
-
-    ::::{note}
-    This role is intended only for the service account that {{kib}} creates for this worker. Do not assign it to users, as the granted permissions may change between releases.
-    ::::
-
-
-$$$built-in-roles-alertzero-rule-coverage$$$ `alertzero_rule_coverage` {applies_to}`stack: ga 9.6`
-:   Grants the privileges required by the service account of the AlertZero Rule Coverage worker in {{kib}}, in all {{kib}} spaces.
-
-    ::::{note}
-    This role is intended only for the service account that {{kib}} creates for this worker. Do not assign it to users, as the granted permissions may change between releases.
-    ::::
-
-
-$$$built-in-roles-alertzero-rule-tuning$$$ `alertzero_rule_tuning` {applies_to}`stack: ga 9.6`
-:   Grants the privileges required by the service account of the AlertZero Rule Tuning worker in {{kib}}, in all {{kib}} spaces.
-
-    ::::{note}
-    This role is intended only for the service account that {{kib}} creates for this worker. Do not assign it to users, as the granted permissions may change between releases.
-    ::::
-
-
-$$$built-in-roles-alertzero-threat-hunt$$$ `alertzero_threat_hunt` {applies_to}`stack: ga 9.6`
-:   Grants the privileges required by the service account of the AlertZero Continuous Threat Hunt worker in {{kib}}, in all {{kib}} spaces.
-
-    ::::{note}
-    This role is intended only for the service account that {{kib}} creates for this worker. Do not assign it to users, as the granted permissions may change between releases.
+    These roles are intended only for the service accounts that {{kib}} creates for AlertZero workers. These roles should not be assigned to users, as the granted permissions may change between releases.
     ::::
 
 

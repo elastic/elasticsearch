@@ -10626,4 +10626,59 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
+    /**
+     * The two addressing derivations, pinned directly. Every other gate on this defect is an integration arm, and an
+     * arm is slower to run and easier to mute than a unit test; these are the two expressions a refactor would break.
+     * <p>
+     * {@code ffwBoundRead} answers for the whole first-file-wins listing, because that rail reads every file at the
+     * anchor's schema. {@code overlaidBoundReadOf} answers per record, for the anchor resolve, the explicit single
+     * file and union_by_name. Each must name the OVERLAID read; naming the pre-overlay one is esql-planning#2246.
+     * <p>
+     * The expectation is hand-built from the schema the reader will bind, not taken from another call of the
+     * production helper, so the test cannot pass by both sides being the same wrong expression.
+     */
+    public void testTheBoundReadHandedToAStatisticsLookupIsTheOverlaidRead() {
+        List<Attribute> inferred = List.of(attr("id", DataType.INTEGER), attr("order_id", DataType.INTEGER));
+        List<Attribute> overlaid = List.of(attr("id", DataType.INTEGER), attr("order_id", DataType.KEYWORD));
+        String overlaidRead = ReadConfigFingerprint.of(overlaid, DeclaredReadSpec.NONE);
+        String inferredRead = ReadConfigFingerprint.of(inferred, DeclaredReadSpec.NONE);
+        assertNotEquals("the fixture must separate the two reads or it discriminates nothing", overlaidRead, inferredRead);
+
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("order_id", new DatasetFieldMapping("keyword", null));
+        DatasetMapping retyping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+
+        SchemaCacheEntry record = SchemaCacheEntry.from(
+            inferred,
+            "csv",
+            "s3://bucket/data/a.csv",
+            Map.of(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, inferredRead),
+            Map.of()
+        );
+        ExternalSourceMetadata anchor = ExternalSourceResolver.buildMetadataFromCache(record, inferred, Map.of(), null, null);
+
+        assertEquals(
+            "first-file-wins must address every file by the overlaid anchor read",
+            overlaidRead,
+            ExternalSourceResolver.ffwBoundRead(anchor, retyping).apply(record)
+        );
+        assertEquals(
+            "the per-record rails must address a file by the overlaid version of its own read",
+            overlaidRead,
+            ExternalSourceResolver.overlaidBoundReadOf(retyping, "csv").apply(record)
+        );
+
+        // No declaration: both must derive exactly what they derived before this existed, or every unmapped dataset
+        // moves address and goes cold once.
+        assertEquals(
+            "an undeclared first-file-wins read keeps its derivation",
+            inferredRead,
+            ExternalSourceResolver.ffwBoundRead(anchor, null).apply(record)
+        );
+        assertNull(
+            "an undeclared read has no bound of its own: the record's own stamp is the read",
+            ExternalSourceResolver.overlaidBoundReadOf(null, "csv")
+        );
+    }
+
 }

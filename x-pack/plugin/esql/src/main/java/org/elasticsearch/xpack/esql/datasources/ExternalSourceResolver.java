@@ -5515,7 +5515,7 @@ public class ExternalSourceResolver {
      * changed a column's type, date format or column set, so every such dataset re-read every byte on every repeated
      * aggregate (esql-planning#2246). An undeclared or strict read keeps the derivation it had.
      */
-    private static Function<SchemaCacheEntry, String> ffwBoundRead(ExternalSourceMetadata base, @Nullable DatasetMapping declaredMapping) {
+    static Function<SchemaCacheEntry, String> ffwBoundRead(ExternalSourceMetadata base, @Nullable DatasetMapping declaredMapping) {
         final String bound = declaredMapping == null || isDeclaredSchema(declaredMapping)
             ? ReadConfigFingerprint.of(base.schema(), declaredReadSpecOf(declaredMapping))
             : overlaidReadOf(base.schema(), base.schema(), declaredMapping, base.sourceType()).fingerprint();
@@ -5538,7 +5538,7 @@ public class ExternalSourceResolver {
      * one the data node performs.
      */
     @Nullable
-    private static Function<SchemaCacheEntry, String> overlaidBoundReadOf(
+    static Function<SchemaCacheEntry, String> overlaidBoundReadOf(
         @Nullable DatasetMapping declaredMapping,
         @Nullable String datasetFormat
     ) {

@@ -237,7 +237,18 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
             declaredColumns(),
             nullFieldSettings("first_file_wins")
         );
+        // Under null_field no row count is licensed to cross read configurations, so neither the licence nor the
+        // dataset aggregate can answer this warm count - the per-file records at the overlaid address are the only
+        // source. The fallback guard says so rather than leaving it to be re-derived.
+        ExternalSourceCacheService cacheService = internalCluster().getInstance(PlanExecutor.class, internalCluster().getMasterName())
+            .cacheService();
+        long fallbacksBefore = ExternalSourceCacheTestAccess.datasetAggregateFallbacks(cacheService);
         assertWarmCountShortCircuits(dataset, total);
+        assertThat(
+            "the warm count must come from the per-file records, not from the dataset-aggregate fallback",
+            ExternalSourceCacheTestAccess.datasetAggregateFallbacks(cacheService),
+            equalTo(fallbacksBefore)
+        );
     }
 
     /**
@@ -390,6 +401,125 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
                 "segment_size",
                 "64kb"
             )
+        );
+        assertWarmCountShortCircuits(dataset, total);
+    }
+
+    /**
+     * The {@code fail_fast} discriminator, and the arm the ticket's acceptance asks for by name. Extrema are the
+     * statistics no licence ever carries across reads: {@code applicableStats} admits only the physical row count
+     * from a foreign read, and the dataset-level aggregate holds a bare count and no extrema at all. So a warm
+     * MIN/MAX can only have come from a record at this read's own address.
+     * <p>
+     * {@code value} is declared by nothing, so the declared-overlay poison does not reach it. MIN/MAX on the
+     * RETYPED column itself still re-scans - its harvested extrema are pre-coercion - which is stated in
+     * esql-planning#2246 and not what this arm covers.
+     * <p>
+     * The homogeneous corpus, because {@code fail_fast} is the default here and the heterogeneous one leaves
+     * {@code order_id} empty in some files, which a strict read of an integer column refuses.
+     */
+    public void testRetypingMappingWarmsMinMaxOnAnUntouchedColumn() throws Exception {
+        Path dir = createTempDir();
+        long total = writeCsvCorpus(dir, false);
+        String dataset = registerNonStrictDataset(
+            "retyped_minmax_csv",
+            globUri(dir, "*.csv"),
+            retypedOrderId(),
+            Map.of("format", "csv", "schema_resolution", "first_file_wins", "file_sort_by", "name")
+        );
+        String minMaxQuery = "FROM " + dataset + " | STATS lo = MIN(value), hi = MAX(value)";
+        try (var response = run(syncEsqlQueryRequest(minMaxQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertMinMax(response, 0L, total - 1);
+            assertThat("cold MIN/MAX reads every row", response.documentsFound(), equalTo(total));
+        }
+        try (var response = run(syncEsqlQueryRequest(minMaxQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertMinMax(response, 0L, total - 1);
+            assertThat("warm MIN/MAX must be served from the per-file statistics", response.documentsFound(), equalTo(0L));
+        }
+    }
+
+    /**
+     * The ticket's acceptance shape: a plain dataset and a retyping one over the same corpus under the default
+     * {@code fail_fast}, both warming their repeated COUNT(*).
+     * <p>
+     * Separate directories on purpose. The two datasets differ only in their mapping, and the definition version
+     * folds the resource and the settings but not the mapping, so over one directory they share every per-file
+     * address and - more to the point - the read-configuration-less dataset aggregate, which would let one
+     * dataset's memoized count answer the other's COLD query and break the cold assertion.
+     * <p>
+     * Under {@code fail_fast} a licensed row count crosses read configurations, so this arm is acceptance rather
+     * than a discriminator: {@code testRetypingMappingWarmsMinMaxOnAnUntouchedColumn} and the {@code null_field}
+     * count arm are what actually fail without the fix. The fallback guard is here so it cannot pass by way of the
+     * dataset aggregate instead of the per-file records.
+     */
+    public void testPlainAndRetypingDatasetsBothWarmTheirCount() throws Exception {
+        Path plainDir = createTempDir();
+        long plainTotal = writeCsvCorpus(plainDir, false);
+        Map<String, Object> settings = Map.of("format", "csv", "schema_resolution", "first_file_wins", "file_sort_by", "name");
+        String plain = registerDataset("pair_plain_csv", globUri(plainDir, "*.csv"), settings);
+        assertWarmCountShortCircuits(plain, plainTotal);
+
+        Path overlaidDir = createTempDir();
+        long overlaidTotal = writeCsvCorpus(overlaidDir, false);
+        String overlaid = registerNonStrictDataset("pair_retyped_csv", globUri(overlaidDir, "*.csv"), retypedOrderId(), settings);
+
+        ExternalSourceCacheService cacheService = internalCluster().getInstance(PlanExecutor.class, internalCluster().getMasterName())
+            .cacheService();
+        String countQuery = "FROM " + overlaid + " | STATS c = COUNT(*)";
+        try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertSingleLong(response, overlaidTotal);
+            assertThat("cold COUNT(*) reads every row", response.documentsFound(), equalTo(overlaidTotal));
+        }
+        long fallbacksBefore = ExternalSourceCacheTestAccess.datasetAggregateFallbacks(cacheService);
+        try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertSingleLong(response, overlaidTotal);
+            assertThat("warm COUNT(*) must be served from the per-file statistics", response.documentsFound(), equalTo(0L));
+        }
+        assertThat(
+            "the warm count must come from the per-file records, not from the dataset-aggregate fallback",
+            ExternalSourceCacheTestAccess.datasetAggregateFallbacks(cacheService),
+            equalTo(fallbacksBefore)
+        );
+    }
+
+    /**
+     * {@code union_by_name} with a retyping declaration over a corpus every file of which infers one schema. The
+     * rail reached the lookup with no mapping in scope at all, so it addressed every file by its own pre-overlay
+     * stamp.
+     * <p>
+     * A corpus whose files infer DIFFERENT schemas is a different defect - a file read at a schema other than its
+     * own, elastic/esql-planning#2201 - and its arms in this class stay muted.
+     */
+    public void testRetypingMappingWarmsCountUnderUnionByName() throws Exception {
+        Path dir = createTempDir();
+        long total = writeCsvCorpus(dir, false);
+        String dataset = registerNonStrictDataset(
+            "retyped_ubn_csv",
+            globUri(dir, "*.csv"),
+            retypedOrderId(),
+            Map.of("format", "csv", "error_mode", "null_field", "schema_resolution", "union_by_name")
+        );
+        assertWarmCountShortCircuits(dataset, total);
+    }
+
+    /**
+     * A declaration naming a column no file carries. The overlay appends it to every per-file read schema and, for
+     * CSV and TSV, upgrades the binding to by-name - so the read the data node performs differs from the inferred
+     * one in its provenance as well as its columns. Both are hashed, so a derivation that dropped either would
+     * address a read nothing performs.
+     * <p>
+     * This is the only shape in the class that covers the provenance upgrade end to end.
+     */
+    public void testDeclaringAnAbsentColumnWarmsCount() throws Exception {
+        Path dir = createTempDir();
+        long total = writeCsvCorpus(dir, false);
+        LinkedHashMap<String, DatasetFieldMapping> absent = new LinkedHashMap<>();
+        absent.put("not_in_any_file", new DatasetFieldMapping("keyword", null));
+        String dataset = registerNonStrictDataset(
+            "absent_declared_csv",
+            globUri(dir, "*.csv"),
+            absent,
+            nullFieldSettings("first_file_wins")
         );
         assertWarmCountShortCircuits(dataset, total);
     }

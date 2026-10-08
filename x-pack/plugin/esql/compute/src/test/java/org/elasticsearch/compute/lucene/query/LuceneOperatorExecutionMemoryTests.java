@@ -15,13 +15,13 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
@@ -173,7 +173,7 @@ public class LuceneOperatorExecutionMemoryTests extends ComputeTestCase {
                 searcher.setCircuitBreaker(breaker);
 
                 List<Page> pages = new ArrayList<>();
-                LuceneSourceOperator.Factory source = factory(searcher, List.of(new MatchAllDocsQuery()), DataPartitioning.SHARD, 1);
+                LuceneSourceOperator.Factory source = factory(searcher, List.of(Queries.ALL_DOCS_INSTANCE), DataPartitioning.SHARD, 1);
                 try (LuceneSourceOperator operator = (LuceneSourceOperator) source.get(driverContext())) {
                     while (operator.isFinished() == false) {
                         Page page = operator.getOutput();

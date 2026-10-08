@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 144400
+pr: 160905
+summary: Union types lenient casting
+type: enhancement

@@ -92,6 +92,35 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
 
     abstract Map<String, Sample> samples();
 
+    /**
+     * Renders {@code [type] in [indices]} clauses for the given source type names, with the same index truncation as
+     * {@link #errorMessage()}.
+     * <p>
+     * For {@code long} in {@code idx1} and {@code idx2}, and {@code keyword} in {@code idx3}, this returns
+     * {@code [long] in [idx1, idx2], [keyword] in [idx3]}.
+     */
+    public String describeTypes(Set<String> typeNames) {
+        StringBuilder sb = new StringBuilder();
+        boolean first = true;
+        for (Map.Entry<String, Sample> entry : samples().entrySet()) {
+            if (typeNames.contains(entry.getKey()) == false) {
+                continue;
+            }
+            if (first == false) {
+                sb.append(", ");
+            }
+            first = false;
+            sb.append("[").append(entry.getKey()).append("] in ");
+            Sample sample = entry.getValue();
+            sb.append(sample.kept());
+            int extras = sample.total() - sample.kept().size();
+            if (extras > 0) {
+                sb.append(" and [").append(extras).append("] other ").append(sample.total() == 4 ? "index" : "indices");
+            }
+        }
+        return sb.toString();
+    }
+
     record Sample(Collection<String> kept, int total) {}
 
     private String makeErrorMessage() {

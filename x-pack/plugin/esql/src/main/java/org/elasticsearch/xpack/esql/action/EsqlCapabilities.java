@@ -4307,6 +4307,13 @@ public class EsqlCapabilities {
          */
         EXTERNAL_DATASET_DATE_NANOS_BARE_NUMBER_IS_EPOCH_MILLIS,
 
+        /**
+         * Explicit casts ({@code ::type} and {@code TO_*} functions) on a union-typed field are lenient: index branches whose
+         * mapped type cannot convert to the target load as {@code null} (with a response warning) instead of failing the query.
+         * The query still fails, with an error naming the mapped types, when no branch can convert.
+         */
+        UNION_TYPES_LENIENT_CAST,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

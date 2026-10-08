@@ -644,6 +644,11 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(QuerySettings.COLUMN_METADATA.aliases().isEmpty(), is(true));
     }
 
+    public void testExemplarsIsRequestBodyExposedWithoutAlias() {
+        assertThat(QuerySettings.EXEMPLARS.requestBody(), is(true));
+        assertThat(QuerySettings.EXEMPLARS.aliases().isEmpty(), is(true));
+    }
+
     public void testResolveColumnMetadataDefault() {
         // Nothing supplied it anywhere (no body, no SET) — the registered default applies.
         ResolvedSettings resolved = QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);

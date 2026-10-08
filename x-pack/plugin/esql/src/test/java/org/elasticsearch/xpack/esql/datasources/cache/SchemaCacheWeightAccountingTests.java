@@ -47,6 +47,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             meta,
             Map.of(),
             0L,
+            List.of(),
             List.of()
         );
     }
@@ -85,6 +86,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             meta,
             Map.of(),
             0L,
+            List.of(),
             List.of()
         );
         SchemaCacheEntry longName = new SchemaCacheEntry(
@@ -97,6 +99,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             meta,
             Map.of(),
             0L,
+            List.of(),
             List.of()
         );
         assertThat(longName.estimatedBytes(), greaterThan(shortName.estimatedBytes()));
@@ -113,6 +116,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             Map.of(),
             Map.of("k", "a"),
             0L,
+            List.of(),
             List.of()
         );
         SchemaCacheEntry large = new SchemaCacheEntry(
@@ -125,6 +129,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             Map.of(),
             Map.of("k", "x".repeat(50_000)),
             0L,
+            List.of(),
             List.of()
         );
         assertThat(large.estimatedBytes(), greaterThan(small.estimatedBytes()));
@@ -151,6 +156,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             emptyStripes,
             Map.of(),
             0L,
+            List.of(),
             List.of()
         );
         SchemaCacheEntry striped = new SchemaCacheEntry(
@@ -163,6 +169,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             withStripes,
             Map.of(),
             0L,
+            List.of(),
             List.of()
         );
         assertThat(
@@ -204,6 +211,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
                         meta,
                         Map.of(),
                         0L,
+                        List.of(),
                         List.of()
                     )
                 );
@@ -302,6 +310,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
                     meta,
                     Map.of(),
                     0L,
+                    List.of(),
                     List.of()
                 );
                 assertThat(entry.estimatedBytes(), lessThanOrEqualTo(maxEntry));
@@ -386,6 +395,7 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
             meta,
             Map.of(),
             0L,
+            List.of(),
             List.of()
         );
     }

@@ -62,8 +62,21 @@ def remoteDatasetInvisibleTest = tasks.register("remoteDatasetInvisibleTest", St
     includeTestsMatching remoteDatasetInvisibleTestPattern
   }
 }
+// PromQL label removal between current clusters, where it edits each series' one _timeseries: the bwc tasks only ever
+// pair a current cluster with an older one, which takes the older translation.
+def promqlTimeSeriesCurrentToCurrent = tasks.register("promqlTimeSeriesCurrentToCurrent", StandaloneRestIntegTestTask) {
+  systemProperty("tests.version.remote_cluster", currentVersion)
+  systemProperty("tests.version.local_cluster", currentVersion)
+  maxParallelForks = 1
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  filter {
+    includeTestsMatching "org.elasticsearch.xpack.esql.ccq.MultiClusterPromqlTimeSeriesIT"
+  }
+}
 tasks.named("check").configure {
   dependsOn remoteDatasetInvisibleTest
+  dependsOn promqlTimeSeriesCurrentToCurrent
   dependsOn currentToCurrent
 }
 

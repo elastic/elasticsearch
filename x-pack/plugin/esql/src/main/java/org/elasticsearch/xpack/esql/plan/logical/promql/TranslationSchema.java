@@ -14,15 +14,15 @@ import java.util.Set;
 
 /**
  * The label requirement a parent translation places on a child: the promoted labels it requires by name, each its own
- * column, and optionally the time-series metadata - every other label, encoded in a {@code _timeseries} column -
+ * column, and optionally the rest - every other label, encoded as time-series metadata in a {@code _timeseries} column -
  * once per exclusion set. This is strictly a top-down propagation mechanism: a parent passes a requirement down and then
  * reads whatever it needs off the child plan's output.
  * It is a selection, not an inventory of storage projections: combining requirements only combines
- * their label names and exclusion sets, without creating physical record projections. The metadata may overlap the
+ * their label names and exclusion sets, without creating physical record projections. The rest may overlap the
  * promoted names.
  *
  * @param labels promoted label reads
- * @param skips exclusion sets of the metadata, one per {@code _timeseries} column
+ * @param skips exclusion sets of the rest, one per {@code _timeseries} column
  */
 public record TranslationSchema(Set<String> labels, Set<Set<String>> skips) {
     /** No columns: a scalar's constraint, and the identity of {@link #newConstraintUnion}. */
@@ -42,17 +42,17 @@ public record TranslationSchema(Set<String> labels, Set<Set<String>> skips) {
         return new TranslationSchema(new LinkedHashSet<>(names), Set.of());
     }
 
-    /** The metadata with {@code skip} unset, encoded in a {@code _timeseries} column; with nothing unset, the whole metadata. */
+    /** The rest except {@code skip}, encoded in a {@code _timeseries} column; an empty skip set is the whole rest. */
     public static TranslationSchema newConstraintUnset(Collection<String> skip) {
         return new TranslationSchema(Set.of(), Set.of(new LinkedHashSet<>(skip)));
     }
 
-    /** The whole metadata, nothing unset: every label, encoded in the {@code _timeseries} column. */
+    /** The whole rest: every label, encoded in the {@code _timeseries} column. */
     public static TranslationSchema newConstraintUnset() {
         return newConstraintUnset(Set.of());
     }
 
-    /** Merge two constraints: promoted labels and metadata exclusion sets combined. */
+    /** Merge two constraints: promoted labels and exclusion sets of the rest combined. */
     public static TranslationSchema newConstraintUnion(TranslationSchema a, TranslationSchema b) {
         var mergedLabels = new LinkedHashSet<>(a.labels);
         mergedLabels.addAll(b.labels);
@@ -63,7 +63,7 @@ public record TranslationSchema(Set<String> labels, Set<Set<String>> skips) {
 
     /**
      * A constraint transposed below a node that drops {@code keys}: the dropped labels are no longer promoted, and every
-     * metadata {@code _timeseries} column must already exclude them to survive the regroup.
+     * {@code _timeseries} column of the rest must already exclude them to survive the regroup.
      */
     public static TranslationSchema newConstraintSub(TranslationSchema constraint, Collection<String> keys) {
         var remaining = new LinkedHashSet<>(constraint.labels);
@@ -79,7 +79,7 @@ public record TranslationSchema(Set<String> labels, Set<Set<String>> skips) {
 
     /**
      * The columns of a constraint that survive a node dropping {@code keys}: promoted labels outside the set and the
-     * metadata {@code _timeseries} columns already excluding all of it. The upward counterpart of {@link #newConstraintSub}.
+     * {@code _timeseries} columns of the rest already excluding all of it. The upward counterpart of {@link #newConstraintSub}.
      */
     public static TranslationSchema newConstraintIntersect(TranslationSchema constraint, Collection<String> keys) {
         var remaining = new LinkedHashSet<>(constraint.labels);
@@ -93,14 +93,25 @@ public record TranslationSchema(Set<String> labels, Set<Set<String>> skips) {
         return new TranslationSchema(remaining, covering);
     }
 
-    /** Only the promoted labels among {@code names}; the metadata unchanged. Trims what a child exposes to what is required. */
+    /**
+     * A constraint without {@code keys}: the promoted labels outside the set, the rest unchanged. Where the series' one
+     * {@code _timeseries} is edited in place ({@code TimeSeriesUnset}), a node dropping labels unsets them itself, so the
+     * child keeps carrying its whole rest instead of one already excluding them ({@link #newConstraintSub}).
+     */
+    public static TranslationSchema newConstraintExclude(TranslationSchema constraint, Collection<String> keys) {
+        var remaining = new LinkedHashSet<>(constraint.labels);
+        remaining.removeAll(keys);
+        return new TranslationSchema(remaining, constraint.skips);
+    }
+
+    /** Only the promoted labels among {@code names}; the rest unchanged. Trims what a child exposes to what is required. */
     public static TranslationSchema newConstraintProject(TranslationSchema constraint, Collection<String> names) {
         var retained = new LinkedHashSet<>(constraint.labels);
         retained.retainAll(names);
         return new TranslationSchema(retained, constraint.skips);
     }
 
-    /** True when this constraint carries metadata, in at least one {@code _timeseries} column. */
+    /** True when this constraint carries the rest, in at least one {@code _timeseries} column. */
     public boolean hasMetadata() {
         return skips.isEmpty() == false;
     }

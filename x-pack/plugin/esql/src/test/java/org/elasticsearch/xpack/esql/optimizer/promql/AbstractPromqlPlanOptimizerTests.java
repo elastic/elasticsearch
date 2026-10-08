@@ -14,8 +14,11 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesUnset;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -25,6 +28,8 @@ import org.hamcrest.Matcher;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -118,5 +123,31 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
             )
             .map(Expressions::name)
             .toList();
+    }
+
+    /**
+     * Whether this instance's analyzer edits one {@code _timeseries} per node with {@code TimeSeriesUnset}
+     * ({@code TranslationContext#supportsTimeSeriesUnset}): the current version does, every released one (the historical mode)
+     * still asks the source for one {@code _timeseries} per exclusion set.
+     */
+    protected boolean supportsTimeSeriesUnset() {
+        return minimumVersionAtLeast(TimeSeriesCollapse.TS_COLLAPSE).supports(TimeSeriesUnset.ESQL_TIMESERIES_METADATA_UNSET);
+    }
+
+    /** The {@code _timeseries} metadata attributes the relations of {@code plan} read from the source. */
+    protected static List<TimeSeriesMetadataAttribute> sourceRecords(LogicalPlan plan) {
+        return plan.collect(EsRelation.class)
+            .stream()
+            .flatMap(relation -> relation.output().stream())
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(TimeSeriesMetadataAttribute.class::cast)
+            .toList();
+    }
+
+    /** The field names the {@link TimeSeriesUnset}s of {@code plan} unset. */
+    protected static Set<String> unsetDimensions(LogicalPlan plan) {
+        var names = new TreeSet<String>();
+        plan.forEachExpressionDown(TimeSeriesUnset.class, unset -> names.addAll(unset.dimensionNames()));
+        return names;
     }
 }

@@ -81,15 +81,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         var aggregates = plan.collect(Aggregate.class);
         assertThat(aggregates, not(empty()));
 
-        var timeSeriesMetadata = plan.collect(EsRelation.class)
-            .stream()
-            .flatMap(relation -> relation.output().stream())
-            .filter(TimeSeriesMetadataAttribute.class::isInstance)
-            .map(TimeSeriesMetadataAttribute.class::cast)
-            .findFirst()
-            .orElse(null);
-        assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), hasItem("pod"));
+        assertExcluded(plan, "pod");
     }
 
     /**
@@ -150,15 +142,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             planPromql("PROMQL index=k8s step=1h result=(sum without (pod, event) (network.bytes_in))", false)
         );
 
-        var timeSeriesMetadata = plan.collect(EsRelation.class)
-            .stream()
-            .flatMap(relation -> relation.output().stream())
-            .filter(TimeSeriesMetadataAttribute.class::isInstance)
-            .map(TimeSeriesMetadataAttribute.class::cast)
-            .findFirst()
-            .orElse(null);
-        assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), hasItems("pod", "event"));
+        assertExcluded(plan, "pod", "event");
     }
 
     public void testWithoutGroupingSurvivesDataNodePlanSerialization() {
@@ -177,7 +161,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
             .toList();
         assertThat(fragment.toString(), fragmentPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(fragmentPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
+        assertSourceExcludes(as(fragmentPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), "pod");
         PhysicalPlan deserializedDataNodePlan = SerializationTestUtils.serializeDeserialize(
             dataNodePlan,
             StreamOutput::writeNamedWriteable,
@@ -193,7 +177,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
             .toList();
         assertThat(deserializedFragment.toString(), deserializedPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(deserializedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
+        assertSourceExcludes(as(deserializedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), "pod");
 
         var localLogical = new LocalLogicalPlanOptimizer(
             new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), SearchStats.EMPTY)
@@ -207,7 +191,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
             .toList();
         assertThat(localizedFragment.toString(), localizedPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(localizedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
+        assertSourceExcludes(as(localizedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), "pod");
 
         PhysicalPlan mappedLocalizedFragment = LocalMapper.INSTANCE.map(localizedFragment);
         var mappedPackedTimeSeriesValues = mappedLocalizedFragment.collect(
@@ -220,7 +204,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
             .toList();
         assertThat(mappedLocalizedFragment.toString(), mappedPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(mappedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
+        assertSourceExcludes(as(mappedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), "pod");
 
         var localPhysical = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(
@@ -244,7 +228,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(extractedTimeSeries.fieldName().string(), equalTo(SourceFieldMapper.NAME));
         FunctionEsField extractedField = as(extractedTimeSeries.field(), FunctionEsField.class);
         var functionConfig = as(extractedField.functionConfig(), BlockLoaderFunctionConfig.TimeSeriesMetadata.class);
-        assertThat(functionConfig.skipFieldNames(), hasItem("pod"));
+        assertSourceExcludes(functionConfig.skipFieldNames(), "pod");
     }
 
     public void testNestedWithoutOverByProducesConcreteOutput() {
@@ -271,7 +255,13 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
         var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
         assertThat(tsmaList, hasSize(1));
-        assertEquals(((TimeSeriesMetadataAttribute) tsmaList.getFirst()).excludedFields(), Set.of("pod"));
+        assertEquals(
+            ((TimeSeriesMetadataAttribute) tsmaList.getFirst()).excludedFields(),
+            supportsTimeSeriesUnset() ? Set.of() : Set.of("pod")
+        );
+        if (supportsTimeSeriesUnset()) {
+            assertThat(unsetDimensions(analyzed), hasItem("pod"));
+        }
         TimeSeriesAggregate innerAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(
             packedDims(innerAggregate.aggregates()).stream()
@@ -362,15 +352,9 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             planPromql("PROMQL index=otel-metrics step=1h result=(sum without (cpu) (metrics.system.cpu.time))", false)
         );
 
-        var timeSeriesMetadata = plan.collect(EsRelation.class)
-            .stream()
-            .flatMap(relation -> relation.output().stream())
-            .filter(TimeSeriesMetadataAttribute.class::isInstance)
-            .map(TimeSeriesMetadataAttribute.class::cast)
-            .findFirst()
-            .orElse(null);
-        assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), hasItem("cpu"));
+        // On every version: the plan can't resolve the alias, so the source excludes it, per shard
+        assertThat(sourceRecords(plan).getFirst().excludedFields(), hasItem("cpu"));
+        assertThat(unsetDimensions(plan), empty());
     }
 
     /**
@@ -385,15 +369,9 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             planPromql("PROMQL index=otel-metrics step=1h result=(sum without (host.name) (metrics.system.cpu.time))", false)
         );
 
-        var timeSeriesMetadata = plan.collect(EsRelation.class)
-            .stream()
-            .flatMap(relation -> relation.output().stream())
-            .filter(TimeSeriesMetadataAttribute.class::isInstance)
-            .map(TimeSeriesMetadataAttribute.class::cast)
-            .findFirst()
-            .orElse(null);
-        assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), hasItem("host.name"));
+        // On every version: the plan can't resolve the alias, so the source excludes it, per shard
+        assertThat(sourceRecords(plan).getFirst().excludedFields(), hasItem("host.name"));
+        assertThat(unsetDimensions(plan), empty());
     }
 
     public void testWithoutTrailingCommaPlans() {
@@ -421,5 +399,28 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
     public void testScalarOverMaxOfWithoutProducesScalarOutput() {
         var plan = planPromql("PROMQL index=k8s step=1h result=(scalar(max(sum without (pod, region) (avg_over_time(network.cost[1h])))))");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+    }
+
+    /**
+     * Asserts that {@code plan} drops {@code labels} from its series' identity: before {@code TimeSeriesUnset}, from the
+     * {@code _timeseries} the source loads; from it on, by unsetting them from the series' one whole {@code _timeseries}.
+     */
+    private void assertExcluded(LogicalPlan plan, String... labels) {
+        List<TimeSeriesMetadataAttribute> records = sourceRecords(plan);
+        assertThat(records, not(empty()));
+        assertSourceExcludes(records.getFirst().excludedFields(), labels);
+        if (supportsTimeSeriesUnset()) {
+            assertThat(records, hasSize(1));
+            assertThat(unsetDimensions(plan), hasItems(labels));
+        }
+    }
+
+    /** Before {@code TimeSeriesUnset} the source excludes {@code labels} itself; from it on, it loads the whole _timeseries. */
+    private void assertSourceExcludes(Set<String> excluded, String... labels) {
+        if (supportsTimeSeriesUnset()) {
+            assertThat(excluded, empty());
+        } else {
+            assertThat(excluded, hasItems(labels));
+        }
     }
 }

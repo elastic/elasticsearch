@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.Inter
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROMETHEUS_LABELS_PREFIX;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintExclude;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintSub;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintUnion;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintUnset;
@@ -90,10 +91,21 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
         // Classic histogram functions collapse the `le` bucket dimension like a `without (le)` would, and read the
         // bucket bound off the `le` column itself, so the child must also expose it by name.
         List<String> le = List.of(HistogramFunctionCall.LE_LABEL);
-        TranslationSchema childRequired = newConstraintUnion(
-            newConstraintUnion(newConstraintSub(context.required(), le), newConstraintUnset(le)),
-            newConstraintWithPromoted(le)
-        );
+        TranslationSchema childRequired;
+        if (context.supportsTimeSeriesUnset()) {
+            // One _timeseries per node: the child carries its series' whole _timeseries, and `le` is unset from it below,
+            // where the buckets merge.
+            childRequired = newConstraintUnion(
+                newConstraintUnion(newConstraintExclude(context.required(), le), newConstraintUnset()),
+                newConstraintWithPromoted(le)
+            );
+        } else {
+            // The child delivers the _timeseries already excluding `le`, one _timeseries per exclusion set.
+            childRequired = newConstraintUnion(
+                newConstraintUnion(newConstraintSub(context.required(), le), newConstraintUnset(le)),
+                newConstraintWithPromoted(le)
+            );
+        }
         IntermediateResult result = context.withRequired(childRequired).translate(child());
         if (result.kind().constant) {
             return result;
@@ -124,7 +136,14 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
         }
 
         // Bucket counts are consumed as doubles; counter buckets are frequently integer/long typed, so cast explicitly.
-        TranslationSchema requirement = context.newConstraintForRegroupWithout(TranslationContext.newConstraintDeliveredBy(result), le);
+        TranslationSchema delivered = TranslationContext.newConstraintDeliveredBy(result);
+        TranslationSchema requirement;
+        if (context.supportsTimeSeriesUnset()) {
+            requirement = context.newConstraintForRegroupUnset(delivered, le);
+            result = result.withUnsetLabels(context, le);
+        } else {
+            requirement = context.newConstraintForRegroupWithout(delivered, le);
+        }
         Expression count = new ToDouble(source(), result.value());
         return result.withRegroup(context, requirement, true, buildAggregateFunction(count, leColumn));
     }

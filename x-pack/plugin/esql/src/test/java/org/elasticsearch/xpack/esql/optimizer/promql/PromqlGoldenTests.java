@@ -22,6 +22,7 @@ public class PromqlGoldenTests extends GoldenTestCase {
     private static final String DIMENSION_VALUES = "dimension_values";
     private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
     private static final String PACK_DIMS_AGG = "pack_dims_agg";
+    private static final String ESQL_TIMESERIES_METADATA_UNSET = "esql_timeseries_metadata_unset";
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
@@ -129,6 +130,16 @@ public class PromqlGoldenTests extends GoldenTestCase {
         builder("PROMQL index=k8s step=1h result=(topk(2, sum by (pod) (network.bytes_in)))").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .run();
+    }
+
+    public void testSumWithout() {
+        assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        assumeTrue("requires PromQL without support", EsqlCapabilities.Cap.PROMQL_WITHOUT_GROUPING.isEnabled());
+        builder("PROMQL index=k8s step=1h result=(sum without (pod) (network.bytes_in))").expectationChangesAt(DIMENSION_VALUES)
+            .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
+            .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(ESQL_TIMESERIES_METADATA_UNSET)
             .run();
     }
 

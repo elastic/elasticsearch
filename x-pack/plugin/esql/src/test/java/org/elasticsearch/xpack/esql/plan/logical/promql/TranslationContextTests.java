@@ -7,16 +7,20 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesUnset;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
@@ -26,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.Inter
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintExclude;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintIntersect;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintProject;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintSub;
@@ -220,5 +225,22 @@ public class TranslationContextTests extends ESTestCase {
 
     private static Attribute attr(String name) {
         return new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD);
+    }
+
+    public void testTimeSeriesUnsetOnlyOnceEveryNodeSupportsIt() {
+        TransportVersion unset = TimeSeriesUnset.ESQL_TIMESERIES_METADATA_UNSET;
+        assertFalse(TranslationContext.supportsTimeSeriesUnset(FieldAttribute.ESQL_TIMESERIES_METADATA_ATTRIBUTE));
+        assertFalse(TranslationContext.supportsTimeSeriesUnset(TransportVersionUtils.getPreviousVersion(unset)));
+        assertTrue(TranslationContext.supportsTimeSeriesUnset(unset));
+        assertTrue(TranslationContext.supportsTimeSeriesUnset(TransportVersion.current()));
+    }
+
+    /** Unlike {@link TranslationSchema#newConstraintSub}, excluding labels keeps the one {@code _timeseries} as it is. */
+    public void testExcludeDropsLabelsAndKeepsTheTimeSeries() {
+        TranslationSchema required = newConstraintUnion(newConstraintWithPromoted(List.of("pod", "cluster")), newConstraintUnset());
+        TranslationSchema excluded = newConstraintExclude(required, List.of("pod"));
+        assertThat(excluded.labels(), contains("cluster"));
+        assertThat(excluded.skips(), contains(Set.of()));
+        assertThat(newConstraintSub(required, List.of("pod")).skips(), contains(Set.of("pod")));
     }
 }

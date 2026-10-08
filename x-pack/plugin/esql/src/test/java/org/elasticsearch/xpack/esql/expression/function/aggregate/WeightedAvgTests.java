@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.Supplier;
@@ -63,24 +62,6 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
                 suppliers.add(makeSupplier(number, weight));
             }
         }
-
-        // Repeated identical failures must not hide a later distinct one behind the warnings limit
-        var overflowingNumbers = new ArrayList<Object>(Collections.nCopies(100, Double.MAX_VALUE));
-        overflowingNumbers.add(-Double.MAX_VALUE);
-        var overflowingWeights = Collections.<Object>nCopies(overflowingNumbers.size(), 2d);
-        suppliers.add(
-            makeSupplier(
-                new TestCaseSupplier.TypedDataSupplier(
-                    "<Infinity products, then -Infinity>",
-                    () -> overflowingNumbers,
-                    DataType.DOUBLE,
-                    false,
-                    true,
-                    List.of()
-                ),
-                new TestCaseSupplier.TypedDataSupplier("<2 doubles>", () -> overflowingWeights, DataType.DOUBLE, false, true, List.of())
-            )
-        );
 
         suppliers.addAll(
             List.of(

@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.startsWith;
 
 public class AsyncCountersAdapterTests extends ESTestCase {
     RecordingOtelMeter otelMeter;
@@ -40,7 +39,10 @@ public class AsyncCountersAdapterTests extends ESTestCase {
     // testing that a value reported is then used in a callback
     public void testLongAsyncCounter() throws Exception {
         AtomicReference<LongWithAttributes> attrs = new AtomicReference<>();
-        LongAsyncCounter longAsyncCounter = registry.registerLongAsyncCounter("es.test.name.total", "desc", "unit", attrs::get);
+        LongAsyncCounter longAsyncCounter = registry.registerLongAsyncCounter("es.test.name.total", "desc", "unit", measurement -> {
+            LongWithAttributes observed = attrs.get();
+            measurement.record(observed.value(), observed.attributes());
+        });
 
         attrs.set(new LongWithAttributes(1L, Map.of("es_test_attribute", 1L)));
 
@@ -72,7 +74,10 @@ public class AsyncCountersAdapterTests extends ESTestCase {
 
     public void testDoubleAsyncAdapter() throws Exception {
         AtomicReference<DoubleWithAttributes> attrs = new AtomicReference<>();
-        DoubleAsyncCounter doubleAsyncCounter = registry.registerDoubleAsyncCounter("es.test.name.total", "desc", "unit", attrs::get);
+        DoubleAsyncCounter doubleAsyncCounter = registry.registerDoubleAsyncCounter("es.test.name.total", "desc", "unit", measurement -> {
+            DoubleWithAttributes observed = attrs.get();
+            measurement.record(observed.value(), observed.attributes());
+        });
 
         attrs.set(new DoubleWithAttributes(1.0, Map.of("es_test_attribute", 1.0)));
 
@@ -103,18 +108,8 @@ public class AsyncCountersAdapterTests extends ESTestCase {
     }
 
     public void testZeroValuedAsyncCountersAreNotRecorded() {
-        LongAsyncCounter longCounter = registry.registerLongAsyncCounter(
-            "es.test.long.total",
-            "desc",
-            "unit",
-            () -> new LongWithAttributes(0L)
-        );
-        DoubleAsyncCounter doubleCounter = registry.registerDoubleAsyncCounter(
-            "es.test.double.total",
-            "desc",
-            "unit",
-            () -> new DoubleWithAttributes(0.0)
-        );
+        LongAsyncCounter longCounter = registry.registerLongAsyncCounter("es.test.long.total", "desc", "unit", () -> 0L);
+        DoubleAsyncCounter doubleCounter = registry.registerDoubleAsyncCounter("es.test.double.total", "desc", "unit", () -> 0.0);
 
         otelMeter.collectMetrics();
 
@@ -123,7 +118,12 @@ public class AsyncCountersAdapterTests extends ESTestCase {
     }
 
     public void testLongWithInvalidAttribute() {
-        registry.registerLongAsyncCounter("es.test.name.total", "desc", "unit", () -> new LongWithAttributes(1, Map.of("index", "index1")));
+        registry.registerLongAsyncCounter(
+            "es.test.name.total",
+            "desc",
+            "unit",
+            measurement -> measurement.record(1, Map.of("index", "index1"))
+        );
 
         AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
         assertThat(error.getMessage(), containsString("Attribute [index] of [es.test.name.total] is forbidden"));
@@ -134,35 +134,15 @@ public class AsyncCountersAdapterTests extends ESTestCase {
             "es.test.name.total",
             "desc",
             "unit",
-            () -> new DoubleWithAttributes(1.0, Map.of("es_has_timestamp", "false"))
+            measurement -> measurement.record(1.0, Map.of("es_has_timestamp", "false"))
         );
 
         AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
         assertThat(error.getMessage(), containsString("Attribute [es_has_timestamp] of [es.test.name.total] is forbidden"));
     }
 
-    public void testNullRecord() {
-        DoubleAsyncCounter dcounter = registry.registerDoubleAsyncCounter("es.test.name.total", "desc", "unit", () -> null);
-        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
-        dcounter.close();
-
-        LongAsyncCounter lcounter = registry.registerLongAsyncCounter("es.test.name.total", "desc", "unit", () -> null);
-        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
-        lcounter.close();
-    }
-
-    public void testNullRecords() {
-        DoubleAsyncCounter dcounter = registry.registerDoublesAsyncCounter("es.test.name.total", "desc", "unit", () -> null);
-        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
-        dcounter.close();
-
-        LongAsyncCounter lcounter = registry.registerLongsAsyncCounter("es.test.name.total", "desc", "unit", () -> null);
-        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
-        lcounter.close();
-    }
-
     public void testLongAsyncCounterIsRemovedFromTheRegistryAfterClosing() throws Exception {
-        var counter = registry.registerLongAsyncCounter("es.test.name.total", "desc", "thingies", () -> new LongWithAttributes(42));
+        var counter = registry.registerLongAsyncCounter("es.test.name.total", "desc", "thingies", () -> 42L);
 
         otelMeter.collectMetrics();
         var metrics = otelMeter.getRecorder().getMeasurements(counter);
@@ -180,7 +160,7 @@ public class AsyncCountersAdapterTests extends ESTestCase {
     }
 
     public void testDoubleAsyncCounterIsRemovedFromTheRegistryAfterClosing() throws Exception {
-        var counter = registry.registerDoubleAsyncCounter("es.test.name.total", "desc", "thingies", () -> new DoubleWithAttributes(42.0));
+        var counter = registry.registerDoubleAsyncCounter("es.test.name.total", "desc", "thingies", () -> 42.0);
 
         otelMeter.collectMetrics();
         var metrics = otelMeter.getRecorder().getMeasurements(counter);

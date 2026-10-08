@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
@@ -18,6 +20,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ColumnStatTypeSupport;
@@ -40,6 +43,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Consumer;
 import java.util.function.LongFunction;
 
 /**
@@ -49,11 +53,11 @@ import java.util.function.LongFunction;
  *       {@code (path, mtime, config)}. No time expiry: a changed file has a new mtime, hence a new key.</li>
  *   <li>Dataset-aggregate cache (~2% of budget) — the memoized whole-dataset row count, keyed by the
  *       file-set fingerprint. No time expiry; kept separate so per-file churn cannot evict it.</li>
- *   <li>File-metadata cache (count-bounded, 30s TTL) — {@code {length, mtime}} per path, so a repeated
- *       resolve skips the stat. Like listing it is freshness-discovery (it holds the CURRENT mtime, which
- *       gates the identity-keyed caches above), so it keeps a short TTL.</li>
- *   <li>Listing cache (~78% of budget, 30s TTL) — the file set under a prefix, isolated by credential
- *       hash. Discovers file identity and has no per-file key to invalidate on, hence the TTL.</li>
+ *   <li>File-metadata cache (count-bounded, listing TTL, five minutes by default) — {@code {length, mtime}}
+ *       per path, so a repeated resolve skips the stat. Like listing it is freshness-discovery (it holds the
+ *       CURRENT mtime, which gates the identity-keyed caches above), so it keeps that TTL.</li>
+ *   <li>Listing cache (~78% of budget, five minutes by default) — the file set under a prefix, isolated by
+ *       credential hash. Discovers file identity and has no per-file key to invalidate on, hence the TTL.</li>
  * </ul>
  * The identity-keyed caches (schema, dataset-aggregate) are bounded by weight + LRU, never by a clock — a
  * timer would only discard still-valid, expensively harvested entries. Both also refuse a single entry
@@ -75,6 +79,8 @@ public class ExternalSourceCacheService implements Closeable {
     private final Cache<SchemaCacheKey, SchemaCacheEntry> datasetAggregateCache;
     private final Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache;
     private final Cache<ListingCacheKey, FileList> listingCache;
+    /** In-flight async listings: concurrent cold misses for the same key share one compute. */
+    private final ConcurrentHashMap<ListingCacheKey, SubscribableListener<FileList>> inFlightListings = new ConcurrentHashMap<>();
     private final long maxTotalBytes;
     /** Byte budget for {@link #schemaCache} (one fifth of {@link #maxTotalBytes}). */
     private final long schemaBudget;
@@ -161,6 +167,7 @@ public class ExternalSourceCacheService implements Closeable {
     private final LongAdder datasetAggregateHits = new LongAdder();
     private final LongAdder datasetAggregateMisses = new LongAdder();
     private final LongAdder statsAggregateIncomplete = new LongAdder();
+    private final LongAdder schemaFanOutRefused = new LongAdder();
 
     /**
      * Soft floor for {@link #perEntryCeiling(long)}: when a cache slice is deliberately tiny (warm-fold
@@ -356,6 +363,11 @@ public class ExternalSourceCacheService implements Closeable {
         putSchemaIfWithinCeiling(key, entry);
     }
 
+    /** Byte budget of the per-file schema cache (one fifth of the external cache). */
+    public long schemaBudget() {
+        return schemaBudget;
+    }
+
     /**
      * Inserts into {@link #schemaCache} only when {@code entry} fits under {@link #schemaMaxEntryBytes}.
      * Every schema write site must go through this (or an equivalent check) — admit-then-invalidate would
@@ -416,6 +428,7 @@ public class ExternalSourceCacheService implements Closeable {
             Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount),
             Map.of(),
             System.currentTimeMillis(),
+            List.of(),
             List.of()
         );
         if (entry.estimatedBytes() > datasetAggregateMaxEntryBytes) {
@@ -505,6 +518,23 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
+     * Counts a schema fan-out whose entries were refused: the listing's file count times the first entry's
+     * size overran {@link #schemaBudget}, so none of the gather's entries will be retained. One increment per
+     * gather, because the verdict is taken once and latched.
+     * <p>
+     * Reported because the verdict now forks the read path, not just the cache: a refused fan-out is one of
+     * the conditions that licenses the resolver to stop reading per-file metadata (see
+     * {@code ExternalSourceResolver#remainingReadsBuyNothing}), and the budget it was compared against is
+     * already reported as {@code schema_budget_bytes}.
+     * <p>
+     * This map has no REST surface today - every caller of {@link #usageStats()} is a test - so the counter
+     * serves tests, and the DEBUG line at the refusal site is what a running node offers.
+     */
+    public void recordSchemaFanOutRefused() {
+        schemaFanOutRefused.increment();
+    }
+
+    /**
      * Counts a dataset-aggregate fallback that was NEEDED (the per-file merge came back incomplete) AND
      * PRESENT — i.e. the memoized aggregate was actually served. Resolver-driven and symmetric with
      * {@link #recordDatasetAggregateMiss} so that {@code hits / (hits + misses)} is a true fallback hit
@@ -535,6 +565,65 @@ public class ExternalSourceCacheService implements Closeable {
             return loader.load(key);
         }
         return listingCache.computeIfAbsent(key, loader);
+    }
+
+    /**
+     * Async variant of {@link #getOrComputeListing} with in-flight coalescing: concurrent cold misses for
+     * the same key share one {@code compute} invocation rather than each spawning a separate fan-out.
+     * Failures are never cached. When the leader's compute fails with a
+     * {@link TaskCancelledException} — because the leader query was cancelled — followers retry via a
+     * recursive call rather than inheriting the cancellation, so an unrelated query is not failed.
+     */
+    public void getOrComputeListingAsync(
+        ListingCacheKey key,
+        Consumer<ActionListener<FileList>> compute,
+        ActionListener<FileList> listener
+    ) {
+        if (enabled == false) {
+            compute.accept(listener);
+            return;
+        }
+        FileList cached = listingCache.get(key);
+        if (cached != null) {
+            listener.onResponse(cached);
+            return;
+        }
+        SubscribableListener<FileList> newFuture = new SubscribableListener<>();
+        SubscribableListener<FileList> existing = inFlightListings.putIfAbsent(key, newFuture);
+        if (existing != null) {
+            // Follower: if the leader was cancelled, retry rather than inheriting its TaskCancelledException.
+            existing.addListener(ActionListener.wrap(listener::onResponse, e -> {
+                if (e instanceof TaskCancelledException) {
+                    getOrComputeListingAsync(key, compute, listener);
+                } else {
+                    listener.onFailure(e);
+                }
+            }));
+            return;
+        }
+        // Re-check the cache after acquiring leadership: a concurrent leader may have completed and removed
+        // itself from inFlightListings between our initial cache-miss check and the putIfAbsent above.
+        FileList racedResult = listingCache.get(key);
+        if (racedResult != null) {
+            inFlightListings.remove(key, newFuture);
+            listener.onResponse(racedResult);
+            return;
+        }
+        newFuture.addListener(listener);
+        // Catch a synchronous throw from compute so neither the in-flight entry nor the listener is orphaned.
+        try {
+            compute.accept(ActionListener.wrap(result -> {
+                listingCache.put(key, result);
+                inFlightListings.remove(key, newFuture);
+                newFuture.onResponse(result);
+            }, e -> {
+                inFlightListings.remove(key, newFuture);
+                newFuture.onFailure(e);
+            }));
+        } catch (Exception e) {
+            inFlightListings.remove(key, newFuture);
+            newFuture.onFailure(e);
+        }
     }
 
     /**
@@ -839,8 +928,9 @@ public class ExternalSourceCacheService implements Closeable {
             return Map.of(); // no sibling to evict — the fallback is never consulted; skip the whole-cache sweep
         }
         // One whole-cache forEach, filtered to the contribution paths. This cannot be a set of per-path
-        // get()s: SchemaCacheKey is a 7-component record (path, mtime, formatType, formatConfig, endpoint,
-        // region, fileSetFingerprint), so a contribution path alone does not reconstruct a key, and forEach
+        // get()s: SchemaCacheKey is a multi-component record (path, mtime, formatType, formatConfig, endpoint,
+        // region, fileSetFingerprint, definitionVersion), so a contribution path alone does not reconstruct a
+        // key, and forEach
         // is the only path-agnostic enumeration the Cache exposes that is safe against concurrent LRU
         // mutation (keys()/values() walk the lock-free LRU list). The sweep is O(cache) for a multi-path
         // reconcile, but that is the price of capturing each sibling's pre-eviction entry before the first
@@ -860,14 +950,22 @@ public class ExternalSourceCacheService implements Closeable {
      * pre-reconcile {@code fallback} snapshot (see {@link #snapshotEntriesByPath}), the case where a
      * sibling path's earlier commit weight-evicted this path's entry out of the cache before its stats
      * could be applied. The recovery is per key, not all-or-nothing on the live sweep: the same
-     * {@code (path, mtime, fingerprint)} can live under several keys (endpoint/region are key
-     * components but not fingerprint inputs), and a partial sweep evicting one twin must not forfeit
-     * its delta just because another twin survived. A live entry always wins over its snapshot
+     * {@code (path, mtime, fingerprint)} can live under several keys (the identity each participant
+     * reports is a key component but not a fingerprint input), and a partial sweep evicting one twin
+     * must not forfeit its delta just because another twin survived. A live entry always wins over its snapshot
      * version (it may carry a concurrent commit's enrichment). A fallback entry passes the same
      * mtime + fingerprint predicate as a live one, and re-putting it re-inserts the entry — the same
      * revive a live match already gets. Must run holding the
      * per-path {@link #stripeCommitLocks} lock; callers mutate and re-put the returned entries after
      * this method returns.
+     * <p>
+     * <b>Returns nothing when the matches disagree about what they were derived from.</b> A contribution says which
+     * path, at which mtime, under which format config — never which store. Two data sources over different stores
+     * serving one bucket and key agree on all three, because object-store {@code Last-Modified} is second-granular,
+     * so both their entries match and whichever harvest arrives would be written into both: one store's row count
+     * read back as the other's. Nothing here can tell which of them the contribution came from, so it enriches
+     * neither and both reads re-scan. A safe miss, like every other gate on this path, and it costs warmth only in
+     * the case that would otherwise be wrong — a single store's twins share an identity and are unaffected.
      */
     private List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> collectMatchingEntries(
         String path,
@@ -902,6 +1000,22 @@ public class ExternalSourceCacheService implements Closeable {
             }
             if (recovered > 0) {
                 logger.debug("recovering [{}] cache entries for [{}] swept by a sibling commit", recovered, path);
+            }
+        }
+        if (matches.size() > 1) {
+            Set<String> identities = new HashSet<>();
+            for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matches) {
+                identities.add(match.getKey().identity());
+            }
+            if (identities.size() > 1) {
+                logger.debug(
+                    "refusing to enrich [{}] entries for [{}]: they were derived under [{}] different identities "
+                        + "and a contribution does not say which",
+                    matches.size(),
+                    path,
+                    identities.size()
+                );
+                return List.of();
             }
         }
         return matches;
@@ -957,6 +1071,11 @@ public class ExternalSourceCacheService implements Closeable {
      * contribution can never match one structurally, but a per-file enrichment landing on a dataset entry
      * would corrupt its row-count-only contract — enforce it rather than rely on the structural accident.
      * (Strict-declared per-file entries, the other reserved suffix, MUST remain matchable.)
+     * <p>
+     * <b>It does not compare the key's identity or its definition version</b>, because a contribution carries
+     * neither. On its own that makes every entry for this path at this mtime under this format config a match,
+     * whichever store it describes. {@link #collectMatchingEntries} is where that is caught: it discards an
+     * ambiguous match rather than writing one store's harvest into another store's record.
      */
     private static boolean matchesContribution(
         SchemaCacheKey key,
@@ -1595,13 +1714,12 @@ public class ExternalSourceCacheService implements Closeable {
                 continue;
             }
             long mtimeMillis = ((Number) mtimeObj).longValue();
-            // Enrich the schema entry whose config matches the contribution. SchemaCacheKey is keyed on
-            // path + mtime + formatType + formatConfig + endpoint + region, so the SAME file can have
-            // several entries — one per (formatType, formatConfig) tuple (e.g. header_row=true vs
-            // header_row=false count rows differently). The config fingerprint disambiguates
-            // them, and it is node-stable: both the data node's contribution and the coordinator's entry
-            // derive it from SchemaCacheKey.buildFormatConfig of the same logical config, so the guard
-            // holds across JVMs (coordinator != data node) — the warm short-circuit's whole point.
+            // Enrich the schema entry whose config matches the contribution. A schema key carries the identities
+            // its participants report, so the SAME file can have several entries — one per way of reading it (e.g.
+            // header_row=true vs header_row=false count rows differently). The config fingerprint disambiguates
+            // them, and it is node-stable because both sides ask the same reader for it: the data node's
+            // contribution and the coordinator's entry derive it from one place, so the guard holds across JVMs
+            // (coordinator != data node) — the warm short-circuit's whole point.
             Object contributionFingerprint = mergedStats.get(ExternalStats.CONFIG_FINGERPRINT_KEY);
             // Serialize the read-modify-write per file path with the same lock commitStripeDelta uses:
             // this method and applyStripeDelta both collect matching entries under forEach, then enrich
@@ -1657,6 +1775,7 @@ public class ExternalSourceCacheService implements Closeable {
         datasetAggregateCache.invalidateAll();
         fileMetadataCache.invalidateAll();
         listingCache.invalidateAll();
+        inFlightListings.clear();
         synchronized (pendingDatasetAggregates) {
             pendingDatasetAggregates.clear();
         }
@@ -1693,6 +1812,7 @@ public class ExternalSourceCacheService implements Closeable {
             stats.put("dataset_aggregate.pending", pendingDatasetAggregates.size());
         }
         stats.put("stats_aggregate.incomplete", statsAggregateIncomplete.sum());
+        stats.put("schema_fan_out.refused", schemaFanOutRefused.sum());
 
         return stats;
     }

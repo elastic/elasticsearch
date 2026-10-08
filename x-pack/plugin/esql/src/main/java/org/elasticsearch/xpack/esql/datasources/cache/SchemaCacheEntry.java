@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -17,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +38,8 @@ public record SchemaCacheEntry(
     Map<String, Object> safeMetadata,
     Map<String, Object> connectorConfig,
     long cachedAtMillis,
-    List<String> warnings
+    List<String> warnings,
+    List<WidenedColumn> widenedColumns
 ) {
     public SchemaCacheEntry {
         if (columnNames.length != columnTypes.length
@@ -49,6 +50,7 @@ public record SchemaCacheEntry(
         safeMetadata = safeMetadata != null ? Map.copyOf(safeMetadata) : Map.of();
         connectorConfig = connectorConfig != null ? Map.copyOf(connectorConfig) : Map.of();
         warnings = warnings != null ? List.copyOf(warnings) : List.of();
+        widenedColumns = widenedColumns != null ? List.copyOf(widenedColumns) : List.of();
     }
 
     /**
@@ -67,7 +69,8 @@ public record SchemaCacheEntry(
             metadata,
             connectorConfig,
             cachedAtMillis,
-            warnings
+            warnings,
+            widenedColumns
         );
     }
 
@@ -78,17 +81,21 @@ public record SchemaCacheEntry(
         Map<String, Object> metadata,
         Map<String, Object> connectorConfig
     ) {
-        return from(schema, sourceType, location, metadata, connectorConfig, List.of());
+        return from(schema, sourceType, location, metadata, connectorConfig, List.of(), List.of());
     }
 
-    /** @param warnings see {@link SourceMetadata#warnings()}; cached so a warm resolve replays them like a cold one. */
+    /**
+     * @param warnings see {@link SourceMetadata#warnings()}; cached so a warm resolve replays them like a cold one.
+     * @param widenedColumns see {@link SourceMetadata#widenedColumns()}; cached for the same reason.
+     */
     public static SchemaCacheEntry from(
         List<Attribute> schema,
         String sourceType,
         String location,
         Map<String, Object> metadata,
         Map<String, Object> connectorConfig,
-        List<String> warnings
+        List<String> warnings,
+        List<WidenedColumn> widenedColumns
     ) {
         int size = schema.size();
         String[] names = new String[size];
@@ -112,7 +119,8 @@ public record SchemaCacheEntry(
             metadata,
             connectorConfig,
             System.currentTimeMillis(),
-            warnings
+            warnings,
+            widenedColumns
         );
     }
 
@@ -141,7 +149,7 @@ public record SchemaCacheEntry(
         Map<String, Object> enrichedMeta = meta.statistics()
             .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
             .orElse(meta.sourceMetadata());
-        return from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config(), meta.warnings());
+        return from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config(), meta.warnings(), meta.widenedColumns());
     }
 
     public long estimatedBytes() {
@@ -159,41 +167,16 @@ public record SchemaCacheEntry(
         for (String warning : warnings) {
             bytes += estimatedStringBytes(warning);
         }
+        for (WidenedColumn widened : widenedColumns) {
+            bytes += estimatedStringBytes(widened.columnName()) + estimatedStringBytes(widened.value()) + 48;
+        }
         // ~100B per map entry (key String + value Object) plus the payload of variable-width values
         // (keyword/text extrema as String or BytesRef). Nested maps (per-stripe stats under
         // _stats.stripe.<k>) weigh their inner entries the same way so a many-striped file doesn't
         // under-count against the cache budget.
-        bytes += estimatedMapBytes(safeMetadata);
-        bytes += estimatedMapBytes(connectorConfig);
+        bytes += HeapEstimates.mapBytes(safeMetadata);
+        bytes += HeapEstimates.mapBytes(connectorConfig);
         return bytes;
-    }
-
-    /**
-     * Shape charge (~100B per entry) plus payload for {@link String} / {@link BytesRef} values. Fixed-size
-     * values (numbers, booleans) stay on the flat constant alone. Nested maps recurse one level for
-     * per-stripe statistics; deeper nesting is not expected in this metadata map.
-     */
-    private static long estimatedMapBytes(Map<String, Object> map) {
-        long bytes = 0L;
-        for (Object value : map.values()) {
-            bytes += 100L + estimatedValuePayloadBytes(value);
-            if (value instanceof Map<?, ?> nested) {
-                for (Object nestedValue : nested.values()) {
-                    bytes += 100L + estimatedValuePayloadBytes(nestedValue);
-                }
-            }
-        }
-        return bytes;
-    }
-
-    private static long estimatedValuePayloadBytes(@Nullable Object value) {
-        if (value instanceof String s) {
-            return HeapEstimates.stringBytes(s);
-        }
-        if (value instanceof BytesRef bytesRef) {
-            return HeapEstimates.bytesRefBytes(bytesRef);
-        }
-        return 0L;
     }
 
     static long estimatedStringBytes(@Nullable String s) {

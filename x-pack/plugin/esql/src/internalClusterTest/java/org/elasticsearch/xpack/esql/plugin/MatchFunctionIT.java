@@ -554,30 +554,35 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         );
         client().prepareBulk()
             .add(new IndexRequest("ts_hosts").source("@timestamp", "2024-01-01T00:00:00Z", "host", "a", "status", "fox", "cpu", 1))
-            .add(new IndexRequest("ts_hosts").source("@timestamp", "2024-01-01T00:00:01Z", "host", "b", "status", "dog", "cpu", 2))
+            .add(new IndexRequest("ts_hosts").source("@timestamp", "2024-01-01T00:00:01Z", "host", "b", "status", "red fox", "cpu", 2))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         ensureYellow("ts_hosts");
 
-        var rejected = "TS ts_hosts | WHERE MATCH(status, \"fox\")";
-        var error = expectThrows(VerificationException.class, () -> run(rejected));
-        assertThat(
-            error.getMessage(),
-            containsString(
-                "[MATCH] function cannot operate on [status], supplied by an index [ts_hosts] in non-STANDARD mode [time_series]"
-            )
-        );
+        // Exact/keyword semantics: "red fox" isn't exactly "fox", so only host=a matches.
+        var direct = """
+            TS ts_hosts
+            | WHERE MATCH(status, "fox")
+            | KEEP host, status
+            | SORT host
+            """;
+        try (var resp = run(direct)) {
+            assertColumnNames(resp.columns(), List.of("host", "status"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "keyword"));
+            assertValues(resp.values(), List.of(List.of("a", "fox")));
+        }
 
-        var accepted = """
+        // Analyzed/text semantics: "red fox" contains "fox" as an analyzed token, so both hosts match.
+        var converted = """
             TS ts_hosts
             | WHERE MATCH(TO_TEXT(status), "fox")
             | KEEP host, status
             | SORT host
             """;
-        try (var resp = run(accepted)) {
+        try (var resp = run(converted)) {
             assertColumnNames(resp.columns(), List.of("host", "status"));
             assertColumnTypes(resp.columns(), List.of("keyword", "keyword"));
-            assertValues(resp.values(), List.of(List.of("a", "fox")));
+            assertValues(resp.values(), List.of(List.of("a", "fox"), List.of("b", "red fox")));
         }
     }
 
@@ -648,23 +653,27 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             .get();
         ensureYellow("ts_hosts_text");
 
-        var rejected = "TS ts_hosts_text | WHERE MATCH(status, \"fox\")";
-        var error = expectThrows(VerificationException.class, () -> run(rejected));
-        assertThat(
-            error.getMessage(),
-            containsString(
-                "[MATCH] function cannot operate on [status], supplied by an index [ts_hosts_text] in non-STANDARD mode [time_series]"
-            )
-        );
+        // Analyzed/text semantics: "red fox" contains "fox" as an analyzed token, so both hosts match.
+        var direct = """
+            TS ts_hosts_text
+            | WHERE MATCH(status, "fox")
+            | KEEP host, status
+            | SORT host
+            """;
+        try (var resp = run(direct)) {
+            assertColumnNames(resp.columns(), List.of("host", "status"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "text"));
+            assertValues(resp.values(), List.of(List.of("a", "fox"), List.of("b", "red fox")));
+        }
 
         // Exact/keyword semantics: "red fox" contains "fox" as an analyzed token but isn't exactly "fox", so only host=a matches.
-        var accepted = """
+        var converted = """
             TS ts_hosts_text
             | WHERE MATCH(TO_STRING(status), "fox")
             | KEEP host, status
             | SORT host
             """;
-        try (var resp = run(accepted)) {
+        try (var resp = run(converted)) {
             assertColumnNames(resp.columns(), List.of("host", "status"));
             assertColumnTypes(resp.columns(), List.of("keyword", "text"));
             assertValues(resp.values(), List.of(List.of("a", "fox")));

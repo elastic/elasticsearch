@@ -39,6 +39,9 @@ x-pack/plugin/kibana/src/javaRestTest/java/org/elasticsearch/xpack/kibana/Kibana
 x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/ElasticAiIndexImplicitPrivilegesProvider.java @elastic/kibana-security @elastic/context-eng
 x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/ElasticAiIndexImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/context-eng
 x-pack/plugin/kibana/src/javaRestTest/java/org/elasticsearch/xpack/kibana/ElasticAiIndexImplicitPrivilegesIT.java @elastic/kibana-security @elastic/context-eng
+x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/KibanaNightshiftImplicitPrivilegesProvider.java @elastic/kibana-security @elastic/nightshift-sre-agent-team @elastic/nightshift-context-and-research-team
+x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/KibanaNightshiftImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/nightshift-sre-agent-team @elastic/nightshift-context-and-research-team
+x-pack/plugin/kibana/src/javaRestTest/java/org/elasticsearch/xpack/kibana/KibanaNightshiftImplicitPrivilegesIT.java @elastic/kibana-security @elastic/nightshift-sre-agent-team @elastic/nightshift-context-and-research-team
 
 # Context Engine
 x-pack/plugin/core/template-resources/src/main/resources/ai-index @elastic/context-eng

@@ -12,8 +12,10 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -70,20 +72,32 @@ public class FooterByteCache {
     public static final long DEFAULT_MAX_ENTRY_BYTES = 2L * 1024 * 1024;
 
     /**
-     * Cache key identifying a file by its storage path and total length. Uses {@code (path, length)}
-     * only — not {@code lastModified} — so that all range splits of the same file share one cache
-     * entry regardless of any timing jitter in {@code StorageObject.lastModified()}.
+     * Cache key identifying a file by its storage configuration, path, and total length. Uses
+     * {@code (storageIdentity, path, length)} — the storage identity is set by the storage provider to encode endpoint
+     * and credential identity so that two data sources pointing at different stores never share an
+     * entry for an object at the same path with the same length. {@code lastModified} is excluded
+     * so that all range splits of the same file share one cache entry regardless of any timing
+     * jitter in {@code StorageObject.lastModified()}.
      */
-    public record Key(String path, long fileLength) {
+    public record Key(StorageIdentity storageIdentity, String path, long fileLength) {
+
+        /**
+         * Rejects a null identity: {@link StorageIdentity} is a plugin SPI, and a {@code null} from any
+         * implementation would put all of its objects in one shared scope instead of failing.
+         */
+        public Key {
+            Objects.requireNonNull(storageIdentity, "storageIdentity must not be null");
+        }
 
         /**
          * Creates a key from a {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject},
-         * using its path string and {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#lengthForFooterCacheKey()}.
+         * using its storage identity, path string, and
+         * {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#lengthForFooterCacheKey()}.
          * Prefer this over {@link #keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject, long)} so range
          * views ({@code RangeStorageObject}) share one entry per file.
          */
         public static Key keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject storageObject) throws IOException {
-            return new Key(storageObject.path().toString(), storageObject.lengthForFooterCacheKey());
+            return new Key(storageObject.storageIdentity(), storageObject.path().toString(), storageObject.lengthForFooterCacheKey());
         }
 
         /**
@@ -95,7 +109,7 @@ public class FooterByteCache {
          * not a range-view span.
          */
         public static Key keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject storageObject, long length) {
-            return new Key(storageObject.path().toString(), length);
+            return new Key(storageObject.storageIdentity(), storageObject.path().toString(), length);
         }
     }
 

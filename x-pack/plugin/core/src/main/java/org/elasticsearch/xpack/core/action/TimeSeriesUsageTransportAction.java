@@ -10,16 +10,19 @@ package org.elasticsearch.xpack.core.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.monitor.metrics.IndexModeStatsActionType;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,6 +47,7 @@ import java.util.Objects;
  * Exposes the time series telemetry via the xpack usage API. We track the following only for time series data streams:
  * - time series data stream count
  * - time series backing indices of these time series data streams
+ * - doc and byte totals of all time series indices, gathered from the data nodes via {@link IndexModeStatsActionType}
  * - the feature that downsamples the time series data streams, we use the write index to avoid resolving templates,
  * this might cause a small delay in the counters (backing indices, downsampling rounds).
  * - For ILM specifically, we count the phases that have configured downsampling in the policies used in the time series data streams.
@@ -51,6 +55,7 @@ import java.util.Objects;
  */
 public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAction {
 
+    private final Client client;
     private final ProjectResolver projectResolver;
     private final boolean ilmAvailable;
 
@@ -60,9 +65,11 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        Client client,
         ProjectResolver projectResolver
     ) {
         super(XPackUsageFeatureAction.TIME_SERIES_DATA_STREAMS.name(), transportService, clusterService, threadPool, actionFilters);
+        this.client = client;
         this.projectResolver = projectResolver;
         this.ilmAvailable = DataStreamLifecycle.isDataStreamsLifecycleOnlyMode(clusterService.getSettings()) == false;
     }
@@ -90,9 +97,10 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
                 continue;
             }
             tsDataStreamCount++;
-            Integer dlmRounds = ds.getDataLifecycle() == null || ds.getDataLifecycle().downsamplingRounds() == null
+            DataStreamLifecycle dataLifecycle = ds.getDataLifecycle();
+            Integer dlmRounds = dataLifecycle == null || dataLifecycle.downsamplingRounds() == null
                 ? null
-                : ds.getDataLifecycle().downsamplingRounds().size();
+                : dataLifecycle.downsamplingRounds().size();
 
             for (Index backingIndex : ds.getIndices()) {
                 IndexMetadata indexMetadata = projectMetadata.index(backingIndex);
@@ -100,11 +108,17 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
                     continue;
                 }
                 tsIndexCount++;
-                if (ds.isIndexManagedByDataStreamLifecycle(indexMetadata.getIndex(), ignored -> indexMetadata) && dlmRounds != null) {
+                DataStream.LifecycleManagedBy managedBy = DataStream.lifecycleManagedBy(
+                    indexMetadata.getLifecyclePolicyName(),
+                    dataLifecycle,
+                    indexMetadata.getSettings(),
+                    indexMetadata.getIndexMode()
+                );
+                if (managedBy == DataStream.LifecycleManagedBy.DLM && dlmRounds != null) {
                     dlmStats.trackIndex(ds, indexMetadata);
                     dlmStats.trackRounds(dlmRounds, ds, indexMetadata);
-                    dlmStats.trackSamplingMethod(ds.getDataLifecycle().downsamplingMethod(), ds, indexMetadata);
-                } else if (ilmAvailable && projectMetadata.isIndexManagedByILM(indexMetadata)) {
+                    dlmStats.trackSamplingMethod(dataLifecycle.downsamplingMethod(), ds, indexMetadata);
+                } else if (managedBy == DataStream.LifecycleManagedBy.ILM) {
                     LifecyclePolicyMetadata policyMetadata = ilmMetadata.getPolicyMetadatas().get(indexMetadata.getLifecyclePolicyName());
                     if (policyMetadata == null) {
                         continue;
@@ -132,17 +146,33 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
             }
         }
 
-        final TimeSeriesFeatureSetUsage usage = ilmAvailable
-            ? new TimeSeriesFeatureSetUsage(
-                tsDataStreamCount,
-                tsIndexCount,
-                ilmStats.getDownsamplingStats(),
-                ilmStats.calculateIlmPolicyStats(),
-                dlmStats.getDownsamplingStats(),
-                indicesByInterval
-            )
-            : new TimeSeriesFeatureSetUsage(tsDataStreamCount, tsIndexCount, dlmStats.getDownsamplingStats(), indicesByInterval);
-        listener.onResponse(new XPackUsageFeatureResponse(usage));
+        final long finalTsDataStreamCount = tsDataStreamCount;
+        final long finalTsIndexCount = tsIndexCount;
+        final DiscoveryNode[] nodes = state.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
+        final var statsRequest = new IndexModeStatsActionType.StatsRequest(nodes);
+        client.execute(IndexModeStatsActionType.TYPE, statsRequest, listener.map(statsResponse -> {
+            final var indexStats = statsResponse.stats().get(IndexMode.TIME_SERIES);
+            final TimeSeriesFeatureSetUsage usage = ilmAvailable
+                ? new TimeSeriesFeatureSetUsage(
+                    finalTsDataStreamCount,
+                    finalTsIndexCount,
+                    indexStats.numDocs(),
+                    indexStats.numBytes(),
+                    ilmStats.getDownsamplingStats(),
+                    ilmStats.calculateIlmPolicyStats(),
+                    dlmStats.getDownsamplingStats(),
+                    indicesByInterval
+                )
+                : new TimeSeriesFeatureSetUsage(
+                    finalTsDataStreamCount,
+                    finalTsIndexCount,
+                    indexStats.numDocs(),
+                    indexStats.numBytes(),
+                    dlmStats.getDownsamplingStats(),
+                    indicesByInterval
+                );
+            return new XPackUsageFeatureResponse(usage);
+        }));
     }
 
     private static class DownsamplingStatsTracker {

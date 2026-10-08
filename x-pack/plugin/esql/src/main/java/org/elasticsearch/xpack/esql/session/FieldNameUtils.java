@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -24,9 +25,12 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Earliest;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Latest;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
@@ -35,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -78,6 +83,11 @@ public class FieldNameUtils {
         Earliest.NAME.toLowerCase(Locale.ROOT),
         Latest.NAME.toLowerCase(Locale.ROOT)
     );
+
+    // Full-text function-call names whose first argument is the field a no-ON HIGHLIGHT would target. The `:` operator
+    // parses to a Match directly, but the MATCH(...) / MATCH_PHRASE(...) call forms are still UnresolvedFunctions here.
+    private static final String HIGHLIGHT_MATCH = "match";
+    private static final String HIGHLIGHT_MATCH_PHRASE = "match_phrase";
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
 
@@ -174,10 +184,11 @@ public class FieldNameUtils {
                 // back is safe only because currentBranchKeepRefs is replaced, never cleared; keepRefs is cleared, so it is saved
                 // by copy into parentKeepRefs above.
                 var enclosingBranchKeepRefs = currentBranchKeepRefs.get();
+
                 for (var branch : mergePlan.children()) {
-                    // Reset branch-specific state for each fork branch. keepRefs accumulates across the whole plan, so without
+                    // Reset branch-specific state for each merge branch. keepRefs accumulates across the whole plan, so without
                     // resetting it a KEEP in one branch would reach the next branch and make it look column-constrained: a nested
-                    // fork there would inherit those refs as its parentKeepRefs and never request all fields, and a LookupJoin
+                    // merge there would inherit those refs as its parentKeepRefs and never request all fields, and a LookupJoin
                     // there would skip wildcard lookup-index resolution. Either way the query under-collects fields.
                     keepRefs.clear();
                     keepRefs.addAll(parentKeepRefs);
@@ -185,21 +196,9 @@ public class FieldNameUtils {
                     currentBranchKeepRefs.get().addAll(parentKeepRefs);
                     referencesBuilder.set(AttributeSet.builder());
 
-                    var isNestedFork = branch.forEachDownMayReturnEarly(forEachDownProcessor.get());
-
-                    // This assert is just for good measure. FORKs within FORKs is yet not supported.
-                    LogicalPlan lastMerge = lastSeenMerge.get();
-                    if (lastMerge != null && lastMerge != mergePlan && mergePlan instanceof Fork && lastMerge instanceof Fork) {
-                        // Nested FORKs are not supported. Fork after subquery (UnionAll) or nested subqueries can
-                        // be flattened and supported by LogicalPlanOptimizer and ComputeService in the future, defer this assertion
-                        // LogicalPlanOptimizer verifier. Add the check here to avoid assertion on subqueries nested with fork.
-                        // TODO consider deferring the nested fork check to Analyzer verifier or LogicalPlanOptimizer verifier.
-                        //
-                        // Note: lastMerge == mergePlan is excluded here because an AbstractSubqueryJoin handler inside a merge branch saves
-                        // and restores lastSeenMerge (to preserve context across the subquery traversal), which transiently sets it
-                        // back to the current merge — that is not a nested-fork signal.
-                        assert isNestedFork == false : "Nested FORKs are not yet supported";
-                    }
+                    // Validation of whether two user FORKs have an intervening union boundary belongs to Fork's analyzer verifier.
+                    // Field collection must traverse every shape that the parser, view compaction, or dataset rewriting can produce.
+                    branch.forEachDownMayReturnEarly(forEachDownProcessor.get());
 
                     // Determine if this merge branch requires all fields from the index (projectAll = true).
                     // This happens when a branch has no explicit field selection and no KEEP constraints.
@@ -322,6 +321,14 @@ public class FieldNameUtils {
                 sj.left().forEachDownMayReturnEarly(forEachDownProcessor.get());
                 breakEarly.set(true);
                 return;
+            } else if (p instanceof Highlight highlight && highlight.fields().isEmpty()) {
+                // No-ON HIGHLIGHT has empty references(); collect query field names, or all fields if the query cannot be narrowed.
+                boolean narrowed = highlight.query() != null && collectHighlightQueryReferences(highlight.query(), referencesBuilder.get());
+                if (narrowed == false && highlight.anyMatch(sub -> shouldCollectReferencedFields(sub, inlinestatsAggs)) == false) {
+                    projectAll.set(true);
+                    breakEarly.set(true);
+                    return;
+                }
             } else {
                 referencesBuilder.get().addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.isTimeSeriesMode()) {
@@ -491,6 +498,38 @@ public class FieldNameUtils {
             }
         });
         return requireFieldCollection.get();
+    }
+
+    /**
+     * Parse-time mirror of {@link org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport#deriveFields}.
+     * {@code MATCH(...)} / {@code MATCH_PHRASE(...)} are still {@link UnresolvedFunction}s here; {@code :} is already {@link Match}.
+     */
+    private static boolean collectHighlightQueryReferences(Expression query, AttributeSet.Builder refs) {
+        switch (query) {
+            case Match match -> {
+                refs.addAll(match.field().references());
+                return true;
+            }
+            case MatchPhrase matchPhrase -> {
+                refs.addAll(matchPhrase.field().references());
+                return true;
+            }
+            case BinaryLogic binary -> {
+                return collectHighlightQueryReferences(binary.left(), refs) && collectHighlightQueryReferences(binary.right(), refs);
+            }
+            case UnresolvedFunction uf -> {
+                String name = uf.name().toLowerCase(Locale.ROOT);
+                if ((name.equals(HIGHLIGHT_MATCH) || name.equals(HIGHLIGHT_MATCH_PHRASE)) && uf.children().isEmpty() == false) {
+                    refs.addAll(uf.children().getFirst().references());
+                    return true;
+                }
+                return false;
+            }
+            // Literal, KQL, QSTR, or negative: may match any column.
+            default -> {
+                return false;
+            }
+        }
     }
 
     /**

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.integration;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -21,9 +22,11 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
@@ -38,11 +41,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -133,9 +137,9 @@ abstract class AbstractInferenceFieldHighlighterIT extends ESIntegTestCase {
     public void testHighlightOwnAndCopyToValues() throws Exception {
         createChainedCopyToIndex();
 
-        final String ownValue = "a cat on a windowsill";
-        final String copiedValue = "a dog running in a park";
-        final String chainedValue = "a bird on a branch";
+        final List<String> ownValue = randomChunks(3);
+        final List<String> copiedValue = randomChunks(3);
+        final List<String> chainedValue = randomChunks(3);
 
         client().prepareIndex(indexName)
             .setSource("chained_source_field", chainedValue, "source_field", copiedValue, "inference_field", ownValue)
@@ -144,7 +148,7 @@ abstract class AbstractInferenceFieldHighlighterIT extends ESIntegTestCase {
 
         SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .highlighter(
-                new HighlightBuilder().field(new HighlightBuilder.Field("inference_field").highlighterType("semantic").numOfFragments(3))
+                new HighlightBuilder().field(new HighlightBuilder.Field("inference_field").highlighterType("semantic").numOfFragments(10))
             );
 
         // Use the coordinating-only node so that highlights are serialized over the wire (data node -> coordinating node)
@@ -154,8 +158,10 @@ abstract class AbstractInferenceFieldHighlighterIT extends ESIntegTestCase {
                 assertHitCount(response, 1L);
                 // Only one level of copy_to is followed: chained_source_field -> source_field -> inference_field does not make
                 // chained_source_field's value part of inference_field. Fragments are in chunk order, with the field's own value first.
-                assertHighlight(response, 0, "inference_field", 0, 2, equalTo(ownValue));
-                assertHighlight(response, 0, "inference_field", 1, 2, equalTo(copiedValue));
+                assertThat(
+                    highlightFragments(response.getHits().getAt(0), "inference_field"),
+                    equalTo(CollectionUtils.concatLists(ownValue, copiedValue))
+                );
             }
         );
     }
@@ -164,8 +170,8 @@ abstract class AbstractInferenceFieldHighlighterIT extends ESIntegTestCase {
         assumeTrue("Inference field type does not support multi-fields", supportsMultiFields());
         createMultiFieldCopyToIndex();
 
-        final String ownValue = "a cat on a windowsill";
-        final String copiedValue = "a dog running in a park";
+        final List<String> ownValue = randomChunks(3);
+        final List<String> copiedValue = randomChunks(3);
 
         client().prepareIndex(indexName)
             .setSource("text_field", ownValue, "source_field", copiedValue)
@@ -175,7 +181,7 @@ abstract class AbstractInferenceFieldHighlighterIT extends ESIntegTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .highlighter(
                 new HighlightBuilder().field(
-                    new HighlightBuilder.Field("text_field.inference_field").highlighterType("semantic").numOfFragments(3)
+                    new HighlightBuilder.Field("text_field.inference_field").highlighterType("semantic").numOfFragments(10)
                 )
             );
 
@@ -184,10 +190,14 @@ abstract class AbstractInferenceFieldHighlighterIT extends ESIntegTestCase {
             internalCluster().coordOnlyNodeClient().search(new SearchRequest(new String[] { indexName }, source)),
             response -> {
                 assertHitCount(response, 1L);
-                // The multi-field's own value is the value of its parent text_field. Fragments are in chunk order, which for a
-                // multi-field of a copy_to target has the copied value first.
-                assertHighlight(response, 0, "text_field.inference_field", 0, 2, equalTo(copiedValue));
-                assertHighlight(response, 0, "text_field.inference_field", 1, 2, equalTo(ownValue));
+                // The multi-field's own value is the value of its parent text_field. Each source field's fragments are in chunk
+                // order, but which source field comes first depends on the hash order of the field names, so accept either.
+                assertThat(
+                    highlightFragments(response.getHits().getAt(0), "text_field.inference_field"),
+                    either(equalTo(CollectionUtils.concatLists(ownValue, copiedValue))).or(
+                        equalTo(CollectionUtils.concatLists(copiedValue, ownValue))
+                    )
+                );
             }
         );
     }
@@ -258,5 +268,20 @@ abstract class AbstractInferenceFieldHighlighterIT extends ESIntegTestCase {
             "api_key",
             "my_api_key"
         );
+    }
+
+    /**
+     * Generates between 1 and {@code maxChunks} chunks, each made of random alphanumeric words of random lengths.
+     */
+    private static List<String> randomChunks(int maxChunks) {
+        return randomList(
+            1,
+            maxChunks,
+            () -> String.join(" ", randomList(1, 5, () -> randomAlphanumericOfLength(randomIntBetween(1, 10))))
+        );
+    }
+
+    private static List<String> highlightFragments(SearchHit hit, String field) {
+        return Stream.of(hit.getHighlightFields().get(field).fragments()).map(Text::string).toList();
     }
 }

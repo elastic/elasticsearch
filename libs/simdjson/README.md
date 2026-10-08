@@ -42,8 +42,7 @@ libs/simdjson/
 │   │   ├── es_simdjson.cpp           #   Elasticsearch stage 1 FFI surface
 │   │   ├── simdjson.cpp              #   Vendored simdjson amalgamation
 │   │   └── simdjson.h
-│   ├── Makefile                      #   Cross-compilation build (all platforms)
-│   └── publish_simdjson_binaries.sh  #   Build + Artifactory upload
+│   └── Makefile                      #   Cross-compilation build (all platforms)
 ├── licenses/                         # Vendored simdjson C++ notices
 └── build.gradle
 ```
@@ -54,8 +53,8 @@ libs/simdjson/
   - `org.elasticsearch.escf.EscfDocumentHandler` — `JsonDocumentHandler` implementation
   - `org.elasticsearch.escf.EscfEncoder` — feature flag, simdjson vs Jackson encode path; resolves
     its thread's `JsonDocumentParser` once at construction
-- **`libs/native/libraries`** — downloads `org.elasticsearch:libsimdjson` native zips at
-     build time.
+- **`libs/native/libraries`** — collects the built (or published) libsimdjson alongside the other
+  native libraries, for tests and the distribution.
 
 ## Parsing pipeline
 
@@ -83,13 +82,12 @@ available). Windows x64 and Intel macOS are excluded at the FFM binding layer.
 The native library is built via the `Makefile` in `native/`. For cross-compilation
 of all four platform binaries (darwin-aarch64, linux-aarch64, linux-x64, windows-x64), use the
 shared Docker-based toolchain image (`es-native-cross-toolchain`, see
-[`libs/native-toolchain`](../native-toolchain/README.md)):
+[`libs/native-toolchain`](../native-toolchain/README.md)).
 
-```bash
-# Build and publish binaries
-cd native
-./publish_simdjson_binaries.sh
-```
+Gradle fetches the binaries published for the current sources, and builds them only when there are
+none. CI publishes the binaries for new sources on its own. To publish from your machine, or to
+build every platform even though the binaries are already published, see *Publish a library* in
+[`libs/native-toolchain`](../native-toolchain/README.md#publish-a-library).
 
 For local development on the current platform:
 

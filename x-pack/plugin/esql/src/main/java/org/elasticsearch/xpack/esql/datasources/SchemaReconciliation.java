@@ -512,10 +512,12 @@ public final class SchemaReconciliation {
                     unified.put(name, new MergeEntry(attr.dataType(), attrNullable, filePath));
                     if (unified.size() > maxFields) {
                         throw ExternalClientException.schemaTooWide(
-                            "the union of the files' columns has more than ["
-                                + maxFields
-                                + "] columns; raise [esql.external.schema_max_fields] or the dataset's [schema_max_fields] "
-                                + "to merge a wider schema"
+                            "the union of the files' columns has more than [" + maxFields + "] columns; "
+                            // At the ceiling raising the cap is rejected too, so point at declaring the columns.
+                                + (maxFields >= ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS
+                                    ? "declare the dataset's columns with [dynamic: false] to skip inference"
+                                    : "raise [esql.external.schema_max_fields] or the dataset's [schema_max_fields] "
+                                        + "to merge a wider schema")
                         );
                     }
                 } else {

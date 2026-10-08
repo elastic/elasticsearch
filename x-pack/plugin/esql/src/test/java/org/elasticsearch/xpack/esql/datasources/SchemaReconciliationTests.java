@@ -336,6 +336,7 @@ public class SchemaReconciliationTests extends ESTestCase {
             () -> SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING, new SchemaInterner(null, 0), 3)
         );
         assertThat(e.getMessage(), containsString("more than [3] columns"));
+        assertThat(e.getMessage(), containsString("raise [esql.external.schema_max_fields]"));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         // At the cap the merge still succeeds.
         assertThat(
@@ -344,6 +345,27 @@ public class SchemaReconciliationTests extends ESTestCase {
                 .size(),
             equalTo(4)
         );
+    }
+
+    /** At the ceiling raising the cap is refused too, so the refusal points at declaring the columns instead. */
+    public void testUnionByNameOverCeilingSuggestsDeclaringColumns() {
+        int ceiling = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;
+        List<Attribute> wide = new ArrayList<>(ceiling);
+        for (int i = 0; i < ceiling; i++) {
+            wide.add(attr("c" + i, DataType.INTEGER));
+        }
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(
+            path("s3://b/f1.parquet"),
+            meta(wide),
+            path("s3://b/f2.parquet"),
+            meta(List.of(attr("extra", DataType.INTEGER)))
+        );
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
+            () -> SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING, new SchemaInterner(null, 0), ceiling)
+        );
+        assertThat(e.getMessage(), containsString("dynamic: false"));
+        assertThat(e.getMessage(), not(containsString("raise")));
     }
 
     public void testUnionByNameAddedColumn() {

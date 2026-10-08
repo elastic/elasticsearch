@@ -2512,7 +2512,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return bindDeclaredToHeaderNames(headerColumnNames(headerLine, fields), readSchema, object);
             }
         }
-        String[] fields = splitFieldsForOptions(headerLine, options, effectiveMaxFields(), null);
+        // Charged like the declared branch: the cap counts only non-empty names, so a header of bare delimiters would
+        // otherwise build its whole field list unbounded before the width check below.
+        String[] fields;
+        try (HeaderBudget budget = newHeaderBudget()) {
+            fields = splitFieldsForOptions(headerLine, options, effectiveMaxFields(), budget);
+        }
         if (readSchema.size() > fields.length) {
             throw new IllegalArgumentException(
                 "["

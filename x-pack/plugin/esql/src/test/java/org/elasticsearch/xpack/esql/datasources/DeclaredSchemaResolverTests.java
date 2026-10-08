@@ -27,6 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class DeclaredSchemaResolverTests extends ESTestCase {
 
@@ -51,7 +52,23 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
             () -> DeclaredSchemaResolver.checkDeclaredWidth(mapping(props), 2)
         );
         assertThat(e.getMessage(), containsString("declares [3] columns"));
+        assertThat(e.getMessage(), containsString("raise [esql.external.schema_max_fields]"));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+    }
+
+    /** At the ceiling raising the cap is refused too, so the refusal does not suggest it. */
+    public void testDeclaredWidthOverCeilingDoesNotSuggestRaisingTheCap() {
+        int ceiling = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        for (int i = 0; i <= ceiling; i++) {
+            props.put("c" + i, new DatasetFieldMapping("long", null));
+        }
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
+            () -> DeclaredSchemaResolver.checkDeclaredWidth(mapping(props), ceiling)
+        );
+        assertThat(e.getMessage(), containsString("declare fewer columns"));
+        assertThat(e.getMessage(), not(containsString("raise")));
     }
 
     public void testOverlayNonStrictRenamesAndRetypesDeclaredColumnsOnly() {

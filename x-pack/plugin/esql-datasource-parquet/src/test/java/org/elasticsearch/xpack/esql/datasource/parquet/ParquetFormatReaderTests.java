@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalIoExecutors;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
@@ -2401,6 +2402,16 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals(0, breaker.getUsed());
     }
 
+    /** The node setting is what the plugin's factory hands the constructor, so it sets the default cap. */
+    public void testNodeSettingSetsTheDefaultFieldCap() throws Exception {
+        Settings settings = Settings.builder().put(ExternalSourceSettings.SCHEMA_MAX_FIELDS.getKey(), 2).build();
+        FormatReader reader = new ParquetDataSourcePlugin().formatReaders(settings)
+            .get(FormatNameResolver.FORMAT_PARQUET)
+            .create(settings, blockFactory);
+        assertEquals(2, reader.metadata(createStorageObject(wideOptionalLongFile(2))).schema().size());
+        expectThrows(ExternalClientException.class, () -> reader.metadata(createStorageObject(wideOptionalLongFile(3))));
+    }
+
     public void testDatasetSchemaMaxFieldsOverridesNodeCap() throws Exception {
         byte[] data = wideOptionalLongFile(4);
         ParquetFormatReader nodeCapped = new ParquetFormatReader(blockFactory).withSchemaMaxFields(2);
@@ -2432,6 +2443,40 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetFormatReader reader = new ParquetFormatReader(limitedFactory);
         reader.clearFooterCachesForTests();
         expectThrows(CircuitBreakingException.class, () -> reader.metadata(createStorageObject(parquetData)));
+        // The parse allowance tripped, not the read charge that the limit admits.
+        assertEquals(ParquetFormatReader.FOOTER_PARSE_BREAKER_LABEL, trippedOn.get());
+        assertEquals(0, breaker.getUsed());
+    }
+
+    /** The async footer path charges the parse allowance too, the same as the sync one above. */
+    public void testAsyncFooterParseExpansionIsChargedBeforeDeserialising() throws Exception {
+        byte[] parquetData = wideOptionalLongFile(2000);
+        int footerRegion = parquetFooterRegion(parquetData);
+        AtomicReference<String> trippedOn = new AtomicReference<>();
+        var breaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(2L * footerRegion)) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                try {
+                    super.addEstimateBytesAndMaybeBreak(bytes, label);
+                } catch (CircuitBreakingException e) {
+                    trippedOn.set(label);
+                    throw e;
+                }
+            }
+        };
+        ParquetFormatReader reader = new ParquetFormatReader(new BlockFactory(breaker, this.blockFactory.bigArrays()));
+        reader.clearFooterCachesForTests();
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        try {
+            AtomicInteger asyncReadCount = new AtomicInteger();
+            StorageObject asyncObject = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null);
+            PlainActionFuture<SourceMetadata> future = new PlainActionFuture<>();
+            reader.metadataAsync(asyncObject, probePool, future);
+            expectThrows(CircuitBreakingException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+            assertThat("the footer was fetched by the async path", asyncReadCount.get(), greaterThan(0));
+        } finally {
+            probePool.shutdownNow();
+        }
         // The parse allowance tripped, not the read charge that the limit admits.
         assertEquals(ParquetFormatReader.FOOTER_PARSE_BREAKER_LABEL, trippedOn.get());
         assertEquals(0, breaker.getUsed());

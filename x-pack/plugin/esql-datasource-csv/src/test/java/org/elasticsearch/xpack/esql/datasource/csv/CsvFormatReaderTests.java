@@ -15,6 +15,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
@@ -287,6 +289,19 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /** The node setting reaches both registered factories; the tsv one is a separate lambda, so each is checked. */
+    public void testNodeSettingSetsTheDefaultFieldCap() throws IOException {
+        Settings settings = Settings.builder().put(ExternalSourceSettings.SCHEMA_MAX_FIELDS.getKey(), 2).build();
+        Map<String, FormatReaderFactory> factories = new CsvDataSourcePlugin().formatReaders(settings);
+        for (String format : List.of("csv", "tsv")) {
+            String delimiter = format.equals("tsv") ? "\t" : ",";
+            FormatReader reader = factories.get(format).create(settings, blockFactory);
+            assertEquals(format, 2, reader.schema(createStorageObject("a" + delimiter + "b\n1" + delimiter + "2\n")).size());
+            String wide = "a" + delimiter + "b" + delimiter + "c\n1" + delimiter + "2" + delimiter + "3\n";
+            expectThrows(ExternalClientException.class, format, () -> reader.schema(createStorageObject(wide)));
+        }
+    }
+
     public void testSchemaAtCapIsAccepted() throws IOException {
         int cap = 5;
         CsvFormatReader reader = new CsvFormatReader(blockFactory).withSchemaMaxFields(cap);
@@ -301,6 +316,40 @@ public class CsvFormatReaderTests extends ESTestCase {
             .withConfigTrackingConsumedKeys(Map.of("header_row", false))
             .value();
         expectThrows(ExternalClientException.class, () -> reader.schema(createStorageObject("1,2,3,4\n5,6,7,8\n")));
+    }
+
+    /*
+     * The cap is checked at four sites: the header split (shared by the quote-aware and the escape-aware splitters), the
+     * header split on the read path's inference, and the synthetic-column count of a headerless file on the schema path
+     * and on the read path. One test per site, so dropping any one fails its own test.
+     */
+
+    public void testColumnCapOnHeaderSplitForEachDialect() throws IOException {
+        int cap = 3;
+        for (String mode : List.of("quoted", "plain", "escaped")) {
+            CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaMaxFields(cap)
+                .withConfig(Map.of("mode", mode));
+            expectThrows(ExternalClientException.class, mode, () -> reader.schema(createStorageObject(header(cap + 1) + "\n1,2,3,4\n")));
+            assertEquals(mode, cap, reader.schema(createStorageObject(header(cap) + "\n1,2,3\n")).size());
+        }
+    }
+
+    public void testColumnCapOnHeaderSplitOfReadPathInference() throws Exception {
+        int cap = 3;
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withSchemaMaxFields(cap);
+        expectThrows(
+            ExternalClientException.class,
+            () -> readRowCount(reader, createStorageObject(header(cap + 1) + "\n1,2,3,4\n"), null, null)
+        );
+        assertEquals(1, readRowCount(reader, createStorageObject(header(cap) + "\n1,2,3\n"), null, null));
+    }
+
+    public void testColumnCapOnHeaderlessReadPathInference() throws Exception {
+        int cap = 3;
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaMaxFields(cap)
+            .withConfig(Map.of("header_row", false));
+        expectThrows(ExternalClientException.class, () -> readRowCount(reader, createStorageObject("1,2,3,4\n5,6,7,8\n"), null, null));
+        assertEquals(2, readRowCount(reader, createStorageObject("1,2,3\n5,6,7\n"), null, null));
     }
 
     /**
@@ -402,6 +451,25 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader tightReader = new CsvFormatReader(BlockFactory.builder(tight).breaker(tightBreaker).build())
             .withDeclaredProvenanceBinding(true)
             .withSchema(declared);
+        CircuitBreakingException e = expectThrows(
+            CircuitBreakingException.class,
+            () -> tightReader.read(createStorageObject(csv), context).close()
+        );
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
+        assertEquals(0, tightBreaker.getUsed());
+    }
+
+    /**
+     * A pinned inferred schema binds by position, and its header split is charged too. The cap counts only non-empty
+     * names, so a header of bare delimiters never reaches it; only the breaker bounds the list the split builds.
+     */
+    public void testPositionalBindingChargesHeaderOfDelimitersToTheBreaker() {
+        String csv = ",".repeat(200_000) + "\n1\n";
+        List<Attribute> pinned = List.of(new ReferenceAttribute(Source.EMPTY, null, "c0", DataType.LONG));
+        FormatReadContext context = FormatReadContext.builder().batchSize(10).readSchema(pinned).projectedColumns(List.of("c0")).build();
+        BigArrays tight = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofKb(256)).withCircuitBreaking();
+        CircuitBreaker tightBreaker = tight.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        CsvFormatReader tightReader = new CsvFormatReader(BlockFactory.builder(tight).breaker(tightBreaker).build()).withSchema(pinned);
         CircuitBreakingException e = expectThrows(
             CircuitBreakingException.class,
             () -> tightReader.read(createStorageObject(csv), context).close()

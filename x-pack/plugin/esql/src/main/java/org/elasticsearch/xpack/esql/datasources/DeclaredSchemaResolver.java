@@ -68,11 +68,11 @@ public final class DeclaredSchemaResolver {
         DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
         if (mappings != null && mappings.properties() != null && mappings.properties().size() > maxFields) {
             throw ExternalClientException.schemaTooWide(
-                "the dataset declares ["
-                    + mappings.properties().size()
-                    + "] columns, more than the ["
-                    + maxFields
-                    + "] allowed; raise [esql.external.schema_max_fields] or the dataset's [schema_max_fields]"
+                "the dataset declares [" + mappings.properties().size() + "] columns, more than the [" + maxFields + "] allowed; "
+                // At the ceiling raising the cap is rejected too, so the only remedy is a narrower declaration.
+                    + (maxFields >= ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS
+                        ? "declare fewer columns"
+                        : "raise [esql.external.schema_max_fields] or the dataset's [schema_max_fields]")
             );
         }
     }

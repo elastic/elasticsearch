@@ -95,16 +95,13 @@ public final class DatafeedEsqlGates {
         }
     }
 
-    public static ElasticsearchStatusException unsupportedCreateException(String datafeedId, String unsupportedReason) {
+    private static ElasticsearchStatusException unsupportedCreateException(String datafeedId, String unsupportedReason) {
         return ExceptionsHelper.badRequestException(
-            "Cannot create datafeed [{}] while a cluster upgrade is in progress ({}); "
-                + "wait for the cluster to finish upgrading and try again.",
-            datafeedId,
-            unsupportedReason
+            Messages.getMessage(Messages.DATAFEED_ESQL_CREATE_UPGRADE_IN_PROGRESS, datafeedId, unsupportedReason)
         );
     }
 
-    public static ElasticsearchStatusException unsupportedUpdateException(String datafeedId, String unsupportedReason) {
+    private static ElasticsearchStatusException unsupportedUpdateException(String datafeedId, String unsupportedReason) {
         return ExceptionsHelper.badRequestException(
             Messages.getMessage(Messages.DATAFEED_ESQL_UPDATE_UPGRADE_IN_PROGRESS, datafeedId, unsupportedReason)
         );

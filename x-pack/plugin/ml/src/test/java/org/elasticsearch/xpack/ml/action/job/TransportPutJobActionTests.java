@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
@@ -314,9 +315,11 @@ public class TransportPutJobActionTests extends ESTestCase {
         assertThat(
             failure.get().getMessage(),
             equalTo(
-                "Cannot create datafeed [job-1] while a cluster upgrade is in progress "
-                    + "(datafeed uses an ES|QL query, which requires support for ES|QL datafeeds); "
-                    + "wait for the cluster to finish upgrading and try again."
+                Messages.getMessage(
+                    Messages.DATAFEED_ESQL_CREATE_UPGRADE_IN_PROGRESS,
+                    "job-1",
+                    "datafeed uses an ES|QL query, which requires support for ES|QL datafeeds"
+                )
             )
         );
         verifyNoInteractions(esqlJobManager, datafeedConfigProvider, jobConfigProvider);

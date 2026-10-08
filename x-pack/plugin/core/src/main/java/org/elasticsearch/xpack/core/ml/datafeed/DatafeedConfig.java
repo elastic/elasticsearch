@@ -83,7 +83,6 @@ import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CON
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_DATA_HISTOGRAM_MUST_HAVE_NESTED_MAX_AGGREGATION;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_ESQL_GROUPING_INTERVAL_MUST_BE_FIXED;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_ESQL_REQUIRES_GROUPING_INTERVAL;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_ESQL_REQUIRES_SOURCE_TIME_FIELD;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INVALID_ID;
@@ -1756,18 +1755,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         }
 
         static TimeValue parseFixedGroupingInterval(String rawValue) {
-            if (isCalendarIntervalSyntax(rawValue)) {
-                throw ExceptionsHelper.badRequestException(DATAFEED_ESQL_GROUPING_INTERVAL_MUST_BE_FIXED);
-            }
             return TimeValue.parseTimeValue(rawValue, GROUPING_INTERVAL.getPreferredName());
-        }
-
-        private static boolean isCalendarIntervalSyntax(String value) {
-            if (value == null || value.isEmpty()) {
-                return false;
-            }
-            char last = value.charAt(value.length() - 1);
-            return last == 'w' || last == 'W' || last == 'M' || last == 'y' || last == 'Y';
         }
     }
 }

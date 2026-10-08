@@ -2098,11 +2098,14 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     }
 
     public void testEsqlCalendarGroupingIntervalShouldReject() {
-        ElasticsearchStatusException exception = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> DatafeedConfig.Builder.parseFixedGroupingInterval("1w")
-        );
-        assertThat(exception.getMessage(), equalTo(Messages.getMessage(Messages.DATAFEED_ESQL_GROUPING_INTERVAL_MUST_BE_FIXED)));
+        for (String calendarInterval : List.of("1w", "1M", "1y")) {
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> DatafeedConfig.Builder.parseFixedGroupingInterval(calendarInterval)
+            );
+            assertThat(exception.getMessage(), containsString("unit is missing or unrecognized"));
+            assertThat(exception.getMessage(), containsString("grouping_interval"));
+        }
     }
 
     public void testClassicDatafeedWithoutTimeDomainFieldsShouldSucceed() {

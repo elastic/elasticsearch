@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
@@ -97,9 +98,11 @@ public class TransportPutDatafeedActionTests extends ESTestCase {
             assertThat(
                 failure.get().getMessage(),
                 equalTo(
-                    "Cannot create datafeed [datafeed-1] while a cluster upgrade is in progress "
-                        + "(datafeed uses an ES|QL query, which requires support for ES|QL datafeeds); "
-                        + "wait for the cluster to finish upgrading and try again."
+                    Messages.getMessage(
+                        Messages.DATAFEED_ESQL_CREATE_UPGRADE_IN_PROGRESS,
+                        "datafeed-1",
+                        "datafeed uses an ES|QL query, which requires support for ES|QL datafeeds"
+                    )
                 )
             );
             verifyNoInteractions(datafeedConfigProvider, jobConfigProvider, client);

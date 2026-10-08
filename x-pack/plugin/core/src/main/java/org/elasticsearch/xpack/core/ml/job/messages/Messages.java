@@ -39,8 +39,6 @@ public final class Messages {
         "ES|QL datafeeds require source_time_field; set the indexed timestamp field used for request range filters";
     public static final String DATAFEED_ESQL_REQUIRES_GROUPING_INTERVAL =
         "ES|QL datafeeds require grouping_interval; set a fixed interval equal to the job bucket_span";
-    public static final String DATAFEED_ESQL_GROUPING_INTERVAL_MUST_BE_FIXED =
-        "grouping_interval must be a fixed time value (for example 1h or 30m); calendar intervals such as 1w or 1M are not supported";
     public static final String DATAFEED_ESQL_GROUPING_INTERVAL_MUST_MATCH_BUCKET_SPAN =
         "grouping_interval [{0}] must equal the job bucket_span [{1}]";
     public static final String DATAFEED_ESQL_PREVIEW_UPGRADE_IN_PROGRESS =
@@ -55,6 +53,9 @@ public final class Messages {
         "Cannot start ES|QL datafeed [{0}] because ES|QL datafeeds are not enabled on this node.";
     public static final String DATAFEED_ESQL_CREATE_DISABLED =
         "Cannot create ES|QL datafeed [{0}] because ES|QL datafeeds are not enabled on this node.";
+    public static final String DATAFEED_ESQL_CREATE_UPGRADE_IN_PROGRESS =
+        "Cannot create datafeed [{0}] while a cluster upgrade is in progress ({1}); "
+            + "wait for the cluster to finish upgrading and try again.";
     public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
         "Recreate ES|QL datafeed [{0}] to change esql_query, source_time_field, grouping_interval, indices, query, "
             + "aggregations, scroll_size, indices_options, or runtime_mappings. The update API only supports operational "

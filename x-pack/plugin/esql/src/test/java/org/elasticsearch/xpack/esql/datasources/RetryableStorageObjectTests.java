@@ -1018,6 +1018,29 @@ public class RetryableStorageObjectTests extends ESTestCase {
     }
 
     /**
+     * A permit timeout is retried like any transient fault, but when the retries are exhausted it is this node's own
+     * admission limit, not a store fault: it must not move {@code storage.errors} (the series that describes the store). The
+     * backoff it caused is still a real read stall.
+     */
+    public void testLocalCapacityGiveUpDoesNotCountAsStorageError() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+
+        AlwaysFailingStorageObject delegate = new AlwaysFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            new ExternalUnavailableException(Condition.LOCAL_CAPACITY, StoragePath.NONE, "", "", false, 0L)
+        );
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, new RetryPolicy(1, 5, 10));
+        obj.attachMetrics(metrics, "s3");
+
+        expectThrows(ExternalUnavailableException.class, obj::newStream);
+
+        assertThat(measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL), hasSize(0));
+        assertThat(measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL), hasSize(0));
+        assertThat(measurements(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION), hasSize(1));
+    }
+
+    /**
      * Wiring test for the retries-disabled config ({@code maxRetries == 0 && throttleMaxRetries == 0}): the
      * fast path still fires the terminal give-up, so a fatal open is counted as a storage error. There was no
      * backoff, so no read stall is recorded (the histogram is not seeded with a zero).

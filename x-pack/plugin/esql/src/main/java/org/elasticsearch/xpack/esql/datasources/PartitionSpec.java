@@ -138,13 +138,13 @@ public final class PartitionSpec {
             Objects.requireNonNull(unit, "unit");
         }
 
-        /** Canonical spelling used in error and warning text. */
+        /** Canonical spelling used in error, warning, and persisted spec text. */
         public String describe() {
             if (transform == Transform.IDENTITY) {
-                return key.equals(column) ? key : key + "=" + column;
+                return key.equals(column) ? quoteName(key) : quoteName(key) + "=" + quoteName(column);
             }
-            String call = transform.token() + "(" + column + (unit == Unit.EPOCH_MILLIS ? "" : ", " + unit.token()) + ")";
-            return key.equals(transform.token()) ? call : key + "=" + call;
+            String call = transform.token() + "(" + quoteName(column) + (unit == Unit.EPOCH_MILLIS ? "" : ", " + unit.token()) + ")";
+            return key.equals(transform.token()) ? call : quoteName(key) + "=" + call;
         }
     }
 
@@ -282,10 +282,10 @@ public final class PartitionSpec {
         for (Map.Entry<String, Window> entry : windows.entrySet()) {
             Window window = entry.getValue();
             if (window.lag().millis() != 0) {
-                parts.add("lag(" + entry.getKey() + ", " + window.lag().getStringRep() + ")");
+                parts.add("lag(" + quoteName(entry.getKey()) + ", " + window.lag().getStringRep() + ")");
             }
             if (window.lead().millis() != 0) {
-                parts.add("lead(" + entry.getKey() + ", " + window.lead().getStringRep() + ")");
+                parts.add("lead(" + quoteName(entry.getKey()) + ", " + window.lead().getStringRep() + ")");
             }
         }
         return String.join(", ", parts);
@@ -633,7 +633,9 @@ public final class PartitionSpec {
             throw new IllegalArgumentException("[" + CONFIG_PARTITION_SPEC + "] must be a non-empty string");
         }
         List<Field> parsed = new ArrayList<>(parts.size());
-        Set<String> keys = new LinkedHashSet<>();
+        Set<String> identityKeys = new LinkedHashSet<>();
+        Set<String> temporalKeys = new LinkedHashSet<>();
+        Set<String> temporalSlots = new LinkedHashSet<>();
         Map<String, TimeValue> lags = new LinkedHashMap<>();
         Map<String, TimeValue> leads = new LinkedHashMap<>();
         for (String part : parts) {
@@ -646,7 +648,10 @@ public final class PartitionSpec {
             }
             Field field = parseField(trimmed);
             if (field.transform() == Transform.IDENTITY) {
-                if (keys.add(field.key()) == false) {
+                if (temporalKeys.contains(field.key())) {
+                    throw mixedIdentityTemporal(field.key());
+                }
+                if (identityKeys.add(field.key()) == false) {
                     throw new IllegalArgumentException(
                         "["
                             + CONFIG_PARTITION_SPEC
@@ -655,21 +660,37 @@ public final class PartitionSpec {
                             + "] more than once; each identity key must appear once"
                     );
                 }
-            } else if (keys.add(field.key() + "\0" + field.column()) == false) {
-                throw new IllegalArgumentException(
-                    "["
-                        + CONFIG_PARTITION_SPEC
-                        + "] names key ["
-                        + field.key()
-                        + "] more than once on column ["
-                        + field.column()
-                        + "]; each partition key must appear once per column"
-                );
+            } else {
+                if (identityKeys.contains(field.key())) {
+                    throw mixedIdentityTemporal(field.key());
+                }
+                temporalKeys.add(field.key());
+                if (temporalSlots.add(field.key() + "\0" + field.column()) == false) {
+                    throw new IllegalArgumentException(
+                        "["
+                            + CONFIG_PARTITION_SPEC
+                            + "] names key ["
+                            + field.key()
+                            + "] more than once on column ["
+                            + field.column()
+                            + "]; each partition key must appear once per column"
+                    );
+                }
             }
             parsed.add(field);
         }
         rejectMixedUnits(parsed);
         return new PartitionSpec(parsed, windowsOf(parsed, lags, leads));
+    }
+
+    private static IllegalArgumentException mixedIdentityTemporal(String key) {
+        return new IllegalArgumentException(
+            "["
+                + CONFIG_PARTITION_SPEC
+                + "] names key ["
+                + key
+                + "] as both identity and a temporal transform; each key is one or the other"
+        );
     }
 
     /**
@@ -1054,6 +1075,14 @@ public final class PartitionSpec {
             throw new IllegalArgumentException("[" + CONFIG_PARTITION_SPEC + "] [" + field + "] has an empty quoted identifier");
         }
         return inner;
+    }
+
+    /** Bare when {@link #IDENTIFIER} matches; otherwise backtick-quoted with {@code ``} escapes. */
+    static String quoteName(String name) {
+        if (IDENTIFIER.matcher(name).matches()) {
+            return name;
+        }
+        return "`" + name.replace("`", "``") + "`";
     }
 
     /** Index of the closing backtick. {@code openTick} points at the opening one. {@code ``} is one escaped backtick. */

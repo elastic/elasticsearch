@@ -1914,10 +1914,10 @@ public class ExternalSourceResolver {
             return;
         }
         PartitionMetadata meta = listing.partitionMetadata();
-        // Hive EMPTY is stored as null. A non-empty spec with no detected keys is mixed layout
-        // (or detection found nothing) — unmatched-key notices used to be skipped; do not suppress.
-        boolean mixed = meta == null;
-        Set<String> detected = mixed ? Set.of() : meta.partitionColumns().keySet();
+        // Hive EMPTY and FileList.EMPTY both store null metadata. That is "no files", not mixed
+        // layout. Unmatched-key and mixed notices fire only when files were listed.
+        boolean mixed = listing.fileCount() > 0 && meta == null;
+        Set<String> detected = mixed ? Set.of() : meta == null ? null : meta.partitionColumns().keySet();
         spec.emitListingNotices(
             detected,
             hints,

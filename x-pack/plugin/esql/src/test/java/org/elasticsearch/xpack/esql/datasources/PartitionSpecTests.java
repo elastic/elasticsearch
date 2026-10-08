@@ -80,6 +80,33 @@ public class PartitionSpecTests extends ESTestCase {
         );
     }
 
+    public void testToSpecStringQuotesDottedNames() {
+        PartitionSpec spec = PartitionSpec.parse("year(`event.ts`), lag(`event.ts`, 15m)");
+        assertThat(spec.toSpecString(), containsString("`event.ts`"));
+        assertEquals(spec, PartitionSpec.parse(spec.toSpecString()));
+    }
+
+    public void testAlignWithMappingRoundTripsQuotedNames() {
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("event.ts", new DatasetFieldMapping("date", null)))
+        );
+        PartitionSpec spec = PartitionSpec.parse("year(`event.ts`, epoch_second), lag(`event.ts`, 15m)");
+        PartitionSpec aligned = spec.alignWithMapping(mapping);
+        assertThat(aligned.toSpecString(), containsString("year(`event.ts`)"));
+        assertThat(aligned.toSpecString(), containsString("lag(`event.ts`"));
+        assertThat(aligned.toSpecString(), not(containsString("epoch_second")));
+        assertEquals(aligned, PartitionSpec.parse(aligned.toSpecString()));
+    }
+
+    public void testRejectIdentityAndTemporalOnSameKey() {
+        for (String spec : List.of("year=region, year(ts)", "year(ts), year=region")) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PartitionSpec.parse(spec));
+            assertThat(e.getMessage(), containsString(CONFIG_PARTITION_SPEC));
+            assertThat(e.getMessage(), containsString("year"));
+            assertThat(e.getMessage(), containsString("identity"));
+        }
+    }
+
     public void testUnusableNoticeForBadSpecAndNone() {
         assertNull(PartitionSpec.unusableNotice(Map.of()));
         assertNull(PartitionSpec.unusableNotice(Map.of(CONFIG_PARTITION_SPEC, "year(ts)")));

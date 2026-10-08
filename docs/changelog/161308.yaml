@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 161308
-summary: "Add partition spec lag, finer listing, and request-filter parity"
+summary: "Improve folder pruning for time-partitioned ES|QL datasets"
 type: enhancement

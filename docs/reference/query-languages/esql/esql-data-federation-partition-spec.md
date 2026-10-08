@@ -26,8 +26,8 @@ names are found.
 ## Define a partition spec
 
 Set `partition_spec` in your dataset settings as a comma-separated list. A **binding** maps a path
-key to a transform on a file column. `lag` and `lead` are not bindings: they do not map a path key.
-They widen the listing window for a column that already has a temporal binding:
+key to a transform on a file column. The `lag` and `lead` functions adjust the listing
+window for a column that already has a time-based binding. They do not create path-key bindings:
 
 ```text
 [key=]transform(column[, unit])
@@ -66,15 +66,17 @@ A spec in that mode is rejected. `template` keeps `partition_path` and does not 
 ## How folder pruning works
 
 A filter like `WHERE ts > T` skips folders whose UTC time range falls entirely outside the filter. A filter
-with only a start does this while files are chosen. A closed range, or `year ==` / `year IN`, can also
-narrow listing: each bound grain (`year`, `month`, `day`, `hour`) may emit an `IN` list of UTC calendar
-parts. Year folders are four-digit UTC years. A grain whose set is complete (all 12 months, 31 days, or
-24 hours) or larger than 64 values is skipped at listing; files in those folders can still be dropped after
-listing. When you map several granularities to the same column (`year(ts), month(ts), day(ts)`), the engine
-evaluates them as one combined range at the finest declared grain, not as independent conditions. This means
-`WHERE ts >= "2024-03-01"` correctly keeps January 2025, even though month `01` is numerically less than
-`03`. An exclusive boundary that falls exactly on a folder boundary does not include the next folder.
-Temporal columns are read as UTC. Path-key filters such as `WHERE year == 2024` stay exact.
+with only a lower bound skips nonmatching files after Elasticsearch lists them. A range with lower and
+upper bounds can also narrow the folders Elasticsearch lists. For each configured time unit (`year`,
+`month`, `day`, or `hour`), Elasticsearch creates an `IN` list from UTC calendar values. It omits
+this optimization when the list contains every possible value for that unit or more than 64 values.
+Elasticsearch can still skip individual files after listing the folders.
+
+When you map multiple time units to the same column (`year(ts), month(ts), day(ts)`), Elasticsearch
+evaluates them as one combined range at the smallest configured unit. For example,
+`WHERE ts >= "2024-03-01"` keeps January 2025 even though month `01` is less than `03`. An exclusive
+boundary that falls exactly on a folder boundary does not include the next folder. Elasticsearch
+reads date and time columns as UTC. Path-key filters such as `WHERE year == 2024` remain exact.
 
 When you write `YEAR(ts) > 2024` and the spec includes `year(ts)`, the engine converts this to a range
 on `ts` and uses that range to skip folders. It does not become `WHERE year > 2024`. Without the spec, the
@@ -85,17 +87,22 @@ in every year: the query opens every file and filters rows after reading. A lite
 ## Account for a delivery date
 
 CloudTrail and VPC Flow Logs often land under a **delivery** date that lags the event time in the file. A
-filter on the event-time column can miss a folder that still holds matching rows. Add `lag(column, duration)`
-to extend the listing window after the filter, and `lead(column, duration)` to extend it before. `lag(start, 15m)`
-keeps the next hour (or day) folder so a row that arrived late is still listed. `lead` keeps the previous folder.
-Lag and lead only widen; they never skip a folder the filter would keep.
+filter on the event-time column can miss a folder that contains matching rows. Add
+`lag(column, duration)` to extend the listing window after the filter. Add `lead(column, duration)`
+to extend it before the filter. For example, `lag(start, 15m)` keeps the next hour or day folder so
+that Elasticsearch lists late-arriving rows. `lead` keeps the previous folder. Both functions only
+widen the window. They never skip a folder the filter would keep.
 
-The following example registers a Hive-compatible hourly VPC Flow Logs dataset. `start` and `end` are unix
-epoch seconds. The resource uses keyed `key=*` segments, not `**`, so listing can walk past unhinted identity
-keys (`aws-account-id`, `aws-region`) when year through hour are in the spec. The mapping exposes `start` as
-`@timestamp`, so the bindings use `@timestamp`, not `start`. PUT rejects `year(start)` in that case. `end` is
-a mapping field with no rename, so `year(end)` is the binding. `lag` widens those columns; it is not a key
-binding. Date mapping types omit the unit.
+### Configure Hive-compatible VPC Flow Logs
+
+The following example registers a Hive-compatible, hourly VPC Flow Logs dataset. The `start` and
+`end` fields contain Unix epoch seconds. Each partition in the resource path uses the `key=*` format.
+Elasticsearch can continue through keys that are not included in the spec, such as `aws-account-id`
+and `aws-region`.
+
+The mapping exposes `start` as `@timestamp`, so the partition spec must bind `@timestamp`. The `PUT`
+request rejects `year(start)`. The `end` field is not renamed, so bind `year(end)`. Date fields do not
+require a unit. The `lag` function adjusts the listing window but does not create a path-key binding.
 
 ```console
 PUT /_query/dataset/vpc_flow
@@ -147,10 +154,15 @@ PUT /_query/dataset/vpc_flow_text
 }
 ```
 
-When a mapping exposes the file column as `@timestamp`, bind `@timestamp` and omit the unit: the
-column is already a date. PUT rejects a spec that names the mapping `path` (`year(start)` while
-`@timestamp` has `path=start`); name the logical field. A stored spec that was never re-PUT after a
-mapping rename stays on `start` and does not prune `@timestamp` filters; the query succeeds and warns.
+### Use mapped date fields
+
+When a mapping exposes the file column as `@timestamp`, bind `@timestamp` and omit the unit because
+the column is already a date. If the mapping renames a source column with `path`, the partition spec
+must use the mapped field name. For example, when `@timestamp` has `path=start`, use
+`year(@timestamp)`. The `PUT` request rejects `year(start)`.
+
+A spec saved before the mapping rename continues to reference `start`, so it cannot prune filters on
+`@timestamp`. The query still succeeds and returns a warning.
 
 ```console
 PUT /_query/dataset/vpc_flow_mapped
@@ -200,7 +212,7 @@ The following table shows how different query patterns interact with `partition_
 | 9 | any filter on `ts` | `year(ts)` but the path key is `yyy` | Nothing from that binding. Warning: the key was not detected. |
 | 10 | `WHERE start > T` | `year(start)` on unix seconds (default unit `epoch_millis`) | Nothing. Warning: the unit is likely wrong. |
 | 11 | `WHERE ts > T` | `yyy=year(ts), mo=month(ts)` and `partition_path: {yyy}/{mo}` | Same combined range as row 4, on the renamed keys. |
-| 12 | `WHERE @timestamp > T` | `year(@timestamp), month(@timestamp), day(@timestamp)` after mapping `start` to `@timestamp` | Same combined range as row 5. PUT rejects `year(start)` here; bind `@timestamp`. A never-re-PUT spec on `start` matches nothing. |
+| 12 | `WHERE @timestamp > T` | `year(@timestamp), month(@timestamp), day(@timestamp)` after mapping `start` to `@timestamp` | Same combined range as row 5. PUT rejects `year(start)` here; bind `@timestamp`. A stored spec on `start` matches nothing. |
 | 13 | `request.filter` range on `@timestamp` | `year(@timestamp), month(@timestamp), day(@timestamp)` | Day folders whose UTC interval misses the window. Year folders in the listing too. |
-| 14 | `WHERE @timestamp >= T AND @timestamp < U` | `year(ts), month(ts), day(ts), hour(ts)` | Listing can skip year/month/day/hour folders whose UTC parts miss the (lag-widened) range. Day or hour `IN` is omitted when the set is complete or larger than 64. |
+| 14 | `WHERE @timestamp >= T AND @timestamp < U` | `year(@timestamp), month(@timestamp), day(@timestamp), hour(@timestamp)` | Year, month, day, and hour folders outside the adjusted time range. Elasticsearch omits an `IN` filter when it contains all possible values or more than 64 values. |
 | 15 | `WHERE @timestamp > "2024-06-15T00:00:00Z"` | `year(@timestamp), month(@timestamp), day(@timestamp)` | Same as with `::datetime`. The keyword ISO literal is cast to datetime. |

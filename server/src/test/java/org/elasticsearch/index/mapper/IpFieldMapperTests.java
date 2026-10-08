@@ -311,8 +311,10 @@ public class IpFieldMapperTests extends MapperTestCase {
         final List<IndexVersion> indexVersions = List.of(
             IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_4,
             IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_5,
-            IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES,
-            IndexVersionUtils.randomVersionBetween(IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES, IndexVersion.current())
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_5,
+                IndexVersion.current()
+            )
         );
         for (IndexVersion indexVersion : indexVersions) {
             assertTimeSeriesIndexTypes(
@@ -329,19 +331,13 @@ public class IpFieldMapperTests extends MapperTestCase {
         final IndexVersion lastBefore95Backport = IndexVersionUtils.getPreviousVersion(
             IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_5
         );
-        final IndexVersion lastBeforeFix = IndexVersionUtils.getPreviousVersion(
-            IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES
-        );
         final List<IndexVersion> indexVersions = List.of(
             IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS,
             IndexVersionUtils.randomVersionBetween(IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS, lastBefore94Backport),
             lastBefore94Backport,
             IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES,
             IndexVersionUtils.randomVersionBetween(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES, lastBefore95Backport),
-            lastBefore95Backport,
-            IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG,
-            IndexVersionUtils.randomVersionBetween(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG, lastBeforeFix),
-            lastBeforeFix
+            lastBefore95Backport
         );
         for (IndexVersion indexVersion : indexVersions) {
             assertTimeSeriesIndexTypes(indexVersion, (indexed, docValues) -> IndexType.skippers());

@@ -230,11 +230,7 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         private static boolean timeSeriesSkippersHonorIndexAndDocValues(IndexVersion indexVersionCreated) {
-            return indexVersionCreated.onOrAfter(IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES)
-                || indexVersionCreated.between(
-                    IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_5,
-                    IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG
-                )
+            return indexVersionCreated.onOrAfter(IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_5)
                 || indexVersionCreated.between(
                     IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_4,
                     IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES

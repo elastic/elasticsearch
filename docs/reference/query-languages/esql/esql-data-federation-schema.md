@@ -44,7 +44,7 @@ The following table compares the available strategies:
 
 | Strategy | Behavior | Use when |
 |---|---|---|
-| `first_file_wins` | Reads the schema from the first file after [file ordering](#control-which-file-supplies-the-schema), and reads later files with that schema. Columns that exist only in later files aren't included. Only one file's schema is inspected. | Files share a schema, and you want the least schema-discovery work. |
+| `first_file_wins` | Reads the schema from the first file after [file ordering](#control-which-file-supplies-the-schema), and reads later files with that schema. {applies_to}`stack: experimental 9.6+` Other CSV and TSV files [match it by header name](#first-file-wins-csv-tsv). Columns that exist only in other files aren't included. Only one file's schema is inspected. | Files share a schema, and you want the least schema-discovery work. |
 | `union_by_name` | Inspects every file and merges columns by name. Missing columns contain null values. Compatible types are widened, and incompatible types become `keyword`. | Files can gain or lose columns, and those differences shouldn't fail the query. |
 | `strict` | Inspects every file and requires the same schema, apart from nullability. | Schema drift should fail the query. |
 
@@ -57,6 +57,15 @@ A type mismatch in a later Parquet file doesn't fail the query. If a column's ty
 - `fail_fast`: The query fails.
 - `null_field`: The column contains null values for that file, and the response includes a warning.
 - `skip_row`: All rows of that file are skipped. Each counts as a malformed row against [`max_errors`](esql-data-federation-dataset-settings.md#max-errors) and [`max_error_ratio`](esql-data-federation-dataset-settings.md#max-error-ratio), so the file exceeds any `max_error_ratio` below `1.0`, and a large file can exceed a small `max_errors`.
+
+### How `first_file_wins` matches columns in CSV and TSV files [first-file-wins-csv-tsv]
+```{applies_to}
+stack: experimental 9.6+
+```
+
+Each CSV or TSV file after the one that supplies the schema is matched to the schema's columns by its own header names, so files whose columns come in a different order read the same values. A column that a file lacks contains null values for that file, and the response includes a warning. Columns that only that file has are ignored. A file with duplicate header names fails the query.
+
+Files without a header row are read by position. A row with more fields than the schema is handled according to [`error_mode`](esql-data-federation-dataset-settings.md#error-mode). Declared schemas follow the same header rules, as described in [How declared columns match file columns](#how-declared-columns-match-file-columns).
 
 ## Control which file supplies the schema
 ```{applies_to}

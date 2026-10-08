@@ -59,6 +59,7 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
         "readConfig",
         "declaredDateFormats",
         "declaredProvenanceBinding",
+        "headerBindingByProvenance",
         "directBlockEnabled",
         "configWarnings"
     );
@@ -82,6 +83,7 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withSchema", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withDeclaredDateFormats", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withHeaderBindingByProvenance", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withDirectBlockEnabled", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withReadConfig", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withPushedFilter", WitherLifecycle.IDENTITY_NO_COPY),
@@ -246,6 +248,7 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
             );
             case "withDeclaredDateFormats" -> List.<Object[]>of(new Object[] { Map.of("b", "yyyy-MM-dd") });
             case "withDeclaredProvenanceBinding" -> List.<Object[]>of(new Object[] { true }, new Object[] { false });
+            case "withHeaderBindingByProvenance" -> List.<Object[]>of(new Object[] { true }, new Object[] { false });
             case "withDirectBlockEnabled" -> List.<Object[]>of(new Object[] { true }, new Object[] { false });
             case "withReadConfig" -> List.<Object[]>of(new Object[] { "0123456789abcdef0123456789abcdef" });
             case "withPushedFilter" -> List.<Object[]>of(new Object[] { new Object() });

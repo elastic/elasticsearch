@@ -269,8 +269,8 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
      * must not depend on how the hashes were split up or merged.
      */
     public void testBulkMergePaths() throws IOException {
-        // Up to 14: more than 4096 registers need several steps of the scratch array.
-        final int precision = randomIntBetween(MIN_PRECISION, 14);
+        // Above precision 12, the registers need several steps of the scratch array.
+        final int precision = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
         final int threshold = (int) ((1 << precision) / 4 * 0.75);
         final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         try (

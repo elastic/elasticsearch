@@ -244,6 +244,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             circuitBreaker
         );
         this.sliceSelection = source.sliceSelection;
+        this.fieldVisibilityPredicate = source.fieldVisibilityPredicate;
     }
 
     private SearchExecutionContext(

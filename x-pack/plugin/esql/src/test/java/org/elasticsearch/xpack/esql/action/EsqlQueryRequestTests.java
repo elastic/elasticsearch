@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
+import org.elasticsearch.xpack.esql.session.ExemplarsSettings;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -826,6 +827,28 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
         assertNotNull(request.get(QuerySettings.APPROXIMATION));
         assertEquals(Integer.valueOf(10000), request.get(QuerySettings.APPROXIMATION).rows());
+    }
+
+    public void testSettingsBlockExemplarsBoolean() throws IOException {
+        EsqlQueryRequest request = parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "exemplars": true
+                }
+            }""");
+        assertEquals(ExemplarsSettings.ENABLED, request.get(QuerySettings.EXEMPLARS));
+    }
+
+    public void testSettingsBlockExemplarsObject() throws IOException {
+        EsqlQueryRequest request = parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "exemplars": {"limit": 1234}
+                }
+            }""");
+        assertEquals(new ExemplarsSettings(true, 1234), request.get(QuerySettings.EXEMPLARS));
     }
 
     public void testSettingsBlockRejectsConflictingValuesAtBothLevels() {

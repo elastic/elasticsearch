@@ -5,7 +5,7 @@ setup:
           path: /_search
           capabilities: [ range_field_dv_query_description_has_field ]
       test_runner_features: capabilities
-      reason: "Before the fix, BinaryDocValuesRangeQuery descriptions printed an empty field name."
+      reason: "BinaryDocValuesRangeQuery descriptions name the queried range field."
 
   - do:
       indices.create:

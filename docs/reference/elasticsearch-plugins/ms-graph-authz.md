@@ -15,7 +15,7 @@ size limit (see [Group overages](https://learn.microsoft.com/en-us/security/zero
 
 ## Installation [ms-graph-authz-install]
 
-If you're using a [self-managed Elasticsearch cluster](docs-content:///deploy-manage/deploy/self-managed.md), then this plugin can be installed using the plugin manager:
+If you're using a [self-managed Elasticsearch cluster](docs-content://deploy-manage/deploy/self-managed.md), then this plugin can be installed using the plugin manager:
 
 ```sh
 sudo bin/elasticsearch-plugin install microsoft-graph-authz

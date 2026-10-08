@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/analysis-icu.html
+sub:
+  plugin-id: analysis-icu
 ---
 
 # ICU analysis plugin [analysis-icu]
@@ -20,28 +22,17 @@ While we restrict ICU upgrades to major versions, you may find that an index cre
 
 ## Installation [analysis-icu-install]
 
-This plugin can be installed using the plugin manager:
+:::{include} _snippets/plugin-installation.md
+:::
 
-```sh
-sudo bin/elasticsearch-plugin install analysis-icu
-```
-
-The plugin must be installed on every node in the cluster, and each node must be restarted after installation.
-
-You can download this plugin for [offline install](/reference/elasticsearch/command-line-tools/elasticsearch-plugin.md#elasticsearch-plugin-ids) from [https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-{{version.stack}}.zip](https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-{{version.stack}}.zip). To verify the `.zip` file, use the [SHA hash](https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-{{version.stack}}.zip.sha512) or [ASC key](https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-{{version.stack}}.zip.asc).
-
-The plugin manager installs plugins on a self-managed cluster. To install this plugin on {{ech}}, {{ece}}, or {{eck}}, refer to the [plugin installation instructions for your deployment type](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).
+:::{include} _snippets/plugin-deployment-types.md
+:::
 
 
 ## Removal [analysis-icu-remove]
 
-The plugin can be removed with the following command:
-
-```sh
-sudo bin/elasticsearch-plugin remove analysis-icu
-```
-
-The node must be stopped before removing the plugin.
+:::{include} _snippets/plugin-removal.md
+:::
 
 
 

@@ -11,8 +11,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
-import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.index.DirectoryReader;
@@ -23,7 +23,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.TransportVersion;
@@ -50,7 +49,6 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -58,8 +56,6 @@ import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenCountingMetrics;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
-import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -978,14 +974,14 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
      * Lucene's test framework randomizes that format on purpose.
      */
     protected static void assertDocValuesWrittenAsMapped(MapperService mapperService, IndexReader reader) {
-        final PerFieldMapperCodec codec = productionCodec(mapperService);
+        final Codec codec = TestIndexWriterBuilder.productionCodec(mapperService);
         final Map<String, String> mismatches = new TreeMap<>();
         for (LeafReaderContext leaf : reader.leaves()) {
             for (FieldInfo info : leaf.reader().getFieldInfos()) {
                 if (info.getDocValuesType() == DocValuesType.NONE) {
                     continue;
                 }
-                final DocValuesFormat expected = codec.getDocValuesFormatForField(info.name);
+                final DocValuesFormat expected = TestIndexWriterBuilder.docValuesFormatForField(codec, info.name);
                 if (expected instanceof Lucene90DocValuesFormat) {
                     continue;
                 }
@@ -999,7 +995,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected static DocValuesFormat productionDocValuesFormat(MapperService mapperService, String field) {
-        return productionCodec(mapperService).getDocValuesFormatForField(field);
+        return TestIndexWriterBuilder.docValuesFormatForField(TestIndexWriterBuilder.productionCodec(mapperService), field);
     }
 
     /**
@@ -1013,24 +1009,6 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         }
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, doc.dynamicMappingsUpdate(), MapperService.MergeReason.MAPPING_UPDATE);
         return mapperService.documentMapper().parse(source);
-    }
-
-    static Sort productionIndexSort(MapperService mapperService) {
-        return new IndexSortConfig(mapperService.getIndexSettings()).buildIndexSort(
-            mapperService::fieldType,
-            (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
-        );
-    }
-
-    static PerFieldMapperCodec productionCodec(MapperService mapperService) {
-        return new PerFieldMapperCodec(
-            Lucene104Codec.Mode.BEST_SPEED,
-            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-            mapperService,
-            BigArrays.NON_RECYCLING_INSTANCE,
-            null
-        );
     }
 
     protected final String syntheticSource(MapperService mapperService, CheckedConsumer<XContentBuilder, IOException> build)

@@ -12,6 +12,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
@@ -19,9 +21,15 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.ElasticsearchCodec;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -51,9 +59,35 @@ public final class TestIndexWriterBuilder {
     public static TestIndexWriterBuilder mapped(MapperService mapperService) {
         Objects.requireNonNull(mapperService);
         return new TestIndexWriterBuilder(
-            MapperServiceTestCase.productionCodec(mapperService),
+            productionCodec(mapperService),
             mapperService.getIndexSettings().getIndexVersionCreated(),
-            MapperServiceTestCase.productionIndexSort(mapperService)
+            productionIndexSort(mapperService)
+        );
+    }
+
+    /**
+     * The codec the engine resolves for {@code mapperService}: {@code index.codec}, or the index mode's default codec.
+     */
+    static Codec productionCodec(MapperService mapperService) {
+        return new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null).codec(
+            EngineConfig.INDEX_CODEC_SETTING.get(mapperService.getIndexSettings().getSettings())
+        );
+    }
+
+    static DocValuesFormat docValuesFormatForField(Codec codec, String field) {
+        if (codec instanceof ElasticsearchCodec elasticsearchCodec) {
+            return elasticsearchCodec.getDocValuesFormatForField(field);
+        }
+        if (codec.docValuesFormat() instanceof PerFieldDocValuesFormat perField) {
+            return perField.getDocValuesFormatForField(field);
+        }
+        throw new AssertionError("codec [" + codec.getName() + "] does not pick doc values formats per field");
+    }
+
+    static Sort productionIndexSort(MapperService mapperService) {
+        return new IndexSortConfig(mapperService.getIndexSettings()).buildIndexSort(
+            mapperService::fieldType,
+            (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
         );
     }
 

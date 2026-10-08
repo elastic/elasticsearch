@@ -16,30 +16,39 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat.Mode.LUCENE;
+import static org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MappedIndexWriterTests extends MapperServiceTestCase {
@@ -134,8 +143,60 @@ public class MappedIndexWriterTests extends MapperServiceTestCase {
         }
     }
 
+    public void testBuilderUsesIndexModeDefaultCodec() throws IOException {
+        withSingleDocSegment(
+            columnarVersion(false),
+            columnar(),
+            (mapperService, leaf) -> assertThat(storedFieldsMode(leaf), equalTo(ZSTD_BEST_COMPRESSION.name()))
+        );
+    }
+
+    public void testBuilderUsesConfiguredDefaultCodec() throws IOException {
+        withSingleDocSegment(columnarVersion(false), withCodec(columnar(), CodecService.DEFAULT_CODEC), (mapperService, leaf) -> {
+            assertThat(storedFieldsMode(leaf), equalTo(LUCENE.name()));
+            assertThat(writtenDocValuesFormat(leaf), equalTo(productionDocValuesFormat(mapperService, "foo").getName()));
+        });
+    }
+
+    public void testBuilderUsesLuceneDefaultCodec() throws IOException {
+        withSingleDocSegment(columnarVersion(false), withCodec(columnar(), CodecService.LUCENE_DEFAULT_CODEC), (mapperService, leaf) -> {
+            assertThat(productionDocValuesFormat(mapperService, "foo"), not(instanceOf(ES819Version3TSDBDocValuesFormat.class)));
+            assertThat(writtenDocValuesFormat(leaf), equalTo(productionDocValuesFormat(mapperService, "foo").getName()));
+        });
+    }
+
     public void testBuilderRequiresMapperService() {
         expectThrows(NullPointerException.class, () -> TestIndexWriterBuilder.mapped(null));
+    }
+
+    private void withSingleDocSegment(
+        IndexVersion indexVersion,
+        Settings settings,
+        CheckedBiConsumer<MapperService, LeafReader, IOException> test
+    ) throws IOException {
+        final MapperService mapperService = createMapperService(indexVersion, settings, keywordMapping(false));
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService).build(directory)) {
+                iw.addDocuments(mapperService.documentMapper().parse(source(b -> b.field("foo", "value"))).docs());
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                assertDocValuesWrittenAsMapped(mapperService, reader);
+                assertThat(reader.leaves(), hasSize(1));
+                test.accept(mapperService, reader.leaves().get(0).reader());
+            }
+        }
+    }
+
+    private static String storedFieldsMode(LeafReader leaf) {
+        return ((SegmentReader) leaf).getSegmentInfo().info.getAttribute(ElasticsearchStoredFieldsFormat.MODE_KEY);
+    }
+
+    private static String writtenDocValuesFormat(LeafReader leaf) {
+        return leaf.getFieldInfos().fieldInfo("foo").getAttribute(PerFieldDocValuesFormat.PER_FIELD_FORMAT_KEY);
+    }
+
+    private static Settings withCodec(Settings settings, String codec) {
+        return Settings.builder().put(settings).put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec).build();
     }
 
     private RandomIndexWriter mappedWriter(MapperService mapperService, Directory directory) throws IOException {

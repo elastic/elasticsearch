@@ -502,7 +502,7 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
     private void addBatch(MapperService mapperService, MappedColumns columns, int expectedDocs) throws IOException {
         final IndexWriterConfig iwc = new IndexWriterConfig(
             IndexShard.buildIndexAnalyzer(mapperService, mapperService.getMapperMetrics().tokenCountingMetrics())
-        ).setCodec(productionCodec(mapperService));
+        ).setCodec(TestIndexWriterBuilder.productionCodec(mapperService));
         try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, iwc)) {
             iw.addBatch(columns.toColumnBatch());
             try (DirectoryReader reader = DirectoryReader.open(iw)) {

@@ -4307,6 +4307,8 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/issues/148190">#148190</a>.
          */
         FIX_FLATTENED_SUBKEY_PUSHDOWN,
+
+        /**
          * A whole number in an external dataset column declared or inferred as {@code date_nanos}, without a
          * {@code format}, is read as epoch milliseconds widened to nanoseconds, matching {@code date} columns. Parquet
          * filter pushdown and TopN pruning scale their bounds the same way. Older nodes read such a number as epoch

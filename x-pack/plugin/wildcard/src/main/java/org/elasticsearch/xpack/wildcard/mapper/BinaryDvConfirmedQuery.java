@@ -24,6 +24,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
@@ -74,13 +75,15 @@ abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesSc
         BytesRef upper,
         boolean includeLower,
         boolean includeUpper,
-        boolean arrayOrder
+        boolean arrayOrder,
+        @Nullable CircuitBreaker breaker
     ) {
         return new BinaryDvConfirmedAutomatonQuery(
             approximation,
             field,
             new RangeAutomatonProvider(lower, upper, includeLower, includeUpper),
-            arrayOrder
+            arrayOrder,
+            breaker
         );
     }
 
@@ -96,13 +99,15 @@ abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesSc
         String field,
         String matchPattern,
         boolean caseInsensitive,
-        boolean arrayOrder
+        boolean arrayOrder,
+        @Nullable CircuitBreaker breaker
     ) {
         return new BinaryDvConfirmedAutomatonQuery(
             approximation,
             field,
             new PatternAutomatonProvider(matchPattern, caseInsensitive),
-            arrayOrder
+            arrayOrder,
+            breaker
         );
     }
 
@@ -120,13 +125,15 @@ abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesSc
         int syntaxFlags,
         int matchFlags,
         int maxDeterminizedStates,
-        boolean arrayOrder
+        boolean arrayOrder,
+        @Nullable CircuitBreaker breaker
     ) {
         return new BinaryDvConfirmedAutomatonQuery(
             approximation,
             field,
             new RegexAutomatonProvider(value, syntaxFlags, matchFlags, maxDeterminizedStates),
-            arrayOrder
+            arrayOrder,
+            breaker
         );
     }
 
@@ -137,12 +144,20 @@ abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesSc
      * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format when
      * {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
      */
-    public static Query fromFuzzyQuery(Query approximation, String field, String searchTerm, FuzzyQuery fuzzyQuery, boolean arrayOrder) {
+    public static Query fromFuzzyQuery(
+        Query approximation,
+        String field,
+        String searchTerm,
+        FuzzyQuery fuzzyQuery,
+        boolean arrayOrder,
+        @Nullable CircuitBreaker breaker
+    ) {
         return new BinaryDvConfirmedAutomatonQuery(
             approximation,
             field,
             new FuzzyQueryAutomatonProvider(searchTerm, fuzzyQuery),
-            arrayOrder
+            arrayOrder,
+            breaker
         );
     }
 
@@ -161,13 +176,15 @@ abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesSc
         String field,
         Supplier<Automaton> automatonSupplier,
         String description,
-        boolean arrayOrder
+        boolean arrayOrder,
+        @Nullable CircuitBreaker breaker
     ) {
         return new BinaryDvConfirmedAutomatonQuery(
             approximation,
             field,
             new SuppliedAutomatonProvider(automatonSupplier, description),
-            arrayOrder
+            arrayOrder,
+            breaker
         );
     }
 
@@ -183,7 +200,7 @@ abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesSc
         return new BinaryDvConfirmedTermsQuery(approximation, field, terms, arrayOrder);
     }
 
-    protected abstract BinaryDVMatcher getBinaryDVMatcher(@Nullable CircuitBreaker breaker);
+    protected abstract BinaryDVMatcher getBinaryDVMatcher();
 
     protected abstract Query rewrite(Query approxRewrite) throws IOException;
 
@@ -203,7 +220,7 @@ abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesSc
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         final Weight approxWeight = approxQuery.createWeight(searcher, scoreMode, boost);
         final CircuitBreaker breaker = ContextIndexSearcher.circuitBreakerOrNull(searcher);
-        final BinaryDVMatcher matcher = getBinaryDVMatcher(breaker);
+        final BinaryDVMatcher matcher = getBinaryDVMatcher();
         return new ConstantScoreWeight(this, boost) {
 
             @Override
@@ -292,23 +309,50 @@ abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesSc
         boolean matchesBinaryDV(SortableBinaryDocValues values) throws IOException;
     }
 
-    private static class BinaryDvConfirmedAutomatonQuery extends BinaryDvConfirmedQuery {
+    /**
+     * Builds its automaton when the query is built, not when its weight is created, so that the retained automaton is a part of the
+     * query that {@link org.elasticsearch.search.internal.MaxClauseCountQueryVisitor} can charge to the request breaker through
+     * {@link Accountable}. {@code automatonProvider} is kept only because the automaton has no value equality.
+     */
+    private static class BinaryDvConfirmedAutomatonQuery extends BinaryDvConfirmedQuery implements Accountable {
 
+        /**
+         * Not used to build anything after construction. It stays for {@code equals}, {@code hashCode} and {@code toString}: it has cheap
+         * value equality on the source parameters and can print the pattern, neither of which the built automaton offers.
+         */
         private final AutomatonProvider automatonProvider;
+        private final ByteRunAutomaton byteRunAutomaton;
 
         private BinaryDvConfirmedAutomatonQuery(
             Query approximation,
             String field,
             AutomatonProvider automatonProvider,
+            boolean arrayOrder,
+            @Nullable CircuitBreaker breaker
+        ) {
+            this(approximation, field, automatonProvider, automatonProvider.getAutomaton(field, breaker), arrayOrder);
+        }
+
+        private BinaryDvConfirmedAutomatonQuery(
+            Query approximation,
+            String field,
+            AutomatonProvider automatonProvider,
+            ByteRunAutomaton byteRunAutomaton,
             boolean arrayOrder
         ) {
             super(approximation, field, arrayOrder);
             this.automatonProvider = automatonProvider;
+            this.byteRunAutomaton = byteRunAutomaton;
         }
 
         @Override
-        protected BinaryDVMatcher getBinaryDVMatcher(@Nullable CircuitBreaker breaker) {
-            final ByteRunAutomaton byteRunAutomaton = automatonProvider.getAutomaton(field, breaker);
+        public long ramBytesUsed() {
+            // Only what the shallow size of this query misses; MaxClauseCountQueryVisitor adds the shallow size itself.
+            return byteRunAutomaton.ramBytesUsed();
+        }
+
+        @Override
+        protected BinaryDVMatcher getBinaryDVMatcher() {
             return (values) -> {
                 int count = values.docValueCount();
                 for (int i = 0; i < count; i++) {
@@ -323,7 +367,7 @@ abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesSc
 
         @Override
         protected Query rewrite(Query approxRewrite) {
-            return new BinaryDvConfirmedAutomatonQuery(approxRewrite, field, automatonProvider, arrayOrder);
+            return new BinaryDvConfirmedAutomatonQuery(approxRewrite, field, automatonProvider, byteRunAutomaton, arrayOrder);
         }
 
         @Override
@@ -356,7 +400,7 @@ abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesSc
         }
 
         @Override
-        protected BinaryDVMatcher getBinaryDVMatcher(@Nullable CircuitBreaker breaker) {
+        protected BinaryDVMatcher getBinaryDVMatcher() {
             return (values) -> {
                 int count = values.docValueCount();
                 for (int i = 0; i < count; i++) {

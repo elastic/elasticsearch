@@ -217,6 +217,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=ml/jobs_get_result_overall_buckets/Test overall buckets given top_n is 2}
   issue: https://github.com/elastic/elasticsearch/issues/161206
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageThirdPartyTests
+  method: testReadFromPositionLargerThanBlobLength
+  issue: https://github.com/elastic/elasticsearch/issues/161313
 
 # Examples:
 #

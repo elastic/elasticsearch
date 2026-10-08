@@ -117,6 +117,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntPredicate;
 
 /**
  * Default {@link SplitProvider} for file-based sources.
@@ -4402,35 +4403,25 @@ public class FileSplitProvider implements SplitProvider {
         IdentityHashMap<Expression, ByteRunAutomaton> regexAutomata
     ) {
         return switch (filter) {
-            case Equals eq -> evaluateComparison(eq.left(), eq.right(), partitionValues, PartitionValueMatcher::compareEquals);
+            case Equals eq -> evaluateComparison(eq.left(), eq.right(), partitionValues, PartitionValueMatcher::equalIfComparable);
             case NotEquals neq -> {
-                Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, PartitionValueMatcher::compareEquals);
+                Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, PartitionValueMatcher::equalIfComparable);
                 yield result != null ? result == false : null;
             }
             case GreaterThanOrEqual gte -> evaluateComparison(
                 gte.left(),
                 gte.right(),
                 partitionValues,
-                (a, b) -> PartitionValueMatcher.compareValues(a, b) >= 0
+                (a, b) -> ordered(a, b, cmp -> cmp >= 0)
             );
-            case GreaterThan gt -> evaluateComparison(
-                gt.left(),
-                gt.right(),
-                partitionValues,
-                (a, b) -> PartitionValueMatcher.compareValues(a, b) > 0
-            );
+            case GreaterThan gt -> evaluateComparison(gt.left(), gt.right(), partitionValues, (a, b) -> ordered(a, b, cmp -> cmp > 0));
             case LessThanOrEqual lte -> evaluateComparison(
                 lte.left(),
                 lte.right(),
                 partitionValues,
-                (a, b) -> PartitionValueMatcher.compareValues(a, b) <= 0
+                (a, b) -> ordered(a, b, cmp -> cmp <= 0)
             );
-            case LessThan lt -> evaluateComparison(
-                lt.left(),
-                lt.right(),
-                partitionValues,
-                (a, b) -> PartitionValueMatcher.compareValues(a, b) < 0
-            );
+            case LessThan lt -> evaluateComparison(lt.left(), lt.right(), partitionValues, (a, b) -> ordered(a, b, cmp -> cmp < 0));
             case In in -> {
                 String columnName = extractColumnName(in.value());
                 if (columnName == null || partitionValues.containsKey(columnName) == false) {
@@ -4445,9 +4436,14 @@ public class FileSplitProvider implements SplitProvider {
                     if (listItem instanceof Literal lit) {
                         if (zerosOfOppositeSign(partitionValue, lit.value())) {
                             found = null;
-                        } else if (PartitionValueMatcher.compareEquals(partitionValue, lit.value())) {
-                            found = true;
-                            break;
+                        } else {
+                            Boolean eq = PartitionValueMatcher.equalIfComparable(partitionValue, lit.value());
+                            if (eq == null) {
+                                found = null;
+                            } else if (eq) {
+                                found = true;
+                                break;
+                            }
                         }
                     } else {
                         yield null;
@@ -4476,7 +4472,7 @@ public class FileSplitProvider implements SplitProvider {
                 mvContains.left(),
                 mvContains.right(),
                 partitionValues,
-                PartitionValueMatcher::compareEquals
+                PartitionValueMatcher::equalIfComparable
             );
             case MvIntersects mvIntersects -> evaluateMvIntersects(mvIntersects, partitionValues);
             case MvInRange mvInRange -> {
@@ -4641,15 +4637,22 @@ public class FileSplitProvider implements SplitProvider {
         }
         List<?> values = literalValue instanceof List<?> list ? list : List.of(literalValue);
         boolean sawValue = false;
+        boolean undecidable = false;
         for (Object value : values) {
             if (value != null) {
                 sawValue = true;
-                if (PartitionValueMatcher.compareEquals(partitionValue, value)) {
+                Boolean eq = PartitionValueMatcher.equalIfComparable(partitionValue, value);
+                if (eq == null) {
+                    undecidable = true;
+                } else if (eq) {
                     return true;
                 }
             }
         }
-        return sawValue ? false : null;
+        if (sawValue == false) {
+            return null;
+        }
+        return undecidable ? null : false;
     }
 
     /**
@@ -4668,15 +4671,27 @@ public class FileSplitProvider implements SplitProvider {
         return options == null ? defaultInclusive : null;
     }
 
-    /** TRUE strictly above {@code bound}, FALSE strictly below, {@code onBound} exactly on it. */
+    /** Ordered comparison that keeps the file when the values are not the same kind. */
+    private static Boolean ordered(Object a, Object b, IntPredicate pred) {
+        Integer cmp = PartitionValueMatcher.orderedCompare(a, b);
+        return cmp == null ? null : pred.test(cmp);
+    }
+
+    /** TRUE strictly above {@code bound}, FALSE strictly below, {@code onBound} exactly on it. Kind mismatch keeps. */
     private static Boolean above(Object value, Object bound, Boolean onBound) {
-        int cmp = PartitionValueMatcher.compareValues(value, bound);
+        Integer cmp = PartitionValueMatcher.orderedCompare(value, bound);
+        if (cmp == null) {
+            return null;
+        }
         return cmp > 0 ? Boolean.TRUE : cmp < 0 ? Boolean.FALSE : onBound;
     }
 
-    /** TRUE strictly below {@code bound}, FALSE strictly above, {@code onBound} exactly on it. */
+    /** TRUE strictly below {@code bound}, FALSE strictly above, {@code onBound} exactly on it. Kind mismatch keeps. */
     private static Boolean below(Object value, Object bound, Boolean onBound) {
-        int cmp = PartitionValueMatcher.compareValues(value, bound);
+        Integer cmp = PartitionValueMatcher.orderedCompare(value, bound);
+        if (cmp == null) {
+            return null;
+        }
         return cmp < 0 ? Boolean.TRUE : cmp > 0 ? Boolean.FALSE : onBound;
     }
 

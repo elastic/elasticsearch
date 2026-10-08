@@ -1403,6 +1403,11 @@ public class EsqlCapabilities {
         METRICS_GROUP_BY_ALL(),
 
         /**
+         * Support for the {@code exemplars} query setting.
+         */
+        EXEMPLARS_SETTING_DEVELOPMENT_V1(Build.current().isSnapshot()),
+
+        /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
          * in the response and profile?
          */
@@ -4213,6 +4218,14 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/pull/159997">#159997</a>.
          */
         FIX_NON_STRICT_OVERLAY_SPARSE_COLS,
+
+        /**
+         * Non-strict ({@code dynamic: true}) declared-schema overlay keeps a declared column absent from a
+         * <em>complete</em> inferred schema too (Parquet, ORC, headered CSV/TSV), instead of rejecting the dataset with
+         * "declared columns not found in the source": the column reads null with the absent-column warning, as under
+         * {@code dynamic: false}. Gates tests that exercise this so they are skipped against old coordinators.
+         */
+        FIX_NON_STRICT_OVERLAY_ABSENT_COLS,
 
         /**
          * {@code KEEP *} retains a {@code _file.*} column named in the {@code METADATA} clause.

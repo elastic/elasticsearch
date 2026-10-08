@@ -50,7 +50,7 @@ public class RootFlattenedDocValuesBlockLoaderTests extends ESTestCase {
                     false,
                     FlattenedFieldMapper.PreserveLeafArrays.LOSSY
                 );
-                BlockLoader.ColumnAtATimeReader columnReader = blockLoader.reader(new NoopCircuitBreaker("test"), leaf);
+                BlockLoader.ColumnAtATimeReader columnReader = blockLoader.reader(NoopCircuitBreaker.INSTANCE, leaf);
 
                 // Must not throw even though this segment has no doc values for the field.
                 assertTrue("reader with no doc values should always be reusable", columnReader.canReuse(0));

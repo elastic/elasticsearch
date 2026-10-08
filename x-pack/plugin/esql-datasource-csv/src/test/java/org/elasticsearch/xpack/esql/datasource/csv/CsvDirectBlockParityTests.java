@@ -71,7 +71,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /** Lenient reads emit response-header warnings; drop them so the parent {@code ensureNoWarnings} passes. */
@@ -1696,6 +1696,19 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testBracketModePaddedQuoteAllScopeFullSplitPath() throws IOException {
         List<List<Object>> rows = readAllScope(Map.of("multi_value_syntax", "brackets"), "a:keyword,b:keyword\nx,  \"y\"\n");
         assertEquals(List.of(row(br("x"), br("y"))), rows);
+    }
+
+    /**
+     * Under {@code null_field} a bracket element that does not parse is removed from its cell and the rest kept, on
+     * both bracket walkers: the fused projected one and the full-split ALL-scope one. {@link #valueAt} reads a cell's
+     * first value, so a leading bad element is what tells removal (the next element) from nulling (null).
+     */
+    public void testBracketElementFailureRemovesElementOnBothWalkers() throws IOException {
+        Map<String, Object> config = Map.of("multi_value_syntax", "brackets", "error_mode", "null_field", "max_errors", 100);
+        String content = "a:long,b:long\n1,[oops,2]\n2,[x,y]\n";
+        List<List<Object>> expected = List.of(row(1L, 2L), row(2L, null));
+        assertEquals(expected, read(false, config, nullField(), List.of("a", "b"), content));
+        assertEquals(expected, readAllScope(config, content));
     }
 
     /**

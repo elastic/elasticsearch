@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LetBinding;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -116,6 +119,59 @@ public final class LetResolver {
                     skipBranch.set(true);
                     return bound;
                 }
+                // Handle comma-joined patterns that contain one or more binding names as individual
+                // tokens, e.g. "FROM top3, real_index" where top3 is a binding.
+                // Split the pattern, substitute each token that matches a binding, and union the parts.
+                if (pattern.contains(",")) {
+                    String[] tokens = pattern.split(",", -1);
+                    boolean anyMatch = false;
+                    for (String tok : tokens) {
+                        if (resolved.containsKey(tok.strip())) {
+                            anyMatch = true;
+                            break;
+                        }
+                    }
+                    if (anyMatch) {
+                        List<LogicalPlan> parts = new ArrayList<>();
+                        List<String> nonBindingTokens = new ArrayList<>();
+                        for (String tok : tokens) {
+                            String trimmed = tok.strip();
+                            LogicalPlan bindingPlan = resolved.get(trimmed);
+                            if (bindingPlan != null) {
+                                if (nonBindingTokens.isEmpty() == false) {
+                                    parts.add(
+                                        new UnresolvedRelation(
+                                            ur.source(),
+                                            new IndexPattern(ur.source(), String.join(",", nonBindingTokens)),
+                                            ur.frozen(),
+                                            ur.metadataFields(),
+                                            ur.indexMode(),
+                                            null
+                                        )
+                                    );
+                                    nonBindingTokens.clear();
+                                }
+                                parts.add(bindingPlan);
+                            } else {
+                                nonBindingTokens.add(trimmed);
+                            }
+                        }
+                        if (nonBindingTokens.isEmpty() == false) {
+                            parts.add(
+                                new UnresolvedRelation(
+                                    ur.source(),
+                                    new IndexPattern(ur.source(), String.join(",", nonBindingTokens)),
+                                    ur.frozen(),
+                                    ur.metadataFields(),
+                                    ur.indexMode(),
+                                    null
+                                )
+                            );
+                        }
+                        skipBranch.set(true);
+                        return parts.size() == 1 ? parts.get(0) : new UnionAll(ur.source(), parts, List.of());
+                    }
+                }
                 return ur;
             }
             // InSubquery and MultiColumnInSubquery carry a LogicalPlan field that is not part of the
@@ -142,6 +198,14 @@ public final class LetResolver {
                 String pattern = ur.indexPattern().indexPattern();
                 if (resolved.containsKey(pattern)) {
                     throw new VerificationException(errorMessage, pattern);
+                }
+                if (pattern.contains(",")) {
+                    for (String tok : pattern.split(",", -1)) {
+                        String trimmed = tok.strip();
+                        if (resolved.containsKey(trimmed)) {
+                            throw new VerificationException(errorMessage, trimmed);
+                        }
+                    }
                 }
             }
             p.forEachExpression(InSubquery.class, inSub -> { checkBindingReferences(inSub.subquery(), resolved, errorMessage); });

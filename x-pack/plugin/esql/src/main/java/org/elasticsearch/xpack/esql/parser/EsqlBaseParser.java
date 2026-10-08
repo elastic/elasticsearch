@@ -6539,9 +6539,7 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class LetBindingContext extends ParserRuleContext {
-    public IdentifierContext identifier() {
-      return getRuleContext(IdentifierContext.class,0);
-    }
+    public TerminalNode UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.UNQUOTED_IDENTIFIER, 0); }
     public TerminalNode ASSIGN() { return getToken(EsqlBaseParser.ASSIGN, 0); }
     public SubqueryContext subquery() {
       return getRuleContext(SubqueryContext.class,0);
@@ -6573,7 +6571,7 @@ public class EsqlBaseParser extends ParserConfig {
       enterOuterAlt(_localctx, 1);
       {
       setState(856);
-      identifier();
+      match(UNQUOTED_IDENTIFIER);
       setState(857);
       match(ASSIGN);
       setState(858);
@@ -11710,7 +11708,7 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0001\u0000\u0000\u0000\u0353\u0351\u0001\u0000\u0000\u0000\u0353\u0354"+
     "\u0001\u0000\u0000\u0000\u0354\u0356\u0001\u0000\u0000\u0000\u0355\u0353"+
     "\u0001\u0000\u0000\u0000\u0356\u0357\u0005I\u0000\u0000\u0357\u00ab\u0001"+
-    "\u0000\u0000\u0000\u0358\u0359\u0003@ \u0000\u0359\u035a\u0005E\u0000"+
+    "\u0000\u0000\u0000\u0358\u0359\u0005r\u0000\u0000\u0359\u035a\u0005E\u0000"+
     "\u0000\u035a\u035b\u0003\u001e\u000f\u0000\u035b\u00ad\u0001\u0000\u0000"+
     "\u0000\u035c\u035e\u0005)\u0000\u0000\u035d\u035f\u0003\u00b0X\u0000\u035e"+
     "\u035d\u0001\u0000\u0000\u0000\u035e\u035f\u0001\u0000\u0000\u0000\u035f"+

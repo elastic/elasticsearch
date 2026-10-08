@@ -440,7 +440,7 @@ letCommand
     ;
 
 letBinding
-    : identifier ASSIGN subquery
+    : UNQUOTED_IDENTIFIER ASSIGN subquery
     ;
 
 mmrCommand

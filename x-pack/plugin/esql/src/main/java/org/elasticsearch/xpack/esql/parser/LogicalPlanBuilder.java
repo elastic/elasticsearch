@@ -206,7 +206,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             declaredLetBindingNames = ctx.letCommand()
                 .letBinding()
                 .stream()
-                .map(b -> visitIdentifier(b.identifier()))
+                .map(b -> b.UNQUOTED_IDENTIFIER().getText())
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
             letBindings = visitLetCommand(ctx.letCommand());
         }
@@ -224,10 +224,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (seenNames.add(binding.name()) == false) {
                 throw new ParsingException(source(bindingCtx), "duplicate LET binding name [{}]", binding.name());
             }
-            String name = binding.name();
-            if (name.contains("*") || name.contains(",") || name.contains(":") || name.contains(".")) {
-                throw new ParsingException(source(bindingCtx), "LET binding name [{}] must not contain '*', ',', ':' or '.'", name);
-            }
             bindings.add(binding);
         }
         return bindings;
@@ -236,7 +232,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LetBinding visitLetBinding(EsqlBaseParser.LetBindingContext ctx) {
         Source source = source(ctx);
-        String name = visitIdentifier(ctx.identifier());
+        String name = ctx.UNQUOTED_IDENTIFIER().getText();
         LogicalPlan plan = visitSubquery(ctx.subquery());
         return new LetBinding(source, name, plan);
     }

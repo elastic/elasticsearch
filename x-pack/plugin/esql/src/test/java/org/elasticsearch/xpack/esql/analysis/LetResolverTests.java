@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.LetBinding;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.Collections;
@@ -27,6 +28,7 @@ import java.util.List;
 import static java.util.List.of;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -144,6 +146,25 @@ public class LetResolverTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Circular reference detected in LET bindings"));
     }
 
+    public void testCycleDetectedThroughMixedPattern() {
+        // LET a = (FROM a,real_index | LIMIT 1); FROM a
+        // "a,real_index" contains the binding name "a" as a token — cycle.
+        LetBinding a = binding("a", withLimit(relation("a,real_index")));
+        var e = expectThrows(VerificationException.class, () -> LetResolver.resolve(relation("a"), List.of(a)));
+        assertThat(e.getMessage(), containsString("Circular reference detected in LET bindings"));
+    }
+
+    public void testForwardReferenceDetectedThroughMixedPattern() {
+        // LET a = (FROM b,real_index | LIMIT 1);
+        // LET b = (FROM base);
+        // FROM a
+        // "b,real_index" in a's body contains the forward-reference "b".
+        LetBinding a = binding("a", withLimit(relation("b,real_index")));
+        LetBinding b = binding("b", relation("base"));
+        var e = expectThrows(VerificationException.class, () -> LetResolver.resolve(relation("a"), List.of(a, b)));
+        assertThat(e.getMessage(), containsString("Forward reference in LET bindings: [b] cannot be referenced before its declaration"));
+    }
+
     public void testLetResolutionComplexCycle() {
         // LET a = (FROM b | LIMIT 1),
         // b = (FROM a | LIMIT 1);
@@ -200,6 +221,69 @@ public class LetResolverTests extends ESTestCase {
 
         var e = expectThrows(VerificationException.class, () -> LetResolver.resolve(relation("a"), List.of(a, b)));
         assertThat(e.getMessage(), containsString("Forward reference in LET bindings: [b] cannot be referenced before its declaration"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Mixed FROM: binding name alongside real index patterns
+    // -----------------------------------------------------------------------
+
+    public void testMixedFromBindingAndRealIndex() {
+        // LET top3 = (FROM logs | LIMIT 3);
+        // FROM top3, real_index
+        // The UnresolvedRelation "top3,real_index" should be split: top3 → binding body,
+        // real_index → new UnresolvedRelation. The result is a UnionAll of the two.
+        LogicalPlan body = withLimit(relation("logs"));
+        LetBinding top3 = binding("top3", body);
+
+        LogicalPlan main = relation("top3,real_index");
+        LogicalPlan result = LetResolver.resolve(main, List.of(top3));
+
+        assertThat(result, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) result;
+        assertThat(union.children(), hasSize(2));
+        assertThat(union.children().get(0), sameInstance(body));
+        assertThat(union.children().get(1), instanceOf(UnresolvedRelation.class));
+        assertThat(((UnresolvedRelation) union.children().get(1)).indexPattern().indexPattern(), is("real_index"));
+    }
+
+    public void testMixedFromTwoRealOneBinding() {
+        // FROM real1, top3, real2 — binding in the middle
+        LogicalPlan body = withLimit(relation("logs"));
+        LetBinding top3 = binding("top3", body);
+
+        LogicalPlan main = relation("real1,top3,real2");
+        LogicalPlan result = LetResolver.resolve(main, List.of(top3));
+
+        // real1 is grouped before top3, real2 after → UnionAll of 3 parts:
+        // UR("real1"), bindingBody, UR("real2")
+        assertThat(result, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = ((UnionAll) result).children();
+        assertThat(children, hasSize(3));
+        assertThat(((UnresolvedRelation) children.get(0)).indexPattern().indexPattern(), is("real1"));
+        assertThat(children.get(1), sameInstance(body));
+        assertThat(((UnresolvedRelation) children.get(2)).indexPattern().indexPattern(), is("real2"));
+    }
+
+    public void testMixedInSubqueryBindingAndRealIndex() {
+        // LET top3 = (FROM logs | LIMIT 3);
+        // FROM real_index | WHERE field IN (FROM real_index_2, top3)
+        // The InSubquery's subquery plan is UR("real_index_2,top3"); LetResolver should split it.
+        LogicalPlan body = withLimit(relation("logs"));
+        LetBinding top3 = binding("top3", body);
+
+        Expression value = new UnresolvedAttribute(EMPTY, "field");
+        LogicalPlan inSubqueryPlan = relation("real_index_2,top3");
+        Filter filter = new Filter(EMPTY, relation("real_index"), new InSubquery(EMPTY, value, inSubqueryPlan));
+
+        LogicalPlan result = LetResolver.resolve(filter, List.of(top3));
+
+        Filter resultFilter = (Filter) result;
+        InSubquery inSub = (InSubquery) resultFilter.condition();
+        assertThat(inSub.subquery(), instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) inSub.subquery();
+        assertThat(union.children(), hasSize(2));
+        assertThat(((UnresolvedRelation) union.children().get(0)).indexPattern().indexPattern(), is("real_index_2"));
+        assertThat(union.children().get(1), sameInstance(body));
     }
 
     // -----------------------------------------------------------------------

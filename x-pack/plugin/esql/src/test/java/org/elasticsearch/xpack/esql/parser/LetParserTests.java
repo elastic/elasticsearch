@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Mul
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.LetBinding;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -64,11 +65,10 @@ public class LetParserTests extends AbstractStatementParserTests {
         assertThat(stmt.letBindings().get(1).name(), is("b"));
     }
 
-    public void testQuotedBindingName() {
+    public void testQuotedBindingNameRejected() {
+        // letBinding now uses UNQUOTED_IDENTIFIER directly; quoted names are rejected by the grammar.
         assumeLet();
-        EsqlStatement stmt = statement("LET `my binding` = (FROM idx | LIMIT 1); ROW a = 1");
-        assertThat(stmt.letBindings().size(), is(1));
-        assertThat(stmt.letBindings().get(0).name(), is("my binding"));
+        expectValidationError("LET `my binding` = (FROM idx | LIMIT 1); ROW a = 1", "mismatched input");
     }
 
     public void testBindingWithStatsAndSort() {
@@ -89,6 +89,79 @@ public class LetParserTests extends AbstractStatementParserTests {
         assertThat(stmt.plan(), instanceOf(UnresolvedRelation.class));
         UnresolvedRelation ur = (UnresolvedRelation) stmt.plan();
         assertThat(ur.indexPattern().indexPattern(), is("top3_ext"));
+    }
+
+    public void testBindingWithForkFollowedByCommand() {
+        assumeLet();
+        assumeTrue("requires FORK_V9 capability", EsqlCapabilities.Cap.FORK_V9.isEnabled());
+        EsqlStatement stmt = statement("""
+            LET branched = (
+                FROM idx
+                | FORK (WHERE a > 0) (WHERE a <= 0)
+                | LIMIT 10
+            );
+            FROM branched
+            """);
+        assertThat(stmt.letBindings().size(), is(1));
+        assertThat(stmt.letBindings().get(0).name(), is("branched"));
+        assertThat(stmt.letBindings().get(0).plan(), instanceOf(Limit.class));
+        assertThat(((Limit) stmt.letBindings().get(0).plan()).child(), instanceOf(Fork.class));
+    }
+
+    public void testBindingWithForkAsLastCommand() {
+        assumeLet();
+        assumeTrue("requires FORK_V9 capability", EsqlCapabilities.Cap.FORK_V9.isEnabled());
+        EsqlStatement stmt = statement("""
+            LET branched = (
+                FROM idx
+                | FORK (WHERE a > 0) (WHERE a <= 0)
+            );
+            FROM branched
+            """);
+        assertThat(stmt.letBindings().size(), is(1));
+        assertThat(stmt.letBindings().get(0).name(), is("branched"));
+        assertThat(stmt.letBindings().get(0).plan(), instanceOf(Fork.class));
+    }
+
+    public void testChainedLetWithForks() {
+        assumeLet();
+        assumeTrue("requires FORK_V9 capability", EsqlCapabilities.Cap.FORK_V9.isEnabled());
+        EsqlStatement stmt = statement("""
+            LET
+            top3_extensions = (
+               FROM kibana_sample_data_logs
+                  | STATS AVG(bytes) BY extension
+                  | SORT `AVG(bytes)` DESC
+                  | LIMIT 3
+                  | KEEP extension
+            ),
+            first_column = (
+               FROM kibana_sample_data_logs
+                  | FORK (WHERE extension IN top3_extensions)
+                         (WHERE extension NOT IN top3_extensions
+                             | EVAL extension = "other")
+            ),
+            top3_geo_dest_by_ext = (
+               FROM first_column
+                  | STATS AVG(bytes) BY extension, geo.dest
+                  | SORT `AVG(bytes)` DESC
+                  | LIMIT 3 BY extension
+                  | KEEP extension, geo.dest
+            ),
+            first_and_second_column = (
+              FROM top3_geo_dest_by_ext
+                  | FORK (WHERE (extension, geo.dest) IN top3_geo_dest_by_ext)
+                         (WHERE (extension, geo.dest) NOT IN top3_geo_dest_by_ext
+                             | EVAL geo.dest = "other"::keyword)
+            );
+            FROM first_and_second_column
+            | STATS AVG(bytes) BY extension, geo.dest
+            """);
+        assertThat(stmt.letBindings().size(), is(4));
+        assertThat(stmt.letBindings().get(0).name(), is("top3_extensions"));
+        assertThat(stmt.letBindings().get(1).name(), is("first_column"));
+        assertThat(stmt.letBindings().get(2).name(), is("top3_geo_dest_by_ext"));
+        assertThat(stmt.letBindings().get(3).name(), is("first_and_second_column"));
     }
 
     // -----------------------------------------------------------------------
@@ -152,22 +225,22 @@ public class LetParserTests extends AbstractStatementParserTests {
 
     public void testBindingNameWithStar() {
         assumeLet();
-        expectValidationError("LET `a*b` = (FROM idx | LIMIT 1); ROW x = 1", "must not contain");
+        expectValidationError("LET `a*b` = (FROM idx | LIMIT 1); ROW x = 1", "mismatched input");
     }
 
     public void testBindingNameWithComma() {
         assumeLet();
-        expectValidationError("LET `a,b` = (FROM idx | LIMIT 1); ROW x = 1", "must not contain");
+        expectValidationError("LET `a,b` = (FROM idx | LIMIT 1); ROW x = 1", "mismatched input");
     }
 
     public void testBindingNameWithColon() {
         assumeLet();
-        expectValidationError("LET `a:b` = (FROM idx | LIMIT 1); ROW x = 1", "must not contain");
+        expectValidationError("LET `a:b` = (FROM idx | LIMIT 1); ROW x = 1", "mismatched input");
     }
 
     public void testBindingNameWithDot() {
         assumeLet();
-        expectValidationError("LET `a.b` = (FROM idx | LIMIT 1); ROW x = 1", "must not contain");
+        expectValidationError("LET `a.b` = (FROM idx | LIMIT 1); ROW x = 1", "mismatched input");
     }
 
     public void testLetInsideViewBodyParsed() {

@@ -224,6 +224,28 @@ AVG(network.bytes_in):double | cluster:keyword | pod:keyword
 ;
 
 // -------------------------------------------------------------------
+// Mixed FROM: LET binding alongside a real index
+// -------------------------------------------------------------------
+
+letMixedFromBindingAndRealIndex
+required_capability: named_subquery_let
+required_capability: where_in_subquery_without_view
+
+LET low_codes = (FROM languages | WHERE language_code <= 2 | KEEP language_code)\;
+FROM low_codes, languages
+| WHERE language_code IN (FROM low_codes | KEEP language_code)
+| KEEP language_code
+| SORT language_code
+;
+
+language_code:integer
+1
+1
+2
+2
+;
+
+// -------------------------------------------------------------------
 // SET combined with LET
 // -------------------------------------------------------------------
 

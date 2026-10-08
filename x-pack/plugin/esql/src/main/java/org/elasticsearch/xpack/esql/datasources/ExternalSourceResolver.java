@@ -2208,7 +2208,7 @@ public class ExternalSourceResolver {
 
     /**
      * Registry format name for the absent-column policy, or null when the object name does not resolve.
-     * Does not substitute a raw extension. {@link #detectFormatType} does, and that fallback is for
+     * Does not substitute a raw extension; that fallback belonged to a per-file cache key and is
      * cache keys, not for choosing a fold.
      */
     @Nullable
@@ -2225,29 +2225,6 @@ public class ExternalSourceResolver {
         }
     }
 
-    /**
-     * Registry format name for a per-file schema-cache key ({@code parquet}, {@code csv}), not a
-     * last-dot suffix. Uses {@link FormatNameResolver#resolveFormatNameForIdentity} so a whole-file
-     * compression veto cannot throw. Cache-key minting must not throw: a null registry, empty object
-     * name, or any resolve failure falls back to {@link FormatNameResolver#extractCleanExtension}
-     * (or {@code ""}). Package-private for testing.
-     */
-    String detectFormatType(StoragePath path, @Nullable Map<String, Object> config) {
-        String name = path.objectName();
-        FormatReaderRegistry registry = dataSourceModule.formatReaderRegistry();
-        if (name.isEmpty() == false && registry != null) {
-            try {
-                String resolved = FormatNameResolver.resolveFormatNameForIdentity(config, name, registry);
-                if (resolved != null) {
-                    return resolved;
-                }
-            } catch (Exception e) {
-                // Fall through to extractCleanExtension.
-            }
-        }
-        String ext = FormatNameResolver.extractCleanExtension(name);
-        return ext != null ? ext : "";
-    }
 
     /**
      * Returns {@code safeMetadata} without the coordinator-cache stripe bookkeeping ({@code _stats.stripe.<k>},
@@ -2650,7 +2627,7 @@ public class ExternalSourceResolver {
         long startNanos = System.nanoTime();
         // Absent-column policy is fixed before files complete out of order. A file dataset passes
         // datasetFormat, the same name FIRST_FILE_WINS stamps onto the anchor. Otherwise the first
-        // path's registered format name, not a raw extension: detectFormatType's last-dot fallback
+        // path's registered format name, not a raw extension: a last-dot fallback
         // would turn csv.gz into "gz", miss the text reader, and fold text as a footer format.
         // An unresolved name keeps the footer default. FIRST_FILE_WINS still reads the anchor
         // sourceType(); for a registered object those two names are the same format.

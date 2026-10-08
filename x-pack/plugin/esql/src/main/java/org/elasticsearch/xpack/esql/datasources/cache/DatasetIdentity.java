@@ -49,10 +49,17 @@ import java.util.Map;
  * 128 bits per pair, for the reason {@link FileSetFingerprint}
  * gives: a collision serves one dataset's record to another, which is a wrong answer and not a slow path.
  * Non-cryptographic (Murmur3) for the definition and participant folds, matching the file-set
- * fingerprint, which guards accidental collision rather than an adversary. Note the listing cache is NOT
- * that precedent: {@code ListingCacheKey.sha256Truncated} uses SHA-256, because its pre-image carries
- * identities as plain user-influenced strings. Here the secret arrives already digested, so aiming a
- * collision would need the target's digest first. The secret digest folded
+ * fingerprint, which guards accidental collision rather than an adversary. The participant fold's
+ * pre-image IS plain user-influenced text - provider, reader and coordinator settings - which is the
+ * class {@code ListingCacheKey.sha256Truncated} uses SHA-256 for. It is Murmur3 here because the
+ * credential boundary is not this lane: {@link #equals} compares the source pair too, and that pair
+ * carries the secret already digested with SHA-256 by {@code StorageIdentity.digestSecret}, so two data
+ * sources with different credentials cannot share an address whatever the participants fold to. What a
+ * participant collision could still reach is the enrich refusal in
+ * {@code ExternalSourceCacheService.collectMatchingEntries}, which compares participants ALONE: colliding
+ * participants would read as one identity there and a harvest would enrich an entry it should have been
+ * refused for. No colliding pre-image is known; the exposure is a defeated refusal, not a crossed
+ * credential boundary. The secret digest folded
  * into the source pair arrives already hashed with SHA-256 by
  * {@code StorageIdentity.digestSecret}, so what is stored here is a fold of a digest and never a secret:
  * an address outlives the data source it came from, and records print their fields.

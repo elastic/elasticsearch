@@ -2816,11 +2816,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         DatasetAggregateKey textKey = resolver.datasetAggregateKey(textListing, "", "", Map.of());
         assertNotNull("a text-format listing must qualify (positive control)", textKey);
-        assertEquals(
-            "the format is resolved to the registry name, not a last-dot suffix",
-            "ndjson",
-            resolver.detectFormatType(textListing.path(0), Map.of())
-        );
         // No isDatasetAggregate() to assert any more: datasetAggregateKey returns a DatasetAggregateKey,
         // so a per-file consumer cannot be handed one and the distinction is the type rather than a flag.
     }
@@ -2879,7 +2874,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         DatasetAggregateKey keyB = resolver.datasetAggregateKey(gzThenCsv, "", "", Map.of());
         assertNotNull("csv+csv.gz must qualify for a dataset aggregate key", keyA);
         assertEquals(keyA, keyB);
-        assertEquals("csv", resolver.detectFormatType(csvThenGz.path(0), Map.of()));
     }
 
     /**
@@ -2895,8 +2889,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         FileList parqThenParquet = GlobExpander.fileListOf(List.of(parq, parquet), pattern);
         assertEquals("s3://bucket/data/a.parquet", parquetThenParq.path(0).toString());
         assertEquals("s3://bucket/data/b.parq", parqThenParquet.path(0).toString());
-        assertEquals("parquet", resolver.detectFormatType(parquetThenParq.path(0), Map.of()));
-        assertEquals("parquet", resolver.detectFormatType(parqThenParquet.path(0), Map.of()));
         assertEquals(parquetThenParq.fileSetFingerprint(), parqThenParquet.fileSetFingerprint());
         assertEquals(
             resolver.datasetAggregateKey(parquetThenParq, "", "", Map.of()),
@@ -2908,34 +2900,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
-    /**
-     * Per-file cache keys use the registry format name. Distinct paths stay distinct keys; an
-     * unrecognized extension falls back to {@link FormatNameResolver#extractCleanExtension} without throwing.
-     * A whole-file compression veto must not last-dot to {@code gz}.
-     */
-    public void testDetectFormatTypeUsesRegistryNameNotLastDot() {
-        ExternalSourceResolver resolver = datasetGateResolver(null);
-        assertEquals("parquet", resolver.detectFormatType(StoragePath.of("s3://b/file.parq"), Map.of()));
-        assertEquals("parquet", resolver.detectFormatType(StoragePath.of("s3://b/file.parquet"), Map.of()));
-        assertEquals("parquet", resolver.detectFormatType(StoragePath.of("s3://b/file.parquet.gz"), Map.of()));
-        assertEquals("csv", resolver.detectFormatType(StoragePath.of("s3://b/hits.csv.gz"), Map.of()));
-        assertEquals("csv", resolver.detectFormatType(StoragePath.of("s3://b/file.log"), Map.of("format", "csv")));
-        assertEquals("log", resolver.detectFormatType(StoragePath.of("s3://b/file.log"), Map.of()));
-        SchemaCacheKey parqKey = SchemaCacheKey.build(
-            "s3://b/file.parq",
-            1L,
-            TestDatasetIdentities.identity(resolver.detectFormatType(StoragePath.of("s3://b/file.parq"), Map.of()), "", Map.of()),
-            false
-        );
-        SchemaCacheKey parquetKey = SchemaCacheKey.build(
-            "s3://b/file.parquet",
-            1L,
-            TestDatasetIdentities.identity(resolver.detectFormatType(StoragePath.of("s3://b/file.parquet"), Map.of()), "", Map.of()),
-            false
-        );
-        // Both resolve to the same registry format, asserted directly above; the keys differ because the paths do.
-        assertNotEquals(parqKey, parquetKey);
-    }
 
     /**
      * Duplicate-path guard on the write-through: a comma-separated list can name the same file twice;

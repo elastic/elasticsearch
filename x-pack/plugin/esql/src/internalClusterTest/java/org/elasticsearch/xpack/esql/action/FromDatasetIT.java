@@ -3488,9 +3488,12 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     /**
      * {@code TIMESTAMP(MICROS)} infers as {@code date_nanos}. A {@code TO_DATETIME} literal is converted into the
-     * column domain for reader prune. Footer {@code COUNT(*)} fold stays matching-type parity: RECHECK push
-     * attaches expressions so {@code PushStatsToExternalSource} skips; the classifier folds only when the filter
-     * is still unpushed. {@code FilterExec} re-checks the original mixed predicate.
+     * column domain for reader prune. Footer {@code COUNT(*)} fold classifies the remaining {@code FilterExec}
+     * when every attached push is RECHECK, for matching-type and converted mixed leaves alike. YES-only /
+     * YES+RECHECK / non-RECHECK mixes skip the fold. {@code FilterExec} re-checks the original mixed
+     * predicate. Counts below pin end-to-end correctness; the fold gate itself is pinned by
+     * {@code PushStatsToExternalSourceTests} and
+     * {@code ParquetFilterPushdownSupportTests.testPushFiltersOutputMatchesStatsFoldGateAssumptions}.
      */
     public void testDatetimeLiteralFiltersInferredTimestampMicros() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -3531,7 +3534,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     /**
      * An inferred {@code integer} compared to a {@code double} or {@code long} literal converts to a
      * never-stricter column-typed bound (e.g. {@code i < 5.5} → {@code i <= 5}; out-of-range → domain tautology)
-     * so prune is safe and {@code FilterExec} still returns the matching row.
+     * so prune is safe and {@code FilterExec} still returns the matching row. Matching-type filters
+     * ({@code long == 5}) are eligible to fold under RECHECK when a {@code FilterExec} remains.
      */
     public void testNumericLiteralFiltersInferredInteger() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));

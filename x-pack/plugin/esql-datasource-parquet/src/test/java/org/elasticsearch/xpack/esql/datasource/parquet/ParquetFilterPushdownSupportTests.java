@@ -1216,6 +1216,46 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         assertThat(result.pushedExpressions().getFirst(), instanceOf(LessThanOrEqual.class));
     }
 
+    /**
+     * Pins the pushability contract {@code PushStatsToExternalSource.hasScanOnlyPushedPredicates}
+     * relies on: after {@link FilterPushdownSupport#pushFilters}, comparison / {@code IN} /
+     * {@code Range} (including mixed rewritten bounds) are
+     * {@link FilterPushdownSupport.Pushability#RECHECK} with a non-empty remainder, while
+     * {@link WildcardLike} is {@link FilterPushdownSupport.Pushability#YES} with an empty remainder.
+     * The fold-rule unit tests use a stub that mirrors this; this method ties that stub to the real
+     * reader.
+     */
+    public void testPushFiltersOutputMatchesStatsFoldGateAssumptions() {
+        Attribute id = attr("id", DataType.INTEGER);
+        Attribute name = attr("name", DataType.KEYWORD);
+
+        Expression comparison = new GreaterThan(Source.EMPTY, id, intLit(20), null);
+        Expression in = new In(Source.EMPTY, id, List.of(intLit(1), intLit(2)));
+        Expression range = new Range(Source.EMPTY, id, intLit(0), true, intLit(10), true, ZoneOffset.UTC);
+        Expression mixed = new LessThan(Source.EMPTY, id, doubleLit(5.5), null);
+        Expression like = new WildcardLike(Source.EMPTY, name, new WildcardPattern("A*"));
+
+        for (Expression filter : List.of(comparison, in, range, mixed)) {
+            FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+            assertTrue(filter + " should push", result.hasPushedFilter());
+            assertEquals(filter + " RECHECK must keep the original predicate in FilterExec", List.of(filter), result.remainder());
+            for (Expression pushed : result.pushedExpressions()) {
+                assertEquals(
+                    filter + " pushed expression must be RECHECK for stats fold",
+                    FilterPushdownSupport.Pushability.RECHECK,
+                    support.canPush(pushed)
+                );
+            }
+        }
+
+        FilterPushdownSupport.PushdownResult likeResult = support.pushFilters(List.of(like));
+        assertTrue(likeResult.hasPushedFilter());
+        assertTrue("YES LIKE must drop FilterExec remainder", likeResult.remainder().isEmpty());
+        for (Expression pushed : likeResult.pushedExpressions()) {
+            assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(pushed));
+        }
+    }
+
     public void testColumnColumnDateAndIntegerStillPushesInteger() {
         Attribute dateCol = attr("ts", DataType.DATETIME);
         Attribute nanosCol = attr("ts2", DataType.DATE_NANOS);

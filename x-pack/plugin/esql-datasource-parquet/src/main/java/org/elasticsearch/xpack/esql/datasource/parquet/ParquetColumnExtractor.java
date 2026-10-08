@@ -785,9 +785,20 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                     castBlockWarnings()
                 );
             }
-            coercionWarnings().add(
-                "column [" + columnName + "]: [" + fileType.typeName() + "] in the file, [" + target.typeName() + "] in the query"
-            );
+            if (reader.isDeclaredTypeColumn(columnName)) {
+                // A declared column follows the policy, as on the eager scan; skip_row never defers extraction
+                // for a declared read, so a live sink here means null_field.
+                DeclaredTypeCoercions.onUncoercibleColumn(
+                    columnName,
+                    messageLocation,
+                    fileType,
+                    target,
+                    castBlockWarnings() == null ? null : uncoercibleColumnWarnings()
+                );
+            } else {
+                // Once per column: every deferred batch rediscovers the same file-level mismatch.
+                uncoercibleColumnWarnings().addOnce(DeclaredTypeCoercions.uncoercibleColumnDetail(columnName, fileType, target));
+            }
             return factory.newConstantNullBlock(count);
         } finally {
             physical.close();
@@ -807,12 +818,28 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
     private SkipWarnings coercionWarnings() {
         if (coercionWarnings == null) {
+            String prefix = "Some values in [" + messageLocation + "] cannot be read as the column type; ";
             coercionWarnings = new SkipWarnings(
-                "Some values in [" + messageLocation + "] cannot be read as the column type; returning null",
+                prefix + "returning null",
+                prefix + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME,
                 warningSink
             );
         }
         return coercionWarnings;
+    }
+
+    private SkipWarnings uncoercibleColumnWarnings;
+
+    /**
+     * The sink for a column this file cannot supply as the query's type at all ({@link #coerceToTarget}), under the
+     * summary the eager per-file validation uses, so a column reads under one message whichever path decodes it.
+     * Lazily created and shared by every {@link #extract} call, so {@link SkipWarnings#addOnce} reports a column once.
+     */
+    private SkipWarnings uncoercibleColumnWarnings() {
+        if (uncoercibleColumnWarnings == null) {
+            uncoercibleColumnWarnings = new SkipWarnings(DeclaredTypeCoercions.uncoercibleColumnsNullSummary(messageLocation), warningSink);
+        }
+        return uncoercibleColumnWarnings;
     }
 
     /** See {@link #nullListElementWarnings()}. */
@@ -842,9 +869,10 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     /**
      * The per-value coercion-failure sink handed to {@code castBlock}, or {@code null} under
      * {@code fail_fast} so the failure propagates — identical to the eager iterators'
-     * policy-aware {@code coercionWarnings()}. The drifted-glob whole-column-null fallback in
-     * {@link #coerceToTarget} stays on the always-live {@link #coercionWarnings()} regardless of
-     * policy, mirroring the eager per-file validation which also warns+nulls under every policy.
+     * policy-aware {@code coercionWarnings()}. Its being {@code null} also fails a declared column the
+     * file cannot supply at all ({@link #coerceToTarget}) under {@code fail_fast}, exactly as the eager
+     * per-file validation does; otherwise that column, and the same fallback for an inferred column
+     * (which widens or nulls under every policy), report on {@link #uncoercibleColumnWarnings()}.
      */
     @Nullable
     private SkipWarnings castBlockWarnings() {

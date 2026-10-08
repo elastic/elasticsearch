@@ -598,9 +598,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
   issue: https://github.com/elastic/elasticsearch/issues/160055
-- class: org.elasticsearch.exponentialhistogram.ExponentialScaleUtilsTests
-  method: testRandomValueIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/160716
 - class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
   method: testCancelOnExpiry
   issue: https://github.com/elastic/elasticsearch/issues/160823
@@ -613,9 +610,6 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testRemoteReductionRejectionWithPendingCoordinatorReduction
   issue: https://github.com/elastic/elasticsearch/issues/160620
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryDatastreamIT
-  method: testProfileFailureStore
-  issue: https://github.com/elastic/elasticsearch/issues/160877
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   method: testStatsBlowupParquet
   issue: https://github.com/elastic/elasticsearch/issues/160899
@@ -640,9 +634,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   method: testStatsBlowupNdjson
   issue: https://github.com/elastic/elasticsearch/issues/161026
-- class: org.elasticsearch.xpack.stateless.StatelessPersistedStateIT
-  method: testTransportVersions
-  issue: https://github.com/elastic/elasticsearch/issues/161055
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   method: testStatsBlowupCsv
   issue: https://github.com/elastic/elasticsearch/issues/161060
@@ -688,3 +679,24 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
   method: testCloseWhileSegmentatorParkedOnBufferPool
   issue: https://github.com/elastic/elasticsearch/issues/161247
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {yaml=indices.sort/30_multi_value/Index Sort with doc_values multi_value false - secondary sort field}
+  issue: https://github.com/elastic/elasticsearch/issues/161280
+- class: org.elasticsearch.xpack.esql.datasources.PartitionSpecProjectorTests
+  method: testOverlapsExpressionsDatetimeLongIsNotScaledAsSeconds
+  issue: https://github.com/elastic/elasticsearch/issues/161281
+- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/161304
+- class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
+  method: testRandomActivities
+  issue: https://github.com/elastic/elasticsearch/issues/161309
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testRemoveAsyncIndex
+  issue: https://github.com/elastic/elasticsearch/issues/161316
+- class: org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapperTests
+  method: testPredicatesOverTheValuesItKeeps
+  issue: https://github.com/elastic/elasticsearch/issues/161317
+- class: org.elasticsearch.index.mapper.TextFieldValueQueriesTests
+  method: testColumnarTextAnswersOverItsValues
+  issue: https://github.com/elastic/elasticsearch/issues/161318

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -88,28 +87,6 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
     @Override
     protected SettingsConfig mutateInstance(SettingsConfig instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
-    }
-
-    @Override
-    protected SettingsConfig mutateInstanceForVersion(SettingsConfig instance, TransportVersion version) {
-        return mutateForVersion(instance, version);
-    }
-
-    public static SettingsConfig mutateForVersion(SettingsConfig instance, TransportVersion version) {
-        if (instance == null || version.supports(SettingsConfig.TRANSFORM_INDEXER_REQUEST_TIMEOUT)) {
-            return instance;
-        }
-        return new SettingsConfig(
-            instance.getMaxPageSearchSize(),
-            instance.getDocsPerSecond(),
-            instance.getDatesAsEpochMillis(),
-            instance.getAlignCheckpoints(),
-            instance.getUsePit(),
-            instance.getDeduceMappings(),
-            instance.getNumFailureRetries(),
-            instance.getUnattended(),
-            null
-        );
     }
 
     @Override

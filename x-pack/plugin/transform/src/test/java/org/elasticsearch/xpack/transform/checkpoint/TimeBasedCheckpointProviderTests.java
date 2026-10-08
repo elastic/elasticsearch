@@ -256,7 +256,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
 
     public void testCreateNextCheckpointPassesTimeoutToGetCheckpointRequest() throws InterruptedException {
         String transformId = getTestName();
-        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Collections.emptyMap(), null);
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Collections.emptyMap());
         ArgumentCaptor<GetCheckpointAction.Request> requestCaptor = ArgumentCaptor.forClass(GetCheckpointAction.Request.class);
         doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), requestCaptor.capture(), any());
 

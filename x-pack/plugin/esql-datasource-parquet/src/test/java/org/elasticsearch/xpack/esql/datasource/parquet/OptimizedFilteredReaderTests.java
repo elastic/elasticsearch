@@ -43,9 +43,11 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -85,7 +87,7 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -200,10 +202,10 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
 
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 1024))) {
             OptimizedParquetColumnIterator optimized = (OptimizedParquetColumnIterator) iter;
-            // The fixture's first projected row group exceeds SHALLOW_PREFETCH_BYTES, so
-            // computePrefetchDepth deliberately seeds both ordinals before the first hasNext().
-            assertTrue("fixture must queue the empty and matching row groups together", optimized.prefetchDepth() > 1);
-            assertEquals(List.of(0, 1), optimized.pendingPrefetchOrdinals());
+            // Empty page-index ranges admit no I/O, so fillPrefetchQueue skips ordinal 0 and
+            // seeds only the matching group. Later prefetch must still be intact.
+            assertTrue("fixture must queue ahead of the empty first group", optimized.prefetchDepth() > 1);
+            assertEquals(List.of(1), optimized.pendingPrefetchOrdinals());
             assertTrue("first row group must have empty page-index ranges", optimized.rowRanges(0).isEmpty());
             assertFalse("later row group must retain matching page-index ranges", optimized.rowRanges(1).isEmpty());
             assertEquals("matching row group must be prefetched once during queue seeding", 1, storage.largeAsyncReads.get());
@@ -774,7 +776,8 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         ) {
             for (int id : new int[] { 0, 1_000, 500, 500 }) {
                 // Two values form each row group; together they cross SHALLOW_PREFETCH_BYTES so
-                // both groups are queued before the empty first group's ranges are consumed.
+                // depth is >1 and the matching group is queued while the empty first group is
+                // skipped (zero filtered bytes).
                 byte[] payload = new byte[4_250_000];
                 payload[0] = (byte) id;
                 writer.write(groupFactory.newGroup().append("id", id).append("payload", Binary.fromConstantByteArray(payload)));
@@ -919,7 +922,7 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         }
     }
 
-    private static final class CountingAsyncStorageObject implements StorageObject {
+    private static final class CountingAsyncStorageObject extends AbstractTestStorageObject {
         private static final long LARGE_ROW_GROUP_BYTES = 8_000_000L;
 
         private final byte[] data;
@@ -1005,6 +1008,11 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);

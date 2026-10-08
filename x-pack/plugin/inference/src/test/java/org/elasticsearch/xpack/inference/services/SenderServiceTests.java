@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -26,10 +27,12 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.CacheControl;
 import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -49,9 +52,9 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomContentObjectFile;
-import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomContentObjectImage;
-import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomContentObjectText;
+import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestBodyTests.randomContentObjectFile;
+import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestBodyTests.randomContentObjectImage;
+import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestBodyTests.randomContentObjectText;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -260,8 +263,8 @@ public class SenderServiceTests extends ESTestCase {
         };
         try (service) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            var request = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null);
-            service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
+            var request = new UnifiedCompletionRequestBody(messages, null, null, null, null, null, null, null);
+            service.unifiedCompletionInfer(mock(Model.class), UnifiedCompletionRequest.streaming(request), TIMEOUT, listener);
 
             listener.actionGet(TIMEOUT);
         }
@@ -294,7 +297,7 @@ public class SenderServiceTests extends ESTestCase {
 
         try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var messages = List.of(new Message(new ContentString("test"), "user", null, null));
-            var request = new UnifiedCompletionRequest(
+            var request = new UnifiedCompletionRequestBody(
                 messages,
                 null,
                 null,
@@ -308,7 +311,7 @@ public class SenderServiceTests extends ESTestCase {
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
+            service.unifiedCompletionInfer(mock(Model.class), UnifiedCompletionRequest.streaming(request), TIMEOUT, listener);
 
             var exception = assertThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(exception.getMessage(), is("The test service service does not support unified completion with cache control"));
@@ -339,7 +342,7 @@ public class SenderServiceTests extends ESTestCase {
 
         try (service) {
             var messages = List.of(new Message(new ContentString("test"), "user", null, null));
-            var request = new UnifiedCompletionRequest(
+            var request = new UnifiedCompletionRequestBody(
                 messages,
                 null,
                 null,
@@ -353,7 +356,7 @@ public class SenderServiceTests extends ESTestCase {
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
+            service.unifiedCompletionInfer(mock(Model.class), UnifiedCompletionRequest.streaming(request), TIMEOUT, listener);
 
             assertNotNull(listener.actionGet(TIMEOUT));
         }
@@ -366,9 +369,9 @@ public class SenderServiceTests extends ESTestCase {
 
         try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var messages = List.of(new Message(new ContentString("test"), "user", null, null));
-            var request = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null, null, null, "test-session");
+            var request = new UnifiedCompletionRequestBody(messages, null, null, null, null, null, null, null, null, null, "test-session");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
+            service.unifiedCompletionInfer(mock(Model.class), UnifiedCompletionRequest.streaming(request), TIMEOUT, listener);
 
             var exception = assertThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(exception.getMessage(), is("The test service service does not support unified completion with session id"));
@@ -399,8 +402,61 @@ public class SenderServiceTests extends ESTestCase {
 
         try (service) {
             var messages = List.of(new Message(new ContentString("test"), "user", null, null));
-            var request = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null, null, null, "test-session");
+            var request = new UnifiedCompletionRequestBody(messages, null, null, null, null, null, null, null, null, null, "test-session");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.unifiedCompletionInfer(mock(Model.class), UnifiedCompletionRequest.streaming(request), TIMEOUT, listener);
+
+            assertNotNull(listener.actionGet(TIMEOUT));
+        }
+    }
+
+    public void testNonStreamingNotSupportedByDefault() throws IOException {
+        var sender = createMockSender();
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var messages = List.of(new Message(new ContentString("test"), "user", null, null));
+            var request = new UnifiedCompletionRequest(UnifiedCompletionRequestBody.of(messages), false);
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
+
+            var exception = assertThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(
+                exception.getMessage(),
+                is("The [test service] service does not support non-streaming for the chat completion task type")
+            );
+            assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        }
+    }
+
+    public void testNonStreamingSucceedsWhenServiceSupportsNonStreaming() throws IOException {
+        var sender = createMockSender();
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty()) {
+            @Override
+            public boolean supportsNonStreamingChatCompletion() {
+                return true;
+            }
+
+            @Override
+            protected void doUnifiedCompletionInfer(
+                Model model,
+                UnifiedChatInput inputs,
+                TimeValue timeout,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                assertFalse(inputs.stream());
+                listener.onResponse(mock(InferenceServiceResults.class));
+            }
+        };
+
+        try (service) {
+            var messages = List.of(new Message(new ContentString("test"), "user", null, null));
+            var request = new UnifiedCompletionRequest(UnifiedCompletionRequestBody.of(messages), false);
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
 
             assertNotNull(listener.actionGet(TIMEOUT));

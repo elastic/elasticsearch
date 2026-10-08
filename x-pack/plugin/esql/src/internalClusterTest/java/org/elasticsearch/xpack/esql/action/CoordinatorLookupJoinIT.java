@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -18,7 +19,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public class CoordinatorLookupJoinIT extends AbstractEsqlIntegTestCase {
 
-    public void testFullTextFunctionsNotAllowedAfterCoordinatorLookupJoin() {
+    public void testFullTextFunctionsAfterCoordinatorLookupJoin() {
         assertAcked(client().admin().indices().prepareCreate("data").setMapping("key", "type=keyword", "country", "type=keyword"));
         client().prepareBulk()
             .add(prepareIndex("data").setSource(Map.of("key", "us", "country", "United States")))
@@ -75,5 +76,21 @@ public class CoordinatorLookupJoinIT extends AbstractEsqlIntegTestCase {
             | KEEP key, country, info
             | SORT key
             """).close());
+
+        // A runtime search is allowed: the reason for the rejections above, that the coordinator has no Lucene shard
+        // context, does not hold for a search that scans the values already in the page. Only the UK row carries the
+        // term and the other leg matches nothing, so the runtime search has to have run for this to return a row.
+        try (var resp = run("""
+            FROM data METADATA _score
+            | LOOKUP JOIN _coordinator:lookup ON key
+            | EVAL c = TO_TEXT(country)
+            | LIMIT 5
+            | WHERE match(c, "Kingdom") OR info == "nonexistent"
+            | KEEP key, c, info, _score
+            | SORT key
+            """)) {
+            assertColumnNames(resp.columns(), List.of("key", "c", "info", "_score"));
+            assertValues(resp.values(), List.of(List.of("uk", "United Kingdom", "Britain", 1.0)));
+        }
     }
 }

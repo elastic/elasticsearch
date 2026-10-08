@@ -29,6 +29,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
@@ -44,9 +45,12 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -93,11 +97,18 @@ import static org.hamcrest.Matchers.lessThan;
  */
 public class TwoPhaseReaderTests extends ESTestCase {
 
+    /**
+     * Footer byte cache handed to every adapter this test constructs. In production the owning
+     * format reader supplies its instance; a fresh per-test-class cache gives the same sharing
+     * within a test and automatic isolation between tests.
+     */
+    private final FooterByteCache footerByteCache = FooterByteCache.fromSettings(Settings.EMPTY);
+
     private BlockFactory blockFactory;
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     public void testTwoPhaseProducesSameRowsAsSinglePhase() throws Exception {
@@ -173,7 +184,9 @@ public class TwoPhaseReaderTests extends ESTestCase {
         try {
             assertEquals(collectIds(expected), collectIds(actual));
             assertEquals(50, actual.stream().mapToInt(Page::getPositionCount).sum());
-            assertEquals(1, failing.failedChunkReads.get());
+            // Sync storage does not seed the prefetch queue; the injected async
+            // failure is never hit and the scan stays on the stream path.
+            assertEquals(0, failing.failedChunkReads.get());
         } finally {
             expected.forEach(Page::releaseBlocks);
             actual.forEach(Page::releaseBlocks);
@@ -376,7 +389,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             assertEquals(
                 "the only post-open storage-buffer reservation must be the whole projection chunk fallback",
-                expectedFallbackBytes,
+                HeapFootprint.byteArrayBytes(expectedFallbackBytes),
                 trackingBreaker.storageReadReservations.get() - afterOpen
             );
             do {
@@ -1680,17 +1693,13 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         CountingStorageObject obj = new CountingStorageObject(parquetData, true);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetReaderCounters counters = (ParquetReaderCounters) reader.newReadCounters();
 
-        try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(1024).build())) {
-            long readNanosAfterOpen = reader.statusSnapshot().readNanos();
+        try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(1024).readCounters(counters).build())) {
             while (it.hasNext()) {
                 it.next().releaseBlocks();
             }
-            assertThat(
-                "read_nanos must grow beyond the open phase as drainEmptyTwoPhaseBatches() performs real decode work",
-                reader.statusSnapshot().readNanos(),
-                greaterThan(readNanosAfterOpen)
-            );
+            assertThat("filter id < 10 out of 5000 rows must emit some matching rows", counters.snapshot().rowsEmitted(), greaterThan(0L));
         }
     }
 
@@ -1703,7 +1712,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         throws IOException {
         StorageObject storage = new CountingStorageObject(parquetData, false);
         ParquetReader.Builder<Group> builder = new ParquetReader.Builder<Group>(
-            new ParquetStorageObjectAdapter(storage, blockFactory.breaker()),
+            new ParquetStorageObjectAdapter(storage, footerByteCache, blockFactory.breaker()),
             new PlainParquetConfiguration()
         ) {
             @Override
@@ -1730,7 +1739,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         throws IOException {
         StorageObject storage = new CountingStorageObject(parquetData, false);
         ParquetReader.Builder<Group> builder = new ParquetReader.Builder<Group>(
-            new ParquetStorageObjectAdapter(storage, blockFactory.breaker()),
+            new ParquetStorageObjectAdapter(storage, footerByteCache, blockFactory.breaker()),
             new PlainParquetConfiguration()
         ) {
             @Override
@@ -1840,7 +1849,11 @@ public class TwoPhaseReaderTests extends ESTestCase {
         PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
         try (
             ParquetFileReader reader = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(new CountingStorageObject(parquetData, false), new NoopCircuitBreaker("chunk-ranges")),
+                new ParquetStorageObjectAdapter(
+                    new CountingStorageObject(parquetData, false),
+                    footerByteCache,
+                    NoopCircuitBreaker.INSTANCE
+                ),
                 PlainParquetReadOptions.builder(codecFactory).build()
             )
         ) {
@@ -1940,7 +1953,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
      * {@link StorageObject#supportsNativeAsync()} as true so two-phase activates; otherwise it
      * stays on the single-phase path.
      */
-    private static class CountingStorageObject implements StorageObject {
+    private static class CountingStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
         private final boolean nativeAsync;
         final AtomicLong totalBytesRead = new AtomicLong();

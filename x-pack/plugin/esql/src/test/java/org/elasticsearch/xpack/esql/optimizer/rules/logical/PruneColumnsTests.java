@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -20,11 +22,15 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -36,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -62,7 +69,10 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsIgnoringIds;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldNames;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.soleHighlight;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -82,6 +92,10 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
+
+    public PruneColumnsTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     public void testPruneUnusedEval() {
         var plan = plan("""
@@ -2571,10 +2585,10 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(Expressions.names(prunedExt.output()), contains("col_a"));
     }
 
-    public void testExternalRelationKeepsAllDataColumnsWhenSourceConsumed() {
-        // When _source survives downstream, the synthesizer needs every file-resident data column
-        // at compose time — pruning them would render `{}`. Project only _source over (col_a,
-        // col_b, col_c, _source); pin must keep all four.
+    public void testExternalRelationPrunesDataColumnsWhenOnlySourceConsumed() {
+        // _source is a constant null block on a dataset — a file carries no stored source — so nothing
+        // is read from the file to answer it. Project only _source over (col_a, col_b, col_c, _source);
+        // the three data columns are pruned and the reader loads none of them.
         Attribute colA = extAttr("col_a", KEYWORD);
         Attribute colB = extAttr("col_b", LONG);
         Attribute colC = extAttr("col_c", INTEGER);
@@ -2586,13 +2600,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
         var project = as(result, Project.class);
         var prunedExt = as(project.child(), ExternalRelation.class);
-        assertThat(prunedExt.output(), hasSize(4));
-        assertThat(Expressions.names(prunedExt.output()), contains("col_a", "col_b", "col_c", "_source"));
+        assertThat(prunedExt.output(), hasSize(1));
+        assertThat(Expressions.names(prunedExt.output()), contains("_source"));
     }
 
     public void testExternalRelationStillPrunesWhenSourceBoundButUnused() {
-        // _source is bound but the user drops it without ever reading. Pin should NOT fire (no
-        // over-retention); _source itself is pruned along with col_b and col_c.
+        // _source is bound but the user drops it without ever reading; it is pruned along with col_b
+        // and col_c.
         Attribute colA = extAttr("col_a", KEYWORD);
         Attribute colB = extAttr("col_b", LONG);
         Attribute colC = extAttr("col_c", INTEGER);
@@ -2625,6 +2639,48 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var prunedExt = as(resultFilter.child(), ExternalRelation.class);
         assertThat(prunedExt.output(), hasSize(2));
         assertThat(Expressions.names(prunedExt.output()), contains("col_a", "col_b"));
+    }
+
+    public void testEvalAliasKeepsFileSizeOnExternalRelation() {
+        Attribute size = new ExternalMetadataAttribute(EMPTY, FileMetadataColumns.SIZE, LONG);
+        Attribute other = extAttr("other", KEYWORD);
+        ExternalRelation ext = externalRelation(List.of(size, other));
+        Alias computed = new Alias(EMPTY, "x", size);
+        LogicalPlan plan = new Project(EMPTY, new Eval(EMPTY, ext, List.of(computed)), List.of(computed.toAttribute()));
+        LogicalPlan result = new PruneColumns().apply(plan);
+
+        var project = as(result, Project.class);
+        var eval = as(project.child(), Eval.class);
+        var prunedExt = as(eval.child(), ExternalRelation.class);
+        assertThat(Expressions.names(prunedExt.output()), contains(FileMetadataColumns.SIZE));
+    }
+
+    public void testArithmeticWhereKeepsFileSizeOnExternalRelation() {
+        Attribute value = extAttr("a", LONG);
+        Attribute size = new ExternalMetadataAttribute(EMPTY, FileMetadataColumns.SIZE, LONG);
+        ExternalRelation ext = externalRelation(List.of(value, size));
+        Expression scaled = new Add(EMPTY, new Div(EMPTY, size, new Literal(EMPTY, 39L, LONG)), new Literal(EMPTY, 49L, LONG), null);
+        Filter filter = new Filter(EMPTY, ext, new GreaterThan(EMPTY, value, scaled, null));
+        LogicalPlan result = new PruneColumns().apply(new Project(EMPTY, filter, List.of(value)));
+
+        var project = as(result, Project.class);
+        var resultFilter = as(project.child(), Filter.class);
+        var prunedExt = as(resultFilter.child(), ExternalRelation.class);
+        assertThat(Expressions.names(prunedExt.output()), contains("a", FileMetadataColumns.SIZE));
+    }
+
+    public void testWhereBeforeCountKeepsPartitionColumn() {
+        Attribute year = extAttr("year", INTEGER);
+        Attribute other = extAttr("other", KEYWORD);
+        ExternalRelation ext = externalRelation(List.of(year, other));
+        Filter filter = new Filter(EMPTY, ext, new Equals(EMPTY, year, new Literal(EMPTY, 2024, INTEGER)));
+        Alias count = new Alias(EMPTY, "count", new Count(EMPTY, Literal.keyword(EMPTY, "*")));
+        LogicalPlan result = new PruneColumns().apply(new Aggregate(EMPTY, filter, List.of(), List.of(count)));
+
+        var aggregate = as(result, Aggregate.class);
+        var resultFilter = as(aggregate.child(), Filter.class);
+        var prunedExt = as(resultFilter.child(), ExternalRelation.class);
+        assertThat(Expressions.names(prunedExt.output()), contains("year"));
     }
 
     /**
@@ -3159,6 +3215,15 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
+     * DENSE_VECTOR is rejected below {@link DenseVector#ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION}, so its tests pin a version
+     * that supports it.
+     */
+    private TestAnalyzer denseVectorAnalyzer() {
+        TransportVersion floor = DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION;
+        return typesAnalyzer().minimumTransportVersion(minimumVersion.supports(floor) ? minimumVersion : floor);
+    }
+
+    /**
      * The unused generated column and its input field are pruned. Checks the delta explicitly: the analyzed node embeds
      * both {@code keyword} and {@code text}; after pruning only {@code keyword} (whose generated column is kept) remains,
      * proving {@code text} and its embedding were actually dropped.
@@ -3180,13 +3245,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }
      */
     public void testDenseVectorPrunesUnusedGeneratedColumn() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
             | keep keyword_dense_vector
             """;
-        var analyzedPlan = typesAnalyzer().query(query);
+        var analyzedPlan = denseVectorAnalyzer().query(query);
 
         // before pruning: both fields are embedded
         {
@@ -3214,13 +3278,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * When none of the generated columns are used, the whole DENSE_VECTOR node is removed.
      */
     public void testDenseVectorNodeRemovedWhenNoGeneratedColumnUsed() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
             | keep integer
             """;
-        var analyzedPlan = typesAnalyzer().query(query);
+        var analyzedPlan = denseVectorAnalyzer().query(query);
         assertTrue("DenseVector present before pruning", analyzedPlan.anyMatch(p -> p instanceof DenseVector));
 
         LogicalPlan pruned = new PruneColumns().apply(analyzedPlan);
@@ -3231,13 +3294,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * When every generated column is used, the node is left unchanged.
      */
     public void testDenseVectorUnchangedWhenAllGeneratedColumnsUsed() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
             | keep keyword_dense_vector, text_dense_vector
             """;
-        DenseVector dv = onlyDenseVector(new PruneColumns().apply(typesAnalyzer().query(query)));
+        DenseVector dv = onlyDenseVector(new PruneColumns().apply(denseVectorAnalyzer().query(query)));
         assertThat(Expressions.names(dv.fields()), contains("keyword", "text"));
         assertThat(Expressions.names(dv.generatedAttributes()), contains("keyword_dense_vector", "text_dense_vector"));
     }
@@ -3246,14 +3308,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * With three embedded fields and two used generated columns, only the unused middle field is pruned.
      */
     public void testDenseVectorPrunesMiddleFieldOnly() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | eval a = keyword, b = keyword, c = keyword
             | dense_vector a, b, c WITH { "inference_id" : "text-embedding-inference-id" }
             | keep a_dense_vector, c_dense_vector
             """;
-        var analyzedPlan = typesAnalyzer().query(query);
+        var analyzedPlan = denseVectorAnalyzer().query(query);
         assertThat(Expressions.names(onlyDenseVector(analyzedPlan).fields()), contains("a", "b", "c"));
 
         DenseVector dv = onlyDenseVector(new PruneColumns().apply(analyzedPlan));
@@ -3266,14 +3327,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * first clause survives.
      */
     public void testChainedDenseVectorClausesPruneIndependently() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | dense_vector keyword WITH { "inference_id" : "text-embedding-inference-id" }
             | dense_vector text WITH { "inference_id" : "text-embedding-inference-id" }
             | keep keyword_dense_vector
             """;
-        var analyzedPlan = typesAnalyzer().query(query);
+        var analyzedPlan = denseVectorAnalyzer().query(query);
         assertThat("two clauses before pruning", analyzedPlan.collect(p -> p instanceof DenseVector), hasSize(2));
 
         LogicalPlan pruned = new PruneColumns().apply(analyzedPlan);
@@ -3286,14 +3346,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * Pruning commutes with a preceding filter: a WHERE before DENSE_VECTOR still prunes the unused field.
      */
     public void testDenseVectorPruneWithFilter() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | where integer > 0
             | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
             | keep keyword_dense_vector
             """;
-        DenseVector dv = onlyDenseVector(new PruneColumns().apply(typesAnalyzer().query(query)));
+        DenseVector dv = onlyDenseVector(new PruneColumns().apply(denseVectorAnalyzer().query(query)));
         assertThat(Expressions.names(dv.fields()), contains("keyword"));
         assertThat(Expressions.names(dv.generatedAttributes()), contains("keyword_dense_vector"));
     }
@@ -3304,7 +3363,6 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * clause is not confused by the earlier, dropped one.
      */
     public void testDenseVectorPruneKeepsUsedClauseAcrossChain() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | dense_vector keyword WITH { "inference_id" : "text-embedding-inference-id" }
@@ -3312,12 +3370,85 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | dense_vector keyword_copy WITH { "inference_id" : "text-embedding-inference-id" }
             | keep keyword_copy_dense_vector
             """;
-        var analyzedPlan = typesAnalyzer().query(query);
+        var analyzedPlan = denseVectorAnalyzer().query(query);
         assertThat("two clauses before pruning", analyzedPlan.collect(p -> p instanceof DenseVector), hasSize(2));
 
         // only the used (second) clause survives, embedding keyword_copy
         DenseVector dv = onlyDenseVector(new PruneColumns().apply(analyzedPlan));
         assertThat(Expressions.names(dv.fields()), contains("keyword_copy"));
         assertThat(Expressions.names(dv.generatedAttributes()), contains("keyword_copy_dense_vector"));
+    }
+
+    public void testHighlightPrunesUnusedGeneratedColumns() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT "x"
+            | KEEP highlight_first_name
+            """, Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_first_name")));
+    }
+
+    public void testHighlightRemovedWhenNoGeneratedColumnUsed() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT "x"
+            | KEEP emp_no
+            """, Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS);
+
+        assertFalse("HIGHLIGHT is purely additive, so an unused node should be dropped", plan.anyMatch(p -> p instanceof Highlight));
+    }
+
+    public void testHighlightPruneKeepsQstrQualifiedOnField() {
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT QSTR("first_name:x") ON first_name, last_name
+            | KEEP highlight_last_name
+            """, Highlight.ESQL_HIGHLIGHT);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name", "last_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_first_name", "highlight_last_name")));
+    }
+
+    public void testHighlightPruneKeepsMatchFieldWhenGeneratedColumnUnused() {
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT MATCH(first_name, "x") ON first_name, last_name
+            | KEEP highlight_last_name
+            """, Highlight.ESQL_HIGHLIGHT);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name", "last_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_first_name", "highlight_last_name")));
+    }
+
+    // A `field:term` literal translates as query_string, so it still names first_name after KEEP drops highlight_first_name.
+    public void testHighlightPruneKeepsFieldQualifiedLiteralOnField() {
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT "first_name:x" ON first_name, last_name
+            | KEEP highlight_last_name
+            """, Highlight.ESQL_HIGHLIGHT);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name", "last_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_first_name", "highlight_last_name")));
+    }
+
+    public void testHighlightPruneDropsUnusedOnFieldForColonFreeLiteral() {
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT "x" ON first_name, last_name
+            | KEEP highlight_last_name
+            """, Highlight.ESQL_HIGHLIGHT);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("last_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_last_name")));
     }
 }

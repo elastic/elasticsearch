@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -18,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -26,6 +28,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
@@ -54,6 +57,8 @@ import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
@@ -277,7 +282,9 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                UnifiedCompletionRequest.streaming(
+                    UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("hello"), "user", null, null)))
+                ),
                 null,
                 listener
             );
@@ -353,6 +360,65 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
         }
     }
 
+    @SuppressWarnings("checkstyle:LineLength")
+    public void testGetConfiguration() throws Exception {
+        try (var service = createInferenceService()) {
+            var content = XContentHelper.stripWhitespace(
+                """
+                    {
+                           "service": "deepseek",
+                           "name": "DeepSeek",
+                           "task_types": ["completion", "chat_completion"],
+                           "features": {
+                               "non_streaming_chat": {
+                                   "supported": true
+                               }
+                           },
+                           "configurations": {
+                               "model_id": {
+                                   "description": "The name of the model to use for the inference task.",
+                                   "label": "Model ID",
+                                   "required": true,
+                                   "sensitive": false,
+                                   "updatable": false,
+                                   "type": "str",
+                                   "supported_task_types": ["completion", "chat_completion"]
+                               },
+                               "api_key": {
+                                   "description": "The DeepSeek API authentication key. For more details about generating DeepSeek API keys, refer to https://api-docs.deepseek.com.",
+                                   "label": "API Key",
+                                   "required": true,
+                                   "sensitive": true,
+                                   "updatable": true,
+                                   "type": "str",
+                                   "supported_task_types": ["completion", "chat_completion"]
+                               },
+                               "url": {
+                                   "default_value": "https://api.deepseek.com/chat/completions",
+                                   "description": "The URL endpoint to use for the requests.",
+                                   "label": "URL",
+                                   "required": false,
+                                   "sensitive": false,
+                                   "updatable": false,
+                                   "type": "str",
+                                   "supported_task_types": ["completion", "chat_completion"]
+                               }
+                           }
+                       }
+                    """
+            );
+            var configuration = InferenceServiceConfigurationTests.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+            var humanReadable = true;
+            var originalBytes = toShuffledXContent(configuration, XContentType.JSON, EMPTY_PARAMS, humanReadable);
+            var serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
+            );
+        }
+    }
+
     private DeepSeekService createService() {
         return new DeepSeekService(
             HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
@@ -406,7 +472,9 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                UnifiedCompletionRequest.streaming(
+                    UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("hello"), "user", null, null)))
+                ),
                 TIMEOUT,
                 listener
             );

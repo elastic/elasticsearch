@@ -33,9 +33,11 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -75,7 +77,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
 
     @Before
     public void initBlockFactoryAndExecutor() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         // Owned, deterministically shut down in tearDown: using ForkJoinPool.commonPool() here leaks
         // worker threads that ESTestCase's suite-scoped ThreadLeakControl flags as a class failure.
         asyncIoExecutor = Executors.newFixedThreadPool(4, EsExecutors.daemonThreadFactory("test", "prefetch-test-async-io"));
@@ -222,7 +224,8 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
      * scheduling model with 20 row groups, ten 50 ms requests per group, 10 ms decode, and a
      * 16-request provider limit reduced modeled elapsed time from 1010 ms at depth 1 to 660 ms at
      * depth 3 (at 50 slots: 1010 ms to 370 ms). Those measurements are evidence, not wall-clock
-     * assertions; this test fixes only the deterministic fan-out policy.
+     * assertions; this test fixes only the deterministic fan-out policy. Request count follows
+     * {@link CoalescedRangeReader#MAX_MERGED_RANGE_BYTES} (two 5 MiB chunks per 10 MiB GET).
      */
     public void testCappedRequestWaveFanOutPolicy() {
         BlockMetaData block = createCappedRequestWaveBlock();
@@ -235,13 +238,16 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP
         );
 
-        assertEquals("30 contiguous 5 MiB chunks must form ten capped requests", 10, requests.size());
+        long packedBytes = 5L * 1024 * 1024;
+        int chunksPerRequest = (int) (CoalescedRangeReader.MAX_MERGED_RANGE_BYTES / packedBytes);
+        int expectedRequests = 30 / chunksPerRequest;
+        assertEquals("30 contiguous 5 MiB chunks must pack to the merge cap", expectedRequests, requests.size());
         int initialDepth = OptimizedParquetColumnIterator.computePrefetchDepth(List.of(block), projectedColumns);
         assertEquals("the >32 MB projected footprint retains the measured depth-three floor", 3, initialDepth);
-        assertEquals("initial queue-wide request fan-out", 30, initialDepth * requests.size());
+        assertEquals("initial queue-wide request fan-out", initialDepth * expectedRequests, initialDepth * requests.size());
         assertEquals(
             "adaptive maximum queue-wide request fan-out",
-            80,
+            OptimizedParquetColumnIterator.MAX_PREFETCH_DEPTH * expectedRequests,
             OptimizedParquetColumnIterator.MAX_PREFETCH_DEPTH * requests.size()
         );
     }
@@ -441,6 +447,64 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
     }
 
     /**
+     * Empty-queue overrun of a group larger than the node watermark is one slot for the process,
+     * not one per iterator. {@link OptimizedParquetColumnIterator#MAX_QUEUED_PREFETCH_BYTES} stays
+     * the local anti-runaway and is not retuned to the 10 MiB GET size.
+     */
+    public void testWatermarkEmptyQueueOverrunIsNodeWide() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        // A file that fits in the 64 KiB footer tail is a cache hit: the GET admit hold is dropped
+        // and the copy does not charge the watermark, so every iterator could overshoot. The first
+        // row group must be a real GET so the overshoot stays held.
+        byte[] parquetData = createMultiRowGroupFile(schema, 20_000, 4096);
+        assertTrue(
+            "first row group must sit outside the cached footer tail",
+            parquetData.length > ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES
+        );
+        FormatReadContext ctx = FormatReadContext.of(null, 1024);
+        // Tiny cap: the first empty-queue admit is the node-wide overshoot. The sliding window is
+        // not charged until a read, so this must not be sized around a reserved window. Look-ahead
+        // fill must not block; 0ms budget so the second first-group PER_GET charges immediately.
+        // Look-ahead still tryAdmit-refuses.
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1, 0L);
+        try (
+            CloseableIterator<Page> first = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+                .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx);
+            CloseableIterator<Page> second = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+                .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx)
+        ) {
+            OptimizedParquetColumnIterator opi1 = (OptimizedParquetColumnIterator) first;
+            OptimizedParquetColumnIterator opi2 = (OptimizedParquetColumnIterator) second;
+            assertTrue("first iterator must queue the current group", opi1.pendingPrefetchCount() >= 1);
+            int firstQueued = opi1.pendingPrefetchCount();
+            int secondQueued = opi2.pendingPrefetchCount();
+            growPrefetchDepth(opi1, 3);
+            growPrefetchDepth(opi2, 3);
+            long startNanos = System.nanoTime();
+            opi1.fillLookaheadPrefetches();
+            opi2.fillLookaheadPrefetches();
+            assertTrue("next-group fill must not block on PER_GET", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos) < 1_000L);
+            assertEquals("look-ahead must not queue extra groups over the cap", firstQueued, opi1.pendingPrefetchCount());
+            assertEquals(secondQueued, opi2.pendingPrefetchCount());
+            assertEquals(32_000_000L, OptimizedParquetColumnIterator.MAX_QUEUED_PREFETCH_BYTES);
+        }
+        long forcedAfterClose = watermark.forcedAdmits();
+        assertEquals("closing both iterators must release watermark bytes", 0, watermark.used());
+        try (
+            CloseableIterator<Page> next = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+                .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx)
+        ) {
+            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) next;
+            assertEquals("release on close allows the next iterator", 1, opi.pendingPrefetchCount());
+            assertEquals(
+                "third constructor must take the vacant owner, not force-admit a leak",
+                forcedAfterClose,
+                watermark.forcedAdmits()
+            );
+        }
+    }
+
+    /**
      * Consume and cancel must keep queued-byte accounting in sync: a tiny budget scan returns
      * the same rows as an unconstrained read and drains the queue at exhaustion.
      */
@@ -542,7 +606,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
      * to a test-owned executor to simulate true async I/O. The executor is owned and shut
      * down by the enclosing test so no worker threads leak past the suite.
      */
-    static class CountingStorageObject implements StorageObject {
+    static class CountingStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
         private final ExecutorService asyncIoExecutor;
         final AtomicInteger syncReadCount = new AtomicInteger();
@@ -598,18 +662,50 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             ActionListener<DirectReadBuffer> listener
         ) {
             asyncReadCount.incrementAndGet();
-            asyncIoExecutor.execute(() -> {
-                try {
-                    int pos = (int) position;
-                    int len = (int) Math.min(length, data.length - position);
-                    ByteBuffer buffer = ByteBuffer.allocate(len);
-                    buffer.put(data, pos, len);
-                    buffer.flip();
-                    listener.onResponse(new DirectReadBuffer(buffer, () -> {}));
-                } catch (Exception e) {
-                    listener.onFailure(e);
+            if (length < 0 || length > Integer.MAX_VALUE) {
+                listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
+                return;
+            }
+            // Allocate on this thread so the watermark/breaker charge is visible to the next
+            // iterator before the in-memory fill runs on asyncIoExecutor.
+            final DirectReadBuffer drb;
+            boolean submitted = false;
+            try {
+                drb = factory.allocateWritableWindow((int) length);
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
+            try {
+                asyncIoExecutor.execute(() -> {
+                    try {
+                        int pos = (int) position;
+                        int len = (int) Math.min(length, data.length - position);
+                        ByteBuffer buffer = drb.buffer();
+                        buffer.put(data, pos, len);
+                        buffer.flip();
+                    } catch (Exception e) {
+                        drb.close();
+                        listener.onFailure(e);
+                        return;
+                    }
+                    try {
+                        listener.onResponse(drb);
+                    } catch (Exception e) {
+                        try {
+                            drb.close();
+                        } catch (Exception closeEx) {
+                            e.addSuppressed(closeEx);
+                        }
+                        throw e;
+                    }
+                });
+                submitted = true;
+            } finally {
+                if (submitted == false) {
+                    drb.close();
                 }
-            });
+            }
         }
     }
 
@@ -656,6 +752,11 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
 
     private StorageObject createPlainStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);

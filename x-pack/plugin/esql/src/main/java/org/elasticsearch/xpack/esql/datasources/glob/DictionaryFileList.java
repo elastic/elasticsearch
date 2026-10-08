@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.util.List;
+
 /**
  * Segment-dictionary-encoded file listing implementing {@link FileList}.
  * Compresses path storage from ~700 bytes/file (StorageEntry) to ~52 bytes/file
@@ -42,6 +44,7 @@ final class DictionaryFileList implements FileList {
      */
     @Nullable
     private final FileSetFingerprint fileSetFingerprint;
+    private final List<String> listingWarnings;
 
     DictionaryFileList(
         String basePath,
@@ -54,8 +57,11 @@ final class DictionaryFileList implements FileList {
         @Nullable String originalPattern,
         @Nullable PartitionMetadata partitionMetadata,
         int fileCount,
-        @Nullable FileSetFingerprint fileSetFingerprint
+        @Nullable FileSetFingerprint fileSetFingerprint,
+        List<String> listingWarnings
     ) {
+        assert partitionMetadata == null || partitionMetadata.coversFileCount(fileCount)
+            : "partition metadata covers [" + partitionMetadata.fileCount() + "] files but the listing has [" + fileCount + "]";
         this.basePath = basePath;
         this.tokens = tokens;
         this.pathTokens = pathTokens;
@@ -67,6 +73,7 @@ final class DictionaryFileList implements FileList {
         this.partitionMetadata = partitionMetadata;
         this.fileCount = fileCount;
         this.fileSetFingerprint = fileSetFingerprint;
+        this.listingWarnings = listingWarnings == null || listingWarnings.isEmpty() ? List.of() : List.copyOf(listingWarnings);
     }
 
     @Override
@@ -146,7 +153,11 @@ final class DictionaryFileList implements FileList {
         if (sharedExtension != null) {
             bytes += 40 + sharedExtension.length() * (long) Character.BYTES;
         }
-        return bytes;
+        return bytes + listingWarningBytes();
     }
 
+    @Override
+    public List<String> listingWarnings() {
+        return listingWarnings;
+    }
 }

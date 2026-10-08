@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRLik
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
-import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonString;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
@@ -90,6 +90,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         Coalesce.class, // COALESCE(NULL, 1) = 1
         IsNotNull.class, // NULL IS NOT NULL = false
         IsNull.class, // NULL IS NULL = true
+        JsonString.class, // JSON_STRING("key", NULL) = {"key":null};
 
         // Multivalue functions that treat NULL is an empty set.
         MvContains.class, // MV_CONTAINS([1, 2], NULL) = false
@@ -104,7 +105,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         MvZip.class, // MV_ZIP(NULL, ["a"], ",") = ["a"]
 
         // Special empty/null handling functions
-        Magnitude.class, // MAGNITUDE(<all-null>) = 0-length block, not null
         MvPSeriesWeightedSum.class, // MV_PSERIES_WEIGHTED_SUM(NULL, 2) = 0.0
 
         // Non-evaluatable grouping functions
@@ -112,7 +112,10 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         TimeSeriesWithout.class,
 
         // Explicitly null-tolerant evaluator: @Evaluator(allNullsIsNull = false).
-        FilterUnsupportedTemporality.class
+        FilterUnsupportedTemporality.class,
+
+        // Sampling offset is always defined: null keys hash like any other identity.
+        org.elasticsearch.xpack.esql.expression.promql.function.HashOffset.class
     );
 
     /**
@@ -486,6 +489,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
             }
             if (testCase.getExpectedWarnings() != null) {
+                // Fold-time warnings go to HTTP response headers (plan-time channel). Functions that
+                // emit warnings during constant folding must use HeaderWarning.addWarning(...) so that
+                // assertWarnings() can find them here.
                 assertWarnings(testCase.getExpectedWarnings());
             }
         } else {

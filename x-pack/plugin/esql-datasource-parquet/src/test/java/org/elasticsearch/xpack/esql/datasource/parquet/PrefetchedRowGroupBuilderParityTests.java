@@ -27,6 +27,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
@@ -36,6 +37,8 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -54,6 +57,13 @@ import java.util.Set;
 
 public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
 
+    /**
+     * Footer byte cache handed to every adapter this test constructs. In production the owning
+     * format reader supplies its instance; a fresh per-test-class cache gives the same sharing
+     * within a test and automatic isolation between tests.
+     */
+    private final FooterByteCache footerByteCache = FooterByteCache.fromSettings(Settings.EMPTY);
+
     private static final int TOTAL_ROWS = 4096;
 
     private BlockFactory blockFactory;
@@ -61,7 +71,7 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
 
     @Before
     public void initBlockFactoryAndCodec() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         codecFactory = new PlainCompressionCodecFactory();
     }
 
@@ -672,7 +682,7 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
 
     private ParquetFileReader openReader(byte[] file) throws IOException {
         return ParquetFileReader.open(
-            new ParquetStorageObjectAdapter(new InMemoryStorageObject(file), blockFactory.breaker()),
+            new ParquetStorageObjectAdapter(new InMemoryStorageObject(file), footerByteCache, blockFactory.breaker()),
             PlainParquetReadOptions.builder(codecFactory).build()
         );
     }
@@ -760,7 +770,7 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
         };
     }
 
-    private static final class InMemoryStorageObject implements StorageObject {
+    private static final class InMemoryStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
 
         InMemoryStorageObject(byte[] data) {

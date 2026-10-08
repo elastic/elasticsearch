@@ -13,8 +13,10 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -63,7 +65,11 @@ public class StorageReadDirectMemoryLeakRegressionTests extends ESTestCase {
             try {
                 assertEquals(PAYLOAD_SIZE, result.buffer().remaining());
                 assertFalse("readBytesAsync must return a heap buffer", result.buffer().isDirect());
-                assertEquals("breaker must hold exactly the in-flight payload", PAYLOAD_SIZE, breaker.getUsed());
+                assertEquals(
+                    "breaker must hold exactly the in-flight payload",
+                    HeapFootprint.byteArrayBytes(PAYLOAD_SIZE),
+                    breaker.getUsed()
+                );
             } finally {
                 result.close();
             }
@@ -116,7 +122,7 @@ public class StorageReadDirectMemoryLeakRegressionTests extends ESTestCase {
      * supplied by {@link StorageObject}. This stub deliberately does not override it so the test
      * exercises exactly that code path.
      */
-    private static final class InMemoryStorageObject implements StorageObject {
+    private static final class InMemoryStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
 
         InMemoryStorageObject(byte[] data) {

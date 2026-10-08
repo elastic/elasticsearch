@@ -8,20 +8,27 @@
 package org.elasticsearch.xpack.stateless.reshard;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -33,6 +40,30 @@ import static org.mockito.Mockito.when;
 
 public class SplitSourceServiceTests extends ESTestCase {
     AtomicLong nowInMillis = new AtomicLong();
+
+    /// [SplitSourceService#waitForHandoffSuccessOrFailure] must not look up the index itself. The observer it starts releases the
+    /// permits, so a lookup that throws on a deleted index strands them.
+    public void testHandoffReleasesPermitsWhenIndexIsGone() throws Exception {
+        final var permitsClosed = new AtomicInteger();
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool())) {
+            final var splitSourceService = new SplitSourceService(null, clusterService, null, null, null, null, null, Settings.EMPTY);
+            final var goneIndex = new Index("gone", "gone-uuid");
+            final var handoff = new PlainActionFuture<ActionResponse>();
+
+            splitSourceService.waitForHandoffSuccessOrFailure(
+                new ShardId(goneIndex, 1),
+                new ShardId(goneIndex, 0),
+                1L,
+                1L,
+                new AtomicBoolean(true),
+                permitsClosed::incrementAndGet,
+                handoff
+            );
+
+            expectThrows(IndexNotFoundException.class, handoff::actionGet);
+        }
+        assertEquals(1, permitsClosed.get());
+    }
 
     // test that a RefCountingAcquirer will only acquire the resource once if multiple acquirers arrive while the resource is held
     public void testRefCountedAcquirerAcquiresAndReleasesOnce() throws Exception {
@@ -178,7 +209,7 @@ public class SplitSourceServiceTests extends ESTestCase {
         SplitSourceService.RefCountedAcquirer acquirer = new SplitSourceService.RefCountedAcquirer(listener -> {
             acquired.incrementAndGet();
             throw new IllegalStateException("oops");
-        }, nowInMillis::incrementAndGet, duration -> assertEquals(1, duration));
+        }, nowInMillis::incrementAndGet, duration -> fail("blocked duration recorded"));
 
         acquirer.acquire(runAndRelease(withResource::incrementAndGet));
         acquirer.acquire(runAndRelease(withResource::incrementAndGet));
@@ -214,6 +245,30 @@ public class SplitSourceServiceTests extends ESTestCase {
             () -> splitSourceService.setupTargetShard(null, new ShardId(indexMetadata.getIndex(), 0), 1L, 1L, ActionListener.noop())
         );
         assertThat(exception.getMessage(), containsString("No split is in progress"));
+    }
+
+    public void testRefCountedAcquirerRecordsDurationFromAcquireStart() {
+        final var clock = new AtomicLong(1000);
+        final var recordedDuration = new AtomicLong(-1);
+        final long waitMillis = randomLongBetween(1, 1000);
+        final long holdMillis = randomLongBetween(1, 1000);
+
+        var refCountedAcquirer = new SplitSourceService.RefCountedAcquirer(listener -> {
+            clock.addAndGet(waitMillis);
+            listener.onResponse(() -> {});
+        }, clock::get, recordedDuration::set);
+
+        var done = new PlainActionFuture<Void>();
+        refCountedAcquirer.acquire(ActionListener.wrap(releasable -> {
+            // Still waiting to release
+            assertThat(recordedDuration.get(), equalTo(-1L));
+            clock.addAndGet(holdMillis);
+            releasable.close();
+            done.onResponse(null);
+        }, done::onFailure));
+        done.actionGet(SAFE_AWAIT_TIMEOUT);
+
+        assertThat(recordedDuration.get(), equalTo(waitMillis + holdMillis));
     }
 
     private ActionListener<Releasable> runAndRelease(Runnable runnable) {

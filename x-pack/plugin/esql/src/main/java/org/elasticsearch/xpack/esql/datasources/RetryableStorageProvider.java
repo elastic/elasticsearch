@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -90,6 +91,12 @@ class RetryableStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+        // Fully materialized by the delegate, so the whole call retries as one unit — no iterator to wrap.
+        return policyFor(prefix).execute(() -> delegate.listChildren(prefix, limit), "listChildren", prefix);
+    }
+
+    @Override
     public boolean exists(StoragePath path) throws IOException {
         return policyFor(path).execute(() -> delegate.exists(path), "exists", path);
     }
@@ -102,6 +109,11 @@ class RetryableStorageProvider implements StorageProvider {
     @Override
     public boolean supportsStableMetadata() {
         return delegate.supportsStableMetadata();
+    }
+
+    @Override
+    public boolean listsInKeyOrder() {
+        return delegate.listsInKeyOrder();
     }
 
     @Override

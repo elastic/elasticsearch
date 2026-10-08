@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class ParquetFormatReaderConfigKeysTests extends ESTestCase {
 
     private static final BlockFactory NOOP_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("noop"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testFormatSpecConfigKeysAreEmpty() {
@@ -92,8 +92,7 @@ public class ParquetFormatReaderConfigKeysTests extends ESTestCase {
             }
         }
         return new FileDataSourceValidator("s3", (settings, secrets) -> null, Set.of("s3")).withFormatConfigKeyResolver(
-            FileDataSourceValidator.FormatConfigKeyResolver.of(formatToConfigKeys, extToFormat),
-            Set.of()
+            FileDataSourceValidator.FormatConfigKeyResolver.of(formatToConfigKeys, extToFormat)
         );
     }
 }

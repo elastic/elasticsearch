@@ -2,7 +2,7 @@
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
   "type" : "histogram",
   "name" : "histogram_fraction",
-  "description" : "Returns the estimated fraction of observations of a native histogram that fall between the provided lower and upper values.",
+  "description" : "Returns the estimated fraction of observations of a classic or native histogram that fall between the provided lower and upper values.",
   "signatures" : [
     {
       "params" : [

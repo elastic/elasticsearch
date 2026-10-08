@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -312,8 +313,8 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         bulkIndex(dataStreamName, sourceSupplier, 100);
         // Rollover to ensure the index we will downsample is not the write index
         assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)));
-        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
-        String sourceIndex = backingIndices.get(0);
+        List<Index> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        String sourceIndex = backingIndices.get(0).getName();
         String interval = "5m";
         String targetIndex = "downsample-" + interval + "-" + sourceIndex;
         // Set the source index to read-only state

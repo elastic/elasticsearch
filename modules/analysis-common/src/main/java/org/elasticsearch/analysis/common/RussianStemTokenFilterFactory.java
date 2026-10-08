@@ -26,4 +26,9 @@ public class RussianStemTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenStream create(TokenStream tokenStream) {
         return new SnowballFilter(tokenStream, "Russian");
     }
+
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

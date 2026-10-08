@@ -1,6 +1,6 @@
 version: 9.4.6
-released: false
-generated: 2026-08-28T14:38:08.481002855Z
+released: true
+generated: 2026-09-01T13:33:47.583837750Z
 changelogs:
   - pr: 2841
     summary: Improve messages when a process is stopped after running out of memory

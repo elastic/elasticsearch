@@ -1,6 +1,0 @@
-area: CRUD
-issues:
- - 156982
-pr: 157255
-summary: Retry writes when the target primary is unassigned during a shard split
-type: bug

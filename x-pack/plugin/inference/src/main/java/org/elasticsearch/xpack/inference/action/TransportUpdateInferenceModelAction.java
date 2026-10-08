@@ -309,7 +309,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             mergedTaskSettings = mergedTaskSettings.updatedTaskSettings(newTaskSettings);
         }
         if (newChunkingSettings != null) {
-            replacementChunkingSettings = ChunkingSettingsBuilder.fromMap(newChunkingSettings);
+            replacementChunkingSettings = ChunkingSettingsBuilder.fromMap(newChunkingSettings, true, true);
         }
 
         return new ModelConfigurations(

@@ -163,6 +163,20 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestEntityTests extends ES
             """));
     }
 
+    public void testToXContent_UrlInput_EmbeddingModel() throws IOException {
+        var entity = new ElasticInferenceServiceDenseEmbeddingsRequestEntity(
+            List.of(new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.URL, "https://example.com/image.png"))),
+            createEmbeddingModel("", "my-model-id"),
+            ElasticInferenceServiceUsageContext.UNSPECIFIED
+        );
+        String xContentString = xContentEntityToString(entity);
+        assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
+            {
+                "input": [{"content":[{"type": "image", "format": "url", "value": "https://example.com/image.png"}]}],
+                "model": "my-model-id"
+            }"""));
+    }
+
     private String xContentEntityToString(ElasticInferenceServiceDenseEmbeddingsRequestEntity entity) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);

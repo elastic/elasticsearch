@@ -37,16 +37,6 @@ import static org.elasticsearch.repositories.s3.S3Repository.MIN_PART_SIZE_USING
  */
 final class S3ClientSettings {
 
-    static {
-        // Make sure repository plugin class is loaded before this class is used to trigger static initializer for that class which applies
-        // necessary Jackson workaround
-        try {
-            Class.forName("org.elasticsearch.repositories.s3.S3RepositoryPlugin");
-        } catch (ClassNotFoundException e) {
-            throw new AssertionError(e);
-        }
-    }
-
     // prefix for s3 client settings
     private static final String PREFIX = "s3.client.";
 
@@ -177,10 +167,11 @@ final class S3ClientSettings {
     );
 
     /** Whether chunked encoding should be disabled or not (Default is false). */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // no longer needed, should be removed in v10
     static final Setting.AffixSetting<Boolean> DISABLE_CHUNKED_ENCODING = Setting.affixKeySetting(
         PREFIX,
         "disable_chunked_encoding",
-        key -> Setting.boolSetting(key, false, Property.NodeScope)
+        key -> Setting.boolSetting(key, false, Property.NodeScope, Property.Deprecated)
     );
 
     /** An override for the s3 region to use for signing requests. */

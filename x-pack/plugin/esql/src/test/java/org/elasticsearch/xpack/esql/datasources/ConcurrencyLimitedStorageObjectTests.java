@@ -13,6 +13,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -27,14 +28,19 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,10 +54,10 @@ import static org.mockito.Mockito.when;
  */
 public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     public void testStreamCloseReleasesPermit() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
         when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
@@ -67,7 +73,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
     }
 
     public void testStreamDoubleCloseIsSafe() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
         when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
@@ -80,7 +86,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
     }
 
     public void testReadBytesReleasesOnException() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.readBytes(anyLong(), any(ByteBuffer.class))).thenThrow(new IOException("read error"));
         when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
@@ -91,7 +97,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
     }
 
     public void testLengthBypassesPermit() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.length()).thenReturn(42L);
 
@@ -107,7 +113,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
      * return immediately without touching the permit count.
      */
     public void testMetadataOpsBypassPermitWhileStreamHoldsOnlyPermit() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(1);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false));
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
         when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
@@ -130,7 +136,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testAsyncReadReleasesPermitOnSuccess() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
         DirectReadBuffer result = new DirectReadBuffer(ByteBuffer.wrap("data".getBytes(StandardCharsets.UTF_8)), () -> {});
@@ -158,7 +164,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testAsyncReadReleasesPermitOnFailure() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
         doAnswer(inv -> {
@@ -177,7 +183,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
     }
 
     public void testMetricsDelegatesToWrapped() {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
         StorageObjectMetrics snapshot = new StorageObjectMetrics(11, 2222, 8192, 3);
         StorageObject delegate = TestStorageObjects.metricsOnly(snapshot);
 
@@ -192,7 +198,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
      * per-bucket adaptive backoff or the throttle retry budget.
      */
     public void testPermitExhaustionThrowsRetryable503() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(1, 50);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false), 50);
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hi".getBytes(StandardCharsets.UTF_8)));
 
@@ -205,6 +211,8 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
             assertEquals(RestStatus.SERVICE_UNAVAILABLE, thrown.status());
             assertFalse("node-local permit exhaustion is not a remote throttle", thrown.throttling());
             assertTrue("permit exhaustion must be retryable", RetryPolicy.DEFAULT.isRetryable(thrown));
+            assertThat(thrown.getMessage(), containsString(thrown.getCause().getMessage()));
+            assertEquals(1, thrown.getMessage().toLowerCase(Locale.ROOT).split("timed out", -1).length - 1);
         } finally {
             held.close();
         }
@@ -217,7 +225,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
      * interrupt status for the caller.
      */
     public void testPermitAcquireInterruptThrowsNonRetryableRejection() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(1);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false));
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hi".getBytes(StandardCharsets.UTF_8)));
 
@@ -228,6 +236,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
         try {
             Thread.currentThread().interrupt();
             EsRejectedExecutionException thrown = expectThrows(EsRejectedExecutionException.class, obj::newStream);
+            assertEquals("Interrupted while acquiring a concurrency permit", thrown.getMessage());
             assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(thrown));
             assertFalse("an interrupt is not back-pressure and must not be retried", RetryPolicy.DEFAULT.isRetryable(thrown));
             assertTrue("the caught interrupt must be preserved as the cause", thrown.getCause() instanceof InterruptedException);
@@ -240,7 +249,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
     }
 
     public void testNewStreamReleasesPermitOnDelegateException() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.newStream()).thenThrow(new IOException("connection refused"));
 
@@ -256,7 +265,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
      * .close()} and trigger close-time drain on providers like S3.
      */
     public void testAbortStreamForwardsInnerStreamAndReleasesPermit() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
         StorageObject delegate = mock(StorageObject.class);
         InputStream inner = new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8));
         when(delegate.newStream()).thenReturn(inner);
@@ -278,7 +287,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
      * and break the global hard cap.
      */
     public void testCloseAfterAbortDoesNotDoubleReleasePermit() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
         when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
@@ -300,7 +309,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
      * global concurrency cap.
      */
     public void testAbortStreamReleasesPermitEvenIfDelegateThrows() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
         when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
@@ -313,5 +322,68 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
         expectThrows(IOException.class, () -> obj.abortStream(wrapper));
         assertEquals("permit must be released even if delegate.abortStream throws", 3, limiter.availablePermits());
         verify(delegate, times(1)).abortStream(any(InputStream.class));
+    }
+
+    public void testAbortAndCloseRaceDoesNotOverGrantPermit() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
+        int start = limiter.availablePermits();
+        StorageObject delegate = mock(StorageObject.class);
+        when(delegate.newStream()).thenAnswer(inv -> new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+        when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
+
+        for (int i = 0; i < 200; i++) {
+            ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
+            InputStream wrapper = obj.newStream();
+            CyclicBarrier barrier = new CyclicBarrier(2);
+            Thread abortThread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    obj.abortStream(wrapper);
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+            Thread closeThread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    wrapper.close();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+            abortThread.start();
+            closeThread.start();
+            abortThread.join();
+            closeThread.join();
+            assertEquals("abort+close must not over-grant the limiter", start, limiter.availablePermits());
+        }
+    }
+
+    public void testCancelAfterGrantFailsListenerWithoutDelegate() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false));
+        limiter.acquire();
+        StorageObject delegate = mock(StorageObject.class);
+        when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
+        ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
+        AtomicReference<Runnable> deferred = new AtomicReference<>();
+        CountDownLatch failed = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Releasable cancel = obj.startReadBytesAsync(0, 4, FACTORY, r -> {
+            if (deferred.compareAndSet(null, r) == false) {
+                r.run();
+            }
+        }, ActionListener.wrap(buf -> fail("cancelled grant must not succeed"), e -> {
+            error.set(e);
+            failed.countDown();
+        }));
+        assertBusy(() -> assertEquals(1, limiter.asyncWaiterCount()));
+        limiter.release();
+        assertNotNull(deferred.get());
+        cancel.close();
+        deferred.get().run();
+        assertTrue(failed.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(TaskCancelledException.class));
+        assertEquals(1, limiter.availablePermits());
+        verify(delegate, never()).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any());
     }
 }

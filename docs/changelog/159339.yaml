@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 153820
+ - 153821
+pr: 159339
+summary: Fix S3 managed-identity auth IT flake
+type: bug

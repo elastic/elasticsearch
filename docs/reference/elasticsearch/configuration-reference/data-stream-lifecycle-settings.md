@@ -40,12 +40,26 @@ $$$cluster-lifecycle-default-rollover$$$
 $$$data-streams-lifecycle-target-merge-factor$$$
 
 `data_streams.lifecycle.target.merge.policy.merge_factor`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) Data stream lifecycle implements [tail merging](docs-content://manage-data/lifecycle/data-stream.md#data-streams-lifecycle-how-it-works) by updating the Lucene merge policy factor for the target backing index. The merge factor is both the number of segments that should be merged together, and the maximum number of segments that we expect to find on a given tier. This setting controls which value [data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md) configures on the target index. It defaults to `16`. The value will be visible under the `index.merge.policy.merge_factor` index setting on the target index.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) Data stream lifecycle implements [tail merging](docs-content://manage-data/lifecycle/data-stream.md#data-streams-lifecycle-how-it-works) by updating the Lucene merge policy factor for the target backing index (applies only to non-time-series indices). The merge factor is both the number of segments that should be merged together, and the maximum number of segments that we expect to find on a given tier. This setting controls which value [data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md) configures on the target index. It defaults to `16`. The value will be visible under the `index.merge.policy.merge_factor` index setting on the target index.
+
+    {applies_to}`stack: ga 9.6` {applies_to}`serverless: ga` This setting does not apply to time series backing indices. These indices use `data_streams.lifecycle.target.merge.policy.time_series_merge_factor` instead.
+
+$$$data-streams-lifecycle-time-series-target-merge-factor$$$
+
+`data_streams.lifecycle.target.merge.policy.time_series_merge_factor` {applies_to}`stack: ga 9.6` {applies_to}`serverless: ga`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) Data stream lifecycle implements [tail merging](docs-content://manage-data/lifecycle/data-stream.md#data-streams-lifecycle-how-it-works) by updating the Lucene merge policy factor for the target **time series** backing index. The merge factor is both the number of segments that should be merged together, and the maximum number of segments that we expect to find on a given tier. This setting controls which value [data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md) configures on the target index. It defaults to `8`. The value will be visible under the `index.merge.policy.merge_factor` index setting on the target index.
 
 $$$data-streams-lifecycle-target-floor-segment$$$
 
 `data_streams.lifecycle.target.merge.policy.floor_segment`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Data stream lifecycle implements [tail merging](docs-content://manage-data/lifecycle/data-stream.md#data-streams-lifecycle-how-it-works) by updating the Lucene merge policy floor segment for the target backing index. This floor segment size is a way to prevent indices from having a long tail of very small segments. This setting controls which value [data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md) configures on the target index. It defaults to `100MB`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Data stream lifecycle implements [tail merging](docs-content://manage-data/lifecycle/data-stream.md#data-streams-lifecycle-how-it-works) by updating the Lucene merge policy floor segment for the target backing index (applies only to non-time-series indices). This floor segment size is a way to prevent indices from having a long tail of very small segments. This setting controls which value [data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md) configures on the target index. It defaults to `100MB`.
+
+    {applies_to}`stack: ga 9.6` {applies_to}`serverless: ga` This setting does not apply to time series backing indices. These indices use `data_streams.lifecycle.target.merge.policy.time_series_floor_segment` instead.
+
+$$$data-streams-lifecycle-time-series-target-floor-segment$$$
+
+`data_streams.lifecycle.target.merge.policy.time_series_floor_segment` {applies_to}`stack: ga 9.6` {applies_to}`serverless: ga`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Data stream lifecycle implements [tail merging](docs-content://manage-data/lifecycle/data-stream.md#data-streams-lifecycle-how-it-works) by updating the Lucene merge policy floor segment for the target **time series** backing index. This floor segment size is a way to prevent indices from having a long tail of very small segments. This setting controls which value [data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md) configures on the target index. It defaults to `512MB`.
 
 $$$data-streams-lifecycle-signalling-error-retry-interval$$$
 
@@ -83,6 +97,21 @@ $$$dlm-frozen-cleanup-poll-interval$$$
 
 `dlm.frozen.cleanup.poll_interval`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often the master node scans for and deletes orphaned artifacts (clone indices and snapshots) left behind by interrupted frozen conversions. Must be at least `1h`. Defaults to `1d`.
+
+$$$dlm-frozen-transition-enabled$$$
+
+`dlm.frozen_transitions.enabled`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), boolean) When `false`, the master node does not submit new frozen tier transitions. Transitions that are already running continue until they complete. Defaults to `true`.
+
+$$$dlm-frozen-transition-health-stuck-threshold$$$
+
+`dlm.frozen_transitions.health.stuck_threshold` {applies_to}`stack: ga 9.6`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How long a backing index can remain past its `frozen_after` age without completing its frozen tier transition before the `dlm_frozen_transitions` indicator of the [Health API]({{es-apis}}operation/operation-health-report) reports it as overdue and changes to `yellow`. Indices with a transition that is currently running are not counted as overdue. Must be at least `1m`. Defaults to `24h`.
+
+$$$dlm-frozen-transition-health-publish-interval$$$
+
+`dlm.frozen_transitions.health.publish_interval` {applies_to}`stack: ga 9.6`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often the master node publishes frozen tier transition health information to the health node. The `dlm_frozen_transitions` health indicator reports `unknown` when it has received no new information for three intervals. Must be at least `1s`. Defaults to `5m`.
 
 ## Index level settings [_index_level_settings]
 

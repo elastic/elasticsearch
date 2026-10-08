@@ -1,5 +1,0 @@
-Apache Commons CLI
-Copyright 2001-2009 The Apache Software Foundation
-
-This product includes software developed by
-The Apache Software Foundation (http://www.apache.org/).

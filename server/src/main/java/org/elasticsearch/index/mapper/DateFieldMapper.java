@@ -518,7 +518,8 @@ public final class DateFieldMapper extends FieldMapper {
                 resolution,
                 context.isSourceSynthetic(),
                 this,
-                offsetsFieldName
+                offsetsFieldName,
+                context.isDataStream()
             );
         }
     }
@@ -1201,7 +1202,8 @@ public final class DateFieldMapper extends FieldMapper {
         Resolution resolution,
         boolean isSourceSynthetic,
         Builder builder,
-        String offsetsFieldName
+        String offsetsFieldName,
+        boolean isDataStream
     ) {
         super(leafName, mappedFieldType, builderParams);
         this.stored = builder.store.getValue();
@@ -1222,7 +1224,7 @@ public final class DateFieldMapper extends FieldMapper {
         this.script = builder.script.get();
         this.scriptCompiler = builder.scriptCompiler;
         this.scriptValues = builder.scriptValues();
-        this.isDataStreamTimestampField = mappedFieldType.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        this.isDataStreamTimestampField = isDataStream && mappedFieldType.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         this.indexSettings = builder.indexSettings;
         this.offsetsFieldName = offsetsFieldName;
     }
@@ -1262,21 +1264,18 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // Columnar support requires strict-columnar index mode or TIME_SERIES (for @timestamp),
-        // and a doc-values date field. doc_values.multi_value and ignore_malformed are not
-        // implemented by mapColumnBatch but are deliberately not rejected here — rejected at parse
-        // time instead.
-        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
-            && docValuesParameters.enabled()
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+        // ignore_malformed is not enforced by mapColumnBatch — it falls back per document at parse time.
+        return docValuesParameters.enabled();
     }
 
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected boolean shouldEnforceSingleValueBatch() {
+        return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final EscfColumnData outData = switch (source.kind()) {
             case EscfColumnKind.STRING -> datesFromStrings(source);
             case EscfColumnKind.LONG -> datesFromLongs(source);
@@ -1288,6 +1287,8 @@ public final class DateFieldMapper extends FieldMapper {
                 )
             );
         };
+        // The converted column owns its buffers; register it once even though several views may wrap it.
+        ctx.addResource(outData);
         final IndexableFieldType columnFieldType;
         if (fieldType().hasDocValuesSkipper()) {
             columnFieldType = SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE;
@@ -1310,22 +1311,22 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     private EscfColumnData datesFromStrings(EscfColumn source) {
-        EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
-        builder.lockScalar(EscfColumnKind.LONG);
-        // retainValues=false: each value is parsed inside the loop body, before the cursor advances.
-        final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
-        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-            final BytesRef value = cursor.value();
-            if (value == null) {
-                if (nullValue != null) {
-                    builder.setLong(doc, nullValue);
+        try (EscfColumnBuilder builder = newLongColumn()) {
+            // retainValues=false: each value is parsed inside the loop body, before the cursor advances.
+            final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                final BytesRef value = cursor.value();
+                if (value == null) {
+                    if (nullValue != null) {
+                        builder.setLong(doc, nullValue);
+                    }
+                    // else leave absent — no slot written, validity bit stays clear
+                } else {
+                    builder.setLong(doc, fieldType().parse(value.utf8ToString()));
                 }
-                // else leave absent — no slot written, validity bit stays clear
-            } else {
-                builder.setLong(doc, fieldType().parse(value.utf8ToString()));
             }
+            return builder.finish(source.docCount());
         }
-        return builder.finish(source.docCount());
     }
 
     // TODO: This can be zero-copy.
@@ -1337,14 +1338,21 @@ public final class DateFieldMapper extends FieldMapper {
                 || dateFormatter.equals(DEFAULT_DATE_TIME_NANOS_FORMATTER)
                 || dateFormatter.equals(EPOCH_MILLIS_FORMATTER);
         }
+        try (EscfColumnBuilder builder = newLongColumn()) {
+            final LongTupleCursor cursor = source.longCursor();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                final long raw = cursor.longValue();
+                builder.setLong(doc, epochCompatible ? resolution.convert(raw) : fieldType().parse(Long.toString(raw)));
+            }
+            return builder.finish(source.docCount());
+        }
+    }
+
+    // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
+    private static EscfColumnBuilder newLongColumn() {
         EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
         builder.lockScalar(EscfColumnKind.LONG);
-        final LongTupleCursor cursor = source.longCursor();
-        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-            final long raw = cursor.longValue();
-            builder.setLong(doc, epochCompatible ? resolution.convert(raw) : fieldType().parse(Long.toString(raw)));
-        }
-        return builder.finish(source.docCount());
+        return builder;
     }
 
     @Override
@@ -1423,7 +1431,7 @@ public final class DateFieldMapper extends FieldMapper {
         //
         // DataStreamTimestampFieldMapper is present and enabled both
         // in data streams and standalone indices in time_series mode
-        if (isDataStreamTimestampField && context.mappingLookup().isDataStreamTimestampFieldEnabled()) {
+        if (isDataStreamTimestampField) {
             DataStreamTimestampFieldMapper.storeTimestampValueForReuse(context.doc(), timestamp);
         }
 
@@ -1485,12 +1493,7 @@ public final class DateFieldMapper extends FieldMapper {
                         )
                     );
                 }
-                if (ignoreMalformed) {
-                    layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-                }
-                if (onFailureColumnEnabled()) {
-                    layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-                }
+                CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
                 return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
             });
         }

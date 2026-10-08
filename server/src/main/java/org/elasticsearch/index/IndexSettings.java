@@ -193,6 +193,20 @@ public final class IndexSettings {
     );
 
     /**
+     * The maximum number of characters a single {@code _analyze} request may produce while applying character
+     * filters. A character-filter chain (each filter's output feeds the next) can expand its input far beyond the
+     * original text; this setting bounds that expansion and rejects the request once the limit is exceeded. The
+     * default of 1M is well above any realistic analysis input.
+     */
+    public static final Setting<Integer> MAX_ANALYZE_CHAR_COUNT_SETTING = Setting.intSetting(
+        "index.analyze.max_char_count",
+        1000000,
+        1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
      * A setting describing the maximum number of characters that will be analyzed for a highlight request.
      * This setting is only applicable when highlighting is requested on a text that was indexed without
      * offsets or term vectors.
@@ -677,6 +691,19 @@ public final class IndexSettings {
     );
 
     /**
+     * Per-index opt-in for batch indexing. When set to {@code true} on a TSDB backing index,
+     * the OTLP metrics ingest path may write documents as an {@link org.elasticsearch.escf.EscfBatch}
+     * rather than individual XContent blobs, provided the cluster-level {@code indices.batch_indexing}
+     * setting and its feature flag are also active.
+     */
+    public static final Setting<Boolean> TIME_SERIES_BATCH_INDEXING = Setting.boolSetting(
+        "index.time_series.batch_indexing",
+        false,
+        Property.Final,
+        Property.IndexScope
+    );
+
+    /**
      * Returns <code>true</code> if TSDB encoding is enabled. The default is <code>true</code>
      */
     public boolean isES87TSDBCodecEnabled() {
@@ -1108,17 +1135,20 @@ public final class IndexSettings {
     }
 
     /**
-     * Controls whether the ColumNAR doc values codec is used for a given index, as an explicit opt-in.
-     * Defaults to {@code false}. This setting is only registered while the {@code columnar_codec} feature
-     * flag is enabled, so a release build without the flag does not expose it; the full gating is enforced
-     * in {@code ColumnarDocValuesFormatSelector}.
+     * Controls whether the ColumNAR doc values codec is used for a given index.
+     * Defaults to {@code true} for indices created at or after
+     * {@link IndexVersions#COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF}; {@code false} for older indices,
+     * preserving backward compatibility with segments written before the codec was the default.
+     * This setting is only registered while the {@code columnar_codec} feature flag is enabled,
+     * so a release build without the flag does not expose it; the full gating is enforced in
+     * {@code ColumnarDocValuesFormatSelector}.
      */
-    public static final Setting<Boolean> COLUMNAR_CODEC_ENABLED_SETTING = Setting.boolSetting(
-        "index.columnar_codec.enabled",
-        false,
-        Property.IndexScope,
-        Property.Final
-    );
+    public static final Setting<Boolean> COLUMNAR_CODEC_ENABLED_SETTING = Setting.boolSetting("index.columnar_codec.enabled", settings -> {
+        if (settings == null) {
+            return Boolean.FALSE.toString();
+        }
+        return Boolean.toString(SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF));
+    }, Property.IndexScope, Property.Final);
 
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
@@ -1409,6 +1439,7 @@ public final class IndexSettings {
     private volatile int maxDocvalueFields;
     private volatile int maxScriptFields;
     private volatile int maxTokenCount;
+    private volatile int maxAnalyzeCharCount;
     private volatile int maxNgramDiff;
     private volatile int maxShingleDiff;
     private volatile DenseVectorFieldMapper.FilterHeuristic hnswFilterHeuristic;
@@ -1439,6 +1470,7 @@ public final class IndexSettings {
     private final SourceFieldMapper.Mode indexMappingSourceMode;
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
+    private final int ignoreAbove;
     private final boolean useDocValuesSkipper;
     private final boolean useDocValuesSkipperForHostname;
     private final boolean useTimeSeriesSyntheticId;
@@ -1622,6 +1654,7 @@ public final class IndexSettings {
         maxDocvalueFields = scopedSettings.get(MAX_DOCVALUE_FIELDS_SEARCH_SETTING);
         maxScriptFields = scopedSettings.get(MAX_SCRIPT_FIELDS_SETTING);
         maxTokenCount = scopedSettings.get(MAX_TOKEN_COUNT_SETTING);
+        maxAnalyzeCharCount = scopedSettings.get(MAX_ANALYZE_CHAR_COUNT_SETTING);
         maxNgramDiff = scopedSettings.get(MAX_NGRAM_DIFF_SETTING);
         maxShingleDiff = scopedSettings.get(MAX_SHINGLE_DIFF_SETTING);
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
@@ -1663,6 +1696,7 @@ public final class IndexSettings {
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
+        ignoreAbove = scopedSettings.get(IGNORE_ABOVE_SETTING);
         useDocValuesSkipper = scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         useDocValuesSkipperForHostname = USE_DOC_VALUES_SKIPPER.exists(settings)
             ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
@@ -1767,6 +1801,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_DOCVALUE_FIELDS_SEARCH_SETTING, this::setMaxDocvalueFields);
         scopedSettings.addSettingsUpdateConsumer(MAX_SCRIPT_FIELDS_SETTING, this::setMaxScriptFields);
         scopedSettings.addSettingsUpdateConsumer(MAX_TOKEN_COUNT_SETTING, this::setMaxTokenCount);
+        scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZE_CHAR_COUNT_SETTING, this::setMaxAnalyzeCharCount);
         scopedSettings.addSettingsUpdateConsumer(MAX_NGRAM_DIFF_SETTING, this::setMaxNgramDiff);
         scopedSettings.addSettingsUpdateConsumer(MAX_SHINGLE_DIFF_SETTING, this::setMaxShingleDiff);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
@@ -2160,6 +2195,15 @@ public final class IndexSettings {
         this.maxTokenCount = maxTokenCount;
     }
 
+    /** Returns the {@code index.analyze.max_char_count} limit for this index. */
+    public int getMaxAnalyzeCharCount() {
+        return maxAnalyzeCharCount;
+    }
+
+    private void setMaxAnalyzeCharCount(int maxAnalyzeCharCount) {
+        this.maxAnalyzeCharCount = maxAnalyzeCharCount;
+    }
+
     /**
      * Returns the maximum allowed difference between max and min length of ngram
      */
@@ -2465,6 +2509,10 @@ public final class IndexSettings {
      */
     public boolean isRecoverySourceSyntheticEnabled() {
         return recoverySourceSyntheticEnabled;
+    }
+
+    public int getIgnoreAbove() {
+        return ignoreAbove;
     }
 
     public boolean useDocValuesSkipper() {

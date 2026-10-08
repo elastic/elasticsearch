@@ -76,7 +76,12 @@ final class UnionTypeCsvDatasets {
             case GEO_SHAPE -> simple(type, "\"type\": \"geo_shape\"", "geo_shape", "POINT (1.0 2.0)");
             case CARTESIAN_POINT -> simple(type, "\"type\": \"point\"", "point", "POINT (1.0 2.0)");
             case CARTESIAN_SHAPE -> simple(type, "\"type\": \"shape\"", "shape", "POINT (1.0 2.0)");
-            case OBJECT -> simple(type, "\"type\": \"object\"", "object", "{\"inner\":\"x\"}");
+            case OBJECT -> simple(
+                type,
+                "\"type\": \"object\", \"properties\": { \"inner\": { \"type\": \"keyword\" } }",
+                "object",
+                "{\"inner\":\"x\"}"
+            );
             case DATE_RANGE -> capped(
                 type,
                 "\"type\": \"date_range\"",
@@ -93,8 +98,7 @@ final class UnionTypeCsvDatasets {
             );
             case AGGREGATE_METRIC_DOUBLE -> simple(
                 type,
-                "\"type\": \"aggregate_metric_double\", \"metrics\": [\"min\", \"max\", \"sum\", \"value_count\"], "
-                    + "\"default_metric\": \"max\"",
+                "\"type\": \"aggregate_metric_double\", \"metrics\": [\"min\", \"max\", \"sum\", \"value_count\"]",
                 "aggregate_metric_double",
                 "{\"min\":-302.5\\,\"max\":702.3\\,\"sum\":200.0\\,\"value_count\":25}"
             );

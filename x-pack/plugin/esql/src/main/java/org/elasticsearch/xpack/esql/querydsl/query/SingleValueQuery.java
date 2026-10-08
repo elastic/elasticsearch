@@ -185,7 +185,7 @@ public class SingleValueQuery extends Query {
          */
         protected final MappedFieldType mappedFieldType(SearchExecutionContext context) {
             MappedFieldType ft = context.getFieldType(field);
-            if (ft == null || (field.indexOf('.') > 0 && context.isMappedField(field) == false)) {
+            if (ft == null || context.isMappedField(field) == false) {
                 return null;
             }
             return ft;

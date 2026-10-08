@@ -106,3 +106,39 @@ setup:
         body:
           query: 'FROM kw,flat METADATA _index | WHERE category.raw != "beta" | KEEP _index, category.raw | LIMIT 10'
   - match: { values: [ [ "kw", "alpha" ] ] }
+
+---
+'in':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | WHERE category.raw IN ("alpha", "x") | KEEP _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "kw", "alpha" ] ] }
+
+---
+'range':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | WHERE category.raw >= "a" | KEEP _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "kw", "alpha" ] ] }
+
+---
+'ends_with':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | WHERE ENDS_WITH(category.raw, "ha") | KEEP _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "kw", "alpha" ] ] }
+
+---
+'count':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat | STATS c = COUNT(category.raw) | LIMIT 1'
+  - match: { values: [ [ 1 ] ] }

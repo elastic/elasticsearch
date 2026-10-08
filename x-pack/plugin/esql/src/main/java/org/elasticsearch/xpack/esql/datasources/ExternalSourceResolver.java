@@ -3258,29 +3258,6 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Whether the schema record can answer this read on its own, which is what decides if the read-addressed
-     * statistics record needs consulting at all. False only when a statistics record could both exist and hold
-     * something this record does not.
-     * <p>
-     * Three ways it answers. An unbound resolve pins nothing about what must have been measured. A read
-     * configuration that resolved to {@link ReadConfigFingerprint#UNKNOWN} addresses nothing of its own —
-     * {@code withReadConfig("")} returns the same key — so consulting it would re-fetch this very record. And a
-     * columnar record is never stamped at all, deliberately: see {@link #stampInferredReadConfig}, whose harvests
-     * are footer-derived and carry no read configuration, so {@code reconcileSourceStats} never files a statistics
-     * record for one. Asking for that address would be a guaranteed miss on every columnar file — and
-     * {@code Cache#get} counts an absent key as a miss, so it would also be a per-file distortion of
-     * {@code schema_cache.misses} on the format that dominates.
-     * <p>
-     * Otherwise the stamp decides. A record carries the stamp of the read that produced it, and enrichment does
-     * not move it: a licensed subset contributes a row count and no stamp, so a record enriched by a foreign read
-     * still reports its own.
-     */
-    /**
-     * What the given read measured about this file, or {@code null} when nothing has been harvested at that
-     * address. A statistics record is written by the reconcile and never computed on demand, so a miss means
-     * "not measured yet" and the caller falls through to the schema record or to a scan.
-     */
-    /**
      * Whether this file's rail publishes scan-derived statistics at all, and so whether a statistics record can
      * ever exist for it.
      * <p>
@@ -3305,6 +3282,11 @@ public class ExternalSourceResolver {
             : null;
     }
 
+    /**
+     * What the given read measured about this file, or {@code null} when nothing has been harvested at that
+     * address. A statistics record is written by the reconcile and never computed on demand, so a miss means
+     * "not measured yet" and the caller falls through to the schema record or to a scan.
+     */
     @Nullable
     private Map<String, Object> cachedStatistics(SchemaCacheKey schemaKey, @Nullable String readConfig) {
         if (cacheService == null) {
@@ -3313,6 +3295,25 @@ public class ExternalSourceResolver {
         return cacheService.getStatistics(StatisticsKey.of(schemaKey, readConfig));
     }
 
+    /**
+     * Whether the schema record can answer this read on its own, which is what decides if the read-addressed
+     * statistics record needs consulting at all. False only when a statistics record could both exist and hold
+     * something this record does not.
+     * <p>
+     * Three ways it answers. An unbound resolve pins nothing about what must have been measured. A read
+     * configuration that resolved to {@link ReadConfigFingerprint#UNKNOWN} addresses nothing of its own — it is the
+     * empty string, which {@link StatisticsKey#of} maps to the shared {@link StatisticsKey#UNSTAMPED} address rather
+     * than to any read's own — so consulting it would ask a bucket this read never measured into. And a
+     * columnar record is never stamped at all, deliberately: see {@link #stampInferredReadConfig}, whose harvests
+     * are footer-derived and carry no read configuration, so {@code reconcileSourceStats} never files a statistics
+     * record for one. Asking for that address would be a guaranteed miss on every columnar file — and
+     * {@code Cache#get} counts an absent key as a miss, so it would also be a per-file distortion of
+     * {@code schema_cache.misses} on the format that dominates.
+     * <p>
+     * Otherwise the stamp decides. A record carries the stamp of the read that produced it, and enrichment does
+     * not move it: a licensed subset contributes a row count and no stamp, so a record enriched by a foreign read
+     * still reports its own.
+     */
     static boolean schemaRecordAnswersTheRead(SchemaCacheEntry entry, @Nullable String boundReadConfig) {
         if (boundReadConfig == null || boundReadConfig.isEmpty()) {
             return true;

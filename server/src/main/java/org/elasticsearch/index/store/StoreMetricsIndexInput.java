@@ -99,6 +99,17 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
         if (in instanceof DirectAccessInput dai) {
             return dai.withMemorySegmentSlice(offset, length, action);
         }
+        // An mmap'd input exposes its bytes as a MemorySegmentAccessInput, not a DirectAccessInput. Returning false for
+        // it here would send IndexInputUtils#withSlice, which only sees this wrapper, down its copy-to-heap fallback.
+        if (in instanceof MemorySegmentAccessInput msai) {
+            MemorySegment slice = msai.segmentSliceOrNull(offset, length);
+            if (slice != null) {
+                // The copying fallback counts these bytes through readBytes, so count them here too.
+                addBytesRead(length);
+                action.accept(slice);
+                return true;
+            }
+        }
         return false;
     }
 

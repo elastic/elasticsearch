@@ -8249,6 +8249,48 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(List.of("2", "1"), firstRow(reader, "2,1\n", readSchema, false));
     }
 
+    /**
+     * While an older node may read part of the query, the first split of a headered file keeps main's header read: the
+     * escape-aware data reader steps over the header and names the columns, for a declared and an inferred schema alike.
+     * This is the same escaped header as {@link #testFirstSplitStepsOverAHeaderWhereItsColumnsAreRead}, read with the gate
+     * on. The escape-aware header record runs on past its line break, so the rows are the ones an older node reads: none.
+     */
+    public void testHeaderBindingByProvenanceFirstSplitStepsOverTheHeaderAsMainDoes() throws Exception {
+        String content = "id,name,\"x\\\"\n1,alice,a\n2,bob,b\n";
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("trim_spaces", false));
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+        );
+        assertEquals(
+            "declared, gate on",
+            List.of(),
+            rowsOfFirstSplit(reader.withDeclaredProvenanceBinding(true).withHeaderBindingByProvenance(true), content, readSchema)
+        );
+        assertEquals("inferred, gate on", List.of(), rowsOfFirstSplit(reader.withHeaderBindingByProvenance(true), content, readSchema));
+    }
+
+    private List<String> rowsOfFirstSplit(CsvFormatReader reader, String content, List<Attribute> readSchema) throws IOException {
+        List<String> rows = new ArrayList<>();
+        try (
+            CloseableIterator<Page> it = reader.read(
+                new TrackingStorageObject(content),
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                LongBlock ids = page.getBlock(0);
+                BytesRefBlock names = page.getBlock(1);
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    rows.add(ids.getLong(p) + ":" + (names.isNull(p) ? "null" : names.getBytesRef(p, new BytesRef()).utf8ToString()));
+                }
+                page.releaseBlocks();
+            }
+        }
+        return rows;
+    }
+
     private List<String> firstRow(CsvFormatReader reader, String content, List<Attribute> readSchema, boolean firstSplit)
         throws IOException {
         try (
@@ -8358,8 +8400,8 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * A first split handed the file's columns binds by them and opens no stream to find them: whoever reads the header
-     * once for the file (the caller) is the only one to pay for it.
+     * A first split handed the file's columns reads its own header from its row stream and ignores the handed ones, so it
+     * opens no second stream to find them: the header is read once, from the bytes it already has.
      */
     public void testFirstSplitHandedItsHeaderColumnsOpensOnlyTheRowStream() throws Exception {
         TrackingStorageObject object = new TrackingStorageObject("id,name\n1,alice\n2,bob\n");

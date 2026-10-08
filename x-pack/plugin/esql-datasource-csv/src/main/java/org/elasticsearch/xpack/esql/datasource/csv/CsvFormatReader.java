@@ -2114,6 +2114,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         // A headerless file's names are positions and need no header read.
         boolean readsLeadingRecordsHere = context.firstSplit() && context.readSchema() != null && options.headerRow();
+        // Under headerBindingByProvenance the first split reads its header through the escape-aware data reader, as main does
+        // (see the header step in the schema block below), so the leading pass is only for the default gate.
+        boolean leadingPass = readsLeadingRecordsHere && headerBindingByProvenance == false;
         InputStream capped = (useRecordReaderPath || useDirectBlock)
             ? streamAfterBom
             : new CsvRecordCappingInputStream(streamAfterBom, context.maxRecordBytes());
@@ -2137,14 +2140,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 options.encoding(),
                 options.quoting()
             );
-        // The read that owns a headered file's start steps over its skip_rows and header with the reader fileHeaderColumns
-        // uses for every later split, and names the columns from that same pass. The two cannot then disagree on where the
-        // header ends, which an escape-aware data reader would (an escaped quote before a line break), and every split binds
-        // the same names. That reader reads one character at a time, so the data reader below resumes exactly after the
-        // header, and nothing is buffered however many comment or skipped lines come first.
+        // Under the default gate, the read that owns a headered file's start steps over its skip_rows and header with the reader
+        // fileHeaderColumns uses for every later split, and names the columns from that same pass. The two cannot then disagree
+        // on where the header ends, which an escape-aware data reader would (an escaped quote before a line break), and every
+        // split binds the same names. That reader reads one character at a time, so the data reader below resumes exactly after
+        // the header, and nothing is buffered however many comment or skipped lines come first. With headerBindingByProvenance
+        // set, the header is read on the data reader instead, as main does; see the header step in the schema block.
         List<String> leadingColumns = null;
         long leadingBytes = bomBytesConsumed;
-        if (readsLeadingRecordsHere) {
+        if (leadingPass) {
             try {
                 CsvLogicalRecordReader leading = leadingRecordReader(reader);
                 leading.setInitialByteOffset(bomBytesConsumed);
@@ -2191,7 +2195,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 context.projectedColumns() == null ? "null" : context.projectedColumns().size()
             );
         }
-        if (context.firstSplit() && options.skipRows() > 0 && readsLeadingRecordsHere == false) {
+        if (context.firstSplit() && options.skipRows() > 0 && leadingPass == false) {
             try {
                 skipLeadingContentRows(recordReader, options.skipRows(), options.commentPrefix());
             } catch (Exception e) {
@@ -2211,6 +2215,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // Byte-range split (bzip2 / zstd-indexed): its leading partial record was emitted by the prior split,
                     // headered or not.
                     skipLeadingPartialRecord(recordReader, effective);
+                }
+                if (context.firstSplit() && options.headerRow() && leadingPass == false) {
+                    // Main's step and names: the escape-aware data reader consumes the header and names the columns, so an
+                    // inferred headered first split steps over it too, and a declared one binds the same names main does.
+                    leadingColumns = leadingColumns(recordReader);
                 }
                 if (headeredByName) {
                     headerBinding = bindHeaderedColumns(

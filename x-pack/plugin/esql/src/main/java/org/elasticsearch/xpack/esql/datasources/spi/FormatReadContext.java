@@ -93,7 +93,7 @@ import java.util.function.Consumer;
  * @param fileHeaderColumns the file's own column names, in file order ({@link FormatReader#fileHeaderColumns}).
  *                         Set for a read of a headered text file bound against a pinned schema: it names the
  *                         columns and bounds how wide a row may be. A read that does not own the file's first line
- *                         needs it; one that does may read its own header instead. Binding a headered read by
+ *                         needs it; one that does reads its own header and ignores these. Binding a headered read by
  *                         position instead would shift every column silently.
  *                         An empty list states that the file has no columns (nothing to read); {@code null} states
  *                         that none were supplied, which a text read that needs them rejects.
@@ -360,7 +360,7 @@ public record FormatReadContext(
          * Needed by a read of a header-bearing file that does not own the file's start but must know what its
          * columns are called. The component that cut the file up reads the header
          * ({@link FormatReader#fileHeaderColumns}) once and states it here for every split; a read that owns the
-         * file's first line may read its own instead.
+         * file's first line reads its own header and ignores these.
          */
         public Builder fileHeaderColumns(@Nullable List<String> fileHeaderColumns) {
             this.fileHeaderColumns = fileHeaderColumns;

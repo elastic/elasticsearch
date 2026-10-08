@@ -44,7 +44,7 @@ The following table compares the available strategies:
 
 | Strategy | Behavior | Use when |
 |---|---|---|
-| `first_file_wins` | Reads the schema from the first file after [file ordering](#control-which-file-supplies-the-schema), and reads later files with that schema. Other CSV and TSV files [match it by header name](#first-file-wins-csv-tsv). Columns that exist only in other files aren't included. Only one file's schema is inspected. | Files share a schema, and you want the least schema-discovery work. |
+| `first_file_wins` | Reads the schema from the first file after [file ordering](#control-which-file-supplies-the-schema), and reads later files with that schema. {applies_to}`stack: experimental 9.6+` Other CSV and TSV files [match it by header name](#first-file-wins-csv-tsv). Columns that exist only in other files aren't included. Only one file's schema is inspected. | Files share a schema, and you want the least schema-discovery work. |
 | `union_by_name` | Inspects every file and merges columns by name. Missing columns contain null values. Compatible types are widened, and incompatible types become `keyword`. | Files can gain or lose columns, and those differences shouldn't fail the query. |
 | `strict` | Inspects every file and requires the same schema, apart from nullability. | Schema drift should fail the query. |
 

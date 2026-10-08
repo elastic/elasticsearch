@@ -192,7 +192,7 @@ public class RestoringShardTransformIT extends AbstractSnapshotIntegTestCase {
                 new PutTransformAction.Request(config, false, TimeValue.THIRTY_SECONDS)
             );
             ActionFuture<AcknowledgedResponse> future = putFuture;
-            expectThrows(TimeoutException.class, () -> future.get(30, TimeUnit.SECONDS));
+            expectThrows(TimeoutException.class, () -> future.get(200, TimeUnit.MILLISECONDS));
 
             // The put creates the internal index itself, so its primary may still be initializing here, and searching it
             // would fail with NoShardAvailableActionException. The index may not even exist yet, hence the assertBusy.

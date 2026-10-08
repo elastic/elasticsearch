@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -135,6 +136,14 @@ final class FileSourceFactory implements ExternalSourceFactory {
         // identity through the storage participant, and its credentials the secret identity that participant derives.
         inert.add(ExternalSourceResolver.DATASOURCE_CONFIG_KEY);
         COORDINATOR_IDENTITY_INERT_KEYS = Set.copyOf(inert);
+    }
+
+    /**
+     * Whether a headered text file binds as a node before {@code esql_external_text_header_every_split} does, because
+     * such a node may be in the cluster and read part of the query.
+     */
+    static boolean bindsHeaderByProvenance(TransportVersion minTransportVersion) {
+        return minTransportVersion.supports(FileSplitProvider.ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT) == false;
     }
 
     /**
@@ -642,7 +651,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()))
                     // Keyed on provenance, not renames: a DECLARED schema binds by name even with no `path`, and an
                     // INFERRED (dynamic) schema must never re-bind at the reader (its positions already came from the file).
-                    .withDeclaredProvenanceBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED);
+                    .withDeclaredProvenanceBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED)
+                    // A node that predates header binding on every split may read a sibling split of this query (the
+                    // coordinator keeps such files whole, but an older coordinator does not): bind a headered file as it
+                    // does, so one result never mixes rows bound by name with rows bound by position.
+                    .withHeaderBindingByProvenance(bindsHeaderByProvenance(context.minTransportVersion()));
                 ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
 
                 Map<String, Object> partitionValues = Map.of();
@@ -883,6 +896,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
         @Override
         public boolean supportsStableMetadata() {
             return inner().supportsStableMetadata();
+        }
+
+        @Override
+        public boolean listsInKeyOrder() {
+            return inner().listsInKeyOrder();
         }
 
         @Override

@@ -129,7 +129,7 @@ public class TransformInfoTransportAction extends XPackInfoFeatureTransportActio
 
         ActionListener<SearchResponse> getStatisticSummationsListener = ActionListener.wrap(searchResponse -> {
             if (searchResponse.getShardFailures().length > 0) {
-                logger.error(
+                logger.warn(
                     "statistics summations search returned shard failures: {}",
                     Arrays.toString(searchResponse.getShardFailures())
                 );

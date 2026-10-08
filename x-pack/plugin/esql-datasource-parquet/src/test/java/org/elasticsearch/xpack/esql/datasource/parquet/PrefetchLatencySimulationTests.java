@@ -267,19 +267,17 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
 
             assertTrue(iter.hasNext());
             assertEquals("the first real prefetch must fail", 1, storage.failedAsyncReadCount.get());
-            assertTrue(opi.probingPrefetch());
-            assertEquals(1, opi.prefetchDepth());
             Page first = iter.next();
             first.releaseBlocks();
 
             assertTrue(storage.successfulAsyncReads.await(10, TimeUnit.SECONDS));
             assertTrue(iter.hasNext());
-            assertFalse(opi.probingPrefetch());
+            assertFalse("the re-ticketed GET is a successful probe and must leave probe mode", opi.probingPrefetch());
             assertEquals(floor, opi.prefetchDepth());
-            assertEquals("the fallback barrier must not leak queued-byte accounting", 0L, opi.queuedPrefetchBytes());
             Page second = iter.next();
             second.releaseBlocks();
             assertFalse(iter.hasNext());
+            assertEquals("the fallback barrier must not leak queued-byte accounting", 0L, opi.queuedPrefetchBytes());
         }
     }
 

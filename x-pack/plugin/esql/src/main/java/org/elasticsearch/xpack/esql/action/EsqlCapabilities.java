@@ -1403,6 +1403,11 @@ public class EsqlCapabilities {
         METRICS_GROUP_BY_ALL(),
 
         /**
+         * Support for the {@code exemplars} query setting.
+         */
+        EXEMPLARS_SETTING_DEVELOPMENT_V1(Build.current().isSnapshot()),
+
+        /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
          * in the response and profile?
          */
@@ -4285,6 +4290,14 @@ public class EsqlCapabilities {
          * answer {@code null}.
          */
         EXTERNAL_SOURCE_SCORE_FIX,
+
+        /**
+         * Does the usage information for ESQL contain the datasource failure-reason counters
+         * ({@code datasources.queries.failures.by_error_type.*}, {@code datasources.discovery.failures.by_error_type.*},
+         * {@code datasources.config.<kind>.changes.rejected.by_reason.*} and
+         * {@code datasources.config.<kind>.changes.by_type.*})?
+         */
+        USAGE_CONTAINS_DATASOURCES_FAILURE_REASONS,
 
         /**
          * Fix for {@code DocumentParser#parseArrayDynamic}: with {@code subobjects:false} and {@code dynamic:false},

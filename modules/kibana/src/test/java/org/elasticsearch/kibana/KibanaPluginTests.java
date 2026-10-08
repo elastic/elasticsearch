@@ -54,7 +54,7 @@ public class KibanaPluginTests extends ESTestCase {
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".workflows-execution-data-stream-logs")));
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana_change_history")));
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana_change_history-000001")));
-        assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana-notification-center")));
+        assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".notifications")));
     }
 
     public void testWorkflowsSystemIndexDescriptorCoversOtherWorkflowsIndices() {
@@ -81,7 +81,7 @@ public class KibanaPluginTests extends ESTestCase {
         assertTrue(KibanaPlugin.KIBANA_INDEX_DESCRIPTOR.matchesIndexPattern(".kibana_task_manager_8.0.0_001"));
         assertFalse(KibanaPlugin.KIBANA_INDEX_DESCRIPTOR.matchesIndexPattern(".kibana_change_history"));
         assertFalse(KibanaPlugin.KIBANA_INDEX_DESCRIPTOR.matchesIndexPattern(".kibana_change_history-2026.07.16-000001"));
-        assertFalse(KibanaPlugin.KIBANA_INDEX_DESCRIPTOR.matchesIndexPattern(".kibana-notification-center"));
+        assertFalse(KibanaPlugin.KIBANA_INDEX_DESCRIPTOR.matchesIndexPattern(".notifications"));
     }
 
     public void testKibanaFeaturePassesSystemIndicesOverlapChecks() {

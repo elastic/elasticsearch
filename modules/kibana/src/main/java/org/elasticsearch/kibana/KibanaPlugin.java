@@ -85,10 +85,10 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         "kibana.workflows.execution.logs.managed.index.version";
 
     /** Data stream registered in {@link #notificationCenterSystemDataStreamDescriptor()}. */
-    public static final String NOTIFICATION_CENTER_DATA_STREAM_NAME = ".kibana-notification-center";
+    public static final String NOTIFICATION_CENTER_DATA_STREAM_NAME = ".notifications";
 
     /** Composable index template resource for {@value #NOTIFICATION_CENTER_DATA_STREAM_NAME}. */
-    public static final String NOTIFICATION_CENTER_COMPOSABLE_TEMPLATE_RESOURCE = "kibana-notification-center.json";
+    public static final String NOTIFICATION_CENTER_COMPOSABLE_TEMPLATE_RESOURCE = "notifications.json";
 
     /** Substitution key for the stack version in {@value #NOTIFICATION_CENTER_COMPOSABLE_TEMPLATE_RESOURCE}. */
     public static final String NOTIFICATION_CENTER_VERSION_VARIABLE = "kibana.notification.center.version";

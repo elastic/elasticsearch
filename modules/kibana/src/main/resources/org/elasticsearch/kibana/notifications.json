@@ -1,6 +1,6 @@
 {
   "index_patterns": [
-    ".kibana-notification-center*"
+    ".notifications*"
   ],
   "data_stream": {
     "allow_custom_routing": false
@@ -16,8 +16,7 @@
     "mappings": {
       "_meta": {
         "version": "${kibana.notification.center.version}",
-        "managed_index_mappings_version": ${kibana.notification.center.managed.index.version
-        }
+        "managed_index_mappings_version": ${kibana.notification.center.managed.index.version}
       },
       "dynamic": false,
       "properties": {

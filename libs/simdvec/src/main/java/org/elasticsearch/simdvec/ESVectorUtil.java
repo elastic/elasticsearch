@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
@@ -1127,9 +1128,9 @@ public class ESVectorUtil {
      * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
      * Result C is (m x n).
      */
-    public static float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
+    public static float[] matrixMultiply(float[] a, float[] b, int m, int k, int n, TaskExecutor executor) {
         float[] result = new float[m * n];
-        matrixMultiply(a, b, m, k, n, result);
+        matrixMultiply(a, b, m, k, n, result, executor);
         return result;
     }
 
@@ -1137,7 +1138,7 @@ public class ESVectorUtil {
      * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
      * Result C is (m x n).
      */
-    public static void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result) {
+    public static void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor) {
         if (a.length != m * k) {
             throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix multiplication");
         }
@@ -1147,7 +1148,7 @@ public class ESVectorUtil {
         if (result.length != m * n) {
             throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix multiplication");
         }
-        IMPL.matrixMultiply(a, b, m, k, n, result, null);
+        IMPL.matrixMultiply(a, b, m, k, n, result, executor);
     }
 
     /**

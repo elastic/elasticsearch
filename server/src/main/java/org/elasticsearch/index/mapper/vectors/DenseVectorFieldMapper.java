@@ -1737,15 +1737,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return onDiskMerge;
         }
 
-        abstract KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers);
+        abstract KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        );
 
         KnnVectorsFormat getVectorsFormat(
             ElementType elementType,
             ExecutorService mergingExecutorService,
             int numMergeWorkers,
+            ExecutorService quantizerExecutorService,
             @Nullable String sliceField
         ) {
-            return getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers);
+            return getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers, quantizerExecutorService);
         }
 
         public boolean validate(ElementType elementType, int dim, boolean throwOnError) {
@@ -2342,7 +2348,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES94ScalarQuantizedVectorsFormat(elementType, 7, false, onDiskMerge);
         }
@@ -2387,7 +2398,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             return new ES93FlatVectorFormat(elementType, onDiskMerge);
         }
 
@@ -2446,7 +2462,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        public KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES94HnswScalarQuantizedVectorsFormat(
                 m,
@@ -2548,7 +2569,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        public KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES94ScalarQuantizedVectorsFormat(elementType, 4, false, onDiskMerge);
         }
@@ -2633,7 +2659,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        public KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES94HnswScalarQuantizedVectorsFormat(
                 m,
@@ -2753,7 +2784,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        public KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             return new ES93HnswVectorsFormat(
                 m,
                 efConstruction,
@@ -2857,7 +2893,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES93HnswBinaryQuantizedVectorsFormat(
                 m,
@@ -2936,7 +2977,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES93BinaryQuantizedVectorsFormat(elementType, false, onDiskMerge);
         }
@@ -3049,8 +3095,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
-            return getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers, null);
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
+            return getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers, quantizerExecutorService, null);
         }
 
         @Override
@@ -3058,6 +3109,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             ElementType elementType,
             ExecutorService mergingExecutorService,
             int numMergeWorkers,
+            ExecutorService quantizerExecutorService,
             @Nullable String sliceField
         ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
@@ -3087,6 +3139,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         onDiskRescore,
                         mergingExecutorService,
                         numMergeWorkers,
+                        quantizerExecutorService,
                         flatIndexThreshold,
                         sliceField,
                         IvfFlushConfigSource.empty(),
@@ -4388,6 +4441,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 mergingExecutorService = threadPool.executor(ThreadPool.Names.MERGE);
             }
         }
+        ExecutorService quantizerExecutorService = null;
+        if (threadPool != null) {
+            quantizerExecutorService = threadPool.executor(ThreadPool.Names.FLUSH);
+        }
+
         final KnnVectorsFormat format;
         ElementType elementType = fieldType().element.elementType();
         final String sliceField = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && indexSettings.isSliceEnabled()
@@ -4416,7 +4474,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     fieldType().similarity(),
                     elementType,
                     mergingExecutorService,
-                    maxMergingWorkers
+                    maxMergingWorkers,
+                    quantizerExecutorService
                 );
                 if (extraKnnFormat != null) {
                     break;
@@ -4424,7 +4483,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             format = extraKnnFormat != null
                 ? extraKnnFormat
-                : indexOptions.getVectorsFormat(elementType, mergingExecutorService, maxMergingWorkers, sliceField);
+                : indexOptions.getVectorsFormat(
+                    elementType,
+                    mergingExecutorService,
+                    maxMergingWorkers,
+                    quantizerExecutorService,
+                    sliceField
+                );
         }
         // It's legal to reuse the same format name as this is the same on-disk format.
         return new KnnVectorsFormat(format.getName()) {

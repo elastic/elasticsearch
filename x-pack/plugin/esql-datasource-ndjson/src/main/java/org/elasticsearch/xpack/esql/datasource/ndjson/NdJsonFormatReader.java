@@ -223,6 +223,32 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     @Override
+    public NdJsonFormatReader withSchemaSampleShare(int files) {
+        int shared = FormatReader.sharedSchemaSampleSize(schemaSampleSize, files);
+        if (shared == schemaSampleSize) {
+            return this;
+        }
+        // canonicalConfig is kept: it is the harvest fingerprint, and the data node reads with the unshared sample.
+        return new NdJsonFormatReader(
+            settings,
+            blockFactory,
+            resolvedSchema,
+            shared,
+            schemaMaxFields,
+            segmentSizeBytes,
+            datetimeFormatter,
+            canonicalConfig,
+            declaredDateFormats,
+            readConfig
+        );
+    }
+
+    @Override
+    public int schemaSampleSize() {
+        return schemaSampleSize;
+    }
+
+    @Override
     public NdJsonFormatReader withDeclaredDateFormats(Map<String, String> physicalNameToPattern) {
         if (physicalNameToPattern == null || physicalNameToPattern.isEmpty()) {
             return this;

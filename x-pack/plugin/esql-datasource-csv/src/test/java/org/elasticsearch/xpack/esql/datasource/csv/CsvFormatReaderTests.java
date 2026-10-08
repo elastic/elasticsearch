@@ -3560,6 +3560,61 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Invalid integer value [abc]"));
     }
 
+    /**
+     * A sample shared by several files takes an even share of the configured rows from each, never fewer than the
+     * floor, and keeps the harvest fingerprint: the data node reads with the unshared configuration, so its statistics
+     * must still match the entry planning seeds from this read.
+     */
+    public void testSchemaSampleShareNarrowsTheSampleButNotTheFingerprint() throws IOException {
+        StringBuilder csv = new StringBuilder("id,value\n");
+        for (int i = 0; i < 1_000; i++) {
+            csv.append(i).append(",text_").append(i).append("\n");
+        }
+        CsvFormatReader configured = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 800));
+        CsvFormatReader quarter = configured.withSchemaSampleShare(4);
+
+        assertEquals(800, configured.schemaSampleSize());
+        assertEquals(200, quarter.schemaSampleSize());
+        assertEquals(800, configured.metadata(createStorageObject(csv.toString())).sampleRows());
+        assertEquals(200, quarter.metadata(createStorageObject(csv.toString())).sampleRows());
+        assertEquals(
+            FormatReader.MIN_SHARED_SCHEMA_SAMPLE_SIZE,
+            configured.withSchemaSampleShare(64).metadata(createStorageObject(csv.toString())).sampleRows()
+        );
+        assertEquals(configured.harvestFingerprintForTests(), quarter.harvestFingerprintForTests());
+    }
+
+    /**
+     * The type axis and the headerless width axis both follow the shared sample, so a narrowing hides exactly what a
+     * smaller {@code schema_sample_size} would.
+     */
+    public void testSchemaSampleShareBoundsTypeAndWidthLikeASmallerSample() throws IOException {
+        StringBuilder csv = new StringBuilder();
+        for (int i = 0; i < 300; i++) {
+            csv.append(i).append(",a\n");
+        }
+        csv.append("oops,b,extra\n");
+        CsvFormatReader configured = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "schema_sample_size", 400)
+        );
+
+        List<Attribute> whole = configured.metadata(createStorageObject(csv.toString())).schema();
+        assertEquals(3, whole.size());
+        assertEquals(DataType.KEYWORD, whole.get(0).dataType());
+
+        List<Attribute> half = configured.withSchemaSampleShare(2).metadata(createStorageObject(csv.toString())).schema();
+        assertEquals(2, half.size());
+        assertEquals(DataType.INTEGER, half.get(0).dataType());
+    }
+
+    /** Sharing that would not narrow the sample returns the reader itself, which is how the planner tells it does not apply. */
+    public void testSchemaSampleShareWithinTheSampleReturnsTheSameReader() {
+        CsvFormatReader small = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 50));
+        assertSame(small, small.withSchemaSampleShare(8));
+        CsvFormatReader unshared = new CsvFormatReader(blockFactory);
+        assertSame(unshared, unshared.withSchemaSampleShare(1));
+    }
+
     // --- Multi-value bracket syntax tests ---
 
     public void testMultiValueBracketsInteger() throws IOException {

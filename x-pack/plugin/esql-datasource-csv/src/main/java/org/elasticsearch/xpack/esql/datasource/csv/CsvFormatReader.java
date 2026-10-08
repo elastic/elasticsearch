@@ -1224,6 +1224,35 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     @Override
+    public CsvFormatReader withSchemaSampleShare(int files) {
+        int shared = FormatReader.sharedSchemaSampleSize(schemaSampleSize, files);
+        if (shared == schemaSampleSize) {
+            return this;
+        }
+        // canonicalConfig is kept: it is the harvest fingerprint, and the data node reads with the unshared sample.
+        return new CsvFormatReader(
+            blockFactory,
+            options,
+            format,
+            extensions,
+            resolvedSchema,
+            shared,
+            effectivePolicy,
+            canonicalConfig,
+            readConfig,
+            directBlockEnabled,
+            declaredDateFormats,
+            declaredProvenanceBinding,
+            configWarnings
+        );
+    }
+
+    @Override
+    public int schemaSampleSize() {
+        return schemaSampleSize;
+    }
+
+    @Override
     public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             return Configured.empty(this);

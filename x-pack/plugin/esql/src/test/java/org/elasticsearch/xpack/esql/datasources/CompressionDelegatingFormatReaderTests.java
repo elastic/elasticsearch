@@ -579,6 +579,13 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         assertNotSame("a configured reader is a new instance, not the original wrapper", delegating, configured);
     }
 
+    public void testSchemaSampleSizeIsForwardedByTheWrapper() {
+        FormatReader configured = new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 800));
+        FormatReader compressed = new CompressionDelegatingFormatReader(configured, new GzipDecompressionCodec());
+
+        assertEquals(200, compressed.withSchemaSampleShare(4).schemaSampleSize());
+    }
+
     /** Records what the wrapper hands down, and returns a distinct instance so the wrapper must re-wrap. */
     private static class ReadConfigRecordingFormatReader implements NoConfigFormatReader {
         String lastReadConfig;

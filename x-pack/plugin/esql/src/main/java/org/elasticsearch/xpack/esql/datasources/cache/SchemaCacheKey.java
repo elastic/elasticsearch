@@ -66,15 +66,32 @@ public record SchemaCacheKey(
      * explicit factory. A fallback suffix that {@code endsWith} {@link #DATASET_AGGREGATE_MARKER}
      * would make {@link #isDatasetAggregate()} true on a per-file key, but a per-file key carries a
      * null {@code fileSetFingerprint} so it can never equal a dataset key - the only cost is that
-     * one file losing its warm enrichment, a miss, never a wrong answer. Two members exist:
+     * one file losing its warm enrichment, a miss, never a wrong answer. Three members exist:
      * {@link #STRICT_DECLARED_SCHEMA_MARKER} (per-file entries on the strict-declared warm rail, which
-     * the reconcile's contribution matching MUST still reach) and {@link #DATASET_AGGREGATE_MARKER}
+     * the reconcile's contribution matching MUST still reach), {@link #SCHEMA_SAMPLE_SIZE_MARKER}
+     * (per-file entries inferred from a shared schema sample, see {@link #withSchemaSampleSize}, which
+     * contribution matching must also reach) and {@link #DATASET_AGGREGATE_MARKER}
      * (dataset-level aggregate entries, which contribution matching must NEVER reach - enforced in
      * {@code ExternalSourceCacheService#matchesContribution}). Co-located here so their distinctness is
      * visible at the declaration site.
      */
     public static final String STRICT_DECLARED_SCHEMA_MARKER = "#strict-declared";
+    public static final String SCHEMA_SAMPLE_SIZE_MARKER = "#sample-size-";
     public static final String DATASET_AGGREGATE_MARKER = "#dataset-agg";
+
+    /**
+     * {@code formatType} for an entry whose schema was inferred from an effective per-file sample of
+     * {@code sampleSize} rows (lines), so it is only served to a read sampling to the same depth. The effective size,
+     * rather than the number of files sharing the budget, keeps the key stable once different shares reach the
+     * per-file floor.
+     * <p>
+     * A key component, but deliberately not part of {@code identity}: the cache refuses to enrich a path whose
+     * entries disagree on identity, and two shares of one file - a listing that grew, or was pruned differently by
+     * another query - are the same read of the same object, so a harvest must still reach both.
+     */
+    public static String withSchemaSampleSize(String formatType, int sampleSize) {
+        return formatType + SCHEMA_SAMPLE_SIZE_MARKER + sampleSize;
+    }
 
     /**
      * Key for a dataset-level aggregate entry: the memoized multi-file stats fold for one resolved file

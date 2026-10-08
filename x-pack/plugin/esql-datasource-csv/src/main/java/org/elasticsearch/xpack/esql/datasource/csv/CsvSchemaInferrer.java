@@ -57,12 +57,9 @@ public class CsvSchemaInferrer {
 
     /**
      * The single schema-sampling window, for both the column type and (headerless) column count
-     * decisions. Was {@code 20_000} with a second, separate {@code 20_000}-row "widening window" layered
-     * on top for the type decision only; the two were merged into one window to put both decisions on
-     * the same boundary, and the default raised to {@code 40_000} to preserve the row depth type
-     * inference already effectively sampled.
+     * decisions. Both decisions use the same {@code 20_000}-row boundary.
      */
-    static final int DEFAULT_SAMPLE_SIZE = 40_000;
+    static final int DEFAULT_SAMPLE_SIZE = 20_000;
 
     private static final DataType[] TYPE_CANDIDATES = {
         DataType.BOOLEAN,

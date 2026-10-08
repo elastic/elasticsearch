@@ -119,4 +119,19 @@ public class SchemaCacheKeyTests extends ESTestCase {
         assertEquals(new FileSetFingerprint(11, 22), dataset.fileSetFingerprint());
         assertNull(perFile.fileSetFingerprint());
     }
+
+    public void testSchemaSampleSizeKeysAreDistinctPerFileKeys() {
+        // A schema inferred from a shared sample must not be served to a read sampling to another depth, but stays
+        // a per-file key with the unshared identity, so a harvest of the file still reaches it.
+        String path = "s3://bucket/file.csv";
+        SchemaCacheKey unshared = SchemaCacheKey.build(path, 1000L, "csv", "", Map.of());
+        SchemaCacheKey sample400 = SchemaCacheKey.build(path, 1000L, SchemaCacheKey.withSchemaSampleSize("csv", 400), "", Map.of());
+        SchemaCacheKey sample200 = SchemaCacheKey.build(path, 1000L, SchemaCacheKey.withSchemaSampleSize("csv", 200), "", Map.of());
+
+        assertNotEquals(unshared, sample400);
+        assertNotEquals(sample400, sample200);
+        assertEquals("csv" + SchemaCacheKey.SCHEMA_SAMPLE_SIZE_MARKER + "400", sample400.formatType());
+        assertEquals(unshared.identity(), sample400.identity());
+        assertFalse(sample400.isDatasetAggregate());
+    }
 }

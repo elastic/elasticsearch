@@ -84,6 +84,7 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withDirectBlockEnabled", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withReadConfig", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withSchemaSampleShare", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withPushedFilter", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withDeclaredTypeColumns", WitherLifecycle.IDENTITY_NO_COPY)
     );
@@ -248,6 +249,7 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
             case "withDeclaredProvenanceBinding" -> List.<Object[]>of(new Object[] { true }, new Object[] { false });
             case "withDirectBlockEnabled" -> List.<Object[]>of(new Object[] { true }, new Object[] { false });
             case "withReadConfig" -> List.<Object[]>of(new Object[] { "0123456789abcdef0123456789abcdef" });
+            case "withSchemaSampleShare" -> List.<Object[]>of(new Object[] { 8 });
             case "withPushedFilter" -> List.<Object[]>of(new Object[] { new Object() });
             case "withDeclaredTypeColumns" -> List.<Object[]>of(new Object[] { Set.of("a") });
             default -> throw new AssertionError("update sampleArgsFor() for new wither: " + wither);

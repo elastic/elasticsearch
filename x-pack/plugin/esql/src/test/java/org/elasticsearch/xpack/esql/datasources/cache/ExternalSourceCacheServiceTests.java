@@ -1161,6 +1161,44 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Two effective sample sizes for one file ({@link SchemaCacheKey#withSchemaSampleSize}) are the same read of the
+     * same object, so the data node's harvest must enrich both. Were the sample size part of the identity, the entries
+     * would disagree on it and the cache, unable to attribute the harvest, would enrich neither.
+     */
+    public void testHarvestEnrichesEverySchemaSampleSizeOfAFile() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "s3://bucket/data/file.csv";
+            long mtime = 1000L;
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
+            );
+            List<SchemaCacheKey> sampleSizes = List.of(
+                SchemaCacheKey.build(path, mtime, SchemaCacheKey.withSchemaSampleSize(".csv", 400), "", Map.of("format", "csv")),
+                SchemaCacheKey.build(path, mtime, SchemaCacheKey.withSchemaSampleSize(".csv", 200), "", Map.of("format", "csv"))
+            );
+            for (SchemaCacheKey key : sampleSizes) {
+                service.getOrComputeSchema(
+                    key,
+                    k -> SchemaCacheEntry.from(
+                        schema,
+                        "csv",
+                        path,
+                        Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp", ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-own"),
+                        Map.of()
+                    )
+                );
+            }
+
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(wholeFileWithShape(mtime, "fp", "config-own", 42L))));
+
+            for (SchemaCacheKey key : sampleSizes) {
+                SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+                assertEquals(key.formatType(), 42L, entry.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            }
+        }
+    }
+
     public void testFailFastLicensesOnlyTheRowCountAcrossShapes() throws Exception {
         // The one deliberate crossing: under FAIL_FAST a committed count is the file's physical record count, the same
         // number for every declaration, so the producer licenses it to cross. Column statistics never cross — their

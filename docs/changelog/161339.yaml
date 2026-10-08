@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 161339
-summary: Esql/ds/convert mixed date
+summary: "ES|QL|DS: Convert mixed date/numeric literals for filter pushdown"
 type: enhancement

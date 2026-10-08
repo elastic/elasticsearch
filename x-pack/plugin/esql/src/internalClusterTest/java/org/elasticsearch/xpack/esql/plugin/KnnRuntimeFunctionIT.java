@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -18,15 +17,6 @@ import static org.hamcrest.CoreMatchers.containsString;
  * These integration tests only test scenarios which cannot be tested by CSV tests. Specifically, errors during query verification.
  */
 public class KnnRuntimeFunctionIT extends AbstractEsqlIntegTestCase {
-
-    @Override
-    protected QueryPragmas getPragmas() {
-        if (canUseQueryPragmas() == false) {
-            return QueryPragmas.EMPTY;
-        }
-        return new QueryPragmas(Settings.builder().put(QueryPragmas.KNN_RUNTIME_FIELD.getKey(), true).build());
-    }
-
     public void testKnnRuntimeNonUnitQueryVector() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
         assumeTrue("requires runtime search support", EsqlCapabilities.Cap.KNN_RUNTIME_FIELD.isEnabled());

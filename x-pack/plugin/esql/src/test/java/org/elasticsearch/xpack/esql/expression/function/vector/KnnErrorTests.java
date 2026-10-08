@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExa
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -54,7 +56,16 @@ public class KnnErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(errorMessageStringForKnn(validPerPosition, signature, (types, position) -> expectedTypesAsString(types)));
+        // The error harness builds every argument as a Literal (see ErrorsForCasesWithoutExamplesTestCase#test), so Knn
+        // treats the field as a runtime search, which only accepts dense_vector (plus null). TEXT (semantic_text) is valid
+        // only for an indexed field - the FieldAttribute path KnnTests exercises - which this literal-based harness cannot
+        // build. Drop TEXT from the valid field types so that both the failing-argument detection and the expected type
+        // list match what the resolver reports for a runtime (literal) field.
+        List<Set<DataType>> runtimeValidPerPosition = new ArrayList<>(validPerPosition);
+        Set<DataType> runtimeFieldTypes = new HashSet<>(runtimeValidPerPosition.get(0));
+        runtimeFieldTypes.remove(DataType.TEXT);
+        runtimeValidPerPosition.set(0, runtimeFieldTypes);
+        return equalTo(errorMessageStringForKnn(runtimeValidPerPosition, signature, (types, position) -> expectedTypesAsString(types)));
     }
 
     private static String errorMessageStringForKnn(

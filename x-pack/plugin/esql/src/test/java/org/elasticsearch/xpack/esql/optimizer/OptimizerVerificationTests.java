@@ -7,18 +7,22 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -37,8 +41,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.S3_PATH;
@@ -327,6 +333,71 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | WHERE MATCH(body, "dog")
             | HIGHLIGHT ON body
             """));
+    }
+
+    /**
+     * KNN over a non-index-mapped field or expression must be rejected on the coordinator when any participating node
+     * (e.g. a CCS remote, or a not-yet-upgraded node during a rolling upgrade) predates {@link Knn#ESQL_KNN_RUNTIME_FIELD}:
+     * such a node mis-plans the runtime path and fails deep on the data node. Here we pin the minimum version just below
+     * the feature and expect a clean verification failure rather than that late data-node error.
+     * <p>
+     * The guard runs on the optimized plan (see {@link LogicalVerifier}), so this is exercised through {@code optimize} rather
+     * than analysis alone: {@code runtime_vector} comes from a {@code ROW}, has no index field behind it, and stays a runtime
+     * search all the way through push-down.
+     */
+    public void testKnnRuntimeRejectedOnOlderTransportVersion() {
+        assumeKnnRuntimeEnabled();
+        var e = expectThrows(VerificationException.class, () -> optimizeBelowKnnRuntimeVersion(subqueryAnalyzer(), """
+            ROW runtime_vector = TO_DENSE_VECTOR([1.0, 0.0, 0.0])
+            | WHERE KNN(runtime_vector, [1.0, 0.0, 0.0])
+            | LIMIT 10
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("KNN over a non-index-mapped field or expression is not supported on every participating node")
+        );
+    }
+
+    /**
+     * Test that LogicalVerifier does not falsely reject a KNN query whose field is resolved to an index-backed field only after the
+     * optimizer runs. In the test query, colors index has a dense_vector field rgb_vector, while languages index does not. During
+     * analysis phase, the rgb_vector field is a reference attribute from UnionAll output, and Knn.isRuntimeSearch() falsely returns true.
+     * The optimizer later resolves the rgb_vector field to an index-backed field attribute at which point Knn.isRuntimeSearch() is false.
+     */
+    public void testKnnIndexBackedInUnionAllSubqueryAllowedOnOlderTransportVersion() {
+        assumeKnnRuntimeEnabled();
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        var plan = optimizeBelowKnnRuntimeVersion(subqueryAnalyzer(), """
+            FROM colors, (FROM languages)
+            | WHERE KNN(rgb_vector, "007800")
+            | LIMIT 10
+            """);
+        Knn knn = findKnn(plan);
+        assertThat(knn.isRuntimeSearch(), is(false));
+        assertThat(knn.field(), instanceOf(FieldAttribute.class));
+    }
+
+    private static void assumeKnnRuntimeEnabled() {
+        assumeTrue("Knn on runtime expression requires corresponding capability", EsqlCapabilities.Cap.KNN_RUNTIME_FIELD.isEnabled());
+    }
+
+    private static Knn findKnn(LogicalPlan plan) {
+        List<Knn> functions = new ArrayList<>();
+        plan.forEachDown(LogicalPlan.class, node -> node.forEachExpression(Knn.class, functions::add));
+        assertThat(functions, hasSize(1));
+        return functions.getFirst();
+    }
+
+    /**
+     * Analyze and optimize {@code query} with the cluster minimum transport version pinned just below
+     * {@link Knn#ESQL_KNN_RUNTIME_FIELD} on both the analyzer and the optimizer, the way a real coordinator would. The runtime-KNN
+     * support guard reads the optimizer's minimum version, so it must be set there and not only on the analyzer.
+     */
+    private LogicalPlan optimizeBelowKnnRuntimeVersion(TestAnalyzer analyzer, String query) {
+        TransportVersion beforeFeature = TransportVersionUtils.getPreviousVersion(Knn.ESQL_KNN_RUNTIME_FIELD);
+        LogicalPlan analyzed = analyzer.minimumTransportVersion(beforeFeature).query(query);
+        LogicalPlanOptimizer optimizer = new LogicalPlanOptimizer(logicalOptimizerContext(TEST_CFG, FoldContext.small(), beforeFeature));
+        return optimizer.optimize(analyzed);
     }
 
     private TestAnalyzer fullTextAnalyzer() {

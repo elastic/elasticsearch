@@ -1971,17 +1971,17 @@ public class VerifierTests extends AnalyzerTestCase {
     public void testFieldBasedFullTextFunctions() throws Exception {
         // MATCH and : support runtime search; after mv_expand on the same field, the expanded attribute is no
         // longer a direct FieldAttribute so isRuntimeSearch()=true and command restrictions are bypassed.
-        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(title, \"Meditation\")", true);
+        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(title, \"Meditation\")");
 
-        checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"", true);
+        checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"");
 
         // MATCH_PHRASE supports runtime search on text and keyword expressions
         fullText().query("from test | eval text = substring(title, 1) | where match_phrase(text, \"cat\")");
         fullText().query("from test | eval text=concat(title, body) | where match_phrase(text, \"cat\")");
         fullText().query("row n = null | eval text = n + 5 | where match_phrase(text::keyword, \"cat\")");
-        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH_PHRASE", "function", "match_phrase(title, \"Meditation\")", true);
+        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH_PHRASE", "function", "match_phrase(title, \"Meditation\")");
 
-        checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])", false);
+        checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
     }
 
     public void testFullTextFunctionsRuntimeAnalyzerOption() throws Exception {
@@ -2177,12 +2177,7 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
-    private void checkFieldBasedFunctionNotAllowedAfterCommands(
-        String functionName,
-        String functionType,
-        String functionInvocation,
-        boolean supportsRuntimeSearch
-    ) {
+    private void checkFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) {
         fullText().error(
             "from test | limit 10 | where " + functionInvocation,
             containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
@@ -2204,20 +2199,9 @@ public class VerifierTests extends AnalyzerTestCase {
             "from test | sort id | limit 1 by id | where " + functionInvocation,
             containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
         );
-        if (supportsRuntimeSearch) {
-            // After mv_expand on the searched field, the expanded attribute is no longer a direct FieldAttribute,
-            // so runtime search takes over and command restrictions are bypassed.
-            fullText().query("from test | mv_expand " + fieldName + " | where " + functionInvocation);
-        } else {
-            fullText().stripErrorPrefix(false)
-                .error(
-                    "from test | mv_expand " + fieldName + " | where " + functionInvocation,
-                    allOf(
-                        containsString("Found 1 problem"),
-                        containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
-                    )
-                );
-        }
+        // After mv_expand on the searched field, the expanded attribute is no longer a direct FieldAttribute,
+        // so runtime search takes over and command restrictions are bypassed.
+        fullText().query("from test | mv_expand " + fieldName + " | where " + functionInvocation);
         if (EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled()) {
             fullText().error(
                 "from test | dedup | where " + functionInvocation,
@@ -2338,15 +2322,9 @@ public class VerifierTests extends AnalyzerTestCase {
             "from test metadata _id, _index, _score | fork (where true) (where true) | where qstr(\"field_name: Meditation\")",
             containsString("[QSTR] function cannot be used after FORK")
         );
-        fullText().error(
-            "from test metadata _id, _index, _score | fork (where true) (where true) | keep vector | where knn(vector, [1, 2, 3])",
-            containsString("[KNN] function cannot be used after FORK")
+        fullText().query(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep vector | where knn(vector, [1, 2, 3])"
         );
-        fullText().stripErrorPrefix(false)
-            .error(
-                "from test metadata _id, _index, _score | fork (where true) (where true) | keep vector | where knn(vector, [1, 2, 3])",
-                allOf(containsString("Found 1 problem"), containsString("[KNN] function cannot be used after FORK"))
-            );
     }
 
     public void testFullTextFunctionsAfterForkWithEvalInBranch() {
@@ -2651,23 +2629,6 @@ public class VerifierTests extends AnalyzerTestCase {
         fullText().query("from test | eval name = title | where name : \"Meditation\"");
         // match_phrase supports runtime search on text EVAL columns
         fullText().query("from test | eval name = title | where match_phrase(name, \"Meditation\")");
-    }
-
-    /**
-     * A computed field on a genuine (Lucene-backed) index isn't from a federated source - the "not a field from an
-     * index mapping" message must not gain the federated-source clause that {@code FullTextFunction.fieldVerifier}
-     * adds for fields sourced from an {@code ExternalRelation}. Regression guard for over-broadening that clause.
-     */
-    public void testFullTextFunctionsRejectEvalColumnsMessageOmitsFederatedClauseOnRealIndex() throws Exception {
-        // Uses KNN because it is the only field-based full-text function left without runtime search support; if
-        // that lands too, this guard needs another way to trigger the "not a field from an index mapping" failure.
-        fullText().error(
-            "from test | eval v = vector | where knn(v, [1, 2, 3])",
-            allOf(
-                containsString("[KNN] function cannot operate on [v], which is not a field from an index mapping"),
-                not(containsString("federated"))
-            )
-        );
     }
 
     public void testFullTextFunctionsRejectRenamedNonIndexFields() throws Exception {

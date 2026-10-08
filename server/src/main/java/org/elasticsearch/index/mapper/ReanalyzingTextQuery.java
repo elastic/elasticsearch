@@ -165,9 +165,20 @@ public final class ReanalyzingTextQuery extends Query {
      * position in hand is held apart until that position is done, since several tokens can share one and a prefix
      * starting on one of them must not be offered to the others.
      */
+    /**
+     * The text of one value a field holds, as the fetchers of those values spell it. A value read from a binary
+     * column or from field data arrives as a string, and one read from a stored field as the bytes that were
+     * stored, whose own {@code toString} spells them in hex rather than as text.
+     */
+    static String textOf(Object value) {
+        return value instanceof BytesRef bytes ? bytes.utf8ToString() : value.toString();
+    }
+
     static int walkPhraseFreq(Term[] terms, String field, Analyzer analyzer, List<Object> values) throws IOException {
         final int[] endedBefore = new int[terms.length];
         final int[] endedHere = new int[terms.length];
+        // The position the last phrase counted ended at, which no other one of the same phrase can end at.
+        int countedAt = Integer.MIN_VALUE;
         Arrays.fill(endedBefore, Integer.MIN_VALUE);
         Arrays.fill(endedHere, Integer.MIN_VALUE);
         final int gap = analyzer.getPositionIncrementGap(field);
@@ -185,7 +196,7 @@ public final class ReanalyzingTextQuery extends Query {
                 // The analyzer's gap sits between two values, as it does when the same values are indexed.
                 position += gap;
             }
-            final String text = value instanceof BytesRef bytes ? bytes.utf8ToString() : value.toString();
+            final String text = textOf(value);
             try (TokenStream stream = analyzer.tokenStream(field, text)) {
                 final TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
                 final PositionIncrementAttribute increment = stream.addAttribute(PositionIncrementAttribute.class);
@@ -212,7 +223,12 @@ public final class ReanalyzingTextQuery extends Query {
                     for (int length = 1; length < terms.length; length++) {
                         if (endedBefore[length - 1] == position - 1 && terms[length].bytes().equals(token)) {
                             if (length == terms.length - 1) {
-                                freq++;
+                                // Several tokens can end the phrase at one position, where an analyzer leaves more
+                                // than one of them there, and an index counts the phrase that ends there once.
+                                if (position != countedAt) {
+                                    countedAt = position;
+                                    freq++;
+                                }
                             } else {
                                 endedHere[length] = position;
                             }
@@ -546,13 +562,7 @@ public final class ReanalyzingTextQuery extends Query {
                     if (value == null) {
                         continue;
                     }
-                    String valueStr;
-                    if (value instanceof BytesRef valueRef) {
-                        valueStr = valueRef.utf8ToString();
-                    } else {
-                        valueStr = value.toString();
-                    }
-                    cacheEntry.memoryIndex.addField(field, valueStr, indexAnalyzer);
+                    cacheEntry.memoryIndex.addField(field, textOf(value), indexAnalyzer);
                 }
             }
             return cacheEntry.memoryIndex;

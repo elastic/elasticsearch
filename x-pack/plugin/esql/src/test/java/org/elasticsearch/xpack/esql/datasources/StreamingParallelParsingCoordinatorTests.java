@@ -74,6 +74,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -797,10 +798,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
     /**
      * Closing must unblock the segmentator when parsers are parked on a full page queue holding
-     * every pool buffer. Before inline steal that was {@code bufferPool.take()}; after it the
-     * segmentator may instead park in {@code putPageAndSignal} while inlining the FIFO head.
+     * every pool buffer. The segmentator may wait in a timed {@code bufferPool.poll()} or in
+     * {@code putPageAndSignal} while inlining the FIFO head.
      * {@code close()} drains page queues in either case, so parsers (and an inlining segmentator)
-     * unblock and {@code take()} waiters wake when buffers return to the pool.
+     * unblock and pool waiters wake when buffers return or the timed poll observes close.
      * <p>
      * With parallelism 2 (1 falls back to a sequential read) the pool holds three buffers. Each chunk yields
      * more single-row pages than its page queue holds, and nothing consumes them, so parsers park
@@ -815,7 +816,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             poolThreads.add(thread);
             return thread;
         });
-        try {
+        try (
             CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
                 new LineFormatReader(256),
                 new ByteArrayInputStream(payload),
@@ -824,9 +825,13 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 2,
                 executor,
                 ErrorPolicy.STRICT
-            );
+            )
+        ) {
             assertBusy(
-                () -> assertTrue("segmentator not parked on take() or inline page-put", isParkedOnBufferTakeOrInlinePagePut(poolThreads)),
+                () -> assertTrue(
+                    "segmentator not parked on buffer poll or inline page-put",
+                    isParkedOnBufferPollOrInlinePagePut(poolThreads)
+                ),
                 5,
                 TimeUnit.SECONDS
             );
@@ -841,34 +846,49 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     closed.countDown();
                 }
             });
-            closer.start();
-            assertTrue("close() must return within 10s of segmentator being parked", closed.await(10, TimeUnit.SECONDS));
+            try {
+                closer.start();
+                assertTrue("close() must return within 10s of segmentator being parked", closed.await(10, TimeUnit.SECONDS));
+            } finally {
+                closer.join(TimeUnit.SECONDS.toMillis(10));
+            }
+            assertFalse("closer must exit after close", closer.isAlive());
             assertNull(closeFailure.get());
             executor.shutdown();
             assertTrue("segmentator and parsers must exit after close", executor.awaitTermination(10, TimeUnit.SECONDS));
         } finally {
+            // Resource closure drains full page queues even when the parking assertion fails.
+            // Interrupting first could leave parsers retrying the POISON put on a full queue.
             executor.shutdownNow();
+            executor.awaitTermination(10, TimeUnit.SECONDS);
         }
     }
 
-    private static boolean isParkedOnBufferTakeOrInlinePagePut(List<Thread> threads) {
+    private static boolean isParkedOnBufferPollOrInlinePagePut(List<Thread> threads) {
+        String iteratorClass = StreamingParallelParsingCoordinator.StreamingParallelIterator.class.getName();
         for (Thread thread : threads) {
-            if (thread.getState() != Thread.State.WAITING) {
+            Thread.State state = thread.getState();
+            if (state != Thread.State.WAITING && state != Thread.State.TIMED_WAITING) {
                 continue;
             }
             StackTraceElement[] stack = thread.getStackTrace();
-            boolean take = Arrays.stream(stack).anyMatch(frame -> frame.getMethodName().equals("takeOrAllocateBuffer"));
-            if (take) {
+            boolean bufferWait = Arrays.stream(stack)
+                .anyMatch(frame -> frame.getClassName().equals(iteratorClass) && frame.getMethodName().equals("waitForRecycledBuffer"));
+            boolean poll = Arrays.stream(stack)
+                .anyMatch(frame -> frame.getClassName().equals(ArrayBlockingQueue.class.getName()) && frame.getMethodName().equals("poll"));
+            if (state == Thread.State.TIMED_WAITING && bufferWait && poll) {
                 return true;
             }
-            boolean pagePut = Arrays.stream(stack).anyMatch(frame -> frame.getMethodName().equals("putPageAndSignal"));
+            boolean pagePut = Arrays.stream(stack)
+                .anyMatch(frame -> frame.getClassName().equals(iteratorClass) && frame.getMethodName().equals("putPageAndSignal"));
             boolean inline = Arrays.stream(stack)
                 .anyMatch(
-                    frame -> frame.getMethodName().equals("runOneQueuedInline")
-                        || frame.getMethodName().equals("dispatchChunk")
-                        || frame.getMethodName().equals("inlineLeftoverQueuedChunks")
+                    frame -> frame.getClassName().equals(iteratorClass)
+                        && (frame.getMethodName().equals("runOneQueuedInline")
+                            || frame.getMethodName().equals("dispatchChunk")
+                            || frame.getMethodName().equals("inlineLeftoverQueuedChunks"))
                 );
-            if (pagePut && inline) {
+            if (state == Thread.State.WAITING && pagePut && inline) {
                 return true;
             }
         }

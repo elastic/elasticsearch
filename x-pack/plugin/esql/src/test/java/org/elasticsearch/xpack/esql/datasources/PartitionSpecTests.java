@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.PartitionSpec.Field;
 import org.elasticsearch.xpack.esql.datasources.PartitionSpec.Transform;
 import org.elasticsearch.xpack.esql.datasources.PartitionSpec.Unit;
+import org.elasticsearch.xpack.esql.datasources.PartitionSpec.Window;
 
 import java.util.List;
 import java.util.Map;
@@ -20,6 +24,7 @@ import static org.elasticsearch.xpack.esql.datasources.PartitionConfig.CONFIG_PA
 import static org.elasticsearch.xpack.esql.datasources.PartitionConfig.CONFIG_PARTITIONING_PATH;
 import static org.elasticsearch.xpack.esql.datasources.PartitionSpec.CONFIG_PARTITION_SPEC;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class PartitionSpecTests extends ESTestCase {
 
@@ -73,6 +78,33 @@ public class PartitionSpecTests extends ESTestCase {
         PartitionSpec.validate(
             Map.of(PartitionConfig.CONFIG_PARTITIONING_DETECTION, "hive", CONFIG_PARTITION_SPEC, "year(@timestamp), month(@timestamp)")
         );
+    }
+
+    public void testToSpecStringQuotesDottedNames() {
+        PartitionSpec spec = PartitionSpec.parse("year(`event.ts`), lag(`event.ts`, 15m)");
+        assertThat(spec.toSpecString(), containsString("`event.ts`"));
+        assertEquals(spec, PartitionSpec.parse(spec.toSpecString()));
+    }
+
+    public void testAlignWithMappingRoundTripsQuotedNames() {
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("event.ts", new DatasetFieldMapping("date", null)))
+        );
+        PartitionSpec spec = PartitionSpec.parse("year(`event.ts`, epoch_second), lag(`event.ts`, 15m)");
+        PartitionSpec aligned = spec.alignWithMapping(mapping);
+        assertThat(aligned.toSpecString(), containsString("year(`event.ts`)"));
+        assertThat(aligned.toSpecString(), containsString("lag(`event.ts`"));
+        assertThat(aligned.toSpecString(), not(containsString("epoch_second")));
+        assertEquals(aligned, PartitionSpec.parse(aligned.toSpecString()));
+    }
+
+    public void testRejectIdentityAndTemporalOnSameKey() {
+        for (String spec : List.of("year=region, year(ts)", "year(ts), year=region")) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PartitionSpec.parse(spec));
+            assertThat(e.getMessage(), containsString(CONFIG_PARTITION_SPEC));
+            assertThat(e.getMessage(), containsString("year"));
+            assertThat(e.getMessage(), containsString("identity"));
+        }
     }
 
     public void testUnusableNoticeForBadSpecAndNone() {
@@ -366,15 +398,167 @@ public class PartitionSpecTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("non-empty string"));
     }
 
-    public void testRejectDuplicateKey() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PartitionSpec.parse("year(ts), year(event_time)"));
+    public void testAcceptSameKeyOnDifferentColumns() {
+        PartitionSpec spec = PartitionSpec.parse(
+            "year(start, epoch_second), month(start, epoch_second), day(start, epoch_second), hour(start, epoch_second), "
+                + "year(end, epoch_second), month(end, epoch_second), day(end, epoch_second), hour(end, epoch_second), "
+                + "lag(start, 20m), lag(end, 10m)"
+        );
+        assertEquals(8, spec.fields().size());
+        assertEquals(TimeValue.timeValueMinutes(20), spec.windows().get("start").lag());
+        assertEquals(TimeValue.timeValueMinutes(10), spec.windows().get("end").lag());
+    }
+
+    public void testRejectDuplicateKeyOnSameColumn() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PartitionSpec.parse("year(start), year(start)"));
         assertThat(e.getMessage(), containsString(CONFIG_PARTITION_SPEC));
         assertThat(e.getMessage(), containsString("year"));
-        assertThat(e.getMessage(), containsString("more than once"));
+        assertThat(e.getMessage(), containsString("start"));
+        assertThat(e.getMessage(), containsString("once per column"));
+    }
+
+    public void testRejectDuplicateIdentityKey() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionSpec.parse("aws-region=region, aws-region=az")
+        );
+        assertThat(e.getMessage(), containsString(CONFIG_PARTITION_SPEC));
+        assertThat(e.getMessage(), containsString("identity key"));
+        assertThat(e.getMessage(), containsString("aws-region"));
+    }
+
+    public void testParseLagAndLead() {
+        PartitionSpec spec = PartitionSpec.parse(
+            "year(@timestamp), month(@timestamp), day(@timestamp), hour(@timestamp), lag(@timestamp, 15m)"
+        );
+        assertEquals(TimeValue.timeValueMinutes(15), spec.windows().get("@timestamp").lag());
+        assertEquals(TimeValue.ZERO, spec.windows().get("@timestamp").lead());
+        PartitionSpec both = PartitionSpec.parse("year(ts), lag(ts, 1h), lead(ts, 90s)");
+        Window window = both.windows().get("ts");
+        assertEquals(TimeValue.timeValueHours(1), window.lag());
+        assertEquals(TimeValue.timeValueSeconds(90), window.lead());
+        assertEquals(both, PartitionSpec.parse(both.toSpecString()));
+        PartitionSpec zero = PartitionSpec.parse("year(ts), lag(ts, 0ms)");
+        assertEquals(TimeValue.ZERO, zero.windows().get("ts").lag());
+    }
+
+    public void testRejectLagWithoutTemporalBind() {
+        assertReject("lag(nope, 15m)", "nope", "no temporal bind");
+        assertReject("year(ts), lag(nope, 15m)", "nope", "year/month/day/hour");
+    }
+
+    public void testRejectNegativeAndUnparseableLag() {
+        assertReject("year(ts), lag(ts, -15m)", "negative", "non-negative");
+        assertReject("year(ts), lag(ts, banana)", "unparseable duration", "15m");
+        assertReject("year(ts), lag(ts, 15m), lag(ts, 1h)", "more than once", "column+direction");
+        assertReject("year(ts), key=lag(ts, 15m)", "cannot assign [lag] to a key", "lag(column, duration)");
+        assertReject("year(ts), lag(ts)", "lag(column, duration)", "15m");
     }
 
     public void testConfigKeysIsExactlyPartitionSpec() {
         assertEquals(Set.of(CONFIG_PARTITION_SPEC), PartitionSpec.CONFIG_KEYS);
+    }
+
+    public void testAlignWithMappingRejectsPathSourceWhenMapped() {
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("@timestamp", new DatasetFieldMapping("date", "start")))
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionSpec.parse("year(start, epoch_second), month(start, epoch_second), lag(start, 15m)").alignWithMapping(mapping)
+        );
+        assertThat(e.getMessage(), containsString(CONFIG_PARTITION_SPEC));
+        assertThat(e.getMessage(), containsString("start"));
+        assertThat(e.getMessage(), containsString("@timestamp"));
+        assertThat(e.getMessage(), containsString("bind"));
+        Map<String, Object> settings = Map.of(CONFIG_PARTITION_SPEC, "year(start, epoch_second)");
+        e = expectThrows(IllegalArgumentException.class, () -> PartitionSpec.alignWithMapping(settings, mapping));
+        assertThat(e.getMessage(), containsString("bind [@timestamp]"));
+    }
+
+    public void testAlignWithMappingDropsUnusedDateUnit() {
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("@timestamp", new DatasetFieldMapping("date", "start")))
+        );
+        PartitionSpec spec = PartitionSpec.parse("year(@timestamp, epoch_second), month(@timestamp, epoch_second), lag(@timestamp, 15m)");
+        PartitionSpec aligned = spec.alignWithMapping(mapping);
+        assertEquals(
+            List.of(
+                new Field("year", Transform.YEAR, "@timestamp", Unit.EPOCH_MILLIS),
+                new Field("month", Transform.MONTH, "@timestamp", Unit.EPOCH_MILLIS)
+            ),
+            aligned.fields()
+        );
+        assertEquals(TimeValue.timeValueMinutes(15), aligned.windows().get("@timestamp").lag());
+        assertThat(aligned.toSpecString(), containsString("year(@timestamp)"));
+        assertThat(aligned.toSpecString(), not(containsString("epoch_second")));
+        Map<String, Object> settings = Map.of(CONFIG_PARTITION_SPEC, "year(@timestamp, epoch_second)");
+        assertEquals("year(@timestamp)", PartitionSpec.alignWithMapping(settings, mapping).get(CONFIG_PARTITION_SPEC));
+    }
+
+    public void testAlignWithMappingRejectsUnknownColumnWhenMappingPresent() {
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("@timestamp", new DatasetFieldMapping("date", null)))
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionSpec.parse("year(nope)").alignWithMapping(mapping)
+        );
+        assertThat(e.getMessage(), containsString(CONFIG_PARTITION_SPEC));
+        assertThat(e.getMessage(), containsString("nope"));
+        assertThat(e.getMessage(), containsString("not a mapping field"));
+    }
+
+    public void testAlignWithMappingAcceptsNoMapping() {
+        PartitionSpec spec = PartitionSpec.parse("year(start, epoch_second)");
+        assertEquals(spec, spec.alignWithMapping(null));
+        Map<String, Object> settings = Map.of(CONFIG_PARTITION_SPEC, "year(start, epoch_second)");
+        assertEquals(settings, PartitionSpec.alignWithMapping(settings, null));
+    }
+
+    public void testAlignWithMappingAcceptsIdentityNotInMapping() {
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("@timestamp", new DatasetFieldMapping("date", "start")))
+        );
+        PartitionSpec spec = PartitionSpec.parse("aws-region=region, year(@timestamp, epoch_second)");
+        PartitionSpec aligned = spec.alignWithMapping(mapping);
+        assertEquals(new Field("aws-region", Transform.IDENTITY, "region", Unit.EPOCH_MILLIS), aligned.fields().get(0));
+        assertEquals(new Field("year", Transform.YEAR, "@timestamp", Unit.EPOCH_MILLIS), aligned.fields().get(1));
+    }
+
+    public void testAlignWithMappingRejectsPathWhenLogicalAlsoBound() {
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("@timestamp", new DatasetFieldMapping("date", "start")))
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionSpec.parse("year(start), year(@timestamp)").alignWithMapping(mapping)
+        );
+        assertThat(e.getMessage(), containsString("start"));
+        assertThat(e.getMessage(), containsString("bind [@timestamp]"));
+    }
+
+    public void testAlignWithMappingRejectsLagOnPathSource() {
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("@timestamp", new DatasetFieldMapping("date", "start")))
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionSpec.parse("year(start), hour(start), lag(start, 20m)").alignWithMapping(mapping)
+        );
+        assertThat(e.getMessage(), containsString("start"));
+        assertThat(e.getMessage(), containsString("bind [@timestamp]"));
+    }
+
+    public void testAlignWithMappingKeepsComplementaryLagAndLead() {
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("@timestamp", new DatasetFieldMapping("date", "start")))
+        );
+        PartitionSpec aligned = PartitionSpec.parse("year(@timestamp), hour(@timestamp), lag(@timestamp, 20m), lead(@timestamp, 10m)")
+            .alignWithMapping(mapping);
+        assertEquals(TimeValue.timeValueMinutes(20), aligned.windows().get("@timestamp").lag());
+        assertEquals(TimeValue.timeValueMinutes(10), aligned.windows().get("@timestamp").lead());
+        assertEquals(aligned, PartitionSpec.parse(aligned.toSpecString()));
     }
 
     private static final String IDENTIFIER_HINT = PartitionSpec.IDENTIFIER_RULE;

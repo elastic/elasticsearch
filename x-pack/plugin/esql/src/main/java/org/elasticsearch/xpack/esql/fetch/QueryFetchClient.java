@@ -40,7 +40,18 @@ final class QueryFetchClient implements FetchOperator.Client {
         void send(DiscoveryNode node, FetchRequest request, Task parentTask, ActionListener<FetchResponse> listener);
     }
 
+    /**
+     * Learns which contexts a node frees because a fetch request told it to, so the lease of the query doesn't free them a
+     * second time. {@link org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextService#forgetFreedByFetch} outside of
+     * tests.
+     */
+    @FunctionalInterface
+    interface FreedContexts {
+        void freed(String nodeId, List<ShardSearchContextId> contextIds);
+    }
+
     private final Sender sender;
+    private final FreedContexts freedContexts;
     private final Supplier<DiscoveryNodes> nodes;
     private final QueryFetchScope scope;
     private final OriginalIndices indices;
@@ -49,12 +60,19 @@ final class QueryFetchClient implements FetchOperator.Client {
      * @param nodes            the nodes of the cluster, as of now
      * @param indexExpressions the index expressions of the relation the documents come from, on the local cluster
      */
-    QueryFetchClient(Sender sender, Supplier<DiscoveryNodes> nodes, QueryFetchScope scope, List<String> indexExpressions) {
+    QueryFetchClient(
+        Sender sender,
+        FreedContexts freedContexts,
+        Supplier<DiscoveryNodes> nodes,
+        QueryFetchScope scope,
+        List<String> indexExpressions
+    ) {
         if (indexExpressions.isEmpty()) {
             // a request without index expressions is authorized for every index
             throw new IllegalArgumentException("a fetch needs the index expressions of its relation");
         }
         this.sender = sender;
+        this.freedContexts = freedContexts;
         this.nodes = nodes;
         this.scope = scope;
         this.indices = new OriginalIndices(indexExpressions.toArray(String[]::new), SearchRequest.DEFAULT_INDICES_OPTIONS);
@@ -95,7 +113,7 @@ final class QueryFetchClient implements FetchOperator.Client {
                 try {
                     listener.onResponse(response);
                 } finally {
-                    drivers.onResponse(response.completionInfo());
+                    answered(node, releaseAfter, drivers, response.completionInfo());
                 }
             }
 
@@ -113,6 +131,26 @@ final class QueryFetchClient implements FetchOperator.Client {
             sender.send(node, request, scope.rootTask(), countingDrivers);
         } catch (Exception e) {
             countingDrivers.onFailure(e);
+        }
+    }
+
+    /**
+     * A node that answered frees the contexts the request told it to, so the lease forgets them. That happens before the
+     * drivers count, because the query, and with it the lease, can't end before they do. A failed request leaves them to
+     * the lease: it may have failed before the node read it.
+     */
+    private void answered(
+        DiscoveryNode node,
+        List<ShardSearchContextId> releaseAfter,
+        ActionListener<DriverCompletionInfo> drivers,
+        DriverCompletionInfo completionInfo
+    ) {
+        try {
+            if (releaseAfter.isEmpty() == false) {
+                freedContexts.freed(node.getId(), releaseAfter);
+            }
+        } finally {
+            drivers.onResponse(completionInfo);
         }
     }
 }

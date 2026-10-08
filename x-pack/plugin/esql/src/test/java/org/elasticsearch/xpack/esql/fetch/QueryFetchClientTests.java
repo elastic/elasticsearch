@@ -74,6 +74,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
         Map.of()
     );
     private final QueryDrivers drivers = new QueryDrivers();
+    private final List<Freed> freed = new ArrayList<>();
 
     /**
      * The request is a child of the query's task, and is authorized with the index expressions of the relation.
@@ -119,9 +120,48 @@ public class QueryFetchClientTests extends ComputeTestCase {
             );
             assertThat(received, contains(sameInstance(response)));
             assertThat(drivers.completed, contains(FETCH_DRIVERS));
+            assertThat("a fetch that frees no context", freed, empty());
         } finally {
             response.decRef();
         }
+    }
+
+    /**
+     * A node that answered frees the contexts the request told it to, so the lease of the query forgets them, before the
+     * drivers count. The query can't end before that, so its lease never frees them a second time.
+     */
+    public void testAnAnsweredFetchForgetsTheContextsItsNodeFrees() {
+        FetchResponse response = new FetchResponse(blockFactory(), List.of(), List.of(), FETCH_DRIVERS, 0, 0);
+        try {
+            client((node, request, parentTask, listener) -> listener.onResponse(response)).fetch(
+                NODE,
+                "",
+                List.of(SHARD),
+                null,
+                List.of(CONTEXT),
+                ActionListener.noop()
+            );
+            assertThat(freed, contains(new Freed("n1", List.of(CONTEXT), true)));
+            assertThat(drivers.completed, contains(FETCH_DRIVERS));
+        } finally {
+            response.decRef();
+        }
+    }
+
+    /**
+     * A request can fail before its node read it, so the contexts stay with the lease, which frees them when the query ends.
+     */
+    public void testAFailedFetchLeavesItsContextsToTheLease() {
+        client((node, request, parentTask, listener) -> listener.onFailure(new IllegalStateException("rejected"))).fetch(
+            NODE,
+            "",
+            List.of(SHARD),
+            null,
+            List.of(CONTEXT),
+            ActionListener.noop()
+        );
+        assertThat(freed, empty());
+        assertThat(drivers.completed, contains(DriverCompletionInfo.EMPTY));
     }
 
     public void testAFailedRequestCompletesItsDrivers() {
@@ -203,13 +243,17 @@ public class QueryFetchClientTests extends ComputeTestCase {
     public void testNeedsTheIndexExpressionsOfTheRelation() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new QueryFetchClient((node, request, parentTask, listener) -> {}, this::nodes, scope(), List.of())
+            () -> new QueryFetchClient((node, request, parentTask, listener) -> {}, this::forget, this::nodes, scope(), List.of())
         );
         assertThat(e.getMessage(), containsString("index expressions"));
     }
 
     private QueryFetchClient client(QueryFetchClient.Sender sender) {
-        return new QueryFetchClient(sender, this::nodes, scope(), List.of("logs-*", "-logs-old"));
+        return new QueryFetchClient(sender, this::forget, this::nodes, scope(), List.of("logs-*", "-logs-old"));
+    }
+
+    private void forget(String nodeId, List<ShardSearchContextId> contextIds) {
+        freed.add(new Freed(nodeId, contextIds, drivers.completed.isEmpty()));
     }
 
     private QueryFetchScope scope() {
@@ -221,6 +265,11 @@ public class QueryFetchClientTests extends ComputeTestCase {
     }
 
     private record Sent(DiscoveryNode node, FetchRequest request, Task parentTask) {}
+
+    /**
+     * Contexts the lease forgot, and whether that happened before the drivers of the request counted.
+     */
+    private record Freed(String nodeId, List<ShardSearchContextId> contextIds, boolean beforeTheDrivers) {}
 
     /**
      * Stands in for the compute listener of the query, which counts the drivers of each listener it hands out.

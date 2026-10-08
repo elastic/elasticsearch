@@ -10,16 +10,22 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.fetch.lifetime.FetchContextService;
+import org.elasticsearch.xpack.esql.fetch.lifetime.FetchFreeRequest;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,9 +50,16 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
 
     private final AtomicInteger registered = new AtomicInteger();
     private final AtomicInteger freed = new AtomicInteger();
+    private final AtomicInteger freeRequests = new AtomicInteger();
     private final Set<Long> keepAlivesMillis = ConcurrentHashMap.newKeySet();
     private int shards;
     private TimeValue keepAlive;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        // counts the requests that free fetch contexts
+        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
+    }
 
     @Before
     public void setupIndexAndCounters() {
@@ -79,6 +92,15 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
                 }
             });
         }
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            ((MockTransportService) transportService).<FetchFreeRequest>addRequestHandlingBehavior(
+                FetchContextService.FREE_ACTION_NAME,
+                (handler, request, channel, task) -> {
+                    freeRequests.incrementAndGet();
+                    handler.messageReceived(request, channel, task);
+                }
+            );
+        }
     }
 
     @After
@@ -87,6 +109,9 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
             MockSearchService mock = (MockSearchService) searchService;
             mock.setOnPutContext(context -> {});
             mock.setOnRemoveContext(context -> {});
+        }
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            ((MockTransportService) transportService).clearAllRules();
         }
         updateClusterSettings(Settings.builder().putNull(FetchContextService.CONTEXT_KEEP_ALIVE.getKey()));
     }
@@ -114,6 +139,24 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * When every row is a winner, the fetch reads every context that kept rows, and each node frees the ones it read once
+     * it answered. The coordinator's lease has nothing left to free, so it sends no free request.
+     */
+    public void testAFetchThatReadsEveryContextLeavesNothingToFree() throws Exception {
+        String everyRow = "FROM " + INDEX + " | SORT ts DESC | LIMIT 100 | KEEP a, b, ts";
+        try (EsqlQueryResponse response = run(request(everyRow, true))) {
+            assertThat(getValuesList(response), hasSize(60));
+        }
+
+        assertThat("a registered context per shard", registered.get(), equalTo(shards));
+        assertBusy(() -> {
+            assertThat(freed.get(), equalTo(registered.get()));
+            assertThat(indicesAdmin().prepareStats(INDEX).setSearch(true).get().getTotal().getSearch().getOpenContexts(), equalTo(0L));
+        });
+        assertThat(freeRequests.get(), equalTo(0));
+    }
+
+    /**
      * Without the fetch phase the query reads through unregistered contexts, as it always did.
      */
     public void testQueryWithoutTheFetchPhaseRegistersNoContext() {
@@ -124,7 +167,11 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
     }
 
     private static EsqlQueryRequest request(boolean fetchPhase) {
-        return syncEsqlQueryRequest(QUERY).pragmas(
+        return request(QUERY, fetchPhase);
+    }
+
+    private static EsqlQueryRequest request(String query, boolean fetchPhase) {
+        return syncEsqlQueryRequest(query).pragmas(
             new QueryPragmas(Settings.builder().put(QueryPragmas.FETCH_PHASE.getKey(), fetchPhase).build())
         );
     }

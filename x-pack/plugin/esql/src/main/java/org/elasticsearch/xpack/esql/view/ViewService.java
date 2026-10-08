@@ -250,8 +250,38 @@ public class ViewService {
     }
 
     /**
-     * This ensures reserved view exists or attempts to create one otherwise.
-     * Must be called during the services' initialization.
+     * Ensures a reserved view with the given definition exists. Creates it, or updates it if the query or description differ.
+     * <p>
+     * This registers a one-shot {@link ClusterStateListener} and returns immediately. The work happens on the first cluster state
+     * that is recovered, has this node as master and supports reserved views. The listener is then removed.
+     * It is not re-evaluated on later cluster state changes.
+     * <p>
+     * Call it early during component wiring (e.g. from {@code Plugin#createComponents}), before the node joins a cluster
+     * and the first cluster state is applied. Otherwise, the first qualifying cluster state may already be gone,
+     * and the view is only checked later after undetermined amount of time. Only the master node acts;
+     * calls on other nodes are no-ops until (and unless) they become master.
+     * <p>
+     * The {@code listener} is completed once, after the view is confirmed to exist in the cluster state.
+     * Use it to run logic that depends on the view being present.
+     * It fails with {@link ResourceAlreadyExistsException} if a non-reserved view with the same name already exists.
+     * <p>
+     * Example:
+     * <pre>{@code
+     * public class MyService {
+     *     public MyService(ViewService viewService) {
+     *         viewService.ensureReservedViewExists(
+     *             ProjectId.DEFAULT,
+     *             "my-reserved-view",
+     *             "FROM my-index | WHERE active",
+     *             "Description shown to users",
+     *             ActionListener.wrap(
+     *                 ack -> logger.debug("reserved view is ready"),
+     *                 e -> logger.warn("failed to create reserved view", e)
+     *             )
+     *         );
+     *     }
+     * }
+     * }</pre>
      */
     public void ensureReservedViewExists(
         ProjectId projectId,

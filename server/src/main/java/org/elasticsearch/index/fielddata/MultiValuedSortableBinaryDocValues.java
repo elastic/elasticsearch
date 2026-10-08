@@ -14,7 +14,9 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
@@ -63,7 +65,12 @@ public abstract class MultiValuedSortableBinaryDocValues extends SortableBinaryD
      * the {@code .counts} probe that {@link #from} performs.
      */
     public static SortableBinaryDocValues fromPlain(LeafReader leafReader, String valuesFieldName) throws IOException {
-        return new PlainBinary(DocValues.getBinary(leafReader, valuesFieldName));
+        final BinaryDocValues values = DocValues.getBinary(leafReader, valuesFieldName);
+        // A column records how many documents hold a value. Anything else leaves it unknown.
+        if (values instanceof StringColumnSource source) {
+            return new PlainBinary(values, ColumnarPayloadSortableBinaryDocValues.sparsityOf(source.reader(), leafReader.maxDoc()));
+        }
+        return new PlainBinary(values);
     }
 
     /**
@@ -238,8 +245,15 @@ public abstract class MultiValuedSortableBinaryDocValues extends SortableBinaryD
      * No companion {@code .counts} field exists; each document has at most one value.
      */
     private static class PlainBinary extends MultiValuedSortableBinaryDocValues {
+        private final Sparsity sparsity;
+
         PlainBinary(BinaryDocValues values) {
+            this(values, Sparsity.UNKNOWN);
+        }
+
+        PlainBinary(BinaryDocValues values, Sparsity sparsity) {
             super(values);
+            this.sparsity = sparsity;
         }
 
         @Override
@@ -261,6 +275,17 @@ public abstract class MultiValuedSortableBinaryDocValues extends SortableBinaryD
         @Override
         public ValueMode getValueMode() {
             return ValueMode.SINGLE_VALUED;
+        }
+
+        @Override
+        public Sparsity getSparsity() {
+            return sparsity;
+        }
+
+        /** A blob is one value, so the documents holding a blob are the ones holding one value. */
+        @Override
+        public DocIdSetIterator singleValuedDocs() {
+            return values;
         }
     }
 

@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.optimizer;
 public abstract class ApproximationTestCase extends ESTestCase {
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     private static final TestOptimizer optimizer = optimizer().addDefaultIndex().addTestLookup().addK8s();

@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -107,7 +108,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     public void testTwoPhaseProducesSameRowsAsSinglePhase() throws Exception {
@@ -183,7 +184,9 @@ public class TwoPhaseReaderTests extends ESTestCase {
         try {
             assertEquals(collectIds(expected), collectIds(actual));
             assertEquals(50, actual.stream().mapToInt(Page::getPositionCount).sum());
-            assertEquals(1, failing.failedChunkReads.get());
+            // Sync storage does not seed the prefetch queue; the injected async
+            // failure is never hit and the scan stays on the stream path.
+            assertEquals(0, failing.failedChunkReads.get());
         } finally {
             expected.forEach(Page::releaseBlocks);
             actual.forEach(Page::releaseBlocks);
@@ -386,7 +389,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             assertEquals(
                 "the only post-open storage-buffer reservation must be the whole projection chunk fallback",
-                expectedFallbackBytes,
+                HeapFootprint.byteArrayBytes(expectedFallbackBytes),
                 trackingBreaker.storageReadReservations.get() - afterOpen
             );
             do {
@@ -1849,7 +1852,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
                 new ParquetStorageObjectAdapter(
                     new CountingStorageObject(parquetData, false),
                     footerByteCache,
-                    new NoopCircuitBreaker("chunk-ranges")
+                    NoopCircuitBreaker.INSTANCE
                 ),
                 PlainParquetReadOptions.builder(codecFactory).build()
             )

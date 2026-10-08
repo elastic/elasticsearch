@@ -23,9 +23,7 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'simdjson'
   }
-  testImplementation(testFixtures(project(':libs:simdvec'))) {
-    exclude group: 'org.elasticsearch', module: 'simdjson'
-  }
+  testImplementation project(':libs:foreign-library:testing')
 
   // SimdJsonParserBenchmark measures simdjson through the EscfEncoder pipeline, so the benchmark
   // source set needs :server for the escf, sourcebatch and bytes classes.
@@ -86,7 +84,7 @@ nativeLibraryBuild {
   modeEnvironmentVariable = 'SIMDJSON_NATIVE_BUILD'
   sourceDir = layout.projectDirectory.dir('native')
   sources = ['src/**', 'Makefile']
-  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7'
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:8'
   forwardedEnvironment = ['CLANG_CXX']
 
   dockerCommand = ['make', 'all']

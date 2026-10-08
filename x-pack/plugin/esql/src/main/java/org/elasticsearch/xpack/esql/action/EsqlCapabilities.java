@@ -1338,22 +1338,19 @@ public class EsqlCapabilities {
          */
         COMPLETION,
         /**
-         * Support for the DENSE_VECTOR command. Dev/snapshot-only — the command is gated behind
-         * {@code isDevVersion()} in the grammar.
+         * Support for the DENSE_VECTOR command.
          */
-        DENSE_VECTOR_COMMAND(Build.current().isSnapshot()),
+        DENSE_VECTOR_COMMAND,
         /**
          * Adds the {@code type} option (text|image) and endpoint-driven multimodal routing to the DENSE_VECTOR command.
-         * Dev/snapshot-only, like {@link #DENSE_VECTOR_COMMAND}.
          */
-        DENSE_VECTOR_COMMAND_V2(Build.current().isSnapshot()),
+        DENSE_VECTOR_COMMAND_V2,
         /**
          * Adds custom output naming to the DENSE_VECTOR command: {@code vec = field} names a single generated column, and
          * {@code suffix = "_dv" ON f1, f2} replaces the default {@code _dense_vector} suffix on every listed field. Also covers
          * the warning emitted when an input position holds more than one value, which ships alongside the naming forms.
-         * Dev/snapshot-only, like {@link #DENSE_VECTOR_COMMAND}.
          */
-        DENSE_VECTOR_COMMAND_V3(Build.current().isSnapshot()),
+        DENSE_VECTOR_COMMAND_V3,
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
@@ -1768,6 +1765,15 @@ public class EsqlCapabilities {
          * {@code datasources.config.datasets.changes.by_op.*})?
          */
         USAGE_CONTAINS_DATASOURCE_CONFIG_CHANGES,
+
+        /**
+         * Does the usage information for ESQL contain per-component CPU counters for successful
+         * external-source queries ({@code datasources.queries.cpu_nanos.execution},
+         * {@code .read}, {@code .planning}, {@code .split_discovery}, {@code .total})?
+         * Note: the {@code planning} component is currently wall time pending a real planning-CPU
+         * measurement in {@code EsqlQueryProfile}.
+         */
+        USAGE_CONTAINS_DATASOURCES_QUERY_CPU,
 
         /**
          * Support loading of ip fields if they are not indexed.
@@ -3106,6 +3112,13 @@ public class EsqlCapabilities {
         PARTITION_DETECTION_ON_READ_PATH,
 
         /**
+         * A concrete (non-glob) Hive or template path binds partition columns on the coordinator
+         * and injects them at read time. Coordinators that predate this skip detection on a single
+         * explicit key, so mixed-cluster schema width disagrees. Gates tests, not production.
+         */
+        PARTITION_DETECTION_ON_A_CONCRETE_FILE,
+
+        /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
          */
         DATASET_IN_FROM_COMMAND,
@@ -3835,6 +3848,15 @@ public class EsqlCapabilities {
         HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS,
 
         /**
+         * HIGHLIGHT tokenizes each mapped text field with its index analyzer, and each TO_TEXT column with its
+         * declared analyzer. Query leaf analyzers shape only their own query terms, while WITH overrides every field's
+         * values analyzer. When the queried indices disagree on an ON field's analyzer, HIGHLIGHT tokenizes each row
+         * with the analyzer of the index it came from. For rows with no single source index, like those STATS produces,
+         * HIGHLIGHT falls back to {@code standard} and emits a warning.
+         */
+        HIGHLIGHT_MAPPING_ANALYZER,
+
+        /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
          */
         PROMQL_HISTOGRAM_QUANTILE,
@@ -3951,6 +3973,11 @@ public class EsqlCapabilities {
          * Support for the PromQL {@code limitk()} arbitrary-selection function.
          */
         PROMQL_LIMITK,
+
+        /**
+         * Support for the PromQL {@code limit_ratio()} streaming-sampled fraction function.
+         */
+        PROMQL_LIMIT_RATIO,
 
         /**
          * Support for PromQL {@code histogram_fraction()} on native histograms.
@@ -4188,6 +4215,14 @@ public class EsqlCapabilities {
         FIX_NON_STRICT_OVERLAY_SPARSE_COLS,
 
         /**
+         * Non-strict ({@code dynamic: true}) declared-schema overlay keeps a declared column absent from a
+         * <em>complete</em> inferred schema too (Parquet, ORC, headered CSV/TSV), instead of rejecting the dataset with
+         * "declared columns not found in the source": the column reads null with the absent-column warning, as under
+         * {@code dynamic: false}. Gates tests that exercise this so they are skipped against old coordinators.
+         */
+        FIX_NON_STRICT_OVERLAY_ABSENT_COLS,
+
+        /**
          * {@code KEEP *} retains a {@code _file.*} column named in the {@code METADATA} clause.
          * Older coordinators omit those columns from star expansion, so a later reference fails
          * verification with {@code Unknown column [_file.*]}. Tests that read the column after
@@ -4239,11 +4274,33 @@ public class EsqlCapabilities {
         FULL_TEXT_FUNCTIONS_ON_TIME_SERIES_SOURCE,
 
         /**
+         * {@code SORT _score ASC} pushed down to Lucene sorts ascending. Before this fix the pushed-down sort was always
+         * descending, so with a {@code LIMIT} smaller than the number of matches Lucene kept the highest-scoring documents.
+         */
+        FIX_SCORE_SORT_ASC_PUSHDOWN,
+
+        /**
          * {@code _score} on an external relation seeds {@code 0.0} instead of {@code null}, so a runtime {@code MATCH},
          * {@code MATCH_PHRASE} over it adds its per-row score rather than returning {@code null}. Older nodes still
          * answer {@code null}.
          */
         EXTERNAL_SOURCE_SCORE_FIX,
+
+        /**
+         * Fix for {@code DocumentParser#parseArrayDynamic}: with {@code subobjects:false} and {@code dynamic:false},
+         * arrays of objects now correctly walk mapped dotted fields (e.g. {@code "objarr.k"}), consistent
+         * with the plain-object path. Previously the array was silently skipped and the values dropped.
+         * Fixed in <a href="https://github.com/elastic/elasticsearch/issues/160012">#160012</a>.
+         */
+        FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
+
+        /**
+         * A whole number in an external dataset column declared or inferred as {@code date_nanos}, without a
+         * {@code format}, is read as epoch milliseconds widened to nanoseconds, matching {@code date} columns. Parquet
+         * filter pushdown and TopN pruning scale their bounds the same way. Older nodes read such a number as epoch
+         * nanoseconds, so tests that assert the millisecond read require this capability to skip against them.
+         */
+        EXTERNAL_DATASET_DATE_NANOS_BARE_NUMBER_IS_EPOCH_MILLIS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

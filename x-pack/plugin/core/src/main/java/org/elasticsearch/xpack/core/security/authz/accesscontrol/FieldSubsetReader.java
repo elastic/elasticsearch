@@ -491,6 +491,11 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         @Override
+        public long maxDecodeBytes() {
+            return delegate instanceof BlockLoader.OptionalDecodeMemoryUsageEstimator estimator ? estimator.maxDecodeBytes() : -1;
+        }
+
+        @Override
         public boolean advanceExact(int target) throws IOException {
             clear();
 

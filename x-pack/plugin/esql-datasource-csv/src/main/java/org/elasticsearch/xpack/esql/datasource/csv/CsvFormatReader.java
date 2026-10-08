@@ -19,6 +19,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
@@ -81,6 +83,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
+import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
+import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.BufferedReader;
@@ -1271,18 +1275,36 @@ public class CsvFormatReader implements SegmentableFormatReader {
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<String> warnings = new ArrayList<>();
-        List<Attribute> schema = readSchema(object, warnings::add);
+        List<WidenedColumn> widenedColumns = new ArrayList<>();
+        InferredSchema inferred = readSchema(object, warnings::add, widenedColumns::add);
+        List<Attribute> schema = inferred.schema();
         String location = object.path().objectName();
         // mtime required for cache participation; sizeInBytes best-effort (stream-only sources throw from length()).
         long mtimeMillis;
         try {
             Instant mtime = object.lastModified();
             if (mtime == null) {
-                return new SimpleSourceMetadata(schema, formatName(), location).withWarnings(warnings);
+                return new SimpleSourceMetadata(
+                    schema,
+                    formatName(),
+                    location,
+                    null,
+                    null,
+                    SourceMetadata.withSample(Map.of(), inferred.sampleBytes(), inferred.sampleRows()),
+                    null
+                ).withWarnings(warnings).withWidenedColumns(widenedColumns);
             }
             mtimeMillis = mtime.toEpochMilli();
         } catch (IOException e) {
-            return new SimpleSourceMetadata(schema, formatName(), location).withWarnings(warnings);
+            return new SimpleSourceMetadata(
+                schema,
+                formatName(),
+                location,
+                null,
+                null,
+                SourceMetadata.withSample(Map.of(), inferred.sampleBytes(), inferred.sampleRows()),
+                null
+            ).withWarnings(warnings).withWidenedColumns(widenedColumns);
         }
         OptionalLong cachedSize;
         try {
@@ -1301,8 +1323,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
             ExternalStats.CONFIG_FINGERPRINT_KEY,
             configFingerprint
         );
-        Map<String, Object> sourceMetadata = SourceStatisticsSerializer.embedStatistics(baseSourceMetadata, stats);
-        return new SimpleSourceMetadata(schema, formatName(), location, stats, null, sourceMetadata, null).withWarnings(warnings);
+        Map<String, Object> sourceMetadata = SourceMetadata.withSample(
+            SourceStatisticsSerializer.embedStatistics(baseSourceMetadata, stats),
+            inferred.sampleBytes(),
+            inferred.sampleRows()
+        );
+        return new SimpleSourceMetadata(schema, formatName(), location, stats, null, sourceMetadata, null).withWarnings(warnings)
+            .withWidenedColumns(widenedColumns);
     }
 
     /**
@@ -1324,7 +1351,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return canonicalConfig;
     }
 
-    private List<Attribute> readSchema(StorageObject object, Consumer<String> warningSink) throws IOException {
+    private InferredSchema readSchema(StorageObject object, Consumer<String> warningSink, Consumer<WidenedColumn> widenedColumnSink)
+        throws IOException {
         String sourceLocation = object.path().objectName();
         InputStream stream = object.newStream();
         // Abort rather than close: providers like S3 drain remaining bytes on close() to reuse
@@ -1346,7 +1374,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             );
             skipLeadingContentRows(recordReader, options.skipRows(), options.commentPrefix());
             if (options.headerRow() == false) {
-                return inferSchemaWithSyntheticNames(recordReader, sourceLocation, warningSink);
+                return inferSchemaWithSyntheticNames(recordReader, sourceLocation, warningSink, widenedColumnSink);
             }
             String headerLine = null;
             String record;
@@ -1372,19 +1400,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List<Attribute> typedSchema = parseSchema(headerLine);
             if (typedSchema != null) {
                 checkUniqueAttributeNames(typedSchema);
-                return typedSchema;
+                return new InferredSchema(typedSchema, 0L, 0);
             }
-            List<Attribute> inferred = inferSchemaFromSample(headerLine, recordReader, sourceLocation, warningSink);
-            checkUniqueAttributeNames(inferred);
+            InferredSchema inferred = inferSchemaFromSample(headerLine, recordReader, sourceLocation, warningSink, widenedColumnSink);
+            checkUniqueAttributeNames(inferred.schema());
             return inferred;
         }
     }
 
-    private List<Attribute> inferSchemaFromSample(
+    private InferredSchema inferSchemaFromSample(
         String headerLine,
         CsvLogicalRecordReader recordReader,
         String sourceLocation,
-        Consumer<String> warningSink
+        Consumer<String> warningSink,
+        Consumer<WidenedColumn> widenedColumnSink
     ) throws IOException {
         String[] columnNames = splitFieldsForOptions(headerLine, options);
         if (options.quoting()) {
@@ -1394,75 +1423,85 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Iterator<List<?>> csvIterator = newCsvIterator(recordReader);
         CircuitBreaker breaker = blockFactory.breaker();
         SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
-        // Nested try/finally: sample bytes must be released even when wideningWindow collection throws.
-        // collectSampleRows self-releases its own bytes on failure, so only sample bytes need an
-        // outer guard here.
         try {
-            // Collect a widen window from rows beyond the initial sample (no offset tracking needed on
-            // the planning path). A second call on the same iterator is safe: collectSampleRows always
-            // exits with the iterator's pre-fetch slot null, so the new call picks up at the exact next row.
-            SchemaSample wideningWindow = collectSampleRows(
-                csvIterator,
-                options.commentPrefix(),
-                schemaSampleSize,
-                breaker,
-                effectivePolicy
+            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
+            boolean[] sawUndecodableTemporal = new boolean[columnNames.length];
+            List<CsvSchemaInferrer.Widening> widenings = new ArrayList<>();
+            List<Attribute> schema = CsvSchemaInferrer.inferSchema(
+                columnNames,
+                sample.rows(),
+                options.datetimeFormatter(),
+                sawUndecodableTemporal,
+                widenings
             );
-            try {
-                maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
-                // The same array both ways: a column the sample demoted off the date_nanos rail must
-                // stay off it even if the widening window holds a nanosecond value.
-                boolean[] sawUndecodableTemporal = new boolean[columnNames.length];
-                List<Attribute> schema = CsvSchemaInferrer.inferSchema(
-                    columnNames,
-                    sample.rows(),
-                    options.datetimeFormatter(),
-                    sawUndecodableTemporal
-                );
-                return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter(), sawUndecodableTemporal);
-            } finally {
-                breaker.addWithoutBreaking(-wideningWindow.reservedBytes());
-            }
+            reportWidenings(widenings, columnNames, sourceLocation, warningSink).forEach(widenedColumnSink);
+            return new InferredSchema(schema, sample.reservedBytes(), sample.rows().size());
         } finally {
             breaker.addWithoutBreaking(-sample.reservedBytes());
         }
     }
 
-    private List<Attribute> inferSchemaWithSyntheticNames(
+    private InferredSchema inferSchemaWithSyntheticNames(
         CsvLogicalRecordReader recordReader,
         String sourceLocation,
-        Consumer<String> warningSink
+        Consumer<String> warningSink,
+        Consumer<WidenedColumn> widenedColumnSink
     ) throws IOException {
         Iterator<List<?>> csvIterator = newCsvIterator(recordReader);
         CircuitBreaker breaker = blockFactory.breaker();
         SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
         try {
-            SchemaSample wideningWindow = collectSampleRows(
-                csvIterator,
-                options.commentPrefix(),
-                schemaSampleSize,
-                breaker,
-                effectivePolicy
-            );
-            try {
-                if (sample.rows().isEmpty()) {
-                    throw new IOException("CSV file has no data rows");
-                }
-                maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
-                boolean[] sawUndecodableTemporal = new boolean[syntheticColumnCount(sample.rows())];
-                List<Attribute> schema = inferSyntheticSchema(
-                    sample.rows(),
-                    options.columnPrefix(),
-                    options.datetimeFormatter(),
-                    sawUndecodableTemporal
-                );
-                return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter(), sawUndecodableTemporal);
-            } finally {
-                breaker.addWithoutBreaking(-wideningWindow.reservedBytes());
+            if (sample.rows().isEmpty()) {
+                throw new IOException("CSV file has no data rows");
             }
+            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
+            boolean[] sawUndecodableTemporal = new boolean[syntheticColumnCount(sample.rows())];
+            List<CsvSchemaInferrer.Widening> widenings = new ArrayList<>();
+            List<Attribute> schema = inferSyntheticSchema(
+                sample.rows(),
+                options.columnPrefix(),
+                options.datetimeFormatter(),
+                sawUndecodableTemporal,
+                widenings
+            );
+            String[] columnNames = synthesizeColumnNames(syntheticColumnCount(sample.rows()), options.columnPrefix());
+            reportWidenings(widenings, columnNames, sourceLocation, warningSink).forEach(widenedColumnSink);
+            return new InferredSchema(schema, sample.reservedBytes(), sample.rows().size());
         } finally {
             breaker.addWithoutBreaking(-sample.reservedBytes());
         }
+    }
+
+    /**
+     * Resolves raw {@link CsvSchemaInferrer.Widening}s (column index) into {@link WidenedColumn}s (column
+     * name), and emits a user-facing warning for each. Reuses the vocabulary
+     * {@code SchemaReconciliation}'s cross-file emitters ({@code emitKeywordFallbackWarnings} /
+     * {@code emitPrecisionLossWarnings}) use for the same shape of retype, so a within-file and a
+     * cross-file widen read alike. Returns the resolved list so the planning path can also attach it to
+     * {@link SourceMetadata#widenedColumns()} — the structured record {@code schema_resolution: strict}
+     * needs to refuse a widen even on a single-file dataset, where cross-file reconciliation otherwise
+     * has nothing to compare against.
+     */
+    private static List<WidenedColumn> reportWidenings(
+        List<CsvSchemaInferrer.Widening> widenings,
+        String[] columnNames,
+        String sourceLocation,
+        Consumer<String> warningSink
+    ) {
+        if (widenings.isEmpty()) {
+            return List.of();
+        }
+        List<WidenedColumn> resolved = new ArrayList<>(widenings.size());
+        for (CsvSchemaInferrer.Widening widening : widenings) {
+            String name = columnNames[widening.column()].trim();
+            // Cap before either consumer: value is unbounded user data, and both the warning text and
+            // the WidenedColumn (cached, and replayed into a schema_resolution: strict exception) must
+            // not carry it through verbatim. See WidenedColumn.MAX_VALUE_LENGTH.
+            String value = Strings.cleanTruncate(widening.value(), WidenedColumn.MAX_VALUE_LENGTH);
+            resolved.add(new WidenedColumn(name, widening.fromType(), widening.toType(), value, widening.row()));
+        }
+        WithinFileWideningWarnings.report(resolved, sourceLocation, "column", "row", warningSink);
+        return resolved;
     }
 
     /**
@@ -1548,12 +1587,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         List<String[]> sampleRows,
         String prefix,
         @Nullable DateFormatter datetimeFormatter,
-        boolean[] sawUndecodableTemporal
+        boolean[] sawUndecodableTemporal,
+        List<CsvSchemaInferrer.Widening> widenings
     ) {
         assert sampleRows.isEmpty() == false : "sampleRows must be non-empty for synthetic schema inference";
         int columnCount = syntheticColumnCount(sampleRows);
         String[] columnNames = synthesizeColumnNames(columnCount, prefix);
-        return CsvSchemaInferrer.inferSchema(columnNames, sampleRows, datetimeFormatter, sawUndecodableTemporal);
+        return CsvSchemaInferrer.inferSchema(columnNames, sampleRows, datetimeFormatter, sawUndecodableTemporal, widenings);
     }
 
     static String[] synthesizeColumnNames(int count, String prefix) {
@@ -1695,6 +1735,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * data and skipping their capture keeps that call site allocation-free.
      */
     record SchemaSample(List<String[]> rows, long reservedBytes, long[] rowStartBytes, boolean recordCapDropped) {}
+
+    /** Schema plus the sample width used to size LIMIT cuts. */
+    private record InferredSchema(List<Attribute> schema, long sampleBytes, int sampleRows) {}
+
+    /** The bracket elements {@code null_field} dropped from one cell, held until the row's width is accepted. */
+    private record DroppedElements(List<String> messages, String value, Attribute attr) {}
 
     /** Hard cap on consecutive parse failures during schema sampling, applied INDEPENDENTLY of
      *  the user's {@link ErrorPolicy}. Jackson's stream-based CSV parser cannot guarantee
@@ -1899,7 +1945,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * The reason clause of a row the reader could not parse: the cause message without the
-     * {@link #READ_RECORD_FAILURE} prefix the record iterator adds, capped by {@link CsvErrorMessages#summarize}.
+     * {@link #READ_RECORD_FAILURE} prefix the record iterator adds, capped by {@link ErrorExcerpts#summarize}.
      * Jackson's over-{@code max_field_size} message is rendered as {@link #fieldSizeExceededDetail}, so the
      * Jackson arm and the house tokenizer report an over-long field in the same words. Any other message loses its
      * {@link #JACKSON_CONSTRAINT_REFERENCE}.
@@ -1914,12 +1960,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             reason = JACKSON_CONSTRAINT_REFERENCE.matcher(reason).replaceAll("");
         }
-        return CsvErrorMessages.summarize(reason);
+        return ErrorExcerpts.summarize(reason);
     }
 
     /** The reason for a value that does not fit its column's type. */
     static String cannotRead(String value, DataType type) {
-        return "cannot read [" + CsvErrorMessages.summarize(value) + "] as [" + type.typeName() + "]";
+        return "cannot read [" + ErrorExcerpts.summarize(value) + "] as [" + type.typeName() + "]";
     }
 
     private static ExternalClientException zeroRowsSamplingError(List<String> capturedErrors, Throwable firstCause) {
@@ -3575,6 +3621,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private long errorCount = 0;
         private long totalRowCount = 0;
         private String lastFieldError;
+        /**
+         * Errors of the bracket elements {@code null_field} dropped from the cell just converted, which kept its
+         * remaining elements or, with none left, reads null (see {@link #tryConvertMultiValue}). Every caller of
+         * {@link #tryConvertValue} drains it right after the call: reporting the drops, deferring them with the row's
+         * other errors, or discarding them.
+         */
+        private final List<String> droppedElementErrors = new ArrayList<>();
         /** Non-null iff the iterator is eligible to populate {@link ExternalStats} on close (whole-file read). */
         private final StorageObject cacheableObject;
         /** Non-null iff stats capture is enabled. Wraps the underlying stream so bytesRead is available at close. */
@@ -3783,6 +3836,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 errorPolicy.mode() == ErrorPolicy.Mode.NULL_FIELD
                     ? "Some values in [" + messageLocation + "] cannot be read; returning null, and skipping rows that cannot be parsed"
                     : "Some rows in [" + messageLocation + "] cannot be read; skipping them",
+                "Some values in [" + messageLocation + "] cannot be read; " + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME,
                 this.warningSink
             );
         }
@@ -4479,16 +4533,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
                 return null;
             }
-            SchemaSample wideningWindow = collectWideningWindowAndPrefetch(sample);
+            prefetchSample(sample);
             maybeHintUndecodedNullMarker(sample.rows(), messageLocation, warningSink);
             boolean[] sawUndecodableTemporal = new boolean[columnNames.length];
+            List<CsvSchemaInferrer.Widening> widenings = new ArrayList<>();
             List<Attribute> schema = CsvSchemaInferrer.inferSchema(
                 columnNames,
                 sample.rows(),
                 options.datetimeFormatter(),
-                sawUndecodableTemporal
+                sawUndecodableTemporal,
+                widenings
             );
-            return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter(), sawUndecodableTemporal);
+            reportWidenings(widenings, columnNames, messageLocation, warningSink);
+            return schema;
         }
 
         private List<Attribute> inferSchemaHeaderlessFromBatchReader() throws IOException {
@@ -4507,70 +4564,34 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
                 return null;
             }
-            SchemaSample wideningWindow = collectWideningWindowAndPrefetch(sample);
+            prefetchSample(sample);
             maybeHintUndecodedNullMarker(sample.rows(), messageLocation, warningSink);
             boolean[] sawUndecodableTemporal = new boolean[syntheticColumnCount(sample.rows())];
+            List<CsvSchemaInferrer.Widening> widenings = new ArrayList<>();
             List<Attribute> schema = inferSyntheticSchema(
                 sample.rows(),
                 options.columnPrefix(),
                 options.datetimeFormatter(),
-                sawUndecodableTemporal
+                sawUndecodableTemporal,
+                widenings
             );
-            return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter(), sawUndecodableTemporal);
+            String[] columnNames = synthesizeColumnNames(syntheticColumnCount(sample.rows()), options.columnPrefix());
+            reportWidenings(widenings, columnNames, messageLocation, warningSink);
+            return schema;
         }
 
         /**
-         * Collects the widening window from rows immediately following {@code sample}, sets up the combined
-         * prefetch state ({@code prefetchedRows}, {@code prefetchedRowStartBytes}, {@code prefetchedRowsBytes}),
-         * and returns the window for use in schema widening.
-         * <p>
-         * {@code prefetchedRowsBytes} is assigned before any heap allocations in the non-empty branch so that
-         * {@link #closeInternal()} can release the correct byte total even if a subsequent allocation throws.
-         * <p>
-         * On failure, releases {@code sample.reservedBytes()} from the circuit breaker and re-throws.
+         * Sets up the prefetch state ({@code prefetchedRows}, {@code prefetchedRowStartBytes},
+         * {@code prefetchedRowsBytes}) from the schema sample, so its rows are replayed as the file's
+         * actual first rows of data rather than discarded after inference.
          */
-        private SchemaSample collectWideningWindowAndPrefetch(SchemaSample sample) throws IOException {
-            final SchemaSample wideningWindow;
-            try {
-                routeCsvIterator(newCsvIterator(recordReader), true);
-                wideningWindow = collectSampleRows(
-                    csvIterator,
-                    options.commentPrefix(),
-                    schemaSampleSize,
-                    blockFactory.breaker(),
-                    errorPolicy,
-                    recordReader,
-                    splitStartByte
-                );
-                clearCsvIterator();
-            } catch (Exception | Error t) {
-                clearCsvIterator();
-                blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
-                throw t;
-            }
-            if (sample.recordCapDropped() || wideningWindow.recordCapDropped()) {
+        private void prefetchSample(SchemaSample sample) {
+            if (sample.recordCapDropped()) {
                 recordCapDropped = true; // cap-determined survivor loss during sampling — publish must safe-miss
             }
-            if (wideningWindow.rows().isEmpty()) {
-                prefetchedRows = sample.rows();
-                prefetchedRowStartBytes = sample.rowStartBytes();
-                prefetchedRowsBytes = sample.reservedBytes();
-            } else {
-                // Set prefetchedRowsBytes first so closeInternal() releases the right total
-                // even if the ArrayList or array allocation below throws OOM.
-                prefetchedRowsBytes = sample.reservedBytes() + wideningWindow.reservedBytes();
-                List<String[]> allRows = new ArrayList<>(sample.rows().size() + wideningWindow.rows().size());
-                allRows.addAll(sample.rows());
-                allRows.addAll(wideningWindow.rows());
-                long[] so = sample.rowStartBytes();
-                long[] wo = wideningWindow.rowStartBytes();
-                long[] allOffsets = new long[so.length + wo.length];
-                System.arraycopy(so, 0, allOffsets, 0, so.length);
-                System.arraycopy(wo, 0, allOffsets, so.length, wo.length);
-                prefetchedRows = allRows;
-                prefetchedRowStartBytes = allOffsets;
-            }
-            return wideningWindow;
+            prefetchedRows = sample.rows();
+            prefetchedRowStartBytes = sample.rowStartBytes();
+            prefetchedRowsBytes = sample.reservedBytes();
         }
 
         /**
@@ -4844,6 +4865,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                 } else {
                     rowBuffer[i] = result;
+                    if (droppedElementErrors.isEmpty() == false) {
+                        onDroppedElements(List.copyOf(droppedElementErrors), value, projectedAttrs[i]);
+                        droppedElementErrors.clear();
+                    }
                 }
             }
             return true;
@@ -4898,6 +4923,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     lastFieldError = null; // an unparseable file column contributes a null; never poisons the harvest
                     converted = null;
                 }
+                // The projected read reports dropped elements; the harvest only gathers stats.
+                droppedElementErrors.clear();
                 acc.acceptValueAt(si, converted);
             }
             lastFieldError = savedError;
@@ -5446,6 +5473,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final List<String> pendingFieldErrors = new ArrayList<>();
         private final List<String> pendingFieldValues = new ArrayList<>();
         private final List<Attribute> pendingFieldAttrs = new ArrayList<>();
+        /** Bracket cells {@code null_field} dropped elements from; see {@link #onDroppedElements}. */
+        private final List<DroppedElements> pendingDroppedElements = new ArrayList<>();
         /** First coercion error on a row under SKIP_ROW/FAIL_FAST; the row is doomed, but the walk finishes to count it. */
         private String pendingRowError;
         private boolean hasPendingErrors;
@@ -5456,6 +5485,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 pendingFieldErrors.clear();
                 pendingFieldValues.clear();
                 pendingFieldAttrs.clear();
+                pendingDroppedElements.clear();
                 pendingRowError = null;
                 hasPendingErrors = false;
             }
@@ -5479,8 +5509,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
             for (int i = 0; i < pendingFieldErrors.size(); i++) {
                 onFieldError(pendingFieldErrors.get(i), pendingFieldValues.get(i), pendingFieldAttrs.get(i));
             }
+            for (DroppedElements dropped : pendingDroppedElements) {
+                onDroppedElements(dropped.messages(), dropped.value(), dropped.attr());
+            }
             clearPendingErrors();
             return true;
+        }
+
+        /** Holds the elements {@code null_field} dropped from the cell just converted, if any, like {@link #deferFieldError}. */
+        private void deferDroppedElements(String value, int bufIdx) {
+            if (droppedElementErrors.isEmpty() == false) {
+                hasPendingErrors = true;
+                pendingDroppedElements.add(new DroppedElements(List.copyOf(droppedElementErrors), value, projectedAttrs[bufIdx]));
+                droppedElementErrors.clear();
+            }
         }
 
         /** Holds a coercion error until {@link #flushPendingErrors}; returns true so the walk finishes the field count. */
@@ -5515,6 +5557,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return deferFieldError(err, value, bufIdx);
             }
             stageConvertedValue(bufIdx, result);
+            deferDroppedElements(value, bufIdx);
             return true;
         }
 
@@ -6438,6 +6481,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return deferFieldError(err, value, bufIdx);
             }
             rowBuffer[bufIdx] = result;
+            deferDroppedElements(value, bufIdx);
             return true;
         }
 
@@ -6522,7 +6566,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
             for (String part : parts) {
                 Object elem = parseElement(part, dataType, columnIndex);
                 if (lastFieldError != null) {
-                    return null;
+                    if (modeOrdinal != ErrorPolicy.Mode.NULL_FIELD.ordinal()) {
+                        return null;
+                    }
+                    // null_field drops the failing element and keeps the rest, as the columnar readers do; a cell
+                    // left with none reads null. The caller reports the drops.
+                    droppedElementErrors.add(lastFieldError);
+                    lastFieldError = null;
+                    continue;
                 }
                 if (elem != null) {
                     result.add(elem);
@@ -6795,8 +6846,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // only. Every rail goes through EsqlDataTypeConverter.dateNanosToLong — the SAME string -> date_nanos
             // conversion the columnar declared coercion (DeclaredTypeCoercions.scalarCoercer, which threads the
             // declared format) and the NDJSON decode arm use — so identical bytes with an identical declared format
-            // yield the same instant across every format. A bare numeric cell is epoch NANOS: the declared type names
-            // the numeric unit (datetime = millis, date_nanos = nanos; see DeclaredTypeCoercions).
+            // yield the same instant across every format. A bare numeric cell is epoch millis, exactly as under
+            // datetime, widened to nanos (the unit rule; see DeclaredTypeCoercions).
             if (columnIndex >= 0
                 && declaredFormatters != null
                 && columnIndex < declaredFormatters.length
@@ -6809,7 +6860,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
             }
             // See tryParseDatetime: the file-level pattern outranks the epoch shortcut when it matches the cell, and a
-            // numeric cell it does not match stays epoch nanos.
+            // numeric cell it does not match stays epoch millis.
             if (datetimeFormatter != null) {
                 if (looksNumeric(value) == false || datetimeFormatter.tryParse(value) != null) {
                     try {
@@ -6820,23 +6871,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                 }
                 Long epoch = parseEpoch(value);
-                if (epoch == null || epoch < 0) {
-                    // A negative epoch has no date_nanos representation (the TO_DATE_NANOS range rule), so it fails the
-                    // cell through the error policy rather than ever emitting a negative nanos long.
+                Long nanos = epoch == null ? null : epochMillisToNanos(epoch);
+                if (nanos == null) {
                     lastFieldError = cannotRead(value, DataType.DATE_NANOS);
-                    return null;
                 }
-                return epoch;
+                return nanos;
             }
             if (looksNumeric(value)) {
                 Long epoch = parseEpoch(value);
-                if (epoch != null && epoch >= 0) {
-                    return epoch;
-                }
                 if (epoch != null) {
-                    // A negative epoch is not a representable date_nanos; fail the cell rather than emit it.
-                    lastFieldError = cannotRead(value, DataType.DATE_NANOS);
-                    return null;
+                    Long nanos = epochMillisToNanos(epoch);
+                    if (nanos == null) {
+                        lastFieldError = cannotRead(value, DataType.DATE_NANOS);
+                    }
+                    return nanos;
                 }
                 // Overflowed a long; fall through to the ISO fallback, which will report the failure.
             }
@@ -6878,7 +6926,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * {@code String[]}. Uses the raw CSV line for the error excerpt instead.
          */
         private void onRowError(String message, Exception cause, String rawLine, boolean structural) {
-            onRowErrorImpl(message, cause, CsvErrorMessages.summarize(rawLine), structural);
+            onRowErrorImpl(message, cause, ErrorExcerpts.summarize(rawLine), structural);
         }
 
         private void onRowErrorImpl(String message, Exception cause, String rowExcerpt, boolean structural) {
@@ -6913,7 +6961,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private void onFieldError(String message, String value, Attribute attr) {
             errorCount++;
-            String summarizedValue = CsvErrorMessages.summarize(value);
+            String summarizedValue = ErrorExcerpts.summarize(value);
             skipWarnings.add("row [" + totalRowCount + "], column [" + attr.name() + "]: " + message);
             if (logErrors) {
                 logger.warn(
@@ -6924,6 +6972,30 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     errorCount,
                     errorPolicy.maxErrors(),
                     message
+                );
+            }
+            checkBudget(null);
+        }
+
+        /**
+         * Reports the bracket elements {@code null_field} dropped from one cell, which keeps the rest or, with none
+         * left, reads null. The cell costs the
+         * error budget once, however many of its elements failed, as a cell nulled by {@link #onFieldError} does.
+         */
+        private void onDroppedElements(List<String> messages, String value, Attribute attr) {
+            errorCount++;
+            for (String message : messages) {
+                skipWarnings.addRemovedFromMultiValue("row [" + totalRowCount + "], column [" + attr.name() + "]: " + message);
+            }
+            if (logErrors) {
+                logger.warn(
+                    "Removing unparseable values from multi-valued field [{}] value [{}] in row [{}] (error {}/{}): {}",
+                    attr.name(),
+                    ErrorExcerpts.summarize(value),
+                    totalRowCount,
+                    errorCount,
+                    errorPolicy.maxErrors(),
+                    messages
                 );
             }
             checkBudget(null);
@@ -6956,6 +7028,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
             try {
                 return Long.parseLong(value);
             } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+
+        /**
+         * Widens a bare epoch-millis cell to a {@code date_nanos} value, or {@code null} when the instant is before the
+         * epoch or after 2262 and so has no {@code date_nanos} representation (the {@code TO_DATE_NANOS} range rule).
+         */
+        private static Long epochMillisToNanos(long millis) {
+            try {
+                return org.elasticsearch.common.time.DateUtils.toNanoSeconds(millis);
+            } catch (IllegalArgumentException e) {
                 return null;
             }
         }

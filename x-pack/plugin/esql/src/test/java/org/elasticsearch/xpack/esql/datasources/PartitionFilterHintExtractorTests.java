@@ -11,18 +11,34 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -44,8 +60,10 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 
 import java.time.Instant;
 import java.time.Period;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 
@@ -612,6 +630,292 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertEquals(List.of(new PartitionFilterHint("month", Operator.EQUALS, List.of(6L))), hints);
     }
 
+    public void testResolvedEqualsOnYear() {
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            List.of(new Equals(SRC, intField("year"), intLiteral(2024))),
+            Set.of(),
+            Set.of("year")
+        );
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(2024))), hints);
+    }
+
+    public void testResolvedMvInRangeOnYearEmitsClosedBounds() {
+        List<PartitionFilterHint> closed = List.of(
+            new PartitionFilterHint("year", Operator.GREATER_THAN_OR_EQUAL, List.of(2024)),
+            new PartitionFilterHint("year", Operator.LESS_THAN_OR_EQUAL, List.of(2025))
+        );
+        Expression filter = new MvInRange(SRC, intField("year"), intLiteral(2024), intLiteral(2025));
+        assertEquals(closed, PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("year")));
+        // Inclusivity is not read: exclusive options still emit the closed superset.
+        Expression exclusive = new MapExpression(
+            SRC,
+            List.of(
+                Literal.keyword(SRC, "include_lower"),
+                new Literal(SRC, false, DataType.BOOLEAN),
+                Literal.keyword(SRC, "include_upper"),
+                new Literal(SRC, false, DataType.BOOLEAN)
+            )
+        );
+        Expression exclusiveFilter = new MvInRange(SRC, intField("year"), intLiteral(2024), intLiteral(2025), exclusive);
+        assertEquals(closed, PartitionFilterHintExtractor.fromConjuncts(List.of(exclusiveFilter), Set.of(), Set.of("year")));
+    }
+
+    public void testResolvedMvGreaterOnYearEmitsGte() {
+        Expression filter = new MvGreater(SRC, intField("year"), intLiteral(2024));
+        assertEquals(
+            List.of(new PartitionFilterHint("year", Operator.GREATER_THAN_OR_EQUAL, List.of(2024))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("year"))
+        );
+    }
+
+    public void testResolvedMvLessOnYearEmitsLte() {
+        Expression filter = new MvLess(SRC, intField("year"), intLiteral(2025));
+        assertEquals(
+            List.of(new PartitionFilterHint("year", Operator.LESS_THAN_OR_EQUAL, List.of(2025))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("year"))
+        );
+    }
+
+    public void testResolvedMvInRangeListBoundEmitsNothing() {
+        Literal listBound = new Literal(SRC, List.of(2020, 2024), DataType.INTEGER);
+        assertTrue(
+            PartitionFilterHintExtractor.fromConjuncts(
+                List.of(new MvInRange(SRC, intField("year"), listBound, intLiteral(2025))),
+                Set.of(),
+                Set.of("year")
+            ).isEmpty()
+        );
+        assertTrue(
+            PartitionFilterHintExtractor.fromConjuncts(
+                List.of(new MvInRange(SRC, intField("year"), intLiteral(2020), listBound)),
+                Set.of(),
+                Set.of("year")
+            ).isEmpty()
+        );
+        assertTrue(
+            PartitionFilterHintExtractor.fromConjuncts(List.of(new MvGreater(SRC, intField("year"), listBound)), Set.of(), Set.of("year"))
+                .isEmpty()
+        );
+    }
+
+    public void testResolvedMvInRangeNonLiteralBoundEmitsNothing() {
+        assertTrue(
+            PartitionFilterHintExtractor.fromConjuncts(
+                List.of(new MvInRange(SRC, intField("year"), intField("start"), intLiteral(2025))),
+                Set.of(),
+                Set.of("year")
+            ).isEmpty()
+        );
+        assertTrue(
+            PartitionFilterHintExtractor.fromConjuncts(
+                List.of(new MvInRange(SRC, intField("year"), intLiteral(2020), intField("end"))),
+                Set.of(),
+                Set.of("year")
+            ).isEmpty()
+        );
+    }
+
+    public void testResolvedMvInRangeOnDataColumnEmitsNothing() {
+        Expression filter = new MvInRange(SRC, intField("id"), intLiteral(1), intLiteral(9));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("year")).isEmpty());
+    }
+
+    public void testResolvedRangeInclusivityPairs() {
+        FieldAttribute year = intField("year");
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("year", Operator.GREATER_THAN_OR_EQUAL, List.of(2020)),
+                new PartitionFilterHint("year", Operator.LESS_THAN_OR_EQUAL, List.of(2024))
+            ),
+            PartitionFilterHintExtractor.fromConjuncts(
+                List.of(new Range(SRC, year, intLiteral(2020), true, intLiteral(2024), true, ZoneOffset.UTC)),
+                Set.of(),
+                Set.of("year")
+            )
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("year", Operator.GREATER_THAN, List.of(2020)),
+                new PartitionFilterHint("year", Operator.LESS_THAN, List.of(2024))
+            ),
+            PartitionFilterHintExtractor.fromConjuncts(
+                List.of(new Range(SRC, year, intLiteral(2020), false, intLiteral(2024), false, ZoneOffset.UTC)),
+                Set.of(),
+                Set.of("year")
+            )
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("year", Operator.GREATER_THAN_OR_EQUAL, List.of(2020)),
+                new PartitionFilterHint("year", Operator.LESS_THAN, List.of(2024))
+            ),
+            PartitionFilterHintExtractor.fromConjuncts(
+                List.of(new Range(SRC, year, intLiteral(2020), true, intLiteral(2024), false, ZoneOffset.UTC)),
+                Set.of(),
+                Set.of("year")
+            )
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("year", Operator.GREATER_THAN, List.of(2020)),
+                new PartitionFilterHint("year", Operator.LESS_THAN_OR_EQUAL, List.of(2024))
+            ),
+            PartitionFilterHintExtractor.fromConjuncts(
+                List.of(new Range(SRC, year, intLiteral(2020), false, intLiteral(2024), true, ZoneOffset.UTC)),
+                Set.of(),
+                Set.of("year")
+            )
+        );
+    }
+
+    public void testResolvedNotMvInRangeEmitsNothing() {
+        Expression filter = new Not(SRC, new MvInRange(SRC, intField("year"), intLiteral(2024), intLiteral(2025)));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("year")).isEmpty());
+    }
+
+    public void testTemporalNormalizerMapsDatetimeNumberToInstant() {
+        Expression filter = new GreaterThan(SRC, datetimeField("ts"), datetimeLiteral(1L));
+        assertEquals(
+            List.of(new PartitionFilterHint("ts", Operator.GREATER_THAN, List.of(Instant.ofEpochMilli(1L)))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("ts"), PartitionFilterHintExtractor.TEMPORAL)
+        );
+    }
+
+    public void testTemporalNormalizerMapsDateNanosNumberToInstant() {
+        long nanos = 1_700_000_000_123_456_789L;
+        Expression filter = new GreaterThan(SRC, dateNanosField("ts"), new Literal(SRC, nanos, DataType.DATE_NANOS));
+        assertEquals(
+            List.of(new PartitionFilterHint("ts", Operator.GREATER_THAN, List.of(Instant.parse("2023-11-14T22:13:20.123456789Z")))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("ts"), PartitionFilterHintExtractor.TEMPORAL)
+        );
+    }
+
+    public void testResolvedEqualsOnDataColumnEmitsNothing() {
+        Expression filter = new Equals(SRC, intField("id"), intLiteral(123));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("year")).isEmpty());
+    }
+
+    public void testResolvedInOnDataColumnEmitsNothing() {
+        Expression filter = new In(SRC, intField("id"), List.of(intLiteral(1), intLiteral(2)));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("year")).isEmpty());
+    }
+
+    public void testResolvedGreaterThanOnRequestedFileModifiedEmitsHint() {
+        Expression filter = new GreaterThan(SRC, fileMeta(FileMetadataColumns.MODIFIED), datetimeLiteral(1L));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.MODIFIED, Operator.GREATER_THAN, List.of(1L))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.MODIFIED), Set.of())
+        );
+    }
+
+    public void testUnresolvedEqualsIsEmptyOnResolvedFromConjuncts() {
+        assertTrue(
+            PartitionFilterHintExtractor.fromConjuncts(
+                List.of(new Equals(SRC, unresolved("year"), intLiteral(2024))),
+                Set.of(),
+                Set.of("year")
+            ).isEmpty()
+        );
+    }
+
+    public void testResolvedStartsWithFileNameEmitsRange() {
+        Expression filter = new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("2024-03-15"));
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            List.of(filter),
+            Set.of(FileMetadataColumns.NAME),
+            Set.of()
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint(FileMetadataColumns.NAME, Operator.GREATER_THAN_OR_EQUAL, List.of("2024-03-15")),
+                new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LESS_THAN, List.of("2024-03-16"))
+            ),
+            hints
+        );
+    }
+
+    public void testResolvedStartsWithDataColumnEmitsNothing() {
+        Expression filter = new StartsWith(SRC, keywordField("STATION"), keywordLiteral("a"));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("year")).isEmpty());
+    }
+
+    public void testResolvedStartsWithPartitionYearEmitsRange() {
+        Expression field = new StartsWith(SRC, keywordField("year"), keywordLiteral("2024"));
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("year", Operator.GREATER_THAN_OR_EQUAL, List.of("2024")),
+                new PartitionFilterHint("year", Operator.LESS_THAN, List.of("2025"))
+            ),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(field), Set.of(), Set.of("year"))
+        );
+        // Hive partition columns are ReferenceAttribute after analysis, not FieldAttribute.
+        Expression ref = new StartsWith(SRC, new ReferenceAttribute(SRC, "year", DataType.KEYWORD), keywordLiteral("2024"));
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("year", Operator.GREATER_THAN_OR_EQUAL, List.of("2024")),
+                new PartitionFilterHint("year", Operator.LESS_THAN, List.of("2025"))
+            ),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(ref), Set.of(), Set.of("year"))
+        );
+    }
+
+    public void testResolvedRLikeEmitsNothing() {
+        Expression filter = new RLike(SRC, fileMeta(FileMetadataColumns.NAME), new RLikePattern("a-.*"));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
+    }
+
+    public void testResolvedNotStartsWithEmitsNothing() {
+        Expression filter = new Not(SRC, new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("a-")));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
+    }
+
+    public void testUnrequestedFileNameStartsWithEmitsNothing() {
+        Expression filter = new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("a-"));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of()).isEmpty());
+    }
+
+    public void testResolvedWildcardLikePrefixEmitsRange() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a-*"));
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            List.of(filter),
+            Set.of(FileMetadataColumns.NAME),
+            Set.of()
+        );
+        assertEquals(Operator.GREATER_THAN_OR_EQUAL, hints.get(0).operator());
+        assertEquals("a-", hints.get(0).values().get(0));
+        assertEquals(Operator.LESS_THAN, hints.get(1).operator());
+    }
+
+    public void testResolvedWildcardLikeNonPrefixEmitsNothing() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a-*z"));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
+    }
+
+    public void testResolvedEqualsOnAliasEmitsNothing() {
+        Expression filter = new Equals(SRC, new Alias(SRC, "year", intField("year")), intLiteral(2024));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("year")).isEmpty());
+    }
+
+    public void testResolvedEmptyPrefixEmitsNothing() {
+        Expression filter = new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral(""));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
+    }
+
+    public void testResolvedOrOfTwoPrefixesEmitsNothing() {
+        // Walking OR would AND two GTE/LT ranges in matchesAllFileHints and drop every file.
+        Expression filter = new Or(
+            SRC,
+            new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("a-")),
+            new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("b-"))
+        );
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
+    }
+
+    public void testResolvedCaseInsensitiveLikeEmitsNothing() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a-*"), true);
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
+    }
+
     public void testPreprocessorFoldsNestedDateExtractOverDateTrunc() {
         UnresolvedFunction trunc = new UnresolvedFunction(
             SRC,
@@ -639,6 +943,26 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
 
     private static UnresolvedAttribute unresolved(String name) {
         return new UnresolvedAttribute(SRC, name);
+    }
+
+    private static FieldAttribute intField(String name) {
+        return new FieldAttribute(SRC, name, new EsField(name, DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static FieldAttribute datetimeField(String name) {
+        return new FieldAttribute(SRC, name, new EsField(name, DataType.DATETIME, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static FieldAttribute dateNanosField(String name) {
+        return new FieldAttribute(SRC, name, new EsField(name, DataType.DATE_NANOS, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static FieldAttribute keywordField(String name) {
+        return new FieldAttribute(SRC, name, new EsField(name, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static ExternalMetadataAttribute fileMeta(String name) {
+        return new ExternalMetadataAttribute(SRC, name, DataType.KEYWORD);
     }
 
     private static Literal intLiteral(int value) {

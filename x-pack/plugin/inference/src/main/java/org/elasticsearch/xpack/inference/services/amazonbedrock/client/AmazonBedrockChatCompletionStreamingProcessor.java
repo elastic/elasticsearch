@@ -67,9 +67,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
 
     private int reasoningBlockCount;
     private final Map<Integer, Integer> contentBlockIndexToReasoningIndex = new HashMap<>();
-    /**
-     * Tool calls are numbered in the order they start. Entries are never removed, so the map size is the next free index.
-     */
+    private int toolCallCount;
     private final Map<Integer, Integer> contentBlockIndexToToolCallIndex = new HashMap<>();
 
     protected AmazonBedrockChatCompletionStreamingProcessor(ThreadPool threadPool, String modelId, AmazonBedrockProvider provider) {
@@ -331,10 +329,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
         var type = event.start().type();
 
         if (ContentBlockStart.Type.TOOL_USE == type) {
-            int toolCallIndex = contentBlockIndexToToolCallIndex.computeIfAbsent(
-                event.contentBlockIndex(),
-                k -> contentBlockIndexToToolCallIndex.size()
-            );
+            int toolCallIndex = contentBlockIndexToToolCallIndex.computeIfAbsent(event.contentBlockIndex(), k -> toolCallCount++);
             var toolCall = handleToolUseStart(event.start(), toolCallIndex);
             var message = new ChatCompletionMessageResponse(
                 null,

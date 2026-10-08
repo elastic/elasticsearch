@@ -915,11 +915,6 @@ public final class ExternalSourceMetrics {
     }
 
     /**
-     * Returns {@code base} plus {@link #ERROR_TYPE_ATTRIBUTE} and {@link #STATUS_ATTRIBUTE} (each omitted when
-     * {@code null}). Only used on the failure paths, so allocating a map per call is not a hot-path concern; the
-     * value space is closed ({@code errorType}) or a handful of HTTP codes ({@code status}).
-     */
-    /**
      * Folds a failure category into the closed {@link DataSourceUsageAccumulator#ERROR_TYPE_NAMES} set: anything outside it,
      * including {@code null}, becomes {@link DataSourceUsageAccumulator#ERROR_TYPE_OTHER}. The classifier only returns members
      * of the set; this is the boundary that publishes the label, so it does not rely on that.
@@ -930,6 +925,11 @@ public final class ExternalSourceMetrics {
             : DataSourceUsageAccumulator.ERROR_TYPE_OTHER;
     }
 
+    /**
+     * Returns {@code base} plus {@link #ERROR_TYPE_ATTRIBUTE} and {@link #STATUS_ATTRIBUTE} (each omitted when
+     * {@code null}). Only used on the failure paths, so allocating a map per call is not a hot-path concern; the
+     * value space is closed ({@code errorType}) or a handful of HTTP codes ({@code status}).
+     */
     private static Map<String, Object> failureAttrs(Map<String, Object> base, @Nullable String errorType, @Nullable String status) {
         if (errorType == null && status == null) {
             return base;

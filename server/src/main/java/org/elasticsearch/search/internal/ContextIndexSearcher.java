@@ -83,6 +83,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private final AtomicReference<PointRangeExecutionAccounting> pointRangeAccounting = new AtomicReference<>();
 
+    /** The searcher whose circuit breaker and execution accounting this one uses: itself, unless created by {@link #withQueryCache}. */
+    private ContextIndexSearcher accountingOwner = this;
+
     private final MutableQueryTimeout cancellable;
 
     private final boolean hasExecutor;
@@ -186,7 +189,23 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     @Nullable
     public static CircuitBreaker circuitBreakerOrNull(IndexSearcher searcher) {
-        return searcher instanceof ContextIndexSearcher cis ? cis.circuitBreaker : null;
+        return searcher instanceof ContextIndexSearcher cis ? cis.accountingOwner.circuitBreaker : null;
+    }
+
+    /**
+     * Returns a searcher over the same reader that uses {@code queryCache} and shares this searcher's request circuit breaker and
+     * execution accounting. The execution memory its weights charge is released when this searcher is closed.
+     */
+    public ContextIndexSearcher withQueryCache(QueryCache queryCache) throws IOException {
+        ContextIndexSearcher derived = new ContextIndexSearcher(
+            getIndexReader(),
+            getSimilarity(),
+            queryCache,
+            getQueryCachingPolicy(),
+            false
+        );
+        derived.accountingOwner = accountingOwner;
+        return derived;
     }
 
     /**
@@ -319,15 +338,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
 
         PointRangeQuery pointRangeQuery = pointRangeQueryOrNull(query);
-        if (circuitBreaker != null && pointRangeQuery != null) {
-            getOrCreatePointRangeAccounting();
+        if (accountingOwner.circuitBreaker != null && pointRangeQuery != null) {
+            accountingOwner.getOrCreatePointRangeAccounting();
             return new PointRangeBreakerWeight(this, weight, pointRangeQuery, query instanceof IndexOrDocValuesQuery);
         }
         return weight;
     }
 
     void chargeLeaf(LeafReaderContext ctx, long bytes) {
-        PointRangeExecutionAccounting accounting = getOrCreatePointRangeAccounting();
+        PointRangeExecutionAccounting accounting = accountingOwner.getOrCreatePointRangeAccounting();
         if (accounting != null) {
             accounting.charge(ctx, bytes);
         }
@@ -565,7 +584,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector) throws IOException {
         cancellable.checkCancelled();
 
-        final PointRangeExecutionAccounting accounting = this.pointRangeAccounting.get();
+        final PointRangeExecutionAccounting accounting = accountingOwner.pointRangeAccounting.get();
         try (Releasable ignored = accounting == null ? NOOP_RELEASABLE : accounting.enterLeaf(ctx)) {
             final LeafCollector leafCollector;
             try {

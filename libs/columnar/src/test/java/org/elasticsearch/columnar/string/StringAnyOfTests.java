@@ -74,6 +74,25 @@ public class StringAnyOfTests extends ColumnarStringTestCase {
         assertAnyOf(docValues, DictionaryPolicy.NONE);
     }
 
+    public void testBisectionAndSweepAgreeOnTheSameTerms() throws IOException {
+        final BytesRef[] docValues = repeated(between(400, 2000));
+        for (String one : TERMS) {
+            final NavigableSet<BytesRef> single = termsOf(one);
+            final NavigableSet<BytesRef> all = termsOf(TERMS);
+            withColumn(
+                docValues,
+                randomValidBlockSize(),
+                randomChunkCodec(),
+                randomTargetChunkBytes(),
+                dictionaryPolicy(),
+                (metadata, reader) -> {
+                    assertEquals("one term " + one, expectedAnyOf(docValues, single), matched(reader.matchAnyOf(single)));
+                    assertEquals("every term", expectedAnyOf(docValues, all), matched(reader.matchAnyOf(all)));
+                }
+            );
+        }
+    }
+
     public void testAnyOrderOfTermsMatchesTheSame() throws IOException {
         final NavigableSet<BytesRef> ascending = termsOf("alpha", "alpine", "delta", "zulu");
         final NavigableSet<BytesRef> naturalOrder = new TreeSet<>(Comparator.naturalOrder());

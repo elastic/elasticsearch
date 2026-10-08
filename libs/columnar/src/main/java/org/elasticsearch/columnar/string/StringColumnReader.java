@@ -408,10 +408,11 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * <p>On a column whose values arrive in term order each term is one run of ranks, found by bisection, and
      * the answer is those runs; no value outside the bisections is read.
      *
-     * <p>On a {@code DICTIONARY} column this bisects the dictionary once per query term to resolve each to its
-     * ordinal, then drives the existing bulk ordinal path. Escaped values are compared by bytes. When no term
-     * appears in the dictionary and the column has no escapes, the result is empty without visiting any
-     * document.
+     * <p>On a {@code DICTIONARY} column the terms are resolved to ordinals, either by bisecting the dictionary
+     * once per term or by reading every term once, and the ordinals then drive the bulk ordinal path. Where
+     * nothing escaped and the ordinals form few runs, those runs answer the documents outright; otherwise a
+     * bitset of them is probed per value. Escaped values are compared by bytes. When no term appears in the
+     * dictionary and the column has no escapes, the result is empty without visiting any document.
      *
      * <p>On a {@code PLAIN} column the values are compared directly, which is what {@link #match} would do
      * with a set membership predicate.

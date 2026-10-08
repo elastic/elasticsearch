@@ -635,9 +635,16 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         });
     }
 
-    @Override
-    protected DocIdSetIterator unorderedAnyOfMatches(NavigableSet<BytesRef> terms) throws IOException {
-        final int end = dictionarySize + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+    private boolean sweepIsCheaper(int termCount) {
+        final int reads = Math.max(1, 32 - Integer.numberOfLeadingZeros(dictionarySize));
+        // NOTE: a sweep reads the terms in order and hashes every one, so reading as many terms as the
+        // dictionary holds does not yet favour it. The factor brackets where the two cross, placed with
+        // ColumnarDictionaryStringTermsSlicingBenchmark against a build that never sweeps:
+        // -p data=POD_NAME -p numDocs=1000000 -p probe=PRESENT,ABSENT -p queryTerms=4096,6144,8192
+        return 2L * termCount * reads >= 3L * dictionarySize;
+    }
+
+    private FixedBitSet matchingByBisection(NavigableSet<BytesRef> terms, int end) throws IOException {
         final FixedBitSet matching = new FixedBitSet(end);
         final BytesRef scratchTerm = new BytesRef();
         for (BytesRef term : terms) {
@@ -646,6 +653,25 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
                 matching.set(ordinal);
             }
         }
+        return matching;
+    }
+
+    private FixedBitSet matchingBySweep(NavigableSet<BytesRef> terms, int end) throws IOException {
+        final FixedBitSet matching = new FixedBitSet(end);
+        final Set<BytesRef> wanted = new HashSet<>(terms);
+        final BytesRef scratchTerm = new BytesRef();
+        for (int ordinal = StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL; ordinal < end; ordinal++) {
+            if (wanted.contains(termAt(ordinal, scratchTerm))) {
+                matching.set(ordinal);
+            }
+        }
+        return matching;
+    }
+
+    @Override
+    protected DocIdSetIterator unorderedAnyOfMatches(NavigableSet<BytesRef> terms) throws IOException {
+        final int end = dictionarySize + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+        final FixedBitSet matching = sweepIsCheaper(terms.size()) ? matchingBySweep(terms, end) : matchingByBisection(terms, end);
         if (matching.cardinality() == 0 && escapeCount == 0) {
             return DocIdSetIterator.empty();
         }

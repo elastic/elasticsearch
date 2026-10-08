@@ -346,7 +346,8 @@ public class MatchQueryParser {
             super(analyzer);
             this.fieldType = fieldType;
             setEnablePositionIncrements(enablePositionIncrements);
-            if (fieldType.getTextSearchInfo().hasPositions()) {
+            // a field answering from its values reads their positions, so it answers a phrase as an indexed one does
+            if (fieldType.getTextSearchInfo().hasPositions() || answersFromValues(fieldType)) {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
             } else {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(false);

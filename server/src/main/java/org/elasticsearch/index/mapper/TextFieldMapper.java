@@ -1288,17 +1288,8 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query toReanalyzingQuery(Query analyzed, SearchExecutionContext context) {
-            failIfExpensiveQueriesDisallowed(context);
-            if (isReanalyzing(analyzed)) {
-                return analyzed; // a phrase wraps itself, knowing the positions it asks about
-            }
-            return new ReanalyzingTextQuery(
-                ReanalyzingTextQuery.withoutWrappers(analyzed),
-                valueFetcherProvider(context),
-                context.getIndexAnalyzer(f -> null),
-                true
-            );
+        protected Query readingValues(Query query, SearchExecutionContext context) {
+            return new ReanalyzingTextQuery(query, valueFetcherProvider(context), context.getIndexAnalyzer(f -> null), true);
         }
 
         /** Whether this field can read its parent's values, which a multi-field keeping none of its own does. */

@@ -9,9 +9,15 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.LowerCaseFilter;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
+import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -23,6 +29,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
@@ -47,6 +55,7 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -73,7 +82,9 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
                 "default",
                 new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()),
                 "stop",
-                new NamedAnalyzer("stop", AnalyzerScope.INDEX, new StopAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET))
+                new NamedAnalyzer("stop", AnalyzerScope.INDEX, new StopAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET)),
+                "synonyms",
+                new NamedAnalyzer("synonyms", AnalyzerScope.INDEX, synonymAnalyzer())
             )
         );
     }
@@ -90,6 +101,36 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
         for (int q = 0; q < queries.size(); q++) {
             assertEquals(queries.get(q).toString(), indexed.get(q), notIndexed.get(q));
         }
+    }
+
+    /** A synonym of several words is a phrase, whichever side answers it. */
+    public void testMultiWordSynonymIsAPhrase() throws IOException {
+        final List<QueryBuilder> queries = List.of(new MatchQueryBuilder("body", "qb"), new MatchQueryBuilder("body", "qb fox"));
+        final List<List<Integer>> indexed = matching(true, "synonyms", queries);
+        final List<List<Integer>> notIndexed = matching(false, "synonyms", queries);
+        for (int q = 0; q < queries.size(); q++) {
+            assertEquals(queries.get(q).toString(), indexed.get(q), notIndexed.get(q));
+        }
+        assertEquals("not the document where the words are apart", List.of(0, 2), notIndexed.get(0));
+    }
+
+    /** The standard analyzer, with {@code qb} a synonym of {@code quick brown}. */
+    private static Analyzer synonymAnalyzer() {
+        final SynonymMap synonyms;
+        try {
+            SynonymMap.Builder builder = new SynonymMap.Builder(true);
+            builder.add(new CharsRef("qb"), SynonymMap.Builder.join(new String[] { "quick", "brown" }, new CharsRefBuilder()), true);
+            synonyms = builder.build();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer tokenizer = new StandardTokenizer();
+                return new TokenStreamComponents(tokenizer, new SynonymGraphFilter(new LowerCaseFilter(tokenizer), synonyms, true));
+            }
+        };
     }
 
     private MapperService mapper(boolean indexed) throws IOException {
@@ -153,7 +194,6 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
         assertEquals("one clause for every term", 1, confirmedClauses(new TermsQueryBuilder("body", "quick", "nothing")));
     }
 
-    /** Every parser that builds a match query answers from the values, reading them once for all of its terms. */
     /** A wildcard inside query_string is normalized by the search analyzer, as it is on an indexed field. */
     public void testNormalizedWildcardFromQueryString() throws IOException {
         final List<QueryBuilder> queries = List.of(

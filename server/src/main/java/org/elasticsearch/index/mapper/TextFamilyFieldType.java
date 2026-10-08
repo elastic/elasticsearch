@@ -167,9 +167,19 @@ public abstract class TextFamilyFieldType extends StringFieldType {
 
     /**
      * {@code analyzed} answered by reading this field's values: one query holding every term and condition it asks
-     * about, so the values are read and analyzed once however many terms that is.
+     * about, so the values are read and analyzed once however many terms that is. The wrappers already on its clauses
+     * come off first, see {@link ReanalyzingTextQuery#withoutWrappers}.
      */
-    public Query toReanalyzingQuery(Query analyzed, SearchExecutionContext context) {
+    public final Query toReanalyzingQuery(Query analyzed, SearchExecutionContext context) {
+        failIfExpensiveQueriesDisallowed(context);
+        if (isReanalyzing(analyzed)) {
+            return analyzed; // a phrase wraps itself, knowing the positions it asks about
+        }
+        return readingValues(ReanalyzingTextQuery.withoutWrappers(analyzed), context);
+    }
+
+    /** {@code query}, which holds no query reading values, answered by reading this field's values. */
+    protected Query readingValues(Query query, SearchExecutionContext context) {
         throw new UnsupportedOperationException("[" + name() + "] does not answer a text query from its values");
     }
 
@@ -272,7 +282,7 @@ public abstract class TextFamilyFieldType extends StringFieldType {
      * Whether {@code query} already reads values. A field that answers every positional query that way wraps its
      * own, and wrapping it again would read the values of a document that holds none.
      */
-    protected static boolean isReanalyzing(Query query) {
+    private static boolean isReanalyzing(Query query) {
         final Query inner = query instanceof ConstantScoreQuery constantScore ? constantScore.getQuery() : query;
         return inner instanceof ReanalyzingTextQuery;
     }

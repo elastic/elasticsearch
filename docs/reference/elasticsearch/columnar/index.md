@@ -285,6 +285,14 @@ Both `logsdb` and the columnar modes default to synthetic `_source`, but they ma
 
 If a consumer of your data depends on an object array being returned faithfully, map that field as [`nested`](/reference/elasticsearch/mapping-reference/nested.md) before migrating to a columnar mode.
 
+## Searching text fields that are not indexed [columnar-text-not-indexed]
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview` A `text` or `match_only_text` field with `index: false` can still be searched: full-text queries such as `match`, `match_phrase`, `query_string` and the ES|QL `match` function read and analyze the field's values instead of an inverted index. Because they read every document, these queries count as expensive and are rejected when `search.allow_expensive_queries` is `false`.
+
+Term-level queries (`term`, `terms`, `prefix`, `wildcard` and `regexp`) match a token of the analyzed value, as they do on an indexed text field. Before 9.6 they matched the whole value.
+
+Without term statistics, a document scores one point for each query term it matches, and a phrase counts as one term.
+
 ## Limitations [columnar-limitations]
 
 The following features are not supported in columnar index modes:

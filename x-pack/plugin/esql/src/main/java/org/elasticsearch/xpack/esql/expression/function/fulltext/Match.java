@@ -707,7 +707,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         try {
             queryTerms = TokenStreamMatching.analyzeTermsWithCounts(analyzer, RuntimeSearch.CONTENT_FIELD, queryAsObject().toString());
         } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to tokenize query string: " + e.getMessage(), e);
+            throw new UncheckedIOException("Failed to tokenize query string", e);
         }
         if (queryTerms.isEmpty()) {
             return ConstantEvaluators.constantDouble(0.0);

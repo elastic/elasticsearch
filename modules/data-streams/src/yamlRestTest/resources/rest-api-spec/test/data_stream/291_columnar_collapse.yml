@@ -30,7 +30,7 @@ teardown:
               index:
                 mode: columnar
                 number_of_shards: 1
-                number_of_replicas: 0
+                number_of_replicas: 1
                 columnar_codec:
                   enabled: true
             mappings:
@@ -65,7 +65,7 @@ teardown:
               index:
                 mode: columnar
                 number_of_shards: 1
-                number_of_replicas: 0
+                number_of_replicas: 1
                 columnar_codec:
                   enabled: false
             mappings:
@@ -146,7 +146,7 @@ teardown:
               index:
                 mode: columnar
                 number_of_shards: 1
-                number_of_replicas: 0
+                number_of_replicas: 1
                 columnar_codec:
                   enabled: false
             mappings:
@@ -181,7 +181,7 @@ teardown:
               index:
                 mode: columnar
                 number_of_shards: 1
-                number_of_replicas: 0
+                number_of_replicas: 1
                 columnar_codec:
                   enabled: true
             mappings:

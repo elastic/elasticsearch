@@ -24,7 +24,7 @@ teardown:
           settings:
             index.mode: columnar
             index.number_of_shards: 1
-            index.number_of_replicas: 0
+            index.number_of_replicas: 1
           mappings:
             properties:
               "@timestamp":
@@ -68,7 +68,7 @@ teardown:
           settings:
             index.mode: columnar
             index.number_of_shards: 1
-            index.number_of_replicas: 0
+            index.number_of_replicas: 1
             index.mapping.doc_values.multi_value: false
           mappings:
             properties:
@@ -113,7 +113,7 @@ teardown:
           settings:
             index.mode: columnar
             index.number_of_shards: 1
-            index.number_of_replicas: 0
+            index.number_of_replicas: 1
             index.columnar_codec.enabled: false
           mappings:
             properties:
@@ -160,7 +160,7 @@ teardown:
           settings:
             index.mode: columnar
             index.number_of_shards: 1
-            index.number_of_replicas: 0
+            index.number_of_replicas: 1
           mappings:
             properties:
               "@timestamp":
@@ -196,7 +196,7 @@ teardown:
           settings:
             index.mode: columnar
             index.number_of_shards: 1
-            index.number_of_replicas: 0
+            index.number_of_replicas: 1
             index.columnar_codec.enabled: false
             index.mapping.doc_values.multi_value: false
           mappings:

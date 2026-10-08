@@ -15,18 +15,19 @@ import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 
 import java.io.IOException;
 
-public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFlatVectorsFormat {
+/** Lucene's flat vectors format, under the name and with the scorer Elasticsearch writes and reads it with. */
+public class ES93Lucene99FlatVectorsFormat extends AbstractFlatVectorsFormat {
 
     static final String NAME = "Lucene99FlatVectorsFormat";
 
     private final FlatVectorsScorer vectorsScorer;
 
     /** Constructs a format */
-    public DirectIOCapableLucene99FlatVectorsFormat(FlatVectorsScorer vectorsScorer) {
+    public ES93Lucene99FlatVectorsFormat(FlatVectorsScorer vectorsScorer) {
         super(NAME);
         this.vectorsScorer = vectorsScorer;
     }
@@ -37,12 +38,12 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
     }
 
     @Override
-    protected FlatVectorsReader createReader(SegmentReadState state) throws IOException {
+    public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         return new Lucene99FlatVectorsReader(state, vectorsScorer);
     }
 
     @Override
-    protected FlatVectorsWriter createWriter(SegmentWriteState state) throws IOException {
+    public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new Lucene99FlatVectorsWriter(state, vectorsScorer);
     }
 }

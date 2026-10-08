@@ -42,8 +42,7 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
             DenseVectorFieldMapper.ElementType.FLOAT,
             DEFAULT_NUM_MERGE_WORKER,
             null,
-            random().nextInt(1, 20),
-            false
+            random().nextInt(1, 20)
         );
     }
 
@@ -55,8 +54,7 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
             DenseVectorFieldMapper.ElementType.FLOAT,
             DEFAULT_NUM_MERGE_WORKER,
             null,
-            random().nextInt(1, 20),
-            false
+            random().nextInt(1, 20)
         );
     }
 
@@ -68,8 +66,7 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
             DenseVectorFieldMapper.ElementType.FLOAT,
             numMergeWorkers,
             service,
-            random().nextInt(1, 20),
-            false
+            random().nextInt(1, 20)
         );
     }
 
@@ -86,8 +83,7 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
             DenseVectorFieldMapper.ElementType.FLOAT,
             numMergeWorkers,
             service,
-            hnswGraphThreshold,
-            false
+            hnswGraphThreshold
         );
     }
 
@@ -121,7 +117,7 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
             Locale.ROOT,
             expected,
             hnswGraphThreshold,
-            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s, useDirectIO=false, onDiskMerge=false)"
+            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)"
         );
         expected = format(Locale.ROOT, expected, "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=%s)");
         expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorScorer(delegate=%s)");
@@ -136,7 +132,7 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
     public void testSimpleOffHeapSize() throws IOException {
         float[] vector = randomVector(random().nextInt(12, 500));
         // Use threshold=0 to ensure HNSW graph is always built
-        var format = new ES93HnswVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.FLOAT, 1, null, 0, false);
+        var format = new ES93HnswVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.FLOAT, 1, null, 0);
         IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         try (Directory dir = newDirectory()) {
             testSimpleOffHeapSize(

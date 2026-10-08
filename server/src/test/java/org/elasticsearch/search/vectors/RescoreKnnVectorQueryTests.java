@@ -354,8 +354,8 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 null,
                 1
             ),
-            new ES93BinaryQuantizedVectorsFormat(elementType, false),
-            new ES93HnswBinaryQuantizedVectorsFormat(elementType, randomBoolean()),
+            new ES93BinaryQuantizedVectorsFormat(elementType),
+            new ES93HnswBinaryQuantizedVectorsFormat(elementType),
             new ES93ScalarQuantizedVectorsFormat(elementType),*/
             new ES93HnswScalarQuantizedVectorsFormat(
                 DEFAULT_VECTORS_PER_CLUSTER,
@@ -363,8 +363,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 elementType,
                 null,
                 7,
-                false,
-                randomBoolean()
+                false
             )
         );
         iwc.setCodec(new Elasticsearch93Lucene104Codec(randomFrom(Zstd814StoredFieldsFormat.Mode.values())) {

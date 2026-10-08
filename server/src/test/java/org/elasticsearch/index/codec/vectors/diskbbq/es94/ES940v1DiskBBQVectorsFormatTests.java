@@ -68,14 +68,12 @@ public class ES940v1DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTest
                 64,
                 2,
                 DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
                 null,
                 1,
                 false,
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                 0,
-                ES940DiskBBQVectorsFormat.VERSION_START,
-                false
+                ES940DiskBBQVectorsFormat.VERSION_START
             );
         }
         return TestUtil.alwaysKnnVectorsFormat(format);

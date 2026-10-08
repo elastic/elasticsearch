@@ -88,8 +88,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     public ESNextDiskASHVectorsWriter(
         SegmentWriteState state,
         String rawVectorFormatName,
-        boolean useDirectIOReads,
-        boolean onDiskMerge,
+
         FlatVectorsWriter rawVectorDelegate,
         int vectorPerCluster,
         int centroidsPerParentCluster,
@@ -104,17 +103,15 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         super(
             state,
             rawVectorFormatName,
-            useDirectIOReads,
             rawVectorDelegate,
             ESNextDiskASHVectorsFormat.VERSION_CURRENT,
             ESNextDiskASHVectorsFormat.NAME,
             ESNextDiskASHVectorsFormat.IVF_META_EXTENSION,
             ESNextDiskASHVectorsFormat.CENTROID_EXTENSION,
             ESNextDiskASHVectorsFormat.CLUSTER_EXTENSION,
-            true,
+            false,
             flatVectorThreshold,
-            onDiskMerge,
-            true
+            false
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;

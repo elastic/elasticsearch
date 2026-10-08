@@ -135,7 +135,7 @@ public class StatelessDirectoryFactoryTests extends ESTestCase {
 
             var config = new IndexWriterConfig().setCodec(
                 TestUtil.alwaysKnnVectorsFormat(
-                    new ES94HnswScalarQuantizedVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.FLOAT, 4, false)
+                    new ES94HnswScalarQuantizedVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.FLOAT, 4)
                 )
             ).setUseCompoundFile(false);
             try (IndexWriter writer = new IndexWriter(recordingDirectory, config)) {

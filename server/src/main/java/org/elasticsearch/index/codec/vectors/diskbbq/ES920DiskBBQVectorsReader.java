@@ -56,6 +56,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
             ES920DiskBBQVectorsFormat.VERSION_CURRENT,
             ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO,
             NO_ON_DISK_MERGE_IN_META,
+            ES920DiskBBQVectorsFormat.VERSION_NO_DIRECT_IO,
             ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO
         );
     }
@@ -140,7 +141,6 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
     protected FieldEntry doReadField(
         IndexInput input,
         String rawVectorFormat,
-        boolean useDirectIOReads,
         VectorSimilarityFunction similarityFunction,
         VectorEncoding vectorEncoding,
         int numCentroids,
@@ -154,7 +154,6 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
         // nothing more to read
         return new FieldEntry(
             rawVectorFormat,
-            useDirectIOReads,
             similarityFunction,
             vectorEncoding,
             numCentroids,

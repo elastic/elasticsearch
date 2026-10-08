@@ -688,3 +688,6 @@ tests:
 - class: org.elasticsearch.index.mapper.TextFieldValueQueriesTests
   method: testColumnarTextAnswersOverItsValues
   issue: https://github.com/elastic/elasticsearch/issues/161318
+- class: org.elasticsearch.xpack.esql.action.TextValuePushdownIT
+  method: testTheColumnarIndexAnswersInLucene
+  issue: https://github.com/elastic/elasticsearch/issues/161356

@@ -548,7 +548,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     }
                 }
                 logger.debug("Using standard global ordinals implementation.  remap is [{}]", remapGlobalOrds);
-                return new GlobalOrdinalsStringTermsAggregator(
+                GlobalOrdinalsStringTermsAggregator aggregator = new GlobalOrdinalsStringTermsAggregator(
                     name,
                     factories,
                     a -> a.new StandardTermsResults(),
@@ -567,6 +567,19 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     metadata,
                     excludeDeletedDocs
                 );
+                if (maxOrd > 2048
+                    && valuesSourceConfig.valueSourceType() == CoreValuesSourceType.KEYWORD
+                    && factories == AggregatorFactories.EMPTY
+                    && parent == null
+                    && includeExclude == null
+                    && cardinality == CardinalityUpperBound.ONE
+                    && InternalOrder.isCountDesc(order)
+                    && bucketCountThresholds.getMinDocCount() > 0
+                    && excludeDeletedDocs == false
+                    && remapGlobalOrds == false) {
+                    aggregator.enableSparseOrdinalTracking();
+                }
+                return aggregator;
             }
         };
 

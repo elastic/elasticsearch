@@ -29,11 +29,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class WeightedAvgTests extends AbstractAggregationTestCase {
-    /**
-     * An evaluator only records its first 20 failures as warnings, see {@code Warnings.MAX_ADDED_WARNINGS}.
-     */
-    private static final int MAX_RECORDED_FAILURES = 20;
-
     public WeightedAvgTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -69,8 +64,8 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
             }
         }
 
-        // More overflowing rows than are recorded: the -Infinity of the last row is never reported
-        var overflowingNumbers = new ArrayList<Object>(Collections.nCopies(MAX_RECORDED_FAILURES, Double.MAX_VALUE));
+        // Repeated identical failures must not hide a later distinct one behind the warnings limit
+        var overflowingNumbers = new ArrayList<Object>(Collections.nCopies(100, Double.MAX_VALUE));
         overflowingNumbers.add(-Double.MAX_VALUE);
         var overflowingWeights = Collections.<Object>nCopies(overflowingNumbers.size(), 2d);
         suppliers.add(
@@ -173,18 +168,16 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
                 // Calculate the results one by one to correctly track overflows and exceptions
                 var validMulResults = new ArrayList<Double>();
                 var validMulLongResults = new ArrayList<Long>();
-                int mulFailures = 0;
                 for (int i = 0; i < fieldValues.size(); i++) {
                     Number fieldNum = (Number) fieldValues.get(i);
                     Number weightNum = (Number) weightValues.get(i);
 
-                    String mulFailure = null;
                     if (mulType == DataType.INTEGER) {
                         try {
                             int result = Math.multiplyExact(fieldNum.intValue(), weightNum.intValue());
                             validMulResults.add((double) result);
                         } catch (ArithmeticException e) {
-                            mulFailure = "Line 1:1: java.lang.ArithmeticException: integer overflow";
+                            warnings.add("Line 1:1: java.lang.ArithmeticException: integer overflow");
                         }
                     } else if (mulType == DataType.LONG) {
                         try {
@@ -192,19 +185,15 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
                             validMulResults.add((double) result);
                             validMulLongResults.add(result);
                         } catch (ArithmeticException e) {
-                            mulFailure = "Line 1:1: java.lang.ArithmeticException: long overflow";
+                            warnings.add("Line 1:1: java.lang.ArithmeticException: long overflow");
                         }
                     } else {
                         double result = fieldNum.doubleValue() * weightNum.doubleValue();
                         if (Double.isFinite(result)) {
                             validMulResults.add(result);
                         } else {
-                            mulFailure = "Line 1:1: java.lang.ArithmeticException: not a finite double number: " + result;
+                            warnings.add("Line 1:1: java.lang.ArithmeticException: not a finite double number: " + result);
                         }
-                    }
-                    // Rows are evaluated in order, so only the first MAX_RECORDED_FAILURES failures are reported
-                    if (mulFailure != null && mulFailures++ < MAX_RECORDED_FAILURES) {
-                        warnings.add(mulFailure);
                     }
                 }
 

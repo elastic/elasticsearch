@@ -72,6 +72,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.grok.MatcherWatchdog;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -1514,7 +1515,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                      * At this point, all pipelines have been executed, and we are about to overwrite ingestDocument with the results.
                      * This is our chance to sample with both the original document and all changes.
                      */
-                    updateIndexRequestSource(indexRequest, ingestDocument);
+                    updateIndexRequestSource(indexRequest, ingestDocument, project);
                     cacheRawTimestamp(indexRequest, ingestDocument);
                     listener.onResponse(IngestPipelinesExecutionResult.SUCCESSFUL_RESULT); // document succeeded!
                 }
@@ -1658,13 +1659,82 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     /**
      * Updates an index request based on the source of an ingest document, guarding against self-references if necessary.
+     * For strict-columnar index modes, any object fields that are empty after pipeline processing are removed from the
+     * document source before writing back, preventing pipeline-leaked empty containers (e.g. {@code {"system":{"syslog":{}}}}
+     * after groking fields out) from disabling batch indexing permanently on every bulk request.
      */
-    private static void updateIndexRequestSource(final IndexRequest request, final IngestDocument document) {
+    private static void updateIndexRequestSource(final IndexRequest request, final IngestDocument document, final ProjectMetadata project) {
+        if (isStrictColumnarTarget(request, project)) {
+            removeEmptyObjects(document.getSource());
+        }
         boolean ensureNoSelfReferences = document.doNoSelfReferencesCheck();
         // we already check for self references elsewhere (and clear the bit), so this should always be false,
         // keeping the check and assert as a guard against extraordinarily surprising circumstances
         assert ensureNoSelfReferences == false;
         request.source(document.getSource(), request.getContentType(), ensureNoSelfReferences);
+    }
+
+    /**
+     * Returns {@code true} if the target index for this request is in a strict-columnar index mode
+     * (i.e. {@link IndexMode#isStrictColumnar()} returns {@code true}). Resolved from the cluster state,
+     * preferring the write index's {@link IndexMetadata#getIndexMode()} for data streams — the data-stream
+     * level mode can lag when the write index was created before a mode change. Falls back to template
+     * settings for indices not yet created.
+     */
+    static boolean isStrictColumnarTarget(IndexRequest indexRequest, ProjectMetadata project) {
+        String targetIndex = indexRequest.index();
+        if (targetIndex == null) {
+            return false;
+        }
+        // data stream: prefer write index's authoritative IndexMode over the data-stream-level field
+        DataStream dataStream = project.dataStreams().get(targetIndex);
+        if (dataStream != null) {
+            IndexMetadata writeMeta = project.index(dataStream.getWriteIndex());
+            if (writeMeta != null) {
+                IndexMode mode = writeMeta.getIndexMode();
+                return mode != null && mode.isStrictColumnar();
+            }
+            // write index metadata unavailable (e.g. not yet flushed to state); fall back to data-stream level
+            IndexMode mode = dataStream.getIndexMode();
+            return mode != null && mode.isStrictColumnar();
+        }
+        // concrete existing index
+        IndexMetadata indexMetadata = project.index(targetIndex);
+        if (indexMetadata != null) {
+            IndexMode mode = indexMetadata.getIndexMode();
+            return mode != null && mode.isStrictColumnar();
+        }
+        // index not yet created: consult V2 template (V2 composite templates are always used for data streams,
+        // which is the primary use case; V1 templates pre-date strict-columnar index modes so we skip them)
+        String v2Template = MetadataIndexTemplateService.findV2Template(project, targetIndex, false);
+        if (v2Template != null) {
+            Settings settings = MetadataIndexTemplateService.resolveSettings(project, v2Template);
+            return IndexSettings.MODE.get(settings).isStrictColumnar();
+        }
+        return false;
+    }
+
+    /**
+     * Recursively removes entries whose value is an empty {@link Map}, bottom-up, from the given source map.
+     * This prunes empty container objects that ingest pipelines leave behind after removing all of a nested
+     * object's fields (e.g. groking children and then renaming or removing them). The removal is in place.
+     * <p>
+     * Only {@code Map} values are descended into; lists are not modified, since removing elements from an
+     * array changes its semantics in ways that are not equivalent to the field being absent.
+     */
+    static void removeEmptyObjects(Map<String, Object> source) {
+        Iterator<Map.Entry<String, Object>> it = source.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, Object> entry = it.next();
+            if (entry.getValue() instanceof Map<?, ?> nested) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> nestedMap = (Map<String, Object>) nested;
+                removeEmptyObjects(nestedMap);
+                if (nestedMap.isEmpty()) {
+                    it.remove();
+                }
+            }
+        }
     }
 
     /**

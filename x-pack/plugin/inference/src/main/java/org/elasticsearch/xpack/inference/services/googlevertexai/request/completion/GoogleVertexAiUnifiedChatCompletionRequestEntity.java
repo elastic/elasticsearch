@@ -420,7 +420,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
             );
         }
 
-        var functionName = functionNameById.getOrDefault(toolCallId, functionNameFromId(toolCallId));
+        var functionName = functionNameById.computeIfAbsent(
+            toolCallId,
+            GoogleVertexAiUnifiedChatCompletionRequestEntity::functionNameFromId
+        );
 
         builder.startObject();
         {

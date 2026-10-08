@@ -375,6 +375,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
 
         assertThat(parallelCalls.get(0).id(), not(parallelCalls.get(1).id()));
         assertThat(laterCall.id(), not(parallelCalls.get(0).id()));
+        assertThat(laterCall.id(), not(parallelCalls.get(1).id()));
     }
 
     public void testSignatureOnAPlainTextPartIsIndexed() throws IOException {

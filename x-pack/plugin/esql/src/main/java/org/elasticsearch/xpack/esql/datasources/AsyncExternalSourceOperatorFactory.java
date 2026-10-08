@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.NullSpliceRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
@@ -1504,6 +1505,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return formatReaderRegistry.wrapForObject(reader, objectName);
     }
 
+    /** Node-wide I/O byte tickets for extra SPPC chunk buffers; {@code null} when the registry has none. */
+    @Nullable
+    private NodeByteBudget nodeByteBudget() {
+        return formatReaderRegistry == null ? null : formatReaderRegistry.nodeByteBudget();
+    }
+
     @Nullable
     private static String objectNameOf(@Nullable StorageObject storageObject) {
         if (storageObject == null) {
@@ -2913,6 +2920,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable FormatReadCounters formatCounters
     ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
+            // LIMIT and p<=1 never enter SPPC, so they take no streaming floor / extra
+            // NodeByteBudget charges. The single-thread reader owns its own buffers.
             return null;
         }
         ParallelDispatchMode mode = resolveDispatchMode(reader);
@@ -3030,7 +3039,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     producerBlockFactory != null ? producerBlockFactory.breaker() : new NoopCircuitBreaker("streaming-parse"),
                     readCounters,
                     formatCounters,
-                    this::noFurtherCandidates
+                    this::noFurtherCandidates,
+                    nodeByteBudget()
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {
@@ -3081,7 +3091,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     streamingBreaker,
                     readCounters,
                     formatCounters,
-                    this::noFurtherCandidates
+                    this::noFurtherCandidates,
+                    nodeByteBudget()
                 );
             }
             case SPLITTABLE_OR_INDEXED_COMPRESSED -> {

@@ -1698,6 +1698,15 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, defaultValue, byteSizeParser(key), properties);
     }
 
+    public static Setting<ByteSizeValue> byteSizeSetting(
+        String key,
+        Function<Settings, String> defaultValue,
+        Validator<ByteSizeValue> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValue, byteSizeParser(key), validator, properties);
+    }
+
     private static Function<String, ByteSizeValue> byteSizeParser(String key) {
         return s -> ByteSizeValue.parseBytesSizeValue(s, key);
     }

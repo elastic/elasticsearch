@@ -214,6 +214,116 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
         assertThat(new ObjectPath(hits2.getFirst()).evaluate("metrics." + metric2), equalTo(100.0));
     }
 
+    public void testRemoteWriteIndexesExemplar() throws Exception {
+        assumeTrue("requires metric exemplar ingestion", PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
+        long timestamp = System.currentTimeMillis();
+        String metricName = "metric_with_exemplar";
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                RemoteWrite.TimeSeries.newBuilder()
+                    .addLabels(label("__name__", metricName))
+                    .addLabels(label("job", "test_job"))
+                    .addExemplars(
+                        RemoteWrite.Exemplar.newBuilder()
+                            .addLabels(label("trace_id", "0af7651916cd43dd8448eb211c80319c"))
+                            .addLabels(label("span_id", "b7ad6b7169203331"))
+                            .setValue(42.5)
+                            .setTimestamp(timestamp)
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        sendAndAssertSuccess(writeRequest);
+
+        ObjectPath source = searchSingleDoc("exemplars-generic.prometheus-default", metricName);
+        assertThat(source.evaluate("@timestamp"), notNullValue());
+        assertThat(source.evaluate("data_stream.type"), equalTo("exemplars"));
+        assertThat(source.evaluate("data_stream.dataset"), equalTo("generic.prometheus"));
+        assertThat(source.evaluate("data_stream.namespace"), equalTo("default"));
+        assertThat(source.evaluate("labels.__name__"), equalTo(metricName));
+        assertThat(source.evaluate("labels.job"), equalTo("test_job"));
+        assertThat(source.evaluate("exemplar_labels.trace_id"), equalTo("0af7651916cd43dd8448eb211c80319c"));
+        assertThat(source.evaluate("exemplar_labels.span_id"), equalTo("b7ad6b7169203331"));
+        assertThat(source.evaluate("value"), equalTo(42.5));
+    }
+
+    /**
+     * Both exemplars lack a timestamp and therefore get the same request timestamp. The second one is rejected by the time series
+     * index as a version conflict, which must not fail the request.
+     */
+    public void testRemoteWriteTreatsDuplicateExemplarsAsSuccess() throws Exception {
+        assumeTrue("requires metric exemplar ingestion", PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
+        String metricName = "metric_with_duplicate_exemplars";
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                RemoteWrite.TimeSeries.newBuilder()
+                    .addLabels(label("__name__", metricName))
+                    .addExemplars(
+                        RemoteWrite.Exemplar.newBuilder()
+                            .addLabels(label("trace_id", "0af7651916cd43dd8448eb211c80319c"))
+                            .setValue(42.5)
+                            .build()
+                    )
+                    .addExemplars(
+                        RemoteWrite.Exemplar.newBuilder()
+                            .addLabels(label("trace_id", "6af7651916cd43dd8448eb211c80319f"))
+                            .setValue(84.0)
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        sendAndAssertSuccess(writeRequest);
+
+        ObjectPath source = searchSingleDoc("exemplars-generic.prometheus-default", metricName);
+        assertThat(source.evaluate("@timestamp"), notNullValue());
+        assertThat(source.evaluate("exemplar_labels.trace_id"), equalTo("0af7651916cd43dd8448eb211c80319c"));
+        assertThat(source.evaluate("value"), equalTo(42.5));
+    }
+
+    /**
+     * A sender whose API key only covers the metrics data streams must still be able to turn on {@code send_exemplars}: the
+     * exemplar documents fail with 403, but the samples are indexed and the request succeeds.
+     */
+    public void testRemoteWriteSucceedsWhenApiKeyLacksExemplarPrivileges() throws Exception {
+        assumeTrue("requires metric exemplar ingestion", PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
+        String metricsOnlyApiKey = createApiKey("prometheus-metrics-only-write-key", "metrics-*", "create_doc", "auto_configure");
+        long timestamp = System.currentTimeMillis();
+        String metricName = "metric_with_unauthorized_exemplar";
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                timeSeries(metricName, Map.of("job", "test_job"), sample(42.0, timestamp)).toBuilder()
+                    .addExemplars(
+                        RemoteWrite.Exemplar.newBuilder()
+                            .addLabels(label("trace_id", "0af7651916cd43dd8448eb211c80319c"))
+                            .setValue(42.5)
+                            .setTimestamp(timestamp)
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        Request request = new Request("POST", "/_prometheus/api/v1/write");
+        request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), ContentType.create("application/x-protobuf")));
+        request.setOptions(
+            request.getOptions()
+                .toBuilder()
+                .addHeader(HttpHeaders.CONTENT_ENCODING, "snappy")
+                .addHeader("Authorization", "ApiKey " + metricsOnlyApiKey)
+                .build()
+        );
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(204));
+
+        ObjectPath source = searchSingleDoc(metricName);
+        assertThat(source.evaluate("metrics." + metricName), equalTo(42.0));
+        assertFalse("exemplar data stream should not have been created", dataStreamExists("exemplars-generic.prometheus-default"));
+    }
+
     public void testRemoteWriteDropsNaNSamples() throws Exception {
         long timestamp = System.currentTimeMillis();
         String metricName = "nan_metric";

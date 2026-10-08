@@ -340,6 +340,29 @@ public class CsvTestsDataLoader {
             .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
         new TestDataset("prom-metrics", "prom-metrics-mappings.json", "k8s-prometheus-remote-write.csv", "prom-metrics-settings.json")
             .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
+        // Metrics and their exemplars for the exemplars query setting. Backing-index-shaped indices and aliases represent the data
+        // streams because this loader creates indices rather than data streams. Neither alias may match the built-in
+        // "metrics-*-*" / "exemplars-*.otel-*" data stream templates.
+        new TestDataset(
+            "metrics-cpu",
+            "otel-exemplar-source-metrics-mappings.json",
+            "exemplar-source-metrics.csv",
+            "otel-metrics-settings.json"
+        ).withIndex(".ds-metrics-cpu-2024.05.10-000001").withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V2),
+        new TestDataset("exemplars-cpu", "otel-exemplars-mappings.json", "exemplars.csv", "otel-metrics-settings.json").withIndex(
+            ".ds-exemplars-cpu-2024.05.10-000001"
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V2),
+        new TestDataset(
+            "metrics-noexemplars",
+            "otel-exemplar-source-metrics-mappings.json",
+            "exemplar-source-metrics.csv",
+            "otel-metrics-settings.json"
+        ).withIndex(".ds-metrics-noexemplars-2024.05.10-000001")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V2),
+        // Metrics with different fields than metrics-cpu and without an exemplar data stream (no exemplars-k8s index)
+        new TestDataset("metrics-k8s", "k8s-mappings.json", "k8s.csv").withIndex(".ds-metrics-k8s-2024.05.10-000001")
+            .withSetting("k8s-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V2),
         new TestDataset(
             "prom-metrics-name",
             "prom-metrics-name-mappings.json",
@@ -545,8 +568,13 @@ public class CsvTestsDataLoader {
      * patterns (e.g. {@code FROM employees*}) are unaffected because Elasticsearch field-caps
      * deduplicates an alias and its backing index into a single logical source.
      */
-    public static final Map<String, AliasConfig> ALIAS_CONFIGS = Stream.of(new AliasConfig("employees_alias", "employees"))
-        .collect(toMap(AliasConfig::aliasName, Function.identity()));
+    public static final Map<String, AliasConfig> ALIAS_CONFIGS = Stream.of(
+        new AliasConfig("employees_alias", "employees"),
+        new AliasConfig("metrics-cpu", ".ds-metrics-cpu-2024.05.10-000001"),
+        new AliasConfig("exemplars-cpu", ".ds-exemplars-cpu-2024.05.10-000001"),
+        new AliasConfig("metrics-noexemplars", ".ds-metrics-noexemplars-2024.05.10-000001"),
+        new AliasConfig("metrics-k8s", ".ds-metrics-k8s-2024.05.10-000001")
+    ).collect(toMap(AliasConfig::aliasName, Function.identity()));
 
     /**
      * <p>

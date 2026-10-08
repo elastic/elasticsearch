@@ -1,0 +1,10 @@
+@timestamp:date,attributes.cpu:keyword,attributes.state:keyword,metric_name:keyword,value:double,trace_id:keyword,span_id:keyword
+2024-05-10T00:00:10.000Z,cpu0,idle,cpu_time,1.7,trace-idle-cpu0-cpu,span-1
+2024-05-10T00:01:10.000Z,cpu0,busy,cpu_time,8.1,trace-busy-cpu0-cpu,span-2
+2024-05-10T00:01:20.000Z,cpu0,busy,request_duration,47.5,trace-busy-cpu0-dur,span-3
+2024-05-10T00:02:10.000Z,cpu1,idle,memory_usage,310.0,trace-idle-cpu1-mem,span-4
+2024-05-10T00:02:20.000Z,cpu1,idle,cpu_time,2.9,trace-idle-cpu1-cpu,span-5
+2024-05-10T00:02:30.000Z,cpu1,idle,request_duration,9.5,trace-idle-cpu1-dur,span-6
+2024-05-10T00:03:10.000Z,cpu1,busy,memory_usage,420.0,trace-busy-cpu1-mem,span-7
+2024-05-10T00:03:20.000Z,cpu1,busy,request_duration,38.0,trace-busy-cpu1-dur,span-8
+2024-05-10T00:04:10.000Z,cpu0,idle,memory_usage,105.0,trace-idle-cpu0-mem,span-9

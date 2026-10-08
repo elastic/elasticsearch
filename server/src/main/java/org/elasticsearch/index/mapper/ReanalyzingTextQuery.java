@@ -225,7 +225,7 @@ public final class ReanalyzingTextQuery extends Query {
                 // The analyzer's gap sits between two values, as it does when the same values are indexed.
                 walker.skip(gap);
             }
-            final String text = value instanceof BytesRef valueBytes ? valueBytes.utf8ToString() : value.toString();
+            final String text = TokenStreamMatching.textOf(value);
             try (TokenStream stream = analyzer.tokenStream(field, text)) {
                 stream.reset();
                 walker.accept(stream);
@@ -657,13 +657,7 @@ public final class ReanalyzingTextQuery extends Query {
                     if (value == null) {
                         continue;
                     }
-                    String valueStr;
-                    if (value instanceof BytesRef valueRef) {
-                        valueStr = valueRef.utf8ToString();
-                    } else {
-                        valueStr = value.toString();
-                    }
-                    cacheEntry.memoryIndex.addField(field, valueStr, indexAnalyzer);
+                    cacheEntry.memoryIndex.addField(field, TokenStreamMatching.textOf(value), indexAnalyzer);
                 }
             }
             return cacheEntry.memoryIndex;

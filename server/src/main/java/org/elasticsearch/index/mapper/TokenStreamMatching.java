@@ -32,6 +32,15 @@ public final class TokenStreamMatching {
 
     private TokenStreamMatching() {}
 
+    /**
+     * The text of one value a field holds, as the fetchers of those values spell it. A value read from a binary
+     * column or from field data arrives as a string, and one read from a stored field as the bytes that were
+     * stored, whose own {@code toString} spells them in hex rather than as text.
+     */
+    public static String textOf(Object value) {
+        return value instanceof BytesRef bytes ? bytes.utf8ToString() : value.toString();
+    }
+
     /** Decides whether one value's tokens answer a query. The stream is reset; implementations consume it. */
     public interface Matcher {
         boolean matches(TokenStream stream) throws IOException;
@@ -140,6 +149,8 @@ public final class TokenStreamMatching {
         private int freq;
         private int position = -1;
         private int positionInHand = -1;
+        /** The position the last phrase counted ended at, which no other one of the same phrase can end at. */
+        private int countedAt = Integer.MIN_VALUE;
 
         public PhraseWalker(BytesRef[] terms) {
             this(terms, true);
@@ -193,7 +204,12 @@ public final class TokenStreamMatching {
                 for (int length = 1; length < terms.length; length++) {
                     if (endedBefore[length - 1] == position - 1 && terms[length].equals(token)) {
                         if (length == terms.length - 1) {
-                            freq++;
+                            // Several tokens can end the phrase at one position, where an analyzer leaves more than
+                            // one of them there, and an index counts the phrase that ends there once.
+                            if (position != countedAt) {
+                                countedAt = position;
+                                freq++;
+                            }
                             if (countEvery == false) {
                                 return;
                             }

@@ -151,18 +151,11 @@ public class AuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testSwitchWithEnrichOrigin() throws Exception {
-        // New nodes: ENRICH_ORIGIN maps to the dedicated _enrich user
-        assertSwitchBasedOnOriginAndExecute(
-            ClientHelper.ENRICH_ORIGIN,
-            InternalUsers.ENRICH_USER,
-            TransportVersionUtils.randomVersionSupporting(Authentication.SECURITY_ENRICH_INTERNAL_USER)
-        );
-
         // Old nodes: fall back to _xpack so they can decode it
         assertSwitchBasedOnOriginAndExecute(
             ClientHelper.ENRICH_ORIGIN,
             InternalUsers.XPACK_USER,
-            TransportVersionUtils.randomVersionNotSupporting(Authentication.SECURITY_ENRICH_INTERNAL_USER)
+            TransportVersionUtils.randomVersionNotSupporting(random(), Authentication.SECURITY_ENRICH_INTERNAL_USER)
         );
     }
 

@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ColumnarKeywordBlockLoaderTests extends ESTestCase {
 
     private static final String FIELD = "kw";
-    private static final CircuitBreaker NOOP = new NoopCircuitBreaker("test");
+    private static final CircuitBreaker NOOP = NoopCircuitBreaker.INSTANCE;
 
     public void testSingleValued() throws IOException {
         assertPageMatchesPerDocument(docs -> {

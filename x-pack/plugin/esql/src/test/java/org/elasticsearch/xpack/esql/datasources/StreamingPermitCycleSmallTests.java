@@ -52,7 +52,7 @@ import java.util.zip.GZIPOutputStream;
 public class StreamingPermitCycleSmallTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("permit-cycle-test"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
     private static final List<Attribute> SCHEMA = List.of(new ReferenceAttribute(Source.EMPTY, "a", DataType.INTEGER));
     private static final int POOL_SIZE = 2;
@@ -238,7 +238,7 @@ public class StreamingPermitCycleSmallTests extends ESTestCase {
             StripeColumnScope.PROJECTED,
             StreamingParallelParsingCoordinator.WarningSinks.NONE,
             admission,
-            new NoopCircuitBreaker("permit-cycle-test"),
+            NoopCircuitBreaker.INSTANCE,
             ExternalReadCounters.NOOP,
             null
         );

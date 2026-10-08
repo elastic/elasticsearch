@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.NodeByteBudgetService;
@@ -14,12 +16,15 @@ import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 /**
  * Node-scoped admission limit on retained Parquet I/O bytes (prefetch buffers and sliding
@@ -120,6 +125,18 @@ final class ParquetIoWatermark implements AdmissionGate {
     AdmitHold tryAdmit(long bytes) {
         NodeByteBudget.Hold hold = budget.tryAdmit(bytes);
         return hold == null ? null : new AdmitHold(this, hold);
+    }
+
+    /**
+     * FIFO ticket for a unit that must proceed. Uncontended grants complete on the caller;
+     * contended grants are forked onto {@code executor}. {@link AdmitHold#drop()} is the
+     * same leftover-estimate swap as {@link #tryAdmit}.
+     */
+    SubscribableListener<AdmitHold> admitAsync(long bytes, RowGroupIo lease, BooleanSupplier cancelSignal, Executor executor) {
+        SubscribableListener<AdmitHold> listener = new SubscribableListener<>();
+        budget.admitAsync(bytes, lease, cancelSignal, executor)
+            .addListener(ActionListener.wrap(hold -> { listener.onResponse(wrap(hold)); }, listener::onFailure));
+        return listener;
     }
 
     AdmitHold wrap(NodeByteBudget.Hold hold) {
@@ -235,8 +252,10 @@ final class ParquetIoWatermark implements AdmissionGate {
     }
 
     /**
-     * Factory that charges this watermark with the actual allocated length beside the REQUEST
-     * breaker, and releases both on {@link DirectReadBuffer#close()}. {@code admitHold} is a
+     * Factory that charges this watermark with the allocated buffer's
+     * {@linkplain HeapFootprint#byteArrayBytes(long) heap footprint} beside the REQUEST breaker
+     * (which {@link DirectReadBuffer#allocate(CircuitBreaker, int)} charges the same figure), and
+     * releases both on {@link DirectReadBuffer#close()}. {@code admitHold} is a
      * {@link #tryAdmit} estimate; each alloc drops that many leftover estimate bytes so a
      * coalesced group of many GETs does not open a look-ahead hole after the first buffer.
      * {@link AdmitHold#drop()} clears any remainder when the prefetch future settles.
@@ -247,9 +266,10 @@ final class ParquetIoWatermark implements AdmissionGate {
             DirectReadBuffer allocated = inner.allocate(len);
             DirectReadBuffer wrapped = null;
             try {
-                wrapped = account(allocated, len);
+                long footprint = HeapFootprint.byteArrayBytes(len);
+                wrapped = account(allocated, footprint);
                 if (admitHold != null) {
-                    admitHold.drop(len);
+                    admitHold.drop(footprint);
                 }
                 return wrapped;
             } catch (Throwable t) {
@@ -267,18 +287,18 @@ final class ParquetIoWatermark implements AdmissionGate {
         };
     }
 
-    private DirectReadBuffer account(DirectReadBuffer inner, int length) {
+    private DirectReadBuffer account(DirectReadBuffer inner, long footprint) {
         AtomicBoolean released = new AtomicBoolean();
         DirectReadBuffer wrapped = new DirectReadBuffer(inner.buffer(), () -> {
             try {
                 inner.close();
             } finally {
                 if (released.compareAndSet(false, true)) {
-                    release(length);
+                    release(footprint);
                 }
             }
         });
-        forceAdd(length);
+        forceAdd(footprint);
         return wrapped;
     }
 

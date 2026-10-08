@@ -33,6 +33,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -970,8 +971,9 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
 
     /**
      * Asserts that every doc values field in {@code reader} was written with the format production picks for it from the
-     * mapping of {@code mapperService}. A field that production leaves to Lucene's default format is not checked, since
-     * Lucene's test framework randomizes that format on purpose.
+     * mapping of {@code mapperService}, and names the field and segment of every mismatch. A field that production leaves to
+     * Lucene's default format is not checked, since a reader that a test wrote without {@link TestIndexWriterBuilder} may have
+     * that format randomized by Lucene's test framework.
      */
     protected static void assertDocValuesWrittenAsMapped(MapperService mapperService, IndexReader reader) {
         final Codec codec = TestIndexWriterBuilder.productionCodec(mapperService);
@@ -987,11 +989,18 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 }
                 final String written = info.getAttribute(PerFieldDocValuesFormat.PER_FIELD_FORMAT_KEY);
                 if (expected.getName().equals(written) == false) {
-                    mismatches.put(info.name, "mapped to [" + expected.getName() + "] but written with [" + written + "]");
+                    mismatches.put(
+                        info.name + " in segment [" + segmentName(leaf) + "]",
+                        "mapped to [" + expected.getName() + "] but written with [" + written + "]"
+                    );
                 }
             }
         }
         assertTrue("doc values written with a format other than the mapping picks: " + mismatches, mismatches.isEmpty());
+    }
+
+    private static String segmentName(LeafReaderContext leaf) {
+        return Lucene.segmentReader(leaf.reader()).getSegmentName();
     }
 
     protected static DocValuesFormat productionDocValuesFormat(MapperService mapperService, String field) {

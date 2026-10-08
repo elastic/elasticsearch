@@ -106,7 +106,8 @@ public class MappedIndexWriterTests extends MapperServiceTestCase {
             }
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 final AssertionError e = expectThrows(AssertionError.class, () -> assertDocValuesWrittenAsMapped(mapperService, reader));
-                assertThat(e.getMessage(), containsString("foo=mapped to [" + expected + "]"));
+                assertThat(e.getMessage(), containsString("foo in segment ["));
+                assertThat(e.getMessage(), containsString("mapped to [" + expected + "]"));
             }
         }
     }
@@ -163,6 +164,39 @@ public class MappedIndexWriterTests extends MapperServiceTestCase {
             assertThat(productionDocValuesFormat(mapperService, "foo"), not(instanceOf(ES819Version3TSDBDocValuesFormat.class)));
             assertThat(writtenDocValuesFormat(leaf), equalTo(productionDocValuesFormat(mapperService, "foo").getName()));
         });
+    }
+
+    public void testAssertDocValuesWrittenAsMappedNamesTheMismatchedSegment() throws IOException {
+        final MapperService mapperService = createMapperService(columnarVersion(false), columnar(), keywordMapping(false));
+        try (Directory unmapped = newDirectory(); Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), unmapped)) {
+                iw.addDocuments(mapperService.documentMapper().parse(source(b -> b.field("foo", "unmapped"))).docs());
+            }
+            try (RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService).build(directory)) {
+                iw.addDocuments(mapperService.documentMapper().parse(source(b -> b.field("foo", "mapped"))).docs());
+                iw.commit();
+                iw.addIndexes(unmapped);
+                iw.commit();
+                try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                    assertThat(reader.leaves(), hasSize(2));
+                    final String expected = productionDocValuesFormat(mapperService, "foo").getName();
+                    final AssertionError e = expectThrows(
+                        AssertionError.class,
+                        () -> assertDocValuesWrittenAsMapped(mapperService, reader)
+                    );
+                    for (LeafReaderContext leaf : reader.leaves()) {
+                        final String segment = ((SegmentReader) leaf.reader()).getSegmentName();
+                        final Matcher<String> named = containsString("foo in segment [" + segment + "]");
+                        assertThat(e.getMessage(), expected.equals(writtenDocValuesFormat(leaf.reader())) ? not(named) : named);
+                    }
+                }
+                iw.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                assertThat(reader.leaves(), hasSize(1));
+                assertDocValuesWrittenAsMapped(mapperService, reader);
+            }
+        }
     }
 
     public void testBuilderRequiresMapperService() {

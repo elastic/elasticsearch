@@ -106,9 +106,10 @@ public class AnonymizationContextTests extends ESTestCase {
 
     /**
      * Keying on the raw identifier substituted a single zero byte for an empty one, which collapsed
-     * {@code ""}, {@code null} and {@code "\0"} onto one key — UTF-8 encodes {@code U+0000} as that
-     * same byte. Deriving the key by digest separates them. This is the one property here that holds
-     * the two derivations apart without FIPS, so it is what pins the change on an ordinary run.
+     * {@code ""} and {@code "\0"} onto one key — UTF-8 encodes {@code U+0000} as that same byte.
+     * Deriving the key by digest separates that pair. It is the one property here that holds the two
+     * derivations apart without FIPS, so it is what pins the change on an ordinary run. {@code null}
+     * is not part of it: it normalises to {@code ""} before either derivation sees a byte.
      */
     public void testEmptyAndNulByteClusterUuidsDoNotShareAKey() {
         String fromEmpty = AnonymizationContext.forSubmission("").mapper().column("salary");

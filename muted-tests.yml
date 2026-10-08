@@ -699,3 +699,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/161391
 - class: org.elasticsearch.xpack.esql.qa.csv.TsvFormatSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/161394
+- class: org.elasticsearch.integration.FieldLevelSecurityTests
+  method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
+  issue: https://github.com/elastic/elasticsearch/issues/161396

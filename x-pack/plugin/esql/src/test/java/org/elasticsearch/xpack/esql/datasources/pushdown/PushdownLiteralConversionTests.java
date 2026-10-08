@@ -243,12 +243,7 @@ public class PushdownLiteralConversionTests extends ESTestCase {
         Equals original = new Equals(SRC, field("id", DataType.LONG), new Literal(SRC, List.of(1, 2), DataType.INTEGER), null);
         assertSame(original, PushdownLiteralConversion.rewrite(original));
 
-        LessThan mixed = new LessThan(
-            SRC,
-            field("id", DataType.INTEGER),
-            new Literal(SRC, List.of(1.5, 2.5), DataType.DOUBLE),
-            null
-        );
+        LessThan mixed = new LessThan(SRC, field("id", DataType.INTEGER), new Literal(SRC, List.of(1.5, 2.5), DataType.DOUBLE), null);
         assertSame(mixed, PushdownLiteralConversion.rewrite(mixed));
     }
 

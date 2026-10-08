@@ -62,7 +62,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
 
         @Override
         public RateLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            var warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+            var warnings = driverContext.createWarnings(source);
             return new RateLongGroupingAggregatorFunction(channels, driverContext, isRateOverTime, isDateNanos, warnings);
         }
 

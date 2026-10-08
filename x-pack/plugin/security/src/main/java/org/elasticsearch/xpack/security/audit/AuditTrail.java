@@ -23,6 +23,13 @@ public interface AuditTrail {
 
     String name();
 
+    /**
+     * Records a successful authentication for the given REST request.
+     *
+     * @throws org.elasticsearch.ElasticsearchStatusException with status 413 if the request body
+     *     exceeds the configured audit body size limit
+     *     ({@link org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail#MAX_REQUEST_BODY_SIZE})
+     */
     void authenticationSuccess(RestRequest request);
 
     void authenticationSuccess(String requestId, Authentication authentication, String action, TransportRequest transportRequest);

@@ -172,6 +172,7 @@ public class LlamaService extends SenderService<LlamaModel> {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             EMBEDDING_MAX_BATCH_SIZE,
+            getRegexReadLimitFactor(),
             llamaModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

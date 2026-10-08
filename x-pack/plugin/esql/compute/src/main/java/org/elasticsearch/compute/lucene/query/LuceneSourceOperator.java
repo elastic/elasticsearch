@@ -25,7 +25,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -37,6 +36,7 @@ import org.elasticsearch.compute.lucene.query.LuceneSliceQueue.PartitioningStrat
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -87,7 +87,8 @@ public class LuceneSourceOperator extends LuceneOperator {
             int limit,
             boolean needsScore,
             LongSupplier directoryBytesRead,
-            int minDocsPerSlice
+            int minDocsPerSlice,
+            QueryWarnings singleValueQueryWarnings
         ) {
             super(
                 shardContexts,
@@ -102,7 +103,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                 needsScore,
                 shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES,
                 directoryBytesRead,
-                minDocsPerSlice
+                minDocsPerSlice,
+                singleValueQueryWarnings
             );
             this.refCounteds = shardContexts;
             this.maxPageSize = maxPageSize;
@@ -114,13 +116,14 @@ public class LuceneSourceOperator extends LuceneOperator {
         public SourceOperator get(DriverContext driverContext) {
             return new LuceneSourceOperator(
                 refCounteds,
-                driverContext.blockFactory(),
+                driverContext,
                 maxPageSize,
                 sliceQueue,
                 limit,
                 limiter,
                 needsScore,
-                directoryBytesRead
+                directoryBytesRead,
+                singleValueQueryWarnings
             );
         }
 
@@ -263,15 +266,16 @@ public class LuceneSourceOperator extends LuceneOperator {
     @SuppressWarnings("this-escape")
     public LuceneSourceOperator(
         IndexedByShardId<? extends RefCounted> refCounteds,
-        BlockFactory blockFactory,
+        DriverContext driverContext,
         int maxPageSize,
         LuceneSliceQueue sliceQueue,
         int limit,
         Limiter limiter,
         boolean needsScore,
-        LongSupplier directoryBytesRead
+        LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings
     ) {
-        super(refCounteds, blockFactory, maxPageSize, sliceQueue, directoryBytesRead);
+        super(refCounteds, driverContext, maxPageSize, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
         this.limiter = limiter;
@@ -326,7 +330,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @Override
     public boolean isFinished() {
-        return doneCollecting || limiter.remaining() == 0;
+        return doneCollecting || (currentPagePos == 0 && limiter.remaining() == 0);
     }
 
     @Override
@@ -343,25 +347,32 @@ public class LuceneSourceOperator extends LuceneOperator {
         try {
             final LuceneScorer scorer = getCurrentOrLoadNextScorer();
             if (scorer == null) {
+                assert doneCollecting == false || currentPagePos == 0 : "finished with " + currentPagePos + " buffered docs";
                 return null;
             }
             if (docIds == null) {
                 docIds = docIdsPool.getOrAllocate(maxPageSize);
             }
             final int remainingDocsStart = remainingDocs = limiter.remaining();
-            try {
-                scorer.scoreNextRange(
-                    leafCollector,
-                    scorer.leafReaderContext().reader().getLiveDocs(),
-                    // Note: if (maxPageSize - currentPagePos) is a small "remaining" interval, this could lead to slow collection with a
-                    // highly selective filter. Having a large "enough" difference between max- and minPageSize (and thus currentPagePos)
-                    // alleviates this issue.
-                    maxPageSize - currentPagePos
-                );
-            } catch (CollectionTerminatedException ex) {
-                // The leaf collector terminated the execution
+            if (remainingDocsStart == 0) {
+                // Another driver exhausted the shared limit; nothing left to collect, only the buffered docs to emit (see isFinished).
                 doneCollecting = true;
                 scorer.markAsDone();
+            } else {
+                try {
+                    scorer.scoreNextRange(
+                        leafCollector,
+                        scorer.leafReaderContext().reader().getLiveDocs(),
+                        // Note: if (maxPageSize - currentPagePos) is a small "remaining" interval, this could lead to slow collection with
+                        // a highly selective filter. Having a large "enough" difference between max- and minPageSize (and thus
+                        // currentPagePos) alleviates this issue.
+                        maxPageSize - currentPagePos
+                    );
+                } catch (CollectionTerminatedException ex) {
+                    // The leaf collector terminated the execution
+                    doneCollecting = true;
+                    scorer.markAsDone();
+                }
             }
             final int collectedDocs = remainingDocsStart - remainingDocs;
             final int discardedDocs = collectedDocs - limiter.tryAccumulateHits(collectedDocs);

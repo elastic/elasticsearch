@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 public class AutoPartitionDetectorTests extends ESTestCase {
 
@@ -26,7 +25,7 @@ public class AutoPartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/year=2023/file2.parquet")
         );
 
-        PartitionMetadata result = detector.detect(files, Map.of());
+        PartitionMetadata result = detector.detect(files);
 
         assertFalse(result.isEmpty());
         assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
@@ -41,7 +40,7 @@ public class AutoPartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/2023/12/file2.parquet")
         );
 
-        PartitionMetadata result = detector.detect(files, Map.of());
+        PartitionMetadata result = detector.detect(files);
 
         assertFalse(result.isEmpty());
         assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
@@ -56,7 +55,7 @@ public class AutoPartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/2023/12/file2.parquet")
         );
 
-        PartitionMetadata result = detector.detect(files, Map.of());
+        PartitionMetadata result = detector.detect(files);
         assertTrue(result.isEmpty());
     }
 
@@ -69,7 +68,7 @@ public class AutoPartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/year=2023/file.parquet")
         );
 
-        PartitionMetadata result = detector.detect(files, Map.of());
+        PartitionMetadata result = detector.detect(files);
         assertFalse(result.isEmpty());
         // Template detector extracts the last segment before filename positionally
         assertEquals("year=2024", result.filePartitionValues().get(StoragePath.of("s3://bucket/data/year=2024/file.parquet")).get("year"));
@@ -82,9 +81,13 @@ public class AutoPartitionDetectorTests extends ESTestCase {
         assertNull(detector);
     }
 
-    public void testNullConfigDefaultsToHive() {
-        PartitionDetector detector = AutoPartitionDetector.fromConfig(null);
-        assertEquals("hive", ((HivePartitionDetector) detector).name());
+    /**
+     * {@code fromConfig} no longer defaults a null config to the Hive detector. The listing boundary always
+     * resolves a {@link PartitionConfig}, so a null here is a programming error rather than a user-reachable
+     * state.
+     */
+    public void testNullConfigIsRejected() {
+        expectThrows(NullPointerException.class, () -> AutoPartitionDetector.fromConfig(null));
     }
 
     public void testAutoDetectorName() {
@@ -101,7 +104,7 @@ public class AutoPartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/year=2023/file2.parquet")
         );
 
-        PartitionMetadata result = detector.detect(files, Map.of());
+        PartitionMetadata result = detector.detect(files);
         assertFalse(result.isEmpty());
         // Hive should be detected first, so the column should be "year" not "col"
         assertTrue(result.partitionColumns().containsKey("year"));

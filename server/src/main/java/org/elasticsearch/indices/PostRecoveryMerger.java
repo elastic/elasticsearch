@@ -22,10 +22,7 @@ import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardLongFieldRange;
-import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -98,27 +95,7 @@ class PostRecoveryMerger {
         }
 
         final var shardId = shardRouting.shardId();
-        return new RecoveryListener() {
-            @Override
-            public void onRecoveryDone(
-                RecoveryState state,
-                ShardLongFieldRange timestampMillisFieldRange,
-                ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {
-                postRecoveryMergeRunner.enqueueTask(new PostRecoveryMerge(shardId));
-                recoveryListener.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
-            }
-
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                recoveryListener.onRecoveryFailure(e, sendShardFailure);
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                recoveryListener.onRecoveryAborted();
-            }
-        };
+        return RecoveryListener.runBeforeDone(recoveryListener, () -> postRecoveryMergeRunner.enqueueTask(new PostRecoveryMerge(shardId)));
     }
 
     class PostRecoveryMerge implements ActionListener<Releasable> {

@@ -186,6 +186,13 @@ class ScrollDataExtractor implements DataExtractor {
             DataExtractorUtils.checkForSkippedClusters(searchResponse);
             success = true;
         } catch (ResourceNotFoundException e) {
+            // Update lastLinkedClusterStates FIRST so that clearScrollLoggingExceptions() can
+            // correctly classify the scroll as CCS even on the first failure cycle (when
+            // lastLinkedClusterStates would otherwise still be empty).
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                DataExtractorUtils.extractLinkedClusterStates(searchResponse)
+            );
             clearScrollLoggingExceptions(searchResponse.getScrollId());
             throw e;
         } finally {
@@ -194,6 +201,11 @@ class ScrollDataExtractor implements DataExtractor {
             }
         }
         return searchResponse;
+    }
+
+    @Override
+    public List<LinkedClusterState> getLinkedClusterStates() {
+        return lastLinkedClusterStates;
     }
 
     private SearchRequestBuilder buildSearchRequest(long start) {

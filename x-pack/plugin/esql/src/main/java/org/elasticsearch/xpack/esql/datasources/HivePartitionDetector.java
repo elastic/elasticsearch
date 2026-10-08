@@ -59,11 +59,7 @@ public final class HivePartitionDetector implements PartitionDetector {
     }
 
     @Override
-    public PartitionMetadata detect(List<StorageEntry> files, Map<String, Object> config) {
-        return detect(files);
-    }
-
-    static PartitionMetadata detect(List<StorageEntry> files) {
+    public PartitionMetadata detect(List<StorageEntry> files) {
         if (files == null || files.isEmpty()) {
             return PartitionMetadata.EMPTY;
         }

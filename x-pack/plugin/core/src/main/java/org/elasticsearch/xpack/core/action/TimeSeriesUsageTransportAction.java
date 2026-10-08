@@ -90,9 +90,10 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
                 continue;
             }
             tsDataStreamCount++;
-            Integer dlmRounds = ds.getDataLifecycle() == null || ds.getDataLifecycle().downsamplingRounds() == null
+            DataStreamLifecycle dataLifecycle = ds.getDataLifecycle();
+            Integer dlmRounds = dataLifecycle == null || dataLifecycle.downsamplingRounds() == null
                 ? null
-                : ds.getDataLifecycle().downsamplingRounds().size();
+                : dataLifecycle.downsamplingRounds().size();
 
             for (Index backingIndex : ds.getIndices()) {
                 IndexMetadata indexMetadata = projectMetadata.index(backingIndex);
@@ -100,11 +101,16 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
                     continue;
                 }
                 tsIndexCount++;
-                if (ds.isIndexManagedByDataStreamLifecycle(indexMetadata.getIndex(), ignored -> indexMetadata) && dlmRounds != null) {
+                DataStream.LifecycleManagedBy managedBy = DataStream.lifecycleManagedBy(
+                    indexMetadata.getLifecyclePolicyName(),
+                    dataLifecycle,
+                    indexMetadata.getSettings()
+                );
+                if (managedBy == DataStream.LifecycleManagedBy.DLM && dlmRounds != null) {
                     dlmStats.trackIndex(ds, indexMetadata);
                     dlmStats.trackRounds(dlmRounds, ds, indexMetadata);
-                    dlmStats.trackSamplingMethod(ds.getDataLifecycle().downsamplingMethod(), ds, indexMetadata);
-                } else if (ilmAvailable && projectMetadata.isIndexManagedByILM(indexMetadata)) {
+                    dlmStats.trackSamplingMethod(dataLifecycle.downsamplingMethod(), ds, indexMetadata);
+                } else if (managedBy == DataStream.LifecycleManagedBy.ILM) {
                     LifecyclePolicyMetadata policyMetadata = ilmMetadata.getPolicyMetadatas().get(indexMetadata.getLifecyclePolicyName());
                     if (policyMetadata == null) {
                         continue;

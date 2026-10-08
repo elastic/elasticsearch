@@ -1,0 +1,6 @@
+pr: 157587
+summary: Fix ES|QL Parquet late-materialization filter crashing with `ClassCastException` on all-null predicate batches
+area: ES|QL
+type: bug
+issues:
+ - 157313

@@ -989,9 +989,8 @@ public class ModelRegistry implements ClusterStateListener {
         return new ResponseInfo(responses, successfullyStoredModels);
     }
 
-    private static ModelStoreResponse createModelStoreResponse(BulkItemResponse item, Map<String, String> docIdToInferenceId) {
-        var failure = item.getFailure();
-
+    // default for testing
+    static ModelStoreResponse createModelStoreResponse(BulkItemResponse item, Map<String, String> docIdToInferenceId) {
         String inferenceIdOrUnknown = "unknown";
         var inferenceIdMaybeNull = docIdToInferenceId.get(item.getId());
         if (inferenceIdMaybeNull == null) {
@@ -1000,16 +999,24 @@ public class ModelRegistry implements ClusterStateListener {
             inferenceIdOrUnknown = inferenceIdMaybeNull;
         }
 
-        if (item.isFailed() && failure != null) {
-            logger.warn(
-                format(
-                    "Failed to store document id: [%s] inference id: [%s] index: [%s] bulk failure message [%s]",
-                    item.getId(),
-                    inferenceIdOrUnknown,
-                    item.getIndex(),
-                    item.getFailureMessage()
-                )
+        if (item.isFailed()) {
+            var failure = item.getFailure();
+
+            var failureMessage = format(
+                "Failed to store document id: [%s] inference id: [%s] index: [%s] bulk failure message [%s]",
+                item.getId(),
+                inferenceIdOrUnknown,
+                item.getIndex(),
+                item.getFailureMessage()
             );
+
+            // A version conflict means the endpoint already exists, which is expected. Callers translate it into a
+            // ResourceAlreadyExistsException (see storeModel), so there is no need to warn about it here.
+            if (ExceptionsHelper.unwrapCause(failure.getCause()) instanceof VersionConflictEngineException) {
+                logger.debug(failureMessage);
+            } else {
+                logger.warn(failureMessage);
+            }
 
             return new ModelStoreResponse(inferenceIdOrUnknown, item.status(), failure.getCause());
         } else {

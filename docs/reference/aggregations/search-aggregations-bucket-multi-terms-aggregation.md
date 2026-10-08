@@ -133,6 +133,9 @@ By default, the `multi_terms` aggregation will return the buckets for the top te
 
 The following parameters are supported. See [`terms aggregation`](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-order) for more detailed explanation of these parameters.
 
+terms
+:   Required. The fields or scripts that form the composite key. Must contain at least 2 and at most 128 entries.
+
 size
 :   Optional. Defines how many term buckets should be returned out of the overall terms list. Defaults to 10.
 

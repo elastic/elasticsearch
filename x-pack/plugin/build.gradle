@@ -110,6 +110,14 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.replaceValueTextByKeyValue("index", ".ml-anomalies-custom-all-test-2", ".ml-anomalies-custom-all-test-2-000001")
     task.skipTest("counted_keyword/20_no_index/Counted keyword with index false is not searchable", "counted_keyword with index:false now reports searchable:true via doc values")
     task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry)", "The telemetry output changed. We dropped a column. That's safe.")
+    task.skipTest(
+      "ml/datafeeds_crud/Test put and update datafeed with max_consecutive_extraction_failures",
+      "Feature #159554 reverted from 9.5; field no longer supported"
+    )
+    task.skipTest(
+      "ml/datafeeds_crud/Test put datafeed with invalid max_consecutive_extraction_failures",
+      "Feature #159554 reverted from 9.5; field no longer supported"
+    )
     task.skipTest("inference/inference_crud/Test get all", "Assertions on number of inference models break due to default configs")
     task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry) snapshot version", "The number of functions is constantly increasing")
     task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version", "The number of functions is constantly increasing")
@@ -162,6 +170,7 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("esql/90_non_indexed/fetch", "Temporary until backported")
     task.skipTest("esql/63_enrich_int_range/Invalid age as double", "TODO: require disable allow_partial_results")
     task.skipTest("esql/191_lookup_join_on_datastreams/data streams not supported in LOOKUP JOIN", "Added support for aliases in JOINs")
+    task.skipTest("esql/160_union_types/CASE", "CASE now reports the multivalue condition warning the same way other functions do")
     task.skipTest("esql/190_lookup_join/non-lookup index", "Error message changed")
     task.skipTest("esql/190_lookup_join/fails with non-lookup index", "Error message changed")
     task.skipTest("esql/192_lookup_join_on_aliases/alias-pattern-multiple", "Error message changed")

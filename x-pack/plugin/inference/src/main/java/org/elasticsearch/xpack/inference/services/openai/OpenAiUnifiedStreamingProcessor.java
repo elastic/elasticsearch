@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -290,9 +291,10 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                 PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField(COMPLETION_TOKENS_FIELD));
                 PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField(PROMPT_TOKENS_FIELD));
                 PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField(TOTAL_TOKENS_FIELD));
-                PARSER.declareObject(
+                PARSER.declareObjectOrNull(
                     ConstructingObjectParser.optionalConstructorArg(),
                     PromptTokensDetailsParser.PARSER,
+                    null,
                     new ParseField(PROMPT_TOKENS_DETAILS_FIELD)
                 );
                 PARSER.declareObjectOrNull(
@@ -307,6 +309,17 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                 return PARSER.parse(parser, null);
             }
 
+            /**
+             * The token-detail counts are declared via {@link ValueType#INT_OR_NULL} rather than
+             * {@code declareIntOrNull}, whose {@code nullValue} is a primitive {@code int} and so cannot represent
+             * "the provider sent an explicit null". Some OpenAI-compatible providers emit
+             * {@code "cached_tokens": null} or {@code "reasoning_tokens": null}, and a parse failure here fails the
+             * whole streaming response.
+             */
+            private static Integer parseOptionalInt(XContentParser parser) throws IOException {
+                return parser.currentToken() == XContentParser.Token.VALUE_NULL ? null : parser.intValue();
+            }
+
             private static class CompletionTokensDetailsParser {
                 private static final ConstructingObjectParser<CompletionTokenDetails, Void> PARSER = new ConstructingObjectParser<>(
                     COMPLETION_TOKENS_DETAILS_FIELD,
@@ -315,7 +328,12 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                 );
 
                 static {
-                    PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(REASONING_TOKENS_FIELD));
+                    PARSER.declareField(
+                        ConstructingObjectParser.optionalConstructorArg(),
+                        UsageParser::parseOptionalInt,
+                        new ParseField(REASONING_TOKENS_FIELD),
+                        ValueType.INT_OR_NULL
+                    );
                 }
             }
 
@@ -327,7 +345,12 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                 );
 
                 static {
-                    PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(CACHED_TOKENS_FIELD));
+                    PARSER.declareField(
+                        ConstructingObjectParser.optionalConstructorArg(),
+                        UsageParser::parseOptionalInt,
+                        new ParseField(CACHED_TOKENS_FIELD),
+                        ValueType.INT_OR_NULL
+                    );
                 }
             }
         }

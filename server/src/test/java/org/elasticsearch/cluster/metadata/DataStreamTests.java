@@ -2148,6 +2148,31 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
     }
 
+    public void testLifecycleManagedBy() {
+        DataStreamLifecycle enabled = DataStreamLifecycle.dataLifecycleBuilder().enabled(true).build();
+        DataStreamLifecycle disabled = DataStreamLifecycle.dataLifecycleBuilder().enabled(false).build();
+        Settings preferIlm = Settings.builder().put(IndexSettings.PREFER_ILM, true).build();
+        Settings preferDlm = Settings.builder().put(IndexSettings.PREFER_ILM, false).build();
+
+        // both configured, prefer_ilm decides (it defaults to true)
+        assertThat(DataStream.lifecycleManagedBy("policy", enabled, preferIlm), is(DataStream.LifecycleManagedBy.ILM));
+        assertThat(DataStream.lifecycleManagedBy("policy", enabled, Settings.EMPTY), is(DataStream.LifecycleManagedBy.ILM));
+        assertThat(DataStream.lifecycleManagedBy("policy", enabled, preferDlm), is(DataStream.LifecycleManagedBy.DLM));
+
+        // a disabled data stream lifecycle never manages the resource, so prefer_ilm is irrelevant
+        for (Settings settings : List.of(Settings.EMPTY, preferIlm, preferDlm)) {
+            assertThat(DataStream.lifecycleManagedBy("policy", disabled, settings), is(DataStream.LifecycleManagedBy.ILM));
+            assertThat(DataStream.lifecycleManagedBy(null, disabled, settings), is(DataStream.LifecycleManagedBy.UNMANAGED));
+        }
+
+        // only one feature configured, prefer_ilm is irrelevant
+        for (Settings settings : List.of(Settings.EMPTY, preferIlm, preferDlm)) {
+            assertThat(DataStream.lifecycleManagedBy("policy", null, settings), is(DataStream.LifecycleManagedBy.ILM));
+            assertThat(DataStream.lifecycleManagedBy(null, enabled, settings), is(DataStream.LifecycleManagedBy.DLM));
+            assertThat(DataStream.lifecycleManagedBy(null, null, settings), is(DataStream.LifecycleManagedBy.UNMANAGED));
+        }
+    }
+
     public void testFailuresLifecycle() {
         DataStream noFailureStoreDs = DataStream.builder("no-fs", List.of(new Index(randomAlphaOfLength(10), randomUUID()))).build();
         assertThat(noFailureStoreDs.getFailuresLifecycle(), nullValue());

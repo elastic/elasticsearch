@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.entsearch;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.SecureString;
@@ -34,7 +35,7 @@ public class EnterpriseSearchRestIT extends ESClientYamlSuiteTestCase {
         .user("entsearch-unprivileged", "entsearch-unprivileged-password", "unprivileged", false)
         .build();
 
-    public EnterpriseSearchRestIT(final ClientYamlTestCandidate testCandidate) {
+    public EnterpriseSearchRestIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

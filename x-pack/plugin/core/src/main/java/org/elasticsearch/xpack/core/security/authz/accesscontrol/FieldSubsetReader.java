@@ -33,6 +33,7 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FilterIterator;
+import org.apache.lucene.util.IOBooleanSupplier;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -723,6 +724,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         @Override
         public boolean seekExact(BytesRef term) throws IOException {
             return accept(term) && in.seekExact(term);
+        }
+
+        @Override
+        public IOBooleanSupplier prepareSeekExact(BytesRef term) throws IOException {
+            // TermStates uses this method before seekExact(term, state), so the field filter must be applied at both stages.
+            return accept(term) ? in.prepareSeekExact(term) : null;
         }
 
         @Override

@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -49,12 +48,10 @@ public class TimeSeriesEligibleWriteWindowLocatorWithIlm extends TimeSeriesEligi
         if (Strings.hasText(policyName) == false) {
             return null;
         }
-        // If there is only one of the lifecycle features configured, we return the policy name if available otherwise null.
-        if (dataStream.getDataLifecycle() == null) {
-            return policyName;
-        }
-        // If both are configured, ILM is in effect only if prefer_ilm is true.
-        return IndexSettings.PREFER_ILM_SETTING.get(settings) ? policyName : null;
+
+        return DataStream.lifecycleManagedBy(policyName, dataStream.getDataLifecycle(), settings) == DataStream.LifecycleManagedBy.ILM
+            ? policyName
+            : null;
     }
 
     /**

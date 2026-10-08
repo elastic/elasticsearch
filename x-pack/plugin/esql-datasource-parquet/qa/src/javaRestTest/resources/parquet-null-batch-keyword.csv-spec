@@ -1,0 +1,66 @@
+// elastic/elasticsearch#157313: a WHERE filter on a keyword column failed the whole query with
+// "BytesRef cannot be cast to Number" as soon as a decoded batch of that column was entirely null.
+// ConstantNullBlock implements every typed block interface, so the all-null batch bound the pushed
+// filter evaluator's first arm (IntBlock) regardless of the column's real type and cast the plan
+// literal to Number before any per-row null guard ran.
+//
+// The fixture shape is load-bearing and not arbitrary:
+//   - `code` is SPARSE, not wholly null: one "US" every 20000 rows, real nulls in between. A
+//     wholly-null column does NOT reproduce the bug - parquet-mr's row-group statistics filter
+//     drops a row group whose predicate column has no min/max before anything is decoded.
+//   - the null runs are far longer than the 1000-row external-source page size, so whole decode
+//     windows are null and the reader hands the evaluator a ConstantNullBlock.
+//   - the nulls are spelled `null` in the CSV. An empty cell on a string column is parsed as the
+//     empty string, not null (CsvFixtureParser#parseCell), which would leave the column with no
+//     nulls at all and silently make these cases pin nothing.
+//
+// This is the shape users hit on GBIF. The sibling cases in parquet-multifile.csv-spec cover the
+// adjacent missing-column route, which never crashed.
+
+keywordEqualsOverAllNullDecodedBatch
+required_capability: external_command
+dataset: null_batch_keyword: "{{null_batch_keyword}}"
+
+FROM null_batch_keyword
+| WHERE code == "US"
+| KEEP id, code
+| SORT id ASC
+| LIMIT 3;
+
+id:long | code:keyword
+0       | US
+20000   | US
+40000   | US
+;
+
+keywordInOverAllNullDecodedBatch
+required_capability: external_command
+dataset: null_batch_keyword: "{{null_batch_keyword}}"
+
+FROM null_batch_keyword
+| WHERE code IN ("US", "CA")
+| KEEP id, code
+| SORT id ASC
+| LIMIT 3;
+
+id:long | code:keyword
+0       | US
+20000   | US
+40000   | US
+;
+
+// Numeric control on the same fixture: a Number literal survives the eager cast, so this shape
+// never crashed. It pins that the fix did not change it.
+numericFilterOverSameFixture
+required_capability: external_command
+dataset: null_batch_keyword: "{{null_batch_keyword}}"
+
+FROM null_batch_keyword
+| WHERE id < 2
+| KEEP id, other
+| SORT id ASC;
+
+id:long | other:keyword
+0       | val_0
+1       | val_1
+;

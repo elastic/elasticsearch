@@ -75,6 +75,7 @@ public interface RecoveryListener {
         };
     }
 
+    /// Returns a listener that delegates all outcomes to the given listener, running `runAfter` after each outcome.
     static RecoveryListener runAfter(RecoveryListener listener, Runnable runAfter) {
         return new RecoveryListener() {
             @Override
@@ -106,6 +107,71 @@ public interface RecoveryListener {
                 } finally {
                     runAfter.run();
                 }
+            }
+        };
+    }
+
+    /// Returns a listener that delegates all outcomes to the given listener, running `runBefore` before each outcome.
+    static RecoveryListener runBefore(RecoveryListener listener, Runnable runBefore) {
+        return new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                try {
+                    runBefore.run();
+                } finally {
+                    listener.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
+                }
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                try {
+                    runBefore.run();
+                } finally {
+                    listener.onRecoveryFailure(e, sendShardFailure);
+                }
+            }
+
+            @Override
+            public void onRecoveryAborted() {
+                try {
+                    runBefore.run();
+                } finally {
+                    listener.onRecoveryAborted();
+                }
+            }
+        };
+    }
+
+    /// Returns a listener which delegates `onRecoveryFailure` and `onRecoveryAborted` unchanged to the given listener.
+    /// Before delegating `onRecoveryDone`, it first runs `beforeDone`.
+    static RecoveryListener runBeforeDone(RecoveryListener listener, Runnable beforeDone) {
+        return new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                try {
+                    beforeDone.run();
+                } finally {
+                    listener.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
+                }
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                listener.onRecoveryFailure(e, sendShardFailure);
+            }
+
+            @Override
+            public void onRecoveryAborted() {
+                listener.onRecoveryAborted();
             }
         };
     }

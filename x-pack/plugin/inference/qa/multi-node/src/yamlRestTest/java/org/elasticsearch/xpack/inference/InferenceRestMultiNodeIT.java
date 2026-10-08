@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.Request;
@@ -24,7 +25,7 @@ import java.util.Map;
 
 public class InferenceRestMultiNodeIT extends ESClientYamlSuiteTestCase {
 
-    public InferenceRestMultiNodeIT(final ClientYamlTestCandidate testCandidate) {
+    public InferenceRestMultiNodeIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

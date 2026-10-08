@@ -17,13 +17,38 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.List;
 
+import static org.elasticsearch.xpack.inference.common.DelegatingProcessorTests.onNext;
 import static org.hamcrest.Matchers.is;
 
 public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
+
+    private static final String NULL_JSON_VALUE = "null";
+
+    /**
+     * A usage chunk as emitted by an OpenAI-compatible provider that sends explicit JSON {@code null}s for both token details
+     * fields. Reproduced verbatim from a reported parse failure, so prefer not to parameterize the token counts here.
+     */
+    private static final String CHUNK_WITH_NULL_TOKEN_DETAILS_JSON = """
+        {
+          "id": "example_id",
+          "choices": [],
+          "model": "example_model",
+          "object": "chat.completion.chunk",
+          "usage": {
+            "prompt_tokens": 53,
+            "completion_tokens": 50,
+            "total_tokens": 103,
+            "prompt_tokens_details": null,
+            "completion_tokens_details": null
+          }
+        }
+        """;
 
     public void testJsonLiteral() {
         String json = """
@@ -491,10 +516,6 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
         }
     }
 
-    private String createUsageJson(int completionTokens, int promptTokens, int totalTokens) {
-        return createUsageJson(completionTokens, promptTokens, totalTokens, null, null);
-    }
-
     private String createUsageJson(
         int completionTokens,
         int promptTokens,
@@ -502,16 +523,49 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
         @Nullable Integer cachedTokens,
         @Nullable Integer reasoningTokens
     ) {
-        String cachedTokensPart = cachedTokens != null ? Strings.format("""
+        return createUsageJsonWithRawTokenDetails(
+            completionTokens,
+            promptTokens,
+            totalTokens,
+            cachedTokens != null ? createPromptTokensDetailsJson(String.valueOf(cachedTokens)) : null,
+            reasoningTokens != null ? createCompletionTokensDetailsJson(String.valueOf(reasoningTokens)) : null
+        );
+    }
+
+    /** Takes the count as a raw JSON fragment so tests can pass {@link #NULL_JSON_VALUE}. */
+    private String createPromptTokensDetailsJson(String cachedTokensJson) {
+        return Strings.format("""
+            {
+                "cached_tokens": %s
+            }""", cachedTokensJson);
+    }
+
+    private String createCompletionTokensDetailsJson(String reasoningTokensJson) {
+        return Strings.format("""
+            {
+                "reasoning_tokens": %s
+            }""", reasoningTokensJson);
+    }
+
+    /**
+     * Creates a {@code usage} object with both token details fields inlined verbatim, so tests can distinguish a field that is
+     * absent from one that is explicitly {@code null}. A {@code null} fragment omits the field entirely; any other value -
+     * including {@link #NULL_JSON_VALUE} - is written as-is. This is the same convention
+     * {@link #createChatCompletionChunkJson} already uses for its {@code usageJson} argument.
+     */
+    private String createUsageJsonWithRawTokenDetails(
+        int completionTokens,
+        int promptTokens,
+        int totalTokens,
+        @Nullable String promptTokensDetailsJson,
+        @Nullable String completionTokensDetailsJson
+    ) {
+        var promptTokensDetailsPart = promptTokensDetailsJson != null ? Strings.format("""
             ,
-            "prompt_tokens_details": {
-                "cached_tokens": %d
-            }""", cachedTokens) : "";
-        String reasoningTokensPart = reasoningTokens != null ? Strings.format("""
+            "prompt_tokens_details": %s""", promptTokensDetailsJson) : "";
+        var completionTokensDetailsPart = completionTokensDetailsJson != null ? Strings.format("""
             ,
-            "completion_tokens_details": {
-                "reasoning_tokens": %d
-            }""", reasoningTokens) : "";
+            "completion_tokens_details": %s""", completionTokensDetailsJson) : "";
         return Strings.format("""
             {
                 "completion_tokens": %d,
@@ -520,7 +574,29 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
                 %s\
                 %s
             }
-            """, completionTokens, promptTokens, totalTokens, cachedTokensPart, reasoningTokensPart);
+            """, completionTokens, promptTokens, totalTokens, promptTokensDetailsPart, completionTokensDetailsPart);
+    }
+
+    private StreamingUnifiedChatCompletionResults.ChatCompletionChunk parseChunk(String chunkJson) throws IOException {
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        try (var parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, chunkJson)) {
+            return OpenAiUnifiedStreamingProcessor.ChatCompletionChunkParser.parse(parser);
+        }
+    }
+
+    private StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage parseUsage(String usageJson) throws IOException {
+        var chunk = parseChunk(
+            createChatCompletionChunkJson(
+                randomAlphaOfLength(10),
+                createChoiceJson(null, null, null, "", null, 0),
+                randomAlphaOfLength(5),
+                "chat.completion.chunk",
+                usageJson
+            )
+        );
+
+        assertNotNull(chunk.usage());
+        return chunk.usage();
     }
 
     public void testUsageParsingWithCachedAndReasoningTokens() throws IOException {
@@ -575,6 +651,170 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
                 assertNull(chunk.usage().completionTokenDetails());
             }
         }
+    }
+
+    public void testJsonLiteral_NullTokenDetails() throws IOException {
+        var chunk = parseChunk(CHUNK_WITH_NULL_TOKEN_DETAILS_JSON);
+
+        assertThat(chunk.id(), is("example_id"));
+        assertThat(chunk.model(), is("example_model"));
+        assertThat(chunk.object(), is("chat.completion.chunk"));
+        assertTrue(chunk.choices().isEmpty());
+        assertNotNull(chunk.usage());
+        assertThat(chunk.usage().completionTokens(), is(50));
+        assertThat(chunk.usage().promptTokens(), is(53));
+        assertThat(chunk.usage().totalTokens(), is(103));
+        assertNull(chunk.usage().cachedTokens());
+        assertNull(chunk.usage().completionTokenDetails());
+    }
+
+    public void testUsageParsing_NullPromptAndCompletionTokenDetails() throws IOException {
+        var completionTokens = randomIntBetween(1, 100);
+        var promptTokens = randomIntBetween(1, 100);
+        var totalTokens = randomIntBetween(1, 200);
+
+        var usage = parseUsage(
+            createUsageJsonWithRawTokenDetails(completionTokens, promptTokens, totalTokens, NULL_JSON_VALUE, NULL_JSON_VALUE)
+        );
+
+        assertThat(usage.completionTokens(), is(completionTokens));
+        assertThat(usage.promptTokens(), is(promptTokens));
+        assertThat(usage.totalTokens(), is(totalTokens));
+        assertNull(usage.cachedTokens());
+        assertNull(usage.completionTokenDetails());
+    }
+
+    public void testUsageParsing_NullPromptTokensDetails() throws IOException {
+        var completionTokens = randomIntBetween(1, 100);
+        var promptTokens = randomIntBetween(1, 100);
+        var totalTokens = randomIntBetween(1, 200);
+        var reasoningTokens = randomIntBetween(1, 50);
+
+        var usage = parseUsage(
+            createUsageJsonWithRawTokenDetails(
+                completionTokens,
+                promptTokens,
+                totalTokens,
+                NULL_JSON_VALUE,
+                createCompletionTokensDetailsJson(String.valueOf(reasoningTokens))
+            )
+        );
+
+        assertThat(usage.completionTokens(), is(completionTokens));
+        assertThat(usage.promptTokens(), is(promptTokens));
+        assertThat(usage.totalTokens(), is(totalTokens));
+        assertNull(usage.cachedTokens());
+        // an explicit null for one details field must not swallow its sibling
+        assertNotNull(usage.completionTokenDetails());
+        assertThat(usage.completionTokenDetails().reasoningTokens(), is(reasoningTokens));
+    }
+
+    public void testUsageParsing_NullCompletionTokensDetails() throws IOException {
+        var completionTokens = randomIntBetween(1, 100);
+        var promptTokens = randomIntBetween(1, 100);
+        var totalTokens = randomIntBetween(1, 200);
+        var cachedTokens = randomIntBetween(1, 50);
+
+        var usage = parseUsage(
+            createUsageJsonWithRawTokenDetails(
+                completionTokens,
+                promptTokens,
+                totalTokens,
+                createPromptTokensDetailsJson(String.valueOf(cachedTokens)),
+                NULL_JSON_VALUE
+            )
+        );
+
+        assertThat(usage.completionTokens(), is(completionTokens));
+        assertThat(usage.promptTokens(), is(promptTokens));
+        assertThat(usage.totalTokens(), is(totalTokens));
+        assertThat(usage.cachedTokens(), is(cachedTokens));
+        assertNull(usage.completionTokenDetails());
+    }
+
+    public void testUsageParsing_NullCachedTokens() throws IOException {
+        var completionTokens = randomIntBetween(1, 100);
+        var promptTokens = randomIntBetween(1, 100);
+        var totalTokens = randomIntBetween(1, 200);
+
+        var usage = parseUsage(
+            createUsageJsonWithRawTokenDetails(
+                completionTokens,
+                promptTokens,
+                totalTokens,
+                createPromptTokensDetailsJson(NULL_JSON_VALUE),
+                null
+            )
+        );
+
+        assertThat(usage.completionTokens(), is(completionTokens));
+        assertThat(usage.promptTokens(), is(promptTokens));
+        assertThat(usage.totalTokens(), is(totalTokens));
+        // PromptTokensDetailsParser returns Integer directly; null cached_tokens causes the parser to return null itself
+        assertNull(usage.cachedTokens());
+        assertNull(usage.completionTokenDetails());
+    }
+
+    public void testUsageParsing_NullReasoningTokens() throws IOException {
+        var completionTokens = randomIntBetween(1, 100);
+        var promptTokens = randomIntBetween(1, 100);
+        var totalTokens = randomIntBetween(1, 200);
+
+        var usage = parseUsage(
+            createUsageJsonWithRawTokenDetails(
+                completionTokens,
+                promptTokens,
+                totalTokens,
+                null,
+                createCompletionTokensDetailsJson(NULL_JSON_VALUE)
+            )
+        );
+
+        assertThat(usage.completionTokens(), is(completionTokens));
+        assertThat(usage.promptTokens(), is(promptTokens));
+        assertThat(usage.totalTokens(), is(totalTokens));
+        assertNull(usage.cachedTokens());
+        // CompletionTokensDetailsParser wraps in new CompletionTokenDetails(...), so the record itself is non-null
+        // even when reasoning_tokens is null — unlike PromptTokensDetailsParser which returns Integer directly.
+        assertNotNull(usage.completionTokenDetails());
+        assertNull(usage.completionTokenDetails().reasoningTokens());
+    }
+
+    public void testUsageParsing_NullCachedAndReasoningTokens() throws IOException {
+        var completionTokens = randomIntBetween(1, 100);
+        var promptTokens = randomIntBetween(1, 100);
+        var totalTokens = randomIntBetween(1, 200);
+
+        var usage = parseUsage(
+            createUsageJsonWithRawTokenDetails(
+                completionTokens,
+                promptTokens,
+                totalTokens,
+                createPromptTokensDetailsJson(NULL_JSON_VALUE),
+                createCompletionTokensDetailsJson(NULL_JSON_VALUE)
+            )
+        );
+
+        assertThat(usage.completionTokens(), is(completionTokens));
+        assertThat(usage.promptTokens(), is(promptTokens));
+        assertThat(usage.totalTokens(), is(totalTokens));
+        assertNull(usage.cachedTokens());
+        assertNotNull(usage.completionTokenDetails());
+        assertNull(usage.completionTokenDetails().reasoningTokens());
+    }
+
+    public void testUsageParsing_NullTokenDetailsDoesNotFailTheStream() {
+        var events = new ArrayDeque<ServerSentEvent>();
+        events.offer(new ServerSentEvent(CHUNK_WITH_NULL_TOKEN_DETAILS_JSON));
+
+        // onNext asserts that the processor never calls downstream.onError
+        var results = onNext(new OpenAiUnifiedStreamingProcessor(IllegalStateException::new), events);
+
+        assertThat(results.chunks().size(), is(1));
+        var usage = results.chunks().getFirst().usage();
+        assertNotNull(usage);
+        assertNull(usage.cachedTokens());
+        assertNull(usage.completionTokenDetails());
     }
 
     public void testMultipleJsonObjectsInSingleEventAreParsed() throws IOException {

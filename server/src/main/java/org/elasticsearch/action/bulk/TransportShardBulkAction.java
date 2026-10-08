@@ -470,6 +470,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     // Include inference fields so that partial updates can still retrieve embeddings for fields that weren't updated.
                     FetchSourceContext.FETCH_ALL_SOURCE
                 );
+                if (updateResult.getResponseResult() != DocWriteResponse.Result.NOOP) {
+                    context.trackMemoryConsumptionForTranslatedUpdateRequest(updateResult.action());
+                }
             } catch (Exception failure) {
                 // we may fail translating a update to index or delete operation
                 // we use index result to communicate failure while translating update request

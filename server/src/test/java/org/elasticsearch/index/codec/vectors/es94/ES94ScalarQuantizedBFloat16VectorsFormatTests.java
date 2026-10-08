@@ -64,7 +64,12 @@ public class ES94ScalarQuantizedBFloat16VectorsFormatTests extends BaseQuantized
     }
 
     public void testSimpleOffHeapSize() throws IOException {
-        float[] vector = randomVector(random().nextInt(12, 500));
+        // Int4 (bits=4 / PACKED_NIBBLE) requires even dimensions; getCodec may randomly pick bits=4.
+        int dimension = random().nextInt(12, 500);
+        if (dimension % 2 != 0) {
+            dimension++;
+        }
+        float[] vector = randomVector(dimension);
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
             Document doc = new Document();
             doc.add(new KnnFloatVectorField("f", vector, DOT_PRODUCT));

@@ -131,6 +131,26 @@ public class BufferingMetricExporterTests extends ESTestCase {
         assertThat("buffered file must remain on disk for next startup", countBufferFiles(), greaterThanOrEqualTo(1));
     }
 
+    public void testRestartDrainsRecoveredBufferFiles() throws Exception {
+        build(Settings.EMPTY);
+        delegate.setShouldFail(true);
+        exportAndWait("recovered");
+        assertBusy(() -> assertThat(countBufferFiles(), greaterThanOrEqualTo(1)));
+        exporter.shutdown();
+
+        // Recreate everything as if there was a restart
+        delegate = new FakeMetricExporter();
+        meterProvider = new RecordingOtelMeterProvider();
+        build(Settings.EMPTY);
+
+        // let the write window (100ms) expire
+        safeSleep(200);
+        exportAndWait("trigger");
+
+        assertBusy(() -> assertThat(countBufferFiles(), equalTo(0)));
+        assertThat(delegate.exportedNames(), hasItems("recovered", "trigger"));
+    }
+
     private List<Measurement> counter(String suffix) {
         return meterProvider.meter().getRecorder().getMeasurements(LONG_COUNTER, "es.apm.metrics.disk_buffer." + suffix);
     }

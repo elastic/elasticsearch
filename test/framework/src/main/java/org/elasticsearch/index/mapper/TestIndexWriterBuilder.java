@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
@@ -27,9 +28,11 @@ import java.util.Objects;
 
 /**
  * Builds a {@link RandomIndexWriter} with the codec and index sort the engine would use for a mapping, with the parent field set
- * whenever it sorts so nested documents stay together. The analyzer defaults to {@link StandardAnalyzer}. The configuration is not
- * randomized and never exposed, so a test cannot write doc values in a format, or documents in an order, its mapping would not
- * produce. Any other choice must be explicit: {@link #overrideAnalyzer}, {@link #overrideIndexSort} or {@link #disableMerges}.
+ * whenever it sorts so nested documents stay together. The analyzer defaults to {@link StandardAnalyzer}. Merges only combine
+ * adjacent segments, so documents keep their insertion order, which tests rely on when they address documents by id. The
+ * configuration is not randomized and never exposed, so a test cannot write doc values in a format, or documents in an order, its
+ * mapping would not produce. Any other choice must be explicit: {@link #overrideAnalyzer}, {@link #overrideIndexSort} or
+ * {@link #disableMerges}.
  */
 public final class TestIndexWriterBuilder {
 
@@ -78,9 +81,7 @@ public final class TestIndexWriterBuilder {
                 config.setParentField(Engine.ROOT_DOC_FIELD_NAME);
             }
         }
-        if (mergesDisabled) {
-            config.setMergePolicy(NoMergePolicy.INSTANCE);
-        }
+        config.setMergePolicy(mergesDisabled ? NoMergePolicy.INSTANCE : new LogDocMergePolicy());
         return new RandomIndexWriter(LuceneTestCase.random(), directory, config);
     }
 }

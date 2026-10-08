@@ -11,9 +11,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -34,6 +38,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class MappedIndexWriterTests extends MapperServiceTestCase {
@@ -92,6 +97,31 @@ public class MappedIndexWriterTests extends MapperServiceTestCase {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 final AssertionError e = expectThrows(AssertionError.class, () -> assertDocValuesWrittenAsMapped(mapperService, reader));
                 assertThat(e.getMessage(), containsString("foo=mapped to [" + expected + "]"));
+            }
+        }
+    }
+
+    public void testBuilderPreservesInsertionOrderAcrossMerges() throws IOException {
+        final MapperService mapperService = createMapperService(mapping(b -> {}));
+        final int docCount = 40;
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService).build(directory)) {
+                for (int i = 0; i < docCount; i++) {
+                    final Document doc = new Document();
+                    doc.add(new NumericDocValuesField("ord", i));
+                    doc.add(new StoredField("payload", randomAlphaOfLength(between(1, 4096))));
+                    iw.addDocument(doc);
+                    iw.commit();
+                }
+                iw.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                assertThat(reader.leaves(), hasSize(1));
+                final NumericDocValues ords = reader.leaves().get(0).reader().getNumericDocValues("ord");
+                for (int doc = 0; doc < docCount; doc++) {
+                    assertTrue(ords.advanceExact(doc));
+                    assertThat(ords.longValue(), equalTo((long) doc));
+                }
             }
         }
     }

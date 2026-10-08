@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
@@ -92,7 +93,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         }
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
         LogicalPlan result;
-        if (plan.anyMatch(p -> p instanceof MergePlan) == false) {
+        if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractSubqueryJoin)) {
             result = stampAll(plan).transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
         } else if (pattern.isNone()) {
             // Exact KEEP/STATS above a merge must not stamp or pass $$unmapped_fields through: alignment
@@ -106,7 +107,11 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
                 .transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
         }
         if (carriesUnmappedFieldsAttribute(result)) {
-            registerUnmappedFieldsOrdering.accept(leaves -> withLeavesInPlaceOfSyntheticColumn(result, leaves).output());
+            // UnionTypesCleanup drops synthetic columns (the IN mark) after this snapshot. The replay has to drop them
+            // too, or expansion asserts that the replay is longer than the executed schema.
+            registerUnmappedFieldsOrdering.accept(
+                leaves -> dropSyntheticAttributes(withLeavesInPlaceOfSyntheticColumn(result, leaves).output())
+            );
         }
         return result;
     }
@@ -153,6 +158,10 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         return replaced ? union.replaceSubPlansAndOutput(union.children(), newOutput) : union;
     }
 
+    private static List<Attribute> dropSyntheticAttributes(List<Attribute> output) {
+        return output.stream().filter(attr -> attr.synthetic() == false || attr == Analyzer.NO_FIELDS.getFirst()).toList();
+    }
+
     private static boolean carriesUnmappedFieldsAttribute(LogicalPlan plan) {
         return plan.anyMatch(p -> p instanceof EsRelation esr && esr.output().stream().anyMatch(a -> a instanceof UnmappedFieldsAttribute));
     }
@@ -195,8 +204,8 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * No {@link MergePlan} in the plan: one pattern for the whole query, stamped onto every non-LOOKUP
-     * {@link EsRelation} in a single {@code transformUp}.
+     * No {@link MergePlan} or {@link AbstractSubqueryJoin} in the plan: one pattern for the whole query,
+     * stamped onto every non-LOOKUP {@link EsRelation} in a single {@code transformUp}.
      */
     private static LogicalPlan stampAll(LogicalPlan plan) {
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
@@ -204,9 +213,13 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * Stamps {@link UnmappedFieldsAttribute} onto non-LOOKUP {@link EsRelation}s. {@link MergePlan} is the
-     * other special case: each branch is annotated with its own pattern. Every other node is only
-     * walked to reach those two; recursion stops at a union so a parent pattern cannot stamp through it.
+     * Stamps {@link UnmappedFieldsAttribute} onto non-LOOKUP {@link EsRelation}s. {@link MergePlan} is
+     * n-ary: each branch is annotated with its own pattern. {@link AbstractSubqueryJoin} is binary: join
+     * output is the left side. The right is an independently executed key subquery, so it is annotated
+     * with {@link UnmappedFieldsPattern#NONE} rather than its own KEEP pattern, otherwise
+     * {@code $$unmapped_fields} becomes an extra output column after IN arity was already accepted.
+     * Every other node is only walked to reach those; recursion stops at a union so a parent
+     * pattern cannot stamp through it.
      */
     private static LogicalPlan annotate(LogicalPlan plan, UnmappedFieldsPattern pattern) {
         if (plan instanceof MergePlan merge) {
@@ -216,13 +229,16 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             }).toList();
             return merge.replaceChildren(newChildren);
         }
+        if (plan instanceof AbstractSubqueryJoin join) {
+            return join.replaceChildren(annotate(join.left(), pattern), annotate(join.right(), UnmappedFieldsPattern.NONE));
+        }
         if (pattern.isNone()) {
             return plan;
         }
         if (plan instanceof EsRelation esr) {
             return stamp(esr, pattern);
         }
-        if (plan.anyMatch(p -> p instanceof MergePlan) == false) {
+        if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractSubqueryJoin)) {
             return plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern));
         }
         return plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern)).toList());

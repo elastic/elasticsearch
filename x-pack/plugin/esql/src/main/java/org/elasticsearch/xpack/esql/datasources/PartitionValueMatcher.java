@@ -204,6 +204,38 @@ public final class PartitionValueMatcher {
         return stringOf(a).equals(stringOf(b));
     }
 
+    /**
+     * Three-valued equality for the split matcher. A kind mismatch or {@link Kind#OTHER} (an
+     * {@link java.time.Instant} from a date column) is unknown — keep — rather than string-comparing
+     * {@code Instant.toString()} to a keyword folder. {@link #compareEquals} stays two-valued;
+     * {@link #matches} kind-guards before calling it.
+     */
+    @Nullable
+    static Boolean equalIfComparable(Object a, Object b) {
+        Kind ka = kindOf(a);
+        Kind kb = kindOf(b);
+        if (ka != kb || ka == Kind.OTHER) {
+            return null;
+        }
+        return compareEquals(a, b);
+    }
+
+    /**
+     * Ordered comparison for the split matcher. A kind mismatch or {@link Kind#OTHER} (an {@link java.time.Instant}
+     * from a date column, for example) is undecidable — keep the file — rather than ordering {@code Instant.toString()}
+     * against a keyword folder. {@link #compareValues} itself still coerces number-vs-text for callers that already
+     * know both sides are comparable.
+     */
+    @Nullable
+    static Integer orderedCompare(Object a, Object b) {
+        Kind ka = kindOf(a);
+        Kind kb = kindOf(b);
+        if (ka != kb || ka == Kind.OTHER) {
+            return null;
+        }
+        return compareValues(a, b);
+    }
+
     static int compareValues(Object a, Object b) {
         if (a == null || b == null) {
             throw new IllegalArgumentException("Cannot compare null partition values");

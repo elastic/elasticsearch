@@ -254,6 +254,10 @@ public class IndexVersions {
     public static final IndexVersion SEMANTIC_TEXT_USES_DENSE_VECTOR_DEFAULT_INDEX_OPTIONS = def(9_092_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD = def(9_093_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT = def(9_094_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_4 = def(
+        9_094_0_01,
+        Version.LUCENE_10_4_0
+    );
     public static final IndexVersion DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES = def(9_095_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN = def(9_096_00_0, Version.LUCENE_10_4_0);
     public static final IndexVersion SEMANTIC_FIELD_TYPE = def(9_097_00_0, Version.LUCENE_10_4_0);
@@ -268,6 +272,25 @@ public class IndexVersions {
     public static final IndexVersion TIME_SERIES_ES95_CODEC_DEFAULT = def(9_106_0_00, Version.LUCENE_10_5_0);
     public static final IndexVersion IGNORED_SOURCE_AS_DOC_VALUES_NO_FF = def(9_107_0_00, Version.LUCENE_10_5_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_5_1 = def(9_111_0_00, Version.LUCENE_10_5_1);
+<<<<<<< HEAD
+=======
+    public static final IndexVersion TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_5 = def(
+        9_111_0_01,
+        Version.LUCENE_10_5_1
+    );
+    public static final IndexVersion COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG = def(9_112_0_00, Version.LUCENE_10_5_1);
+    // Deliberately unreferenced: defining it raises IndexVersion.current(), which is what keeps segments written by the
+    // Elasticsearch96 codec off nodes that cannot resolve that name (see IndexVersionAllocationDecider).
+    public static final IndexVersion DEDUPLICATED_FIELD_INFOS_CODEC = def(9_113_0_00, Version.LUCENE_10_5_1);
+    // Deliberately unreferenced: defining it raises IndexVersion.current(), which keeps segments whose stored fields or synthetic
+    // ids only the current codec can read off nodes that cannot read them (see IndexVersionAllocationDecider).
+    public static final IndexVersion ELASTICSEARCH_STORED_FIELDS_FORMAT = def(9_114_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion MALFORMED_VALUES_IN_ON_FAILURE_COLUMN = def(9_115_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion DENSE_VECTOR_ON_DISK_MERGE = def(9_116_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion IGNORE_ABOVE_NO_OP_IN_COLUMNAR = def(9_117_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF = def(9_118_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES = def(9_119_0_00, Version.LUCENE_10_5_1);
+>>>>>>> 206a562ff796 (fix(mapping): honor index and doc_values on TSDB ip fields (#161299))
 
     /*
      * STOP! READ THIS FIRST! No, really,

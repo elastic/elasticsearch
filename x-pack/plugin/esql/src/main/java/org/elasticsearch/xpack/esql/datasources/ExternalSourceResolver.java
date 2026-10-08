@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -201,7 +202,7 @@ public class ExternalSourceResolver {
     private final Executor executor;
     private final DataSourceModule dataSourceModule;
     /**
-     * Query reservation for listing and schema-map bytes. Set once from {@code EsqlSession.execute}.
+     * Query reservation for listing and schema-map bytes. Set once from {@code PlanExecutor.esql}.
      * Null when the session has no request breaker; those sessions skip the charge.
      */
     private volatile ExternalPlanningReservation planningReservation;
@@ -358,7 +359,7 @@ public class ExternalSourceResolver {
     private final Executor metadataReadExecutor;
 
     /**
-     * Binds the reservation {@code EsqlSession.execute} created from the session block factory.
+     * Binds the reservation {@code PlanExecutor.esql} created from the block factory's breaker.
      * Charge and release then share that breaker. Null skips the charge.
      */
     public void planning(@Nullable ExternalPlanningReservation reservation) {
@@ -583,7 +584,7 @@ public class ExternalSourceResolver {
         // Restore the captured request ThreadContext and install cancellation on every metadata-read
         // task so footer-load waiters and per-file continuations see the caller's headers, and so a
         // pool rejection still reaches AbstractRunnable.onRejection. Planning I/O is resolved when
-        // the task runs: the resolver is built in PlanExecutor before EsqlSession.execute binds
+        // the task runs: the resolver is constructed before PlanExecutor.esql binds
         // the reservation, so a ctor-time capture is always null.
         this.metadataReadExecutor = ExternalIoExecutors.preserving(
             ExternalIoExecutors.restoring(executor, this.restorableContext, this::isCancelled),
@@ -607,9 +608,23 @@ public class ExternalSourceResolver {
         metrics.recordDiscovery(durationMs, list.fileCount(), list.estimatedBytes(), scheme, schemaResolution, list.isTruncated());
     }
 
-    /** Records one failed discovery/resolution attempt. Best-effort ({@link ExternalSourceMetrics#recordDiscoveryFailure} self-guards). */
-    private void recordDiscoveryFailure() {
-        metrics.recordDiscoveryFailure();
+    /**
+     * Records one failed discovery/resolution attempt, classified from the exception the caller will see (so the
+     * recorded status is the one the client gets) and attributed to the storage scheme of {@code path}.
+     * Best-effort ({@link ExternalSourceMetrics#recordDiscoveryFailure} self-guards).
+     */
+    private void recordDiscoveryFailure(String path, Throwable mapped) {
+        QueryFailureTelemetry.Failure failure = QueryFailureTelemetry.classify(mapped);
+        metrics.recordDiscoveryFailure(schemeOf(path), failure.errorType(), failure.status());
+    }
+
+    /**
+     * The scheme of {@code path} ({@code s3} of {@code s3://bucket/key}), or {@code null} when it has none. Deliberately
+     * not {@link StoragePath#of}: this runs on a failure path where {@code path} may be what failed to parse.
+     */
+    private static String schemeOf(String path) {
+        int end = path == null ? -1 : path.indexOf("://");
+        return end > 0 ? path.substring(0, end) : null;
     }
 
     /** Returns {@code true} when the originating query has been cancelled. Safe to call when no supplier is wired. */
@@ -801,12 +816,11 @@ public class ExternalSourceResolver {
             DeclaredReadSpec effectiveReadSpec;
             if (declaredMapping != null && isDeclaredSchema(declaredMapping) == false) {
                 finalSource = applyNonStrictOverlay(resolvedSource, declaredMapping, schemaInterner);
-                // When the overlay appended sampled-out columns for a headerless CSV/TSV source (which uses
-                // positional binding under INFERRED provenance), upgrade to DECLARED so that a col<N> name
-                // resolves to physical field N via headerlessFieldIndex rather than to schema-position N.
-                // NDJSON binds by JSON key natively and needs no upgrade.
-                if (finalSource.metadata().schema().size() > resolvedSource.metadata().schema().size()
-                    && isHeaderlessCsvOrTsv(resolvedSource.metadata().sourceType(), resolvedSource.metadata().config())) {
+                // When the overlay appended absent declared columns for a CSV/TSV source (which binds positionally
+                // under INFERRED provenance), upgrade to DECLARED so the reader binds by name (see
+                // bindsAbsentDeclaredColumnsByName). The overlay grows the schema by exactly those columns.
+                boolean appendedAbsent = finalSource.metadata().schema().size() > resolvedSource.metadata().schema().size();
+                if (bindsAbsentDeclaredColumnsByName(appendedAbsent, resolvedSource.metadata().sourceType())) {
                     effectiveReadSpec = DeclaredReadSpec.of(
                         declaredReadSpec.renames(),
                         declaredReadSpec.dateFormats(),
@@ -822,16 +836,21 @@ public class ExternalSourceResolver {
             }
             resolved.put(path, finalSource.withDeclaredReadSpec(effectiveReadSpec));
             LOGGER.debug("Successfully resolved external source: {}", path);
-            resolveNextPath(
-                paths,
-                index + 1,
-                pathConfigs,
-                filterHints,
-                declaredMappings,
-                pathsRequiringStats,
-                pathsReadingNoRows,
-                resolved,
-                listener
+            // Dispatch to the executor rather than calling directly: on a cache-hit the callback fires
+            // synchronously, so a direct recursive call would stack one frame per path and overflow the
+            // JVM stack for large comma-separated path lists.
+            metadataReadExecutor.execute(
+                () -> resolveNextPath(
+                    paths,
+                    index + 1,
+                    pathConfigs,
+                    filterHints,
+                    declaredMappings,
+                    pathsRequiringStats,
+                    pathsReadingNoRows,
+                    resolved,
+                    listener
+                )
             );
         }, e -> {
             @SuppressWarnings("unchecked")
@@ -941,9 +960,21 @@ public class ExternalSourceResolver {
      * masked as a non-retryable client error and the client's retry path would never engage. An interrupt during permit
      * acquisition arrives the same way as an {@link EsRejectedExecutionException} (429) and is recovered identically so a
      * node-level rejection is not masked as a 400.
+     * <p>
+     * As a side effect, a failure that is not a cancellation is recorded as a discovery failure in the external-source
+     * telemetry, once per failed discovery, classified from the exception returned here.
      */
     // Package-private so the client-status recovery gate below can be tested directly.
     RuntimeException mapResolveFailure(String path, Exception e) {
+        RuntimeException mapped = doMapResolveFailure(path, e);
+        // A cancellation is the query's outcome, not a discovery failure, and is not counted.
+        if (ExceptionsHelper.unwrap(mapped, TaskCancelledException.class) == null) {
+            recordDiscoveryFailure(path, mapped);
+        }
+        return mapped;
+    }
+
+    private RuntimeException doMapResolveFailure(String path, Exception e) {
         if (e instanceof TaskCancelledException tce) {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
             return ExternalFailures.detach(tce);
@@ -959,7 +990,6 @@ public class ExternalSourceResolver {
             ExternalUnavailableException.class
         );
         if (unavailable != null) {
-            recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
             return unavailable.withoutCause();
         }
@@ -970,7 +1000,6 @@ public class ExternalSourceResolver {
             ExternalCredentialsExpiredException.class
         );
         if (expired != null) {
-            recordDiscoveryFailure();
             logClientResolveFailure(path, expired.getMessage(), e);
             return expired.withoutCause();
         }
@@ -982,14 +1011,12 @@ public class ExternalSourceResolver {
             EsRejectedExecutionException.class
         );
         if (rejected != null) {
-            recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
             return ExternalFailures.detach(rejected);
         }
         // A breaker trip carries its own 429 and must survive a wrapper for the same reason.
         CircuitBreakingException breaking = (CircuitBreakingException) ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
         if (breaking != null) {
-            recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, breaking.getMessage(), e);
             return ExternalFailures.detach(breaking);
         }
@@ -1005,13 +1032,11 @@ public class ExternalSourceResolver {
         // an IllegalArgumentException, which would otherwise shadow the typed condition.
         ExternalClientException clientException = (ExternalClientException) ExceptionsHelper.unwrap(e, ExternalClientException.class);
         if (clientException != null) {
-            recordDiscoveryFailure();
             logClientResolveFailure(path, clientException.getMessage(), e);
             return clientException.withoutCause();
         }
         IllegalArgumentException clientError = (IllegalArgumentException) ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
         if (clientError != null) {
-            recordDiscoveryFailure();
             logClientResolveFailure(path, clientError.getMessage(), e);
             String forwardable = ExternalFailures.forwardableDetail(clientError);
             // With no cause, rootCause is clientError itself, so a non-null forwardable is its message.
@@ -1039,7 +1064,6 @@ public class ExternalSourceResolver {
         // is non-retryable and is the caller's fault.
         IOException ioError = (IOException) ExceptionsHelper.unwrap(e, IOException.class);
         if (ioError != null) {
-            recordDiscoveryFailure();
             // rootDetail reads through the cache's ExecutionException, whose own message is the cause's toString().
             String ioDetail = ExternalFailures.rootDetail(ioError);
             logClientResolveFailure(path, ioDetail, e);
@@ -1057,7 +1081,6 @@ public class ExternalSourceResolver {
             }
             return ioEx;
         }
-        recordDiscoveryFailure();
         // rootDetail: the file-metadata rail raises a plain IOException that arrives inside the
         // cache's ExecutionException whose message is the cause's toString(). Reading the top message there would
         // print "java.io.IOException: Object not found: ..." at the user.
@@ -1272,127 +1295,137 @@ public class ExternalSourceResolver {
         ResolutionDemand demand,
         SchemaInterner schemaInterner,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
-    ) throws Exception {
-        StoragePath storagePath = StoragePath.of(path);
-        Configured<StorageProvider> resolvedProvider = resolveProvider(storagePath, config);
-        StorageProvider provider = resolvedProvider.value();
-        String storageIdentity = resolvedProvider.identity();
-        String secretIdentity = resolvedProvider.secretIdentity();
-        // Lease covers the synchronous prologue only (glob / cache listing). FIRST_FILE_WINS
-        // returns it when the anchor read is issued; cachedResolveSingleSourceAsync /
-        // resolveSingleSourceAsync re-borrow and must not capture this provider.
+    ) {
+        final StoragePath storagePath;
+        final Configured<StorageProvider> resolvedProvider;
         try {
-            FormatReader.SchemaResolution schemaResolution = effectiveSchemaResolution(config);
-            boolean cacheable = isCacheable(provider);
-
-            String datasetFormat = appliesFileDatasetFormat(path, config) ? fileDatasetFormat(path, config) : null;
-            final Map<String, Object> fileConfig = datasetFormat != null ? withImpliedFormat(config, datasetFormat) : config;
-            // Strict declaration is the whole schema for every file, so inference is skipped — listing plus,
-            // for columnar formats, one anchor footer read. The non-strict overlay is applied by the caller.
-            if (isDeclaredSchema(declaredMapping) && datasetFormat != null) {
-                listener.onResponse(
-                    resolveStrictMultiFile(
-                        path,
-                        storagePath,
-                        provider,
-                        storageIdentity,
-                        secretIdentity,
-                        hints,
-                        fileConfig,
-                        declaredMapping,
-                        demand
-                    )
-                );
-                return;
-            }
-            DatasetDiscovery discovery = DatasetDiscovery.shared(
-                listAndRecord(
-                    path,
-                    storagePath,
-                    provider,
-                    storageIdentity,
-                    secretIdentity,
-                    hints,
-                    fileConfig,
-                    schemaResolution,
-                    cacheable,
-                    demand
-                )
-            );
-            FileList listing = discovery.schemaListing();
-            chargeListingPlanning(listing);
-            // The 760-per-file credit is already on the reservation. Further schema bytes charge only the overflow.
-            schemaInterner.setAllowance(listing.fileCount() * SCHEMA_MAP_BYTES_PER_FILE);
-            if (listing.fileCount() == 0) {
-                throw noFilesMatched(path, listing);
-            }
-            if (datasetFormat != null) {
-                FormatNameResolver.rejectConflictingListedFormats(listing, datasetFormat, dataSourceModule.formatReaderRegistry());
-            }
-            if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
-                resolveMultiFileWithReconciliation(
-                    discovery,
-                    storageIdentity,
-                    fileConfig,
-                    schemaResolution,
-                    cacheable,
-                    datasetFormat,
-                    schemaInterner,
-                    listener
-                );
-                return;
-            }
-
-            StoragePath anchorPath = listing.path(0);
-            long anchorMtime = listing.lastModifiedMillis(0);
-
-            // Glob expansion / cache listing above can be slow on wide globs; re-check before the anchor footer read.
-            throwIfCancelled();
-
-            // The anchor's length/mtime are already known from the listing, so seed a ListingHint and resolve it on the
-            // async footer-read path (like the fan-out) rather than a synchronous resolveSingleSource. This both skips
-            // the existence/HEAD + length probe and, more importantly, avoids pinning the metadata-read executor thread
-            // across the anchor footer read. Unlike the single-file {@code getOrComputeSchema} path this does not
-            // coalesce concurrent misses for the same anchor key; that matches the fan-out's peek/put trade-off and is
-            // safe because footer resolution is idempotent (see cachedResolveSingleSourceAsync).
-            ListingHint anchorHint = new ListingHint(listing.size(0), anchorMtime);
-            final DatasetDiscovery finalDiscovery = discovery;
-            ActionListener<ExternalSourceMetadata> anchorListener = ActionListener.wrap(
-                anchorMetadata -> completeFirstFileWins(
-                    anchorMetadata,
-                    finalDiscovery,
-                    storageIdentity,
-                    fileConfig,
-                    declaredMapping,
-                    demand,
-                    cacheable,
-                    datasetFormat,
-                    listener
-                ),
-                listener::onFailure
-            );
-            if (cacheable) {
-                // cachedResolveSingleSourceAsync always completes with the ExternalSourceMetadata built by
-                // buildMetadataFromCache, so the cast is safe.
-                cachedResolveSingleSourceAsync(
-                    anchorPath,
-                    anchorHint,
-                    storageIdentity,
-                    fileConfig,
-                    null,
-                    anchorListener.map(meta -> (ExternalSourceMetadata) meta)
-                );
-            } else {
-                resolveSingleSourceAsync(
-                    anchorPath.toString(),
-                    anchorHint,
-                    fileConfig,
-                    anchorListener.map(meta -> wrapAsExternalSourceMetadata(meta, fileConfig, declaredReadSpecOf(declaredMapping)))
-                );
-            }
-        } finally {
-            StorageProviderCache.closeLease(provider);
+            storagePath = StoragePath.of(path);
+            resolvedProvider = resolveProvider(storagePath, config);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
         }
+        final StorageProvider provider = resolvedProvider.value();
+        final String storageIdentity = resolvedProvider.identity();
+        final String secretIdentity = resolvedProvider.secretIdentity();
+        // Lease covers the glob / cache listing. Closed in the async callbacks below after the listing
+        // completes; cachedResolveSingleSourceAsync / resolveSingleSourceAsync re-borrow independently.
+        FormatReader.SchemaResolution schemaResolution = effectiveSchemaResolution(config);
+        boolean cacheable = isCacheable(provider);
+        String datasetFormat = appliesFileDatasetFormat(path, config) ? fileDatasetFormat(path, config) : null;
+        final Map<String, Object> fileConfig = datasetFormat != null ? withImpliedFormat(config, datasetFormat) : config;
+        // Strict declaration is the whole schema for every file, so inference is skipped — listing plus,
+        // for columnar formats, one anchor footer read. The non-strict overlay is applied by the caller.
+        if (isDeclaredSchema(declaredMapping) && datasetFormat != null) {
+            resolveStrictMultiFileAsync(
+                path,
+                storagePath,
+                provider,
+                storageIdentity,
+                secretIdentity,
+                hints,
+                fileConfig,
+                declaredMapping,
+                demand,
+                ActionListener.runBefore(listener, () -> StorageProviderCache.closeLease(provider))
+            );
+            return;
+        }
+        listAndRecordAsync(
+            path,
+            storagePath,
+            provider,
+            storageIdentity,
+            secretIdentity,
+            hints,
+            fileConfig,
+            schemaResolution,
+            cacheable,
+            declaredMapping,
+            demand,
+            ActionListener.wrap(listing -> {
+                // Listing is done; release the lease before the (potentially async) anchor footer read.
+                StorageProviderCache.closeLease(provider);
+                try {
+                    DatasetDiscovery discovery = DatasetDiscovery.shared(listing);
+                    chargeListingPlanning(listing);
+                    // The 760-per-file credit is already on the reservation. Further schema bytes charge only the overflow.
+                    schemaInterner.setAllowance(listing.fileCount() * SCHEMA_MAP_BYTES_PER_FILE);
+                    if (listing.fileCount() == 0) {
+                        listener.onFailure(noFilesMatched(path, listing));
+                        return;
+                    }
+                    if (datasetFormat != null) {
+                        FormatNameResolver.rejectConflictingListedFormats(listing, datasetFormat, dataSourceModule.formatReaderRegistry());
+                    }
+                    if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
+                        resolveMultiFileWithReconciliation(
+                            discovery,
+                            storageIdentity,
+                            fileConfig,
+                            schemaResolution,
+                            cacheable,
+                            datasetFormat,
+                            schemaInterner,
+                            listener
+                        );
+                        return;
+                    }
+
+                    StoragePath anchorPath = listing.path(0);
+                    long anchorMtime = listing.lastModifiedMillis(0);
+
+                    // Glob expansion / cache listing above can be slow on wide globs; re-check before the anchor footer read.
+                    throwIfCancelled();
+
+                    // The anchor's length/mtime are already known from the listing, so seed a ListingHint and resolve it on the
+                    // async footer-read path (like the fan-out) rather than a synchronous resolveSingleSource. This both skips
+                    // the existence/HEAD + length probe and, more importantly, avoids pinning the metadata-read executor thread
+                    // across the anchor footer read. Unlike the single-file {@code getOrComputeSchema} path this does not
+                    // coalesce concurrent misses for the same anchor key; that matches the fan-out's peek/put trade-off and is
+                    // safe because footer resolution is idempotent (see cachedResolveSingleSourceAsync).
+                    ListingHint anchorHint = new ListingHint(listing.size(0), anchorMtime);
+                    ActionListener<ExternalSourceMetadata> anchorListener = ActionListener.wrap(
+                        anchorMetadata -> completeFirstFileWins(
+                            anchorMetadata,
+                            discovery,
+                            storageIdentity,
+                            fileConfig,
+                            declaredMapping,
+                            demand,
+                            cacheable,
+                            datasetFormat,
+                            listener
+                        ),
+                        listener::onFailure
+                    );
+                    if (cacheable) {
+                        // cachedResolveSingleSourceAsync always completes with the ExternalSourceMetadata built by
+                        // buildMetadataFromCache, so the cast is safe.
+                        cachedResolveSingleSourceAsync(
+                            anchorPath,
+                            anchorHint,
+                            storageIdentity,
+                            fileConfig,
+                            null,
+                            anchorListener.map(meta -> (ExternalSourceMetadata) meta)
+                        );
+                    } else {
+                        resolveSingleSourceAsync(
+                            anchorPath.toString(),
+                            anchorHint,
+                            fileConfig,
+                            anchorListener.map(meta -> wrapAsExternalSourceMetadata(meta, fileConfig, declaredReadSpecOf(declaredMapping)))
+                        );
+                    }
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }, e -> {
+                StorageProviderCache.closeLease(provider);
+                listener.onFailure(e);
+            })
+        );
     }
 
     /**
@@ -1436,7 +1469,8 @@ public class ExternalSourceResolver {
                 // path (the resolve overload with a null pathsRequiringStats set), preserving the original
                 // eager-for-all behavior.
                 //
-                // For an eager (requiresStats) resolve the cost is acceptable because:
+                // For an eager (requiresStats) resolve the cost is acceptable while a read still buys
+                // something - remainingReadsBuyNothing stops the gather when none does:
                 // - the cacheable path consults the schema cache, so repeat resolves are free;
                 // - the non-cacheable path reads footers with an async fan-out bounded by an in-flight permit
                 // (metadataReadConcurrency), releasing the pool thread across each footer read;
@@ -1451,6 +1485,16 @@ public class ExternalSourceResolver {
                 // Prefetch the dataset-level aggregate BEFORE the per-file stats gather — see
                 // applyDatasetAggregate for why post-gather reads self-defeat under cache pressure.
                 DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(listing, storageIdentity, config, cacheable);
+                // Under skip_row a narrow-read parse failure drops the whole row, so the unread files' counts are
+                // stripped at commit (dropRowCount) and the dataset-aggregate promise can never be fulfilled -
+                // every warm COUNT(*) would re-scan, which is worse than the reads the stop saves. The predicate
+                // is the SAME one the strip uses (EsqlSession.collectPinnedReads), so the two cannot disagree
+                // about which policy strips. Not warmsRowCountSafely: that asks the wider question of whether a
+                // committed count equals the physical record count, and under null_field it does not either -
+                // a structurally malformed row is dropped there too. What makes null_field safe here is
+                // narrower: nothing strips its count, so an unread file costs it nothing. A resolve
+                // registering no promise is unaffected, so the stop still applies there.
+                boolean everyFileNeededForThePromise = datasetPrefetch.key() != null && resolvesToSkipRow(base.sourceType(), config);
                 // Filled by the gather below, before this listener runs. The fold drops each file's column
                 // map as it completes; file-level counts are what the schema map keeps.
                 Map<String, String> ffwReadConfigs = new HashMap<>(listing.fileCount());
@@ -1494,6 +1538,7 @@ public class ExternalSourceResolver {
                         ffwReadConfigs,
                         ffwInferredTypes,
                         ffwSlimStats,
+                        everyFileNeededForThePromise,
                         statsListener
                     );
                 } else {
@@ -1505,6 +1550,7 @@ public class ExternalSourceResolver {
                         ffwReadConfigs,
                         ffwInferredTypes,
                         ffwSlimStats,
+                        everyFileNeededForThePromise,
                         statsListener
                     );
                 }
@@ -1767,14 +1813,14 @@ public class ExternalSourceResolver {
     /**
      * Lists (and, when cacheable, caches) the inferred multi-file glob, and publishes the discovery telemetry for
      * it. FIRST_FILE_WINS, UNION_BY_NAME, and inferred STRICT share this so a cacheable provider hits
-     * {@link #cachedListing} regardless of merge strategy. Declared-schema resolution stays in
-     * {@link #resolveStrictMultiFile}, which repeats the bounded-is-never-cached rule below.
+     * {@link #cachedListingAsync} regardless of merge strategy. Declared-schema resolution stays in
+     * {@link #resolveStrictMultiFileAsync}, which repeats the bounded-is-never-cached rule below.
      *
      * <p>A bounded listing is a prefix of the dataset, and cache entries are keyed by the path and its filters
      * rather than by what the query needed, so a bounded listing never touches the cache in either direction.
      * See {@link #listingExtentsFor}.
      */
-    private FileList listAndRecord(
+    private void listAndRecordAsync(
         String path,
         StoragePath storagePath,
         StorageProvider provider,
@@ -1784,8 +1830,10 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         FormatReader.SchemaResolution schemaResolution,
         boolean cacheable,
-        ResolutionDemand demand
-    ) throws Exception {
+        @Nullable DatasetMapping declaredMapping,
+        ResolutionDemand demand,
+        ActionListener<FileList> listener
+    ) {
         long discoveryStartNanos = System.nanoTime();
         ListingExtents extents = listingExtentsFor(demand, schemaResolution, config);
         // Filters go to listing even when one file defines the schema. The files the query reads
@@ -1795,15 +1843,19 @@ public class ExternalSourceResolver {
         // (S3/Azure/GCS LIST is lexicographic by key; otherwise the provider's order) unless the
         // query set file_sort_by / file_order. An all-pruned partition filter keeps one
         // inference-anchor file instead of listing G (see FileList#isInferenceAnchor).
-        FileList listing = cacheable && extents.boundsFileSet() == false
-            ? cachedListing(path, storagePath, provider, storageIdentity, secretIdentity, hints, config)
-            : expandAndCompact(path, provider, hints, config, storagePath, extents);
-        assert listing.isTruncated() == false || extents.boundsFileSet()
-            : "a listing was truncated without a file-set extent being asked for";
-        pendingListingWarnings.addAll(listing.listingWarnings());
-        emitPartitionSpecNotices(listing, hints, config);
-        recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), schemaResolution);
-        return listing;
+        ActionListener<FileList> recordingListener = ActionListener.wrap(listing -> {
+            assert listing.isTruncated() == false || extents.boundsFileSet()
+                : "a listing was truncated without a file-set extent being asked for";
+            pendingListingWarnings.addAll(listing.listingWarnings());
+            emitPartitionSpecNotices(listing, hints, config, declaredMapping);
+            recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), schemaResolution);
+            listener.onResponse(listing);
+        }, listener::onFailure);
+        if (cacheable && extents.boundsFileSet() == false) {
+            cachedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, recordingListener);
+        } else {
+            expandAndCompactAsync(path, provider, hints, config, storagePath, extents, recordingListener);
+        }
     }
 
     /**
@@ -1860,14 +1912,15 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Unmatched-bind and wrong-unit notices. Recomputed on every resolve (cold and
+     * Unmatched-bind, wrong-unit, and identity-on-date notices. Recomputed on every resolve (cold and
      * cached) so they do not depend on listing-cache identity. Uses the resolver
      * sink, not {@code HeaderWarning}, because this runs on the metadata executor.
      */
     private void emitPartitionSpecNotices(
         FileList listing,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        Map<String, Object> config
+        Map<String, Object> config,
+        @Nullable DatasetMapping declaredMapping
     ) {
         String unusable = PartitionSpec.unusableNotice(config);
         if (unusable != null) {
@@ -1879,10 +1932,40 @@ public class ExternalSourceResolver {
             return;
         }
         PartitionMetadata meta = listing.partitionMetadata();
-        // null metadata: listing never produced keys (do not warn). Empty key set:
-        // detection ran and found nothing — every bind is unmatched.
-        Set<String> detected = meta == null ? null : meta.partitionColumns().keySet();
-        spec.emitListingNotices(detected, hints, pendingListingWarnings::add);
+        // Hive EMPTY and FileList.EMPTY both store null metadata. That is "no files", not mixed
+        // layout. Unmatched-key and mixed notices fire only when files were listed.
+        boolean mixed = listing.fileCount() > 0 && meta == null;
+        Set<String> detected = mixed ? Set.of() : meta == null ? null : meta.partitionColumns().keySet();
+        spec.emitListingNotices(
+            detected,
+            hints,
+            declaredColumnTypes(declaredMapping),
+            PartitionSpec.pathToLogical(declaredMapping),
+            pendingListingWarnings::add
+        );
+        if (mixed) {
+            pendingListingWarnings.add(
+                "["
+                    + PartitionSpec.CONFIG_PARTITION_SPEC
+                    + "] listing did not detect partition keys; the layout is mixed and binds are ignored"
+            );
+        }
+    }
+
+    @Nullable
+    private static Map<String, DataType> declaredColumnTypes(@Nullable DatasetMapping mapping) {
+        if (mapping == null) {
+            return null;
+        }
+        List<Attribute> attrs = DeclaredSchemaResolver.declaredAttributes(mapping);
+        if (attrs.isEmpty()) {
+            return null;
+        }
+        Map<String, DataType> types = new LinkedHashMap<>(attrs.size());
+        for (Attribute attr : attrs) {
+            types.put(attr.name(), attr.dataType());
+        }
+        return types;
     }
 
     /**
@@ -1902,42 +1985,55 @@ public class ExternalSourceResolver {
         return new IllegalArgumentException(message.toString());
     }
 
-    private FileList expandAndCompact(
-        String path,
-        StorageProvider provider,
-        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        Map<String, Object> config,
-        StoragePath storagePath
-    ) throws Exception {
-        return expandAndCompact(path, provider, hints, config, storagePath, ListingExtents.UNBOUNDED);
-    }
-
-    private FileList expandAndCompact(
+    private void expandAndCompactAsync(
         String path,
         StorageProvider provider,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
         StoragePath storagePath,
-        ListingExtents extents
-    ) throws Exception {
-        return listingService.expand(path, provider, hints, config, storagePath, extents, planningMemory(), listingCancellation());
+        ListingExtents extents,
+        ActionListener<FileList> listener
+    ) {
+        // Fan-out drains run on metadataReadExecutor (esql_external_io wrapped with the query cancellation
+        // scope), so retry backoff inside each drain aborts promptly on cancel and thread context is preserved.
+        listingService.expandAsync(
+            path,
+            provider,
+            hints,
+            config,
+            storagePath,
+            extents,
+            planningMemory(),
+            listingCancellation(),
+            listingConcurrency(),
+            metadataReadExecutor,
+            listener
+        );
+    }
+
+    private int listingConcurrency() {
+        int permits = ExternalSourceSettings.blobStoreConcurrency(settings);
+        return permits > 0
+            ? Math.min(FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY, permits)
+            : FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY;
     }
 
     /**
      * The compacted listing for a cacheable provider, from the shared cache or computed into it. Delegates so the
-     * cache-key build and the compute that fills it stay paired in {@link DatasetListingService#cachedListing}; every
+     * cache-key build and the compute that fills it stay paired in {@link DatasetListingService#cachedListingAsync}; every
      * cacheable resolution rail routes through here. See {@link ListingCacheKey}.
      */
-    private FileList cachedListing(
+    private void cachedListingAsync(
         String path,
         StoragePath storagePath,
         StorageProvider provider,
         String storageIdentity,
         String secretIdentity,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        Map<String, Object> config
-    ) throws Exception {
-        return listingService.cachedListing(
+        Map<String, Object> config,
+        ActionListener<FileList> listener
+    ) {
+        listingService.cachedListingAsync(
             path,
             storagePath,
             provider,
@@ -1946,7 +2042,10 @@ public class ExternalSourceResolver {
             hints,
             config,
             planningMemory(),
-            listingCancellation()
+            listingCancellation(),
+            listingConcurrency(),
+            metadataReadExecutor,
+            listener
         );
     }
 
@@ -2186,6 +2285,11 @@ public class ExternalSourceResolver {
             public Optional<SourceStatistics> statistics() {
                 return Optional.ofNullable(harvestedStatistics);
             }
+
+            @Override
+            public List<WidenedColumn> widenedColumns() {
+                return entry.widenedColumns();
+            }
         };
     }
 
@@ -2363,6 +2467,9 @@ public class ExternalSourceResolver {
         Map<String, Object> referenceMetadata = referenceMeta.sourceMetadata();
         Object stamped = referenceMetadata != null ? referenceMetadata.get(ExternalStats.CONFIG_FINGERPRINT_KEY) : null;
         String fingerprint = stamped instanceof String s ? s : formatConfigIdentity(listing.path(0).objectName(), storageConfig(config));
+        // A cut-short gather records read configs only for the files it reached; an unrecorded path falls
+        // back to the config-level check. Registering anyway is deliberate - a refused budget leaves this
+        // dataset no other warm path.
         cacheService.registerPendingDatasetAggregate(
             datasetKey,
             pathToMtime,
@@ -2662,13 +2769,60 @@ public class ExternalSourceResolver {
         ActionListener<Map<StoragePath, SourceMetadata>> listener
     ) {
         int fileCount = fileList.fileCount();
-        gatherPerFile(fileList, storageIdentity, config, cacheable, fold, schemaInterner, privateLists, ActionListener.wrap(perFile -> {
-            Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
-            for (int i = 0; i < fileCount; i++) {
-                result.put(fileList.path(i), perFile.get(i));
-            }
-            listener.onResponse(result);
-        }, listener::onFailure));
+        gatherPerFile(
+            fileList,
+            storageIdentity,
+            config,
+            cacheable,
+            fold,
+            schemaInterner,
+            privateLists,
+            GatherPurpose.SCHEMA_RECONCILIATION,
+            false,
+            ActionListener.wrap(perFile -> {
+                Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
+                for (int i = 0; i < fileCount; i++) {
+                    result.put(fileList.path(i), perFile.get(i));
+                }
+                listener.onResponse(result);
+            }, listener::onFailure)
+        );
+    }
+
+    /** What a gather is for. Who consumes the results decides whether every file must be read. */
+    enum GatherPurpose {
+        /** Folds a cross-file aggregate, warming the schema cache where cacheable. No consumer needs every file. */
+        STATS_AGGREGATE,
+        /** The schema is the union of every file's, so union_by_name and strict need all of them. */
+        SCHEMA_RECONCILIATION;
+
+        boolean requiresEveryFile() {
+            return this == SCHEMA_RECONCILIATION;
+        }
+    }
+
+    /**
+     * Whether the unread files would buy nothing: the fold has failed and no entry will be retained.
+     * Not a format test — admitted text keeps fanning out, because warming the per-file schema rail is
+     * worth the reads by itself. Nor does it stop where stopping would destroy the warm answer: under
+     * {@code skip_row} the unread files' row counts are stripped at commit, so a dataset-aggregate
+     * promise could never be fulfilled and every warm {@code COUNT(*)} would re-scan.
+     * <p>
+     * The purpose conjunct is load-bearing against a crash, not just a narrower schema: the reconciliation rail's
+     * consumers read every slot, so a gather that stopped there throws on the first unread one.
+     */
+    private static boolean remainingReadsBuyNothing(
+        GatherPurpose purpose,
+        boolean everyFileNeededForThePromise,
+        @Nullable RunningFileStatsFold fold,
+        @Nullable SchemaFanOutAdmission admission
+    ) {
+        // A null admission never meant to cache: a non-cacheable provider, or a single file.
+        return purpose.requiresEveryFile() == false
+            && everyFileNeededForThePromise == false
+            && fold != null
+            && fold.canStillProduceAnAggregate() == false
+            && (admission == null || admission.stillAdmitting() == false);
     }
 
     /**
@@ -2679,7 +2833,8 @@ public class ExternalSourceResolver {
      * cancellation signal is checked before each dispatch (a cancelled wide glob stops issuing reads promptly and
      * surfaces {@link TaskCancelledException}), and the async reads run on {@link #metadataReadExecutor} so an
      * executor-backed synchronous read's backoff aborts on cancel. The first failure is propagated to {@code listener}
-     * and short-circuits the remaining files.
+     * and short-circuits the remaining files. {@link #remainingReadsBuyNothing} also ends the gather, but
+     * completes normally, leaving {@code null} for each unread file.
      * <p>
      * When a {@link #planningReservation} is set, the method opens a {@link ExternalPlanningReservation.Run} and charges
      * {@link #gatheredFileBytes} per resolved file to the circuit breaker, so concurrent gather fan-outs from different
@@ -2693,9 +2848,21 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         boolean cacheable,
         @Nullable RunningFileStatsFold fold,
+        boolean everyFileNeededForThePromise,
         ActionListener<List<SourceMetadata>> listener
     ) {
-        gatherPerFile(fileList, storageIdentity, config, cacheable, fold, null, null, listener);
+        gatherPerFile(
+            fileList,
+            storageIdentity,
+            config,
+            cacheable,
+            fold,
+            null,
+            null,
+            GatherPurpose.STATS_AGGREGATE,
+            everyFileNeededForThePromise,
+            listener
+        );
     }
 
     private void gatherPerFile(
@@ -2706,6 +2873,8 @@ public class ExternalSourceResolver {
         @Nullable RunningFileStatsFold fold,
         @Nullable SchemaInterner schemaInterner,
         @Nullable ExternalPlanningReservation.Run privateLists,
+        GatherPurpose purpose,
+        boolean everyFileNeededForThePromise,
         ActionListener<List<SourceMetadata>> listener
     ) {
         int fileCount = fileList.fileCount();
@@ -2724,6 +2893,15 @@ public class ExternalSourceResolver {
                 releasable.close();
                 return;
             }
+            if (remainingReadsBuyNothing(purpose, everyFileNeededForThePromise, fold, admission)) {
+                // Cancellation is observed inside the per-file read; raise it here or the gather
+                // completes with partial stats. Pinned by testMultiFileResolveCancellationStopsReadingFooters.
+                if (isCancelled()) {
+                    failure.compareAndSet(null, new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
+                }
+                releasable.close();
+                return;
+            }
             ActionListener<SourceMetadata> itemListener = ActionListener.runAfter(ActionListener.wrap(meta -> {
                 // Reconcile path only. Stats gathers pass a null interner and a null run; their lists are charged
                 // on resultsRun below. Charge the raw list before wrapping. Canonicalize so schema() is the shared
@@ -2737,13 +2915,10 @@ public class ExternalSourceResolver {
                     }
                 }
                 if (fold != null) {
-                    synchronized (fold) {
-                        fold.accept(i, meta);
-                    }
+                    fold.accept(i, meta);
                 }
-                // slim does not touch fold state, so it stays outside the lock. Fold and slim the
-                // original metadata so its private schema list stays reachable for the planning
-                // charge. The canonical wrapper is applied after and forwards the rest.
+                // Fold and slim the original metadata so its private schema list stays reachable for the
+                // planning charge. The canonical wrapper is applied after and forwards the rest.
                 SourceMetadata stored = fold != null && fileCount > 1 ? RunningFileStatsFold.slim(meta) : meta;
                 if (resultsRun != null) {
                     // Charge what the results array retains: the slimmed record when folding, before the
@@ -2841,6 +3016,11 @@ public class ExternalSourceResolver {
             }
 
             @Override
+            public List<WidenedColumn> widenedColumns() {
+                return metadata.widenedColumns();
+            }
+
+            @Override
             public Map<String, Object> sourceMetadata() {
                 return metadata.sourceMetadata();
             }
@@ -2933,6 +3113,13 @@ public class ExternalSourceResolver {
             this.fileCount = fileCount;
         }
 
+        /** Whether this fan-out is still admitting. True while undecided - it sizes on the first entry offered. */
+        boolean stillAdmitting() {
+            synchronized (this) {
+                return refuse == false;
+            }
+        }
+
         boolean tryAdmit(SchemaCacheEntry entry) {
             synchronized (this) {
                 if (refuse) {
@@ -2942,6 +3129,15 @@ public class ExternalSourceResolver {
                     sized = true;
                     if ((long) fileCount * entry.estimatedBytes() > cacheService.schemaBudget()) {
                         refuse = true;
+                        cacheService.recordSchemaFanOutRefused();
+                        // The three numbers behind the verdict; nothing else reports them. The verdict is one
+                        // of the conditions that lets the gather stop, not the whole of it.
+                        LOGGER.debug(
+                            "schema fan-out refused: [{}] files x [{}] estimated bytes exceeds schema budget [{}]",
+                            fileCount,
+                            entry.estimatedBytes(),
+                            cacheService.schemaBudget()
+                        );
                         return false;
                     }
                 }
@@ -3426,7 +3622,7 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Reads metadata from all files in {@code listing} with an async, bounded fan-out (see {@link #gatherPerFile}),
+     * Reads metadata from the files in {@code listing} with an async, bounded fan-out (see {@link #gatherPerFile}),
      * folding each file's column statistics as it completes. Responds with the folded stats map, or {@code null} if
      * any file lacks statistics. A read failure is treated as "could not aggregate" and responds with {@code null}
      * so the caller marks stats partial — except cancellation, which is surfaced as a failure so the query aborts
@@ -3440,9 +3636,10 @@ public class ExternalSourceResolver {
         Map<String, String> readConfigsOut,
         Map<StoragePath, Map<String, DataType>> inferredTypesOut,
         Map<StoragePath, SourceStatistics> slimStatsOut,
+        boolean everyFileNeededForThePromise,
         ActionListener<Map<String, Object>> listener
     ) {
-        gatherPerFile(listing, storageIdentity, config, false, fold, ActionListener.wrap(allMeta -> {
+        gatherPerFile(listing, storageIdentity, config, false, fold, everyFileNeededForThePromise, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
             collectInferredTypes(listing, allMeta, inferredTypesOut);
             collectSlimStatistics(listing, allMeta, slimStatsOut);
@@ -3523,9 +3720,10 @@ public class ExternalSourceResolver {
         Map<String, String> readConfigsOut,
         Map<StoragePath, Map<String, DataType>> inferredTypesOut,
         Map<StoragePath, SourceStatistics> slimStatsOut,
+        boolean everyFileNeededForThePromise,
         ActionListener<Map<String, Object>> listener
     ) {
-        gatherPerFile(listing, storageIdentity, config, true, fold, ActionListener.wrap(allMeta -> {
+        gatherPerFile(listing, storageIdentity, config, true, fold, everyFileNeededForThePromise, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
             collectInferredTypes(listing, allMeta, inferredTypesOut);
             collectSlimStatistics(listing, allMeta, slimStatsOut);
@@ -4434,16 +4632,26 @@ public class ExternalSourceResolver {
      * it is format-agnostic (and catches the implicit {@code SKIP_ROW} a bare {@code max_errors} selects).
      */
     private boolean warmsRowCountSafely(String sourceType, Map<String, Object> config) {
+        // The warm decision is an optimization and must NOT introduce a plan-time failure. An invalid error policy
+        // (e.g. error_mode=bogus, or fail_fast + a budget) is left for the data node's operator factory to reject at
+        // scan time — exactly as it was before this warm path existed — so a query that prunes the scan away (e.g.
+        // LIMIT 0) still succeeds rather than erroring during resolution. Conservatively do not warm.
+        ErrorPolicy policy = effectiveErrorPolicy(sourceType, config);
+        return policy != null && policy.isStrict();
+    }
+
+    /**
+     * The {@link ErrorPolicy} a read of {@code sourceType} under {@code config} runs with, resolved against the
+     * reader's own default; {@code null} when {@code config} states an invalid policy, which the data node rejects.
+     */
+    @Nullable
+    private ErrorPolicy effectiveErrorPolicy(String sourceType, Map<String, Object> config) {
         FormatReader reader = dataSourceModule.formatReaderRegistry().findByName(sourceType);
         ErrorPolicy defaultPolicy = reader != null ? reader.defaultErrorPolicy() : ErrorPolicy.STRICT;
         try {
-            return ErrorPolicy.fromConfig(config, defaultPolicy).isStrict();
+            return ErrorPolicy.fromConfig(config, defaultPolicy);
         } catch (IllegalArgumentException e) {
-            // The warm decision is an optimization and must NOT introduce a plan-time failure. An invalid error policy
-            // (e.g. error_mode=bogus, or fail_fast + a budget) is left for the data node's operator factory to reject at
-            // scan time — exactly as it was before this warm path existed — so a query that prunes the scan away (e.g.
-            // LIMIT 0) still succeeds rather than erroring during resolution. Conservatively do not warm.
-            return false;
+            return null;
         }
     }
 
@@ -4454,7 +4662,7 @@ public class ExternalSourceResolver {
      * types (coercible pairs are coerced by the reader at decode time). Each file resolves to the declared schema
      * (identity mapping).
      */
-    private ExternalSourceResolution.ResolvedSource resolveStrictMultiFile(
+    private void resolveStrictMultiFileAsync(
         String path,
         StoragePath storagePath,
         StorageProvider provider,
@@ -4463,11 +4671,17 @@ public class ExternalSourceResolver {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
         DatasetMapping declaredMapping,
-        ResolutionDemand demand
-    ) throws Exception {
+        ResolutionDemand demand,
+        ActionListener<ExternalSourceResolution.ResolvedSource> listener
+    ) {
         // Fail closed on an ambiguous pattern before listing. Same helper as the inferred rail.
-        String sourceType = FormatNameResolver.datasetFormat(config, path, dataSourceModule.formatReaderRegistry());
-        FileList listing;
+        final String sourceType;
+        try {
+            sourceType = FormatNameResolver.datasetFormat(config, path, dataSourceModule.formatReaderRegistry());
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         // Strict multi-file still does the same glob listing as the inferred path — record it as discovery too, so
         // strict resolutions are not invisible in the discovery telemetry (mirrors resolveMultiFileSource).
         long discoveryStartNanos = System.nanoTime();
@@ -4484,99 +4698,183 @@ public class ExternalSourceResolver {
         // answers follow the query's filters, same as inferred FFW. #160485 withheld hints here;
         // a hive day would list the year. A non-uniform tree can hide a partition key that only
         // exists outside the filter.
-        if (path.indexOf(',') >= 0) {
-            listing = GlobExpander.expand(
+        ActionListener<FileList> listingListener = ActionListener.wrap(
+            listing -> completeStrictMultiFile(
+                listing,
                 path,
-                provider,
-                hints,
-                config,
-                listingService.maxDiscoveredFiles(),
-                listingService.maxGlobExpansion(),
-                listingService.maxListedObjects(),
-                extents,
-                planningMemory(),
-                listingCancellation()
-            );
-        } else if (isCacheable(provider) && extents.boundsFileSet() == false) {
-            listing = cachedListing(path, storagePath, provider, storageIdentity, secretIdentity, hints, config);
-        } else {
-            listing = expandAndCompact(path, provider, hints, config, storagePath, extents);
-        }
-        // Split discovery still lists the rest of the query's file set when this listing is bounded.
-        pendingListingWarnings.addAll(listing.listingWarnings());
-        emitPartitionSpecNotices(listing, hints, config);
-        recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), effectiveSchemaResolution(config));
-        chargeListingPlanning(listing);
-        if (listing.fileCount() == 0) {
-            throw noFilesMatched(path, listing);
-        }
-
-        // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
-        // operator (and file schema) work purely in logical names.
-        List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
-        FormatNameResolver.rejectConflictingListedFormats(listing, sourceType, dataSourceModule.formatReaderRegistry());
-
-        // Partition columns are path-derived (no file I/O), so strict mode surfaces them exactly like the inferred
-        // path does. One divergence: the inferred path SHADOWS a physical column that collides with a partition key
-        // (partition wins, Spark/DuckDB semantics), but under strict the declaration drives the reader's file schema,
-        // so silently dropping a declared column could silently mis-bind reads.
-        // A declared column colliding with a partition key is rejected instead: partition columns need no declaring.
-        // Cheap no-I/O guard first (partition collision); strict skips only rejectUncoercibleFileTypedRetypes against
-        // the unified schema, which needs an inferred schema strict never reads — the anchor-footer check below covers it.
-        PartitionMetadata partitionMetadata = listing.partitionMetadata();
-        rejectDeclaredMappingViolations(partitionMetadata, declaredMapping);
-        // Then the columnar coercibility check, which reads the anchor footer — re-check cancellation first, as a wide
-        // glob's listing above can be slow (mirrors resolveMultiFileSource's pre-footer re-check).
-        throwIfCancelled();
-        // Skipped when nothing will be read: this opens a file to catch a declared type a columnar reader would
-        // null out instead of failing on, and a query that discards every row never performs that cast. It only
-        // throws, never alters the schema, and every query that reads rows still runs it.
-        if (demand.isSchemaDiscovery() == false) {
-            rejectStrictColumnarUncoercibleTypes(
-                sourceType,
+                storagePath,
                 provider,
                 storageIdentity,
-                listing.path(0),
-                listing.lastModifiedMillis(0),
+                hints,
                 config,
-                declaredMapping
-            );
-        }
-
-        ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(
-            new SimpleSourceMetadata(logicalSchema, sourceType, path),
-            config,
-            declaredReadSpecOf(declaredMapping)
+                declaredMapping,
+                demand,
+                sourceType,
+                discoveryStartNanos,
+                listener
+            ),
+            listener::onFailure
         );
-        extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
-        if (listing.isTruncated() || listing.isInferenceAnchor()) {
-            // The count is a floor, not the dataset's total. The inferred rail marks it in completeFirstFileWins;
-            // the two rails build their metadata separately, so there is no shared site.
-            extMetadata = markStatsAsPartial(extMetadata);
-        }
-        if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
-            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
-        }
-
-        // Every entry holds the same value and only the key differs, so build it once. Composing an identical
-        // FileSchemaInfo per file made a fully-declared schema cost time proportional to the file count.
-        // FileSchemaInfo is a record, so sharing one instance across every key is safe.
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
-        if (logicalSchema == null || logicalSchema.isEmpty()) {
-            schemaMap = Map.of();
-        } else {
-            // Strict reads only the anchor's footer for the coercibility check, so no file has harvested statistics.
-            SchemaReconciliation.FileSchemaInfo declaredInfo = new SchemaReconciliation.FileSchemaInfo(
-                new ExternalSchema(logicalSchema),
-                new ColumnMapping(identityMapping(logicalSchema.size()), null),
-                null
-            );
-            schemaMap = Maps.newHashMapWithExpectedSize(listing.fileCount());
-            for (int i = 0; i < listing.fileCount(); i++) {
-                schemaMap.put(listing.path(i), declaredInfo);
+        if (path.indexOf(',') >= 0) {
+            // Comma-separated paths expand synchronously — GlobExpander.expand handles the union
+            // without any fan-out, so no pool-thread blocking occurs.
+            FileList listing;
+            try {
+                listing = GlobExpander.expand(
+                    path,
+                    provider,
+                    hints,
+                    config,
+                    listingService.maxDiscoveredFiles(),
+                    listingService.maxGlobExpansion(),
+                    listingService.maxListedObjects(),
+                    extents,
+                    planningMemory(),
+                    listingCancellation()
+                );
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
             }
+            listingListener.onResponse(listing);
+        } else if (isCacheable(provider) && extents.boundsFileSet() == false) {
+            cachedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, listingListener);
+        } else {
+            expandAndCompactAsync(path, provider, hints, config, storagePath, extents, listingListener);
         }
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap);
+    }
+
+    /**
+     * Post-listing continuation for {@link #resolveStrictMultiFileAsync}: builds the resolved source from the
+     * already-fetched listing. Runs on whatever thread delivered the listing; all failures route to the listener.
+     */
+    private void completeStrictMultiFile(
+        FileList listing,
+        String path,
+        StoragePath storagePath,
+        StorageProvider provider,
+        String storageIdentity,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        DatasetMapping declaredMapping,
+        ResolutionDemand demand,
+        String sourceType,
+        long discoveryStartNanos,
+        ActionListener<ExternalSourceResolution.ResolvedSource> listener
+    ) {
+        try {
+            pendingListingWarnings.addAll(listing.listingWarnings());
+            emitPartitionSpecNotices(listing, hints, config, declaredMapping);
+            recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), effectiveSchemaResolution(config));
+            chargeListingPlanning(listing);
+            if (listing.fileCount() == 0) {
+                listener.onFailure(noFilesMatched(path, listing));
+                return;
+            }
+
+            // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
+            // operator (and file schema) work purely in logical names.
+            List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
+            FormatNameResolver.rejectConflictingListedFormats(listing, sourceType, dataSourceModule.formatReaderRegistry());
+
+            // Partition columns are path-derived (no file I/O), so strict mode surfaces them exactly like the inferred
+            // path does. One divergence: the inferred path SHADOWS a physical column that collides with a partition key
+            // (partition wins, Spark/DuckDB semantics), but under strict the declaration drives the reader's file schema,
+            // so silently dropping a declared column could silently mis-bind reads.
+            // A declared column colliding with a partition key is rejected instead: partition columns need no declaring.
+            // Cheap no-I/O guard first (partition collision); strict skips only rejectUncoercibleFileTypedRetypes against
+            // the unified schema, which needs an inferred schema strict never reads — the anchor-footer check below covers it.
+            PartitionMetadata partitionMetadata = listing.partitionMetadata();
+            rejectDeclaredMappingViolations(partitionMetadata, declaredMapping);
+            // Then the columnar coercibility check, which reads the anchor footer — re-check cancellation first, as a wide
+            // glob's listing above can be slow (mirrors resolveMultiFileSource's pre-footer re-check).
+            throwIfCancelled();
+            // Skipped when nothing will be read: this opens a file to catch a declared type a columnar reader would
+            // null out instead of failing on, and a query that discards every row never performs that cast. It only
+            // throws, never alters the schema, and every query that reads rows still runs it. The footer read is
+            // async: this may be running on a listing thread, which must not block on a read that pool also serves.
+            final PartitionMetadata finalPartitionMetadata = partitionMetadata;
+            ActionListener<Void> footerChecked = ActionListener.wrap(
+                ignored -> finishStrictMultiFile(
+                    listing,
+                    path,
+                    config,
+                    declaredMapping,
+                    sourceType,
+                    logicalSchema,
+                    finalPartitionMetadata,
+                    listener
+                ),
+                listener::onFailure
+            );
+            if (demand.isSchemaDiscovery()) {
+                footerChecked.onResponse(null);
+            } else {
+                rejectStrictColumnarUncoercibleTypesAsync(
+                    sourceType,
+                    provider,
+                    storageIdentity,
+                    listing.path(0),
+                    new ListingHint(listing.size(0), listing.lastModifiedMillis(0)),
+                    config,
+                    declaredMapping,
+                    footerChecked
+                );
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /** The part of strict multi-file resolution that needs no I/O: builds the resolved source from the checked listing. */
+    private void finishStrictMultiFile(
+        FileList listing,
+        String path,
+        Map<String, Object> config,
+        DatasetMapping declaredMapping,
+        String sourceType,
+        List<Attribute> logicalSchema,
+        @Nullable PartitionMetadata partitionMetadata,
+        ActionListener<ExternalSourceResolution.ResolvedSource> listener
+    ) {
+        try {
+            ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(
+                new SimpleSourceMetadata(logicalSchema, sourceType, path),
+                config,
+                declaredReadSpecOf(declaredMapping)
+            );
+            extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
+            if (listing.isTruncated() || listing.isInferenceAnchor()) {
+                // The count is a floor, not the dataset's total. The inferred rail marks it in completeFirstFileWins;
+                // the two rails build their metadata separately, so there is no shared site.
+                extMetadata = markStatsAsPartial(extMetadata);
+            }
+            if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
+                extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
+            }
+
+            // Every entry holds the same value and only the key differs, so build it once. Composing an identical
+            // FileSchemaInfo per file made a fully-declared schema cost time proportional to the file count.
+            // FileSchemaInfo is a record, so sharing one instance across every key is safe.
+            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
+            if (logicalSchema == null || logicalSchema.isEmpty()) {
+                schemaMap = Map.of();
+            } else {
+                // Strict reads only the anchor's footer for the coercibility check, so no file has harvested statistics.
+                SchemaReconciliation.FileSchemaInfo declaredInfo = new SchemaReconciliation.FileSchemaInfo(
+                    new ExternalSchema(logicalSchema),
+                    new ColumnMapping(identityMapping(logicalSchema.size()), null),
+                    null
+                );
+                schemaMap = Maps.newHashMapWithExpectedSize(listing.fileCount());
+                for (int i = 0; i < listing.fileCount(); i++) {
+                    schemaMap.put(listing.path(i), declaredInfo);
+                }
+            }
+            listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -4613,8 +4911,11 @@ public class ExternalSourceResolver {
      * column set from a bounded prefix of records; a column whose first non-null value sits past the sample window is
      * absent from the inferred schema even though the data has it.
      * <p>
-     * A declared column absent from a complete schema is a typo the user wants reported. A declared column absent from
-     * a sample-derived schema may simply be sparse — it must not be rejected.
+     * A declared column absent from either reads null with a warning, as it does under {@code dynamic: false}: the
+     * source does not carry it, and nothing failed to read. Completeness decides only who says so: absent from a
+     * complete schema, the column is known missing from the file(s) the schema was built from, so resolution warns
+     * too (a query that never reads the column still learns of it); absent from a sample-derived one it may simply
+     * be sparse, and only the readers can tell.
      * <p>
      * {@code header_row} defaults to {@code true} for CSV/TSV, so an absent key means complete.
      */
@@ -4631,17 +4932,9 @@ public class ExternalSourceResolver {
             // may still exist in later records.
             return false;
         }
-        // Unknown future format types default to complete: a missing declared column is an actionable
-        // error rather than silently accepted as a sparse-field surprise.
+        // Unknown future format types default to complete: a missing declared column is reported at resolution
+        // as well as by the reader.
         return true;
-    }
-
-    /**
-     * True for CSV and TSV files that have no header row — i.e., where {@link #isSchemaComplete} is
-     * {@code false} and the reader uses <em>positional</em> binding (column index == schema position).
-     */
-    private static boolean isHeaderlessCsvOrTsv(String sourceType, Map<String, Object> config) {
-        return ("csv".equals(sourceType) || "tsv".equals(sourceType)) && isSchemaComplete(sourceType, config) == false;
     }
 
     /**
@@ -4679,6 +4972,36 @@ public class ExternalSourceResolver {
                         + "path-derived and must not be declared under [properties]"
                 );
             }
+        }
+    }
+
+    /**
+     * Async counterpart of {@link #rejectStrictColumnarUncoercibleTypes}: the same check, but the anchor's footer is
+     * read on the async footer path (through the schema cache when the provider is cacheable) so no thread is pinned
+     * across the read. The listing's size and mtime seed a {@link ListingHint}, which also skips the existence probe.
+     */
+    private void rejectStrictColumnarUncoercibleTypesAsync(
+        String sourceType,
+        StorageProvider provider,
+        String storageIdentity,
+        StoragePath anchor,
+        ListingHint anchorHint,
+        Map<String, Object> config,
+        DatasetMapping declaredMapping,
+        ActionListener<Void> listener
+    ) {
+        if (sourceType == null || FILE_TYPED_FORMATS.contains(sourceType) == false || declaredMapping.mappings() == null) {
+            listener.onResponse(null);
+            return;
+        }
+        ActionListener<SourceMetadata> checked = ActionListener.wrap(metadata -> {
+            rejectUncoercibleFileTypedRetypes(metadata.schema(), sourceType, declaredMapping);
+            listener.onResponse(null);
+        }, listener::onFailure);
+        if (isCacheable(provider)) {
+            cachedResolveSingleSourceAsync(anchor, anchorHint, storageIdentity, config, null, checked);
+        } else {
+            resolveSingleSourceAsync(anchor.toString(), anchorHint, config, checked);
         }
     }
 
@@ -4736,22 +5059,40 @@ public class ExternalSourceResolver {
         String sourceType,
         DatasetMapping declaredMapping
     ) {
-        Map<String, DataType> inferredTypes = new HashMap<>();
-        for (Attribute a : inferredSchema) {
-            inferredTypes.put(a.name(), a.dataType());
-        }
+        rejectUncoercibleFileTypedRetypes(attributesToTypeMap(inferredSchema), sourceType, declaredMapping, null);
+    }
+
+    /**
+     * As {@link #rejectUncoercibleFileTypedRetypes(List, String, DatasetMapping)}, over physical-name-keyed types.
+     *
+     * @param fileName the one file these types are from, named in the message; {@code null} when they are a
+     *                 schema's rather than one file's
+     */
+    private static void rejectUncoercibleFileTypedRetypes(
+        Map<String, DataType> inferredTypes,
+        String sourceType,
+        DatasetMapping declaredMapping,
+        @Nullable String fileName
+    ) {
         boolean coercing = COERCING_FILE_TYPED_FORMATS.contains(sourceType);
         for (Map.Entry<String, DatasetFieldMapping> e : declaredMapping.mappings().properties().entrySet()) {
             String physical = e.getValue().path() != null ? e.getValue().path() : e.getKey();
             DataType inferredType = inferredTypes.get(physical);
             if (inferredType == null) {
-                continue; // absence is handled by the overlay's own missing-column check
+                continue; // an absent declared column reads null with a warning; there is no type to check
             }
             // Through the resolver, not DataType.fromNameOrAlias: a stored `text` reads as keyword, so it is the
             // keyword pair that has to be coercible here.
             DataType declaredType = DeclaredSchemaResolver.declaredTypeAsRead(e.getValue().type());
             boolean coercible = coercing ? DeclaredTypeCoercions.supports(inferredType, declaredType) : declaredType == inferredType;
             if (coercible == false) {
+                if (fileName != null) {
+                    // An IllegalArgumentException, not the readers' InvalidArgumentException: resolution reports only
+                    // the former as a client error.
+                    throw new IllegalArgumentException(
+                        DeclaredTypeCoercions.uncoercibleColumnFailure(physical, fileName, inferredType, declaredType)
+                    );
+                }
                 throw new IllegalArgumentException(
                     "declared type ["
                         + e.getValue().type()
@@ -4785,6 +5126,29 @@ public class ExternalSourceResolver {
     }
 
     /**
+     * Whether the effective {@link ErrorPolicy} for {@code sourceType} under {@code config} is {@code fail_fast}, so a
+     * read failure resolution can already see may fail the query at plan time. An invalid policy counts as strict,
+     * since the data node rejects it anyway and a plan-time check under it only reports a second problem.
+     */
+    private boolean resolvesToFailFast(String sourceType, Map<String, Object> config) {
+        ErrorPolicy policy = effectiveErrorPolicy(sourceType, config);
+        return policy == null || policy.isStrict();
+    }
+
+    /**
+     * Whether a non-strict overlay that appended {@linkplain DeclaredSchemaResolver.Overlaid#absent() absent} declared
+     * columns must read with {@link SchemaProvenance#DECLARED} provenance. CSV/TSV under the inferred provenance bind
+     * positionally, so an appended column would take whatever field sits at its schema position (headerless), or fail
+     * the read as wider than the header (headered). Declared provenance binds by name: {@code col<N>} to field N, or
+     * the header name, and a name the file lacks reads null with a warning. A headered file read that way is read
+     * sequentially from its start (the header names the fields), so the upgrade is kept to reads that need it.
+     * NDJSON and the columnar formats bind by name already.
+     */
+    private static boolean bindsAbsentDeclaredColumnsByName(boolean appendedAbsent, String sourceType) {
+        return appendedAbsent && ("csv".equals(sourceType) || "tsv".equals(sourceType));
+    }
+
+    /**
      * Whether a declared date {@code format} can apply to this physical type as the epoch unit / parse dialect of a
      * numeric column ({@code epoch_second} reads seconds, {@code yyyyMMdd} reads {@code 20260101}). Excludes temporals
      * ({@code datetime}/{@code date_nanos}): an annotated timestamp is already an instant, so a format on it could never
@@ -4799,11 +5163,15 @@ public class ExternalSourceResolver {
      * columns in the user-facing schema and in each per-file schema (lenient — a column may be absent from one
      * file under union-by-name), preserving the inferred stats/sourceMetadata and the per-file column mappings.
      * <p>
-     * For sample-derived schemas ({@link #isSchemaComplete} is {@code false}), a declared column absent from the
-     * unified inferred schema is <em>appended</em> (returned in {@link DeclaredSchemaResolver.Overlaid#sampledOut()})
-     * rather than rejected — it may simply be a sparse field the sample window did not reach. The caller
-     * ({@link #resolveNextPath}) upgrades the {@link DeclaredReadSpec} provenance to {@link SchemaProvenance#DECLARED}
-     * for headerless CSV/TSV so that a {@code col<N>} name binds to physical field N rather than schema position N.
+     * A declared column absent from the unified inferred schema is <em>appended</em> (returned in
+     * {@link DeclaredSchemaResolver.Overlaid#absent()}) rather than rejected, and reads null with a warning where the
+     * data does not carry it: it may be a sparse field the sample window did not reach, a column only later files of
+     * a {@code first_file_wins} glob carry, or one the source does not carry at all (see {@link #isSchemaComplete}).
+     * The caller ({@link #resolveNextPath}) upgrades the {@link DeclaredReadSpec} provenance to
+     * {@link SchemaProvenance#DECLARED} for CSV/TSV so the reader binds by name rather than schema position.
+     * <p>
+     * A declared column a file stores under a type that cannot be read as declared is checked here per file only
+     * under {@code fail_fast}; otherwise the readers apply the error policy to it when they open the file.
      * </p>
      */
     private ExternalSourceResolution.ResolvedSource applyNonStrictOverlay(
@@ -4827,18 +5195,23 @@ public class ExternalSourceResolver {
         if (fileTyped) {
             rejectUncoercibleFileTypedRetypes(inferred.schema(), inferred.sourceType(), declaredMapping);
         }
-        boolean schemaIsComplete = isSchemaComplete(inferred.sourceType(), inferred.config());
-        DeclaredSchemaResolver.Overlaid unified = DeclaredSchemaResolver.overlayNonStrict(
-            inferred.schema(),
-            declaredMapping,
-            false,
-            schemaIsComplete
-        );
+        DeclaredSchemaResolver.Overlaid unified = DeclaredSchemaResolver.overlayNonStrict(inferred.schema(), declaredMapping, false);
+        if (unified.absent().isEmpty() == false && isSchemaComplete(inferred.sourceType(), inferred.config())) {
+            // The schema lists every column of the file(s) it was built from, so these columns are not there. The
+            // readers null-fill and warn when they read the column; this warns once more at resolution so a query
+            // that never reads it (COUNT(*)) still says so. Same text, physical name, as the readers, so the two
+            // deduplicate. A sample-derived schema (NDJSON, headerless CSV/TSV) cannot tell absent from not sampled,
+            // so only the readers decide there.
+            for (Attribute a : unified.absent()) {
+                DatasetFieldMapping field = declaredMapping.mappings().properties().get(a.name());
+                String physical = field != null && field.path() != null ? field.path() : a.name();
+                pendingSchemaWarnings.add(SkipWarnings.absentDeclaredColumnMessage(physical));
+            }
+        }
         DeclaredReadSpec declaredReadSpec = declaredReadSpecOf(declaredMapping);
-        // Mirror the provenance upgrade the outer resolver applies (see resolveNextPath): when sampledOut columns
-        // exist for a headerless CSV/TSV format the fingerprint must hash DECLARED provenance so it matches what
-        // the data-node's read will produce.
-        if (unified.sampledOut().isEmpty() == false && isHeaderlessCsvOrTsv(inferred.sourceType(), inferred.config())) {
+        // Mirror the provenance upgrade the outer resolver applies (see resolveNextPath) so the fingerprint hashes
+        // what the data-node's read will produce.
+        if (bindsAbsentDeclaredColumnsByName(unified.absent().isEmpty() == false, inferred.sourceType())) {
             declaredReadSpec = DeclaredReadSpec.of(
                 declaredReadSpec.renames(),
                 declaredReadSpec.dateFormats(),
@@ -4867,8 +5240,9 @@ public class ExternalSourceResolver {
                 }
                 DataType declaredType = overlaidTypes.get(logical);
                 DataType inferredType = inferredTypes.get(physical);
-                // inferredType == null: declared column was absent from the sample (sparse field in a sample-derived
-                // schema). No inferred stat exists, so poison to prevent stale pushdowns from a missing-column entry.
+                // inferredType == null: declared column was absent from the inferred schema (a sparse field the sample
+                // missed, or a column the source does not carry). No inferred stat exists, so poison to prevent stale
+                // pushdowns from a missing-column entry.
                 if (me.getValue().format() != null || inferredType == null || inferredType != declaredType) {
                     poisonColumns.add(logical);
                 }
@@ -4901,34 +5275,45 @@ public class ExternalSourceResolver {
             inferred.config(),
             DeclaredReadSpec.NONE
         );
+        // Per-file coercibility, at plan time only under fail_fast: a declared column a file stores under a type that
+        // cannot be read as declared is a read failure of that file's column, which error_mode decides. Under fail_fast
+        // it is caught here, for the files whose types resolution already knows; under null_field / skip_row the
+        // readers apply the policy when they open the file.
+        boolean perFileTypeCheck = fileTyped && resolvesToFailFast(inferred.sourceType(), inferred.config());
         for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : resolved.schemaMap().entrySet()) {
             SchemaReconciliation.FileSchemaInfo info = e.getValue();
-            if (fileTyped) {
-                // Per-file coercibility: under union-by-name this file's inferred type for a declared column can
-                // differ from the unified type checked above; every file the declared column reads from must be
-                // coercible on its own or the read would silently null. Names are physical on both sides here
-                // (pre-overlay), matching the declared `path` physicals.
-                rejectUncoercibleFileTypedRetypes(info.fileSchema().attributes(), inferred.sourceType(), declaredMapping);
+            if (perFileTypeCheck) {
+                // Under union-by-name this file's inferred type for a declared column can differ from the unified
+                // type checked above. Under first_file_wins every fileSchema is the anchor's, so a later file's drift
+                // is left to the readers: its inferredTypes snapshot exists only for some query shapes or a warm
+                // cache, and checking it would make the outcome depend on those rather than on whether the column
+                // is read. Names are physical on both sides here (pre-overlay), matching the declared `path` physicals.
+                rejectUncoercibleFileTypedRetypes(
+                    attributesToTypeMap(info.fileSchema().attributes()),
+                    inferred.sourceType(),
+                    declaredMapping,
+                    e.getKey().objectName()
+                );
             }
             DeclaredSchemaResolver.Overlaid perFile = DeclaredSchemaResolver.overlayNonStrict(
                 info.fileSchema().attributes(),
                 declaredMapping,
                 true
             );
-            // Sampled-out declared columns (absent from the unified inferred schema because the sample did not reach
-            // them) are appended to every per-file schema. For NDJSON the reader always resolves field values by
-            // JSON key; for headerless CSV/TSV resolveNextPath upgrades provenance to DECLARED so the reader uses
-            // headerlessFieldIndex (col<N> → position N) rather than schema-position N — giving the same by-name
-            // semantics. In both cases, rows that do not carry the field null-fill the slot.
-            // Under union-by-name, sampledOut() is empty whenever the column appeared in at least one file's
+            // Absent declared columns (missing from the unified inferred schema, because the sample did not reach
+            // them or the source does not carry them) are appended to every per-file schema. NDJSON resolves field
+            // values by JSON key and Parquet/ORC by column name; for CSV/TSV resolveNextPath upgrades provenance to
+            // DECLARED so the reader binds by header name (or col<N> to field N) rather than by schema position. In
+            // every case, rows that do not carry the field null-fill the slot and the reader warns.
+            // Under union-by-name, absent() is empty whenever the column appeared in at least one file's
             // inferred schema — the lenient per-file overlay correctly skips truly absent columns in the other
             // files, leaving their column-mapping slots as null-fill, which is the intended behavior.
             List<Attribute> perFileSchema;
-            if (unified.sampledOut().isEmpty()) {
+            if (unified.absent().isEmpty()) {
                 perFileSchema = perFile.fileSchema();
             } else {
                 ArrayList<Attribute> extended = new ArrayList<>(perFile.fileSchema());
-                extended.addAll(unified.sampledOut());
+                extended.addAll(unified.absent());
                 perFileSchema = List.copyOf(extended);
             }
             String perFileReadConfig = ReadConfigFingerprint.of(perFileSchema, declaredReadSpec);
@@ -4938,7 +5323,7 @@ public class ExternalSourceResolver {
                 perFileReadConfigsDisagree = true;
             }
             // Rebuild would mint a fresh ExternalSchema and ColumnMapping per file and drop the sharing reconcile
-            // just established. Fold the overlaid shape, including any appended sampled-out columns, and the
+            // just established. Fold the overlaid shape, including any appended absent columns, and the
             // mapping back into the path interner.
             List<Attribute> canonical = schemaInterner.canonicalize(perFileSchema);
             ColumnMapping mapping;

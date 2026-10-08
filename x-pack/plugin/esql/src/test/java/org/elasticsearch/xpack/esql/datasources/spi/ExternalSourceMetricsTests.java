@@ -294,8 +294,91 @@ public class ExternalSourceMetricsTests extends ESTestCase {
     }
 
     public void testRecordDiscoveryFailure() {
-        metrics.recordDiscoveryFailure();
-        assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.DISCOVERY_FAILURES_TOTAL).getLong(), equalTo(1L));
+        // Raw "s3a" folds to the canonical "s3" series.
+        metrics.recordDiscoveryFailure("s3a", DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_AUTH, "400");
+        Measurement failure = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.DISCOVERY_FAILURES_TOTAL);
+        assertThat(failure.getLong(), equalTo(1L));
+        assertThat(failure.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
+        assertThat(failure.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("storage_auth"));
+        assertThat(failure.attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("400"));
+    }
+
+    public void testRecordDiscoveryFailureWithUnknownSchemeFoldsToUnknownType() {
+        metrics.recordDiscoveryFailure(null, DataSourceUsageAccumulator.ERROR_TYPE_OTHER, "500");
+        Measurement failure = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.DISCOVERY_FAILURES_TOTAL);
+        assertThat(failure.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("unknown"));
+        assertThat(failure.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("other"));
+        assertThat(failure.attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("500"));
+    }
+
+    /**
+     * The failure category is clamped to the closed set before anything is emitted, so a token the classifier should never
+     * produce cannot become an APM attribute, and the two sinks never disagree about it.
+     */
+    public void testUnknownErrorTypeIsClampedToOtherInBothSinks() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        RecordingMeterRegistry dualRegistry = new RecordingMeterRegistry();
+        ExternalSourceMetrics dualSink = new ExternalSourceMetrics(dualRegistry, acc);
+
+        dualSink.recordDiscoveryFailure("s3", "SomeException", "400");
+        dualSink.recordDiscoveryFailure("s3", null, "400");
+        dualSink.recordQuery(ExternalSourceMetrics.OUTCOME_FAILURE, 5L, false, "AnotherException", "400");
+
+        int other = DataSourceUsageAccumulator.ERROR_TYPE_NAMES.indexOf(DataSourceUsageAccumulator.ERROR_TYPE_OTHER);
+        assertThat(acc.discoveryFailures(other), equalTo(2L));
+        assertThat(acc.discoveryFailures(), equalTo(2L));
+        assertThat(acc.queryFailures(other), equalTo(1L));
+        for (Measurement m : dualRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.DISCOVERY_FAILURES_TOTAL)) {
+            assertThat(m.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("other"));
+        }
+        for (Measurement m : dualRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL)) {
+            assertThat(m.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("other"));
+        }
+    }
+
+    /** The cause is added to the failure series only, on both instruments, so the success series do not grow. */
+    public void testRecordQueryFailureCarriesErrorTypeAndStatus() {
+        metrics.recordQuery(
+            ExternalSourceMetrics.OUTCOME_FAILURE,
+            25L,
+            false,
+            DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_NOT_FOUND,
+            "400"
+        );
+
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        assertThat(total.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE), equalTo("failure"));
+        assertThat(total.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("storage_not_found"));
+        assertThat(total.attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("400"));
+        Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.QUERY_DURATION);
+        assertThat(duration.getLong(), equalTo(25L));
+        assertThat(duration.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE), equalTo("failure"));
+        assertThat(duration.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("storage_not_found"));
+        assertThat(duration.attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("400"));
+    }
+
+    public void testRecordQueryFailureWithoutDetailHasNoFailureAttributes() {
+        metrics.recordQuery(ExternalSourceMetrics.OUTCOME_FAILURE, 25L, false);
+
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        assertThat(total.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE), equalTo("failure"));
+        assertThat(total.attributes().containsKey(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo(false));
+        assertThat(total.attributes().containsKey(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo(false));
+    }
+
+    public void testRecordQuerySuccessAndCancelledIgnoreFailureDetail() {
+        metrics.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 1L, false, "other", "500");
+        metrics.recordQuery(ExternalSourceMetrics.OUTCOME_CANCELLED, 1L, false, "other", "500");
+
+        for (Measurement total : measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL)) {
+            assertThat(total.attributes().containsKey(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo(false));
+            assertThat(total.attributes().containsKey(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo(false));
+        }
+        for (Measurement duration : measurements(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.QUERY_DURATION)) {
+            assertThat(duration.attributes().containsKey(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo(false));
+            assertThat(duration.attributes().containsKey(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo(false));
+        }
     }
 
     public void testRecordParse() {
@@ -395,6 +478,19 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         assertThat(m.attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE), equalTo("rejected"));
         assertThat(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("unknown"));
         assertThat(m.attributes().get(ExternalSourceMetrics.REASON_ATTRIBUTE), equalTo("validation"));
+    }
+
+    public void testRecordConfigChangeRejectedCarriesStatus() {
+        metrics.recordConfigChange("datasource", "rejected", "s3", "not_found", "404");
+        Measurement m = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.CONFIG_CHANGES_TOTAL);
+        assertThat(m.attributes().get(ExternalSourceMetrics.REASON_ATTRIBUTE), equalTo("not_found"));
+        assertThat(m.attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("404"));
+    }
+
+    public void testRecordConfigChangeNotRejectedHasNoStatus() {
+        metrics.recordConfigChange("datasource", "created", "s3", null, "200");
+        Measurement m = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.CONFIG_CHANGES_TOTAL);
+        assertThat(m.attributes().containsKey(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo(false));
     }
 
     public void testCanonicalSchemeFoldsProviderAliases() {

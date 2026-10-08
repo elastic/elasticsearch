@@ -87,14 +87,16 @@ $$$partition-path$$$
 $$$partition-spec$$$
 
 `partition_spec` {applies_to}`stack: experimental 9.6+`
-:   Maps file columns to partition keys, so that filters on those columns can skip folders.
+:   Binds file columns to partition keys, so that filters on those columns can skip folders. `lag` and `lead` are not bindings; they widen the listing window for a bound column.
 
     - **Default:** None
-    - **Valid values:** A comma-separated list of bindings, each in one of these forms:
+    - **Valid values:** A comma-separated list. Bindings take one of these forms:
       - `[key=]transform(column[, unit])`: A temporal or identity transform. `transform` is `identity`, `year`, `month`, `day`, or `hour`. `unit` is `epoch_second` or `epoch_millis`, and applies only to temporal transforms. The default unit is `epoch_millis`. Unit names follow the [date format](/reference/elasticsearch/mapping-reference/mapping-date-format.md) names.
-      - `key=column`: Maps a column to a differently named key.
-      - `column`: Maps a column to the key with the same name.
-    - **Requires:** Each key to be a `{name}` placeholder in `partition_path`, when `partition_path` is set
+      - `key=column`: Binds a column to a differently named key.
+      - `column`: Binds a column to the key with the same name.
+      Also allowed, and not bindings:
+      - `lag(column, duration)` / `lead(column, duration)`: Widen the listing window for a column that already has a time-based binding. They do not map a path key.
+    - **Requires:** Each binding key to be a `{name}` placeholder in `partition_path`, when `partition_path` is set. Bindings must name mapping fields, not mapping `path` sources.
     - **Conflicts with:** `partition_detection` set to `none`
     - **Related:** `partition_detection`, `partition_path`
 
@@ -179,6 +181,8 @@ $$$error-mode$$$
       - `skip_row`: Drops each malformed row.
       - `null_field`: Replaces a value that fails to parse with null and keeps the row.
     - **Related:** `max_errors`, `max_error_ratio`
+
+    {applies_to}`stack: experimental 9.6+` Under `null_field`, a multi-valued cell loses only the values that fail to parse, and is null only when none of its values can be read.
 
     :::{dropdown} When `null_field` drops rows
     `null_field` keeps a row only when the failure can be attributed to a single value. This applies to every format, including Parquet. When a failure affects the row's structure, `null_field` drops the row, as `skip_row` does. For example, an NDJSON line that isn't valid JSON is dropped, and so is a CSV row that can't be split into fields.

@@ -471,6 +471,63 @@ public final class ParallelParsingCoordinator {
         @Nullable FormatReadCounters formatCounters,
         @Nullable BooleanSupplier stop
     ) throws IOException {
+        return parallelRead(
+            reader,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            splitStartsAtRecordBoundary,
+            splitIncludesFileLeader,
+            readSchema,
+            baseFileOffset,
+            maxConcurrentOpenSegments,
+            captureSink,
+            maxRecordBytes,
+            statsStripeSize,
+            statsColumnScope,
+            splitIsFileFinal,
+            metrics,
+            warningSink,
+            readCounters,
+            formatCounters,
+            stop,
+            null
+        );
+    }
+
+    /**
+     * As the {@code stop} overload, plus the file's header columns, read once per file by the caller. Pass {@code null}
+     * to have them read here, from the leader segment, and handed to every segment of a storage object that starts at the
+     * file's first byte; one that does not has no header to read, so it must be handed them.
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        boolean splitStartsAtRecordBoundary,
+        boolean splitIncludesFileLeader,
+        List<Attribute> readSchema,
+        long baseFileOffset,
+        int maxConcurrentOpenSegments,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        int maxRecordBytes,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        boolean splitIsFileFinal,
+        ExternalSourceMetrics metrics,
+        @Nullable Consumer<String> warningSink,
+        ExternalReadCounters readCounters,
+        @Nullable FormatReadCounters formatCounters,
+        @Nullable BooleanSupplier stop,
+        @Nullable List<String> fileHeaderColumns
+    ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
 
@@ -507,6 +564,7 @@ public final class ParallelParsingCoordinator {
             // file's end. Reconciling those defaults is worth doing on its own, not as a side effect.
             .recordAligned(splitStartsAtRecordBoundary)
             .readSchema(readSchema)
+            .fileHeaderColumns(fileHeaderColumns)
             .splitStartByte(baseFileOffset)
             .maxRecordBytes(maxRecordBytes)
             // Single-segment fallback reads this whole storage object in one shot, so its trailing stripe is
@@ -525,6 +583,26 @@ public final class ParallelParsingCoordinator {
 
         if (segments.size() <= 1) {
             return parallelReader.read(storageObject, baseCtx);
+        }
+        // Segments 1..N cannot see the header line, and segment 0 reads it as it steps over it. With no pinned
+        // schema they bind against the schema inferred from that same header and need nothing.
+        List<String> segmentHeaderColumns = fileHeaderColumns;
+        // An empty pin infers from the file (the read context normalises it to none), so it needs nothing either.
+        if (splitIncludesFileLeader && readSchema != null && readSchema.isEmpty() == false && parallelReader.readsHeaderLine()) {
+            // The header sits at the front of the leader segment, so a ranged read of that segment finds it without an
+            // unranged GET from byte 0. Finding none there (a skip_rows or comment run longer than the segment), or a
+            // header the segment's end cut short, means the header does not end inside segment 0. Only segment 0 steps
+            // over the leading rows and the header, so a later segment would emit them as data: read single-shot. Columns
+            // handed in name the file but say nothing about where its header ends, so the probe runs for them too.
+            long[] leader = segments.get(0);
+            HeaderPrefixProbe leaderRange = new HeaderPrefixProbe(storageObject, leader[0], leader[1]);
+            List<String> leaderColumns = parallelReader.fileHeaderColumns(leaderRange);
+            if (leaderColumns != null && (leaderColumns.isEmpty() || leaderRange.reachedEnd())) {
+                return parallelReader.read(storageObject, baseCtx);
+            }
+            if (segmentHeaderColumns == null) {
+                segmentHeaderColumns = leaderColumns;
+            }
         }
 
         AsReadyParallelIterator iterator = new AsReadyParallelIterator(
@@ -549,7 +627,8 @@ public final class ParallelParsingCoordinator {
             warningSink,
             readCounters,
             formatCounters,
-            stop
+            stop,
+            segmentHeaderColumns
         );
         // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
         iterator.start();
@@ -726,6 +805,9 @@ public final class ParallelParsingCoordinator {
         private final boolean splitIncludesFileLeader;
         @Nullable
         private final List<Attribute> readSchema;
+        /** The file's header columns, handed to every segment so none reads them from its own bytes. */
+        @Nullable
+        private final List<String> fileHeaderColumns;
         private final long baseFileOffset;
         /**
          * Consumer-owned per-file stats sink. Captured at construction so each segment worker can
@@ -832,9 +914,11 @@ public final class ParallelParsingCoordinator {
             @Nullable Consumer<String> warningSink,
             ExternalReadCounters readCounters,
             @Nullable FormatReadCounters formatCounters,
-            @Nullable BooleanSupplier stop
+            @Nullable BooleanSupplier stop,
+            @Nullable List<String> fileHeaderColumns
         ) {
             this.reader = reader;
+            this.fileHeaderColumns = fileHeaderColumns;
             this.storageObject = storageObject;
             this.splitIsFileFinal = splitIsFileFinal;
             this.projectedColumns = projectedColumns;
@@ -989,6 +1073,7 @@ public final class ParallelParsingCoordinator {
                 .lastSplit(lastSplit)
                 .recordAligned(true)
                 .readSchema(readSchema)
+                .fileHeaderColumns(fileHeaderColumns)
                 .splitStartByte(segmentFileOffset)
                 .maxRecordBytes(maxRecordBytes)
                 .stats(segmentFileOffset, statsStripeSize, statsFileFinal)

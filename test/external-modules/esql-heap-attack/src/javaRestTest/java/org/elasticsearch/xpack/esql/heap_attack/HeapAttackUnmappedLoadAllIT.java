@@ -94,13 +94,18 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
      * <ul>
      *     <li>{@code LOAD_ALL} over every document</li>
      * </ul>
-     * Expected: the first 1,000 names - the leaves of document 0's first object - and a warning
+     * Expected: the first 1,000 names - the leaves of document 0's first objects - and a warning
+     * <p>
+     * Serverless has a bigger heap but 6 shards, so documents are read concurrently; the block loader reserves a multiple of a
+     * document's {@code _source} while reading it, and 9MB documents then trip the request breaker long before the field names are an
+     * issue. There the same 5M names are spread over ten times as many, ten times smaller documents: still 100k fields in each.
      */
     public void testFewDocsWithHugeNumberOfDistinctFields() throws IOException {
         String index = "load_all_huge_docs";
-        int docs = 5;
+        boolean serverless = isServerless();
+        int docs = serverless ? 50 : 5;
         int objectsPerDoc = 1_000;
-        int leavesPerObject = 1_000;
+        int leavesPerObject = serverless ? 100 : 1_000;
         createMostlyUnmappedIndex(index);
         for (int d = 0; d < docs; d++) {
             StringBuilder bulk = new StringBuilder();
@@ -122,9 +127,12 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
         // Everything is indexed already; this only force-merges and refreshes.
         initIndex(index, "");
 
+        // Dotted names sort object by object, then by leaf, and document 0's names sort before every other document's.
         List<String> expected = new ArrayList<>(MAX_EXPANDED_FIELDS);
-        for (int l = 0; l < MAX_EXPANDED_FIELDS; l++) {
-            expected.add(hugeDocsObjectName(0, 0) + "." + hugeDocsLeafName(l));
+        for (int o = 0; expected.size() < MAX_EXPANDED_FIELDS; o++) {
+            for (int l = 0; l < leavesPerObject && expected.size() < MAX_EXPANDED_FIELDS; l++) {
+                expected.add(hugeDocsObjectName(0, o) + "." + hugeDocsLeafName(l));
+            }
         }
         assertLoadAllCapped(index, docs, expected);
     }

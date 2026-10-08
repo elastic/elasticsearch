@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGroundTruthAc
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingStatsAction;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.storage.QuerySamplingIndex;
+import org.elasticsearch.xpack.querysampling.storage.SampleRetention;
 import org.elasticsearch.xpack.querysampling.storage.SampleWriter;
 import org.elasticsearch.xpack.querysampling.storage.Tier1Buffer;
 import org.elasticsearch.xpack.querysampling.storage.WeightsRefresher;
@@ -121,6 +123,14 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
             MAX_PENDING_WRITES,
             WRITE_INTERVAL
         );
+        if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled()) {
+            new SampleRetention(
+                (request, listener) -> client.execute(DeleteByQueryAction.INSTANCE, request, listener),
+                () -> services.clusterService().state().nodes().isLocalNodeElectedMaster(),
+                services.threadPool()::absoluteTimeInMillis,
+                QuerySamplingSettings.RETENTION.get(services.clusterService().getSettings())
+            ).start(services.threadPool(), services.threadPool().generic());
+        }
         SamplingPipeline pipeline = new SamplingPipeline(
             tracker,
             new QuerySampler(ACCEPTANCE_SCALE, HEAD_THRESHOLD, Randomness.get()),

@@ -52,9 +52,20 @@ public final class QuerySamplingSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * How long a sampled query is kept, counted from when it was picked. The sample is meant to follow the current
+     * traffic, so what is older than this is of no use and is deleted.
+     */
+    public static final Setting<TimeValue> RETENTION = Setting.timeSetting(
+        "xpack.query_sampling.retention",
+        TimeValue.timeValueDays(7),
+        TimeValue.timeValueSeconds(1),
+        Setting.Property.NodeScope
+    );
+
     private QuerySamplingSettings() {}
 
     public static List<Setting<?>> getSettings() {
-        return List.of(ENABLED, CAPTURE_RATE, WEIGHTS_REFRESH_INTERVAL);
+        return List.of(ENABLED, CAPTURE_RATE, WEIGHTS_REFRESH_INTERVAL, RETENTION);
     }
 }

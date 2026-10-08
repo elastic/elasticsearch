@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -50,6 +49,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan.maybeRequiresUnset;
 
 /**
  * Container plan for embedded PromQL queries.
@@ -539,7 +539,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         if (binaryOperator.match() != VectorMatch.NONE && scalarOperand) {
                             failures.add(fail(lp, "vector matching only allowed between instant vectors [{}]", lp.sourceText()));
                         } else if ((binaryOperator.match() != VectorMatch.NONE || joinComposed)
-                            && (hasConcreteLabels(binaryOperator.left()) == false || hasConcreteLabels(binaryOperator.right()) == false)) {
+                            && (maybeRequiresUnset(binaryOperator.left()) || maybeRequiresUnset(binaryOperator.right()))) {
                                 // TODO: Materialize match keys from runtime-defined labels.
                                 // https://github.com/elastic/elasticsearch/issues/157669
                                 // Operand shapes that produce them: without aggregations (#157671), label functions (#157672).
@@ -745,10 +745,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     private static boolean usesWithoutGrouping(LogicalPlan plan) {
         return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT);
-    }
-
-    private static boolean hasConcreteLabels(LogicalPlan plan) {
-        return plan.output().stream().noneMatch(attribute -> MetadataAttribute.isTimeSeriesAttributeName(attribute.name()));
     }
 
     /**

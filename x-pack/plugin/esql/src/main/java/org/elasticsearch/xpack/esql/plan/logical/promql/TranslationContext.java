@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -59,32 +60,39 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROMETHEUS_LABELS_PREFIX;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.intersect;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.project;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintIntersect;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintProject;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintUnset;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch.Joining;
 
 /**
  * Shared state and assembly helpers for one PromQL translation. Nodes own their lowering, while this context
- * preserves the existing schema bookkeeping, aggregation boundaries, and command finalization.
+ * carries the top-down label requirements, aggregation boundaries, and command finalization.
  */
 public record TranslationContext(
     PromqlCommand cmd,
     AnalyzerContext analyzer,
     /* Alias for the step bucket expression used in all aggregation groupings. May be null for empty indices. */
     Alias stepBucketAlias,
-    /* The columns the result subtree MUST expose. */
+    /* The label columns the translated subtree MUST expose; strictly top-down. */
     TranslationSchema required,
     /* The current evaluation time (default: @timestamp). */
     Expression time
@@ -94,9 +102,9 @@ public record TranslationContext(
     private static final Instant EPOCH_MIN = Instant.EPOCH;
     private static final Instant EPOCH_MAX = Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999);
 
-    /** The command exposes every label of the result series: the full open label space. */
+    /** The command exposes every label of the result series: the whole metadata. */
     public TranslationContext(PromqlCommand cmd, AnalyzerContext analyzer) {
-        this(cmd, analyzer, null, open(), null);
+        this(cmd, analyzer, null, newConstraintUnset(), null);
     }
 
     /** Translate an independent child without changing the enclosing branch's timing or aggregation state. */
@@ -148,7 +156,7 @@ public record TranslationContext(
 
         if (branches.size() == 1) {
             IntermediateResult intermediateResult = translateIntermediate(cmd.promqlPlan(), cmd.stepId(), cmd.valueId());
-            Attribute declared = find(cmd.output(), mapOpen());
+            Attribute declared = find(cmd.output(), asMetadataLabel());
             LogicalPlan plan = emitTimeSeriesAlias(intermediateResult, declared != null ? declared.id() : new NameId());
             return doTranslateFinal(plan, intermediateResult.kind().constant);
         }
@@ -166,18 +174,16 @@ public record TranslationContext(
     }
 
     /**
-     * A finished table exposes its packing under the canonical {@code _timeseries} name. Packings travel under
-     * their derived names so nodes can tell them apart; the one surviving at a root is whatever the enclosing
+     * A finished table exposes its {@code _timeseries} column under the canonical {@code _timeseries} name. The columns
+     * travel under their derived names so nodes can tell them apart; the one surviving at a root is whatever the enclosing
      * regroups left, and the command declares it as {@code _timeseries}.
      */
     private LogicalPlan emitTimeSeriesAlias(IntermediateResult table, NameId id) {
-        Set<String> skip = table.schema().finestSkip();
-        if (skip == null || skip.isEmpty()) {
+        Attribute finest = finestTimeSeries(table.plan());
+        if (finest == null || MetadataAttribute.TIMESERIES.equals(finest.name())) {
             return table.plan();
         }
-        Attribute packed = table.packed(skip);
-        assert packed != null : "invariant: packing " + skip + " must be carried by the finished table";
-        return new Eval(cmd.source(), table.plan(), List.of(new Alias(cmd.source(), MetadataAttribute.TIMESERIES, packed, id)));
+        return new Eval(cmd.source(), table.plan(), List.of(new Alias(cmd.source(), MetadataAttribute.TIMESERIES, finest, id)));
     }
 
     /**
@@ -249,7 +255,8 @@ public record TranslationContext(
             // TimeSeriesAggregate always applies because InstantSelectors adds implicit last_over_time().
             // TODO: with metric references without last_over_time, a plain Aggregate could do (#141501 discussion).
             if (ir.kind().afterInitialAggregation == false) {
-                IntermediateResult collapsed = collapse(ir.with(plan, ir.schema(), value), ir.schema(), value);
+                IntermediateResult raw = ir.with(plan, value);
+                IntermediateResult collapsed = raw.withCollapse(this, newConstraintForCollapse(raw, required), value);
                 plan = collapsed.plan();
                 value = collapsed.value();
             }
@@ -273,7 +280,7 @@ public record TranslationContext(
         }
 
         Kind kind = ir.kind().constant ? Kind.CONSTANT : Kind.AFTER_INITIAL_AGGREGATE;
-        return new IntermediateResult(plan, ir.schema(), valueAlias.toAttribute(), ir.step(), null, kind);
+        return new IntermediateResult(plan, valueAlias.toAttribute(), ir.step(), null, kind);
     }
 
     /** Folds a branch whose value depends on nothing but the step column into a compile-time step/value relation. */
@@ -287,172 +294,42 @@ public record TranslationContext(
         var plan = PromqlLogicalPlanBuilder.buildLocalRelation(cmd);
         var step = plan.output().getFirst();
         var value = result.value().transformUp(Attribute.class, attr -> attr.semanticEquals(stepAttr) ? step : attr);
-        return new IntermediateResult(plan, result.schema(), value, step, result.pendingFilter(), Kind.CONSTANT);
+        // The folded relation carries no label columns at all.
+        return new IntermediateResult(plan, value, step, result.pendingFilter(), Kind.CONSTANT);
     }
 
     /**
-     * Expressions compose lazily up the tree until they cross an aggregation boundary: once the plan below is
-     * aggregated, the expression must materialize as the value column (an Eval) so parents reference it by attribute.
+     * The requirement a {@code without} regroup groups by: the child's labels - a raw child's {@link #newConstraintForCollapse}, or
+     * what an aggregated child delivers - transposed below the dropped labels. Under a {@code _timeseries} column the labels are derived
+     * columns, so only those the enclosing translation asks for are carried; a child of promoted labels only keeps every remaining label
+     * because they are its label set.
      */
-    public IntermediateResult eval(IntermediateResult t, Expression value) {
-        if (t.kind().afterInitialAggregation == false) {
-            return t.with(t.plan(), t.schema(), value);
-        }
-        Alias alias = new Alias(value.source(), cmd.valueColumnName(), value);
-        return t.with(new Eval(cmd.source(), t.plan(), List.of(alias)), t.schema(), alias.toAttribute());
+    public TranslationSchema newConstraintForRegroupWithout(TranslationSchema childLabels, List<String> keys) {
+        TranslationSchema regrouped = newConstraintIntersect(childLabels, keys);
+        assert childLabels.hasMetadata() == false || regrouped.hasMetadata()
+            : "invariant: required [" + required + "] must declare a _timeseries column excluding " + keys + ", got " + childLabels;
+        return regrouped.hasMetadata() ? newConstraintProject(regrouped, required.labels()) : regrouped;
     }
 
     /**
-     * The table a {@code without} regroup exposes: the child columns surviving the dropped labels. Under a packed
-     * column the labels are derived columns, so only those the enclosing translation asks for are carried; a finite
-     * child keeps every remaining label because they are its label set.
+     * The requirement a raw (not yet aggregated) table collapses by: the labels required of it that the source relation
+     * stores as dimensions, every {@code _timeseries} column kept. A required label the relation does not store as a
+     * dimension is null-filled by the node that binds it above ({@link IntermediateResult}). A value referencing nothing
+     * but the step (a scalar chain like {@code 1 + 2}) carries no series grain: collapsing it by the requirement would
+     * multiply rows per series, so it collapses bare.
      */
-    public TranslationSchema regroupWithout(TranslationSchema child, List<String> keys) {
-        TranslationSchema schema = intersect(child, keys);
-        assert child.isOpen() == false || schema.isOpen()
-            : "invariant: required [" + required + "] must declare a packed column excluding " + keys + ", got " + child;
-        return schema.isOpen() ? project(schema, required.labels()) : schema;
-    }
-
-    /**
-     * The initial aggregate: a raw table collapsed to one row per step and schema column by the innermost
-     * {@link TimeSeriesAggregate}, {@code function} applied in it. Passing the table's own value collapses it as is.
-     */
-    public IntermediateResult collapse(IntermediateResult input, TranslationSchema schema, Expression function) {
-        assert input.kind().afterInitialAggregation == false : "invariant: a collapse takes a raw table";
-        Alias value = new Alias(function.source(), cmd.valueColumnName(), function);
-        return table(emitCollapse(input, schema, value), input, schema, value);
-    }
-
-    /**
-     * An aggregate over a collapsed table: regrouped by {@code schema} with {@code function} as the value. The regroup
-     * packs its dimensions first when the schema is open or the operator asks for it ({@code packed}).
-     */
-    public IntermediateResult regroup(IntermediateResult input, TranslationSchema schema, boolean packed, Expression function) {
-        assert input.kind().afterInitialAggregation : "invariant: a regroup takes a collapsed table";
-        Alias value = new Alias(function.source(), cmd.valueColumnName(), function);
-        return table(emitRegroup(input, schema, value, schema.isOpen() || packed), input, schema, value);
-    }
-
-    private static IntermediateResult table(LogicalPlan plan, IntermediateResult input, TranslationSchema schema, Alias value) {
-        return new IntermediateResult(plan, schema, value.toAttribute(), input.step(), input.pendingFilter(), Kind.AFTER_INITIAL_AGGREGATE);
-    }
-
-    /**
-     * The innermost aggregate owns the physical {@code _timeseries} grouping and materializes every packed column in
-     * the schema over that column's own skip set.
-     */
-    private LogicalPlan emitCollapse(IntermediateResult input, TranslationSchema schema, Alias value) {
-        Source source = cmd.promqlPlan().source();
-        LogicalPlan plan = input.plan();
-        boolean groupsBySeries = schema.isOpen() || schema.labels().isEmpty() == false;
-        Expression agg = value.child();
-        // TranslateTimeSeriesAggregate splits this node into two phases, replacing inner TimeSeriesAggregateFunctions
-        // (e.g. LastOverTime) with references to phase-1 results; the phase-2 expression must remain a valid
-        // AggregateFunction inside the Aggregate node:
-        // Sum(LastOverTime(m)) -> Sum(ref) -- Sum survives, no wrap needed
-        // LastOverTime(m) -> ref -- bare ref, needs Values(ref)
-        // Mul(LastOverTime(m), 8) -> Mul(ref, 8) -- not an agg, needs Values(Mul(ref,8))
-        // Guarded by groupsBySeries because without any series grouping (e.g. constants like vector(5))
-        // TranslateTimeSeriesAggregate passes Literals straight to phase 1.
-        boolean wrapWithValues = (agg instanceof AggregateFunction == false) || (agg instanceof TimeSeriesAggregateFunction);
-        if (groupsBySeries && wrapWithValues) {
-            value = value.replaceChild(new Values(agg.source(), agg));
+    public TranslationSchema newConstraintForCollapse(IntermediateResult raw, TranslationSchema requirement) {
+        assert raw.kind().afterInitialAggregation == false : "invariant: only a raw table has a raw requirement";
+        if (raw.value().references().stream().allMatch(ref -> ref.semanticEquals(cmd.stepAttribute()))) {
+            return TranslationSchema.EMPTY;
         }
-
-        // Every packing is materialized under its derived name, finest first, and every label the relation has is a
-        // key too. Every column is functionally dependent on the finest packing, so grouping by all of them
-        // preserves per-series granularity while making the full schema available to the surrounding query.
-        var groupKeys = new ArrayList<NamedExpression>();
-        var outKeys = new ArrayList<NamedExpression>();
-        for (Set<String> skip : finestFirst(schema.skips())) {
-            List<Expression> excluded = skip.stream().<Expression>map(label -> {
-                Attribute resolved = find(plan.output(), label);
-                return resolved != null ? resolved : mapToRef(label);
-            }).toList();
-            Alias packing = new Alias(source, mapOpen(skip), new TimeSeriesWithout(source, excluded));
-            groupKeys.add(packing);
-            outKeys.add(packing.toAttribute());
-        }
-        for (String label : schema.labels()) {
-            Attribute carrier = find(plan.output(), label);
-            if (carrier != null) {
-                groupKeys.add(carrier);
-                outKeys.add(carrier);
-            }
-        }
-
-        return new TimeSeriesAggregate(
-            source,
-            plan,
-            groupings(stepBucketAlias, groupKeys),
-            aggregates(value, input.step(), outKeys),
-            null,
-            time,
-            TimeSeriesAggregate.Origin.PROMQL_COMMAND
-        );
-    }
-
-    /**
-     * Regroups an already-aggregated table. Every regroup first resolves its physical schema and null-fills missing
-     * grouping columns. A packed regroup additionally packs dimensions before aggregation to prevent multi-valued
-     * dimensions from splitting rows and double-counting, then unpacks them afterwards.
-     */
-    private LogicalPlan emitRegroup(IntermediateResult input, TranslationSchema schema, Alias value, boolean requiresPacking) {
-        Source source = cmd.source();
-        Attribute step = input.step();
-        LogicalPlan plan = input.plan();
-        if (value.child() instanceof AggregateFunction == false) {
-            value = value.replaceChild(new Values(value.child().source(), value.child()));
-        }
-        List<Attribute> available = plan.output();
-
-        var nulls = new ArrayList<Alias>();
-        var keys = new ArrayList<Attribute>();
-        for (Set<String> skip : finestFirst(schema.skips())) {
-            Attribute carrier = find(available, mapOpen(skip));
-            assert carrier != null : "invariant: packing " + skip + " must be carried by the child";
-            keys.add(carrier);
-        }
-        for (String label : schema.labels()) {
-            Attribute carrier = find(available, label);
-            if (carrier == null) {
-                // a declared label the child lacks is absent from every series: grouped under null, like Prometheus
-                nulls.add(emitNullExpression(mapToRef(label)));
-                carrier = nulls.getLast().toAttribute();
-            }
-            keys.add(carrier);
-        }
-
-        if (nulls.isEmpty() == false) {
-            plan = new Eval(source, plan, nulls);
-        }
-
-        if (requiresPacking == false) {
-            return new Aggregate(source, plan, groupings(step, keys), aggregates(value, step, keys));
-        }
-        // TranslateTimeSeriesAggregate unpacks the inner TSA's dimensions and this regroup re-packs them.
-        if (keys.isEmpty()) {
-            return new Aggregate(source, plan, groupings(step, List.of()), aggregates(value, step, List.of()));
-        }
-        Attribute packedAttribute = PackDims.newPackedAttribute(source);
-        PackDims packDims = new PackDims(source, plan, keys, packedAttribute);
-        Alias packedGrouping = PackDims.newPackedGrouping(source, packedAttribute);
-        Aggregate agg = new Aggregate(
-            source,
-            packDims,
-            groupings(step, List.of(packedGrouping)),
-            aggregates(value, step, List.of(packedGrouping.toAttribute()))
-        );
-        List<Attribute> unpackedDims = keys.stream()
-            .<Attribute>map(
-                dim -> new ReferenceAttribute(dim.source(), null, dim.name(), dim.dataType().noText(), Nullability.TRUE, dim.id(), false)
-            )
+        List<Attribute> dimensions = cmd.child()
+            .output()
+            .stream()
+            .filter(attribute -> attribute instanceof FieldAttribute field && field.isDimension())
+            .filter(attribute -> attribute instanceof TimeSeriesMetadataAttribute == false)
             .toList();
-        UnpackDims unpackDims = new UnpackDims(source, agg, packedGrouping.toAttribute(), unpackedDims);
-        List<NamedExpression> projections = new ArrayList<>(List.of(value.toAttribute(), step));
-        projections.addAll(unpackedDims);
-        return new Project(source, unpackDims, projections);
+        return newConstraintProject(requirement, asPromotedLabels(dimensions));
     }
 
     /** Projects the plan to the command's declared output, re-aliasing columns that match by name but not by id. */
@@ -464,7 +341,7 @@ public record TranslationContext(
         // Under a passthrough mapping the plan carries the concrete field (`labels.job`) while the command declares
         // the label alone, so fall back to the canonical name.
         for (var attr : plan.output()) {
-            lookupMap.putIfAbsent(mapFinite(attr), attr);
+            lookupMap.putIfAbsent(asPromotedLabel(attr), attr);
         }
         var projected = new ArrayList<>(cmd.output());
         var evals = new ArrayList<Alias>();
@@ -609,18 +486,27 @@ public record TranslationContext(
     // -- core --
 
     /**
-     * The single value flowing through the compiler: a table - an ESQL plan together with its defined columns. The
-     * {@link TranslationSchema} names the label columns and the plan carries them; value and step are the two
-     * columns every table has. Every AST node translates to one and the stitching operations (joins, unions,
-     * regroups, the command coda) compose them by their declared columns. Mid-descent the value is a (possibly not
-     * yet materialized) expression parents compose into larger expressions; a finished table's value is a defined
-     * column ({@link #valueColumn()}).
+     * The single value flowing through the compiler: a table - an ESQL plan together with the pieces parents
+     * cannot read off the plan itself. Label requirements travel down as {@link TranslationSchema}s; every
+     * label column a parent needs it reads off the child plan's output, under its canonical or derived name.
+     * Value and step are the two columns every table has. Every AST node translates to one and the stitching
+     * operations (joins, unions, regroups, the command coda) compose them. Mid-descent the value is a (possibly
+     * not yet materialized) expression parents compose into larger expressions; a finished table's value is a
+     * defined column ({@link #valueColumn()}).
+     * <p>
+     * Labels use a dual representation like ClickHouse: promoted labels carried directly, each its own column, plus the
+     * time-series metadata - every remaining label, encoded in {@code _timeseries} columns. The metadata may overlap
+     * the promoted names.
+     * <p>
+     * Null-fill contract: a table carries a label column only where it can source the label. The node that binds labels
+     * into its result null-fills there each one its input lacks: a regroup its grouping keys, a reduction its partitions,
+     * a join its match key and result labels. A raw table binds no label it lacks - its collapse groups by the required
+     * labels the relation stores ({@link TranslationContext#newConstraintForCollapse}) - so a required label absent from
+     * the relation is null-filled by the node that binds it above.
      */
     public record IntermediateResult(
         /* Output ESQL plan: the source relation (cmd.child()) with this node's operators stacked on top. */
         LogicalPlan plan,
-        /* The label columns this subtree exposes; the plan carries them under their canonical or derived names. */
-        TranslationSchema schema,
         /* This node's numeric value: an expression mid-descent, a defined column once aggregated. */
         Expression value,
         /* The step column. */
@@ -648,55 +534,223 @@ public record TranslationContext(
         }
 
         /** A raw input whose value may still contain per-series aggregate expressions. */
-        public IntermediateResult(LogicalPlan plan, TranslationSchema schema, Expression value, Attribute step) {
-            this(plan, schema, value, step, null, Kind.BEFORE_INITIAL_AGGREGATE);
+        public IntermediateResult(LogicalPlan plan, Expression value, Attribute step) {
+            this(plan, value, step, null, Kind.BEFORE_INITIAL_AGGREGATE);
         }
 
         /** A raw input carrying a selector predicate until source filtering or aggregate assembly consumes it. */
-        public IntermediateResult(LogicalPlan plan, TranslationSchema schema, Expression value, Attribute step, Expression selectorFilter) {
-            this(plan, schema, value, step, selectorFilter, Kind.BEFORE_INITIAL_AGGREGATE);
+        public IntermediateResult(LogicalPlan plan, Expression value, Attribute step, Expression selectorFilter) {
+            this(plan, value, step, selectorFilter, Kind.BEFORE_INITIAL_AGGREGATE);
         }
 
-        /** This table rebuilt around a new plan, schema and value, keeping its other properties. */
-        public IntermediateResult with(LogicalPlan plan, TranslationSchema schema, Expression value) {
-            return new IntermediateResult(plan, schema, value, step, pendingFilter, kind);
+        /** This table rebuilt around a new plan and value, keeping its other properties. */
+        public IntermediateResult with(LogicalPlan plan, Expression value) {
+            return new IntermediateResult(plan, value, step, pendingFilter, kind);
+        }
+
+        /**
+         * This table with {@code value} as its value. Expressions compose lazily up the tree until they cross an aggregation
+         * boundary: once the plan below is aggregated, the expression materializes as the value column (an Eval) so parents
+         * reference it by attribute.
+         */
+        public IntermediateResult withEval(TranslationContext context, Expression value) {
+            if (kind.afterInitialAggregation == false) {
+                return with(plan, value);
+            }
+            Alias alias = new Alias(value.source(), context.cmd().valueColumnName(), value);
+            return with(new Eval(context.cmd().source(), plan, List.of(alias)), alias.toAttribute());
+        }
+
+        /**
+         * This raw table collapsed to one row per step and required column by the innermost {@link TimeSeriesAggregate},
+         * {@code function} applied in it: the initial aggregate. Passing the table's own value collapses it as is. The
+         * requirement is the table's {@link TranslationContext#newConstraintForCollapse}, or the label set a node declares
+         * itself (a {@code by}).
+         */
+        public IntermediateResult withCollapse(TranslationContext context, TranslationSchema requirement, Expression function) {
+            assert kind.afterInitialAggregation == false : "invariant: a collapse takes a raw table";
+            Alias value = new Alias(function.source(), context.cmd().valueColumnName(), function);
+            return withLegacyCollapse(context, requirement, value);
+        }
+
+        /**
+         * This collapsed table regrouped by {@code requirement}, {@code function} as the value: an aggregate over an aggregate.
+         * It packs its dimensions first when the requirement has metadata or the operator asks for it ({@code packed}). The
+         * requirement is the one the table was translated under, transposed below any dropped labels.
+         */
+        public IntermediateResult withRegroup(
+            TranslationContext context,
+            TranslationSchema requirement,
+            boolean packed,
+            Expression function
+        ) {
+            assert kind.afterInitialAggregation : "invariant: a regroup takes a collapsed table";
+            Alias value = new Alias(function.source(), context.cmd().valueColumnName(), function);
+            return withLegacyRegroup(context, requirement, value, requirement.hasMetadata() || packed);
+        }
+
+        /**
+         * The innermost aggregate owns the physical {@code _timeseries} grouping and materializes every {@code _timeseries}
+         * column in the requirement over that column's own skip set.
+         */
+        private IntermediateResult withLegacyCollapse(TranslationContext context, TranslationSchema requirement, Alias value) {
+            Source source = context.cmd().promqlPlan().source();
+            LogicalPlan plan = this.plan;
+            boolean groupsBySeries = requirement.hasMetadata() || requirement.labels().isEmpty() == false;
+            Expression agg = value.child();
+            // TranslateTimeSeriesAggregate splits this node into two phases, replacing inner TimeSeriesAggregateFunctions
+            // (e.g. LastOverTime) with references to phase-1 results; the phase-2 expression must remain a valid
+            // AggregateFunction inside the Aggregate node:
+            // Sum(LastOverTime(m)) -> Sum(ref) -- Sum survives, no wrap needed
+            // LastOverTime(m) -> ref -- bare ref, needs Values(ref)
+            // Mul(LastOverTime(m), 8) -> Mul(ref, 8) -- not an agg, needs Values(Mul(ref,8))
+            // Guarded by groupsBySeries because without any series grouping (e.g. constants like vector(5))
+            // TranslateTimeSeriesAggregate passes Literals straight to phase 1.
+            boolean wrapWithValues = (agg instanceof AggregateFunction == false) || (agg instanceof TimeSeriesAggregateFunction);
+            if (groupsBySeries && wrapWithValues) {
+                value = value.replaceChild(new Values(agg.source(), agg));
+            }
+
+            // Every metadata column is materialized under its derived name, finest first, and every promoted label the relation
+            // has is a key too. Every column is functionally dependent on the finest one, so grouping by all of them
+            // preserves per-series granularity while making the full requirement available to the surrounding query.
+            var groupKeys = new ArrayList<NamedExpression>();
+            var outKeys = new ArrayList<NamedExpression>();
+            for (Set<String> skip : finestFirst(requirement.skips())) {
+                List<Expression> excluded = skip.stream().<Expression>map(label -> {
+                    Attribute resolved = find(plan.output(), label);
+                    return resolved != null ? resolved : mapToRef(label);
+                }).toList();
+                Alias timeseries = new Alias(source, asMetadataLabel(skip), new TimeSeriesWithout(source, excluded));
+                groupKeys.add(timeseries);
+                outKeys.add(timeseries.toAttribute());
+            }
+            for (String label : requirement.labels()) {
+                Attribute carrier = find(plan.output(), label);
+                if (carrier != null) {
+                    groupKeys.add(carrier);
+                    outKeys.add(carrier);
+                }
+            }
+
+            var collapsed = new TimeSeriesAggregate(
+                source,
+                plan,
+                groupings(context.stepBucketAlias(), groupKeys),
+                aggregates(value, step, outKeys),
+                null,
+                context.time(),
+                TimeSeriesAggregate.Origin.PROMQL_COMMAND
+            );
+            return new IntermediateResult(collapsed, value.toAttribute(), step, pendingFilter, Kind.AFTER_INITIAL_AGGREGATE);
+        }
+
+        /**
+         * Regroups an already-aggregated table. Every regroup first resolves its required columns and null-fills missing
+         * grouping columns. A packed regroup additionally packs dimensions before aggregation to prevent multi-valued
+         * dimensions from splitting rows and double-counting, then unpacks them afterwards.
+         */
+        private IntermediateResult withLegacyRegroup(
+            TranslationContext context,
+            TranslationSchema requirement,
+            Alias value,
+            boolean requiresPacking
+        ) {
+            Source source = context.cmd().source();
+            LogicalPlan plan = this.plan;
+            if (value.child() instanceof AggregateFunction == false) {
+                value = value.replaceChild(new Values(value.child().source(), value.child()));
+            }
+            List<Attribute> available = plan.output();
+
+            var nulls = new ArrayList<Alias>();
+            var keys = new ArrayList<Attribute>();
+            for (Set<String> skip : finestFirst(requirement.skips())) {
+                Attribute carrier = find(available, asMetadataLabel(skip));
+                assert carrier != null : "invariant: _timeseries column " + skip + " must be carried by the child";
+                keys.add(carrier);
+            }
+            for (String label : requirement.labels()) {
+                Attribute carrier = find(available, label);
+                if (carrier == null) {
+                    // a declared label the child lacks is absent from every series: grouped under null, like Prometheus
+                    nulls.add(emitNullExpression(mapToRef(label)));
+                    carrier = nulls.getLast().toAttribute();
+                }
+                keys.add(carrier);
+            }
+
+            if (nulls.isEmpty() == false) {
+                plan = new Eval(source, plan, nulls);
+            }
+
+            if (requiresPacking == false) {
+                plan = new Aggregate(source, plan, groupings(step, keys), aggregates(value, step, keys));
+                return regrouped(plan, value);
+            }
+            // TranslateTimeSeriesAggregate unpacks the inner TSA's dimensions and this regroup re-packs them.
+            if (keys.isEmpty()) {
+                plan = new Aggregate(source, plan, groupings(step, List.of()), aggregates(value, step, List.of()));
+                return regrouped(plan, value);
+            }
+            Attribute packedAttribute = PackDims.newPackedAttribute(source);
+            PackDims packDims = new PackDims(source, plan, keys, packedAttribute);
+            Alias packedGrouping = PackDims.newPackedGrouping(source, packedAttribute);
+            Aggregate agg = new Aggregate(
+                source,
+                packDims,
+                groupings(step, List.of(packedGrouping)),
+                aggregates(value, step, List.of(packedGrouping.toAttribute()))
+            );
+            List<Attribute> unpackedDims = keys.stream()
+                .<Attribute>map(
+                    dim -> new ReferenceAttribute(
+                        dim.source(),
+                        null,
+                        dim.name(),
+                        dim.dataType().noText(),
+                        Nullability.TRUE,
+                        dim.id(),
+                        false
+                    )
+                )
+                .toList();
+            UnpackDims unpackDims = new UnpackDims(source, agg, packedGrouping.toAttribute(), unpackedDims);
+            List<NamedExpression> projections = new ArrayList<>(List.of(value.toAttribute(), step));
+            projections.addAll(unpackedDims);
+            return regrouped(new Project(source, unpackDims, projections), value);
+        }
+
+        /** The regrouped table: regroups genuinely drop columns, so parents read survivors off the regrouped plan. */
+        private IntermediateResult regrouped(LogicalPlan plan, Alias value) {
+            return new IntermediateResult(plan, value.toAttribute(), step, pendingFilter, Kind.AFTER_INITIAL_AGGREGATE);
         }
 
         /** The value as a defined column; only valid on a finished table. */
         public Attribute valueColumn() {
             return (Attribute) value;
         }
-
-        /** The attribute carrying a label in this table's plan, or null when the table lacks it. */
-        public Attribute label(String name) {
-            return find(plan.output(), name);
-        }
-
-        /** The attribute carrying a packing in this table's plan, or null when the table lacks it. */
-        public Attribute packed(Set<String> skip) {
-            return find(plan.output(), mapOpen(skip));
-        }
     }
 
     // -- helpers --
 
     /** The canonical name exposed at a finished command's boundary. */
-    public static String mapOpen() {
-        return mapOpen(Set.of());
+    public static String asMetadataLabel() {
+        return asMetadataLabel(Set.of());
     }
 
-    /** The existing internal name distinguishing packings with different exclusions. */
-    public static String mapOpen(Set<String> skip) {
+    /** The existing internal name distinguishing {@code _timeseries} columns with different exclusions. */
+    public static String asMetadataLabel(Set<String> skip) {
         return MetadataAttribute.TIMESERIES + (skip.isEmpty() ? "" : "$" + String.join("$", new TreeSet<>(skip)));
     }
 
     /** Canonical label names in declaration order, without duplicates. */
-    public static List<String> mapFinite(Collection<? extends Attribute> attributes) {
-        return attributes.stream().map(TranslationContext::mapFinite).distinct().toList();
+    public static List<String> asPromotedLabels(Collection<? extends Attribute> attributes) {
+        return attributes.stream().map(TranslationContext::asPromotedLabel).distinct().toList();
     }
 
     /** Label names ignore the physical field prefix used for Prometheus passthrough dimensions. */
-    public static String mapFinite(Attribute attribute) {
+    public static String asPromotedLabel(Attribute attribute) {
         String name = attribute instanceof FieldAttribute field ? field.fieldName().string() : attribute.name();
         return name.startsWith(PROMETHEUS_LABELS_PREFIX) ? name.substring(PROMETHEUS_LABELS_PREFIX.length()) : name;
     }
@@ -706,7 +760,8 @@ public record TranslationContext(
         return new ReferenceAttribute(Source.EMPTY, name, DataType.KEYWORD);
     }
 
-    /** The skip sets of a schema ordered finest first: the grain-fixing packing leads, coarser variants follow. */
+    /** The skip sets of a schema ordered finest first: the grain-fixing {@code _timeseries} column leads, coarser
+     * variants follow. */
     public static List<Set<String>> finestFirst(Set<Set<String>> skips) {
         return skips.stream().sorted(Comparator.comparingInt(Set::size)).toList();
     }
@@ -721,7 +776,7 @@ public record TranslationContext(
     public static Attribute find(List<Attribute> attributes, String label) {
         Attribute bareMatch = null;
         for (Attribute attribute : attributes) {
-            if (mapFinite(attribute).equals(label)) {
+            if (asPromotedLabel(attribute).equals(label)) {
                 if (attribute.name().equals(label) == false) {
                     return attribute;
                 }
@@ -729,5 +784,126 @@ public record TranslationContext(
             }
         }
         return bareMatch;
+    }
+
+    /**
+     * The {@code _timeseries} columns a plan carries: output column name to the label set it excludes, read off the
+     * {@link TimeSeriesWithout} definitions below. A definition whose name no longer reaches the output
+     * (projected away by a join or a regroup by promoted labels) is not carried and is left out.
+     */
+    private static Map<String, Set<String>> timeSeriesColumns(LogicalPlan plan) {
+        var definitions = new LinkedHashMap<String, Set<String>>();
+        for (Aggregate aggregate : plan.collect(Aggregate.class)) {
+            for (Expression grouping : aggregate.groupings()) {
+                if (grouping instanceof Alias alias && alias.child() instanceof TimeSeriesWithout without) {
+                    var skip = new LinkedHashSet<String>();
+                    for (Expression field : without.children()) {
+                        if (field instanceof Attribute attribute) {
+                            skip.add(asPromotedLabel(attribute));
+                        }
+                    }
+                    Set<String> previous = definitions.putIfAbsent(alias.name(), Set.copyOf(skip));
+                    assert previous == null || previous.equals(skip)
+                        : "invariant: _timeseries column ["
+                            + alias.name()
+                            + "] has one exclusion set, got ["
+                            + previous
+                            + "] and ["
+                            + skip
+                            + "]";
+                }
+            }
+        }
+        var outputNames = new HashSet<String>();
+        for (Attribute attr : plan.output()) {
+            outputNames.add(attr.name());
+        }
+        definitions.keySet().retainAll(outputNames);
+        return definitions;
+    }
+
+    /** The exclusion sets of the {@code _timeseries} columns a plan carries, in output order. */
+    private static Set<Set<String>> deliveredSkips(LogicalPlan plan) {
+        Map<String, Set<String>> columns = timeSeriesColumns(plan);
+        var delivered = new LinkedHashSet<Set<String>>();
+        for (Attribute attr : plan.output()) {
+            Set<String> skip = columns.get(attr.name());
+            if (skip != null) {
+                delivered.add(skip);
+            }
+        }
+        return Collections.unmodifiableSet(delivered);
+    }
+
+    /**
+     * The label coverage a table delivers, as a constraint: its promoted label columns plus its metadata, its
+     * {@code _timeseries} columns, read off the table's plan. The one way a node learns what a translated child carries.
+     */
+    public static TranslationSchema newConstraintDeliveredBy(IntermediateResult table) {
+        return new TranslationSchema(deliveredLabels(table.plan(), table.step(), table.value()), deliveredSkips(table.plan()));
+    }
+
+    /**
+     * The promoted labels a plan exposes: every output column except the step, the value and the columns it is computed
+     * from, and the {@code _timeseries} columns.
+     */
+    private static Set<String> deliveredLabels(LogicalPlan plan, Attribute step, Expression value) {
+        Map<String, Set<String>> columns = timeSeriesColumns(plan);
+        Set<NameId> valueInputs = valueInputs(plan, value);
+        var labels = new LinkedHashSet<String>();
+        for (Attribute attr : plan.output()) {
+            if (attr.id().equals(step.id())) {
+                continue;
+            }
+            if (valueInputs.contains(attr.id())) {
+                continue;
+            }
+            if (columns.containsKey(attr.name()) == false) {
+                labels.add(asPromotedLabel(attr));
+            }
+        }
+        return Collections.unmodifiableSet(labels);
+    }
+
+    /**
+     * The value column and, through the {@link Eval}s defining it, every column it is computed from. A binary operator
+     * fused into one aggregate keeps both operands' values next to its own: they feed the value and are never labels.
+     */
+    private static Set<NameId> valueInputs(LogicalPlan plan, Expression value) {
+        Map<NameId, Expression> definitions = new HashMap<>();
+        plan.forEachDown(Eval.class, eval -> eval.fields().forEach(field -> definitions.putIfAbsent(field.id(), field.child())));
+        Set<NameId> inputs = new HashSet<>();
+        Deque<Expression> pending = new ArrayDeque<>(List.of(value));
+        while (pending.isEmpty() == false) {
+            for (Attribute input : pending.pop().references()) {
+                Expression definition = definitions.get(input.id());
+                if (inputs.add(input.id()) && definition != null) {
+                    pending.push(definition);
+                }
+            }
+        }
+        return inputs;
+    }
+
+    /**
+     * The {@code _timeseries} column with the fewest excluded labels, or null when the plan carries none. The
+     * grain-fixing {@code _timeseries} of a finished table, read straight off the plan.
+     */
+    // visible for testing
+    static Attribute finestTimeSeries(LogicalPlan plan) {
+        Map<String, Set<String>> columns = timeSeriesColumns(plan);
+        if (columns.isEmpty()) {
+            return null;
+        }
+        Attribute finest = null;
+        int fewest = Integer.MAX_VALUE;
+        for (Attribute attr : plan.output()) {
+            Set<String> skip = columns.get(attr.name());
+            if (skip != null && skip.size() < fewest) {
+                fewest = skip.size();
+                finest = attr;
+            }
+        }
+        return finest;
     }
 }

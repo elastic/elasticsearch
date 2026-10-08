@@ -90,11 +90,11 @@ public class AnonymizationContextTests extends ESTestCase {
     }
 
     /**
-     * The identifiers production can hand us that are shorter than the 112-bit minimum an HMAC key
-     * must clear in FIPS approved mode: {@code resolveClusterUuid} answers {@code ""} when the cluster
-     * state is unavailable, and {@code Metadata.UNKNOWN_CLUSTER_UUID} is {@code _na_} until the cluster
-     * UUID is committed. Each must still render a token rather than throw, and the only run that can
-     * tell this apart from keying on the raw bytes is a FIPS one ({@code -Dtests.fips.enabled=true}).
+     * Identifiers shorter than the 14 bytes an HMAC key needs to clear 112 bits, which is the minimum
+     * FIPS approved mode enforces: {@code resolveClusterUuid} answers {@code ""} from a {@code null}
+     * cluster state, and {@code Metadata.UNKNOWN_CLUSTER_UUID} is {@code _na_} until the cluster UUID
+     * is committed. Each must render a token rather than throw. Only a FIPS run
+     * ({@code -Dtests.fips.enabled=true}) reaches the throw.
      */
     public void testShortClusterUuidStillRendersTokens() {
         for (String clusterUuid : new String[] { "", "_na_" }) {
@@ -104,10 +104,15 @@ public class AnonymizationContextTests extends ESTestCase {
         }
     }
 
-    public void testShortClusterUuidsAreStillDisjoint() {
-        // Widening the key must not collapse distinct short identifiers onto one key.
+    /**
+     * Keying on the raw identifier substituted a single zero byte for an empty one, which collapsed
+     * {@code ""}, {@code null} and {@code "\0"} onto one key — UTF-8 encodes {@code U+0000} as that
+     * same byte. Deriving the key by digest separates them. This is the one property here that holds
+     * the two derivations apart without FIPS, so it is what pins the change on an ordinary run.
+     */
+    public void testEmptyAndNulByteClusterUuidsDoNotShareAKey() {
         String fromEmpty = AnonymizationContext.forSubmission("").mapper().column("salary");
-        String fromUnknown = AnonymizationContext.forSubmission("_na_").mapper().column("salary");
-        assertNotEquals("distinct cluster identifiers must not share a token", fromEmpty, fromUnknown);
+        String fromNulByte = AnonymizationContext.forSubmission("\0").mapper().column("salary");
+        assertNotEquals("an empty and a NUL identifier must not share a key", fromEmpty, fromNulByte);
     }
 }

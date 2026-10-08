@@ -48,9 +48,11 @@ public final class AnonymizationContext {
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     /**
      * Widens the cluster identifier to a fixed-width HMAC key. FIPS approved mode rejects an HMAC key
-     * under 112 bits, and the identifier does not clear that on its own: it is absent in test fixtures
-     * and {@code _na_} until the cluster UUID is committed, either of which would otherwise throw and
-     * cost us the anonymized failure log at the moment we need it.
+     * under 112 bits and the identifier does not clear that on its own — it is empty from a null
+     * cluster state and {@code _na_} until the cluster UUID is committed — so keying on it directly
+     * makes this class unconstructible for inputs {@link #forSubmission} accepts. Digesting also
+     * separates the empty, {@code null} and {@code "\0"} identifiers, which keying on the raw bytes
+     * collapsed onto one key.
      */
     private static final String KEY_DIGEST_ALGORITHM = "SHA-256";
     /**

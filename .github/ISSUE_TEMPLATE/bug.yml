@@ -14,7 +14,7 @@ body:
 
 
         For security vulnerabilities please only send reports to security@elastic.co.
-        See https://www.elastic.co/community/security for more information.
+        See https://github.com/elastic/.github/blob/main/SECURITY.md for more information.
 
 
         Please fill in the following details to help us reproduce the bug:

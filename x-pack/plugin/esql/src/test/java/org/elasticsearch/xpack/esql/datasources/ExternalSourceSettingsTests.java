@@ -49,17 +49,17 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     }
 
     public void testDefaultBlobStoreConcurrencyMatrix() {
-        // B = 10 MiB, M = min(heap/4, REQUEST/2), C = min(cpuClamp, max(4, M/B)).
+        // B = just under 8 MiB, M = min(heap/4, REQUEST/2), C = min(cpuClamp, max(4, M/B)).
         // Default REQUEST is 60% of heap, so REQUEST/2 is 30% and heap/4 binds.
         assertEquals(4, concurrency(1, ByteSizeValue.ofMb(256)));
         assertEquals(6, concurrency(2, ByteSizeValue.ofMb(256)));
-        assertEquals(6, concurrency(8, ByteSizeValue.ofMb(256)));
-        assertEquals(6, concurrency(16, ByteSizeValue.ofMb(256)));
+        assertEquals(8, concurrency(8, ByteSizeValue.ofMb(256)));
+        assertEquals(8, concurrency(16, ByteSizeValue.ofMb(256)));
 
         assertEquals(4, concurrency(1, ByteSizeValue.ofMb(512)));
         assertEquals(6, concurrency(2, ByteSizeValue.ofMb(512)));
-        assertEquals(12, concurrency(8, ByteSizeValue.ofMb(512)));
-        assertEquals(12, concurrency(16, ByteSizeValue.ofMb(512)));
+        assertEquals(16, concurrency(8, ByteSizeValue.ofMb(512)));
+        assertEquals(16, concurrency(16, ByteSizeValue.ofMb(512)));
 
         assertEquals(4, concurrency(1, ByteSizeValue.ofGb(4)));
         assertEquals(6, concurrency(2, ByteSizeValue.ofGb(4)));
@@ -77,21 +77,21 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     }
 
     public void testDefaultBlobStoreConcurrencyParseFloorBeatsTinyMemory() {
-        // 80 MiB heap: M = 20 MiB, floor(M / 10 MiB) = 2, but gzip parse needs C >= 4.
+        // 80 MiB heap: M = 20 MiB, floor(M / B) = 2, but gzip parse needs C >= 4.
         assertEquals(4, concurrency(1, ByteSizeValue.ofMb(80)));
     }
 
     public void testDefaultBlobStoreConcurrencyRequestBreakerBindsFirst() {
         long heapBytes = ByteSizeValue.ofGb(4).getBytes();
         long tightRequest = ByteSizeValue.ofMb(80).getBytes();
-        // M = min(1024 MiB, 40 MiB) = 40 MiB so C = 4, even though 16 CPUs would otherwise allow 48.
-        assertEquals(4, ExternalSourceSettings.defaultBlobStoreConcurrency(16, heapBytes, tightRequest));
+        // M = min(1024 MiB, 40 MiB) = 40 MiB so C = floor(M / B) = 5, even though 16 CPUs would otherwise allow 48.
+        assertEquals(5, ExternalSourceSettings.defaultBlobStoreConcurrency(16, heapBytes, tightRequest));
     }
 
     public void testPositiveOverrideIsClampedByMemoryTerm() {
         // Leftover 16 (the old floor) must not skip M. Default REQUEST is 60% of heap, so heap/4 binds.
-        assertEquals(12, ExternalSourceSettings.blobStoreConcurrency(16, ByteSizeValue.ofMb(512).getBytes(), requestLimit(512)));
-        assertEquals(6, ExternalSourceSettings.blobStoreConcurrency(16, ByteSizeValue.ofMb(256).getBytes(), requestLimit(256)));
+        assertEquals(8, ExternalSourceSettings.blobStoreConcurrency(16, ByteSizeValue.ofMb(256).getBytes(), requestLimit(256)));
+        assertEquals(5, ExternalSourceSettings.blobStoreConcurrency(16, ByteSizeValue.ofMb(160).getBytes(), requestLimit(160)));
     }
 
     public void testPositiveOverrideCanLowerBelowMemoryCap() {
@@ -103,12 +103,12 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     }
 
     public void testPositiveOverrideHonorsParseFloorOnTinyHeap() {
-        // 80 MiB heap: M = 20 MiB, floor(M / 10 MiB) = 2, leftover 16 still gets the gzip parse floor of 4.
+        // 80 MiB heap: M = 20 MiB, floor(M / B) = 2, leftover 16 still gets the gzip parse floor of 4.
         assertEquals(4, ExternalSourceSettings.blobStoreConcurrency(16, ByteSizeValue.ofMb(80).getBytes(), requestLimit(80)));
     }
 
     public void testPositiveOverrideCanRaiseAboveCpuWhenMemoryAllows() {
-        // 1 CPU would default to 4; leftover 16 on 4 GiB is memory-legal (102 slots) so it stays 16.
+        // 1 CPU would default to 4; leftover 16 on 4 GiB is memory-legal (128 slots) so it stays 16.
         assertEquals(16, ExternalSourceSettings.blobStoreConcurrency(16, ByteSizeValue.ofGb(4).getBytes(), requestLimitGb(4)));
     }
 
@@ -117,7 +117,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         long request = requestLimit(256);
         int configured = ExternalSourceSettings.defaultBlobStoreConcurrency(16, heapBytes, request);
         ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(configured, heapBytes, request);
-        assertEquals(6, info.permits());
+        assertEquals(8, info.permits());
         assertFalse(info.settingCanRaiseLimit());
         assertFalse(info.parseFloorBinds());
     }
@@ -143,8 +143,9 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     }
 
     public void testBlobStoreConcurrencyInfoParseFloorDoesNotBindWhenRawSlotsEqualFloor() {
-        long heapBytes = ByteSizeValue.ofMb(160).getBytes();
-        long request = requestLimit(160);
+        // 128 MiB heap: M = 32 MiB, floor(M / B) = 4, exactly the parse floor.
+        long heapBytes = ByteSizeValue.ofMb(128).getBytes();
+        long request = requestLimit(128);
         int configured = ExternalSourceSettings.defaultBlobStoreConcurrency(16, heapBytes, request);
         ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(configured, heapBytes, request);
         assertEquals(4, info.permits());
@@ -170,7 +171,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
             heapBytes,
             tightRequest
         );
-        assertEquals(4, info.permits());
+        assertEquals(5, info.permits());
         assertFalse(info.settingCanRaiseLimit());
         assertFalse(info.parseFloorBinds());
     }

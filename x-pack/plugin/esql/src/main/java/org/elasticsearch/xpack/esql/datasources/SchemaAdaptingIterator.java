@@ -260,6 +260,11 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
     }
 
     @Override
+    public void revokeOvershootOnPark() {
+        delegate.revokeOvershootOnPark();
+    }
+
+    @Override
     public Page tryAdvance() {
         Page filePage = delegate.tryAdvance();
         return filePage != null ? adaptPage(filePage) : null;

@@ -1939,6 +1939,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // park on space we hold it in the listener closure and deliver it on resume.
             SubscribableListener<Void> space = buffer.waitForSpace();
             if (space.isDone() == false) {
+                pages.revokeOvershootOnPark();
                 return parkUntilReadyWithPage(space, page, state, completionListener);
             }
             if (buffer.noMoreInputs() || noFurtherCandidates()) {

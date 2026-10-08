@@ -90,6 +90,9 @@ public final class ExpandUnmappedFieldsPostProcessor {
      * distinct {@code _source} leaf into a column, and merely collecting their names - before a single column is built - is enough
      * to exhaust the coordinator's heap. 1000 matches the default of {@code index.mapping.total_fields.limit}.
      * <p>
+     * The cap is deliberately decoupled from that setting: it is per index and often raised, and it is ambiguous which index's limit
+     * would apply to a query over several. A hard-coded value is the starting point; making it configurable is a follow-up.
+     * <p>
      * The cap keeps the alphabetically first names, so which fields survive does not depend on the order pages arrive in.
      * {@code KEEP} or {@code DROP} can be used to reach fields that would go over the limit.
      */
@@ -312,7 +315,10 @@ public final class ExpandUnmappedFieldsPostProcessor {
             return existingNames.contains(name) == false && pattern.matches(name);
         }
 
-        /** Drains the heap, largest first, into a list from the back, leaving the names in ascending order. */
+        /**
+         * Drains the heap, largest first, into a list from the back, leaving the names in ascending order. The collector is spent
+         * afterwards: it holds no names anymore.
+         */
         List<String> sortedNames() {
             String[] sorted = new String[largestFirst.size()];
             for (int i = sorted.length - 1; i >= 0; i--) {

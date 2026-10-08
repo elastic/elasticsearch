@@ -41,7 +41,7 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
 
     @Before
     public void requireLoadAll() {
-        assumeTrue("unmapped_fields=LOAD_ALL requires a snapshot build", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        assumeTrue("requires the LOAD_ALL field cap", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS.isEnabled());
     }
 
     /**

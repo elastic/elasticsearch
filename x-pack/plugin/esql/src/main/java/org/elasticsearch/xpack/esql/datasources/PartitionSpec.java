@@ -10,21 +10,10 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
-import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -67,7 +56,7 @@ public final class PartitionSpec {
     public static final PartitionSpec EMPTY = new PartitionSpec(List.of());
 
     private static final String LEGAL_TRANSFORMS = "identity, year, month, day, hour";
-    private static final String LEGAL_UNITS = "second, millis, micros";
+    private static final String LEGAL_UNITS = "epoch_second, epoch_millis";
     /**
      * ES|QL unquoted identifiers ({@code @timestamp} included) plus {@code -} so {@code aws-region} stays bare.
      * Anything else is a backtick-quoted name.
@@ -110,15 +99,13 @@ public final class PartitionSpec {
     }
 
     public enum Unit {
-        SECOND,
-        MILLIS,
-        MICROS;
+        EPOCH_SECOND,
+        EPOCH_MILLIS;
 
         static Unit parse(String token) {
             return switch (token.toLowerCase(Locale.ROOT)) {
-                case "second" -> SECOND;
-                case "millis" -> MILLIS;
-                case "micros" -> MICROS;
+                case "epoch_second" -> EPOCH_SECOND;
+                case "epoch_millis" -> EPOCH_MILLIS;
                 default -> null;
             };
         }
@@ -149,7 +136,7 @@ public final class PartitionSpec {
             if (transform == Transform.IDENTITY) {
                 return key.equals(column) ? key : key + "=" + column;
             }
-            String call = transform.token() + "(" + column + (unit == Unit.MILLIS ? "" : ", " + unit.token()) + ")";
+            String call = transform.token() + "(" + column + (unit == Unit.EPOCH_MILLIS ? "" : ", " + unit.token()) + ")";
             return key.equals(transform.token()) ? call : key + "=" + call;
         }
     }
@@ -218,6 +205,18 @@ public final class PartitionSpec {
 
     public List<Field> fields() {
         return fields;
+    }
+
+    /**
+     * Every spec source column: temporal binds and identity remaps. Listing and
+     * overlap extract against this set, not hive keys.
+     */
+    public Set<String> boundColumns() {
+        Set<String> columns = new LinkedHashSet<>();
+        for (Field field : fields) {
+            columns.add(field.column());
+        }
+        return columns;
     }
 
     /**
@@ -468,13 +467,13 @@ public final class PartitionSpec {
             if (rhs.indexOf('(') >= 0) {
                 return parseTransformCall(field, key, rhs);
             }
-            return new Field(key, Transform.IDENTITY, parseIdentifier(field, rhs), Unit.MILLIS);
+            return new Field(key, Transform.IDENTITY, parseIdentifier(field, rhs), Unit.EPOCH_MILLIS);
         }
         if (field.indexOf('(') >= 0) {
             return parseTransformCall(field, null, field);
         }
         String column = parseIdentifier(field, field);
-        return new Field(column, Transform.IDENTITY, column, Unit.MILLIS);
+        return new Field(column, Transform.IDENTITY, column, Unit.EPOCH_MILLIS);
     }
 
     private static Field parseTransformCall(String field, @Nullable String explicitKey, String call) {
@@ -544,7 +543,7 @@ public final class PartitionSpec {
             );
         }
         String column = parseIdentifier(field, trimmedArgs.get(0));
-        Unit unit = Unit.MILLIS;
+        Unit unit = Unit.EPOCH_MILLIS;
         if (trimmedArgs.size() == 2) {
             if (transform == Transform.IDENTITY) {
                 throw new IllegalArgumentException(
@@ -568,7 +567,7 @@ public final class PartitionSpec {
                         + trimmedArgs.get(1)
                         + "]; temporal transforms take ["
                         + LEGAL_UNITS
-                        + "] or omit the unit (default millis)"
+                        + "] or omit the unit (default epoch_millis)"
                 );
             }
         }
@@ -683,7 +682,11 @@ public final class PartitionSpec {
     /**
      * Identity remaps rewrite the hint column to the path key. Temporal binds
      * on a source column emit a finite {@code year IN (...)} for the coarsest
-     * year-key only — never an independent month IN list.
+     * year-key only — never an independent month IN list. Source-column hints
+     * ({@code @timestamp}, {@code ts}) are then dropped so they cannot join
+     * listing-cache identity once the glob stays walkable ({@code year=2024/**}).
+     * They stay when no year IN is emitted, so a numeric bound that lands
+     * outside 1971–2100 still reaches {@link #emitListingNotices}.
      */
     public List<PartitionFilterHint> projectListingHints(List<PartitionFilterHint> hints) {
         return projectListingHints(hints, null);
@@ -694,6 +697,7 @@ public final class PartitionSpec {
             return hints == null ? List.of() : hints;
         }
         List<PartitionFilterHint> projected = new ArrayList<>(hints.size() + 2);
+        boolean emittedYearIn = false;
         for (PartitionFilterHint hint : hints) {
             List<Field> remaps = identityRemaps(hint.columnName(), detectedKeys);
             if (remaps.isEmpty()) {
@@ -721,8 +725,29 @@ public final class PartitionSpec {
             List<Object> values = new ArrayList<>(years.size());
             values.addAll(years);
             projected.add(new PartitionFilterHint(yearBind.key(), Operator.IN, values));
+            emittedYearIn = true;
         }
-        return List.copyOf(projected);
+        return List.copyOf(emittedYearIn ? dropTemporalSourceHints(projected) : projected);
+    }
+
+    /**
+     * Listing keys are path columns ({@code year}, remapped {@code aws-region}). A
+     * temporal source is not one, unless that source is itself the path key.
+     */
+    private List<PartitionFilterHint> dropTemporalSourceHints(List<PartitionFilterHint> projected) {
+        Set<String> temporalSources = temporalGroups().keySet();
+        Set<String> keys = new LinkedHashSet<>();
+        for (Field field : fields) {
+            keys.add(field.key());
+        }
+        List<PartitionFilterHint> kept = new ArrayList<>(projected.size());
+        for (PartitionFilterHint hint : projected) {
+            if (temporalSources.contains(hint.columnName()) && keys.contains(hint.columnName()) == false) {
+                continue;
+            }
+            kept.add(hint);
+        }
+        return kept;
     }
 
     /**
@@ -783,10 +808,17 @@ public final class PartitionSpec {
 
     /**
      * Same overlap test against resolved ancestor filter expressions (split
-     * discovery). Missing source column → no overlap test.
+     * discovery). Missing source column → no overlap test. DATETIME/DATE_NANOS
+     * literals become {@link Instant} so they cannot be scaled as unix numbers.
      */
     public boolean overlapsExpressions(Map<String, Object> partitionValues, List<Expression> filters) {
-        return overlaps(partitionValues, hintsFromExpressions(filters));
+        if (isEmpty() || filters == null || filters.isEmpty()) {
+            return true;
+        }
+        return overlaps(
+            partitionValues,
+            PartitionFilterHintExtractor.fromConjuncts(filters, Set.of(), boundColumns(), PartitionFilterHintExtractor.TEMPORAL)
+        );
     }
 
     /** Notices for unmatched keys and a numeric bound that lands outside 1971–2100. */
@@ -841,7 +873,8 @@ public final class PartitionSpec {
                                 + WRONG_UNIT_YEAR_MIN
                                 + "–"
                                 + WRONG_UNIT_YEAR_MAX
-                                + "; the unit is likely wrong — use [second] for unix epoch seconds or [millis] for datetime longs"
+                                + "; the unit is likely wrong — use [epoch_second] for unix epoch seconds"
+                                + " or [epoch_millis] for datetime longs"
                         );
                         break;
                     }
@@ -906,72 +939,6 @@ public final class PartitionSpec {
             }
         }
         return detectedKeys.contains(coarser.token());
-    }
-
-    static List<PartitionFilterHint> hintsFromExpressions(@Nullable List<Expression> filters) {
-        if (filters == null || filters.isEmpty()) {
-            return List.of();
-        }
-        List<PartitionFilterHint> hints = new ArrayList<>();
-        for (Expression filter : filters) {
-            for (Expression conjunct : Predicates.splitAnd(filter)) {
-                if (conjunct instanceof EsqlBinaryComparison comparison) {
-                    extractComparison(comparison, hints);
-                } else if (conjunct instanceof In in) {
-                    extractIn(in, hints);
-                }
-            }
-        }
-        return hints;
-    }
-
-    private static void extractComparison(EsqlBinaryComparison comparison, List<PartitionFilterHint> hints) {
-        String column = null;
-        Object literal = null;
-        boolean reversed = false;
-        if (comparison.left() instanceof Attribute attr && comparison.right() instanceof Literal lit) {
-            column = attr.name();
-            literal = lit.value();
-        } else if (comparison.left() instanceof Literal lit && comparison.right() instanceof Attribute attr) {
-            column = attr.name();
-            literal = lit.value();
-            reversed = true;
-        }
-        if (column == null) {
-            return;
-        }
-        Operator operator = switch (comparison) {
-            case Equals ignored -> Operator.EQUALS;
-            case NotEquals ignored -> Operator.NOT_EQUALS;
-            case GreaterThan ignored -> reversed ? Operator.LESS_THAN : Operator.GREATER_THAN;
-            case GreaterThanOrEqual ignored -> reversed ? Operator.LESS_THAN_OR_EQUAL : Operator.GREATER_THAN_OR_EQUAL;
-            case LessThan ignored -> reversed ? Operator.GREATER_THAN : Operator.LESS_THAN;
-            case LessThanOrEqual ignored -> reversed ? Operator.GREATER_THAN_OR_EQUAL : Operator.LESS_THAN_OR_EQUAL;
-            default -> null;
-        };
-        if (operator != null) {
-            hints.add(new PartitionFilterHint(column, operator, List.of(normalizeLiteral(literal))));
-        }
-    }
-
-    private static void extractIn(In in, List<PartitionFilterHint> hints) {
-        if (in.value() instanceof Attribute attr) {
-            List<Object> values = new ArrayList<>();
-            for (Expression item : in.list()) {
-                if (item instanceof Literal lit) {
-                    values.add(normalizeLiteral(lit.value()));
-                } else {
-                    return;
-                }
-            }
-            if (values.isEmpty() == false) {
-                hints.add(new PartitionFilterHint(attr.name(), Operator.IN, values));
-            }
-        }
-    }
-
-    private static Object normalizeLiteral(Object value) {
-        return value instanceof BytesRef br ? BytesRefs.toString(br) : value;
     }
 
     private Map<String, List<Field>> temporalGroups() {
@@ -1080,9 +1047,9 @@ public final class PartitionSpec {
                     }
                 }
                 case GREATER_THAN -> {
-                    Long millis = toUtcMillisForProjection(hint.values().get(0), unit);
+                    Long millis = exclusiveLowerStartMillis(hint.values().get(0), unit);
                     if (millis != null) {
-                        range = range.intersect(new InstantRange(increment(millis), null));
+                        range = range.intersect(new InstantRange(millis, null));
                     }
                 }
                 case GREATER_THAN_OR_EQUAL -> {
@@ -1092,7 +1059,7 @@ public final class PartitionSpec {
                     }
                 }
                 case LESS_THAN -> {
-                    Long millis = toUtcMillisForProjection(hint.values().get(0), unit);
+                    Long millis = exclusiveUpperEndMillis(hint.values().get(0), unit);
                     if (millis != null) {
                         range = range.intersect(new InstantRange(null, millis));
                     }
@@ -1342,9 +1309,8 @@ public final class PartitionSpec {
     private static Long applyUnit(long numeric, Unit unit) {
         try {
             return switch (unit) {
-                case SECOND -> Math.multiplyExact(numeric, 1000L);
-                case MILLIS -> numeric;
-                case MICROS -> numeric / 1000L;
+                case EPOCH_SECOND -> Math.multiplyExact(numeric, 1000L);
+                case EPOCH_MILLIS -> numeric;
             };
         } catch (ArithmeticException e) {
             return null;
@@ -1372,6 +1338,37 @@ public final class PartitionSpec {
 
     static int utcYear(long millis) {
         return Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).get(ChronoField.YEAR);
+    }
+
+    /**
+     * Exclusive {@code >} as an inclusive start. {@link Instant#toEpochMilli()} floors,
+     * so a DATE_NANOS bound inside a millisecond would otherwise skip the rest of that
+     * millisecond and drop a folder that still matches.
+     */
+    @Nullable
+    private static Long exclusiveLowerStartMillis(Object raw, Unit unit) {
+        Long millis = toUtcMillisForProjection(raw, unit);
+        if (millis == null) {
+            return null;
+        }
+        return hasSubMilliNanos(raw) ? millis : increment(millis);
+    }
+
+    /**
+     * Exclusive {@code <} as an exclusive end. Sub-milli DATE_NANOS widens to the
+     * containing millisecond so the boundary folder is kept.
+     */
+    @Nullable
+    private static Long exclusiveUpperEndMillis(Object raw, Unit unit) {
+        Long millis = toUtcMillisForProjection(raw, unit);
+        if (millis == null) {
+            return null;
+        }
+        return hasSubMilliNanos(raw) ? increment(millis) : millis;
+    }
+
+    private static boolean hasSubMilliNanos(Object raw) {
+        return raw instanceof Instant instant && instant.getNano() % 1_000_000 != 0;
     }
 
     private static long increment(long millis) {

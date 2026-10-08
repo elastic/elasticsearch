@@ -111,8 +111,6 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
         List<String> failures
     ) {
         boolean noReuse = each.rescoresFromRaw();
-        // Lucene's flat reader says its merge mapping is not reused whatever the format said, until apache/lucene#16769
-        boolean mergeNoReuse = noReuse || each.name().endsWith(" over float");
 
         List<String> sourceRaw = sourceFiles.stream().filter(name -> name.endsWith(".vec")).sorted().toList();
         if (sourceRaw.size() != 2) {
@@ -127,7 +125,7 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
                 failures.add(each + ": the merge never mapped " + raw + " to read it front to back");
             }
             for (Open stream : streams) {
-                if (stream.context().hints().contains(NoReuseHint.INSTANCE) != mergeNoReuse) {
+                if (stream.context().hints().contains(NoReuseHint.INSTANCE) != noReuse) {
                     failures.add(each + ": the merge mapping of " + raw + " says " + stream.context().hints());
                 }
             }

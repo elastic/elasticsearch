@@ -68,15 +68,12 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
     private final IOContext dataContext;
     private final Directory directory;
     private final String vectorDataFN;
-    // the search reader, which holds the mapping its merge instances share
+    // the search reader a merge instance comes from
     private final ES93BFloat16FlatVectorsReader original;
-    // As for stored fields, getMergeInstance may be called outside merges, so several merge instances may be held at once:
-    // the merge state is guarded by the original's lock.
-    // On the original: the merge mapping and how many merge instances hold it.
-    private IndexInput mergeVectorData;
-    private int mergeInstances;
-    // On a merge instance: whether it released the mapping.
-    private boolean finished;
+    // on the original: whether a merge instance is out; only merges take one, one at a time
+    private boolean merging;
+    // on a merge instance: whether it opened vectorData for itself, so finishMerge closes it
+    private final boolean ownsVectorData;
 
     public ES93BFloat16FlatVectorsReader(SegmentReadState state, FlatVectorsScorer scorer) throws IOException {
         this.fields = new IntObjectHashMap<>();
@@ -90,6 +87,7 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
             ES93BFloat16FlatVectorsFormat.VECTOR_DATA_EXTENSION
         );
         this.original = this;
+        this.ownsVectorData = false;
         // how these are read is up to whoever wraps this format
         dataContext = state.context.union(FileTypeHint.DATA, FileDataHint.KNN_VECTORS);
         try {
@@ -106,8 +104,8 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
         }
     }
 
-    /** Reads the same fields as {@code original}, through the mapping a merge opened for itself. */
-    private ES93BFloat16FlatVectorsReader(ES93BFloat16FlatVectorsReader original, IndexInput vectorData) {
+    /** Reads the same fields as {@code original}, through {@code vectorData}. */
+    private ES93BFloat16FlatVectorsReader(ES93BFloat16FlatVectorsReader original, IndexInput vectorData, boolean ownsVectorData) {
         this.fields = original.fields;
         this.vectorScorer = original.vectorScorer;
         this.vectorData = vectorData;
@@ -116,6 +114,7 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
         this.directory = original.directory;
         this.vectorDataFN = original.vectorDataFN;
         this.original = original;
+        this.ownsVectorData = ownsVectorData;
     }
 
     private int readMetadata(SegmentReadState state) throws IOException {
@@ -206,41 +205,32 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
     }
 
     /**
-     * Merges read the vectors sequentially and searches at random, and advice applies to a whole mapping, so merges share a
-     * mapping of their own, each through a clone.
+     * Merges read the vectors sequentially and searches at random, and advice applies to a whole mapping, so a merge reads
+     * them through a mapping of its own, closed by {@link #finishMerge()}.
      */
     @Override
     public FlatVectorsReader getMergeInstance() throws IOException {
         if (mergeNeedsItsOwnMapping() == false) {
             return this;
         }
-        IndexInput data = original.mergeVectorData();
+        assert original == this : "a merge instance is not merged";
+        assert merging == false : "only merges take a merge instance, and a segment is in one merge at a time";
+        IndexInput data;
         try {
-            return new ES93BFloat16FlatVectorsReader(original, data.clone());
-        } catch (Throwable t) {
-            IOUtils.closeWhileHandlingException(original.release());
-            throw t;
+            data = directory.openInput(vectorDataFN, mergeContext());
+        } catch (FileNotFoundException | NoSuchFileException e) {
+            // an open reader outlives its files, so read the mapping it already holds
+            data = null;
         }
+        merging = true;
+        return data == null
+            ? new ES93BFloat16FlatVectorsReader(this, vectorData.clone(), false)
+            : new ES93BFloat16FlatVectorsReader(this, data, true);
     }
 
     /** Only when searches read the file at random and this reader was not opened by a merge. */
     private boolean mergeNeedsItsOwnMapping() {
         return dataContext.context() != IOContext.Context.MERGE && dataContext.hints().contains(DataAccessHint.RANDOM);
-    }
-
-    /** The mapping merges read, opened by the first merge instance and released by {@link #finishMerge()}. */
-    private synchronized IndexInput mergeVectorData() throws IOException {
-        assert original == this;
-        if (mergeVectorData == null) {
-            try {
-                mergeVectorData = directory.openInput(vectorDataFN, mergeContext());
-            } catch (FileNotFoundException | NoSuchFileException e) {
-                // an open reader outlives its files, so fall back to the mapping it already holds
-                mergeVectorData = vectorData;
-            }
-        }
-        mergeInstances++;
-        return mergeVectorData;
     }
 
     /** The caller's context as a merge with sequential access. */
@@ -327,48 +317,20 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
         throw new UnsupportedOperationException(field + " only supports float vectors");
     }
 
-    /** Releases this merge instance's hold on the merge mapping, once; a no-op on the search reader. */
+    /** Closes the mapping this merge instance opened; a no-op on the search reader. */
     @Override
     public void finishMerge() throws IOException {
         if (original != this) {
-            IOUtils.close(original.releaseMergeVectorData(this));
+            original.merging = false;
+            if (ownsVectorData) {
+                vectorData.close();
+            }
         }
-    }
-
-    /** Releases the hold of {@code mergeInstance}, once; returns the mapping to close, if any. */
-    private synchronized IndexInput releaseMergeVectorData(ES93BFloat16FlatVectorsReader mergeInstance) {
-        assert original == this && mergeInstance.original == this;
-        if (mergeInstance.finished) {
-            return null;
-        }
-        mergeInstance.finished = true;
-        return release();
-    }
-
-    /** Releases one hold; once none is left, returns the mapping to close outside the lock. */
-    private synchronized IndexInput release() {
-        assert original == this && mergeInstances > 0;
-        if (--mergeInstances > 0) {
-            return null;
-        }
-        IndexInput toClose = mergeVectorData == vectorData ? null : mergeVectorData;
-        mergeVectorData = null;
-        return toClose;
     }
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(vectorData, takeMergeVectorData());
-    }
-
-    /** Takes the merge mapping, so a merge finishing later does not close it again. */
-    private synchronized IndexInput takeMergeVectorData() {
-        if (original != this || mergeVectorData == vectorData) {
-            return null;
-        }
-        IndexInput toClose = mergeVectorData;
-        mergeVectorData = null;
-        return toClose;
+        IOUtils.close(vectorData);
     }
 
     private record FieldEntry(

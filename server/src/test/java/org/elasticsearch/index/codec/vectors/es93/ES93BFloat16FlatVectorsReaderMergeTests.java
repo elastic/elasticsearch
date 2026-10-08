@@ -44,16 +44,13 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
-/**
- * Merges of bfloat16 vectors that searches read at random share one mapping of their own, closed by the last merge or with
- * the reader.
- */
+/** A merge of bfloat16 vectors that searches read at random reads them through a mapping of its own. */
 public class ES93BFloat16FlatVectorsReaderMergeTests extends ESTestCase {
 
     private static final int DIMS = 16;
     private static final int DOCS = 32;
 
-    public void testMergesShareOneMappingOfTheirOwn() throws IOException {
+    public void testAMergeReadsAMappingOfItsOwn() throws IOException {
         try (Directory base = newDirectory()) {
             TrackingDirectory dir = new TrackingDirectory(base);
             float[][] vectors = writeSegment(base);
@@ -62,11 +59,9 @@ public class ES93BFloat16FlatVectorsReaderMergeTests extends ESTestCase {
                 ? randomAccess().union(CallerHint.INSTANCE, NoReuseHint.INSTANCE)
                 : randomAccess().union(CallerHint.INSTANCE);
             try (FlatVectorsReader reader = openReader(dir, searchContext)) {
-                FlatVectorsReader first = reader.getMergeInstance();
-                FlatVectorsReader second = reader.getMergeInstance();
-                assertThat(first, not(sameInstance(reader)));
-                assertThat(second, not(sameInstance(first)));
-                assertThat("merges share one mapping", dir.mergeOpens, hasSize(1));
+                FlatVectorsReader merge = reader.getMergeInstance();
+                assertThat(merge, not(sameInstance(reader)));
+                assertThat(dir.mergeOpens, hasSize(1));
                 IOContext mergeContext = dir.mergeOpens.get(0);
                 assertThat(mergeContext.context(), equalTo(IOContext.Context.MERGE));
                 assertThat(mergeContext.hints(), hasItem(DataAccessHint.SEQUENTIAL));
@@ -77,28 +72,35 @@ public class ES93BFloat16FlatVectorsReaderMergeTests extends ESTestCase {
                     mergeContext.hints(),
                     noReuse ? hasItem(NoReuseHint.INSTANCE) : not(hasItem(NoReuseHint.INSTANCE))
                 );
-                assertVectors(vectors, first);
-                assertVectors(vectors, second);
+                assertVectors(vectors, merge);
+                merge.finishMerge();
+                assertThat("closed when the merge finishes", dir.mergeCloses.get(), equalTo(1));
+                assertVectors(vectors, reader);
 
-                first.finishMerge();
-                first.finishMerge();
-                reader.finishMerge();
-                assertThat("a merge gives the mapping back once, and the reader holds none", dir.mergeCloses.get(), equalTo(0));
-                assertVectors(vectors, second);
-
-                second.finishMerge();
-                assertThat("closed after the last merge", dir.mergeCloses.get(), equalTo(1));
-
-                FlatVectorsReader third = reader.getMergeInstance();
+                FlatVectorsReader nextMerge = reader.getMergeInstance();
                 try {
-                    assertThat("a later merge maps the file again", dir.mergeOpens, hasSize(2));
-                    assertVectors(vectors, third);
-                    reader.close();
-                    assertThat("closing the reader closes the mapping", dir.mergeCloses.get(), equalTo(2));
+                    assertThat("the next merge maps the file again", dir.mergeOpens, hasSize(2));
+                    assertVectors(vectors, nextMerge);
                 } finally {
-                    third.finishMerge();
+                    nextMerge.finishMerge();
                 }
-                assertThat("and a merge finishing later does not close it again", dir.mergeCloses.get(), equalTo(2));
+                assertThat(dir.mergeCloses.get(), equalTo(2));
+            }
+        }
+    }
+
+    public void testOnlyOneMergeAtATime() throws IOException {
+        try (Directory base = newDirectory()) {
+            TrackingDirectory dir = new TrackingDirectory(base);
+            writeSegment(base);
+            try (FlatVectorsReader reader = openReader(dir, randomAccess())) {
+                FlatVectorsReader merge = reader.getMergeInstance();
+                try {
+                    expectThrows(AssertionError.class, reader::getMergeInstance);
+                } finally {
+                    merge.finishMerge();
+                }
+                reader.getMergeInstance().finishMerge();
             }
         }
     }

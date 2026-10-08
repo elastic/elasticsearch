@@ -96,7 +96,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         LongArray hllBuckets = null;
         boolean success = false;
         try {
-            hll = new HyperLogLog(bigArrays, initialBucketCount, precision);
+            hll = new HyperLogLog(bigArrays, breaker, initialBucketCount, precision);
             lc = new LinearCounting(bigArrays, breaker, initialBucketCount, precision);
             hllBuckets = bigArrays.newLongArray(1);
             success = true;
@@ -296,20 +296,27 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         // array for holding the runlens.
         private ByteArray runLens;
         private long totalBuckets = 0;
-        /** Scratch for bulk register moves, allocated on first use. It is small for any precision, so it is not charged to the breaker. */
+        private final CircuitBreaker breaker;
+        /** Scratch for bulk register moves, allocated on first use. It is charged to the breaker until this is closed. */
         private byte[] scratch;
+        private long scratchBytes;
 
         private byte[] scratch() {
             if (scratch == null) {
-                scratch = new byte[Math.min(m, MAX_SCRATCH_SIZE)];
+                final int length = Math.min(m, MAX_SCRATCH_SIZE);
+                final long bytes = RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + length);
+                breaker.addEstimateBytesAndMaybeBreak(bytes, "hll scratch");
+                scratchBytes = bytes;
+                scratch = new byte[length];
             }
             return scratch;
         }
 
-        HyperLogLog(BigArrays bigArrays, long initialBucketCount, int precision) {
+        HyperLogLog(BigArrays bigArrays, CircuitBreaker breaker, long initialBucketCount, int precision) {
             super(precision);
             this.runLens = bigArrays.newByteArray(initialBucketCount << precision);
             this.bigArrays = bigArrays;
+            this.breaker = breaker;
         }
 
         public long maxOrd() {
@@ -375,6 +382,10 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
         @Override
         public void close() {
+            if (scratch != null) {
+                breaker.addWithoutBreaking(-scratchBytes);
+                scratch = null;
+            }
             Releasables.close(runLens);
         }
 

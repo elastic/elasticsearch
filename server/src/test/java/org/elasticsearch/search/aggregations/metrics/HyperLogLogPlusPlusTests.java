@@ -35,8 +35,10 @@ import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityA
 import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityAlgorithm.MIN_PRECISION;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -374,5 +376,42 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
                 assertThat("bucket " + b, dest.cardinality(b), equalTo(reference.cardinality(b)));
             }
         }
+    }
+
+    /** The scratch array for merging registers is charged to the breaker when it is allocated, once, and released on close. */
+    public void testMergeScratchIsCharged() {
+        final int precision = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
+        final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        final CircuitBreaker breaker = LimitedBreaker.service("test", ByteSizeValue.ofMb(100)).getBreaker(CircuitBreaker.REQUEST);
+        try (
+            HyperLogLogPlusPlus dest = new HyperLogLogPlusPlus(precision, bigArrays, breaker, 1);
+            HyperLogLogPlusPlus source = new HyperLogLogPlusPlus(precision, bigArrays, new NoopCircuitBreaker("test"), 1)
+        ) {
+            source.upgradeToHll(0);
+            dest.upgradeToHll(0);
+            final long before = breaker.getUsed();
+            dest.merge(0, source, 0);
+            final long charged = breaker.getUsed() - before;
+            // At most 4096 bytes and the array header, whatever the precision.
+            assertThat(charged, greaterThan(0L));
+            assertThat(charged, lessThanOrEqualTo(4096L + 64));
+            dest.merge(0, source, 0);
+            assertThat("the scratch is reused", breaker.getUsed() - before, equalTo(charged));
+        }
+        assertThat("released on close", breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testMergeScratchTripsTheBreaker() {
+        final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        final CircuitBreaker breaker = LimitedBreaker.service("test", ByteSizeValue.ofBytes(1)).getBreaker(CircuitBreaker.REQUEST);
+        try (
+            HyperLogLogPlusPlus dest = new HyperLogLogPlusPlus(MIN_PRECISION, bigArrays, breaker, 1);
+            HyperLogLogPlusPlus source = new HyperLogLogPlusPlus(MIN_PRECISION, bigArrays, new NoopCircuitBreaker("test"), 1)
+        ) {
+            source.upgradeToHll(0);
+            dest.upgradeToHll(0);
+            expectThrows(CircuitBreakingException.class, () -> dest.merge(0, source, 0));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
     }
 }

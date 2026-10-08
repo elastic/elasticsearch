@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.gzip;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
@@ -34,6 +37,15 @@ public class GzipDecompressionCodec implements DecompressionCodec {
      */
     private static final int RAW_BUFFER_SIZE = 64 * 1024;
 
+    /**
+     * Native zlib inflate window ({@code MAX_WBITS=15} → 32 KiB) plus {@code inflate_state}
+     * (~8 KiB). Charged against the query breaker for the life of the stream, matching zstd's
+     * DStream accounting. The Java 64 KiB raw buffer is heap and already visible to GC.
+     */
+    static final long NATIVE_INFLATER_BYTES = 40L * 1024;
+
+    static final String BREAKER_LABEL = "gzip-inflater";
+
     @Override
     public String name() {
         return "gzip";
@@ -46,6 +58,56 @@ public class GzipDecompressionCodec implements DecompressionCodec {
 
     @Override
     public InputStream decompress(InputStream raw) throws IOException {
-        return new GZIPInputStream(raw, RAW_BUFFER_SIZE);
+        return decompress(raw, null);
+    }
+
+    @Override
+    public InputStream decompress(InputStream raw, @Nullable CircuitBreaker breaker) throws IOException {
+        GZIPInputStream gzip = new GZIPInputStream(raw, RAW_BUFFER_SIZE);
+        if (breaker == null) {
+            return gzip;
+        }
+        try {
+            breaker.addEstimateBytesAndMaybeBreak(NATIVE_INFLATER_BYTES, BREAKER_LABEL);
+        } catch (Throwable t) {
+            // inf.end() via GZIPInputStream.close(). Production wraps raw in UncloseableInputStream
+            // first, so this does not drain the GET; DecompressingStorageObject.abortStream does.
+            try {
+                gzip.close();
+            } catch (Exception closeEx) {
+                t.addSuppressed(closeEx);
+            }
+            throw t;
+        }
+        return new AccountedGzipInputStream(gzip, breaker, NATIVE_INFLATER_BYTES);
+    }
+
+    /**
+     * Refunds {@link #NATIVE_INFLATER_BYTES} on {@link #close()} (idempotent). Construction already
+     * charged {@link CircuitBreaker#addEstimateBytesAndMaybeBreak}; this is the matching release.
+     */
+    private static final class AccountedGzipInputStream extends FilterInputStream {
+        private final CircuitBreaker breaker;
+        private final long charged;
+        private boolean closed;
+
+        private AccountedGzipInputStream(GZIPInputStream in, CircuitBreaker breaker, long charged) {
+            super(in);
+            this.breaker = breaker;
+            this.charged = charged;
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            try {
+                in.close();
+            } finally {
+                breaker.addWithoutBreaking(-charged);
+            }
+        }
     }
 }

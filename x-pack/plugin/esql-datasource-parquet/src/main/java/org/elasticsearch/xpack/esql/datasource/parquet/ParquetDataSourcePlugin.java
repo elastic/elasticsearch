@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 
 import java.util.List;
 import java.util.Map;
@@ -55,7 +58,17 @@ public class ParquetDataSourcePlugin extends Plugin implements DataSourcePlugin 
 
     @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-        return Map.of(FormatNameResolver.FORMAT_PARQUET, (s, blockFactory) -> new ParquetFormatReader(s, blockFactory));
+        return Map.of(FormatNameResolver.FORMAT_PARQUET, new FormatReaderFactory() {
+            @Override
+            public FormatReader create(Settings s, BlockFactory blockFactory) {
+                return new ParquetFormatReader(s, blockFactory);
+            }
+
+            @Override
+            public FormatReader create(Settings s, BlockFactory blockFactory, NodeByteBudget nodeByteBudget) {
+                return new ParquetFormatReader(s, blockFactory, nodeByteBudget);
+            }
+        });
     }
 
     @Override

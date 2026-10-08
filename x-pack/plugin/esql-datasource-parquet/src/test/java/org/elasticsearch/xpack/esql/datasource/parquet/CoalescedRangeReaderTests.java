@@ -1121,9 +1121,9 @@ public class CoalescedRangeReaderTests extends ESTestCase {
 
     public void testPerGetWaitsBeforeStartReadBytesAsync() throws Exception {
         byte[] data = sequentialBytes(32);
-        ParquetIoWatermark watermark = new ParquetIoWatermark(50, 30_000L);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(50);
         RowGroupIo owner = new RowGroupIo();
-        watermark.admitWait(80, owner, 1_000L);
+        ParquetIoWatermark.AdmitHold blocker = occupyOvershoot(watermark, 80, owner);
         AtomicInteger starts = new AtomicInteger();
         CountingStorage storage = new CountingStorage(data) {
             @Override
@@ -1170,7 +1170,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         }
         assertBusy(() -> assertEquals(1, watermark.waiterCount()));
         assertEquals("startReadBytesAsync must not run until the unit ticket grants", 0, starts.get());
-        watermark.release(80);
+        blocker.drop();
         watermark.clearOwner(owner);
         assertTrue(done.await(5, TimeUnit.SECONDS));
         assertNull(error.get());
@@ -1183,7 +1183,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         byte[] data = sequentialBytes(64);
         ParquetIoWatermark watermark = new ParquetIoWatermark(50);
         RowGroupIo owner = new RowGroupIo();
-        watermark.admitWait(80, owner, 1_000L);
+        ParquetIoWatermark.AdmitHold blocker = occupyOvershoot(watermark, 80, owner);
         AtomicInteger starts = new AtomicInteger();
         CountingStorage storage = new CountingStorage(data) {
             @Override
@@ -1238,7 +1238,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         assertEquals(0, waiter.outstanding());
         assertEquals(0L, breaker.getUsed());
         assertEquals(80, watermark.used());
-        watermark.release(80);
+        blocker.drop();
         watermark.clearOwner(owner);
         assertEquals(0, watermark.used());
         assertEquals(0, watermark.waiterCount());
@@ -1273,7 +1273,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         byte[] data = sequentialBytes(64);
         ParquetIoWatermark watermark = new ParquetIoWatermark(20);
         RowGroupIo owner = new RowGroupIo();
-        watermark.admitWait(25, owner, 1_000L);
+        ParquetIoWatermark.AdmitHold blocker = occupyOvershoot(watermark, 25, owner);
         CountingStorage storage = new CountingStorage(data);
         List<ByteRange> ranges = List.of(new ByteRange(0, 10), new ByteRange(20, 10), new ByteRange(40, 10));
         CountDownLatch started = new CountDownLatch(1);
@@ -1304,7 +1304,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         assertTrue(started.await(5, TimeUnit.SECONDS));
         assertFalse("sync unit ticket must wait, not force-charge", done.await(50, TimeUnit.MILLISECONDS));
         assertEquals(0, storage.syncGets.get());
-        watermark.release(25);
+        blocker.drop();
         watermark.clearOwner(owner);
         assertTrue(done.await(5, TimeUnit.SECONDS));
         thread.join();
@@ -1354,7 +1354,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         byte[] data = sequentialBytes(64);
         ParquetIoWatermark watermark = new ParquetIoWatermark(20);
         RowGroupIo owner = new RowGroupIo();
-        watermark.admitWait(25, owner, 1_000L);
+        ParquetIoWatermark.AdmitHold blocker = occupyOvershoot(watermark, 25, owner);
         AtomicInteger starts = new AtomicInteger();
         CountingStorage storage = new CountingStorage(data) {
             @Override
@@ -1401,7 +1401,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         }
         assertBusy(() -> assertEquals(1, watermark.waiterCount()));
         assertEquals(0, starts.get());
-        watermark.release(25);
+        blocker.drop();
         watermark.clearOwner(owner);
         assertTrue(listenerDone.await(5, TimeUnit.SECONDS));
         try {
@@ -1569,5 +1569,26 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         public StoragePath path() {
             return StoragePath.of("memory://footer-cache.parquet");
         }
+    }
+
+    private static ParquetIoWatermark.AdmitHold occupyOvershoot(ParquetIoWatermark watermark, long bytes, RowGroupIo lease)
+        throws Exception {
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<ParquetIoWatermark.AdmitHold> hold = new AtomicReference<>();
+        AtomicReference<Exception> error = new AtomicReference<>();
+        watermark.admitAsync(bytes, lease, () -> false, Runnable::run).addListener(ActionListener.wrap(granted -> {
+            hold.set(granted);
+            done.countDown();
+        }, e -> {
+            error.set(e);
+            done.countDown();
+        }));
+        assertTrue(done.await(5, TimeUnit.SECONDS));
+        if (error.get() != null) {
+            throw error.get();
+        }
+        assertNotNull(hold.get());
+        assertEquals(bytes, watermark.used());
+        return hold.get();
     }
 }

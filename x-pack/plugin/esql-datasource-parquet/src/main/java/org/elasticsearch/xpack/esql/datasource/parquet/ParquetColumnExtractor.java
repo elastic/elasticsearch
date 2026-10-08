@@ -13,6 +13,7 @@ import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.schema.MessageType;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -71,10 +72,10 @@ import java.util.function.Consumer;
  *       {@link CoalescedRangeReader} merges adjacent column-chunk ranges <em>within</em> the row
  *       group (column chunks in one row group are written contiguously, so the multi-column
  *       projection coalesces naturally) and dispatches the merged ranges to
- *       {@link StorageObject#readBytesAsync}. The first in-flight bucket and the stall path
- *       wait with bounded PER_GET; later buckets take a look-ahead
- *       {@link ParquetIoWatermark} hold so TopN extraction competes with scan look-ahead for
- *       {@code heap / 8} and wait for a live group to decode when the cap would be exceeded.
+ *       {@link StorageObject#readBytesAsync}. Look-ahead buckets take a non-blocking
+ *       {@link ParquetIoWatermark#tryAdmit} hold. A required bucket that cannot fit parks on
+ *       {@link ParquetIoWatermark#admitAsync} inside {@code materialize}, so TopN extraction
+ *       competes with scan look-ahead for {@code heap / 8} without charge-on-expiry.
  *       Within that cap, buckets still fan out before decode: the extractor does not wait on
  *       row group {@code k}'s bytes before issuing {@code k+1}'s GET. Per-request RTT/TTFB cost
  *       goes from
@@ -519,7 +520,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
     /**
      * Dispatches later buckets as look-ahead until {@link ParquetIoWatermark#tryAdmit} refuses.
-     * The first in-flight group and the stall path are bounded {@code PER_GET}; look-ahead stays
+     * A required bucket that cannot {@code tryAdmit} takes {@code admitAsync}; look-ahead stays
      * non-blocking {@code GROUP_HOLD}.
      */
     private int dispatchAdmittedPrefetches(
@@ -553,8 +554,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     }
 
     /**
-     * Starts one bucket GET. Look-ahead uses non-blocking {@code tryAdmit}.
-     * Non-look-ahead (first bucket and the stall path) uses bounded {@code PER_GET}.
+     * Starts one bucket GET. Look-ahead uses non-blocking {@code tryAdmit}. A required bucket
+     * that cannot {@code tryAdmit} takes {@code admitAsync} and starts the GET on grant, so
+     * materialize waits on a ticket rather than a blocking byte wait.
      */
     @Nullable
     private CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> startBucketPrefetch(
@@ -569,25 +571,57 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     ) {
         long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(block, projection);
         ParquetIoWatermark watermark = reader.ioWatermark();
-        final ParquetIoWatermark.AdmitHold hold;
-        final ParquetIoWatermark.ByteGate byteGate;
-        if (lookahead) {
-            if (prefetchBytes > 0L && watermark != null) {
-                hold = watermark.tryAdmit(prefetchBytes);
-                if (hold == null && requireHold) {
-                    return null;
-                }
-            } else {
-                hold = null;
+        ParquetIoWatermark.AdmitHold hold = null;
+        if (prefetchBytes > 0L && watermark != null) {
+            hold = watermark.tryAdmit(prefetchBytes);
+            if (hold == null && lookahead && requireHold) {
+                return null;
             }
-            byteGate = hold == null ? ParquetIoWatermark.ByteGate.UNGATED : ParquetIoWatermark.ByteGate.GROUP_HOLD;
-        } else {
-            hold = null;
-            byteGate = ParquetIoWatermark.ByteGate.PER_GET;
         }
-        boolean reserved = hold != null;
         RowGroupIo lease = leaseForExtractor(rowGroupIndex);
         inflightLeases[bucketIdx] = lease;
+        if (hold == null && lookahead == false && prefetchBytes > 0L && watermark != null) {
+            return startBucketTicket(block, projection, blockFactory, lease, prefetchBytes, watermark);
+        }
+        return startBucketIo(block, projection, blockFactory, lease, watermark, hold);
+    }
+
+    private CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> startBucketTicket(
+        BlockMetaData block,
+        Set<String> projection,
+        BlockFactory blockFactory,
+        RowGroupIo lease,
+        long prefetchBytes,
+        ParquetIoWatermark watermark
+    ) {
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = new CompletableFuture<>();
+        watermark.admitAsync(prefetchBytes, lease, lease::isCancelled, Runnable::run).addListener(ActionListener.wrap(granted -> {
+            try {
+                startBucketIo(block, projection, blockFactory, lease, watermark, granted).whenComplete((result, error) -> {
+                    if (error != null) {
+                        future.completeExceptionally(error);
+                    } else {
+                        future.complete(result);
+                    }
+                });
+            } catch (Exception e) {
+                granted.drop();
+                future.completeExceptionally(e);
+            }
+        }, future::completeExceptionally));
+        return future;
+    }
+
+    private CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> startBucketIo(
+        BlockMetaData block,
+        Set<String> projection,
+        BlockFactory blockFactory,
+        RowGroupIo lease,
+        @Nullable ParquetIoWatermark watermark,
+        @Nullable ParquetIoWatermark.AdmitHold hold
+    ) {
+        ParquetIoWatermark.ByteGate byteGate = hold == null ? ParquetIoWatermark.ByteGate.UNGATED : ParquetIoWatermark.ByteGate.GROUP_HOLD;
+        boolean reserved = hold != null;
         try {
             CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future;
             try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(lease, true)) {

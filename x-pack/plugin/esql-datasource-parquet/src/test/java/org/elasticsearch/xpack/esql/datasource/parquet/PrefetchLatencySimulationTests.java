@@ -464,7 +464,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         // not charged until a read, so this must not be sized around a reserved window. Look-ahead
         // fill must not block; 0ms budget so the second first-group PER_GET charges immediately.
         // Look-ahead still tryAdmit-refuses.
-        ParquetIoWatermark watermark = new ParquetIoWatermark(1, 0L);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1);
         try (
             CloseableIterator<Page> first = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
                 .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx);

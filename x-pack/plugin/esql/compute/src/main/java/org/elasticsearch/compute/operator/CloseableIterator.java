@@ -46,4 +46,13 @@ public interface CloseableIterator<T> extends Iterator<T>, Closeable {
     default T tryAdvance() {
         return hasNext() ? next() : null;
     }
+
+    /**
+     * Called by the producer drain when it parks on downstream buffer space. The default is a
+     * no-op. Iterators that hold look-ahead I/O bytes or the node-wide overshoot slot must drop
+     * those here so a parked reader cannot stall other queries. This is not
+     * {@link #waitForReady()}: readiness parks on upstream I/O, this hook fires on downstream
+     * backpressure.
+     */
+    default void revokeOvershootOnPark() {}
 }

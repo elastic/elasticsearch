@@ -261,6 +261,24 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         }
     }
 
+    public void testRevokeOvershootOnParkDropsLookAhead() throws Exception {
+        byte[] parquet = multiRowGroupFile();
+        try (CloseableIterator<Page> iter = open(new ImmediateAsyncStorage(parquet, asyncIo), new ParquetIoWatermark(1 << 20))) {
+            OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
+            assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
+            Page page = iter.tryAdvance();
+            assertNotNull(page);
+            page.releaseBlocks();
+            assertBusy(
+                () -> assertTrue("look-ahead should queue after the current group emits", opci.pendingPrefetchCount() > 0),
+                5,
+                TimeUnit.SECONDS
+            );
+            opci.revokeOvershootOnPark();
+            assertEquals("park on space must drop look-ahead prefetches", 0, opci.pendingPrefetchCount());
+        }
+    }
+
     public void testPhase2IoParksAfterPredicateDecode() throws Exception {
         byte[] parquet = twoColumnFile();
         CountDownLatch allowPhase2 = new CountDownLatch(1);
@@ -333,6 +351,28 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
 
     private static byte[] smallFile() throws IOException {
         return smallFile(1024);
+    }
+
+    private static byte[] multiRowGroupFile() throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("id").named("ready");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withRowGroupSize(1)
+                .withRowGroupRowCountLimit(1)
+                .withPageSize(128)
+                .build()
+        ) {
+            for (int i = 0; i < 8; i++) {
+                writer.write(factory.newGroup().append("id", i));
+            }
+        }
+        return out.toByteArray();
     }
 
     private static byte[] smallFile(int rowGroupSize) throws IOException {

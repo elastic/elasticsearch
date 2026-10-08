@@ -8,11 +8,8 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
@@ -23,40 +20,25 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
 
 /**
  * Node-scoped {@link NodeByteBudget}. Look-ahead {@link #tryAdmit} refuses rather than wait.
  * {@link #admitAsync} is FIFO; one overshoot slot is granted only to a runnable lease. A unit
- * larger than the cap goes through that slot only. Legacy {@link #admitWaitUntil} keeps the
- * charge-on-expiry path for leftover parquet column iterator tests until the hard cap lands.
+ * larger than the cap goes through that slot only. There is no blocking wait and no
+ * charge-on-expiry: waiters park on a ticket until a grant or cancel.
  */
 public final class NodeByteBudgetService implements NodeByteBudget {
 
-    private static final Logger logger = LogManager.getLogger(NodeByteBudgetService.class);
-
     public static final int HEAP_DIVISOR = 8;
 
-    public static final long DEFAULT_ADMIT_WAIT_MS = 1_000L;
-
-    public static final int FORCE_ADMIT_LIMIT_MULTIPLIER = 2;
-
-    private static final long WARN_LOG_INTERVAL_MS = 30_000L;
-
     private final long limit;
-    private final long admitWaitMs;
     private final AtomicLong used = new AtomicLong();
     private final AtomicLong peakUsed = new AtomicLong();
-    private final AtomicLong forcedAdmits = new AtomicLong();
-    private final AtomicLong waitNanos = new AtomicLong();
-    private final AtomicLong lastWarnLogTime = new AtomicLong();
     private final ReentrantLock lock = new ReentrantLock();
-    private final Condition notFull = lock.newCondition();
     private final ArrayDeque<TicketWaiter> waiters = new ArrayDeque<>();
     private final ArrayList<Runnable> pendingCompletions = new ArrayList<>();
     private RowGroupIo overshootOwner;
@@ -68,41 +50,21 @@ public final class NodeByteBudgetService implements NodeByteBudget {
     }
 
     public NodeByteBudgetService(long limit) {
-        this(limit, DEFAULT_ADMIT_WAIT_MS);
-    }
-
-    public NodeByteBudgetService(long limit, long admitWaitMs) {
         if (limit < 1L) {
             throw new IllegalArgumentException("limit must be at least 1, got: " + limit);
         }
-        if (admitWaitMs < 0L) {
-            throw new IllegalArgumentException("admitWaitMs must be non-negative, got: " + admitWaitMs);
-        }
         this.limit = limit;
-        this.admitWaitMs = admitWaitMs;
     }
 
     public void bindTracker(AdmissionTracker tracker) {
         this.tracker = tracker == null ? AdmissionTracker.NOOP : tracker;
     }
 
-    public long admitWaitMs() {
-        return admitWaitMs;
-    }
-
+    /**
+     * Charge-on-expiry is gone; this stays at zero so characterization tests can assert the hard cap.
+     */
     public long forcedAdmits() {
-        return forcedAdmits.get();
-    }
-
-    public long waitNanos() {
-        return waitNanos.get();
-    }
-
-    public long forceAdmitLimit() {
-        if (limit > Long.MAX_VALUE / FORCE_ADMIT_LIMIT_MULTIPLIER) {
-            return Long.MAX_VALUE;
-        }
-        return limit * (long) FORCE_ADMIT_LIMIT_MULTIPLIER;
+        return 0L;
     }
 
     @Override
@@ -215,7 +177,6 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                 return next < 0L ? 0L : next;
             });
             grantTicketWaitersLocked();
-            notFull.signalAll();
             completions = takePendingCompletions();
         } finally {
             lock.unlock();
@@ -236,7 +197,6 @@ public final class NodeByteBudgetService implements NodeByteBudget {
             }
             overshootOwner = null;
             grantTicketWaitersLocked();
-            notFull.signalAll();
             completions = takePendingCompletions();
         } finally {
             lock.unlock();
@@ -285,7 +245,6 @@ public final class NodeByteBudgetService implements NodeByteBudget {
         try {
             failCancelledWaitersLocked();
             grantTicketWaitersLocked();
-            notFull.signalAll();
             completions = takePendingCompletions();
         } finally {
             lock.unlock();
@@ -294,96 +253,9 @@ public final class NodeByteBudgetService implements NodeByteBudget {
     }
 
     /**
-     * Blocking wait with charge-on-expiry for leftover parquet column iterator tests.
-     * Production coalesced reads no longer call this.
-     * Lock order: this lock, then the budget lock inside {@link RowGroupIo#tryPinOvershoot()}.
-     */
-    public Hold admitWaitUntil(long bytes, RowGroupIo lease, long deadlineNanos) {
-        if (lease == null) {
-            throw new IllegalArgumentException("lease is required");
-        }
-        if (bytes < 0L) {
-            throw new IllegalArgumentException("bytes must be non-negative, got: " + bytes);
-        }
-        if (bytes == 0L) {
-            return new HoldImpl(this, 0L, lease, false);
-        }
-        boolean enteredWait = false;
-        boolean forced = false;
-        long waitStartedNanos = 0L;
-        boolean ambientCancelled = StorageRetryCancellation.isCancelled();
-        Hold hold;
-        lock.lock();
-        try {
-            while (true) {
-                if (lease.isCancelled()) {
-                    throw cancelled();
-                }
-                long remainingNanos = deadlineNanos - System.nanoTime();
-                if (remainingNanos <= 0L && ambientCancelled) {
-                    throw cancelled();
-                }
-                HoldImpl granted = tryChargeLocked(bytes, lease, true);
-                if (granted != null) {
-                    hold = granted;
-                    break;
-                }
-                lease.setWake(this, this::wakeWaiters);
-                if (lease.isCancelled()) {
-                    throw cancelled();
-                }
-                if (remainingNanos <= 0L) {
-                    if (ambientCancelled) {
-                        throw cancelled();
-                    }
-                    long current = used.get();
-                    long next = current + bytes;
-                    if (next < 0L) {
-                        throw new EsRejectedExecutionException("parquet I/O byte reservation overflow");
-                    }
-                    if (next > forceAdmitLimit()) {
-                        throw overForceLimit(bytes, next);
-                    }
-                    setUsed(next);
-                    forcedAdmits.incrementAndGet();
-                    forced = true;
-                    hold = new HoldImpl(this, bytes, lease, false);
-                    break;
-                }
-                if (enteredWait == false) {
-                    enteredWait = true;
-                    waitStartedNanos = System.nanoTime();
-                }
-                try {
-                    notFull.awaitNanos(remainingNanos);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new EsRejectedExecutionException("Interrupted while waiting for parquet I/O bytes: " + e);
-                }
-                lock.unlock();
-                try {
-                    ambientCancelled = StorageRetryCancellation.isCancelled();
-                } finally {
-                    lock.lock();
-                }
-            }
-        } finally {
-            if (enteredWait) {
-                waitNanos.addAndGet(System.nanoTime() - waitStartedNanos);
-            }
-            lock.unlock();
-        }
-        if (forced) {
-            maybeLogForcedAdmit(bytes);
-        }
-        return hold;
-    }
-
-    /**
      * Caller holds the lock. Does not inspect the waiter queue: the caller decides whether a
      * queued waiter may charge (grant path) or must refuse (look-ahead {@link #tryAdmit}).
-     * {@code allowOvershoot} is true for tickets and the parking path; {@link #tryAdmit} never
-     * takes the slot.
+     * {@code allowOvershoot} is true for tickets; {@link #tryAdmit} never takes the slot.
      */
     private HoldImpl tryChargeLocked(long bytes, RowGroupIo lease, boolean allowOvershoot) {
         long current = used.get();
@@ -476,34 +348,6 @@ public final class NodeByteBudgetService implements NodeByteBudget {
         for (Runnable completion : completions) {
             completion.run();
         }
-    }
-
-    private void maybeLogForcedAdmit(long bytes) {
-        long last = lastWarnLogTime.get();
-        long now = System.currentTimeMillis();
-        if (now - last > WARN_LOG_INTERVAL_MS && lastWarnLogTime.compareAndSet(last, now)) {
-            logger.warn(
-                "parquet I/O byte wait expired; charged [{}] over cap [{}] (forced admits so far [{}], total wait [{}]ms)",
-                ByteSizeValue.ofBytes(bytes),
-                ByteSizeValue.ofBytes(limit),
-                forcedAdmits.get(),
-                TimeUnit.NANOSECONDS.toMillis(waitNanos.get())
-            );
-        }
-    }
-
-    private EsRejectedExecutionException overForceLimit(long bytes, long next) {
-        return new EsRejectedExecutionException(
-            "parquet I/O byte wait expired; charging ["
-                + bytes
-                + "] bytes would exceed twice the node cap ["
-                + limit
-                + "] (used ["
-                + used.get()
-                + "], next ["
-                + next
-                + "])"
-        );
     }
 
     public static EsRejectedExecutionException cancelled() {

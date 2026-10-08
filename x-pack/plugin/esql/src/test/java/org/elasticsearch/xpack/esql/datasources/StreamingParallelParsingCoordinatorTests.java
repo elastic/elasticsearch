@@ -47,8 +47,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -84,6 +86,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.zip.GZIPOutputStream;
 
 public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
@@ -1931,6 +1934,262 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             executor.shutdownNow();
         }
         assertEquals("breaker net bytes must be 0 after close; a negative value means close() over-refunded", 0L, breaker.getUsed());
+    }
+
+    /**
+     * Extra pooled buffers {@code tryAdmit}; a refuse is pool-full so the stream stays on the
+     * one-buffer floor and still completes. Peak occupancy is the floor, not {@code parallelism+1}
+     * buffers. Close refunds the floor {@code add}.
+     */
+    public void testExtraBufferTryAdmitRefuseStaysOnFloor() throws Exception {
+        int chunkSize = 64;
+        PeakTrackingBudget budget = new PeakTrackingBudget(chunkSize);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 80; i++) {
+            sb.append("line-").append(i).append('\n');
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch releasePin = new CountDownLatch(1);
+        try {
+            pinOnePoolThread(executor, releasePin);
+            LineFormatReader reader = new LineFormatReader(chunkSize);
+            CloseableIterator<Page> it = parallelReadWithBudget(reader, bytes, 2, executor, budget);
+            List<String> lines = collectLinesTimed(it, 10, TimeUnit.SECONDS);
+            assertEquals(80, lines.size());
+            assertTrue("segmentator must tryAdmit an extra and be refused", budget.tryAdmitRefused() > 0);
+            assertEquals("floor is one ungated add", 1, budget.addCount());
+            assertEquals("refused extras must not grow past the one-buffer floor", (long) chunkSize, budget.peak());
+            assertEquals("close must refund the floor add", 0L, budget.used());
+        } finally {
+            releasePin.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * When the cap has room, extra pooled buffers take a {@code tryAdmit} hold rather than
+     * staying on the floor forever.
+     */
+    public void testExtraBufferTryAdmitSucceedsWhenCapHasRoom() throws Exception {
+        int chunkSize = 64;
+        PeakTrackingBudget budget = new PeakTrackingBudget(4L * chunkSize);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 80; i++) {
+            sb.append("line-").append(i).append('\n');
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            LineFormatReader reader = new LineFormatReader(chunkSize);
+            CloseableIterator<Page> it = parallelReadWithBudget(reader, bytes, 2, executor, budget);
+            List<String> lines = collectLines(it);
+            assertEquals(80, lines.size());
+            assertEquals("floor is still one ungated add", 1, budget.addCount());
+            assertTrue("extras must tryAdmit when the cap has room", budget.tryAdmitGranted() > 0);
+            assertTrue("peak includes extra buffers", budget.peak() > chunkSize);
+            assertEquals(0L, budget.used());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * A record larger than the chunk size force-adds the grow array. Close refunds both the floor
+     * pool buffer and the grow charge.
+     */
+    public void testGrowBufferForceAddsThenRefunds() throws Exception {
+        int chunkSize = 64;
+        PeakTrackingBudget budget = new PeakTrackingBudget(chunkSize);
+        String longLine = "x".repeat(180) + "\ntrailing\n";
+        byte[] bytes = longLine.getBytes(StandardCharsets.UTF_8);
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            LineFormatReader reader = new LineFormatReader(chunkSize);
+            CloseableIterator<Page> it = parallelReadWithBudget(reader, bytes, 2, executor, budget);
+            try (it) {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            }
+            assertTrue("grow must forceAdd above the floor, peak=" + budget.peak(), budget.peak() > chunkSize);
+            assertTrue("floor add plus at least one grow add", budget.addCount() >= 2);
+            assertEquals("grow is add, not tryAdmit", 0, budget.tryAdmitGranted());
+            assertEquals("close must refund floor and grow", 0L, budget.used());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private static CloseableIterator<Page> parallelReadWithBudget(
+        LineFormatReader reader,
+        byte[] bytes,
+        int parallelism,
+        Executor executor,
+        NodeByteBudget budget
+    ) throws IOException {
+        return StreamingParallelParsingCoordinator.parallelRead(
+            reader,
+            () -> new ByteArrayInputStream(bytes),
+            null,
+            List.of("line"),
+            50,
+            parallelism,
+            executor,
+            ErrorPolicy.STRICT,
+            null,
+            0L,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            null,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            StreamingParallelParsingCoordinator.WarningSinks.NONE,
+            StreamingSegmentatorAdmission.unbounded(),
+            new NoopCircuitBreaker("streaming-parse-test"),
+            ExternalReadCounters.NOOP,
+            null,
+            null,
+            budget
+        );
+    }
+
+    /**
+     * Forwards to {@link NodeByteBudgetService} and records peak {@link NodeByteBudget#used()}
+     * across add/tryAdmit/release, so tests can see a grow {@code add} that is refunded before
+     * the consumer drains.
+     */
+    private static final class PeakTrackingBudget implements NodeByteBudget {
+        private final NodeByteBudgetService inner;
+        private final AtomicLong peak = new AtomicLong();
+        private final AtomicInteger addCount = new AtomicInteger();
+        private final AtomicInteger tryAdmitGranted = new AtomicInteger();
+        private final AtomicInteger tryAdmitRefused = new AtomicInteger();
+
+        PeakTrackingBudget(long limit) {
+            this.inner = new NodeByteBudgetService(limit);
+        }
+
+        private void record() {
+            peak.accumulateAndGet(inner.used(), Math::max);
+        }
+
+        long peak() {
+            return peak.get();
+        }
+
+        int addCount() {
+            return addCount.get();
+        }
+
+        int tryAdmitGranted() {
+            return tryAdmitGranted.get();
+        }
+
+        int tryAdmitRefused() {
+            return tryAdmitRefused.get();
+        }
+
+        @Override
+        public Hold tryAdmit(long bytes) {
+            Hold hold = inner.tryAdmit(bytes);
+            if (hold == null) {
+                tryAdmitRefused.incrementAndGet();
+            } else {
+                tryAdmitGranted.incrementAndGet();
+            }
+            record();
+            return wrap(hold);
+        }
+
+        @Override
+        public SubscribableListener<Hold> admitAsync(long bytes, RowGroupIo lease, BooleanSupplier cancelSignal, Executor executor) {
+            SubscribableListener<Hold> out = new SubscribableListener<>();
+            inner.admitAsync(bytes, lease, cancelSignal, executor).addListener(ActionListener.wrap(hold -> {
+                record();
+                out.onResponse(wrap(hold));
+            }, e -> {
+                record();
+                out.onFailure(e);
+            }));
+            return out;
+        }
+
+        @Override
+        public void add(long bytes) {
+            addCount.incrementAndGet();
+            inner.add(bytes);
+            record();
+        }
+
+        @Override
+        public void release(long bytes) {
+            inner.release(bytes);
+            record();
+        }
+
+        @Override
+        public void clearOwner(RowGroupIo lease) {
+            inner.clearOwner(lease);
+        }
+
+        @Override
+        public RowGroupIo overshootOwner() {
+            return inner.overshootOwner();
+        }
+
+        @Override
+        public long used() {
+            return inner.used();
+        }
+
+        @Override
+        public long limit() {
+            return inner.limit();
+        }
+
+        @Override
+        public void wakeWaiters() {
+            inner.wakeWaiters();
+        }
+
+        private Hold wrap(Hold hold) {
+            if (hold == null) {
+                return null;
+            }
+            return new Hold() {
+                @Override
+                public long bytes() {
+                    return hold.bytes();
+                }
+
+                @Override
+                public long remaining() {
+                    return hold.remaining();
+                }
+
+                @Override
+                public RowGroupIo lease() {
+                    return hold.lease();
+                }
+
+                @Override
+                public boolean isOvershoot() {
+                    return hold.isOvershoot();
+                }
+
+                @Override
+                public void drop(long bytes) {
+                    hold.drop(bytes);
+                    record();
+                }
+
+                @Override
+                public void close() {
+                    hold.close();
+                    record();
+                }
+            };
+        }
     }
 
     /**

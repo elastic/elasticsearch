@@ -561,11 +561,11 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
      * what this measures is the licence behaviour rather than row loss, and the expected totals stay exact.
      */
     @AwaitsFix(
-        bugUrl = "under skip_row, resolvesToSkipRow sets dropPinnedRowCount, and "
-            + "RunningFileStatsFold.applyPinnedColumns returns null as soon as ANY file is pinned, so the "
-            + "whole dataset aggregate is discarded rather than overlaid. strict is served because its "
-            + "corpus pins nothing; null_field is served because it overlays instead of dropping. "
-            + "Fails identically on main; tracked by elastic/esql-planning#2201"
+        bugUrl = "under skip_row this cell is not served on the first-file-wins rail, and the cause is not "
+            + "established. The mechanism the union_by_name cells name is not it: "
+            + "RunningFileStatsFold.applyPinnedColumns is reached only from "
+            + "resolveMultiFileWithReconciliation, which is gated on schemaResolution != FIRST_FILE_WINS, "
+            + "so this rail never calls it. Fails identically on main; tracked by elastic/esql-planning#2201"
     )
     public void testCsvSparseCorpusWarmMinMaxServedUnderSkipRowFirstFileWins() throws Exception {
         Path dir = createTempDir();
@@ -588,11 +588,11 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
 
     /** The count under {@code skip_row}, which has no licence and so depends entirely on the read-addressed record. */
     @AwaitsFix(
-        bugUrl = "under skip_row, resolvesToSkipRow sets dropPinnedRowCount, and "
-            + "RunningFileStatsFold.applyPinnedColumns returns null as soon as ANY file is pinned, so the "
-            + "whole dataset aggregate is discarded rather than overlaid. strict is served because its "
-            + "corpus pins nothing; null_field is served because it overlays instead of dropping. "
-            + "Fails identically on main; tracked by elastic/esql-planning#2201"
+        bugUrl = "under skip_row this cell is not served on the first-file-wins rail, and the cause is not "
+            + "established. The mechanism the union_by_name cells name is not it: "
+            + "RunningFileStatsFold.applyPinnedColumns is reached only from "
+            + "resolveMultiFileWithReconciliation, which is gated on schemaResolution != FIRST_FILE_WINS, "
+            + "so this rail never calls it. Fails identically on main; tracked by elastic/esql-planning#2201"
     )
     public void testCsvSparseCorpusWarmCountServedUnderSkipRowFirstFileWins() throws Exception {
         Path dir = createTempDir();
@@ -780,22 +780,22 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
     }
 
     @AwaitsFix(
-        bugUrl = "under skip_row, resolvesToSkipRow sets dropPinnedRowCount, and "
-            + "RunningFileStatsFold.applyPinnedColumns returns null as soon as ANY file is pinned, so the "
-            + "whole dataset aggregate is discarded rather than overlaid. strict is served because its "
-            + "corpus pins nothing; null_field is served because it overlays instead of dropping. "
-            + "Fails identically on main; tracked by elastic/esql-planning#2201"
+        bugUrl = "under skip_row this cell is not served on the first-file-wins rail, and the cause is not "
+            + "established. The mechanism the union_by_name cells name is not it: "
+            + "RunningFileStatsFold.applyPinnedColumns is reached only from "
+            + "resolveMultiFileWithReconciliation, which is gated on schemaResolution != FIRST_FILE_WINS, "
+            + "so this rail never calls it. Fails identically on main; tracked by elastic/esql-planning#2201"
     )
     public void testMatrixMinMaxSkipRowFirstFileWins() throws Exception {
         assertWarmMatrixCell("m_minmax_skip_firs", "skip_row", "first_file_wins", true);
     }
 
     @AwaitsFix(
-        bugUrl = "under skip_row, resolvesToSkipRow sets dropPinnedRowCount, and "
-            + "RunningFileStatsFold.applyPinnedColumns returns null as soon as ANY file is pinned, so the "
-            + "whole dataset aggregate is discarded rather than overlaid. strict is served because its "
-            + "corpus pins nothing; null_field is served because it overlays instead of dropping. "
-            + "Fails identically on main; tracked by elastic/esql-planning#2201"
+        bugUrl = "under skip_row this cell is not served on the first-file-wins rail, and the cause is not "
+            + "established. The mechanism the union_by_name cells name is not it: "
+            + "RunningFileStatsFold.applyPinnedColumns is reached only from "
+            + "resolveMultiFileWithReconciliation, which is gated on schemaResolution != FIRST_FILE_WINS, "
+            + "so this rail never calls it. Fails identically on main; tracked by elastic/esql-planning#2201"
     )
     public void testMatrixCountSkipRowFirstFileWins() throws Exception {
         assertWarmMatrixCell("m_count_skip_firs", "skip_row", "first_file_wins", false);

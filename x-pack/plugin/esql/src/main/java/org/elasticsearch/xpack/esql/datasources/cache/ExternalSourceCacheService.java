@@ -64,9 +64,9 @@ import java.util.function.LongFunction;
  *   <li>Listing cache (~63% of budget, five minutes by default) — the file set under a prefix, isolated by
  *       credential hash. Discovers file identity and has no per-file key to invalidate on, hence the TTL.</li>
  * </ul>
- * The identity-keyed caches (schema, dataset-aggregate) are bounded by weight + LRU, never by a clock — a
- * timer would only discard still-valid, expensively harvested entries. Both also refuse a single entry
- * heavier than a quarter of that cache's own budget so one oversized harvest cannot flush the working set.
+ * The identity-keyed caches (schema, statistics, dataset-aggregate) are bounded by weight + LRU, never by a
+ * clock — a timer would only discard still-valid, expensively harvested entries. Each also refuses a single
+ * entry heavier than its own per-entry ceiling, so one oversized harvest cannot flush that store's set.
  * The discovery caches (file-metadata, listing) keep a short TTL because they hold current-mtime freshness
  * with no identity key to key on.
  */
@@ -209,7 +209,7 @@ public class ExternalSourceCacheService implements Closeable {
         // Each store refuses a single entry heavier than its own per-entry ceiling, so one oversized harvest
         // cannot admit-then-flush that store's working set. See WeightedStore#perEntryCeiling.
 
-        // No setExpireAfterWrite on schemaCache or datasetAggregateCache: both are identity-keyed (per-file by
+        // No setExpireAfterWrite on the schema, statistics or dataset-aggregate stores: identity-keyed (per-file by
         // mtime, dataset by file-set fingerprint), so a changed input already misses. A timer would only
         // discard still-valid, expensively harvested entries on a clock. The two discovery caches below
         // (listing and file-metadata) DO keep the listing TTL — they hold current file identity with no
@@ -609,8 +609,8 @@ public class ExternalSourceCacheService implements Closeable {
      * Coordinator-side entry point. Takes the {@code DriverCompletionInfo.capturedSourceMetadata}
      * payload — raw per-file contribution lists shipped back from every data node — merges each
      * list via {@code SourceStatisticsSerializer.mergeStatistics} (Parquet's existing multi-row-
-     * group merge algorithm), then enriches the matching {@link SchemaCacheEntry} so the next
-     * query's planning-time lookup short-circuits on the merged stats.
+     * group merge algorithm), then files the merged result at the read-addressed statistics record so the
+     * next query's planning-time lookup short-circuits on it. The schema record is not written here.
      */
     public void reconcileSourceStatsFromContributions(Map<String, List<Map<String, Object>>> contributionsPerFile) {
         if (enabled == false || contributionsPerFile == null || contributionsPerFile.isEmpty()) {
@@ -888,10 +888,9 @@ public class ExternalSourceCacheService implements Closeable {
 
     /**
      * Snapshots, per contribution path, every schema-cache entry whose canonical path matches — taken
-     * BEFORE a reconcile's first commit write. Under weight pressure (a many-file glob whose entries do not
-     * all fit the schema budget), the first admitted {@code putSchemaIfWithinCeiling} prunes the LRU tail,
-     * so file #1's
-     * commit can evict files #2..N's entries before their deltas apply — the deltas then match nothing, the
+     * BEFORE a reconcile's first commit write. The reconcile no longer writes the schema store itself, so what
+     * this guards is a concurrent cold resolve: under weight pressure its {@code putSchemaIfWithinCeiling}
+     * prunes the LRU tail, and can evict entries whose deltas have not applied yet — the deltas then match nothing, the
      * all-or-nothing multi-file fold goes incomplete, and the warm aggregate re-scans the whole source.
      * <p>
      * Only ever consulted (via {@link #collectMatchingEntries}'s {@code fallback}) to recover a SIBLING's
@@ -934,8 +933,8 @@ public class ExternalSourceCacheService implements Closeable {
      * version (it may carry a concurrent commit's enrichment). A fallback entry passes the same
      * mtime + fingerprint predicate as a live one, and re-putting it re-inserts the entry — the same
      * revive a live match already gets. Must run holding the
-     * per-path {@link #stripeCommitLocks} lock; callers mutate and re-put the returned entries after
-     * this method returns.
+     * per-path {@link #stripeCommitLocks} lock. Callers read the returned entries for their resolved column
+     * types and write a {@link StatisticsRecord}; none re-puts a schema entry any more.
      * <p>
      * <b>Returns nothing when the matches disagree about what they were derived from.</b> A contribution says which
      * path, at which mtime, under which format config — never which store. Two data sources over different stores
@@ -1325,7 +1324,8 @@ public class ExternalSourceCacheService implements Closeable {
 
     /**
      * The locked read-modify-write of {@link #commitStripeDelta}: collect matching entries via
-     * {@link #collectMatchingEntries} (live cache, snapshot fallback), then enrich and re-put each.
+     * {@link #collectMatchingEntries} (live cache, snapshot fallback), then write one
+     * {@link StatisticsRecord} per match.
      * Must run holding the per-path {@link #stripeCommitLocks} lock. Returns the first completed
      * whole-file fold (see {@link #commitStripeDelta}).
      */
@@ -1713,7 +1713,7 @@ public class ExternalSourceCacheService implements Closeable {
                 continue;
             }
             long mtimeMillis = ((Number) mtimeObj).longValue();
-            // Enrich the schema entry whose config matches the contribution. A schema key carries the identities
+            // Address the record by the schema entry whose config matches the contribution. A schema key carries
             // its participants report, so the SAME file can have several entries — one per way of reading it (e.g.
             // header_row=true vs header_row=false count rows differently). The config fingerprint disambiguates
             // them, and it is node-stable because both sides ask the same reader for it: the data node's

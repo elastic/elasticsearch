@@ -2225,7 +2225,6 @@ public class ExternalSourceResolver {
         }
     }
 
-
     /**
      * Returns {@code safeMetadata} without the coordinator-cache stripe bookkeeping ({@code _stats.stripe.<k>},
      * {@code _stats.stripe_last_index}, {@code _stats.stripe_grid}) — those feed the cache-side 0..K fold and are
@@ -2341,7 +2340,7 @@ public class ExternalSourceResolver {
         // Warm stats live in the entry's safeMetadata, reconciled there from the data-node capture
         // (DriverCompletionInfo → ExternalSourceCacheService.reconcileSourceStats). The optimizer
         // reads the whole-file _stats.* keys (row count, per-column min/max/null/value-count, mtime,
-        // fingerprint) straight off this map; no separate cache lookup. But safeMetadata ALSO carries the
+        // fingerprint) straight off this map when this read's own measurements are on it. It ALSO carries the
         // coordinator-cache stripe bookkeeping (_stats.stripe.<k> committed stripes, _stats.stripe_last_index,
         // _stats.stripe_grid), which only ExternalSourceCacheService's 0..K fold reads — it has no plan-side
         // consumer, yet this map rides ExternalRelation.writeTo onto the wire in every fragment of every query.
@@ -3334,9 +3333,9 @@ public class ExternalSourceResolver {
      * record beside a schema record whose own stamp does not match the harvest, and that record copies the schema
      * record's columns, so it weighs about as much. Those puts go through the per-entry ceiling and not through
      * this gate, so a listing admitted here can end up holding up to one extra entry per divergent file and
-     * evicting its own schema records through the LRU to do it. It is bounded by the schema budget, so it costs
-     * warmth rather than heap, and the overhead scales with the divergent minority rather than the file count.
-     * Counting them needs the value split so a statistics record stops carrying a copy of the columns.
+     * evicting its own schema records through the LRU to do it. The statistics store has its own slice now, so
+     * the overhead is bounded there rather than against the schema budget, and it costs warmth rather than heap.
+     * The value split landed; counting those puts against this gate has not followed it.
      */
     private final class SchemaFanOutAdmission {
         private final int fileCount;
@@ -5711,7 +5710,9 @@ public class ExternalSourceResolver {
             datasetIdentity(filePath.objectName(), storageIdentity, secretIdentity, storageConfig(config)),
             false
         );
-        // Stamped on mint, as the async rail does. The stamp is what makes the measurement's address
+        // Stamped on mint through the same helper the async rail uses, which returns a columnar entry
+        // unchanged — and this rail is reached only for columnar sources, so nothing is stamped in practice.
+        // Where a rail does stamp, the stamp is what makes the measurement's address
         // deterministic: the reconcile files a harvest under the read the record was resolved with, so an
         // unstamped record would have its own read's measurements filed at the shared unstamped address while
         // the harvest's real read got its own - and the serve below would ask for one of the two.

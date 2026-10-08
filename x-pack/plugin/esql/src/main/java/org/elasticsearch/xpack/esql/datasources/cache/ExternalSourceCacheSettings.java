@@ -116,8 +116,9 @@ public final class ExternalSourceCacheSettings {
      * <p>
      * Default 8 MB, derived (not arbitrary) from the ClickBench text-format file-size distribution
      * against the schema-cache budget: a representative ~1.8 GB shard yields ~231 stripes (ample
-     * pruning resolution), and a 500-hot-file working set consumes ~11 MB — 42% of the ~26 MB schema
-     * budget on a 32 GB heap. Smaller grids (≤1 MB) overflow the budget on realistic working sets;
+     * pruning resolution), and a 500-hot-file working set consumes ~11 MB. That was 42% of the ~26 MB
+     * schema budget on a 32 GB heap when stripe state rode the schema record; it is charged to the
+     * statistics slice now. Smaller grids (≤1 MB) overflow the budget on realistic working sets;
      * larger grids (≥32 MB) coarsen a representative shard to &lt;60 stripes, blunting per-stripe min/max
      * pruning. 8 MB is the knee.
      */

@@ -2900,7 +2900,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
-
     /**
      * Duplicate-path guard on the write-through: a comma-separated list can name the same file twice;
      * the reconciliation rail's per-file merge folds a per-path MAP (deduplicated) while the scan reads

@@ -494,3 +494,6 @@ tests:
 - class: org.elasticsearch.upgrades.BasicLicenseUpgradeIT
   method: testNewClusterHasActiveNonExpiringBasic
   issue: https://github.com/elastic/elasticsearch/issues/161320
+- class: org.elasticsearch.upgrades.BasicLicenseUpgradeIT
+  method: testOldAndMixedClusterHaveActiveBasic
+  issue: https://github.com/elastic/elasticsearch/issues/161321

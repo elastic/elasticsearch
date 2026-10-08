@@ -378,8 +378,9 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
                 event.delta().reasoningContent(),
                 event.contentBlockIndex()
             );
-            default -> {
-                logger.debug("unknown content block delta type [{}], skipping.", type);
+            // the SDK reports delta types it does not recognize as UNKNOWN_TO_SDK_VERSION
+            case ContentBlockDelta.Type.CITATION, ContentBlockDelta.Type.UNKNOWN_TO_SDK_VERSION -> {
+                logger.debug("unhandled content block delta type [{}], skipping.", type);
                 yield null;
             }
         };
@@ -441,8 +442,8 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
                     List.of(new ReasoningDetail.EncryptedReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, reasoningIdx, data))
                 );
             }
-            default -> {
-                logger.debug("unknown reasoning content delta type [{}], skipping.", type);
+            case ReasoningContentBlockDelta.Type.UNKNOWN_TO_SDK_VERSION -> {
+                logger.debug("unhandled reasoning content delta type [{}], skipping.", type);
                 yield null;
             }
         };

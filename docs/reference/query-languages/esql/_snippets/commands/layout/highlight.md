@@ -239,9 +239,37 @@ applies:
   the analyzer set in its `analyzer` option.
 * The `standard` analyzer for all other columns, including `keyword` fields.
 
-Renaming an index `text` field with `RENAME` or copying it with `EVAL` drops its
-mapping metadata, falling back to `standard`. To preserve the mapped analyzer,
-highlight the field before `RENAME`, or set the `analyzer` option in `WITH`.
+An index `text` field keeps its mapped analyzer when you rename it with
+`RENAME`, copy it with `EVAL` (such as `EVAL t = title`), group by it with
+`STATS` or `INLINE STATS` (such as `BY t = title`), or pass it unchanged
+through [`FORK`](/reference/query-languages/esql/commands/fork.md),
+[`FUSE`](/reference/query-languages/esql/commands/fuse.md), or
+[subqueries in `FROM`](/reference/query-languages/esql/esql-from-subquery.md).
+Columns computed from expressions do not inherit a mapped analyzer. They use
+the analyzer declared with `TO_TEXT`, or default to `standard`. To analyze a
+computed column like the original field, set the `analyzer` option in `WITH`.
+
+If the queried indices map a field with different analyzers, each row uses the
+analyzer of the index it comes from.
+
+`HIGHLIGHT` returns an error when:
+
+* Queried indices map the field with different analyzers and `HIGHLIGHT` cannot
+  determine which index supplied the value (for example, after `STATS`, `DEDUP`,
+  or a `FUSE` whose `KEY BY` includes neither `_index` nor a copy of it, or
+  across a `LOOKUP JOIN`).
+* Branches of `FORK`, or subqueries in `FROM`, define conflicting analyzers for
+  the same column (for example, when one branch reads the field from an index and
+  another computes the column with a different analyzer).
+
+To resolve this, set the `analyzer` option in the `WITH` clause. For a computed
+column, you can instead set the `analyzer` option of `TO_TEXT` to match the
+analyzer of the index field.
+
+Analyzers defined in index settings, and analyzers that are not reported, fall
+back to `standard` with a warning, as described later in this section. If
+another queried index uses an analyzer that does not fall back, the field still
+counts as having different analyzers.
 
 Query terms use the target field's analyzer. An `analyzer` specified on a
 full-text search function, such as
@@ -251,9 +279,6 @@ might not be highlighted.
 
 `HIGHLIGHT` falls back to `standard` and returns a warning when:
 
-* Queried indices map the field with different analyzers and `HIGHLIGHT` cannot
-  determine which index supplied the value (for example, after `STATS`, `DEDUP`,
-  or across a `LOOKUP JOIN`).
 * The analyzer is defined in index settings (such as a custom analyzer or
   index-level default) rather than globally on the node.
 * The analyzer is not registered on the coordinating node (for example, because

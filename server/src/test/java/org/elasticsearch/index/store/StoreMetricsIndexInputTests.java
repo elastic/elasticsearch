@@ -9,16 +9,25 @@
 
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.RandomAccessInput;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.DirectAccessInput;
+import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.util.Arrays;
 
+import static java.lang.foreign.ValueLayout.ADDRESS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -226,7 +235,8 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
         verify((DirectAccessInput) mockInput).withMemorySegmentSlice(eq(42L), eq(128L), eq(action));
     }
 
-    // Verifies that withMemorySegmentSlice returns false when the wrapped input does not implement DirectAccessInput.
+    // Verifies that withMemorySegmentSlice returns false when the wrapped input implements neither DirectAccessInput nor
+    // MemorySegmentAccessInput.
     public void testWithByteBufferSliceReturnsFalseWhenInnerIsNotDAI() throws IOException {
         PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
         IndexInput mockInput = mock(IndexInput.class);
@@ -267,5 +277,120 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
                 addrs -> fail("action should not be called")
             )
         );
+    }
+
+    // Verifies that an mmap'd file wrapped for store metrics still hands out zero-copy segment slices. Readers such as the
+    // ColumNAR zstd chunk codec go through IndexInputUtils#withSlice, which only sees the wrapper, and copy the bytes to the
+    // heap when no slice is offered.
+    public void testWithSliceOnMMapInputDoesNotCopy() throws IOException {
+        byte[] data = randomByteArrayOfLength(randomIntBetween(64, 4096));
+        try (Directory dir = new MMapDirectory(createTempDir())) {
+            writeFile(dir, "data", data);
+            PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+            try (IndexInput in = StoreMetricsIndexInput.create("data", dir.openInput("data", IOContext.DEFAULT), metricHolder)) {
+                assertThat(in, Matchers.instanceOf(StoreMetricsIndexInput.class));
+                int offset = randomIntBetween(0, data.length / 2);
+                int length = randomIntBetween(1, data.length - offset);
+                in.seek(offset);
+
+                byte[] read = IndexInputUtils.withSlice(in, length, len -> {
+                    throw new AssertionError("copied to a heap buffer instead of using a segment slice");
+                }, segment -> segment.toArray(ValueLayout.JAVA_BYTE));
+
+                assertArrayEquals(Arrays.copyOfRange(data, offset, offset + length), read);
+                assertEquals(offset + length, in.getFilePointer());
+                assertEquals(length, metricHolder.instance().getBytesRead());
+            }
+        }
+    }
+
+    // Verifies that slice offsets are relative to a sliced input, not to the underlying file.
+    public void testWithSliceOnSlicedMMapInputDoesNotCopy() throws IOException {
+        byte[] data = randomByteArrayOfLength(randomIntBetween(128, 4096));
+        try (Directory dir = new MMapDirectory(createTempDir())) {
+            writeFile(dir, "data", data);
+            PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+            try (IndexInput file = StoreMetricsIndexInput.create("data", dir.openInput("data", IOContext.DEFAULT), metricHolder)) {
+                int sliceOffset = randomIntBetween(1, data.length / 2);
+                int sliceLength = randomIntBetween(2, data.length - sliceOffset);
+                IndexInput in = file.slice("slice", sliceOffset, sliceLength);
+                int offset = randomIntBetween(0, sliceLength / 2);
+                int length = randomIntBetween(1, sliceLength - offset);
+                in.seek(offset);
+
+                byte[] read = IndexInputUtils.withSlice(in, length, len -> {
+                    throw new AssertionError("copied to a heap buffer instead of using a segment slice");
+                }, segment -> segment.toArray(ValueLayout.JAVA_BYTE));
+
+                int start = sliceOffset + offset;
+                assertArrayEquals(Arrays.copyOfRange(data, start, start + length), read);
+                assertEquals(offset + length, in.getFilePointer());
+                assertEquals(length, metricHolder.instance().getBytesRead());
+            }
+        }
+    }
+
+    // Verifies that an mmap'd file wrapped for store metrics resolves native addresses for the bulk withSliceAddresses path,
+    // and that offsets are relative to a sliced input. Vector scorers normally unwrap the input first, but the wrapper
+    // should not report "unavailable" for an input that can serve the request.
+    public void testWithSliceAddressesOnMMapInputResolvesAddresses() throws IOException {
+        byte[] data = randomByteArrayOfLength(512);
+        try (Directory dir = new MMapDirectory(createTempDir())) {
+            writeFile(dir, "data", data);
+            PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+            try (
+                IndexInput file = StoreMetricsIndexInput.create("data", dir.openInput("data", IOContext.DEFAULT), metricHolder);
+                Arena arena = Arena.ofConfined()
+            ) {
+                int sliceOffset = randomIntBetween(0, 64);
+                IndexInput in = randomBoolean() ? file : file.slice("slice", sliceOffset, data.length - sliceOffset);
+                int base = in == file ? 0 : sliceOffset;
+                long[] offsets = { 0L, 100L, 200L };
+                int length = 32;
+                MemorySegment addrs = arena.allocate(3 * ADDRESS.byteSize(), ADDRESS.byteAlignment());
+
+                boolean resolved = ((DirectAccessInput) in).withSliceAddresses(offsets, length, 3, addrs, resolvedAddrs -> {
+                    for (int i = 0; i < offsets.length; i++) {
+                        MemorySegment range = resolvedAddrs.getAtIndex(ADDRESS, i).reinterpret(length);
+                        byte[] expected = Arrays.copyOfRange(data, base + (int) offsets[i], base + (int) offsets[i] + length);
+                        assertArrayEquals(expected, range.toArray(ValueLayout.JAVA_BYTE));
+                    }
+                });
+
+                assertTrue(resolved);
+            }
+        }
+    }
+
+    // Verifies that when the mmap cannot offer a contiguous segment (the range crosses a mmap chunk boundary) the wrapper
+    // reports that, and that the copying fallback still reads the right bytes and counts them exactly once.
+    public void testWithSliceOnMMapInputFallsBackToCopyWhenRangeCrossesChunks() throws IOException {
+        byte[] data = randomByteArrayOfLength(256);
+        // 32 byte mmap chunks, so a 64 byte range starting at 16 spans several of them.
+        try (Directory dir = new MMapDirectory(createTempDir(), 32)) {
+            writeFile(dir, "data", data);
+            PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+            try (IndexInput in = StoreMetricsIndexInput.create("data", dir.openInput("data", IOContext.DEFAULT), metricHolder)) {
+                assertFalse(((DirectAccessInput) in).withMemorySegmentSlice(16, 64, segment -> fail("action should not be called")));
+                assertEquals(0, metricHolder.instance().getBytesRead());
+
+                in.seek(16);
+                boolean[] copied = new boolean[1];
+                byte[] read = IndexInputUtils.withSlice(in, 64, len -> {
+                    copied[0] = true;
+                    return new byte[len];
+                }, segment -> segment.toArray(ValueLayout.JAVA_BYTE));
+
+                assertTrue(copied[0]);
+                assertArrayEquals(Arrays.copyOfRange(data, 16, 16 + 64), read);
+                assertEquals(64, metricHolder.instance().getBytesRead());
+            }
+        }
+    }
+
+    private static void writeFile(Directory dir, String name, byte[] data) throws IOException {
+        try (IndexOutput out = dir.createOutput(name, IOContext.DEFAULT)) {
+            out.writeBytes(data, data.length);
+        }
     }
 }

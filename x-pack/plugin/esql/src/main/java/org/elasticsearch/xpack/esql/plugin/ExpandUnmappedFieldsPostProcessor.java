@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -37,13 +38,13 @@ import org.elasticsearch.xpack.esql.session.Result;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 
@@ -70,6 +71,9 @@ import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.isApp
  * The data node only puts keys into the column that hold a value, so no expanded column comes out null in every row -
  * {@link #assertNoAllNullExpandedColumn} holds that end of the contract down.
  * <p>
+ * At most {@link #MAX_EXPANDED_FIELDS} discovered fields become columns, with a warning if there were
+ * more.
+ * <p>
  * The expansion scans every row of every page twice (once to collect field names, once to rewrite), so it polls for cancellation
  * every {@link #ROWS_PER_CANCELLATION_CHECK} rows and throws {@link TaskCancelledException} to abort promptly. Cancellation is
  * therefore row-granular: a single pathological row (deeply nested {@code _source} with very many leaves) still parses and flattens
@@ -81,6 +85,19 @@ import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.isApp
  *  names and one of values — would let us build the union while reading and expand without re-parsing.
  */
 public final class ExpandUnmappedFieldsPostProcessor {
+    /**
+     * The most discovered fields a {@code LOAD_ALL} result expands into. Without a cap, a wide or heterogeneous index turns every
+     * distinct {@code _source} leaf into a column, and merely collecting their names - before a single column is built - is enough
+     * to exhaust the coordinator's heap. 1000 matches the default of {@code index.mapping.total_fields.limit}.
+     * <p>
+     * The cap is deliberately decoupled from that setting: it is per index and often raised, and it is ambiguous which index's limit
+     * would apply to a query over several. A hard-coded value is the starting point; making it configurable is a follow-up.
+     * <p>
+     * The cap keeps the alphabetically first names, so which fields survive does not depend on the order pages arrive in.
+     * {@code KEEP} or {@code DROP} can be used to reach fields that would go over the limit.
+     */
+    static final int MAX_EXPANDED_FIELDS = 1000;
+
     /**
      * How often the expansion loops poll {@code isCancelled}. The expansion is a coordinator-side, single-threaded scan over every row
      * of every page (parsing each row's {@code _source} JSON), so for a wide or high-row {@code LOAD_ALL} result it can run for seconds.
@@ -143,19 +160,18 @@ public final class ExpandUnmappedFieldsPostProcessor {
             if (expansionStarted != null) {
                 expansionStarted.run();
             }
-            var fieldNames = collectFieldNames(result, unmappedIdx, pattern, blockFactory.breaker(), reservationFactor, isCancelled);
             Set<String> existingNames = existingColumnNames(schema, unmappedIdx);
-            List<String> expandedFieldNames = new ArrayList<>(fieldNames.size());
-            // A discovered field name that collides with an existing column name is dropped, not an error: with flattening a
-            // discovered field mapped in one index can also appear in another's _source, and the per-shard UnmappedKeywordBlockLoader
-            // already filled that column, so the value is kept.
-            for (String name : fieldNames) {
-                if (existingNames.contains(name) == false) {
-                    expandedFieldNames.add(name);
-                }
-            }
-            // TODO account for newSchema's field names against the circuit breaker. A wide _source turns into a wide schema, and
-            // unlike the pages, the response schema has no breaker-tracked lifetime to release it against today.
+            List<String> expandedFieldNames = collectFieldNames(
+                result,
+                unmappedIdx,
+                pattern,
+                existingNames,
+                blockFactory.breaker(),
+                reservationFactor,
+                isCancelled
+            );
+            // TODO account for newSchema's field names against the circuit breaker. MAX_EXPANDED_FIELDS bounds how many there are,
+            // but not how long each is, and unlike the pages the response schema has no breaker-tracked lifetime to release it against.
             ExpandedLayout layout = computeLayout(schema, unmappedIdx, expandedFieldNames, ordering);
             List<Page> newPages = rewritePages(
                 result,
@@ -197,26 +213,30 @@ public final class ExpandUnmappedFieldsPostProcessor {
     }
 
     /**
-     * Collect the unique field names (sorted) carried by {@code _unmapped_fields} across all pages.
+     * Collect the field names carried by {@code _unmapped_fields} across all pages that become output columns: the alphabetically
+     * first {@link #MAX_EXPANDED_FIELDS} that match {@code pattern} and do not collide with {@code existingNames}, sorted. Adds a
+     * warning if that cut off any.
      * <p>
-     * Every key here earns an output column, which is why the data node drops the keys that carry no value - see
+     * Every name returned earns an output column, which is why the data node drops the keys that carry no value - see
      * {@code UnmappedFieldsBlockLoader} and {@link #assertNoAllNullExpandedColumn}.
      * <p>
-     * TODO cap this set. Every distinct key in any row's {@code _source} becomes an output column, so a wide or
-     *  heterogeneous index can blow the response up into thousands of columns.
+     * A discovered field name that collides with an existing column name is dropped, not an error: with flattening a discovered field
+     * mapped in one index can also appear in another's {@code _source}, and the per-shard UnmappedKeywordBlockLoader already filled
+     * that column, so the value is kept. Such names are dropped before the cap, so they do not take up its slots.
      * <p>
      * TODO walk the JSON with a parser instead of materialising a whole {@code Map} only to flatten it to field names. That would
      *  also make the reservation below unnecessary.
      */
-    private static SortedSet<String> collectFieldNames(
+    private static List<String> collectFieldNames(
         Result result,
         int unmappedIdx,
         UnmappedFieldsPattern pattern,
+        Set<String> existingNames,
         CircuitBreaker breaker,
         double reservationFactor,
         BooleanSupplier isCancelled
     ) {
-        TreeSet<String> fieldNames = new TreeSet<>();
+        FieldNameCollector fieldNames = new FieldNameCollector(pattern, existingNames);
         BytesRef scratch = new BytesRef();
         for (Page page : result.pages()) {
             BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
@@ -230,14 +250,82 @@ public final class ExpandUnmappedFieldsPostProcessor {
                 BytesRef json = getBytesRef(unmappedBlock, row, scratch);
                 long reservation = reserveForParse(json, breaker, reservationFactor);
                 try {
-                    collectLeaves("", parseJson(json), (name, value) -> fieldNames.add(name));
+                    collectLeaves("", parseJson(json), fieldNames);
                 } finally {
                     breaker.addWithoutBreaking(-reservation);
                 }
             }
         }
-        fieldNames.removeIf(name -> pattern.matches(name) == false);
-        return fieldNames;
+        if (fieldNames.truncated) {
+            HeaderWarning.addWarning(
+                "unmapped_fields=\"LOAD_ALL\" found more than [{}] fields in _source; only the first [{}] in alphabetical order are "
+                    + "returned. Use KEEP or DROP to select the others.",
+                MAX_EXPANDED_FIELDS,
+                MAX_EXPANDED_FIELDS
+            );
+        }
+        return fieldNames.sortedNames();
+    }
+
+    /**
+     * Essentially a max-heap that keeps the alphabetically first {@link #MAX_EXPANDED_FIELDS} distinct names it is fed, and never more
+     * than one extra. The same name typically turns up in many rows, so the kept names also live in a hash set: encountering the same
+     * name twice costs one lookup, and deciding if a new name is alphabetically later than any already encountered one costs one
+     * comparison against the head of the heap. Only a new name that makes the cut pays the heap's logarithmic insert.
+     */
+    private static final class FieldNameCollector implements BiConsumer<String, Object> {
+        private final UnmappedFieldsPattern pattern;
+        private final Set<String> existingNames;
+        private final Set<String> keptNames = new HashSet<>();
+        /** The same names as {@link #keptNames}, largest first, so the one to evict is always at the head. */
+        private final PriorityQueue<String> largestFirst = new PriorityQueue<>(Comparator.reverseOrder());
+        /** Whether a wanted name was dropped for lack of room, i.e. there were more than {@link #MAX_EXPANDED_FIELDS}. */
+        private boolean truncated = false;
+
+        FieldNameCollector(UnmappedFieldsPattern pattern, Set<String> existingNames) {
+            this.pattern = pattern;
+            this.existingNames = existingNames;
+        }
+
+        @Override
+        public void accept(String name, Object ignoredValue) {
+            if (keptNames.contains(name)) {
+                return;
+            }
+            if (largestFirst.size() == MAX_EXPANDED_FIELDS && name.compareTo(largestFirst.peek()) > 0) {
+                // Strictly greater than every kept name, so it is a distinct name that does not make the cut. Once one wanted name
+                // has been dropped there is no need to check whether any later one is wanted.
+                if (truncated == false && wanted(name)) {
+                    truncated = true;
+                }
+                return;
+            }
+            if (wanted(name) == false) {
+                return;
+            }
+            keptNames.add(name);
+            largestFirst.add(name);
+            if (largestFirst.size() > MAX_EXPANDED_FIELDS) {
+                keptNames.remove(largestFirst.poll());
+                truncated = true;
+            }
+        }
+
+        private boolean wanted(String name) {
+            return existingNames.contains(name) == false && pattern.matches(name);
+        }
+
+        /**
+         * Drains the heap, largest first, into a list from the back, leaving the names in ascending order. The collector is spent
+         * afterwards: it holds no names anymore.
+         */
+        List<String> sortedNames() {
+            String[] sorted = new String[largestFirst.size()];
+            for (int i = sorted.length - 1; i >= 0; i--) {
+                sorted[i] = largestFirst.poll();
+            }
+            return Arrays.asList(sorted);
+        }
     }
 
     /** Throws {@link TaskCancelledException} if {@code isCancelled} reports the query cancelled, so a long expansion aborts promptly. */
@@ -471,6 +559,8 @@ public final class ExpandUnmappedFieldsPostProcessor {
             // and skip the wasted per-row _source re-parse.
             if (expandedFieldsCount > 0) {
                 BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
+                // TODO a column that is null in every row of this page could be a constant null block instead of a builder, which would
+                // save the memory of builders - one per expanded field, each sized for the whole page - that end up holding nothing.
                 Arrays.setAll(builders, i -> blockFactory.newBytesRefBlockBuilder(page.getPositionCount()));
                 // ------ Naming convention ------
                 // "leaf" = JSON string

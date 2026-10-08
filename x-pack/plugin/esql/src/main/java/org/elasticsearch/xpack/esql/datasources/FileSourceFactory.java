@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -77,7 +79,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * Built from each component's own {@code CONFIG_KEYS} set so adding a new coordinator-level
      * configuration consumer requires updating only the consumer's own constant — the union here
      * picks it up automatically. Components contributing today: {@link ErrorPolicy},
-     * {@link FileSplitProvider}, {@link PartitionConfig}, {@link FileOrderConfig}, the {@link #CONFIG_FORMAT}
+     * {@link FileSplitProvider}, {@link PartitionConfig}, {@link PartitionSpec}, {@link FileOrderConfig}, the {@link #CONFIG_FORMAT}
      * override read by this class, and the {@link FormatNameResolver#CONFIG_READER} override read by the
      * format-name resolver.
      */
@@ -137,6 +139,14 @@ final class FileSourceFactory implements ExternalSourceFactory {
     }
 
     /**
+     * Whether a headered text file binds as a node before {@code esql_external_text_header_every_split} does, because
+     * such a node may be in the cluster and read part of the query.
+     */
+    static boolean bindsHeaderByProvenance(TransportVersion minTransportVersion) {
+        return minTransportVersion.supports(FileSplitProvider.ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT) == false;
+    }
+
+    /**
      * The identity of the coordinator's contribution to how a cached record was produced: the error policy, the
      * partitioning, the schema-resolution strategy, the listing order.
      * <p>
@@ -155,6 +165,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         keys.addAll(FileSplitProvider.CONFIG_KEYS);
         keys.addAll(ExternalSourceResolver.CONFIG_KEYS);
         keys.addAll(PartitionConfig.CONFIG_KEYS);
+        keys.addAll(PartitionSpec.CONFIG_KEYS);
         keys.addAll(ExclusionConfig.CONFIG_KEYS);
         keys.addAll(FileOrderConfig.CONFIG_KEYS);
         COORDINATOR_KEYS = Set.copyOf(keys);
@@ -297,6 +308,32 @@ final class FileSourceFactory implements ExternalSourceFactory {
         ExternalSourceMetrics externalSourceMetrics,
         @Nullable DatasetListingService listingService
     ) {
+        this(
+            storageRegistry,
+            formatRegistry,
+            codecRegistry,
+            settings,
+            splitDiscoveryExecutor,
+            blockFactory,
+            localFileAccess,
+            externalSourceMetrics,
+            listingService,
+            AdmissionTracker.NOOP
+        );
+    }
+
+    FileSourceFactory(
+        StorageProviderRegistry storageRegistry,
+        FormatReaderRegistry formatRegistry,
+        DecompressionCodecRegistry codecRegistry,
+        Settings settings,
+        @Nullable ExecutorService splitDiscoveryExecutor,
+        @Nullable BlockFactory blockFactory,
+        LocalFileAccess localFileAccess,
+        ExternalSourceMetrics externalSourceMetrics,
+        @Nullable DatasetListingService listingService,
+        AdmissionTracker admissionTracker
+    ) {
         Check.notNull(storageRegistry, "storageRegistry cannot be null");
         Check.notNull(formatRegistry, "formatRegistry cannot be null");
         this.storageRegistry = storageRegistry;
@@ -307,7 +344,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
         this.blockFactory = blockFactory;
         this.localFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
         this.externalSourceMetrics = externalSourceMetrics != null ? externalSourceMetrics : ExternalSourceMetrics.NOOP;
-        this.segmentatorAdmission = new StreamingSegmentatorAdmission(ExternalSourceSettings.maxConcurrentSegmentators(this.settings));
+        this.segmentatorAdmission = new StreamingSegmentatorAdmission(
+            ExternalSourceSettings.maxConcurrentSegmentators(this.settings),
+            admissionTracker
+        );
         this.listingService = listingService;
     }
 
@@ -611,7 +651,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()))
                     // Keyed on provenance, not renames: a DECLARED schema binds by name even with no `path`, and an
                     // INFERRED (dynamic) schema must never re-bind at the reader (its positions already came from the file).
-                    .withDeclaredProvenanceBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED);
+                    .withDeclaredProvenanceBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED)
+                    // A node that predates header binding on every split may read a sibling split of this query (the
+                    // coordinator keeps such files whole, but an older coordinator does not): bind a headered file as it
+                    // does, so one result never mixes rows bound by name with rows bound by position.
+                    .withHeaderBindingByProvenance(bindsHeaderByProvenance(context.minTransportVersion()));
                 ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
 
                 Map<String, Object> partitionValues = Map.of();
@@ -852,6 +896,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
         @Override
         public boolean supportsStableMetadata() {
             return inner().supportsStableMetadata();
+        }
+
+        @Override
+        public boolean listsInKeyOrder() {
+            return inner().listsInKeyOrder();
         }
 
         @Override

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 
 import java.io.IOException;
@@ -58,6 +59,42 @@ public class PageRowLimitingIterator implements CloseableIterator<Page> {
             }
         }
         return page;
+    }
+
+    @Override
+    public SubscribableListener<Void> waitForReady() {
+        return delegate.waitForReady();
+    }
+
+    @Override
+    public Page tryAdvance() {
+        if (remaining <= 0) {
+            return null;
+        }
+        Page page = delegate.tryAdvance();
+        if (page == null) {
+            return null;
+        }
+        int rows = page.getPositionCount();
+        if (rows > remaining) {
+            page = truncate(page, remaining);
+            remaining = 0;
+        } else {
+            remaining -= rows;
+        }
+        if (remaining <= 0) {
+            try {
+                delegate.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return page;
+    }
+
+    @Override
+    public void revokeOvershootOnPark() {
+        delegate.revokeOvershootOnPark();
     }
 
     @Override

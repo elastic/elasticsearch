@@ -33,6 +33,8 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -338,6 +340,28 @@ public class HighlightOperatorTests extends OperatorTestCase {
             assertThat(value(result, 0), equalTo("Use &lt;b&gt;bold&lt;&#x2F;b&gt; tags &amp; special chars with the <em>Ring</em>."));
         } finally {
             result.close();
+        }
+    }
+
+    /**
+     * Every snippet costs objects and array headers on top of its characters, so many tiny snippets with empty tags
+     * must trip the breaker even though their text is small.
+     */
+    public void testManySmallSnippetsTripBreaker() {
+        HighlightConfig config = new HighlightConfig("fox", "", "", DEFAULT_ENCODER, 0, 0, 0, false, Locale.ROOT, false, null, -1)
+            .withExecutionContext(namedAnalyzers(new StandardAnalyzer(), CONTENT.size()), contentTerm("fox"), CONTENT);
+        Page page = new Page(bytesRefs(List.of(Collections.nCopies(10_000, "fox"))));
+        try (
+            HighlightOperator operator = new HighlightOperator(
+                blockFactory(ByteSizeValue.ofMb(1)),
+                config,
+                new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) },
+                null
+            )
+        ) {
+            expectThrows(CircuitBreakingException.class, () -> operator.process(page));
+        } finally {
+            page.releaseBlocks();
         }
     }
 

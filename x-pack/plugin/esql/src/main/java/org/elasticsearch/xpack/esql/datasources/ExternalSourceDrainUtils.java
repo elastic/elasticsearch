@@ -156,6 +156,7 @@ public final class ExternalSourceDrainUtils {
 
                     SubscribableListener<Void> space = buffer.waitForSpace();
                     if (space.isDone() == false) {
+                        pages.revokeOvershootOnPark();
                         park(space, page, pages, buffer, executor, readCancelled, stop, pageSink, listener, resume);
                         return;
                     }

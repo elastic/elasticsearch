@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.esql.core.anonymizer;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.HexFormat;
@@ -46,15 +46,6 @@ import javax.crypto.spec.SecretKeySpec;
 public final class AnonymizationContext {
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
-    /**
-     * Widens the cluster identifier to a fixed-width HMAC key. A real identifier clears the 112-bit
-     * minimum FIPS approved mode enforces, but two shorter ones reach here — the empty string a null
-     * cluster state yields, and {@code _na_} before a UUID is generated — and keying on those directly
-     * makes this class unconstructible. Digesting also separates {@code "\0"} from the empty
-     * identifier, which the previous zero-byte substitution collapsed onto one key; {@code null} still
-     * normalises to empty above, so those two continue to share a key by construction.
-     */
-    private static final String KEY_DIGEST_ALGORITHM = "SHA-256";
     /**
      * Length of each hashed identifier. We use 12 because it takes ~16M entries before we're 50/50
      * to hit a collision (two field names hashing to the same {@code col_xxxxxxxx}).
@@ -108,8 +99,9 @@ public final class AnonymizationContext {
         // threadedly, so caching saves the Mac.getInstance() + SecretKeySpec allocations per
         // identifier render — non-trivial on wide schemas.
         try {
-            byte[] clusterKey = MessageDigest.getInstance(KEY_DIGEST_ALGORITHM)
-                .digest((clusterUuid == null ? "" : clusterUuid).getBytes(StandardCharsets.UTF_8));
+            // Digest to a fixed 256-bit key: FIPS approved mode rejects an HMAC key under 112 bits, and both
+            // the empty identifier a null cluster state yields and _na_ are shorter than that.
+            byte[] clusterKey = MessageDigests.sha256().digest((clusterUuid == null ? "" : clusterUuid).getBytes(StandardCharsets.UTF_8));
             this.mac = Mac.getInstance(HMAC_ALGORITHM);
             mac.init(new SecretKeySpec(clusterKey, HMAC_ALGORITHM));
         } catch (NoSuchAlgorithmException | InvalidKeyException e) {

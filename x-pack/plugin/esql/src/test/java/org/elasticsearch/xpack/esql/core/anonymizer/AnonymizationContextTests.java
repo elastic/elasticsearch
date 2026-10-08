@@ -92,8 +92,8 @@ public class AnonymizationContextTests extends ESTestCase {
     /**
      * Identifiers shorter than the 14 bytes an HMAC key needs to clear 112 bits, which is the minimum
      * FIPS approved mode enforces: {@code resolveClusterUuid} answers {@code ""} from a {@code null}
-     * cluster state, and {@code Metadata.UNKNOWN_CLUSTER_UUID} is {@code _na_} until the cluster UUID
-     * is committed. Each must render a token rather than throw. Only a FIPS run
+     * cluster state, and {@code Metadata.UNKNOWN_CLUSTER_UUID} is {@code _na_} until a cluster UUID
+     * is generated. Each must render a token rather than throw. Only a FIPS run
      * ({@code -Dtests.fips.enabled=true}) reaches the throw.
      */
     public void testShortClusterUuidStillRendersTokens() {

@@ -248,7 +248,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * Startup log and slice budgets. The identity caches take a fifth of the budget between them, now split by
+     * Startup log and slice budgets. The identity caches take a third of the budget between them (schema 16%, statistics 17%), now split by
      * kind of fact: schema records and the measurements taken against them have separate slices, so a
      * divergent-heavy listing filling one cannot evict the other. The listing slice is what remains after those
      * and the dataset-aggregate slice.
@@ -263,9 +263,9 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 long statistics = (long) stats.get("statistics_budget_bytes");
                 assertEquals(ByteSizeValue.ofMb(10).getBytes(), total);
                 // Each store keeps the absolute budget it had before the split and CACHE_SIZE grew by the new
-                // consumer, so the identity pair is deliberately MORE than the old fifth: the schema slice is
-                // the fifth that fan-out admission is sized against (SchemaFanOutAdmission#tryAdmit reads a
-                // COLD record, which never carried measurements), and statistics is funded on top of it.
+                // consumer, so the identity pair is deliberately MORE than the old fifth: the schema slice keeps
+                // the absolute bytes fan-out admission is sized against (SchemaFanOutAdmission#tryAdmit reads a
+                // COLD record, which carries no SCAN-DERIVED measurements), and statistics is funded on top of it.
                 assertEquals("the schema slice keeps its pre-split ABSOLUTE size", total * 4 / 25, schema);
                 assertEquals("statistics is funded on top, not carved out of schema", total * 17 / 100, statistics);
                 // Measurements get the larger share: for a text file with harvested extrema the _stats.* map
@@ -3879,7 +3879,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * the schema slice is overrun and the seeded records are evicted.
      */
     public void testSchemaRecordsSurviveTheWeightOfTheirOwnMeasurements() throws Exception {
-        Settings settings = Settings.builder().put("esql.external.cache.size", "512kb").put("esql.external.cache.enabled", true).build();
+        Settings settings = Settings.builder().put("esql.external.cache.size", "1mb").put("esql.external.cache.enabled", true).build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
             int files = 40;
             int columns = 60;

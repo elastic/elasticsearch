@@ -1,8 +1,5 @@
 toc:
   - file: index.md
-  - file: plugin-management.md
-    children:
-      - file: manage-plugins-using-configuration-file.md
   - file: api-extension-plugins.md
   - file: analysis-plugins.md
     children:

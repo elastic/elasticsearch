@@ -47,7 +47,7 @@ If {{es}} was installed using the deb or rpm package, then run `/usr/share/elast
 ::::
 
 ::::{note} - Docker installations
-If you run {{es}} using the [official {{es}} Docker images](https://www.docker.elastic.co/), manage plugins with the declarative [`elasticsearch-plugins.yml` configuration file](/reference/elasticsearch-plugins/manage-plugins-using-configuration-file.md) instead. The `install` and `remove` commands are disabled when that file is present.
+If you run {{es}} using the [official {{es}} Docker images](https://www.docker.elastic.co/), manage plugins with the declarative [`elasticsearch-plugins.yml` configuration file](docs-content://deploy-manage/plugins-and-custom-configuration-files/self-managed/manage-plugins.md#self-managed-plugins-docker) instead. The `install` and `remove` commands are disabled when that file is present.
 ::::
 
 ## Parameters [elasticsearch-plugin-parameters]

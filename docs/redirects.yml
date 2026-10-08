@@ -71,15 +71,12 @@ redirects:
   # Custom plugins and bundles moved to docs-content (narrative ECH deployment docs)
   'reference/elasticsearch-plugins/cloud/ec-custom-bundles.md': 'docs-content://deploy-manage/plugins-and-custom-configuration-files/elastic-cloud/upload-custom-plugins-bundles.md'
 
-  # ECE and ECH plugin management procedures moved to docs-content (see elastic/docs-content#7101)
-  # The page itself is kept as a landing surface, but its per-deployment sections are gone:
-  # those anchors go to the docs-content mini-hubs, and the self-managed CLI section goes to
-  # the elasticsearch-plugin tool page.
+  # Plugin management moved to docs-content (see elastic/docs-content#7101). The page is gone:
+  # the docs-content hub owns the plugin-management.html legacy URL and the per-deployment
+  # content, so the page redirects there and the anchors go to the individual procedures
+  # rather than to the summary that replaced them.
   'reference/elasticsearch-plugins/plugin-management.md':
-    to: 'reference/elasticsearch-plugins/plugin-management.md'
-    # The page is now a signpost with no sections of its own, so every old anchor is sent
-    # to wherever that content actually lives. The per-deployment anchors land on the
-    # procedures rather than on the summary that replaced them.
+    to: 'docs-content://deploy-manage/plugins-and-custom-configuration-files.md'
     anchors: {'!'}
     many:
       - to: 'docs-content://deploy-manage/plugins-and-custom-configuration-files/elastic-cloud/add-plugins-extensions.md'
@@ -92,6 +89,14 @@ redirects:
         anchors: {'managing-plugins-for-self-managed'}
       - to: 'reference/elasticsearch/command-line-tools/elasticsearch-plugin.md'
         anchors: {'manage-plugins-with-package-and-archive-installs'}
+
+  # The elasticsearch-plugins.yml config file is a Docker install procedure, not plugin
+  # reference, so it moves to the self-managed page in docs-content that already described it.
+  # That page must also claim the manage-plugins-using-configuration-file.html legacy URL and
+  # pick up the `proxy` key, which exists nowhere else.
+  'reference/elasticsearch-plugins/manage-plugins-using-configuration-file.md':
+    to: 'docs-content://deploy-manage/plugins-and-custom-configuration-files/self-managed/manage-plugins.md#self-managed-plugins-docker'
+    anchors: {'!'}
 
   # elasticsearch-plugin CLI reference consolidated into the command-line-tools section
   # (see elastic/elasticsearch#157179 review). One tool, one page, matching its siblings.

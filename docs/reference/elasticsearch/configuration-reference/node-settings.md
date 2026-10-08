@@ -148,7 +148,7 @@ stack: preview 9.3
     plugin.mandatory: analysis-icu,lang-js
     ```
 
-    To install the plugins themselves, refer to [`elasticsearch-plugin`](/reference/elasticsearch/command-line-tools/elasticsearch-plugin.md).
+    To install the plugins themselves, refer to the [plugin installation instructions for your deployment type](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).
 
 
 ## Other node settings [other-node-settings]

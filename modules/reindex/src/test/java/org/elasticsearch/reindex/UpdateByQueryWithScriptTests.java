@@ -62,7 +62,7 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByPaginatedSe
 
         CircuitBreakerService circuitBreakerService = mock(CircuitBreakerService.class);
         when(circuitBreakerService.getBreaker(org.elasticsearch.common.breaker.CircuitBreaker.REQUEST)).thenReturn(
-            new NoopCircuitBreaker("test")
+            NoopCircuitBreaker.INSTANCE
         );
         TransportUpdateByQueryAction transportAction = new TransportUpdateByQueryAction(
             threadPool,
@@ -88,7 +88,7 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByPaginatedSe
             randomPositiveTimeValue(),
             null,
             new ReindexSettings(),
-            new NoopCircuitBreaker("test")
+            NoopCircuitBreaker.INSTANCE
         );
     }
 }

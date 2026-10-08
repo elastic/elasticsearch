@@ -76,7 +76,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
         BytesRef[] v = values.toArray(new BytesRef[0]);
 
         TestRecycler recycler = new TestRecycler();
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
         BytesRef scratch = new BytesRef();
 
@@ -133,7 +133,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
         BytesRef[] right = rightValues.toArray(new BytesRef[0]);
 
         TestRecycler recycler = new TestRecycler();
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
 
         try (
@@ -201,7 +201,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
         BytesRef value = randomValues(1).iterator().next();
 
         TestRecycler recycler = new TestRecycler();
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
 
         try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker, bigArrays)) {
@@ -218,7 +218,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
 
     public void testEmpty() {
         TestRecycler recycler = new TestRecycler();
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
         try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker, bigArrays)) {
             assertThat(hash.size(), equalTo(0L));

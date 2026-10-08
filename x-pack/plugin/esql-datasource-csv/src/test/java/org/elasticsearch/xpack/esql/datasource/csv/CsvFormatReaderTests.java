@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -83,7 +84,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -268,6 +269,45 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         List<Attribute> schema = reader.metadata(object).schema();
         assertEquals("inferred schema names only columns from the widest sampled row, not from later wider rows", 2, schema.size());
+    }
+
+    /**
+     * The type axis (within-sample widening) and the width axis (headerless column count) must share
+     * one sampling boundary: for a given {@code schema_sample_size}, an anomaly on the last sampled row
+     * is absorbed on both axes, and the identical anomaly one row later is absorbed on neither. Nothing
+     * here pins a literal row number, so the test survives {@code schema_sample_size}'s default
+     * changing again — it is the "the two boundaries must agree" guard that was missing, which is
+     * exactly what let the two axes silently drift apart (the type axis doubled its effective window
+     * while the width axis stayed on the single original window) before the two CSV sampling windows
+     * were merged back into one.
+     */
+    public void testTypeAndWidthAxesShareOneSamplingBoundary() throws IOException {
+        int n = 3;
+        Map<String, Object> config = Map.of("header_row", false, "schema_sample_size", n);
+
+        CsvFormatReader typeAtBoundaryReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        List<Attribute> typeAtBoundary = typeAtBoundaryReader.metadata(createStorageObject("1\n2\noops\n")).schema();
+        assertEquals(
+            "a type anomaly on the last sampled row must be absorbed (widened)",
+            DataType.KEYWORD,
+            typeAtBoundary.get(0).dataType()
+        );
+
+        CsvFormatReader typePastBoundaryReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        List<Attribute> typePastBoundary = typePastBoundaryReader.metadata(createStorageObject("1\n2\n3\noops\n")).schema();
+        assertEquals(
+            "the same type anomaly one row past the sample must not be absorbed",
+            DataType.INTEGER,
+            typePastBoundary.get(0).dataType()
+        );
+
+        CsvFormatReader widthAtBoundaryReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        List<Attribute> widthAtBoundary = widthAtBoundaryReader.metadata(createStorageObject("1,a\n2,b\n3,c,extra\n")).schema();
+        assertEquals("a width anomaly on the last sampled row must be absorbed (widened)", 3, widthAtBoundary.size());
+
+        CsvFormatReader widthPastBoundaryReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        List<Attribute> widthPastBoundary = widthPastBoundaryReader.metadata(createStorageObject("1,a\n2,b\n3,c\n4,d,extra\n")).schema();
+        assertEquals("the same width anomaly one row past the sample must not be absorbed", 2, widthPastBoundary.size());
     }
 
     public void testSchema() throws IOException {
@@ -1579,12 +1619,16 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(DataType.DATE_NANOS, schema.get(1).dataType());
     }
 
+    /**
+     * A bare number in a {@code date_nanos} column is epoch MILLIS, as under {@code datetime}: the type fixes the
+     * stored precision, not the unit of the number.
+     */
     public void testReadDateNanosType() throws IOException {
         String csv = """
             event:keyword,ts:date_nanos
             login,2024-01-15T12:34:56.123456789Z
             logout,2024-01-15T12:35:00.000000000Z
-            raw,1737030896123456789
+            raw,1719828000000
             """;
 
         StorageObject object = createStorageObject(csv);
@@ -1600,10 +1644,78 @@ public class CsvFormatReaderTests extends ESTestCase {
             LongBlock tsBlock = (LongBlock) page.getBlock(1);
             assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:34:56.123456789Z"), tsBlock.getLong(0));
             assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:35:00.000000000Z"), tsBlock.getLong(1));
-            assertEquals(1737030896123456789L, tsBlock.getLong(2));
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-07-01T10:00:00.000000000Z"), tsBlock.getLong(2));
 
             assertFalse(iterator.hasNext());
         }
+    }
+
+    /**
+     * The same instant in both units a {@code date_nanos} column accepts as a bare number, on CSV and TSV (one reader):
+     * epoch millis with no format, epoch seconds with a declared {@code epoch_second}.
+     */
+    public void testReadDateNanosBareNumberUnitsCsvAndTsv() throws IOException {
+        long expected = EsqlDataTypeConverter.dateNanosToLong("2024-07-01T10:00:00.000000000Z");
+        for (String delimiter : List.of(",", "\t")) {
+            CsvFormatReader base = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("delimiter", delimiter));
+            String header = "ms:date_nanos" + delimiter + "s:date_nanos\n";
+            StorageObject object = createStorageObject(header + "1719828000000" + delimiter + "1719828000\n");
+            CsvFormatReader reader = base.withDeclaredDateFormats(Map.of("s", "epoch_second"));
+            try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+                Page page = iterator.next();
+                try {
+                    assertEquals("millis, delimiter [" + delimiter + "]", expected, ((LongBlock) page.getBlock(0)).getLong(0));
+                    assertEquals("epoch_second, delimiter [" + delimiter + "]", expected, ((LongBlock) page.getBlock(1)).getLong(0));
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+    }
+
+    /**
+     * A bare nanosecond count is out of range as epoch millis: it nulls the cell under {@code null_field} and fails the
+     * read under {@code fail_fast}, rather than reading as an instant.
+     */
+    public void testReadDateNanosBareNanosecondCountIsOutOfRange() throws IOException {
+        String csv = """
+            event:keyword,ts:date_nanos
+            nanos,1719828000000000000
+            millis,1719828000000
+            """;
+        ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                createStorageObject(csv),
+                FormatReadContext.builder().batchSize(10).errorPolicy(permissive).build()
+            )
+        ) {
+            Page page = iterator.next();
+            try {
+                LongBlock tsBlock = (LongBlock) page.getBlock(1);
+                assertTrue(tsBlock.isNull(0));
+                assertEquals(
+                    EsqlDataTypeConverter.dateNanosToLong("2024-07-01T10:00:00.000000000Z"),
+                    tsBlock.getLong(tsBlock.getFirstValueIndex(1))
+                );
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    createStorageObject(csv),
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("[1719828000000000000]"));
     }
 
     public void testReadDateNanosNullFieldOnBadValue() throws IOException {
@@ -2124,15 +2236,16 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * When the initial sample (rows 1..N) is all-numeric but later rows contain text, the inferred
-     * schema must widen that column to KEYWORD so the text values are readable without errors.
-     * A tiny {@code schema_sample_size=2} makes "hello" appear after the sample window.
+     * When the early rows of the sample are all-numeric but a later row in that same sample contains
+     * text, the inferred schema must widen that column to KEYWORD so the text value is readable
+     * without errors.
      */
-    public void testInferredSchemaWidensOnPostSampleTextConflict() throws IOException {
-        // Rows 1-2 are numeric (inferred as INTEGER from sample). Row 3 is text — contradicts INTEGER.
+    public void testInferredSchemaWidensOnTextConflict() throws IOException {
+        // Rows 1-2 are numeric (inferred as INTEGER from the first two rows seen). Row 3 is text —
+        // contradicts INTEGER — and the sample is sized to cover all three rows in its one window.
         String csv = "id\n1\n2\nhello\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 2));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 3));
 
         List<Attribute> schema = reader.schema(object);
         assertEquals(1, schema.size());
@@ -4104,7 +4217,9 @@ public class CsvFormatReaderTests extends ESTestCase {
             Page page = iterator.next();
             assertEquals(2, page.getPositionCount());
             IntBlock valuesBlock = (IntBlock) page.getBlock(1);
-            assertTrue(valuesBlock.isNull(0));
+            assertEquals("the bad element is removed, the readable ones kept", 2, valuesBlock.getValueCount(0));
+            assertEquals(1, valuesBlock.getInt(valuesBlock.getFirstValueIndex(0)));
+            assertEquals(3, valuesBlock.getInt(valuesBlock.getFirstValueIndex(0) + 1));
             assertEquals(2, valuesBlock.getValueCount(1));
         }
     }
@@ -7281,6 +7396,98 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Under {@code null_field} a bracket element that does not parse is removed from its cell and the readable ones
+     * are kept; a cell none of whose elements parse is null. The cell costs the error budget once, however many of
+     * its elements fail, and a row the width guard rejects reports no element drops. Both walkers.
+     */
+    public void testBracketElementFailureRemovesElementUnderNullField() throws Exception {
+        StorageObject object = createStorageObject("id:long,vals:long\n1,[1,oops,3]\n2,[oops,nope]\n3,[4,5]\n4,[6,bad],extra\n");
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "vals", DataType.LONG)
+        );
+        for (boolean directBlock : List.of(false, true)) {
+            String desc = "directBlock=" + directBlock;
+            // max_errors 3: one per bad cell (rows 1 and 2) plus the too-wide row 4. Charging per element would be 4.
+            Map<String, Object> config = Map.of(
+                "header_row",
+                true,
+                "multi_value_syntax",
+                "brackets",
+                "error_mode",
+                "null_field",
+                "max_errors",
+                3
+            );
+            List<List<Object>> rows = new ArrayList<>();
+            FormatReadContext context = FormatReadContext.builder()
+                .firstSplit(true)
+                .recordAligned(true)
+                .batchSize(10)
+                .readSchema(schema)
+                .build();
+            try (CloseableIterator<Page> it = declaredReader(false, directBlock, config).read(object, context)) {
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    try {
+                        LongBlock ids = page.getBlock(0);
+                        LongBlock vals = page.getBlock(1);
+                        for (int p = 0; p < page.getPositionCount(); p++) {
+                            List<Object> values = new ArrayList<>();
+                            if (vals.isNull(p) == false) {
+                                for (int v = 0; v < vals.getValueCount(p); v++) {
+                                    values.add(vals.getLong(vals.getFirstValueIndex(p) + v));
+                                }
+                            }
+                            rows.add(List.of(ids.getLong(ids.getFirstValueIndex(p)), values));
+                        }
+                    } finally {
+                        page.releaseBlocks();
+                    }
+                }
+            }
+            assertEquals(desc, List.of(List.of(1L, List.of(1L, 3L)), List.of(2L, List.of()), List.of(3L, List.of(4L, 5L))), rows);
+            List<String> warnings = drainWarnings();
+            assertTrue(
+                desc + " multi-value summary: " + warnings,
+                warnings.stream().anyMatch(w -> w.endsWith("cannot be read; " + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME))
+            );
+            assertEquals(
+                desc + " one detail per removed element: " + warnings,
+                3,
+                warnings.stream().filter(w -> w.contains("column [vals]")).count()
+            );
+            assertTrue(
+                desc + " a rejected row reports no element drops: " + warnings,
+                warnings.stream().noneMatch(w -> w.contains("[bad]"))
+            );
+        }
+    }
+
+    /** {@code skip_row} keeps dropping the whole row at the first bad bracket element. */
+    public void testBracketElementFailureDropsRowUnderSkipRow() throws Exception {
+        StorageObject object = createStorageObject("id:long,vals:long\n1,[1,oops,3]\n2,[4,5]\n");
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "vals", DataType.LONG)
+        );
+        for (boolean directBlock : List.of(false, true)) {
+            Map<String, Object> config = Map.of(
+                "header_row",
+                true,
+                "multi_value_syntax",
+                "brackets",
+                "error_mode",
+                "skip_row",
+                "max_errors",
+                10
+            );
+            assertEquals("directBlock=" + directBlock, 1, readRowCount(declaredReader(false, directBlock, config), object, schema, null));
+            drainWarnings();
+        }
+    }
+
     // --- declared `path` binding under a pinned (declared) schema: esql-planning#1307 ---
 
     /**
@@ -9675,7 +9882,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * sample rows are consumed.
      */
     public void testReadSchemaDoesNotDrainStream_inferredSchema() throws IOException {
-        // Plain headers trigger type inference from a sample (default 20 000 rows).
+        // Plain headers trigger type inference from a sample (default 40 000 rows).
         // The file contains 200 000 rows so most of it should remain unread after schema().
         StringBuilder csv = new StringBuilder("id,name,value\n");
         for (int i = 0; i < 200_000; i++) {

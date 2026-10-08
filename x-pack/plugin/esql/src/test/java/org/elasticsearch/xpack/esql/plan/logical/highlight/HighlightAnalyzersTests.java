@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.highlight;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers.Resolved;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -144,6 +146,21 @@ public class HighlightAnalyzersTests extends ESTestCase {
                 containsString("for indices [old_remote:books]: its analyzer was not reported under a name any node can rebuild"),
                 containsString("for indices [plugin]: analyzer [my_plugin_analyzer] is not registered")
             )
+        );
+    }
+
+    // A data stream can have hundreds of backing indices; naming them all overflows the Warning header.
+    public void testFallbackWarningCapsIndices() {
+        List<String> warnings = new ArrayList<>();
+        Set<String> indices = new HashSet<>();
+        for (int i = 0; i < 200; i++) {
+            indices.add(Strings.format("index_%03d", i));
+        }
+        FieldAttribute field = textFieldWithGroups("title", new IndexAnalyzerGroup(null, true, DEFAULT_POSITION_INCREMENT_GAP, indices));
+        resolve(List.of(field), null, true, warnings);
+        assertThat(
+            warnings,
+            contains(containsString("for indices [index_000, index_001, index_002, ...and 197 more]: its analyzer is defined in"))
         );
     }
 

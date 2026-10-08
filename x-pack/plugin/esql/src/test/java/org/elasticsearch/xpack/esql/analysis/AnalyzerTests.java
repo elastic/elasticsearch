@@ -7821,7 +7821,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
      * {@code books} analyzes {@code title} with {@code whitespace}, and {@code books_english} with {@code stop}. The minimum
      * transport version is {@link TextEsField#TEXT_FIELD_ANALYZER}, the oldest that can read HIGHLIGHT's index key.
      */
-    private TestAnalyzer booksWithConflictingTitleAnalyzer() {
+    public static TestAnalyzer booksWithConflictingTitleAnalyzer() {
         int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
         TextEsField title = new TextEsField(
             "title",
@@ -7845,7 +7845,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
             Map.of(),
             Map.of()
         );
-        return analyzer().addIndex(index).stripErrorPrefix(true).minimumTransportVersion(TextEsField.TEXT_FIELD_ANALYZER);
+        return EsqlTestUtils.analyzer().addIndex(index).stripErrorPrefix(true).minimumTransportVersion(TextEsField.TEXT_FIELD_ANALYZER);
     }
 
     /** A single index named {@code name} that analyzes {@code title} with {@code analyzer}. */

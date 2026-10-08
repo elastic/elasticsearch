@@ -74,6 +74,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -164,6 +165,81 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
             assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * The columns read from chunk 0 are handed to every later chunk, so each binds the pinned schema by name. Chunk 0
+     * reads its own header and is handed none.
+     */
+    public void testHeaderColumnsReadFromChunkZeroReachEveryLaterChunk() throws Exception {
+        LineFormatReader reader = new LineFormatReader(512);
+        reader.headerColumns = List.of("line");
+
+        List<FormatReadContext> contexts = readAllPinned(reader);
+
+        assertThat(contexts.size(), Matchers.greaterThan(1));
+        for (FormatReadContext ctx : contexts) {
+            assertEquals(ctx.firstSplit() ? null : List.of("line"), ctx.fileHeaderColumns());
+        }
+    }
+
+    /**
+     * An empty answer means chunk 0 held no header line (a comment or skipped run longer than the chunk), which says
+     * nothing about the file. It must not be stored: later chunks are then handed no columns and fail loudly, rather
+     * than being handed "the file has no columns" and silently reading nothing.
+     */
+    public void testAnEmptyHeaderFromChunkZeroIsNotHandedToLaterChunks() throws Exception {
+        LineFormatReader reader = new LineFormatReader(512);
+        reader.headerColumns = List.of();
+
+        List<FormatReadContext> contexts = readAllPinned(reader);
+
+        assertThat(contexts.size(), Matchers.greaterThan(1));
+        for (FormatReadContext ctx : contexts) {
+            assertNull(ctx.fileHeaderColumns());
+        }
+    }
+
+    private static List<FormatReadContext> readAllPinned(LineFormatReader reader) throws Exception {
+        InputStream stream = new ByteArrayInputStream(buildContent(500).getBytes(StandardCharsets.UTF_8));
+        List<Attribute> pinned = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try (
+            CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                null,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                pinned,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("test"),
+                ExternalReadCounters.NOOP,
+                null,
+                null
+            )
+        ) {
+            while (iter.hasNext()) {
+                iter.next().releaseBlocks();
+            }
+        } finally {
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
+        }
+        synchronized (reader.seenContexts) {
+            return new ArrayList<>(reader.seenContexts);
         }
     }
 
@@ -797,10 +873,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
     /**
      * Closing must unblock the segmentator when parsers are parked on a full page queue holding
-     * every pool buffer. Before inline steal that was {@code bufferPool.take()}; after it the
-     * segmentator may instead park in {@code putPageAndSignal} while inlining the FIFO head.
+     * every pool buffer. The segmentator may wait in a timed {@code bufferPool.poll()} or in
+     * {@code putPageAndSignal} while inlining the FIFO head.
      * {@code close()} drains page queues in either case, so parsers (and an inlining segmentator)
-     * unblock and {@code take()} waiters wake when buffers return to the pool.
+     * unblock and pool waiters wake when buffers return or the timed poll observes close.
      * <p>
      * With parallelism 2 (1 falls back to a sequential read) the pool holds three buffers. Each chunk yields
      * more single-row pages than its page queue holds, and nothing consumes them, so parsers park
@@ -815,7 +891,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             poolThreads.add(thread);
             return thread;
         });
-        try {
+        try (
             CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
                 new LineFormatReader(256),
                 new ByteArrayInputStream(payload),
@@ -824,9 +900,13 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 2,
                 executor,
                 ErrorPolicy.STRICT
-            );
+            )
+        ) {
             assertBusy(
-                () -> assertTrue("segmentator not parked on take() or inline page-put", isParkedOnBufferTakeOrInlinePagePut(poolThreads)),
+                () -> assertTrue(
+                    "segmentator not parked on buffer poll or inline page-put",
+                    isParkedOnBufferPollOrInlinePagePut(poolThreads)
+                ),
                 5,
                 TimeUnit.SECONDS
             );
@@ -841,34 +921,49 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     closed.countDown();
                 }
             });
-            closer.start();
-            assertTrue("close() must return within 10s of segmentator being parked", closed.await(10, TimeUnit.SECONDS));
+            try {
+                closer.start();
+                assertTrue("close() must return within 10s of segmentator being parked", closed.await(10, TimeUnit.SECONDS));
+            } finally {
+                closer.join(TimeUnit.SECONDS.toMillis(10));
+            }
+            assertFalse("closer must exit after close", closer.isAlive());
             assertNull(closeFailure.get());
             executor.shutdown();
             assertTrue("segmentator and parsers must exit after close", executor.awaitTermination(10, TimeUnit.SECONDS));
         } finally {
+            // Resource closure drains full page queues even when the parking assertion fails.
+            // Interrupting first could leave parsers retrying the POISON put on a full queue.
             executor.shutdownNow();
+            executor.awaitTermination(10, TimeUnit.SECONDS);
         }
     }
 
-    private static boolean isParkedOnBufferTakeOrInlinePagePut(List<Thread> threads) {
+    private static boolean isParkedOnBufferPollOrInlinePagePut(List<Thread> threads) {
+        String iteratorClass = StreamingParallelParsingCoordinator.StreamingParallelIterator.class.getName();
         for (Thread thread : threads) {
-            if (thread.getState() != Thread.State.WAITING) {
+            Thread.State state = thread.getState();
+            if (state != Thread.State.WAITING && state != Thread.State.TIMED_WAITING) {
                 continue;
             }
             StackTraceElement[] stack = thread.getStackTrace();
-            boolean take = Arrays.stream(stack).anyMatch(frame -> frame.getMethodName().equals("takeOrAllocateBuffer"));
-            if (take) {
+            boolean bufferWait = Arrays.stream(stack)
+                .anyMatch(frame -> frame.getClassName().equals(iteratorClass) && frame.getMethodName().equals("waitForRecycledBuffer"));
+            boolean poll = Arrays.stream(stack)
+                .anyMatch(frame -> frame.getClassName().equals(ArrayBlockingQueue.class.getName()) && frame.getMethodName().equals("poll"));
+            if (state == Thread.State.TIMED_WAITING && bufferWait && poll) {
                 return true;
             }
-            boolean pagePut = Arrays.stream(stack).anyMatch(frame -> frame.getMethodName().equals("putPageAndSignal"));
+            boolean pagePut = Arrays.stream(stack)
+                .anyMatch(frame -> frame.getClassName().equals(iteratorClass) && frame.getMethodName().equals("putPageAndSignal"));
             boolean inline = Arrays.stream(stack)
                 .anyMatch(
-                    frame -> frame.getMethodName().equals("runOneQueuedInline")
-                        || frame.getMethodName().equals("dispatchChunk")
-                        || frame.getMethodName().equals("inlineLeftoverQueuedChunks")
+                    frame -> frame.getClassName().equals(iteratorClass)
+                        && (frame.getMethodName().equals("runOneQueuedInline")
+                            || frame.getMethodName().equals("dispatchChunk")
+                            || frame.getMethodName().equals("inlineLeftoverQueuedChunks"))
                 );
-            if (pagePut && inline) {
+            if (state == Thread.State.WAITING && pagePut && inline) {
                 return true;
             }
         }
@@ -3806,6 +3901,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         final AtomicInteger boundReadCalls;
         final AtomicInteger unboundReadCalls;
         final List<FormatReadContext> seenContexts;
+        /** What {@link #fileHeaderColumns} answers; {@code null} makes this a reader without a header line. */
+        volatile List<String> headerColumns;
 
         LineFormatReader(long minSegment) {
             this(
@@ -3855,7 +3952,26 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public FormatReader withSchema(List<Attribute> schema) {
-            return new LineFormatReader(minSegment, schema, metadataCalls, boundReadCalls, unboundReadCalls, seenContexts);
+            LineFormatReader bound = new LineFormatReader(
+                minSegment,
+                schema,
+                metadataCalls,
+                boundReadCalls,
+                unboundReadCalls,
+                seenContexts
+            );
+            bound.headerColumns = headerColumns;
+            return bound;
+        }
+
+        @Override
+        public boolean readsHeaderLine() {
+            return headerColumns != null;
+        }
+
+        @Override
+        public List<String> fileHeaderColumns(StorageObject file) {
+            return headerColumns;
         }
 
         @Override

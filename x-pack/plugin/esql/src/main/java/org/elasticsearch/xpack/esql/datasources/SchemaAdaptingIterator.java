@@ -135,8 +135,12 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
 
     private SkipWarnings castWarnings() {
         if (castWarnings == null) {
+            // A drop helper exists exactly when the policy skips the row, which is then what happens to it.
             castWarnings = new SkipWarnings(
-                "Cross-file schema unification could not convert some values to the unified column type; they are returned as null",
+                dropHelper != null
+                    ? "Some values cannot be read as the merged column type; skipping their rows"
+                    : "Some values cannot be read as the merged column type; returning null",
+                "Some values cannot be read as the merged column type; " + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME,
                 informationalWarningSink
             );
         }
@@ -329,7 +333,7 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
                         schemaReleased = true;
                         filtered = dropHelper.filterBlocks(filtered, blockFactory);
                         dropHelper.addToTotals(originalPositions, dropped);
-                        dropHelper.checkBudget(castWarnings);
+                        dropHelper.checkBudget();
                         return new Page(originalPositions - dropped, filtered);
                     } catch (Throwable e) {
                         Releasables.closeExpectNoException(filtered);

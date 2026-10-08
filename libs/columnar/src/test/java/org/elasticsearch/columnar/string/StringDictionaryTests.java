@@ -17,6 +17,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.FormatVersion;
+import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnTestFiles;
 
@@ -361,6 +362,60 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
     }
 
     /** A dictionary column's summary terms are its dictionary, so only the counts are stored beside it. */
+    // NOTE: the two quotas can admit the same number of terms and not the same terms, so a record that is
+    // the same size as the dictionary is not the dictionary and has to carry its own terms to disk.
+    public void testARecordTheSizeOfTheDictionaryStillCarriesItsOwnTerms() throws IOException {
+        final BytesRef rare = new BytesRef("a");
+        final BytesRef common = new BytesRef("t".repeat(200));
+        final BytesRef[] docValues = new BytesRef[101];
+        docValues[0] = rare;
+        for (int d = 1; d < docValues.length; d++) {
+            docValues[d] = common;
+        }
+        // Both are given 200 bytes to spend, the dictionary through the share of a 20,001 byte column. That
+        // buys the dictionary the term held a hundred times and buys the record the one byte term ahead of
+        // it, which then leaves no room for the other. The cap is larger so the survey holds both.
+        final StringColumnOptions options = new StringColumnOptions(
+            new DictionaryPolicy(4096, 0.5, 0.01),
+            SummaryPolicy.sized(200),
+            ChunkCodec.ZSTD,
+            StringColumnOptions.DEFAULT_SIZES
+        );
+        withColumn(singleValued(docValues), options, (metadata, reader) -> {
+            assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
+            assertEquals("the term held a hundred times", 1, reader.dictionarySize());
+            assertNotNull("the record could not lean on the dictionary", metadata.summary().terms());
+
+            final List<BytesRef> summaryTerms = new ArrayList<>();
+            final List<Long> counts = new ArrayList<>();
+            reader.readSummary(summaryTerms, counts);
+            assertEquals(List.of(rare), summaryTerms);
+            assertEquals(List.of(1L), counts);
+
+            final ColumnIterator iterator = reader.iterator();
+            for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
+                assertEquals("value at doc " + doc, docValues[doc], reader.valueAt(reader.firstValueAddress(iterator.rank())));
+            }
+        });
+    }
+
+    // NOTE: a null is named by an ordinal of its own whatever the layout, so it is not a value a dictionary
+    // has to name. Recording every slot instead would make a merge read a coverage a flush never computed.
+    public void testNullSlotsAreNotValuesTheCountsAreAShareOf() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[600][];
+        final String[] terms = { "DEBUG", "ERROR", "INFO" };
+        int named = 0;
+        for (int d = 0; d < docSlots.length; d++) {
+            docSlots[d] = d % 3 == 0 ? new BytesRef[] { null } : new BytesRef[] { new BytesRef(terms[d % terms.length]) };
+            named += d % 3 == 0 ? 0 : 1;
+        }
+        final int namedValues = named;
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertTrue("kept a summary", reader.hasSummary());
+            assertEquals("the values a dictionary has to name, nulls aside", namedValues, reader.summaryValues());
+        });
+    }
+
     public void testDictionaryColumnKeepsASummary() throws IOException {
         final String[] terms = { "DEBUG", "ERROR", "INFO" };
         final BytesRef[] docValues = new BytesRef[600];
@@ -408,7 +463,6 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         });
     }
 
-    /** A column with nothing worth naming records no summary. */
     // NOTE: a column whose values are all distinct names none of them, and still summarises them: whether they
     // repeat is a question about the other segments, which only the merge can answer.
     public void testAllDistinctValuesKeepASummary() throws IOException {
@@ -416,7 +470,28 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         for (int d = 0; d < docValues.length; d++) {
             docValues[d] = new BytesRef("id-" + d);
         }
-        withDictionary(docValues, (metadata, reader) -> assertTrue("summarised for the merge", reader.hasSummary()));
+        withDictionary(docValues, (metadata, reader) -> {
+            assertTrue("summarised for the merge", reader.hasSummary());
+            assertTrue("with its terms", reader.hasSummaryTerms());
+        });
+    }
+
+    public void testTermsPastTheCapAreStillRecorded() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(200, 800)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef("id-" + d);
+        }
+        withColumn(
+            docValues,
+            randomValidBlockSize(),
+            randomChunkCodec(),
+            randomTargetChunkBytes(),
+            new DictionaryPolicy(64, 0.5, 0.2),
+            (metadata, reader) -> {
+                assertTrue("recorded what a dictionary could reach", reader.hasSummary());
+                assertTrue("and the terms a later merge would read", reader.hasSummaryTerms());
+            }
+        );
     }
 
     /** What a column recorded of its survey survives the round trip through its metadata. */
@@ -753,7 +828,14 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         final long[] counts = new long[terms.size()];
         Arrays.fill(counts, docValues.length / terms.size());
         // What a merge would hand over: every term of the column, covering all of it.
-        final Vocabulary.Terms known = Vocabulary.known(terms, columnBytes(docValues), 1.0, counts);
+        final Vocabulary.Terms known = Vocabulary.known(
+            terms,
+            columnBytes(docValues),
+            1.0,
+            docValues.length,
+            BestCoverage.of(docValues.length, docValues.length, 512 * 1024),
+            counts
+        );
 
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);

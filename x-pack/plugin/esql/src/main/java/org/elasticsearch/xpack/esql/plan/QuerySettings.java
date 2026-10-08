@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.session.ExemplarsSettings;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -205,6 +206,25 @@ public final class QuerySettings {
         .build();
 
     @Param(
+        name = "wildcards_match_views",
+        type = { "boolean" },
+        applies_to = "serverless: unavailable\nstack: experimental 9.6+",
+        description = "When enabled, a wildcard in `FROM` also matches registered views."
+            + " Defaults to `false`, so a wildcard does not match a view and a view is reached by its"
+            + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
+            + "The default itself is configurable. If a query does not specify a value, the "
+            + "`esql.query.settings.wildcards_match_views` cluster setting supplies it. If that cluster setting is not "
+            + "configured either, the value is `false`. "
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"ga\"}`"
+    )
+    public static final QuerySettingDef<Boolean> WILDCARDS_MATCH_VIEWS = QuerySettingDef.bool("wildcards_match_views")
+        .withDefault(Boolean.FALSE)
+        .withClusterDefault()
+        .withPreview()
+        .withRequestBody()
+        .build();
+
+    @Param(
         name = "approximation",
         type = { "boolean", "map_param" },
         since = "9.5+, preview =9.4",
@@ -247,6 +267,32 @@ public final class QuerySettings {
         .streamFormat((out, value) -> value.writeTo(out), ApproximationSettings::new)
         .build();
 
+    @Param(
+        name = "exemplars",
+        type = { "boolean", "map_param" },
+        description = "When enabled, the provided `TS ... | STATS` or `PROMQL` query is not executed. Instead, exemplars considered"
+            + " relevant to the query are returned based on heuristics that take the selected metrics and series into account."
+    )
+    @MapParam(
+        name = "exemplars",
+        params = {
+            @MapParam.MapParamEntry(
+                name = "limit",
+                type = { "integer" },
+                description = "Maximum number of exemplars to return. Without it the default limit of a regular query applies."
+            ) }
+    )
+    public static final QuerySettingDef<ExemplarsSettings> EXEMPLARS = QuerySettingDef.object(
+        "exemplars",
+        ExemplarsSettings::fromXContent,
+        ExemplarsSettings::parse
+    )
+        .withRequestBody()
+        .withDefault(ExemplarsSettings.DISABLED)
+        .withSnapshotOnly()
+        .streamFormat((out, value) -> value.writeTo(out), ExemplarsSettings::new)
+        .build();
+
     /**
      * The canonical, explicitly-enumerated set of all query settings. This is the single source of truth — the
      * request parser, the resolver, and telemetry all iterate this list. Add a new setting's constant here when
@@ -255,7 +301,9 @@ public final class QuerySettings {
     public static final List<QuerySettingDef<?>> ALL = List.of(
         APPROXIMATION,
         COLUMN_METADATA,
+        EXEMPLARS,
         WILDCARDS_MATCH_DATASETS,
+        WILDCARDS_MATCH_VIEWS,
         PROJECT_ROUTING,
         TIME_ZONE,
         UNMAPPED_FIELDS

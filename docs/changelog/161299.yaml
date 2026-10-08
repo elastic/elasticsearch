@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 161300
+pr: 161299
+summary: Honor `index` and `doc_values` on `ip` fields in `time_series` indices
+type: bug

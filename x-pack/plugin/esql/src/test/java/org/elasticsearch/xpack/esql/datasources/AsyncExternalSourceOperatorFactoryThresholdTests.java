@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -55,7 +56,7 @@ import static org.mockito.Mockito.when;
 public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
     private static final StoragePath PATH = StoragePath.of("s3://bucket/data.parquet");
     private static final List<Attribute> ATTRIBUTES = List.of(
@@ -361,7 +362,7 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
         public void close() {}
     }
 
-    private static class TestStorageObject implements StorageObject {
+    private static class TestStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
 
         TestStorageObject(StoragePath path) {

@@ -4917,3 +4917,46 @@ VALUES(x):integer | gender:keyword
 5                 | M
 5                 | null
 ;
+
+statsByLongAndKeywordSortedByLongThenKeyword
+FROM employees
+| STATS c = COUNT(*) BY languages.long, gender
+| SORT languages.long, gender
+| LIMIT 4
+;
+
+c:long | languages.long:long | gender:keyword
+4      | 1                   | F
+9      | 1                   | M
+2      | 1                   | null
+5      | 2                   | F
+;
+
+statsByLongAndBooleanSortedByLongDescThenAgg
+FROM employees
+| STATS c = COUNT(*), s = MAX(salary) BY languages.long, still_hired
+| SORT languages.long DESC, s DESC
+| LIMIT 5
+;
+
+c:long | s:integer | languages.long:long | still_hired:boolean
+6      | 74999     | null                | false
+4      | 64675     | null                | true
+10     | 66817     | 5                   | false
+11     | 56371     | 5                   | true
+7      | 74572     | 4                   | true
+;
+
+statsByLongAndBooleanImplicitlySortByLong
+required_capability: topn_prefilter_long
+FROM employees
+| STATS c = COUNT(*) BY languages.long, still_hired
+| LIMIT 4
+| STATS n = COUNT(*), cs = MV_SORT(VALUES(c)) BY languages.long
+| SORT languages.long
+;
+
+n:long | cs:long  | languages.long:long
+2      | [6, 9]   | 1
+2      | [8, 11]  | 2
+;

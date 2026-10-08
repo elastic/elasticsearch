@@ -351,13 +351,22 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                 // subsequent merge step does not widen its scope.
                 MergePlan mergePlan = (MergePlan) inner;
                 int childIndex = 1;
+                // A view whose body is a bare union lifts into one branch per body piece; each piece is still part of
+                // the view, so the branch keeps view-branch status. The request filter distributes over a union, so
+                // filtering each lifted piece's output equals filtering the un-lifted view's output — while losing the
+                // mark would silently send the raw DSL into the piece's source scan instead.
+                boolean viewBranch = vua.isViewBranch(parentKey);
                 for (LogicalPlan child : mergePlan.children()) {
                     LogicalPlan unwrapped = (child instanceof Subquery sq) ? sq.child() : child;
                     String childKey = parentKey + "#" + childIndex++;
                     if (unwrapped instanceof UnresolvedRelation childUr && containsExclusion(childUr)) {
                         unwrapped = new NamedSubquery(childUr.source(), childUr, childKey);
                     }
-                    flat.put(makeUniqueKey(flat, childKey), unwrapped);
+                    String assignedKey = makeUniqueKey(flat, childKey);
+                    flat.put(assignedKey, unwrapped);
+                    if (viewBranch) {
+                        flatViewBranchKeys.add(assignedKey);
+                    }
                 }
             }
         }

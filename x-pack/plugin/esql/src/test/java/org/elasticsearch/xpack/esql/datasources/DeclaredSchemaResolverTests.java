@@ -73,15 +73,36 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("duplicate column [y]"));
     }
 
-    public void testOverlayNonStrictErrorsOnDeclaredColumnMissingFromSource() {
+    /**
+     * A declared column absent from the inferred schema is kept at its declared type and reported in
+     * {@link DeclaredSchemaResolver.Overlaid#absent()}, whether the schema was sampled (a sparse field the sample did
+     * not reach) or is complete (a column the source does not carry, which reads null with a warning).
+     */
+    public void testOverlayNonStrictKeepsADeclaredColumnMissingFromTheInferredSchema() {
         List<Attribute> inferred = List.of(attr("a", DataType.KEYWORD));
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
-        props.put("b", new DatasetFieldMapping("long", null)); // 'b' is not in the inferred source
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> DeclaredSchemaResolver.overlayNonStrict(inferred, mapping(props))
-        );
-        assertTrue(e.getMessage(), e.getMessage().contains("b"));
+        props.put("b", new DatasetFieldMapping("long", null)); // 'b' is not in the inferred schema
+
+        DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(inferred, mapping(props));
+
+        assertEquals(List.of("a", "b"), o.output().stream().map(Attribute::name).toList());
+        assertEquals(DataType.LONG, o.output().get(1).dataType());
+        assertEquals(List.of("a", "b"), o.fileSchema().stream().map(Attribute::name).toList());
+        assertThat("absent must carry the missing declared column", o.absent(), hasSize(1));
+        assertEquals("b", o.absent().get(0).name());
+        assertEquals(DataType.LONG, o.absent().get(0).dataType());
+    }
+
+    /** Lenient (per-file) overlay skips a declared column the file lacks; the caller decides what that file carries. */
+    public void testOverlayNonStrictLenientSkipsADeclaredColumnMissingFromTheFile() {
+        List<Attribute> inferred = List.of(attr("a", DataType.KEYWORD));
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("b", new DatasetFieldMapping("long", null));
+
+        DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(inferred, mapping(props), true);
+
+        assertEquals(List.of("a"), o.output().stream().map(Attribute::name).toList());
+        assertThat(o.absent(), hasSize(0));
     }
 
     public void testOverlayNonStrictNoMappingsPassesThrough() {

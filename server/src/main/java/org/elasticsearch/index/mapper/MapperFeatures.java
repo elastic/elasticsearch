@@ -168,6 +168,7 @@ public class MapperFeatures implements FeatureSpecification {
     );
     public static final NodeFeature COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS = new NodeFeature("mapper.columnar.drops_dynamic_false_fields");
     public static final NodeFeature COLUMNAR_SUPPORTS_SHAPE_FIELDS = new NodeFeature("mapper.columnar.supports_shape_fields");
+    public static final NodeFeature COLUMNAR_IGNORE_ABOVE_NO_OP = new NodeFeature("mapper.columnar.ignore_above_no_op");
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
     public static final NodeFeature DUPLICATE_DYNAMIC_TEMPLATE_NAMES_WARNING = new NodeFeature(
         "mapper.dynamic_template.warn_on_duplicate_names"
@@ -175,6 +176,9 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature PUT_MAPPING_NO_TYPES_CHECK = new NodeFeature("indices.put_mapping.no_types_check");
     public static final NodeFeature DENSE_VECTOR_ON_DISK_MERGE = new NodeFeature("mapper.vectors.on_disk_merge");
     public static final NodeFeature DENSE_VECTOR_UNIFIED_VALUE_FORMATS = new NodeFeature("mapper.dense_vector.unified_value_formats");
+    public static final NodeFeature FIX_SORTED_NUMERIC_WITH_OFFSETS_EMPTY_ARRAY = new NodeFeature(
+        "mapper.fix_sorted_numeric_with_offsets_empty_array"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -268,6 +272,7 @@ public class MapperFeatures implements FeatureSpecification {
             COLUMNAR_IP_INLINE_ARRAY_ORDER_BINARY_DOC_VALUES,
             COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS,
             COLUMNAR_SUPPORTS_SHAPE_FIELDS,
+            COLUMNAR_IGNORE_ABOVE_NO_OP,
             DOC_VALUES_MULTI_VALUE_INDEX_SETTING,
             DOC_VALUES_MULTI_VALUE_FALSE_ALIAS,
             DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,
@@ -280,7 +285,8 @@ public class MapperFeatures implements FeatureSpecification {
             DISK_BBQ_STABLE_FORMAT_SELECTION,
             PUT_MAPPING_NO_TYPES_CHECK,
             MAPPING_LIMIT_CHECKS_AT_PARSE_TIME,
-            DENSE_VECTOR_UNIFIED_VALUE_FORMATS
+            DENSE_VECTOR_UNIFIED_VALUE_FORMATS,
+            FIX_SORTED_NUMERIC_WITH_OFFSETS_EMPTY_ARRAY
         );
     }
 }

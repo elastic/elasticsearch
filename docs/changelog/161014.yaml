@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161014
+summary: "ES|QL|DS: External-source query CPU in APM metrics and phone-home"
+type: enhancement

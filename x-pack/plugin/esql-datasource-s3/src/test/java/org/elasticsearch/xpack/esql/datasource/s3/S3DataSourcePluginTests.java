@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.core.SdkSystemSetting;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.sts.model.StsException;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +22,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 import org.junit.Before;
@@ -178,6 +182,12 @@ public class S3DataSourcePluginTests extends ESTestCase {
         }
     }
 
+    public void testSchemesAreRejectedBySafeForUserMessage() {
+        assertFalse(ExternalFailures.safeForUserMessage("s3://bucket/path/file.parquet"));
+        assertFalse(ExternalFailures.safeForUserMessage("s3a://bucket/path/file.parquet"));
+        assertFalse(ExternalFailures.safeForUserMessage("s3n://bucket/path/file.parquet"));
+    }
+
     public void testS3SchemesShareSameFactory() throws IOException {
         try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
             Map<String, StorageProviderFactory> providers = plugin.storageProviders(services());
@@ -213,6 +223,38 @@ public class S3DataSourcePluginTests extends ESTestCase {
         }
     }
 
+    /**
+     * The factory that serves reads applies the same endpoint rule as registration, against the node's current
+     * allowlist: a stored endpoint the list no longer admits is refused before any client is built.
+     */
+    public void testReadFactoryRefusesAnEndpointTheAllowlistNoLongerAdmits() throws IOException {
+        Map<String, Object> stored = Map.of("auth", "anonymous", "endpoint", "http://127.0.0.1:9000");
+        Settings admitted = Settings.builder().putList(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY, "127.0.0.1:9000").build();
+        try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
+            // Registration admits it while the list names the host.
+            plugin.datasourceValidators(admitted).get("s3").validateDatasource(stored);
+            StorageProviderFactory factory = plugin.storageProviders(
+                new StorageProviderServices(
+                    Settings.EMPTY,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    environment,
+                    mock(ResourceWatcherService.class)
+                )
+            ).get("s3");
+            // Read factory refuses the stored endpoint once the list no longer names the host.
+            var readException = expectThrows(
+                org.elasticsearch.common.ValidationException.class,
+                () -> factory.create(Settings.EMPTY, stored)
+            );
+            assertThat(readException.getMessage(), containsString("endpoint must use https"));
+            assertThat(readException.getMessage(), containsString(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY));
+            // Connection-test probe refuses the stored endpoint for the same reason.
+            var testException = expectThrows(org.elasticsearch.common.ValidationException.class, () -> factory.testConnection(stored));
+            assertThat(testException.getMessage(), containsString("endpoint must use https"));
+            assertThat(testException.getMessage(), containsString(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY));
+        }
+    }
+
     public void testBuildingStorageProvidersDoesNotTouchTheJvmWideTokenProperty() throws IOException {
         // Pod Identity env is set (via the test seam) and the entitled symlink exists. Building the
         // sources must leave the JVM-wide property alone.
@@ -236,5 +278,15 @@ public class S3DataSourcePluginTests extends ESTestCase {
                 System.getProperty(SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.property())
             );
         }
+    }
+
+    /**
+     * {@link ExternalFailures#composedByStorageClient} withholds this client's text by package; a client exception it
+     * does not recognise would put the remote's refusal (the principal's and the resource's ARNs) in the response.
+     */
+    public void testClientExceptionsAreStorageClientText() {
+        assertTrue(ExternalFailures.composedByStorageClient(S3Exception.builder().message("Access Denied").build()));
+        assertTrue(ExternalFailures.composedByStorageClient(SdkClientException.create("Unable to load credentials")));
+        assertTrue(ExternalFailures.composedByStorageClient(StsException.builder().message("not authorized").build()));
     }
 }

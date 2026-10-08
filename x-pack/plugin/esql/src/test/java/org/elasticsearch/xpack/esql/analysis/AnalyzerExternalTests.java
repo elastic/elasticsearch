@@ -176,6 +176,22 @@ public class AnalyzerExternalTests extends ESTestCase {
         assertThat(filter.child(), instanceOf(ExternalRelation.class));
     }
 
+    public void testScoreAggregationWithFullTextFilterRejected() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        String from = "FROM " + DATASET_NAME + " METADATA _score ";
+        String message = "cannot use _score aggregations with a WHERE filter in a STATS command";
+        datasetError(external(), S3_PATH, from + "| STATS c = MAX(_score) WHERE MATCH(first_name, \"foo\")", containsString(message));
+        datasetError(
+            external(),
+            S3_PATH,
+            from + "| STATS c = WEIGHTED_AVG(emp_no, _score) WHERE MATCH(first_name, \"foo\")",
+            containsString(message)
+        );
+        // Filtering before the STATS is fine: the aggregation sees the score the match contributed.
+        analyzeDataset(external(), S3_PATH, from + "| WHERE MATCH(first_name, \"foo\") | STATS c = MAX(_score)");
+    }
+
     /**
      * KQL function requires a Lucene index; an external (federated) dataset is rejected with a message naming the
      * dataset and the limitation, and suggesting the MATCH(field, ...) alternative, rather than a generic positional
@@ -664,14 +680,32 @@ public class AnalyzerExternalTests extends ESTestCase {
 
     public void testShadowWarningOmitsMappingAdviceWhenDatasetIsNull() {
         String warning = Analyzer.shadowedExternalColumnsWarning(null, List.of(FileMetadataColumns.SIZE));
-        assertThat(warning, containsString("this source"));
-        assertThat(warning, not(containsString("dataset mapping")));
+        assertEquals(
+            "Column [" + FileMetadataColumns.SIZE + "] in this source is shadowed by METADATA; the METADATA value is used",
+            warning
+        );
     }
 
     public void testShadowWarningIncludesMappingAdviceForDataset() {
         String warning = Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id"));
-        assertThat(warning, containsString("dataset [" + DATASET_NAME + "]"));
-        assertThat(warning, containsString("dataset mapping"));
+        assertEquals(
+            "Column [_id] in dataset ["
+                + DATASET_NAME
+                + "] is shadowed by METADATA; the METADATA value is used; rename it in the dataset mapping to read both",
+            warning
+        );
+    }
+
+    public void testShadowWarningPluralisesSeveralColumns() {
+        String warning = Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id", FileMetadataColumns.PATH));
+        assertEquals(
+            "Columns [_id], ["
+                + FileMetadataColumns.PATH
+                + "] in dataset ["
+                + DATASET_NAME
+                + "] are shadowed by METADATA; the METADATA value is used; rename them in the dataset mapping to read both",
+            warning
+        );
     }
 
     /**

@@ -688,3 +688,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalSchemaDiscoveryBoundIT
   method: testRepeatedSchemaDiscoveryAnswersTheSameSchema
   issue: https://github.com/elastic/elasticsearch/issues/161361
+- class: org.elasticsearch.xpack.esql.action.ExternalWarmDatasetAggregatePartialEvictionIT
+  method: testNdjsonWarmCountSurvivesOneMissingPerFileEntry
+  issue: https://github.com/elastic/elasticsearch/issues/161381

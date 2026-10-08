@@ -1,5 +1,0 @@
-area: Mapping
-issues: []
-pr: 161374
-summary: Read a value the same way wherever a query reads it
-type: bug

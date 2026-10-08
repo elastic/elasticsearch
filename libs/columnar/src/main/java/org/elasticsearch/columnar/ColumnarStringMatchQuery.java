@@ -47,7 +47,7 @@ import java.util.function.Predicate;
  * built the predicate from - a set of terms, the bounds of a range - so nothing has to be spelt into a string
  * to be compared, and a query over many terms does not carry a rendering of all of them for its lifetime.
  */
-public final class ColumnarStringMatchQuery extends Query {
+public final class ColumnarStringMatchQuery extends Query implements ColumnarScanQuery {
 
     private final String field;
     private final Predicate<BytesRef> matcher;

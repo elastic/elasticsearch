@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.mockito.Mockito.mock;
@@ -56,5 +57,37 @@ public class PlannerSettingsTests extends ESTestCase {
         PlannerSettings updated = holder.get();
         assertThat(updated.partialEmitKeysThreshold(), equalTo(12_345));
         assertThat("the time-series chunk rows updates independently", updated.timeSeriesTargetChunkRows(), equalTo(999));
+    }
+
+    public void testLoadAllMaxFieldsDefault() {
+        assertThat(PlannerSettings.DEFAULTS.loadAllMaxFields(), equalTo(1000));
+    }
+
+    public void testLoadAllMaxFieldsIsRegistered() {
+        var registeredKeys = PlannerSettings.settings().stream().map(Setting::getKey).toList();
+        assertThat(registeredKeys, hasItems(PlannerSettings.LOAD_ALL_MAX_FIELDS.getKey()));
+    }
+
+    public void testLoadAllMaxFieldsIsDynamic() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(PlannerSettings.settings()));
+        // ClusterService is mocked for the same reason as above: the Holder only reads getClusterSettings().
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        PlannerSettings.Holder holder = new PlannerSettings.Holder(clusterService);
+
+        assertThat(holder.get().loadAllMaxFields(), equalTo(1000));
+
+        clusterSettings.applySettings(Settings.builder().put(PlannerSettings.LOAD_ALL_MAX_FIELDS.getKey(), 2500).build());
+        assertThat(holder.get().loadAllMaxFields(), equalTo(2500));
+
+        // Removing the setting restores the default.
+        clusterSettings.applySettings(Settings.EMPTY);
+        assertThat(holder.get().loadAllMaxFields(), equalTo(1000));
+    }
+
+    public void testLoadAllMaxFieldsMustBePositive() {
+        Settings zero = Settings.builder().put(PlannerSettings.LOAD_ALL_MAX_FIELDS.getKey(), 0).build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PlannerSettings.LOAD_ALL_MAX_FIELDS.get(zero));
+        assertThat(e.getMessage(), containsString("must be >= 1"));
     }
 }

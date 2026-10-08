@@ -71,7 +71,7 @@ import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.isApp
  * The data node only puts keys into the column that hold a value, so no expanded column comes out null in every row -
  * {@link #assertNoAllNullExpandedColumn} holds that end of the contract down.
  * <p>
- * At most {@link #MAX_EXPANDED_FIELDS} discovered fields become columns, with a warning if there were
+ * At most {@link PlannerSettings#LOAD_ALL_MAX_FIELDS} discovered fields become columns, with a warning if there were
  * more.
  * <p>
  * The expansion scans every row of every page twice (once to collect field names, once to rewrite), so it polls for cancellation
@@ -85,19 +85,6 @@ import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.isApp
  *  names and one of values — would let us build the union while reading and expand without re-parsing.
  */
 public final class ExpandUnmappedFieldsPostProcessor {
-    /**
-     * The most discovered fields a {@code LOAD_ALL} result expands into. Without a cap, a wide or heterogeneous index turns every
-     * distinct {@code _source} leaf into a column, and merely collecting their names - before a single column is built - is enough
-     * to exhaust the coordinator's heap. 1000 matches the default of {@code index.mapping.total_fields.limit}.
-     * <p>
-     * The cap is deliberately decoupled from that setting: it is per index and often raised, and it is ambiguous which index's limit
-     * would apply to a query over several. A hard-coded value is the starting point; making it configurable is a follow-up.
-     * <p>
-     * The cap keeps the alphabetically first names, so which fields survive does not depend on the order pages arrive in.
-     * {@code KEEP} or {@code DROP} can be used to reach fields that would go over the limit.
-     */
-    static final int MAX_EXPANDED_FIELDS = 1000;
-
     /**
      * How often the expansion loops poll {@code isCancelled}. The expansion is a coordinator-side, single-threaded scan over every row
      * of every page (parsing each row's {@code _source} JSON), so for a wide or high-row {@code LOAD_ALL} result it can run for seconds.
@@ -147,6 +134,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
         // a no-op on test threads, so unit tests that call expand() directly are not impacted.
         assert ThreadPool.assertCurrentThreadPool(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
         double reservationFactor = plannerSettings.sourceReservationFactor();
+        int maxFields = plannerSettings.loadAllMaxFields();
         UnmappedFieldsAttribute unmappedAttribute = (UnmappedFieldsAttribute) schema.get(unmappedIdx);
         UnmappedFieldsPattern pattern = unmappedAttribute.pattern();
 
@@ -166,11 +154,12 @@ public final class ExpandUnmappedFieldsPostProcessor {
                 unmappedIdx,
                 pattern,
                 existingNames,
+                maxFields,
                 blockFactory.breaker(),
                 reservationFactor,
                 isCancelled
             );
-            // TODO account for newSchema's field names against the circuit breaker. MAX_EXPANDED_FIELDS bounds how many there are,
+            // TODO account for newSchema's field names against the circuit breaker. The cap bounds how many there are,
             // but not how long each is, and unlike the pages the response schema has no breaker-tracked lifetime to release it against.
             ExpandedLayout layout = computeLayout(schema, unmappedIdx, expandedFieldNames, ordering);
             List<Page> newPages = rewritePages(
@@ -214,7 +203,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
 
     /**
      * Collect the field names carried by {@code _unmapped_fields} across all pages that become output columns: the alphabetically
-     * first {@link #MAX_EXPANDED_FIELDS} that match {@code pattern} and do not collide with {@code existingNames}, sorted. Adds a
+     * first {@code maxFields} that match {@code pattern} and do not collide with {@code existingNames}, sorted. Adds a
      * warning if that cut off any.
      * <p>
      * Every name returned earns an output column, which is why the data node drops the keys that carry no value - see
@@ -232,11 +221,12 @@ public final class ExpandUnmappedFieldsPostProcessor {
         int unmappedIdx,
         UnmappedFieldsPattern pattern,
         Set<String> existingNames,
+        int maxFields,
         CircuitBreaker breaker,
         double reservationFactor,
         BooleanSupplier isCancelled
     ) {
-        FieldNameCollector fieldNames = new FieldNameCollector(pattern, existingNames);
+        FieldNameCollector fieldNames = new FieldNameCollector(maxFields, pattern, existingNames);
         BytesRef scratch = new BytesRef();
         for (Page page : result.pages()) {
             BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
@@ -260,29 +250,32 @@ public final class ExpandUnmappedFieldsPostProcessor {
             HeaderWarning.addWarning(
                 "unmapped_fields=\"LOAD_ALL\" found more than [{}] fields in _source; only the first [{}] in alphabetical order are "
                     + "returned. Use KEEP or DROP to select the others.",
-                MAX_EXPANDED_FIELDS,
-                MAX_EXPANDED_FIELDS
+                maxFields,
+                maxFields
             );
         }
         return fieldNames.sortedNames();
     }
 
     /**
-     * Essentially a max-heap that keeps the alphabetically first {@link #MAX_EXPANDED_FIELDS} distinct names it is fed, and never more
+     * Essentially a max-heap that keeps the alphabetically first {@code maxFields} distinct names it is fed, and never more
      * than one extra. The same name typically turns up in many rows, so the kept names also live in a hash set: encountering the same
      * name twice costs one lookup, and deciding if a new name is alphabetically later than any already encountered one costs one
      * comparison against the head of the heap. Only a new name that makes the cut pays the heap's logarithmic insert.
      */
     private static final class FieldNameCollector implements BiConsumer<String, Object> {
+        private final int maxFields;
         private final UnmappedFieldsPattern pattern;
         private final Set<String> existingNames;
         private final Set<String> keptNames = new HashSet<>();
         /** The same names as {@link #keptNames}, largest first, so the one to evict is always at the head. */
         private final PriorityQueue<String> largestFirst = new PriorityQueue<>(Comparator.reverseOrder());
-        /** Whether a wanted name was dropped for lack of room, i.e. there were more than {@link #MAX_EXPANDED_FIELDS}. */
+        /** Whether a wanted name was dropped for lack of room, i.e. there were more than {@link #maxFields}. */
         private boolean truncated = false;
 
-        FieldNameCollector(UnmappedFieldsPattern pattern, Set<String> existingNames) {
+        FieldNameCollector(int maxFields, UnmappedFieldsPattern pattern, Set<String> existingNames) {
+            assert maxFields >= 1 : "the setting has a minimum of 1, and an empty heap has no head to compare against";
+            this.maxFields = maxFields;
             this.pattern = pattern;
             this.existingNames = existingNames;
         }
@@ -292,7 +285,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
             if (keptNames.contains(name)) {
                 return;
             }
-            if (largestFirst.size() == MAX_EXPANDED_FIELDS && name.compareTo(largestFirst.peek()) > 0) {
+            if (largestFirst.size() == maxFields && name.compareTo(largestFirst.peek()) > 0) {
                 // Strictly greater than every kept name, so it is a distinct name that does not make the cut. Once one wanted name
                 // has been dropped there is no need to check whether any later one is wanted.
                 if (truncated == false && wanted(name)) {
@@ -305,7 +298,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
             }
             keptNames.add(name);
             largestFirst.add(name);
-            if (largestFirst.size() > MAX_EXPANDED_FIELDS) {
+            if (largestFirst.size() > maxFields) {
                 keptNames.remove(largestFirst.poll());
                 truncated = true;
             }

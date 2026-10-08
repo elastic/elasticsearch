@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -30,6 +29,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class WeightedAvgTests extends AbstractAggregationTestCase {
+    /**
+     * An evaluator only records its first 20 failures as warnings, see {@code Warnings.MAX_ADDED_WARNINGS}.
+     */
+    private static final int MAX_RECORDED_FAILURES = 20;
+
     public WeightedAvgTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -65,8 +69,8 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
             }
         }
 
-        // More overflowing rows than Warnings records: the -Infinity of the last row is never reported
-        var overflowingNumbers = new ArrayList<Object>(Collections.nCopies(Warnings.MAX_ADDED_WARNINGS, Double.MAX_VALUE));
+        // More overflowing rows than are recorded: the -Infinity of the last row is never reported
+        var overflowingNumbers = new ArrayList<Object>(Collections.nCopies(MAX_RECORDED_FAILURES, Double.MAX_VALUE));
         overflowingNumbers.add(-Double.MAX_VALUE);
         var overflowingWeights = Collections.<Object>nCopies(overflowingNumbers.size(), 2d);
         suppliers.add(
@@ -198,8 +202,8 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
                             mulFailure = "Line 1:1: java.lang.ArithmeticException: not a finite double number: " + result;
                         }
                     }
-                    // The multiplication evaluator only records its first MAX_ADDED_WARNINGS failures, in row order
-                    if (mulFailure != null && mulFailures++ < Warnings.MAX_ADDED_WARNINGS) {
+                    // Rows are evaluated in order, so only the first MAX_RECORDED_FAILURES failures are reported
+                    if (mulFailure != null && mulFailures++ < MAX_RECORDED_FAILURES) {
                         warnings.add(mulFailure);
                     }
                 }

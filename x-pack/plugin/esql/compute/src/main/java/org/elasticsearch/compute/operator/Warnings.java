@@ -16,7 +16,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
  * Utilities to collect warnings for running an executor.
  */
 public class Warnings {
-    public static final int MAX_ADDED_WARNINGS = 20;
+    static final int MAX_ADDED_WARNINGS = 20;
 
     public static final Warnings NOOP_WARNINGS = new Warnings(null, -1, -2, null, "", "") {
         @Override

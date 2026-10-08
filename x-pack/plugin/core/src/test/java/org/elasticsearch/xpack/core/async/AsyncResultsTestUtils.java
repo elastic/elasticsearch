@@ -39,12 +39,7 @@ public final class AsyncResultsTestUtils {
             }
         });
         if (indexExists(ASYNC_RESULTS_INDEX, client())) {
-            String[] concreteIndices = client().admin()
-                .indices()
-                .prepareGetIndex()
-                .setIndices(ASYNC_RESULTS_INDEX)
-                .get()
-                .getIndices();
+            String[] concreteIndices = client().admin().indices().prepareGetIndex().setIndices(ASYNC_RESULTS_INDEX).get().getIndices();
             assertAcked(client().admin().indices().prepareDelete(concreteIndices));
         }
     }

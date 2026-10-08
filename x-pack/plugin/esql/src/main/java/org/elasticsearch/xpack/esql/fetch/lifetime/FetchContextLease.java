@@ -15,15 +15,19 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
  * The fetch contexts that the data nodes keep open for one query, as their responses list them. The coordinator holds one
  * lease per query and frees every context in it when the query ends, whether it succeeded, failed or was cancelled. A
- * context that a response lists after that is freed at once.
+ * context that a response lists after that is freed at once. A context that the last fetch of the query read is freed by
+ * its node once the node answered, so the lease forgets it then.
  * <p>
  * The lease sends its requests as the user who ran the query, also when an administrator cancels it. The data nodes
  * only let the owner of a context free it.
@@ -83,6 +87,30 @@ public final class FetchContextLease implements Releasable {
         }
         // the query ended before this response arrived
         free(group, ids);
+    }
+
+    /**
+     * Forgets contexts that {@code nodeId} frees itself, because the fetch request that read them told it to once it
+     * answered. Closing the lease then doesn't ask the node to free them a second time. Ids the lease doesn't hold are
+     * ignored.
+     */
+    public void forget(String nodeId, Collection<ShardSearchContextId> ids) {
+        if (ids.isEmpty()) {
+            return;
+        }
+        Set<ShardSearchContextId> freed = Set.copyOf(ids);
+        synchronized (this) {
+            Iterator<Map.Entry<Group, List<ShardSearchContextId>>> groups = held.entrySet().iterator();
+            while (groups.hasNext()) {
+                Map.Entry<Group, List<ShardSearchContextId>> group = groups.next();
+                if (group.getKey().node().getId().equals(nodeId)) {
+                    group.getValue().removeAll(freed);
+                    if (group.getValue().isEmpty()) {
+                        groups.remove();
+                    }
+                }
+            }
+        }
     }
 
     /**

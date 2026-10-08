@@ -125,7 +125,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(),
@@ -213,7 +213,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(),
@@ -274,7 +274,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(),
@@ -315,7 +315,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(),
@@ -363,7 +363,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(),
@@ -402,7 +402,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(),
@@ -477,7 +477,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(),
@@ -606,7 +606,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(),
@@ -714,7 +714,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(),
@@ -840,7 +840,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(),
@@ -962,7 +962,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(),
@@ -1075,7 +1075,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(),
@@ -1623,14 +1623,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         IndexReader r = w.getReader();
         w.close();
         ContextIndexSearcher contextIndexSearcher = createSearcher(r);
-        try (
-            SearchContext searchContext = createSearchContext(
-                contextIndexSearcher,
-                true,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                true
-            )
-        ) {
+        try (SearchContext searchContext = createSearchContext(contextIndexSearcher, true, NoopCircuitBreaker.INSTANCE, true)) {
             FetchPhase fetchPhase = new FetchPhase(List.of(fetchContext -> new FetchSubPhaseProcessor() {
                 @Override
                 public void setNextReader(LeafReaderContext readerContext) throws IOException {

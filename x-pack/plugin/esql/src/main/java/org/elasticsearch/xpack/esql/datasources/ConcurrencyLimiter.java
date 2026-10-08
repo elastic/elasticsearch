@@ -104,7 +104,8 @@ class ConcurrencyLimiter implements AdmissionGate {
     /**
      * Acquires a permit, mapping limiter failures onto the exception types the storage retry
      * layer understands. Timeout is node-local admission back-pressure, raised as a retryable
-     * {@link ExternalUnavailableException} ({@code RetryPolicy.execute} retries that type).
+     * {@link ExternalUnavailableException} ({@code RetryPolicy.execute} retries that type) with the
+     * {@link Condition#LOCAL_CAPACITY} condition, so telemetry reports it as a local resource limit rather than as a store outage.
      * {@code throttling=false}: this is a local semaphore, not a remote-store 429/503, so it
      * must not feed the per-bucket adaptive backoff or the throttle budget. Interrupt is a
      * shutdown/cancellation signal, not back-pressure: throw non-retryable so the retry layer
@@ -116,7 +117,7 @@ class ConcurrencyLimiter implements AdmissionGate {
             acquire();
         } catch (TimeoutException e) {
             ExternalUnavailableException ex = new ExternalUnavailableException(
-                Condition.STORE_UNAVAILABLE,
+                Condition.LOCAL_CAPACITY,
                 StoragePath.NONE,
                 "",
                 "",

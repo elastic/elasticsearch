@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.hamcrest.Matcher;
 
 import java.util.LinkedHashMap;
@@ -5129,6 +5130,11 @@ public class VerifierTests extends AnalyzerTestCase {
         assertInvalidHighlightOptionValue("pre_tags", "123", containsString("Option [pre_tags] must be a string"));
         assertInvalidHighlightOptionValue("post_tags", "true", containsString("Option [post_tags] must be a string"));
         assertInvalidHighlightOptionValue(
+            "pre_tags",
+            "\"" + "x".repeat(257) + "\"",
+            containsString("Option [pre_tags] must be at most [256] characters, found [257]")
+        );
+        assertInvalidHighlightOptionValue(
             "boundary_scanner_locale",
             "123",
             containsString("Option [boundary_scanner_locale] must be a string")
@@ -5425,6 +5431,15 @@ public class VerifierTests extends AnalyzerTestCase {
             .error(
                 "FROM test | HIGHLIGHT \"search\" ON first_name",
                 containsString("HIGHLIGHT is not supported on every participating node")
+            );
+    }
+
+    public void testDenseVectorRejectedOnOlderTransportVersion() {
+        defaultAnalyzer().addAnalysisTestsInferenceResolution()
+            .minimumTransportVersion(TransportVersionUtils.randomVersionNotSupporting(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+            .error(
+                Strings.format("FROM test | DENSE_VECTOR first_name WITH { \"inference_id\": \"%s\" }", TEXT_EMBEDDING_INFERENCE_ID),
+                containsString("DENSE_VECTOR is not supported on every participating node")
             );
     }
 

@@ -238,6 +238,104 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(1, result.splits().size());
     }
 
+    public void testListingHintsForQueryDropsTimestampKeepsYearIn() {
+        FieldAttribute ts = new FieldAttribute(
+            SRC,
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Instant start = Instant.parse("2024-06-15T00:00:00Z");
+        Instant end = Instant.parse("2024-06-16T00:00:00Z");
+        Expression filter = new And(
+            SRC,
+            new GreaterThanOrEqual(SRC, ts, new Literal(SRC, start.toEpochMilli(), DataType.DATETIME)),
+            new LessThan(SRC, ts, new Literal(SRC, end.toEpochMilli(), DataType.DATETIME))
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = FileSplitProvider.listingHintsForQuery(
+            List.of(filter),
+            Set.of(),
+            Set.of("year", "month", "day"),
+            PartitionSpec.parse("year(@timestamp), month(@timestamp), day(@timestamp)")
+        );
+        assertTrue(
+            "data column @timestamp must not join the listing cache identity",
+            hints.stream().noneMatch(h -> h.columnName().equals("@timestamp"))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.IN, List.of(2024)),
+                new PartitionFilterHintExtractor.PartitionFilterHint("month", PartitionFilterHintExtractor.Operator.IN, List.of(6)),
+                new PartitionFilterHintExtractor.PartitionFilterHint("day", PartitionFilterHintExtractor.Operator.IN, List.of(15))
+            ),
+            hints
+        );
+    }
+
+    public void testListingHintsForQueryMvInRangeDropsTimestampKeepsYearIn() {
+        FieldAttribute ts = new FieldAttribute(
+            SRC,
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Instant start = Instant.parse("2024-06-15T00:00:00Z");
+        Instant end = Instant.parse("2024-06-16T00:00:00Z");
+        // Kibana time-picker shape: request.filter range rewrites to MV_IN_RANGE, not AND(GTE, LT).
+        Expression filter = new MvInRange(
+            SRC,
+            ts,
+            new Literal(SRC, start.toEpochMilli(), DataType.DATETIME),
+            new Literal(SRC, end.toEpochMilli(), DataType.DATETIME)
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = FileSplitProvider.listingHintsForQuery(
+            List.of(filter),
+            Set.of(),
+            Set.of("year", "month", "day"),
+            PartitionSpec.parse("year(@timestamp), month(@timestamp), day(@timestamp)")
+        );
+        assertTrue(
+            "data column @timestamp must not join the listing cache identity",
+            hints.stream().noneMatch(h -> h.columnName().equals("@timestamp"))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.IN, List.of(2024)),
+                new PartitionFilterHintExtractor.PartitionFilterHint("month", PartitionFilterHintExtractor.Operator.IN, List.of(6)),
+                new PartitionFilterHintExtractor.PartitionFilterHint("day", PartitionFilterHintExtractor.Operator.IN, List.of(15, 16))
+            ),
+            hints
+        );
+    }
+
+    public void testListingHintsForQueryEmptySpecEqualsListingExtract() {
+        Expression filter = new Equals(SRC, fieldAttr("year"), intLiteral(2024));
+        List<Expression> filters = List.of(filter);
+        Set<String> hive = Set.of("year");
+        assertEquals(
+            PartitionFilterHintExtractor.fromConjuncts(filters, Set.of(), hive),
+            FileSplitProvider.listingHintsForQuery(filters, Set.of(), hive, PartitionSpec.EMPTY)
+        );
+    }
+
+    public void testListingHintsForQueryIdentityRemapKeepsHiveKey() {
+        Expression filter = new Equals(SRC, keywordField("region"), Literal.keyword(SRC, "eu"));
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = FileSplitProvider.listingHintsForQuery(
+            List.of(filter),
+            Set.of(),
+            Set.of("aws-region"),
+            PartitionSpec.parse("aws-region=region")
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHintExtractor.PartitionFilterHint(
+                    "aws-region",
+                    PartitionFilterHintExtractor.Operator.EQUALS,
+                    List.of("eu")
+                )
+            ),
+            hints
+        );
+    }
+
     /**
      * The signal the coordinator relies on to swap in {@link FileList#EMPTY}: when a partition filter prunes every
      * file of a resolved, non-empty fileList, {@link FileSplitProvider} emits zero splits, reports
@@ -1144,6 +1242,46 @@ public class FileSplitProviderTests extends ESTestCase {
         );
         assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.MODIFIED, 1_500L)));
         assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.MODIFIED, 3_000L)));
+    }
+
+    /**
+     * Identity bind of a date column aliases the keyword folder under the datetime name. Comparing
+     * {@code Instant.toString()} (or millis) to {@code "2024-06-15"} would prune every file; kind mismatch keeps.
+     */
+    public void testKeywordFolderVersusDatetimeRangeIsKept() {
+        FieldAttribute ts = new FieldAttribute(
+            SRC,
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Expression range = new MvInRange(
+            SRC,
+            ts,
+            Literal.dateTime(SRC, Instant.parse("2024-06-15T00:00:00Z")),
+            Literal.dateTime(SRC, Instant.parse("2024-06-15T01:00:00Z"))
+        );
+        assertNull(FileSplitProvider.evaluateFilter(range, Map.of("@timestamp", "2024-06-15")));
+        Expression gte = new GreaterThanOrEqual(SRC, ts, Literal.dateTime(SRC, Instant.parse("2024-06-15T00:00:00Z")), null);
+        assertNull(FileSplitProvider.evaluateFilter(gte, Map.of("@timestamp", "2024-06-15")));
+        Expression lt = new LessThan(SRC, ts, Literal.dateTime(SRC, Instant.parse("2024-06-15T01:00:00Z")), null);
+        assertNull(FileSplitProvider.evaluateFilter(lt, Map.of("@timestamp", "2024-06-15")));
+        Expression instantBound = new GreaterThanOrEqual(
+            SRC,
+            ts,
+            new Literal(SRC, Instant.parse("2024-06-15T00:00:00Z"), DataType.DATETIME),
+            null
+        );
+        assertNull(FileSplitProvider.evaluateFilter(instantBound, Map.of("@timestamp", "2024-06-15")));
+        Literal dt = Literal.dateTime(SRC, Instant.parse("2024-06-15T00:00:00Z"));
+        assertNull(FileSplitProvider.evaluateFilter(new Equals(SRC, ts, dt), Map.of("@timestamp", "2024-06-15")));
+        assertNull(FileSplitProvider.evaluateFilter(new In(SRC, ts, List.of(dt)), Map.of("@timestamp", "2024-06-15")));
+        assertNull(FileSplitProvider.evaluateFilter(new MvContains(SRC, ts, dt), Map.of("@timestamp", "2024-06-15")));
+        assertNull(
+            FileSplitProvider.evaluateFilter(
+                new MvIntersects(SRC, ts, new Literal(SRC, List.of(Instant.parse("2024-06-15T00:00:00Z")), DataType.DATETIME)),
+                Map.of("@timestamp", "2024-06-15")
+            )
+        );
     }
 
     public void testMatchesPartitionFiltersAllMatch() {
@@ -4699,7 +4837,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * {@link #testALimitedQuotedCsvWalkStopsAfterTheCuts}; this case is the full scan #2131 still needs.
      */
     public void testRecordAlignedMacroSplitDiscoveryProvesQuotedCsvBoundaries() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         // Build a CSV payload exceeding 3 MiB so macro-splits form (minimumSegmentSize defaults to 1 MiB).
         // Quoted fields carry both ""-escaped quotes and embedded raw newlines.
@@ -4753,7 +4891,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * warning, not a LIMIT cut. Full-scan #2131 is {@link #testRecordAlignedMacroSplitDiscoveryProvesQuotedCsvBoundaries}.
      */
     public void testProvenBoundariesStopsAtMaxBoundariesWithoutMarkingAShortfall() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         byte[] payload = repeatingLines("1,\"embedded\nnewline\",ok\n", 5L * CSV_MIN_SEGMENT_BYTES);
         var csvReader = new CsvFormatReader(blockFactory);
         StorageObject obj = createInMemoryStorageObject(payload, StoragePath.of("mem://capped.csv"));
@@ -4783,7 +4921,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * whole-file set, which is the property a query over a macro-split file depends on.
      */
     public void testRecordAlignedMacroSplitDiscoveryWalksQuoteFreeCsv() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         StringBuilder csv = new StringBuilder("id,pickup_datetime,passengers,distance,fare\n");
         int dataRows = 0;
@@ -4893,7 +5031,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * would drain far more than the window).
      */
     public void testSerialStridedProbesDrainBoundedProbeWindows() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         // A stride at the S3 close-drain threshold caps every window there too, so leftover after
         // the first row is still drained by close() (not abort-on-close) and all probes pool.
@@ -4936,7 +5074,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * two. Such a probe therefore aborts: it pays a connection per probe and transfers only the bytes it scanned.
      */
     public void testStridedProbesAbortRatherThanDrainWhenTooMuchOfTheWindowIsLeft() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         // The window is the stride, so a stride at twice the drain threshold leaves every probe above it.
         long stride = FULL_WIDTH_WINDOW_BYTES;
@@ -5022,7 +5160,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * terminates a record and the splitter can be probed at any offset, exactly like NDJSON's.
      */
     private static RecordSplitter stridedSplitter() {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         var reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
         return reader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES);
     }
@@ -5451,7 +5589,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * window running out rather than the splitter reporting the record too large.
      */
     public void testMacroSplitDiscoverySkipsAnOffsetWhoseRecordOutrunsTheProbeWindow() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         int maxRecordBytes = 16;
         long stride = 256 * 1024;
         // A record straddling the first stride offset, longer than the window maxRecordBytes allows the probe
@@ -5503,7 +5641,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * all that long, which is the whole file read as one split.
      */
     public void testARecordOfHundredsOfKilobytesResolvesToABoundary() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         long stride = 2 * CSV_MIN_SEGMENT_BYTES;
         int longRecordBytes = 512 * 1024;
         String fillerRow = "tail\n";
@@ -8087,7 +8225,7 @@ public class FileSplitProviderTests extends ESTestCase {
         AtomicInteger gets,
         AtomicInteger cacheHits
     ) {
-        DirectBufferFactory factory = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
         return new RangeAwareFormatReader() {
             @Override
             public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
@@ -8194,7 +8332,7 @@ public class FileSplitProviderTests extends ESTestCase {
         @Nullable java.util.function.Predicate<String> cachedObjectName,
         @Nullable AtomicInteger cacheHits
     ) {
-        DirectBufferFactory factory = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
         return new RangeAwareFormatReader() {
             @Override
             public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {

@@ -27,8 +27,8 @@ import static org.hamcrest.Matchers.hasItem;
 /**
  * Heap-attack coverage for {@code SET unmapped_fields="LOAD_ALL"}, which turns every distinct {@code _source} leaf of the result
  * rows into an output column. The coordinator must cap the number of such columns rather than collect an unbounded set of field
- * names: each test indexes millions of distinct unmapped leaves - far more names than fit in the heap - and expects the query to
- * return only the alphabetically first {@link #MAX_EXPANDED_FIELDS} of them, with a warning.
+ * names: the first two tests index millions of distinct unmapped leaves - far more names than fit in the heap - and expect the
+ * query to return only the alphabetically first {@link #MAX_EXPANDED_FIELDS} of them, with a warning.
  * <p>
  * Two of the tests differ only in where the distinct names come from: spread thinly across many moderately sized documents, or
  * packed into a handful of huge ones. A third ({@link #testArrayOfTinyObjectsCircuitBreaksInExpansion}) fails differently again -

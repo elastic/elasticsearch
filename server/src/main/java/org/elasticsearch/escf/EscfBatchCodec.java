@@ -53,6 +53,14 @@ final class EscfBatchCodec {
     private static final int FLAG_TYPE_VECTOR = 0x2;
     private static final int FLAG_OFFSETS = 0x4;
 
+    /**
+     * Child-level flag byte written immediately after {@code child_kind} in an ARRAY child encoding.
+     * Bit 0: a validity bitset ({@link #bitsetBytes(int)} bytes, LE longs, bit set = non-null) follows
+     * the flags byte and precedes any child offsets or child data. Clear bits indicate explicit JSON
+     * {@code null} elements; this is distinct from row-level absence.
+     */
+    private static final int CHILD_FLAG_VALIDITY = 0x1;
+
     private EscfBatchCodec() {}
 
     // TODO: This is not very optimized at the moment. Lots of random reads against composite bytes references. Eventually we'll want to
@@ -340,19 +348,32 @@ final class EscfBatchCodec {
     }
 
     /**
-     * Flattens an ARRAY column's native {@code child} into the on-disk {@code child_kind(1) | child_values}
-     * bytes (child offsets, for a STRING child, are written right after the kind byte). This is the only
-     * place ESCF serializes an array's child; {@link #decodeArrayChild} is its exact inverse.
+     * Flattens an ARRAY column's native {@code child} into the on-disk
+     * {@code child_kind(1) | child_flags(1) | [child_validity] | [child_offsets] | child_values} bytes.
+     * This is the only place ESCF serializes an array's child; {@link #decodeArrayChild} is its exact
+     * inverse.
+     *
+     * <p>The {@code child_flags} byte follows the kind byte: bit 0 ({@value #CHILD_FLAG_VALIDITY}) is
+     * set when the child carries a validity bitset encoding explicit JSON null elements.
      */
     static BytesReference encodeArrayChild(EscfColumnData child) {
-        BytesReference kindByte = new BytesArray(new byte[] { child.kind() });
-        if (child.kind() == EscfColumnKind.STRING) {
-            return CompositeBytesReference.of(kindByte, intArrayToRef(child.offsets()), child.data());
-        }
+        boolean hasChildValidity = child.validity() != null;
+        byte childFlags = hasChildValidity ? (byte) CHILD_FLAG_VALIDITY : 0;
+        BytesReference header = new BytesArray(new byte[] { child.kind(), childFlags });
+        BytesReference validityPart = hasChildValidity ? bitsetToRef(child.validity(), child.docCount()) : null;
         // BINARY as an array child is var-width but decodeArrayChild treats every non-STRING child as
         // fixed-width; a round-trip would corrupt the column. Fail loudly until the codec gap is closed.
         assert child.kind() != EscfColumnKind.BINARY : "BINARY array child does not round-trip through the codec; see decodeArrayChild";
-        return CompositeBytesReference.of(kindByte, child.data());
+        if (child.kind() == EscfColumnKind.STRING) {
+            if (validityPart != null) {
+                return CompositeBytesReference.of(header, validityPart, intArrayToRef(child.offsets()), child.data());
+            }
+            return CompositeBytesReference.of(header, intArrayToRef(child.offsets()), child.data());
+        }
+        if (validityPart != null) {
+            return CompositeBytesReference.of(header, validityPart, child.data());
+        }
+        return CompositeBytesReference.of(header, child.data());
     }
 
     /** Parses {@code bitsetBytes(docCount)} LE bytes at {@code pos} into a {@link FixedBitSet}. */
@@ -380,20 +401,29 @@ final class EscfBatchCodec {
     }
 
     /**
-     * Parses the {@code child_kind(1) | child_values} bytes at {@code [pos, pos + dataLen)} into a native
-     * {@code child} column with {@code totalElems} elements. Exact inverse of {@link #encodeArrayChild}.
+     * Parses the {@code child_kind(1) | child_flags(1) | [child_validity] | [child_offsets] | child_values}
+     * bytes at {@code [pos, pos + dataLen)} into a native {@code child} column with {@code totalElems}
+     * elements. Exact inverse of {@link #encodeArrayChild}.
      */
     static EscfColumnData decodeArrayChild(BytesReference data, int pos, int dataLen, int totalElems) {
         byte childKind = data.get(pos);
-        int childBase = pos + 1;
+        int childFlags = data.get(pos + 1) & 0xFF;
+        int childBase = pos + 2; // skip kind + flags
+
+        FixedBitSet childValidity = null;
+        if ((childFlags & CHILD_FLAG_VALIDITY) != 0) {
+            childValidity = bytesToFixedBitSet(data, childBase, totalElems);
+            childBase += bitsetBytes(totalElems);
+        }
+
         if (childKind == EscfColumnKind.STRING) {
             int[] childOffsets = bytesToOffsets(data, childBase, totalElems);
             int childDataBase = childBase + (totalElems + 1) * 4;
             BytesReference childData = data.slice(childDataBase, pos + dataLen - childDataBase);
-            return EscfColumnData.ofVarWidth(EscfColumnKind.STRING, totalElems, null, childOffsets, childData);
+            return EscfColumnData.ofVarWidth(EscfColumnKind.STRING, totalElems, childValidity, childOffsets, childData);
         }
         BytesReference childData = data.slice(childBase, pos + dataLen - childBase);
-        return EscfColumnData.ofFixed64(childKind, totalElems, null, childData);
+        return EscfColumnData.ofFixed64(childKind, totalElems, childValidity, childData);
     }
 
     static void writeShortLE(byte[] buf, int offset, int value) {

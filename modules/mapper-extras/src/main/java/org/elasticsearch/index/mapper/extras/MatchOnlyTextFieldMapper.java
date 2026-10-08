@@ -843,6 +843,16 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
          * <a href="https://github.com/elastic/elasticsearch/issues/160320">#160320</a>). Reject the query clearly instead, mirroring how
          * a {@code text} field rejects phrase queries when it is indexed without positions.
          */
+        /**
+         * Every positional query this field answers reads its values, which carry the positions, so a query built
+         * for it may ask about them. It needs its own terms to find the documents to read, which is what
+         * {@link #failIfNotIndexedForPhraseQueries} asks for.
+         */
+        @Override
+        public boolean answersPositionsFromValues(SearchExecutionContext context) {
+            return indexType().hasTerms();
+        }
+
         private void failIfNotIndexedForPhraseQueries(String queryDescription) {
             if (indexType().hasTerms() == false) {
                 throw new IllegalArgumentException(

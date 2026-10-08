@@ -57,7 +57,6 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
-import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -415,12 +414,6 @@ public class EsqlSession {
         executionInfo.queryProfile().planning().start();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
-        if (blockFactory != null && blockFactory.breaker() != null) {
-            executionInfo.externalPlanning(new ExternalPlanningReservation(blockFactory.breaker()));
-        }
-        if (externalSourceResolver != null) {
-            externalSourceResolver.planning(executionInfo.externalPlanning());
-        }
         LOGGER.debug("ESQL query:\n{}", request.queryDescription());
         // Wrap the outer listener so any failure — parse, view-resolution, analyze, optimize, map,
         // execute — funnels through one place that emits the anonymized log on INTERNAL_SERVER_ERROR.
@@ -2143,6 +2136,9 @@ public class EsqlSession {
         Map<String, DatasetMapping> declaredMappings = extractDeclaredMappings(plan);
 
         LogicalPlan listingPlan = FoldDateFunctionFiltersForListing.fold(plan, configuration, functionRegistry);
+        // QueryDslTimestampBoundsExtractor parses both ends with roundUp=false, so
+        // `lte now/y` is start-of-year. Including that Instant in year IN is safe
+        // only while listing is year grain.
         var filterHints = projectPartitionSpecs(
             PartitionSpec.addTimestampBounds(
                 PartitionFilterHintExtractor.extract(listingPlan),
@@ -2241,8 +2237,10 @@ public class EsqlSession {
 
     /**
      * Remaps identity hints and emits a finite {@code year IN} through each
-     * path's {@code partition_spec}. Identity-only specs leave the extractor
-     * hints unchanged.
+     * path's {@code partition_spec}. Source-column bounds such as {@code @timestamp}
+     * GTE/LTE from {@link PartitionSpec#addTimestampBounds} are dropped after that
+     * {@code IN} is built so they cannot fragment listing-cache identity.
+     * Identity-only specs leave the extractor hints unchanged.
      */
     static Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> projectPartitionSpecs(
         Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,

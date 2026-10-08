@@ -44,7 +44,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.DateTimeException;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -134,7 +133,8 @@ final class ParquetColumnDecoding {
         return switch (declaredType) {
             // Identity reads never null; every rescaling read can overflow at its edge.
             case DATETIME -> (logical == null || millisAnnotated) == false;
-            // Bare INT64 rejects negatives via castBlock; NANOS is the identity; MICROS/MILLIS scale and can overflow.
+            // Bare INT64 widens millis->nanos via castBlock and nulls pre-epoch/post-2262 values; NANOS is the identity;
+            // MICROS/MILLIS scale and can overflow.
             case DATE_NANOS -> nanosAnnotated == false;
             default -> true;
         };
@@ -176,8 +176,13 @@ final class ParquetColumnDecoding {
             return scale == null ? null : new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(scale);
         }
         if (logical == null) {
-            // A bare INT64 reads as the declared type's own unit — the fused identity.
-            return new DeclaredTypeCoercions.RawDecodeRelation.Identity();
+            // A bare INT64 is epoch millis (DeclaredTypeCoercions' unit rule): the fused identity under datetime, the
+            // castBlock millis->nanos widen under date_nanos — the same relation a declared epoch_millis format has.
+            return switch (declaredType) {
+                case DATETIME -> new DeclaredTypeCoercions.RawDecodeRelation.Identity();
+                case DATE_NANOS -> new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(NANOS_PER_MILLI);
+                default -> null;
+            };
         }
         if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
             return switch (declaredType) {
@@ -286,8 +291,9 @@ final class ParquetColumnDecoding {
      * parse time, so identical bytes with an identical declared format yield the identical instant. Preserves
      * nulls and multi-value positions. Does NOT take ownership of {@code source}; the caller closes it.
      * An unparseable value routes through {@link DeclaredTypeCoercions#onCoercionFailure} with the same
-     * per-position semantics as {@code castBlock}: a live {@code warnings} sink nulls the whole position and
-     * records one Warning, a {@code null} sink (strict, {@code fail_fast}) propagates the failure.
+     * semantics as {@code castBlock}: a live {@code warnings} sink records one Warning per value and nulls a
+     * single-valued cell or removes the value from a multi-valued one (nulling it only when none parses), a
+     * {@code null} sink (strict, {@code fail_fast}) propagates the failure.
      */
     static Block bytesBlockToDatetimeMillis(
         Block source,
@@ -302,7 +308,7 @@ final class ParquetColumnDecoding {
     /**
      * Overload of {@link #bytesBlockToDatetimeMillis} that additionally reports failed positions to
      * {@code failedPositionSink} for {@code skip_row} callers. When non-null, a parse failure at position
-     * {@code p} still nulls the cell in the returned block and calls {@code failedPositionSink.accept(p)}
+     * {@code p} still nulls (or truncates) the cell in the returned block and calls {@code failedPositionSink.accept(p)}
      * so the caller's {@link org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper} can drop
      * the whole row at the page emit point.
      */
@@ -320,7 +326,6 @@ final class ParquetColumnDecoding {
         }
         BytesRefBlock bytes = (BytesRefBlock) source;
         BytesRef scratch = new BytesRef();
-        long[] parsed = null;
         boolean skipRow = failedPositionSink != null;
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(positions)) {
             for (int pos = 0; pos < positions; pos++) {
@@ -337,32 +342,35 @@ final class ParquetColumnDecoding {
                         builder.appendNull();
                     }
                 } else {
-                    // Parse the whole position before appending: a failure mid-entry cannot be
-                    // rolled back on the builder, and the bulk model nulls the whole position.
-                    if (parsed == null || parsed.length < count) {
-                        parsed = new long[count];
-                    }
+                    // castBlock's multi-value rule: an unparseable value is removed and the parseable ones kept,
+                    // the entry opening on the first of them; under skip_row the first failure drops the row.
                     int firstIdx = bytes.getFirstValueIndex(pos);
-                    boolean failed = false;
-                    for (int v = 0; v < count && failed == false; v++) {
-                        BytesRef value = bytes.getBytesRef(firstIdx + v, scratch);
-                        try {
-                            parsed[v] = DeclaredTypeCoercions.parseDatetimeMillis(value.utf8ToString(), dateFormatter);
-                        } catch (IllegalArgumentException | DateTimeException e) {
-                            DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
-                            failed = true;
-                        }
-                    }
-                    if (failed) {
-                        if (skipRow) failedPositionSink.accept(pos);
-                        builder.appendNull();
-                        continue;
-                    }
-                    builder.beginPositionEntry();
+                    boolean open = false;
                     for (int v = 0; v < count; v++) {
-                        builder.appendLong(parsed[v]);
+                        BytesRef value = bytes.getBytesRef(firstIdx + v, scratch);
+                        long millis;
+                        try {
+                            millis = DeclaredTypeCoercions.parseDatetimeMillis(value.utf8ToString(), dateFormatter);
+                        } catch (IllegalArgumentException | DateTimeException e) {
+                            if (skipRow) {
+                                DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
+                                failedPositionSink.accept(pos);
+                                break;
+                            }
+                            DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings, true);
+                            continue;
+                        }
+                        if (open == false) {
+                            builder.beginPositionEntry();
+                            open = true;
+                        }
+                        builder.appendLong(millis);
                     }
-                    builder.endPositionEntry();
+                    if (open) {
+                        builder.endPositionEntry();
+                    } else {
+                        builder.appendNull();
+                    }
                 }
             }
             return builder.build();
@@ -1305,8 +1313,8 @@ final class ParquetColumnDecoding {
     ) {
         // Declared string->datetime coercion for LIST<string> columns: parse each element via the shared
         // scalar with the column's declared format (ISO default), mirroring the flat decode paths. A parse
-        // failure follows castBlock's bulk semantics (whole position nulls, or propagates when strict), so
-        // this arm gathers each row before appending.
+        // failure follows castBlock's multi-value rule (the element is removed, or the failure propagates when
+        // strict).
         if (info.parquetType() == PrimitiveType.PrimitiveTypeName.BINARY) {
             return readListStringDatetimeColumn(input, info, rows, blockFactory, columnName, warnings, failedPositionSink, tally);
         }
@@ -1323,12 +1331,13 @@ final class ParquetColumnDecoding {
     /**
      * The string&rarr;datetime LIST decode: walks each row's repetition levels like
      * {@link #readListRow} (defined elements append, null elements are skipped, a row with no
-     * defined element is a null position) but parses the row into a primitive scratch first so a
-     * mid-row parse failure can null the WHOLE position — {@code castBlock}'s bulk semantics —
-     * instead of leaving a half-built entry. On failure the remaining elements are still
-     * materialised (not parsed) so the column reader's data cursor stays in lock-step with its
-     * level cursor for the rows that follow. {@code warnings} carries the per-position failure
-     * sink; {@code null} = strict, the failure propagates. A skipped null element is recorded on
+     * defined element is a null position) and follows {@code castBlock}'s multi-value rule: an
+     * unparseable element is removed and the parseable ones kept, the position entry opening lazily
+     * on the first of them, so a row none of whose elements parses is a null position. Under
+     * {@code skip_row} the first failure drops the row and the rest are not parsed, but every element
+     * is still materialised so the column reader's data cursor stays in lock-step with its level
+     * cursor for the rows that follow. {@code warnings} carries the per-value failure sink;
+     * {@code null} = strict, the failure propagates. A skipped null element is recorded on
      * {@code tally} for {@link #readListColumn} to announce, exactly as in {@link #readListRow}.
      */
     private static Block readListStringDatetimeColumn(
@@ -1343,13 +1352,12 @@ final class ParquetColumnDecoding {
     ) {
         int maxDef = info.maxDefLevel();
         DateFormatter dateFormatter = info.dateFormatter();
-        long[] parsed = new long[8];
         boolean skipRow = failedPositionSink != null;
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
             for (int row = 0; row < rows; row++) {
                 input.ensureRowStart();
-                int count = 0;
-                boolean failed = false;
+                boolean open = false;
+                boolean rowDropped = false;
                 boolean rowDone = false;
                 while (rowDone == false) {
                     int elementDef = input.currentDefinitionLevel();
@@ -1357,17 +1365,31 @@ final class ParquetColumnDecoding {
                         tally.recordIfNullElement(elementDef);
                         input.consumeUndefined();
                     } else {
-                        // Always read the value so the data cursor advances even after a failure.
+                        // Always read the value so the data cursor advances, also past a row skip_row drops.
                         String value = input.reader().getBinary().toStringUsingUTF8();
-                        if (failed == false) {
-                            if (count == parsed.length) {
-                                parsed = Arrays.copyOf(parsed, count * 2);
-                            }
+                        if (rowDropped == false) {
                             try {
-                                parsed[count++] = DeclaredTypeCoercions.parseDatetimeMillis(value, dateFormatter);
+                                long millis = DeclaredTypeCoercions.parseDatetimeMillis(value, dateFormatter);
+                                if (open == false) {
+                                    builder.beginPositionEntry();
+                                    open = true;
+                                }
+                                builder.appendLong(millis);
                             } catch (IllegalArgumentException | DateTimeException e) {
-                                DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
-                                failed = true;
+                                if (skipRow) {
+                                    DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
+                                    failedPositionSink.accept(row);
+                                    rowDropped = true;
+                                } else {
+                                    DeclaredTypeCoercions.onCoercionFailure(
+                                        columnName,
+                                        DataType.KEYWORD,
+                                        DataType.DATETIME,
+                                        e,
+                                        warnings,
+                                        true
+                                    );
+                                }
                             }
                         }
                         input.consumeAfterRead();
@@ -1375,18 +1397,12 @@ final class ParquetColumnDecoding {
                     rowDone = input.hasRemaining() == false || input.currentRepetitionLevel() == 0;
                 }
                 input.rowCompleted();
-                if (failed || count == 0) {
-                    // failed: bulk semantics null the whole position (already warned above).
-                    // count == 0: null list, empty list, or all-null elements — a null position,
-                    // matching readListRow's no-defined-values branch.
-                    if (failed && skipRow) failedPositionSink.accept(row);
-                    builder.appendNull();
-                } else {
-                    builder.beginPositionEntry();
-                    for (int v = 0; v < count; v++) {
-                        builder.appendLong(parsed[v]);
-                    }
+                if (open) {
                     builder.endPositionEntry();
+                } else {
+                    // A null list, an empty list, all-null elements, or no element parsed: a null position,
+                    // matching readListRow's no-defined-values branch.
+                    builder.appendNull();
                 }
             }
             return builder.build();

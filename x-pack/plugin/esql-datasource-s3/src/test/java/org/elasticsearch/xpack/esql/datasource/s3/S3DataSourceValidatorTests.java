@@ -531,13 +531,16 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         // The bound must admit the readers' own default (20000); it used to stop at 1000, which made every value
         // from 1001 up -- including the default -- unregisterable. See FileDataSourceValidatorSampleSizeBoundTests.
         assertEquals(1001, validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 1001)).get("schema_sample_size"));
+        // The bound must admit CSV's default (40000, raised from 20000 when its two sampling windows were
+        // merged into one -- elastic/esql-planning#2134); NDJSON's own default (20000) sits well under it
+        // either way. See FileDataSourceValidatorSampleSizeBoundTests.
         assertEquals(
-            20_000,
-            validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 20_000)).get("schema_sample_size")
+            40_000,
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 40_000)).get("schema_sample_size")
         );
         expectThrows(
             ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 20_001))
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 40_001))
         );
     }
 
@@ -812,6 +815,23 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
         assertThat(e.getMessage(), containsString("partition_spec"));
         assertThat(e.getMessage(), containsString("non-empty string"));
+    }
+
+    public void testValidateDatasetPartitionSpecRejectsLegacyUnits() {
+        for (String unit : List.of("second", "millis", "micros")) {
+            ValidationException e = expectThrows(
+                ValidationException.class,
+                () -> validator.validateDataset(
+                    Map.of(),
+                    "s3://b/p",
+                    Map.of("partition_detection", "hive", "partition_spec", "year(start, " + unit + ")")
+                )
+            );
+            assertThat(e.getMessage(), containsString("partition_spec"));
+            assertThat(e.getMessage(), containsString("unknown unit [" + unit + "]"));
+            assertThat(e.getMessage(), containsString("epoch_second"));
+            assertThat(e.getMessage(), containsString("epoch_millis"));
+        }
     }
 
     public void testValidateDatasetPartitionSpecHiveUnknownKeyIsAccepted() {

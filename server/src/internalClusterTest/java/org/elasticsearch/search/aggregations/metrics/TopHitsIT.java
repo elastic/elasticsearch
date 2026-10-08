@@ -1117,6 +1117,18 @@ public class TopHitsIT extends ESIntegTestCase {
             e.getCause().getMessage(),
             containsString("the top hits aggregator [hits]'s from + size must be less than or equal to: [100] but was [110]")
         );
+        e = expectThrows(
+            SearchPhaseExecutionException.class,
+            prepareSearch("idx").addAggregation(
+                terms("terms").executionHint(randomExecutionHint())
+                    .field(TERMS_AGGS_FIELD)
+                    .subAggregation(topHits("hits").from(Integer.MAX_VALUE).size(1))
+            )
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("the top hits aggregator [hits]'s from + size must be less than or equal to: [100] but was [2147483648]")
+        );
 
         updateIndexSettings(Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110), "idx");
         assertNoFailures(

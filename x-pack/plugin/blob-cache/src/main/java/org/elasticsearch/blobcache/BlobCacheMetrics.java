@@ -498,7 +498,8 @@ public class BlobCacheMetrics {
     private static void recordAccess(LongAdder count, DoubleHistogram ageHourHistogram, long regionTimestampMillis, long nowMillis) {
         count.increment();
         if (regionTimestampMillis >= 0) {
-            ageHourHistogram.record(TimeRangeBucket.toHours(nowMillis - regionTimestampMillis));
+            // Negative values are aggregated in the first bucket
+            ageHourHistogram.record(TimeRangeBucket.toHours(Math.max(0L, nowMillis - regionTimestampMillis)));
         }
     }
 

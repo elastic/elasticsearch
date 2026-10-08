@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.session.ExemplarsSettings;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -266,6 +267,32 @@ public final class QuerySettings {
         .streamFormat((out, value) -> value.writeTo(out), ApproximationSettings::new)
         .build();
 
+    @Param(
+        name = "exemplars",
+        type = { "boolean", "map_param" },
+        description = "When enabled, the provided `TS ... | STATS` or `PROMQL` query is not executed. Instead, exemplars considered"
+            + " relevant to the query are returned based on heuristics that take the selected metrics and series into account."
+    )
+    @MapParam(
+        name = "exemplars",
+        params = {
+            @MapParam.MapParamEntry(
+                name = "limit",
+                type = { "integer" },
+                description = "Maximum number of exemplars to return. Without it the default limit of a regular query applies."
+            ) }
+    )
+    public static final QuerySettingDef<ExemplarsSettings> EXEMPLARS = QuerySettingDef.object(
+        "exemplars",
+        ExemplarsSettings::fromXContent,
+        ExemplarsSettings::parse
+    )
+        .withRequestBody()
+        .withDefault(ExemplarsSettings.DISABLED)
+        .withSnapshotOnly()
+        .streamFormat((out, value) -> value.writeTo(out), ExemplarsSettings::new)
+        .build();
+
     /**
      * The canonical, explicitly-enumerated set of all query settings. This is the single source of truth — the
      * request parser, the resolver, and telemetry all iterate this list. Add a new setting's constant here when
@@ -274,6 +301,7 @@ public final class QuerySettings {
     public static final List<QuerySettingDef<?>> ALL = List.of(
         APPROXIMATION,
         COLUMN_METADATA,
+        EXEMPLARS,
         WILDCARDS_MATCH_DATASETS,
         WILDCARDS_MATCH_VIEWS,
         PROJECT_ROUTING,

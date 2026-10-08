@@ -254,6 +254,10 @@ public class IndexVersions {
     public static final IndexVersion SEMANTIC_TEXT_USES_DENSE_VECTOR_DEFAULT_INDEX_OPTIONS = def(9_092_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD = def(9_093_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT = def(9_094_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_4 = def(
+        9_094_0_01,
+        Version.LUCENE_10_4_0
+    );
     public static final IndexVersion DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES = def(9_095_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN = def(9_096_00_0, Version.LUCENE_10_4_0);
     public static final IndexVersion SEMANTIC_FIELD_TYPE = def(9_097_00_0, Version.LUCENE_10_4_0);
@@ -271,6 +275,10 @@ public class IndexVersions {
     public static final IndexVersion ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT = def(9_109_0_00, Version.LUCENE_10_5_0);
     public static final IndexVersion DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS = def(9_110_0_00, Version.LUCENE_10_5_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_5_1 = def(9_111_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_5 = def(
+        9_111_0_01,
+        Version.LUCENE_10_5_1
+    );
     public static final IndexVersion COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG = def(9_112_0_00, Version.LUCENE_10_5_1);
     // Deliberately unreferenced: defining it raises IndexVersion.current(), which is what keeps segments written by the
     // Elasticsearch96 codec off nodes that cannot resolve that name (see IndexVersionAllocationDecider).
@@ -282,6 +290,7 @@ public class IndexVersions {
     public static final IndexVersion DENSE_VECTOR_ON_DISK_MERGE = def(9_116_0_00, Version.LUCENE_10_5_1);
     public static final IndexVersion IGNORE_ABOVE_NO_OP_IN_COLUMNAR = def(9_117_0_00, Version.LUCENE_10_5_1);
     public static final IndexVersion COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF = def(9_118_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES = def(9_119_0_00, Version.LUCENE_10_5_1);
 
     /*
      * STOP! READ THIS FIRST! No, really,

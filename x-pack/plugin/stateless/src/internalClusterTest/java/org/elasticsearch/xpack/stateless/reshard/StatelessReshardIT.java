@@ -3915,12 +3915,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // Wait until old source shard is stuck copying
         safeAwait(relocateLatch);
 
-        var targetShardNodeId = new AtomicReference<String>();
-        awaitClusterState(state -> {
-            targetShardNodeId.set(state.routingTable().index(indexName).shard(1).primaryShard().currentNodeId());
-            return targetShardNodeId.get() != null;
-        });
-        var targetShardNode = nodeIdsToNames().get(targetShardNodeId.get());
+        var state = waitForClusterState(s -> s.routingTable().index(indexName).shard(1).primaryShard().currentNodeId() != null).actionGet(
+            SAFE_AWAIT_TIMEOUT
+        );
+        var targetShardNodeId = state.routingTable().index(indexName).shard(1).primaryShard().currentNodeId();
+        var targetShardNode = nodeIdsToNames().get(targetShardNodeId);
         assertNotEquals(sourceShardOldNode, targetShardNode);
         var sourceShardNewNode = indexNodes.stream()
             .filter(node -> node.equals(sourceShardOldNode) == false && node.equals(targetShardNode) == false)

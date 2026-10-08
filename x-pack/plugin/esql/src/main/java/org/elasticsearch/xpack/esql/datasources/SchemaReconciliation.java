@@ -701,11 +701,12 @@ public final class SchemaReconciliation {
      *       above {@code Integer.MAX_VALUE} in an INTEGER-sampled column reconciled to LONG) still
      *       parses instead of failing.</li>
      * </ul>
-     * DATE_NANOS is deliberately excluded: a text reader parsing an epoch number at DATE_NANOS reads
-     * it as epoch-nanos, not the epoch-millis a DATETIME column holds, so a DATETIME to DATE_NANOS
-     * widening stays on the post-read cast that rescales the unit rather than a raw parse. That holds
-     * whatever the reconciled type's origin — a declared schema, or, since text inference learned to
-     * produce DATE_NANOS for sub-millisecond timestamps, an inferred one.
+     * DATE_NANOS is deliberately excluded: a DATETIME to DATE_NANOS widening stays on the post-read
+     * millis-to-nanos cast rather than a raw parse at DATE_NANOS. Both read a bare number as epoch
+     * millis, but the cast keeps the DATETIME file's own parse and judges only the date_nanos range
+     * (before 1970, after 2262) afterwards, the path every non-text source takes. That holds whatever
+     * the reconciled type's origin — a declared schema, or,
+     * since text inference learned to produce DATE_NANOS for sub-millisecond timestamps, an inferred one.
      */
     private static boolean shouldPinAtReconciledType(DataType inferred, DataType reconciled) {
         if (inferred == reconciled) {

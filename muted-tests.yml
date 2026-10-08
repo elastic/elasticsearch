@@ -699,3 +699,6 @@ tests:
 - class: org.elasticsearch.integration.FieldLevelSecurityTests
   method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
   issue: https://github.com/elastic/elasticsearch/issues/161396
+- class: org.elasticsearch.xpack.esql.action.ExternalPartitionSpecPruningIT
+  method: testAwsHiveHourlySecondsRangeInsideOneHour
+  issue: https://github.com/elastic/elasticsearch/issues/161409

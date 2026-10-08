@@ -349,6 +349,14 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             }
         }
 
+        /** As {@link #mergeRegisters(long, byte[], int)}, from a bucket of another HyperLogLog of the same precision. */
+        void mergeRegisters(long bucketOrd, HyperLogLog other, long otherBucketOrd) {
+            final BytesRef src = new BytesRef();
+            other.runLens.get(otherBucketOrd << p, m, src);
+            // The slice can alias the destination if both buckets are in one structure. That is safe: buckets do not overlap.
+            mergeRegisters(bucketOrd, src.bytes, src.offset);
+        }
+
         /** Reads the registers of an empty bucket from the stream, one scratch array at a time. */
         void readRegisters(long bucketOrd, StreamInput in) throws IOException {
             final long start = bucketOrd << p;
@@ -358,15 +366,6 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
                 in.readBytes(scratch, 0, length);
                 runLens.set(start + done, scratch, 0, length);
             }
-        }
-
-        /** As {@link #mergeRegisters(long, byte[], int)}, from a bucket of another HyperLogLog of the same precision. */
-        void mergeRegisters(long bucketOrd, HyperLogLog other, long otherBucketOrd) {
-            final BytesRef src = new BytesRef();
-            other.runLens.get(otherBucketOrd << p, m, src);
-            // Only read. When both buckets are in this structure, the source slice can point into the same array as the destination.
-            // That is safe: different buckets do not overlap, and a bucket that merges into itself does not change.
-            mergeRegisters(bucketOrd, src.bytes, src.offset);
         }
 
         private static void maxInto(byte[] out, int outOffset, byte[] a, int aOffset, byte[] b, int bOffset, int length) {

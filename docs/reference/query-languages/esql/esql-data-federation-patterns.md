@@ -1,6 +1,6 @@
 ---
 navigation_title: "Resource patterns"
-description: "Reference for the glob pattern language used by ES|QL Data Federation dataset resources and file exclusions: wildcards, character classes, alternation, and numeric ranges."
+description: "Reference for ES|QL Data Federation resource pattern syntax, including wildcards, character classes, alternation, numeric ranges, and file exclusions."
 applies_to:
   stack: experimental 9.6+
   serverless: unavailable
@@ -8,29 +8,28 @@ products:
   - id: elasticsearch
 ---
 
-# Resource patterns for {{esql}} Data Federation
+# Resource pattern syntax for {{esql}} Data Federation
 
-A dataset's `resource` selects the objects it reads with a glob pattern, and entries in its
-[`file_exclusions` setting](esql-data-federation-datasets.md#excluding-non-data-objects) are patterns in the
-same language. This page is the reference for that language: what each construct matches, how a resource is
-split into a listing prefix and a pattern, and which patterns are rejected as invalid.
+A dataset's `resource` uses a glob pattern to select objects in external storage. This syntax reference explains how resource patterns are split and matched, which pattern constructs are available, and which patterns are rejected. The [`file_exclusions` setting](#exclude-non-data-objects) uses the same syntax.
 
 :::{include} _snippets/data-federation/experimental-warning.md
 :::
 
-The language is deliberately compatible with the glob syntax of the ClickHouse `s3` table function, so a
-pattern written for it means the same thing here. The differences are listed in
-[ClickHouse compatibility](#clickhouse-compatibility).
+## How resource patterns are resolved
 
-## How a resource is matched
+A `resource` is a storage URI whose path can contain pattern metacharacters: `*`, `?`, `[`, and `{`. It is
+resolved by separating the storage location to list from the pattern to match.
 
-A `resource` is a storage URI whose path may contain pattern metacharacters: `*`, `?`, `[`, and `{`. It is
-split into two parts:
+### Separate the listing prefix from the pattern
+
+A resource is split into two parts:
 
 - The **listing prefix**: everything up to and including the last `/` before the first metacharacter. This is
   the location that gets listed.
 - The **pattern**: the remainder. Every listed object's path, taken relative to the listing prefix, is matched
   against it. The pattern must match the whole relative path, not a part of it.
+
+The following examples show how resources are split:
 
 | Resource | Listing prefix | The pattern, matched against paths under the prefix |
 |---|---|---|
@@ -43,7 +42,9 @@ For example, with the resource `s3://logs/access/year=*/month=*/*.parquet`, the 
 `s3://logs/access/year=2024/month=06/part-0.parquet` is matched as the relative path
 `year=2024/month=06/part-0.parquet`.
 
-Some rules that follow from this model:
+### Apply resource-level matching rules
+
+Resource patterns follow these matching rules:
 
 - **Matching is case-sensitive.** `*.csv` does not match `data.CSV`.
 - **Metacharacters are only special in the path.** A `*` or `{` in the scheme or bucket name is literal text,
@@ -53,15 +54,23 @@ Some rules that follow from this model:
   independently. A comma inside a brace group belongs to the pattern, so `s3://b/x.{csv,tsv}` is a single
   resource. Whitespace around each listed resource is trimmed, and empty entries are ignored.
 
-:::{tip}
-A pattern built only from literal text and brace groups, such as `s3://b/data/{a,b}.csv` or
-`s3://b/file-{01..12}.parquet`, names a finite set of objects. Such patterns are resolved by checking each
-named object directly instead of listing the prefix, which is much cheaper on prefixes holding many objects.
+### Resolve finite patterns without listing
+
+Use a pattern containing only literal text and finite brace groups when you know which objects to check. For
+example:
+
+- `s3://b/data/{a,b}.csv` checks `data/a.csv` and `data/b.csv`.
+- `s3://b/file-{01..12}.parquet` checks 12 numbered files.
+
+These objects are checked directly instead of listing the prefix, which is faster for prefixes containing
+many objects.
+
 The [`esql.external.max_glob_expansion` cluster setting](esql-data-federation-cluster-settings.md#glob-and-file-discovery-limits)
-caps how many objects are checked this way before the pattern falls back to listing.
-:::
+limits the number of direct checks. If a pattern exceeds the limit, the prefix is listed instead.
 
 ## Pattern constructs
+
+The following table summarizes the supported pattern constructs:
 
 | Construct | Matches |
 |---|---|
@@ -74,7 +83,7 @@ caps how many objects are checked this way before the pattern falls back to list
 | `{N..M}` | One integer from a numeric range, optionally zero-padded. |
 | Anything else | Itself. There is no escape character; `\` is an ordinary character. |
 
-### `*` and `?`
+### Match characters within a path segment
 
 `*` matches any run of characters within a single path segment, including the empty run. `?` matches exactly
 one character. Neither ever matches the `/` separator, so both are contained within one directory or file
@@ -86,7 +95,7 @@ name.
 | `data-*-out.csv` | `data-2024-out.csv`, `data--out.csv` | `data-a/b-out.csv` |
 | `file?.parquet` | `file1.parquet`, `fileA.parquet` | `file.parquet` (`?` requires a character), `file12.parquet` |
 
-### `**`
+### Match path segments recursively
 
 `**` matches zero or more whole path segments, and is the way to search a directory tree recursively. It is
 only special when it stands alone as a complete segment: written next to other characters, a run of stars is
@@ -106,7 +115,7 @@ match.
 Because `**` can match zero segments, a trailing `/**` also matches its anchor itself: `logs/**` matches an
 object named `logs` as well as everything under `logs/`.
 
-### Character classes
+### Match one character from a set
 
 `[...]` matches exactly one character from a set. The set can list characters, ranges, or both:
 `[abc]`, `[0-9]`, `[a-cx-z0-9]`. A class beginning with `!` or `^` is negated and matches one character not
@@ -127,7 +136,7 @@ Within a class, a few positions make a metacharacter literal:
 - `-` first, last, or anywhere it does not sit between two characters is a literal `-`: `[-x]` and `[x-]`
   both match `-` or `x`.
 
-### Matching a literal metacharacter
+### Match literal metacharacters
 
 There is no escape character in this language. `\` matches a literal backslash and does not change the
 meaning of the character after it: the pattern `a\*b` matches `a\` followed by anything and then `b`, because
@@ -144,7 +153,7 @@ To match a `*`, `?`, `[`, or `{` that appears literally in an object name, put i
 
 `]` and `}` need no such treatment: outside a class or brace group they are ordinary characters.
 
-### Alternation: `{a,b}`
+### Match one of several alternatives
 
 A brace group with commas matches any one of its alternatives. Each alternative is itself a small pattern, so
 it can contain `*`, `?`, and classes. An empty alternative matches the empty string. Brace groups cannot be
@@ -156,9 +165,9 @@ nested.
 | `{a*,b}.csv` | `a.csv`, `axyz.csv`, `b.csv` | `.csv` |
 | `report{,-final}.pdf` | `report.pdf`, `report-final.pdf` | `report-draft.pdf` |
 
-`*.{parquet,csv}` is a matcher: it selects objects whose names end in either extension. A dataset still needs a single format. Use this pattern only with an explicit [`format`](esql-data-federation-datasets.md#common-settings) setting, or split the files into two datasets.
+`*.{parquet,csv}` is a matcher: it selects objects whose names end in either extension. A dataset still needs a single format. Use this pattern only with an explicit [`format`](esql-data-federation-dataset-settings.md#format) setting, or split the files into two datasets.
 
-### Numeric ranges: `{N..M}`
+### Match a numeric range
 
 A brace group of the form `{N..M}`, where both endpoints are non-negative integers and the group contains no
 comma, matches each integer in the range, endpoints included. Descending ranges such as `{3..1}` work too.
@@ -180,12 +189,12 @@ matches `1..3` or `5`, not `2`.
 
 A numeric range can produce at most 1024 values. A wider one, such as `{1..100000}`, is rejected as invalid
 rather than silently truncated. The cap is on ranges because a range turns a dozen characters into any number
-of values; a comma list is limited by how much of it you type, and is not capped.
+of values. A comma list is limited by how much of it you type and is not capped.
 
 ## Invalid patterns
 
 Malformed patterns are rejected with an error naming the problem, rather than being silently reinterpreted. A
-malformed `resource` fails the query that reads the dataset; a malformed `file_exclusions` entry is rejected
+malformed `resource` fails the query that reads the dataset. A malformed `file_exclusions` entry is rejected
 when you register the dataset. The error always starts with `Invalid glob pattern [<pattern>]:` followed by
 one of:
 
@@ -202,31 +211,33 @@ one of:
 By contrast, a stray `]` or `}` with no matching opener is an ordinary character, not an error: `a]b` and
 `a}b` match themselves.
 
-## ClickHouse compatibility
+## Storage-specific resource restrictions
 
-The language is compatible with the glob syntax of the ClickHouse `s3` table function: `*`, `?`, `**`,
-`{a,b}` alternation, and `{N..M}` numeric ranges mean the same thing, and `\` is a literal there too. A
-pattern written for ClickHouse selects the same objects here, with two deliberate exceptions:
+In addition to the pattern syntax, a storage provider can restrict which resource identifiers a dataset can use.
 
-- **Character classes are supported here.** ClickHouse treats `[` and `]` as literal characters. A pattern
-  relying on that, such as one matching a file literally named `part[0].csv` with bare brackets, must use a
-  one-character class here: `part[[]0].csv`.
-- **Malformed patterns are rejected here.** ClickHouse treats shapes such as an unclosed `[` or `{` as
-  literal text; here they are [errors](#invalid-patterns).
+$$$s3-resource-requirements$$$
+### Amazon S3 resource restrictions
+```{applies_to}
+stack: experimental 9.6+
+```
 
-Four smaller differences:
+{{es}} rejects an Amazon S3 resource when the AWS SDK routes its bucket identifier somewhere other than the regional object endpoint. Setting `endpoint` on the data source does not override this behavior for S3 on Outposts aliases.
 
-- Here a `*` inside a brace alternative is a wildcard of that alternative, so `{a*,b}.csv` matches `a.csv`,
-  `axyz.csv` and `b.csv`. In ClickHouse the braces and comma become literal characters while the `*` stays a
-  live wildcard, so the same pattern matches names such as `{ax,b}.csv`.
-- Here a run of stars glued to other text, such as `a**`, stays within one segment like `a*`. In ClickHouse it
-  can cross directory levels. This follows ClickHouse's stated rule, that `**` is special only as a complete
-  path component, rather than its behaviour.
-- Zero-padding of a numeric range differs at the edges. Here a range pads when either endpoint is written
-  padded, so `{1..05}` pads; ClickHouse pads from one endpoint only.
-- A numeric range here expands to at most 1024 values. ClickHouse has no such cap.
+The following S3 resource identifiers are not supported:
 
-## Brace groups and partition placeholders
+- An S3 Express directory bucket whose name ends in `--x-s3` or `--xa-s3`.
+- An S3 on Outposts access point alias that the AWS SDK recognizes from a sufficiently long bucket name ending in `--op-s3`. Shorter names ending in `--op-s3` remain ordinary bucket names and are supported.
+- A multi-region access point specified as an alias ending in `.mrap` or as its full hostname.
+- An Amazon Resource Name (ARN). Use the bucket name, or an access point alias if the bucket is behind an access point.
+
+No node setting permits these identifiers. The `esql.external.allowed_endpoint_hosts` setting governs the data source endpoint, not the bucket. Use a bucket that is reachable through the regional endpoint instead.
+
+## Patterns in dataset settings
+
+[Dataset settings](esql-data-federation-dataset-settings.md) use the resource pattern language for partition
+placeholders and file exclusions.
+
+### Define partition paths
 
 The `partition_path` dataset setting, which declares partition columns for paths that do not follow the
 Hive `name=value` convention, uses single braces as column placeholders: in `partition_path`, `{year}`
@@ -247,41 +258,93 @@ PUT /_query/dataset/access_logs
 Here the placeholder belongs in `partition_path`, and the corresponding `resource` segment is a plain `*`.
 Writing `"resource": "s3://logs-bucket/access/{year}/*.parquet"` instead would read only a directory named
 `year`, which almost certainly does not exist, and the query would report that the pattern matched no files.
-`{second}` in `partition_path` is the same kind of path placeholder — a folder named for that segment — not
-the `second` unit of [`partition_spec`](esql-data-federation-partition-spec.md).
+`{second}` in `partition_path` is a path placeholder for a folder level. It isn't the `epoch_second` unit of
+[`partition_spec`](esql-data-federation-partition-spec.md).
 
-## Patterns in `file_exclusions`
+### Exclude non-data objects
 
-An entry in the [`file_exclusions` dataset setting](esql-data-federation-datasets.md#excluding-non-data-objects)
-is an ordinary pattern in this language. There is no second dialect: an exclusion entry is matched against
-the same prefix-relative path as the `resource` pattern that discovered the object, with the same whole-path
-rule. An object whose relative path matches any entry is dropped from the listing.
-
-The default is:
-
-```
-["**/_*", "**/.*", "**/_temporary/**", "**/_delta_log/**"]
+```{applies_to}
+stack: experimental 9.6+
 ```
 
-The four entries are two different shapes, on purpose:
+#### Exclusion behavior
 
-- **The file-name rules** `**/_*` and `**/.*` implement the Spark and Hive convention that a name beginning
-  with `_` or `.` is not data, covering markers and sidecars such as `_SUCCESS`, `_metadata`, and
-  `.part-0.crc` at any depth. Because `*` cannot cross a `/`, these entries match only the final segment of
-  the path: they exclude files by name and cannot touch a directory. That is what makes them safe for
-  partitioned data, where values live in directory names: `_dept=alpha/part-0.parquet` and
-  `_foo/part-0.parquet` are read, whatever the partition detection mode.
-- **The named-directory rules** `**/_temporary/**` and `**/_delta_log/**` cover the two well-known
-  directories whose contents look like data but are not: a failed Spark job's leftover part-files, and a
-  Delta Lake transaction log. A wildcard directory rule such as `**/_*/**` would also swallow partition
-  directories starting with `_`, so directories are only ever excluded by their exact name. A directory
-  named literally `_temporary` or `_delta_log` that holds real data would be excluded by the default; replace
-  the list to keep it.
+Object-store prefixes can contain markers, sidecars, temporary files, and transaction logs alongside data.
+The `file_exclusions` setting drops these objects after the `resource` pattern selects them. Each exclusion
+uses the same pattern language as `resource` and matches the object's path relative to the listing prefix.
 
-Exclusions apply to wildcard discovery only. An object the `resource` names explicitly, whether as a
-pattern-free resource, a pattern-free member of a comma-separated list, or one of the objects a finite brace
-pattern names, is always read: naming an object is a request to read it.
+Exclusions apply only to objects found by wildcard discovery. An object named explicitly in `resource` is
+always read, including a pattern-free member of a comma-separated resource or an object named by a finite
+brace pattern such as `data/{a,b}.csv`.
 
-Because exclusion entries are patterns, a malformed entry is rejected when the dataset is registered, with
-the message `[file_exclusions] must contain only valid patterns` followed by the
-[specific pattern error](#invalid-patterns).
+Objects whose keys end in `/` are directory placeholders rather than files. These objects are skipped
+before patterns are applied, so they stay skipped even when `file_exclusions` is set to `[]`.
+
+#### Default exclusions
+
+By default, datasets use the following exclusions:
+
+| Pattern | Objects excluded |
+|---|---|
+| `**/_*` | Files whose names begin with `_`, such as `_SUCCESS` and `_metadata`, at any depth. |
+| `**/.*` | Files whose names begin with `.`, such as `.part-0.crc`, at any depth. |
+| `**/_temporary/**` | Contents of directories named `_temporary`. |
+| `**/_delta_log/**` | Contents of directories named `_delta_log`. |
+
+The file-name patterns match only the final path segment because `*` does not cross `/`. They do not exclude
+partition directories such as `_dept=alpha/` or `_foo/`. Avoid a broad directory pattern such as `**/_*/**`,
+which would exclude those partitions.
+
+#### Custom exclusions
+
+Setting `file_exclusions` replaces the default list. To preserve the defaults while excluding a retired
+`backup_2024` directory, include all default patterns and add the directory:
+
+```console
+PUT /_query/dataset/access_logs
+{
+  "data_source": "prod_s3_logs",
+  "resource": "s3://logs-bucket/access/**/*.parquet",
+  "settings": {
+    "file_exclusions": ["**/_*", "**/.*", "**/_temporary/**", "**/_delta_log/**", "backup_2024/**"]
+  }
+}
+```
+
+Here, `backup_2024/**` is relative to the listing prefix `s3://logs-bucket/access/`. Use
+`**/backup_2024/**` instead to exclude a directory with that name at any depth. To turn off exclusions, set
+`"file_exclusions": []`.
+
+#### Exclusion diagnostics
+
+When an exclusion drops an object, the node log records the count, an example object, and its matching
+pattern at `DEBUG` level. If every object matched by a wildcard is excluded, the query's "matched no
+files" error identifies exclusions as the reason. For a comma-separated resource whose other members match,
+the response reports the same condition as a warning.
+
+A malformed exclusion is rejected when the dataset is registered. The error begins with
+`[file_exclusions] must contain only valid patterns` and includes the [specific pattern error](#invalid-patterns).
+
+## ClickHouse compatibility
+
+The language is compatible with the glob syntax of the ClickHouse `s3` table function: `*`, `?`, `**`,
+`{a,b}` alternation, and `{N..M}` numeric ranges mean the same thing, and `\` is a literal there too. A
+pattern written for ClickHouse selects the same objects here, with two deliberate exceptions:
+
+- **Character classes are supported here.** ClickHouse treats `[` and `]` as literal characters. A pattern
+  relying on that, such as one matching a file literally named `part[0].csv` with bare brackets, must use a
+  one-character class here: `part[[]0].csv`.
+- **Malformed patterns are rejected here.** ClickHouse treats shapes such as an unclosed `[` or `{` as
+  literal text. Here they are [errors](#invalid-patterns).
+
+Four smaller differences:
+
+- Here a `*` inside a brace alternative is a wildcard of that alternative, so `{a*,b}.csv` matches `a.csv`,
+  `axyz.csv` and `b.csv`. In ClickHouse the braces and comma become literal characters while the `*` stays a
+  live wildcard, so the same pattern matches names such as `{ax,b}.csv`.
+- Here a run of stars glued to other text, such as `a**`, stays within one segment like `a*`. In ClickHouse it
+  can cross directory levels. This follows ClickHouse's stated rule, that `**` is special only as a complete
+  path component, rather than its behavior.
+- Zero-padding of a numeric range differs at the edges. Here a range pads when either endpoint is written
+  padded, so `{1..05}` pads. ClickHouse pads from one endpoint only.
+- A numeric range here expands to at most 1024 values. ClickHouse has no such cap.

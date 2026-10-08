@@ -67,12 +67,6 @@ public class EsqlDataExtractor implements DataExtractor {
      */
     public static final long INJECTED_ROW_LIMIT = 10_000L;
 
-    /**
-     * Bounded-probe span used to estimate an aggregating query's output-row density when the datafeed has no
-     * explicit grouping interval to reuse as the probe window.
-     */
-    private static final long DEFAULT_DENSITY_PROBE_SPAN_MILLIS = TimeValue.timeValueHours(1).millis();
-
     private static final String DEFAULT_LIMIT = " | LIMIT " + INJECTED_ROW_LIMIT;
     private static final String TIME_SORT = " | SORT ??timeField ASC";
     private static final String SOURCE_RANGE_SUMMARY_STATS =
@@ -160,7 +154,7 @@ public class EsqlDataExtractor implements DataExtractor {
      * (Lucene point-range MIN/MAX + segment doc counts), not the user's query.
      */
     private SourceRangeSummary fetchSourceRangeSummary(QueryBuilder timeFilter) {
-        String sourceQuery = appendGeneratedPipeline(
+        String sourceQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(
             EsqlQueryClauseScanner.extractLeadingCommand(context.esqlQuery()).stripTrailing(),
             SOURCE_RANGE_SUMMARY_STATS
         );
@@ -188,10 +182,8 @@ public class EsqlDataExtractor implements DataExtractor {
             // All matching data falls at a single instant; the probe below already covers everything.
             return Math.max(1L, runBoundedAggregationProbe(earliest, latest + 1));
         }
-        long probeSpan = Math.min(
-            timeSpread,
-            context.groupingIntervalMillis() > 0 ? context.groupingIntervalMillis() : DEFAULT_DENSITY_PROBE_SPAN_MILLIS
-        );
+        assert context.groupingIntervalMillis() > 0 : "ES|QL datafeeds require grouping_interval equal to bucket_span";
+        long probeSpan = Math.min(timeSpread, context.groupingIntervalMillis());
         long probeEnd = Math.min(earliest + probeSpan, latest + 1);
         long probeOutputRows = runBoundedAggregationProbe(earliest, probeEnd);
         long actualProbeSpan = probeEnd - earliest;
@@ -211,7 +203,7 @@ public class EsqlDataExtractor implements DataExtractor {
      */
     private long runBoundedAggregationProbe(long probeStart, long probeEnd) {
         QueryBuilder probeFilter = new RangeQueryBuilder(context.sourceTimeField()).gte(probeStart).lt(probeEnd).format(EPOCH_MILLIS);
-        String probeQuery = appendGeneratedPipeline(context.esqlQuery(), PROBE_OUTPUT_ROWS_STATS);
+        String probeQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(context.esqlQuery(), PROBE_OUTPUT_ROWS_STATS);
         long startMs = client.threadPool().relativeTimeInMillis();
         try (EsqlQueryResponse response = runEsqlQueryWithSingleRetry(probeQuery, probeFilter, List.of())) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
@@ -237,15 +229,15 @@ public class EsqlDataExtractor implements DataExtractor {
 
     private static DataSummary parseSummaryResponse(EsqlResponse response) {
         List<? extends ColumnInfo> columns = response.columns();
-        boolean earliestIsDate = columns.isEmpty() == false && EsqlDatafeedQueryValidator.isDateColumnType(columns.get(0).outputType());
-        boolean latestIsDate = columns.size() > 1 && EsqlDatafeedQueryValidator.isDateColumnType(columns.get(1).outputType());
+        boolean earliestIsDate = columns.isEmpty() == false && EsqlDatafeedColumnValues.isDateColumnType(columns.get(0).outputType());
+        boolean latestIsDate = columns.size() > 1 && EsqlDatafeedColumnValues.isDateColumnType(columns.get(1).outputType());
         for (Iterable<Object> row : response.rows()) {
             List<Object> values = new ArrayList<>();
             for (Object v : row) {
                 values.add(v);
             }
-            Long earliestTime = EsqlDatafeedQueryValidator.toEpochMillisOrNull(values.get(0), earliestIsDate);
-            Long latestTime = EsqlDatafeedQueryValidator.toEpochMillisOrNull(values.get(1), latestIsDate);
+            Long earliestTime = EsqlDatafeedColumnValues.toEpochMillisOrNull(values.get(0), earliestIsDate);
+            Long latestTime = EsqlDatafeedColumnValues.toEpochMillisOrNull(values.get(1), latestIsDate);
             long totalHits = values.get(2) instanceof Number n ? n.longValue() : 0L;
             return new DataSummary(earliestTime, latestTime, totalHits);
         }
@@ -335,33 +327,9 @@ public class EsqlDataExtractor implements DataExtractor {
      * A user-supplied outer {@code LIMIT} is left where the user put it, with the time sort after it.
      */
     static String buildOrderedQuery(String query) {
-        String sorted = appendGeneratedPipeline(query, TIME_SORT);
-        return scanForOuterLimit(query).hasOuterLimit() ? sorted : sorted + DEFAULT_LIMIT;
+        String sorted = EsqlQueryClauseScanner.appendGeneratedPipeline(query, TIME_SORT);
+        return EsqlQueryClauseScanner.hasOuterLimit(query) ? sorted : sorted + DEFAULT_LIMIT;
     }
-
-    /**
-     * Appends a generated pipeline (e.g. {@code " | LIMIT 0"}) to a user-supplied query. Every generated append
-     * must go through this helper: when the user's query ends in a {@code //} line comment, the generated text
-     * would otherwise be swallowed by that comment, so a newline (which ES|QL treats as whitespace) is inserted first.
-     */
-    static String appendGeneratedPipeline(String query, String pipeline) {
-        return query + (endsInLineComment(query) ? "\n" : "") + pipeline;
-    }
-
-    /**
-     * Identifies an outer LIMIT command without interpreting LIMIT-like text in strings, comments, or identifiers.
-     * The full ES|QL parser belongs to the ES|QL plugin, so this deliberately narrow scan only recognizes
-     * a depth-zero pipeline command that determines whether the datafeed needs its safety limit.
-     */
-    private static LimitScan scanForOuterLimit(String query) {
-        return new LimitScan(EsqlQueryClauseScanner.scan(query, "").hasOuterLimit());
-    }
-
-    private static boolean endsInLineComment(String query) {
-        return EsqlQueryClauseScanner.endsInLineComment(query);
-    }
-
-    private record LimitScan(boolean hasOuterLimit) {}
 
     private List<EsqlQueryParam> timeFieldParam() {
         return List.of(new EsqlQueryParam("timeField", context.emittedTimeField(), IDENTIFIER));
@@ -440,7 +408,15 @@ public class EsqlDataExtractor implements DataExtractor {
         }
         CancelTasksRequest request = new CancelTasksRequest().setTargetTaskId(new TaskId(nodeClient.getLocalNodeId(), task.getId()));
         request.setReason("datafeed stopped");
-        new OriginSettingClient(nodeClient, TASKS_ORIGIN).admin().cluster().cancelTasks(request, ActionListener.noop());
+        new OriginSettingClient(nodeClient, TASKS_ORIGIN).admin()
+            .cluster()
+            .cancelTasks(
+                request,
+                ActionListener.wrap(
+                    r -> {},
+                    e -> LOGGER.debug(() -> "[" + context.jobId() + "] Failed to cancel in-flight ES|QL query task", e)
+                )
+            );
     }
 
     private NodeClient nodeClient() {
@@ -483,7 +459,7 @@ public class EsqlDataExtractor implements DataExtractor {
         );
         boolean[] isDateColumn = new boolean[columns.size()];
         for (int i = 0; i < columns.size(); i++) {
-            isDateColumn[i] = EsqlDatafeedQueryValidator.isDateColumnType(columns.get(i).outputType());
+            isDateColumn[i] = EsqlDatafeedColumnValues.isDateColumnType(columns.get(i).outputType());
         }
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -518,11 +494,11 @@ public class EsqlDataExtractor implements DataExtractor {
             if (value instanceof List<?> list) {
                 List<Long> epochMillis = new ArrayList<>(list.size());
                 for (Object element : list) {
-                    epochMillis.add(EsqlDatafeedQueryValidator.toEpochMillis(element, true));
+                    epochMillis.add(EsqlDatafeedColumnValues.toEpochMillis(element, true));
                 }
                 b.field(name, epochMillis);
             } else {
-                b.field(name, EsqlDatafeedQueryValidator.toEpochMillis(value, true));
+                b.field(name, EsqlDatafeedColumnValues.toEpochMillis(value, true));
             }
         } else if (value instanceof List<?> list) {
             b.field(name, list);

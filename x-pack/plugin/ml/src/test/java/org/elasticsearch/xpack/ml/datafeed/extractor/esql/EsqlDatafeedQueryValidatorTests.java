@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.esql.VerificationException;
 
 import java.util.Arrays;
@@ -46,6 +48,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -485,8 +489,51 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.get().getMessage(), containsString("STATS, BUCKET, or EVAL"));
     }
 
+    public void testValidateSourceTimeFieldGivenForbiddenFailureShouldPropagateStatus() {
+        ElasticsearchStatusException forbidden = new ElasticsearchStatusException("access denied", RestStatus.FORBIDDEN);
+        TestValidator validator = new TestValidator(forbidden);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            "@timestamp",
+            ActionListener.wrap(ok -> fail("expected failure"), failure::set),
+            "datafeed-1"
+        );
+
+        assertThat(failure.get(), sameInstance(forbidden));
+        assertThat(ExceptionsHelper.status(failure.get()), equalTo(RestStatus.FORBIDDEN));
+    }
+
+    public void testValidateSourceTimeFieldGivenTooManyRequestsFailureShouldPropagateStatus() {
+        ElasticsearchStatusException rateLimited = new ElasticsearchStatusException("rate limited", RestStatus.TOO_MANY_REQUESTS);
+        TestValidator validator = new TestValidator(rateLimited);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            "@timestamp",
+            ActionListener.wrap(ok -> fail("expected failure"), failure::set),
+            null
+        );
+
+        assertThat(failure.get(), sameInstance(rateLimited));
+        assertThat(ExceptionsHelper.status(failure.get()), equalTo(RestStatus.TOO_MANY_REQUESTS));
+    }
+
+    public void testIsDeferredExistenceFailureGivenLookupJoinUnknownIndexShouldDefer() {
+        VerificationException lookupMissing = new VerificationException("Unknown index [fake-lookup]");
+        assertTrue(EsqlDatafeedQueryValidator.isDeferredExistenceFailure(lookupMissing));
+    }
+
     public void testValidateSourceTimeFieldGivenUnknownColumnFails() {
-        RuntimeException unknownColumn = new RuntimeException("Found 1 problem\nline 1:20: Unknown column [bucket]");
+        VerificationException unknownColumn = new VerificationException("Found 1 problem\nline 1:20: Unknown column [bucket]");
         TestValidator validator = new TestValidator(unknownColumn);
 
         AtomicReference<Exception> failure = new AtomicReference<>();
@@ -692,6 +739,15 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(validator.capturedQuery, equalTo("TS metrics-* | KEEP ??sourceTimeField | LIMIT 0"));
     }
 
+    public void testValidateEmittedTimeValueInSourceWindowGivenNullShouldUseMessages() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> EsqlDatafeedQueryValidator.validateEmittedTimeValueInSourceWindow("job-1", TIME_FIELD, null, 100L, 200L)
+        );
+        assertThat(e.getMessage(), containsString(Messages.getMessage(Messages.DATAFEED_ESQL_EMITTED_TIME_PROBLEM_NULL)));
+        assertThat(e.getMessage(), containsString(Messages.getMessage(Messages.DATAFEED_ESQL_EMITTED_TIME_CORRECTIVE_NON_NULL)));
+    }
+
     public void testCheckRequiredColumnsGivenAllPresentSucceeds() {
         List<ColumnInfo> columns = List.of(
             mockColumn(TIME_FIELD, "date"),
@@ -884,7 +940,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     public void testRejectRemoteClusterSourcesGivenRemoteIndexShouldFailWithBadRequest() {
         ElasticsearchStatusException e = expectRejected("FROM remote:logs-* | STATS c = COUNT(*) BY BUCKET(@timestamp, 1h)");
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), containsString("do not support remote cluster sources in this release"));
+        assertThat(e.getMessage(), containsString("do not support remote cluster sources"));
         assertThat(e.getMessage(), containsString("[remote:logs-*]"));
         assertThat(e.getMessage(), containsString("query local indices only"));
     }

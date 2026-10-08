@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -76,6 +75,7 @@ public class EsqlDatafeedQueryValidator {
      * not required. The field is only required when the job configures a {@code summary_count_field_name}
      * and the datafeed's delayed data check is enabled.
      */
+    @Nullable
     public static String requiredSummaryCountField(DatafeedConfig datafeed, Job job) {
         String summaryCountField = job.getAnalysisConfig().getSummaryCountFieldName();
         DelayedDataCheckConfig delayedDataCheckConfig = datafeed.getDelayedDataCheckConfig();
@@ -96,7 +96,7 @@ public class EsqlDatafeedQueryValidator {
         String esqlQuery,
         @Nullable String projectRouting,
         String timeField,
-        String summaryCountField,
+        @Nullable String summaryCountField,
         ActionListener<Boolean> listener
     ) {
         validateQuery(client, headers, esqlQuery, projectRouting, timeField, summaryCountField, listener, null);
@@ -108,12 +108,12 @@ public class EsqlDatafeedQueryValidator {
         String esqlQuery,
         @Nullable String projectRouting,
         String timeField,
-        String summaryCountField,
+        @Nullable String summaryCountField,
         ActionListener<Boolean> listener,
         @Nullable String datafeedId
     ) {
         warnForConflictingOuterClauses(datafeedId, esqlQuery, timeField);
-        String limitZeroQuery = EsqlDataExtractor.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO);
+        String limitZeroQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO);
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
             try {
@@ -164,7 +164,7 @@ public class EsqlDatafeedQueryValidator {
             listener.onResponse(Boolean.TRUE);
             return;
         }
-        String probeQuery = EsqlDataExtractor.appendGeneratedPipeline(sourceCommand, KEEP_SOURCE_TIME_FIELD_LIMIT_ZERO);
+        String probeQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(sourceCommand, KEEP_SOURCE_TIME_FIELD_LIMIT_ZERO);
         List<EsqlQueryParam> params = List.of(new EsqlQueryParam("sourceTimeField", sourceTimeField, IDENTIFIER));
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
@@ -180,8 +180,10 @@ public class EsqlDatafeedQueryValidator {
                 // Deferred-existence cases: the project may be linked later or the index may not
                 // exist yet. Skip the column check — there is nothing to validate against.
                 listener.onResponse(Boolean.TRUE);
-            } else {
+            } else if (cause instanceof ElasticsearchException esException && esException.status() == RestStatus.BAD_REQUEST) {
                 listener.onFailure(sourceTimeFieldUnresolvedException(sourceTimeField, datafeedId, cause));
+            } else {
+                listener.onFailure(e);
             }
         });
 
@@ -328,7 +330,7 @@ public class EsqlDatafeedQueryValidator {
         // The KEEP ??sourceTimeField probe either resolves to exactly the one requested column, or fails
         // execution before a response is produced (handled by the onFailure branch in validateSourceTimeField).
         String outputType = columns.isEmpty() ? null : columns.get(0).outputType();
-        if (isDateColumnType(outputType) == false) {
+        if (EsqlDatafeedColumnValues.isDateColumnType(outputType) == false) {
             throw new IllegalArgumentException(
                 Messages.getMessage(
                     Messages.DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE,
@@ -349,7 +351,7 @@ public class EsqlDatafeedQueryValidator {
             Messages.getMessage(
                 Messages.DATAFEED_ESQL_SOURCE_TIME_FIELD_UNRESOLVED,
                 sourceTimeField,
-                cause == null ? "unknown error" : cause.getMessage(),
+                cause == null ? Messages.getMessage(Messages.DATAFEED_ESQL_PROBE_UNKNOWN_ERROR) : cause.getMessage(),
                 datafeedContextSuffix(datafeedId)
             ),
             cause
@@ -388,7 +390,7 @@ public class EsqlDatafeedQueryValidator {
         @Nullable String projectRouting,
         ActionListener<Void> listener
     ) {
-        String limitZeroQuery = EsqlDataExtractor.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO);
+        String limitZeroQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO);
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> listener.onResponse(null), e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
@@ -413,9 +415,9 @@ public class EsqlDatafeedQueryValidator {
         long sourceWindowEnd
     ) {
         int emittedTimeColumnIndex = indexOfColumn(columns, emittedTimeField);
-        boolean emittedTimeIsDate = isDateColumnType(columns.get(emittedTimeColumnIndex).outputType());
+        boolean emittedTimeIsDate = EsqlDatafeedColumnValues.isDateColumnType(columns.get(emittedTimeColumnIndex).outputType());
         for (Iterable<Object> row : rows) {
-            validateEmittedTimeInSourceWindow(
+            validateEmittedTimeValueInSourceWindow(
                 jobId,
                 emittedTimeField,
                 valueAt(row, emittedTimeColumnIndex),
@@ -424,17 +426,6 @@ public class EsqlDatafeedQueryValidator {
                 sourceWindowEnd
             );
         }
-    }
-
-    private static void validateEmittedTimeInSourceWindow(
-        String jobId,
-        String emittedTimeField,
-        Object rawValue,
-        boolean emittedTimeIsDate,
-        long sourceWindowStart,
-        long sourceWindowEnd
-    ) {
-        validateEmittedTimeValueInSourceWindow(jobId, emittedTimeField, rawValue, emittedTimeIsDate, sourceWindowStart, sourceWindowEnd);
     }
 
     /**
@@ -471,33 +462,33 @@ public class EsqlDatafeedQueryValidator {
             throw emittedTimeValidationException(
                 jobId,
                 emittedTimeField,
-                "value is null",
+                Messages.getMessage(Messages.DATAFEED_ESQL_EMITTED_TIME_PROBLEM_NULL),
                 sourceWindowStart,
                 sourceWindowEnd,
-                "Ensure the ES|QL query returns a non-null scalar timestamp for every row"
+                Messages.getMessage(Messages.DATAFEED_ESQL_EMITTED_TIME_CORRECTIVE_NON_NULL)
             );
         }
         if (rawValue instanceof List<?>) {
             throw emittedTimeValidationException(
                 jobId,
                 emittedTimeField,
-                "value is multi-valued",
+                Messages.getMessage(Messages.DATAFEED_ESQL_EMITTED_TIME_PROBLEM_MULTI_VALUED),
                 sourceWindowStart,
                 sourceWindowEnd,
-                "Ensure the emitted time field contains exactly one timestamp per row"
+                Messages.getMessage(Messages.DATAFEED_ESQL_EMITTED_TIME_CORRECTIVE_SCALAR_TIMESTAMP)
             );
         }
         final long emittedTimeMillis;
         try {
-            emittedTimeMillis = toEpochMillis(rawValue, emittedTimeIsDate);
+            emittedTimeMillis = EsqlDatafeedColumnValues.toEpochMillis(rawValue, emittedTimeIsDate);
         } catch (RuntimeException e) {
             throw emittedTimeValidationException(
                 jobId,
                 emittedTimeField,
-                "value has an unsupported type",
+                Messages.getMessage(Messages.DATAFEED_ESQL_EMITTED_TIME_PROBLEM_UNSUPPORTED_TYPE),
                 sourceWindowStart,
                 sourceWindowEnd,
-                "Ensure the emitted time field is a date or numeric timestamp",
+                Messages.getMessage(Messages.DATAFEED_ESQL_EMITTED_TIME_CORRECTIVE_SUPPORTED_TYPE),
                 e
             );
         }
@@ -505,20 +496,20 @@ public class EsqlDatafeedQueryValidator {
             throw emittedTimeValidationException(
                 jobId,
                 emittedTimeField,
-                "value [" + emittedTimeMillis + "] is before the source window start",
+                Messages.getMessage(Messages.DATAFEED_ESQL_EMITTED_TIME_PROBLEM_BEFORE_WINDOW, emittedTimeMillis),
                 sourceWindowStart,
                 sourceWindowEnd,
-                "Check grouping alignment so emitted timestamps fall within the queried source range"
+                Messages.getMessage(Messages.DATAFEED_ESQL_EMITTED_TIME_CORRECTIVE_WINDOW_ALIGNMENT)
             );
         }
         if (emittedTimeMillis >= sourceWindowEnd) {
             throw emittedTimeValidationException(
                 jobId,
                 emittedTimeField,
-                "value [" + emittedTimeMillis + "] is at or after the source window end",
+                Messages.getMessage(Messages.DATAFEED_ESQL_EMITTED_TIME_PROBLEM_AT_OR_AFTER_WINDOW_END, emittedTimeMillis),
                 sourceWindowStart,
                 sourceWindowEnd,
-                "Check grouping alignment so emitted timestamps fall within the queried source range"
+                Messages.getMessage(Messages.DATAFEED_ESQL_EMITTED_TIME_CORRECTIVE_WINDOW_ALIGNMENT)
             );
         }
         return emittedTimeMillis;
@@ -578,42 +569,20 @@ public class EsqlDatafeedQueryValidator {
         return values.hasNext() ? values.next() : null;
     }
 
-    static boolean isDateColumnType(String outputType) {
-        return "date".equals(outputType) || "date_nanos".equals(outputType);
-    }
-
-    static Long toEpochMillisOrNull(Object value, boolean isDate) {
-        if (value == null) {
-            return null;
-        }
-        return toEpochMillis(value, isDate);
-    }
-
-    static long toEpochMillis(Object value, boolean isDate) {
-        if (isDate) {
-            if (value instanceof String isoDate) {
-                return Instant.parse(isoDate).toEpochMilli();
-            }
-            throw new IllegalArgumentException("expected date value");
-        }
-        if (value instanceof Number number) {
-            return number.longValue();
-        }
-        throw new IllegalArgumentException("expected numeric timestamp");
-    }
-
     static String datafeedContextSuffix(@Nullable String datafeedId) {
-        return datafeedId == null ? "" : " for datafeed [" + datafeedId + "]";
+        return datafeedId == null ? "" : Messages.getMessage(Messages.DATAFEED_ESQL_DATAFEED_CONTEXT_FOR_ID, datafeedId);
     }
 
     static String esqlQueryWarningContext(@Nullable String datafeedId) {
-        return datafeedId == null ? "ES|QL datafeed query" : "ES|QL datafeed [" + datafeedId + "] query";
+        return datafeedId == null
+            ? Messages.getMessage(Messages.DATAFEED_ESQL_WARNING_QUERY_CONTEXT_NO_ID)
+            : Messages.getMessage(Messages.DATAFEED_ESQL_WARNING_QUERY_CONTEXT_WITH_ID, datafeedId);
     }
 
     static void checkRequiredColumns(
         List<? extends ColumnInfo> columns,
         String timeField,
-        String requiredSummaryCountField,
+        @Nullable String requiredSummaryCountField,
         @Nullable String datafeedId
     ) {
         boolean foundTimeField = false;

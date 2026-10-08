@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
+import org.elasticsearch.core.Nullable;
+
 import java.util.Map;
 
 record EsqlDataExtractorContext(
@@ -18,6 +20,6 @@ record EsqlDataExtractorContext(
     long start,
     long end,
     Map<String, String> headers,
-    String requiredSummaryCountField,
-    String projectRouting
+    @Nullable String requiredSummaryCountField,
+    @Nullable String projectRouting
 ) {}

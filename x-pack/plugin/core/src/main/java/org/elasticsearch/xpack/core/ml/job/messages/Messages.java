@@ -54,6 +54,26 @@ public final class Messages {
         "grouping_interval [{0}] must equal the job bucket_span [{1}]";
     public static final String DATAFEED_ESQL_EMITTED_TIME_VALIDATION_FAILED =
         "Job [{0}] ES|QL extraction failed for emitted time field [{1}]: {2}; source window [{3,number,#}, {4,number,#}). {5}";
+    public static final String DATAFEED_ESQL_EMITTED_TIME_PROBLEM_NULL = "value is null";
+    public static final String DATAFEED_ESQL_EMITTED_TIME_PROBLEM_MULTI_VALUED = "value is multi-valued";
+    public static final String DATAFEED_ESQL_EMITTED_TIME_PROBLEM_UNSUPPORTED_TYPE = "value has an unsupported type";
+    public static final String DATAFEED_ESQL_EMITTED_TIME_PROBLEM_BEFORE_WINDOW = "value [{0}] is before the source window start";
+    public static final String DATAFEED_ESQL_EMITTED_TIME_PROBLEM_AT_OR_AFTER_WINDOW_END =
+        "value [{0}] is at or after the source window end";
+    public static final String DATAFEED_ESQL_EMITTED_TIME_CORRECTIVE_NON_NULL =
+        "Ensure the ES|QL query returns a non-null scalar timestamp for every row";
+    public static final String DATAFEED_ESQL_EMITTED_TIME_CORRECTIVE_SCALAR_TIMESTAMP =
+        "Ensure the emitted time field contains exactly one timestamp per row";
+    public static final String DATAFEED_ESQL_EMITTED_TIME_CORRECTIVE_SUPPORTED_TYPE =
+        "Ensure the emitted time field is a date or numeric timestamp";
+    public static final String DATAFEED_ESQL_EMITTED_TIME_CORRECTIVE_WINDOW_ALIGNMENT =
+        "Check grouping alignment so emitted timestamps fall within the queried source range";
+    public static final String DATAFEED_ESQL_PROBE_UNKNOWN_ERROR = "unknown error";
+    public static final String DATAFEED_ESQL_DATAFEED_CONTEXT_FOR_ID = " for datafeed [{0}]";
+    public static final String DATAFEED_ESQL_WARNING_QUERY_CONTEXT_NO_ID = "ES|QL datafeed query";
+    public static final String DATAFEED_ESQL_WARNING_QUERY_CONTEXT_WITH_ID = "ES|QL datafeed [{0}] query";
+    public static final String DATAFEED_ESQL_EXPECTED_DATE_VALUE = "expected date value";
+    public static final String DATAFEED_ESQL_EXPECTED_NUMERIC_TIMESTAMP = "expected numeric timestamp";
     public static final String DATAFEED_ESQL_MISSING_TIME_COLUMN =
         "The final ES|QL output{1} is missing the configured job data_description.time_field [{0}]; "
             + "project [{0}] in the final ES|QL output.";
@@ -83,7 +103,7 @@ public final class Messages {
         "Cannot create datafeed [{0}] while a cluster upgrade is in progress ({1}); "
             + "wait for the cluster to finish upgrading and try again.";
     public static final String DATAFEED_ESQL_REMOTE_CLUSTER_SOURCE_NOT_SUPPORTED =
-        "ES|QL datafeeds do not support remote cluster sources in this release, but the index expression [{0}] in the "
+        "ES|QL datafeeds currently do not support remote cluster sources, but the index expression [{0}] in the "
             + "esql_query source command refers to remote cluster [{1}]; remove the cluster prefix and query local indices only";
     public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
         "Recreate ES|QL datafeed [{0}] to change esql_query, source_time_field, grouping_interval, indices, query, "

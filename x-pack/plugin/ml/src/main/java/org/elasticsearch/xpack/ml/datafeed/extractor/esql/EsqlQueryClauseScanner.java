@@ -19,6 +19,7 @@ final class EsqlQueryClauseScanner {
         boolean hasOuterTimeWhere = false;
         boolean hasOuterTimeSort = false;
         boolean hasOuterStats = false;
+        boolean scanTimeField = timeField != null && timeField.isEmpty() == false;
         for (int index = 0, nestingDepth = 0; index < query.length();) {
             char character = query.charAt(index);
             if (character == '"') {
@@ -40,13 +41,17 @@ final class EsqlQueryClauseScanner {
                 Command command = commandAt(query, commandStart);
                 if (command == Command.LIMIT) {
                     hasOuterLimit = true;
-                } else if (command == Command.WHERE && containsTimeField(query, commandStart + command.text.length(), timeField)) {
-                    hasOuterTimeWhere = true;
-                } else if (command == Command.SORT && containsTimeField(query, commandStart + command.text.length(), timeField)) {
-                    hasOuterTimeSort = true;
-                } else if (command == Command.STATS) {
-                    hasOuterStats = true;
-                }
+                } else if (scanTimeField
+                    && command == Command.WHERE
+                    && containsTimeField(query, commandStart + command.text.length(), timeField)) {
+                        hasOuterTimeWhere = true;
+                    } else if (scanTimeField
+                        && command == Command.SORT
+                        && containsTimeField(query, commandStart + command.text.length(), timeField)) {
+                            hasOuterTimeSort = true;
+                        } else if (command == Command.STATS) {
+                            hasOuterStats = true;
+                        }
                 index++;
             } else {
                 index++;
@@ -65,7 +70,19 @@ final class EsqlQueryClauseScanner {
      * row per bucket).
      */
     static boolean hasAggregation(String query) {
-        return scan(query, "").hasOuterStats();
+        return scan(query, null).hasOuterStats();
+    }
+
+    static boolean hasOuterLimit(String query) {
+        return scan(query, null).hasOuterLimit();
+    }
+
+    /**
+     * Appends a generated pipeline (e.g. {@code " | LIMIT 0"}) to a user-supplied query. When the query ends in a
+     * {@code //} line comment, inserts a newline first so the generated text is not swallowed by that comment.
+     */
+    static String appendGeneratedPipeline(String query, String pipeline) {
+        return query + (endsInLineComment(query) ? "\n" : "") + pipeline;
     }
 
     /**

@@ -300,44 +300,50 @@ public class InboundAggregatorTests extends ESTestCase {
         startAggregating(randomBoolean(), between(1, 1000));
         assertThat(limitedBreaker.getUsed(), equalTo(0L));
 
-        final ReleasableBytesReference fragment1 = fragment(40);
+        final int fragment1Length = 40;
+        final ReleasableBytesReference fragment1 = fragment(fragment1Length);
         aggregator.aggregate(fragment1);
         fragment1.close();
-        assertThat(limitedBreaker.getUsed(), equalTo(40L));
+        assertThat(limitedBreaker.getUsed(), equalTo((long) fragment1Length));
 
-        final ReleasableBytesReference fragment2 = fragment(30);
+        final int fragment2Length = 30;
+        final ReleasableBytesReference fragment2 = fragment(fragment2Length);
         aggregator.aggregate(fragment2);
         fragment2.close();
-        assertThat(limitedBreaker.getUsed(), equalTo(70L));
+        assertThat(limitedBreaker.getUsed(), equalTo((long) (fragment1Length + fragment2Length)));
 
         final InboundMessage aggregated = aggregator.finishAggregation();
         assertFalse(aggregated.isShortCircuit());
-        assertThat(limitedBreaker.getUsed(), equalTo(70L));
+        assertThat(limitedBreaker.getUsed(), equalTo((long) (fragment1Length + fragment2Length)));
 
         aggregated.close();
         assertThat(limitedBreaker.getUsed(), equalTo(0L));
     }
 
     public void testBreakerTripsPartWayThroughReadingAndReleasesWhatWasBuffered() throws IOException {
-        final CircuitBreaker limitedBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(100));
+        final int fragmentLength = 60;
+        // Less than the size of two fragments
+        final int breakerSize = fragmentLength + fragmentLength / 2;
+        final CircuitBreaker limitedBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(breakerSize));
         aggregator = new InboundAggregator(() -> limitedBreaker, action -> true);
 
         startAggregating(randomBoolean(), between(1, 1000));
 
-        final ReleasableBytesReference fragment1 = fragment(60);
+        final ReleasableBytesReference fragment1 = fragment(fragmentLength);
         aggregator.aggregate(fragment1);
         fragment1.close();
         assertTrue(fragment1.hasReferences());
-        assertThat(limitedBreaker.getUsed(), equalTo(60L));
+        assertThat(limitedBreaker.getUsed(), equalTo((long) fragmentLength));
 
         // The second fragment would exceed the limit: what was buffered is released straight away rather than when the message ends
-        final ReleasableBytesReference fragment2 = fragment(60);
+        final ReleasableBytesReference fragment2 = fragment(fragmentLength);
         aggregator.aggregate(fragment2);
         fragment2.close();
         assertFalse(fragment1.hasReferences());
         assertFalse(fragment2.hasReferences());
         assertThat(limitedBreaker.getUsed(), equalTo(0L));
 
+        // The aggregator has already short-circuited, so it doesn't retain new fragments
         final ReleasableBytesReference fragment3 = fragment(10);
         aggregator.aggregate(fragment3);
         fragment3.close();
@@ -392,9 +398,9 @@ public class InboundAggregatorTests extends ESTestCase {
 
         // All the headers arrive up front, as they do when several shards respond at the same moment. Each message is declared as
         // smaller than the limit, so none of them could be rejected on the strength of its header alone.
-        final boolean compressed = randomBoolean();
         final List<InboundAggregator> aggregators = new ArrayList<>();
         for (int i = 0; i < messageCount; i++) {
+            final boolean compressed = randomBoolean();
             final InboundAggregator messageAggregator = new InboundAggregator(() -> realMemoryBreaker, action -> true);
             messageAggregator.headerReceived(requestHeader(declaredSize, compressed));
             if (compressed) {
@@ -416,16 +422,16 @@ public class InboundAggregatorTests extends ESTestCase {
 
         assertThat("buffered more than the limit allows", peakHeapUsed, lessThanOrEqualTo(heapLimit));
 
-        int tripped = 0;
+        int shortCircuited = 0;
         for (InboundAggregator messageAggregator : aggregators) {
             try (InboundMessage aggregated = messageAggregator.finishAggregation()) {
                 if (aggregated.isShortCircuit()) {
                     assertThat(aggregated.getException(), instanceOf(CircuitBreakingException.class));
-                    tripped++;
+                    shortCircuited++;
                 }
             }
         }
-        assertThat("some messages must have been rejected", tripped, greaterThan(0));
+        assertThat("some messages must have short circuited", shortCircuited, greaterThan(0));
         assertThat("everything buffered must have been released", heapUsed.getAsLong(), equalTo(0L));
     }
 

@@ -8,18 +8,19 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.xpack.esql.datasources.NodeByteBudgetService;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Node-scoped admission limit on retained Parquet I/O bytes (prefetch buffers and sliding
@@ -29,19 +30,33 @@ import java.util.concurrent.locks.ReentrantLock;
  * exceed the cap. One in-flight group may overshoot when it is larger than the remaining budget,
  * so a scan cannot stall; that overshoot is node-wide, not per iterator, and belongs to one
  * owner lease until {@link #clearOwner}. Look-ahead {@link #tryAdmit} still refuses rather than
- * fail the query. {@link #admitWait} timeout or cancellation fails that GET with
- * {@link EsRejectedExecutionException}. The REQUEST circuit breaker remains the hard stop for
- * allocation.
+ * fail the query. Coalesced PER_GET draws a whole-unit {@link NodeByteBudget} ticket. The
+ * parking {@link #admitWaitUntil} path remains for leftover parquet column iterator tests
+ * until the hard cap lands. The REQUEST circuit breaker remains the hard stop for allocation.
  */
-final class ParquetIoWatermark {
+final class ParquetIoWatermark implements AdmissionGate {
 
-    static final int HEAP_DIVISOR = 8;
+    static final int HEAP_DIVISOR = NodeByteBudgetService.HEAP_DIVISOR;
+
+    /**
+     * Waiting longer cannot help when bytes are released only by work queued behind the waiter
+     * on the same compute pool. The REQUEST circuit breaker remains the hard stop. This is a
+     * code constant, not a cluster Setting.
+     */
+    static final long DEFAULT_ADMIT_WAIT_MS = NodeByteBudgetService.DEFAULT_ADMIT_WAIT_MS;
+
+    /**
+     * Forced admits after the wait budget may charge up to this many times {@link #limit}.
+     * The in-flight overshoot owner may already sit above this; waiters then fail instead of
+     * stacking more bytes.
+     */
+    static final int FORCE_ADMIT_LIMIT_MULTIPLIER = NodeByteBudgetService.FORCE_ADMIT_LIMIT_MULTIPLIER;
 
     /**
      * How a coalesced GET batch charges this watermark. {@link #UNGATED} is a null hold's
      * {@link #forceAdd} (footer metadata, sliding window). {@link #GROUP_HOLD} is a footer
-     * estimate already {@link #tryAdmit}ted. {@link #PER_GET} waits per miss via
-     * {@link #admitWait}. A null hold is never {@link #PER_GET}.
+     * estimate already {@link #tryAdmit}ted. {@link #PER_GET} draws one unit ticket covering
+     * every miss in the coalesced call. A null hold is never {@link #PER_GET}.
      */
     enum ByteGate {
         UNGATED,
@@ -49,147 +64,99 @@ final class ParquetIoWatermark {
         PER_GET
     }
 
-    private final long limit;
-    private final AtomicLong used = new AtomicLong();
-    private final ReentrantLock lock = new ReentrantLock();
-    private final Condition notFull = lock.newCondition();
-    private RowGroupIo overshootOwner;
+    private final NodeByteBudgetService budget;
+    private final AtomicInteger holds = new AtomicInteger();
+    private volatile AdmissionTracker tracker = AdmissionTracker.NOOP;
 
     static ParquetIoWatermark forHeap() {
-        long heapBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
-        return new ParquetIoWatermark(Math.max(1L, heapBytes / HEAP_DIVISOR));
+        return new ParquetIoWatermark(NodeByteBudgetService.forHeap());
     }
 
     ParquetIoWatermark(long limit) {
-        if (limit < 1L) {
-            throw new IllegalArgumentException("limit must be at least 1, got: " + limit);
+        this(limit, DEFAULT_ADMIT_WAIT_MS);
+    }
+
+    ParquetIoWatermark(long limit, long admitWaitMs) {
+        this(new NodeByteBudgetService(limit, admitWaitMs));
+    }
+
+    ParquetIoWatermark(NodeByteBudget nodeByteBudget) {
+        if (nodeByteBudget instanceof NodeByteBudgetService service) {
+            this.budget = service;
+        } else {
+            throw new IllegalArgumentException("node byte budget must be a NodeByteBudgetService");
         }
-        this.limit = limit;
+    }
+
+    NodeByteBudget nodeByteBudget() {
+        return budget;
+    }
+
+    void bindTracker(AdmissionTracker tracker) {
+        this.tracker = tracker == null ? AdmissionTracker.NOOP : tracker;
+        this.tracker.register(this);
+        budget.bindTracker(this.tracker);
+    }
+
+    int waiterCount() {
+        return budget.waiterCount();
     }
 
     /**
      * Attempts to reserve {@code bytes} of retained I/O. Refuses once {@code used + bytes} would
-     * exceed the cap; the one overshoot is {@link #admitWait}. Returns {@code false} without
-     * throwing; never a query failure.
+     * exceed the cap; the one overshoot is a ticket. Returns {@code false} without throwing;
+     * never a query failure.
      */
     boolean tryReserve(long bytes) {
-        if (bytes < 0L) {
-            throw new IllegalArgumentException("bytes must be non-negative, got: " + bytes);
-        }
-        if (bytes == 0L) {
-            return true;
-        }
-        lock.lock();
-        try {
-            long current = used.get();
-            long next = current + bytes;
-            if (next < 0L || next > limit) {
-                return false;
-            }
-            used.set(next);
-            return true;
-        } finally {
-            lock.unlock();
-        }
+        NodeByteBudget.Hold hold = budget.tryAdmit(bytes);
+        return hold != null;
     }
 
     /**
-     * {@link #tryReserve} plus an {@link AdmitHold} so the footer estimate is swapped for
+     * {@link #tryAdmit} plus an {@link AdmitHold} so the footer estimate is swapped for
      * actual buffer sizes as they allocate, and leftover estimate is dropped when the prefetch
      * future settles. Returns {@code null} when admission refuses.
      */
     @Nullable
     AdmitHold tryAdmit(long bytes) {
-        if (tryReserve(bytes) == false) {
-            return null;
-        }
-        return new AdmitHold(this, bytes);
+        NodeByteBudget.Hold hold = budget.tryAdmit(bytes);
+        return hold == null ? null : new AdmitHold(this, hold);
+    }
+
+    AdmitHold wrap(NodeByteBudget.Hold hold) {
+        return new AdmitHold(this, hold);
     }
 
     /**
-     * Blocks until {@code bytes} can be charged for {@code lease}, or {@code timeoutMs} elapses.
-     * Byte wait and permit wait are separate full clocks; this deadline covers only this wait.
-     * The caller supplies {@code timeoutMs} from {@code StorageObject#admissionWaitTimeoutMs()}.
-     * <p>
-     * Lock order: this watermark lock, then the budget lock inside
-     * {@link RowGroupIo#tryPinOvershoot()}. Never the reverse. {@link #clearOwner} runs after
-     * the budget {@code finish()} has released its lock.
+     * Caller-supplied timeout wrapper around {@link #admitWaitUntil}. Tests use this; production
+     * coalesced PER_GET uses a unit ticket instead.
      */
     AdmitHold admitWait(long bytes, RowGroupIo lease, long timeoutMs) {
-        if (lease == null) {
-            throw new IllegalArgumentException("lease is required");
-        }
-        if (bytes < 0L) {
-            throw new IllegalArgumentException("bytes must be non-negative, got: " + bytes);
-        }
-        if (bytes == 0L) {
-            return new AdmitHold(this, 0L);
-        }
-        // Independent of the query-budget acquire clock and the node-limiter clock.
-        long deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
-        lock.lock();
-        try {
-            while (true) {
-                if (lease.isCancelled()) {
-                    throw cancelled();
-                }
-                long current = used.get();
-                long next = current + bytes;
-                if (next < 0L) {
-                    throw new EsRejectedExecutionException("parquet I/O byte reservation overflow");
-                }
-                if (next <= limit) {
-                    used.set(next);
-                    return new AdmitHold(this, bytes);
-                }
-                if (overshootOwner == lease) {
-                    used.set(next);
-                    return new AdmitHold(this, bytes);
-                }
-                if (overshootOwner == null) {
-                    if (tryBecomeOwner(lease, next)) {
-                        return new AdmitHold(this, bytes);
-                    }
-                }
-                lease.setWake(this::signalWaiters);
-                if (lease.isCancelled()) {
-                    throw cancelled();
-                }
-                long waitNanos = deadlineNanos - System.nanoTime();
-                if (waitNanos <= 0L) {
-                    throw rejected(timeoutMs);
-                }
-                try {
-                    notFull.awaitNanos(waitNanos);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new EsRejectedExecutionException("Interrupted while waiting for parquet I/O bytes: " + e);
-                }
-            }
-        } finally {
-            lock.unlock();
-        }
+        return admitWaitUntil(bytes, lease, System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs));
     }
 
     /**
-     * Caller holds the watermark lock. Budget lock is taken inside {@code tryPinOvershoot} /
-     * {@code unpin} and released before this returns. A null scheduler (file:// and
-     * {@code max_concurrent_requests=0}) assigns the owner without pinning.
+     * Blocks until {@code bytes} can be charged for {@code lease}, or {@code deadlineNanos} elapses.
+     * Leftover OPCI / characterization tests only; production CRR no longer parks here.
      */
-    private boolean tryBecomeOwner(RowGroupIo lease, long nextUsed) {
-        if (lease.scheduler() != null) {
-            if (lease.tryPinOvershoot()) {
-                overshootOwner = lease;
-                lease.setWake(this::signalWaiters);
-                used.set(nextUsed);
-                return true;
+    AdmitHold admitWaitUntil(long bytes, RowGroupIo lease, long deadlineNanos) {
+        AdmissionTracker.Wait trackedWait = tracker.waitStarted(AdmissionTracker.GATE_BYTES, Thread.currentThread().getName());
+        boolean success = false;
+        try {
+            AdmitHold hold = new AdmitHold(this, budget.admitWaitUntil(bytes, lease, deadlineNanos));
+            success = true;
+            return hold;
+        } finally {
+            if (success) {
+                trackedWait.granted();
+            } else {
+                trackedWait.finished();
             }
-            lease.unpin();
-            return false;
         }
-        overshootOwner = lease;
-        used.set(nextUsed);
-        return true;
+    }
+
+    long forceAdmitLimit() {
+        return budget.forceAdmitLimit();
     }
 
     /**
@@ -199,45 +166,33 @@ final class ParquetIoWatermark {
      * has released the budget lock.
      */
     void clearOwner(RowGroupIo lease) {
-        if (lease == null) {
-            return;
+        budget.clearOwner(lease);
+    }
+
+    @Override
+    public String name() {
+        return AdmissionTracker.GATE_BYTES;
+    }
+
+    @Override
+    public int holders() {
+        int live = Math.max(0, holds.get());
+        if (live > 0) {
+            return live;
         }
-        lock.lock();
-        try {
-            if (overshootOwner == lease) {
-                overshootOwner = null;
-                notFull.signalAll();
-            }
-        } finally {
-            lock.unlock();
-        }
+        return budget.used() > 0L ? 1 : 0;
+    }
+
+    @Override
+    public String holderSummary() {
+        RowGroupIo owner = overshootOwner();
+        String ownerLabel = owner == null ? "none" : "lease#" + owner.startSeq();
+        return "used=" + budget.used() + "/" + budget.limit() + " owner=" + ownerLabel;
     }
 
     @Nullable
     RowGroupIo overshootOwner() {
-        lock.lock();
-        try {
-            return overshootOwner;
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    private void signalWaiters() {
-        lock.lock();
-        try {
-            notFull.signalAll();
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    private static EsRejectedExecutionException rejected(long timeoutMs) {
-        return new EsRejectedExecutionException("Timed out waiting for parquet I/O bytes after [" + timeoutMs + "]ms");
-    }
-
-    private static EsRejectedExecutionException cancelled() {
-        return new EsRejectedExecutionException("Cancelled while waiting for parquet I/O bytes");
+        return budget.overshootOwner();
     }
 
     /**
@@ -249,45 +204,31 @@ final class ParquetIoWatermark {
      * the overshoot owner.
      */
     void forceAdd(long bytes) {
-        if (bytes < 0L) {
-            throw new IllegalArgumentException("bytes must be non-negative, got: " + bytes);
-        }
-        if (bytes == 0L) {
-            return;
-        }
-        lock.lock();
-        try {
-            used.addAndGet(bytes);
-        } finally {
-            lock.unlock();
-        }
+        budget.add(bytes);
     }
 
     void release(long bytes) {
-        if (bytes < 0L) {
-            throw new IllegalArgumentException("bytes must be non-negative, got: " + bytes);
-        }
-        if (bytes == 0L) {
-            return;
-        }
-        lock.lock();
-        try {
-            used.updateAndGet(current -> {
-                long next = current - bytes;
-                return next < 0L ? 0L : next;
-            });
-            notFull.signalAll();
-        } finally {
-            lock.unlock();
-        }
+        budget.release(bytes);
     }
 
     long used() {
-        return used.get();
+        return budget.used();
     }
 
     long limit() {
-        return limit;
+        return budget.limit();
+    }
+
+    long admitWaitMs() {
+        return budget.admitWaitMs();
+    }
+
+    long forcedAdmits() {
+        return budget.forcedAdmits();
+    }
+
+    long waitNanos() {
+        return budget.waitNanos();
     }
 
     DirectBufferFactory accountingFactory(CircuitBreaker breaker) {
@@ -295,8 +236,10 @@ final class ParquetIoWatermark {
     }
 
     /**
-     * Factory that charges this watermark with the actual allocated length beside the REQUEST
-     * breaker, and releases both on {@link DirectReadBuffer#close()}. {@code admitHold} is a
+     * Factory that charges this watermark with the allocated buffer's
+     * {@linkplain HeapFootprint#byteArrayBytes(long) heap footprint} beside the REQUEST breaker
+     * (which {@link DirectReadBuffer#allocate(CircuitBreaker, int)} charges the same figure), and
+     * releases both on {@link DirectReadBuffer#close()}. {@code admitHold} is a
      * {@link #tryAdmit} estimate; each alloc drops that many leftover estimate bytes so a
      * coalesced group of many GETs does not open a look-ahead hole after the first buffer.
      * {@link AdmitHold#drop()} clears any remainder when the prefetch future settles.
@@ -307,9 +250,10 @@ final class ParquetIoWatermark {
             DirectReadBuffer allocated = inner.allocate(len);
             DirectReadBuffer wrapped = null;
             try {
-                wrapped = account(allocated, len);
+                long footprint = HeapFootprint.byteArrayBytes(len);
+                wrapped = account(allocated, footprint);
                 if (admitHold != null) {
-                    admitHold.drop(len);
+                    admitHold.drop(footprint);
                 }
                 return wrapped;
             } catch (Throwable t) {
@@ -327,18 +271,18 @@ final class ParquetIoWatermark {
         };
     }
 
-    private DirectReadBuffer account(DirectReadBuffer inner, int length) {
+    private DirectReadBuffer account(DirectReadBuffer inner, long footprint) {
         AtomicBoolean released = new AtomicBoolean();
         DirectReadBuffer wrapped = new DirectReadBuffer(inner.buffer(), () -> {
             try {
                 inner.close();
             } finally {
                 if (released.compareAndSet(false, true)) {
-                    release(length);
+                    release(footprint);
                 }
             }
         });
-        forceAdd(length);
+        forceAdd(footprint);
         return wrapped;
     }
 
@@ -360,11 +304,13 @@ final class ParquetIoWatermark {
      */
     static final class AdmitHold {
         private final ParquetIoWatermark watermark;
-        private final AtomicLong remaining;
+        private final NodeByteBudget.Hold inner;
+        private final AtomicBoolean counted = new AtomicBoolean(true);
 
-        private AdmitHold(ParquetIoWatermark watermark, long bytes) {
+        private AdmitHold(ParquetIoWatermark watermark, NodeByteBudget.Hold inner) {
             this.watermark = watermark;
-            this.remaining = new AtomicLong(Math.max(0L, bytes));
+            this.inner = inner;
+            watermark.holds.incrementAndGet();
         }
 
         /**
@@ -372,24 +318,14 @@ final class ParquetIoWatermark {
          * array charged by {@link #forceAdd}. Sibling in-flight ranges keep their estimate.
          */
         void drop(long bytes) {
-            if (bytes <= 0L) {
-                return;
-            }
-            while (true) {
-                long current = remaining.get();
-                if (current <= 0L) {
-                    return;
-                }
-                long release = Math.min(current, bytes);
-                if (remaining.compareAndSet(current, current - release)) {
-                    watermark.release(release);
-                    return;
-                }
-            }
+            inner.drop(bytes);
         }
 
         void drop() {
-            drop(Long.MAX_VALUE);
+            inner.close();
+            if (counted.compareAndSet(true, false)) {
+                watermark.holds.decrementAndGet();
+            }
         }
     }
 }

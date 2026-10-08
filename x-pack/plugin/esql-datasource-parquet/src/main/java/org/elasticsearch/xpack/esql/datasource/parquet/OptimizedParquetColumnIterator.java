@@ -110,7 +110,8 @@ import java.util.function.IntConsumer;
  * also be refused when the row group's chunks do not fit. {@link #fillPrefetchQueue} admits
  * unread queued groups under {@link #MAX_QUEUED_PREFETCH_BYTES} and the node-wide
  * {@link ParquetIoWatermark}; {@link #prefetchDepth} is a count wish, not the memory bound.
- * The first group of {@link #prefetchFirstRowGroup} may wait in {@code admitWait} so the scan
+ * The first group of {@link #prefetchFirstRowGroup} may wait up to
+ * {@link ParquetIoWatermark#DEFAULT_ADMIT_WAIT_MS} per coalesced read so the scan
  * cannot stall. Refills from {@link #triggerNextRowGroupPrefetch} are look-ahead and refuse
  * once {@code used + next} would exceed the cap — an empty queue there is the next group, not
  * the current one.
@@ -562,8 +563,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * both {@code size < prefetchDepth} (count wish) and, when the queue is non-empty,
      * {@code queuedPrefetchBytes + next <= prefetchByteBudget}. The node-wide
      * {@link ParquetIoWatermark} is a second gate: look-ahead is refused when {@code used + next}
-     * would exceed {@code heap / 8}. The first group of {@link #prefetchFirstRowGroup} may block
-     * in {@code admitWait} (PER_GET). Refills from {@link #triggerNextRowGroupPrefetch} always
+     * would exceed {@code heap / 8}. The first group of {@link #prefetchFirstRowGroup} may wait
+     * up to {@link ParquetIoWatermark#DEFAULT_ADMIT_WAIT_MS} per coalesced read (PER_GET). Refills
+     * from {@link #triggerNextRowGroupPrefetch} always
      * use non-blocking {@code tryAdmit}, including when the queue is empty — that empty queue is the
      * next group, not the current one, and blocking it on this thread would wait for bytes this
      * same thread will only release after {@link #advanceRowGroup} returns. Breaker
@@ -3318,10 +3320,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
         if (coercionWarnings == null) {
             String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW ? "skipping their rows" : "returning null";
-            coercionWarnings = new SkipWarnings(
-                "Some values in [" + fileLocation + "] cannot be read as their declared type; " + outcome,
-                warningSink
-            );
+            String prefix = "Some values in [" + fileLocation + "] cannot be read as their declared type; ";
+            coercionWarnings = new SkipWarnings(prefix + outcome, prefix + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME, warningSink);
         }
         return coercionWarnings;
     }
@@ -3515,7 +3515,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * current result then transfers its releasable to {@link #currentChunksReleasable}; otherwise
      * the guard either cancels this entry or includes it in the synchronous-fallback barrier.
      *
-     * <p>{@link #bytes} is the footer estimate from {@link ColumnChunkPrefetcher#computePrefetchBytes}
+     * <p>{@link #bytes} is the heap-footprint estimate from {@link ColumnChunkPrefetcher#computePrefetchBytes}
      * used for queued-byte admission; it is not the live breaker charge.
      */
     record PendingPrefetch(

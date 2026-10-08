@@ -818,7 +818,7 @@ Timings are listed in wall-clock nanoseconds and are not normalized at all. All 
 stack: ga 9.6
 ```
 
-All shards that ran at least one [rescorer](rescore-search-results.md) will have a `rescore` section in the profile. Let’s execute a small search with a rescorer and have a look at the rescore profile:
+All shards that run at least one [rescorer](rescore-search-results.md) have a `rescore` section in the profile. The following example runs a small search with a rescorer:
 
 ```console
 GET /my-index-000001/_search?filter_path=profile.shards.rescore

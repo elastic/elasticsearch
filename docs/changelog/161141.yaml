@@ -1,0 +1,5 @@
+area: TLS
+issues: []
+pr: 161141
+summary: Update `KeyStoreUtil` to avoid race in X500Principal
+type: bug

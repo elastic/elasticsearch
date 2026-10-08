@@ -614,7 +614,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     // ===== Multi-file iteration tests =====
 
     private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testMultiFileReadIteratesAllFiles() throws Exception {

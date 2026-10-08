@@ -410,18 +410,22 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         ParquetIoWatermark.AdmitHold hold = awaitAdmit(watermark, 80, lease);
         assertEquals(80, watermark.used());
         assertSame(lease, watermark.overshootOwner());
-        CountDownLatch queued = new CountDownLatch(1);
         AtomicBoolean secondGranted = new AtomicBoolean();
+        AtomicReference<ParquetIoWatermark.AdmitHold> second = new AtomicReference<>();
+        AtomicReference<Exception> error = new AtomicReference<>();
         watermark.admitAsync(80, new RowGroupIo(), () -> false, Runnable::run).addListener(ActionListener.wrap(h -> {
+            second.set(h);
             secondGranted.set(true);
-            h.drop();
-        }, e -> {}));
+        }, e -> error.set(e)));
         assertBusy(() -> assertEquals(1, watermark.waiterCount()));
         assertFalse(secondGranted.get());
         hold.drop();
         watermark.clearOwner(lease);
-        queued.countDown();
-        assertBusy(() -> assertEquals(0, watermark.waiterCount()));
+        assertBusy(() -> assertTrue("second oversize unit must grant after owner drop", secondGranted.get()));
+        assertNull(error.get());
+        assertNotNull(second.get());
+        second.get().drop();
+        assertEquals(0, watermark.waiterCount());
     }
 
     /**

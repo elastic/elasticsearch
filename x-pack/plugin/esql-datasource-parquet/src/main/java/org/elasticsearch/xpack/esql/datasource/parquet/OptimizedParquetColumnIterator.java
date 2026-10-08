@@ -1957,8 +1957,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         return rowsRemainingInGroup > 0;
                     }
                     if (currentRowGroupTriviallyPasses) {
-                        // Full-projection ticket already holds P1+P2 until rollover; decode
-                        // through the standard path. Do not split a second ticket.
+                        // Full-projection ticket already holds P1+P2 until rollover, or the
+                        // two-phase sync fallback already fetched projected columns. Clear
+                        // syncFallback so we do not fetchSync again and orphan the first
+                        // releasable. Decode through the standard path.
+                        syncFallback = false;
                     } else {
                         // Two-phase decode: pre-decode predicate columns from chunks, accumulate the
                         // global survivor mask, fetch projection columns for surviving pages only, and

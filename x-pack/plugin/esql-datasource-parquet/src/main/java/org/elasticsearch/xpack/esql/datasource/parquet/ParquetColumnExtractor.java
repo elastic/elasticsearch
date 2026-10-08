@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.StorageRetryCancellation;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -40,6 +41,8 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -594,19 +597,25 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         long prefetchBytes,
         ParquetIoWatermark watermark
     ) {
+        BooleanSupplier ambient = StorageRetryCancellation.current();
+        BooleanSupplier captured = ambient == null ? () -> false : ambient;
+        BooleanSupplier cancel = () -> captured.getAsBoolean() || lease.isCancelled();
         CompletableFuture<ParquetIoWatermark.AdmitHold> ticket = new CompletableFuture<>();
-        watermark.admitAsync(prefetchBytes, lease, lease::isCancelled, Runnable::run)
+        watermark.admitAsync(prefetchBytes, lease, cancel, Runnable::run)
             .addListener(ActionListener.wrap(ticket::complete, ticket::completeExceptionally));
-        final ParquetIoWatermark.AdmitHold granted;
-        try {
-            // Grant completes the ticket only. Start the GET on this materialize thread
-            // (esql_external_io), not on the budget releaser.
-            granted = ticket.join();
-        } catch (CompletionException e) {
-            Throwable cause = e.getCause() == null ? e : e.getCause();
-            return CompletableFuture.failedFuture(cause);
-        }
-        return startBucketIo(block, projection, blockFactory, lease, watermark, granted);
+        return ticket.thenCompose(granted -> {
+            try {
+                AtomicReference<CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>> started = new AtomicReference<>();
+                StorageRetryCancellation.runWithCancellation(
+                    cancel,
+                    () -> started.set(startBucketIo(block, projection, blockFactory, lease, watermark, granted))
+                );
+                return started.get();
+            } catch (Exception e) {
+                granted.drop();
+                return CompletableFuture.failedFuture(e);
+            }
+        });
     }
 
     private CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> startBucketIo(

@@ -7,12 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.apache.lucene.util.IntroSorter;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
@@ -67,22 +62,19 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
 
         private final List<Integer> channels;
         private final DriverContext driverContext;
-        private final BigArrays bigArrays;
-        private final PointBuffer points;
-        private ObjectArray<ReducedState> states;
+        private final ExponentialHistogramRawBuffer rawBuffer;
+        private FlushQueues preparedFlushQueues;
 
         ChangesExponentialHistogramGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
             this.channels = channels;
             this.driverContext = driverContext;
-            this.bigArrays = driverContext.bigArrays();
-            PointBuffer points = null;
+            ExponentialHistogramRawBuffer rawBuffer = null;
             try {
-                points = new PointBuffer(driverContext.blockFactory(), driverContext.breaker());
-                this.states = bigArrays.newObjectArray(256);
-                this.points = points;
-                points = null;
+                rawBuffer = new ExponentialHistogramRawBuffer(driverContext.blockFactory());
+                this.rawBuffer = rawBuffer;
+                rawBuffer = null;
             } finally {
-                Releasables.close(points);
+                Releasables.close(rawBuffer);
             }
         }
 
@@ -97,7 +89,7 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
 
         @Override
         public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-            // Nulls are represented by missing reduced states.
+            // Nulls are represented by missing flush queues.
         }
 
         @Override
@@ -142,8 +134,7 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
                 int groupStart = groups.getFirstValueIndex(p);
                 int groupEnd = groupStart + groups.getValueCount(p);
                 for (int g = groupStart; g < groupEnd; g++) {
-                    ReducedState state = getOrInitializeState(groups.getInt(g));
-                    appendValues(state, timestamps, timestampStart, timestampEnd, values, valueStart, valueEnd, scratch);
+                    appendValues(groups.getInt(g), timestamps, timestampStart, timestampEnd, values, valueStart, valueEnd, scratch);
                 }
             }
         }
@@ -155,17 +146,16 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
                 if (values.isNull(valuePosition) || timestamps.isNull(valuePosition)) {
                     continue;
                 }
-                ReducedState state = getOrInitializeState(groups.getInt(p));
                 int valueStart = values.getFirstValueIndex(valuePosition);
                 int valueEnd = valueStart + values.getValueCount(valuePosition);
                 int timestampStart = timestamps.getFirstValueIndex(valuePosition);
                 int timestampEnd = timestampStart + timestamps.getValueCount(valuePosition);
-                appendValues(state, timestamps, timestampStart, timestampEnd, values, valueStart, valueEnd, scratch);
+                appendValues(groups.getInt(p), timestamps, timestampStart, timestampEnd, values, valueStart, valueEnd, scratch);
             }
         }
 
-        private static void appendValues(
-            ReducedState state,
+        private void appendValues(
+            int groupId,
             LongBlock timestamps,
             int timestampStart,
             int timestampEnd,
@@ -177,7 +167,7 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
             for (int t = timestampStart; t < timestampEnd; t++) {
                 long timestamp = timestamps.getLong(t);
                 for (int v = valueStart; v < valueEnd; v++) {
-                    state.append(timestamp, values.getExponentialHistogram(v, scratch));
+                    rawBuffer.append(groupId, timestamp, values.getExponentialHistogram(v, scratch));
                 }
             }
         }
@@ -241,14 +231,14 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
             assert count == values.getValueCount(position) : "timestamps=" + timestamps + "; values=" + values + "; position=" + position;
             int firstTimestamp = timestamps.getFirstValueIndex(position);
             int firstValue = values.getFirstValueIndex(position);
-            ReducedState state = getOrInitializeState(groupId);
             for (int i = 0; i < count; i++) {
-                state.append(timestamps.getLong(firstTimestamp + i), values.getExponentialHistogram(firstValue + i, scratch));
+                rawBuffer.append(groupId, timestamps.getLong(firstTimestamp + i), values.getExponentialHistogram(firstValue + i, scratch));
             }
         }
 
         @Override
         public PreparedForEvaluation prepareEvaluateIntermediate(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+            flushQueues();
             return this::evaluateIntermediate;
         }
 
@@ -261,16 +251,17 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
                 ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
                 for (int p = 0; p < positionCount; p++) {
                     int group = selectedInPage.getInt(p);
-                    ReducedState state = group < states.size() ? states.get(group) : null;
-                    if (state == null) {
+                    FlushQueue flushQueue = preparedFlushQueues.getFlushQueue(group, rawBuffer::compareValues);
+                    if (flushQueue == null) {
                         timestamps.appendNull();
                         values.appendNull();
                     } else {
                         timestamps.beginPositionEntry();
                         values.beginPositionEntry();
-                        for (int point = state.head; point >= 0; point = points.next(point)) {
-                            timestamps.appendLong(points.timestamp(point));
-                            values.append(points.value(point, scratch));
+                        while (flushQueue.size() > 0) {
+                            int position = nextPosition(flushQueue);
+                            timestamps.appendLong(rawBuffer.timestamp(position));
+                            values.append(rawBuffer.value(position, scratch));
                         }
                         timestamps.endPositionEntry();
                         values.endPositionEntry();
@@ -283,6 +274,7 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
 
         @Override
         public PreparedForEvaluation prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+            flushQueues();
             return this::evaluateFinal;
         }
 
@@ -291,104 +283,50 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
             try (LongBlock.Builder changes = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
                 for (int p = 0; p < positionCount; p++) {
                     int group = selectedInPage.getInt(p);
-                    ReducedState state = group < states.size() ? states.get(group) : null;
-                    if (state == null) {
+                    FlushQueue flushQueue = preparedFlushQueues.getFlushQueue(group, rawBuffer::compareValues);
+                    if (flushQueue == null) {
                         changes.appendNull();
                     } else {
-                        changes.appendLong(state.changes());
+                        changes.appendLong(countChanges(flushQueue));
                     }
                 }
                 blocks[offset] = changes.build();
             }
         }
 
-        private ReducedState getOrInitializeState(int groupId) {
-            states = bigArrays.grow(states, groupId + 1);
-            ReducedState state = states.get(groupId);
-            if (state == null) {
-                state = new ReducedState();
-                states.set(groupId, state);
+        private FlushQueues flushQueues() {
+            if (preparedFlushQueues == null) {
+                preparedFlushQueues = rawBuffer.prepareForFlush();
             }
-            return state;
+            return preparedFlushQueues;
         }
 
-        @Override
-        public void close() {
-            Releasables.close(states, points);
+        private static int nextPosition(FlushQueue flushQueue) {
+            Slice top = flushQueue.top();
+            int position = top.next();
+            if (top.exhausted()) {
+                flushQueue.pop();
+            } else {
+                flushQueue.updateTop();
+            }
+            return position;
         }
 
-        private final class ReducedState {
-            private final ExponentialHistogramScratch leftScratch = new ExponentialHistogramScratch();
-            private final ExponentialHistogramScratch rightScratch = new ExponentialHistogramScratch();
-            private int head = -1;
-            private int count;
-
-            void append(long timestamp, ExponentialHistogram value) {
-                head = points.append(timestamp, value, head);
-                count++;
-            }
-
-            long changes() {
-                if (count < 2) {
-                    return 0;
+        private long countChanges(FlushQueue flushQueue) {
+            ExponentialHistogramScratch leftScratch = new ExponentialHistogramScratch();
+            ExponentialHistogramScratch rightScratch = new ExponentialHistogramScratch();
+            int previous = nextPosition(flushQueue);
+            long changes = 0;
+            while (flushQueue.size() > 0) {
+                int current = nextPosition(flushQueue);
+                ExponentialHistogram left = rawBuffer.value(previous, leftScratch);
+                ExponentialHistogram right = rawBuffer.value(current, rightScratch);
+                if (histogramsEqual(left, right) == false) {
+                    changes++;
                 }
-                long bytes = (long) count * Integer.BYTES;
-                driverContext.breaker().addEstimateBytesAndMaybeBreak(bytes, "changes-sort");
-                try {
-                    int[] sorted = new int[count];
-                    int point = head;
-                    for (int i = 0; i < count; i++) {
-                        sorted[i] = point;
-                        point = points.next(point);
-                    }
-                    new IntroSorter() {
-                        private int pivotPoint;
-
-                        @Override
-                        protected void setPivot(int i) {
-                            pivotPoint = sorted[i];
-                        }
-
-                        @Override
-                        protected int comparePivot(int j) {
-                            return comparePoints(pivotPoint, sorted[j]);
-                        }
-
-                        @Override
-                        protected int compare(int i, int j) {
-                            return comparePoints(sorted[i], sorted[j]);
-                        }
-
-                        @Override
-                        protected void swap(int i, int j) {
-                            int tmp = sorted[i];
-                            sorted[i] = sorted[j];
-                            sorted[j] = tmp;
-                        }
-                    }.sort(0, count);
-                    long changes = 0;
-                    for (int i = 1; i < count; i++) {
-                        ExponentialHistogram left = points.value(sorted[i], leftScratch);
-                        ExponentialHistogram right = points.value(sorted[i - 1], rightScratch);
-                        if (histogramsEqual(left, right) == false) {
-                            changes++;
-                        }
-                    }
-                    return changes;
-                } finally {
-                    driverContext.breaker().addWithoutBreaking(-bytes);
-                }
+                previous = current;
             }
-
-            private int comparePoints(int leftPoint, int rightPoint) {
-                int timestampOrder = Long.compare(points.timestamp(rightPoint), points.timestamp(leftPoint));
-                if (timestampOrder != 0) {
-                    return timestampOrder;
-                }
-                ExponentialHistogram left = points.value(leftPoint, leftScratch);
-                ExponentialHistogram right = points.value(rightPoint, rightScratch);
-                return compareHistograms(left, right);
-            }
+            return changes;
         }
 
         private static int compareHistograms(ExponentialHistogram left, ExponentialHistogram right) {
@@ -456,57 +394,61 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
             return result;
         }
 
-        private static final class PointBuffer implements org.elasticsearch.core.Releasable {
-            private final LongBuffer timestamps;
-            private final ExponentialHistogramBuffer values;
-            private final IntBuffer next;
+        @Override
+        public void close() {
+            Releasables.close(rawBuffer);
+        }
 
-            PointBuffer(BlockFactory blockFactory, CircuitBreaker breaker) {
-                LongBuffer timestamps = null;
-                ExponentialHistogramBuffer values = null;
-                IntBuffer next = null;
+        private static final class ExponentialHistogramRawBuffer extends RawBuffer {
+            private final ExponentialHistogramBuffer values;
+            private final ExponentialHistogramScratch leftScratch = new ExponentialHistogramScratch();
+            private final ExponentialHistogramScratch rightScratch = new ExponentialHistogramScratch();
+
+            ExponentialHistogramRawBuffer(org.elasticsearch.compute.data.BlockFactory blockFactory) {
+                super(blockFactory.breaker());
                 boolean success = false;
                 try {
-                    timestamps = new LongBuffer(breaker, PAGE_SIZE);
-                    values = new ExponentialHistogramBuffer(blockFactory, PAGE_SIZE);
-                    next = new IntBuffer(breaker, PAGE_SIZE);
+                    this.values = new ExponentialHistogramBuffer(blockFactory, PAGE_SIZE);
                     success = true;
                 } finally {
                     if (success == false) {
-                        Releasables.close(timestamps, values, next);
+                        close();
                     }
                 }
-                this.timestamps = timestamps;
-                this.values = values;
-                this.next = next;
             }
 
-            int append(long timestamp, ExponentialHistogram value, int nextPoint) {
-                int id = timestamps.size();
-                timestamps.ensureCapacity(id + 1);
-                values.ensureCapacity(id + 1);
-                next.ensureCapacity(id + 1);
+            void append(int groupId, long timestamp, ExponentialHistogram value) {
+                prepareSlicesOnly(groupId, timestamp);
+                int newSize = timestamps.size() + 1;
+                timestamps.ensureCapacity(newSize);
+                values.ensureCapacity(newSize);
                 timestamps.append(timestamp);
                 values.append(value);
-                next.append(nextPoint);
-                return id;
             }
 
-            long timestamp(int point) {
-                return timestamps.get(point);
+            long timestamp(int position) {
+                return timestamps.get(position);
             }
 
-            ExponentialHistogram value(int point, ExponentialHistogramScratch scratch) {
-                return values.get(point, scratch);
+            ExponentialHistogram value(int position, ExponentialHistogramScratch scratch) {
+                return values.get(position, scratch);
             }
 
-            int next(int point) {
-                return next.get(point);
+            int compareValues(int leftPosition, int rightPosition) {
+                ExponentialHistogram left = value(leftPosition, leftScratch);
+                ExponentialHistogram right = value(rightPosition, rightScratch);
+                return compareHistograms(left, right);
+            }
+
+            @Override
+            void clearBuffers() {
+                timestamps.clear();
+                values.clear();
             }
 
             @Override
             public void close() {
-                Releasables.close(timestamps, values, next);
+                Releasables.close(values, super::close);
             }
         }
     }

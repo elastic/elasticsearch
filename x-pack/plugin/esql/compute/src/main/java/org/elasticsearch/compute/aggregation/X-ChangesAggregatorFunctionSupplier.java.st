@@ -8,9 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
-import org.apache.lucene.util.IntroSorter;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
@@ -67,22 +64,19 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
 
     private final List<Integer> channels;
     private final DriverContext driverContext;
-    private final BigArrays bigArrays;
-    private final PointBuffer points;
-    private ObjectArray<ReducedState> states;
+    private final $Type$RawBuffer rawBuffer;
+    private FlushQueues preparedFlushQueues;
 
     Changes$Type$GroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
         this.channels = channels;
         this.driverContext = driverContext;
-        this.bigArrays = driverContext.bigArrays();
-        PointBuffer points = null;
+        $Type$RawBuffer rawBuffer = null;
         try {
-            points = new PointBuffer(driverContext.breaker());
-            this.states = bigArrays.newObjectArray(256);
-            this.points = points;
-            points = null;
+            rawBuffer = new $Type$RawBuffer(driverContext.breaker());
+            this.rawBuffer = rawBuffer;
+            rawBuffer = null;
         } finally {
-            Releasables.close(points);
+            Releasables.close(rawBuffer);
         }
     }
 
@@ -97,7 +91,7 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
 
     @Override
     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-        // Nulls are represented by missing reduced states.
+        // Nulls are represented by missing flush queues.
     }
 
     @Override
@@ -164,11 +158,11 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
             int groupStart = groups.getFirstValueIndex(p);
             int groupEnd = groupStart + groups.getValueCount(p);
             for (int g = groupStart; g < groupEnd; g++) {
-                ReducedState state = getOrInitializeState(groups.getInt(g));
+                int groupId = groups.getInt(g);
                 for (int t = timestampStart; t < timestampEnd; t++) {
                     long timestamp = timestamps.getLong(t);
                     for (int v = valueStart; v < valueEnd; v++) {
-                        state.append(timestamp, values.get$Type$(v));
+                        rawBuffer.append(groupId, timestamp, values.get$Type$(v));
                     }
                 }
             }
@@ -181,7 +175,7 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
             if (values.isNull(valuePosition) || timestamps.isNull(valuePosition)) {
                 continue;
             }
-            ReducedState state = getOrInitializeState(groups.getInt(p));
+            int groupId = groups.getInt(p);
             int valueStart = values.getFirstValueIndex(valuePosition);
             int valueEnd = valueStart + values.getValueCount(valuePosition);
             int timestampStart = timestamps.getFirstValueIndex(valuePosition);
@@ -189,7 +183,7 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
             for (int t = timestampStart; t < timestampEnd; t++) {
                 long timestamp = timestamps.getLong(t);
                 for (int v = valueStart; v < valueEnd; v++) {
-                    state.append(timestamp, values.get$Type$(v));
+                    rawBuffer.append(groupId, timestamp, values.get$Type$(v));
                 }
             }
         }
@@ -206,7 +200,7 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
             int groupStart = groups.getFirstValueIndex(p);
             int groupEnd = groupStart + groups.getValueCount(p);
             for (int g = groupStart; g < groupEnd; g++) {
-                getOrInitializeState(groups.getInt(g)).append(timestamp, value);
+                rawBuffer.append(groups.getInt(g), timestamp, value);
             }
         }
     }
@@ -214,7 +208,7 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
     private void addRawInput(int positionOffset, IntVector groups, $Type$Vector values, LongVector timestamps) {
         for (int p = 0; p < groups.getPositionCount(); p++) {
             int valuePosition = positionOffset + p;
-            getOrInitializeState(groups.getInt(p)).append(timestamps.getLong(valuePosition), values.get$Type$(valuePosition));
+            rawBuffer.append(groups.getInt(p), timestamps.getLong(valuePosition), values.get$Type$(valuePosition));
         }
     }
 
@@ -269,14 +263,14 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
         assert count == values.getValueCount(position) : "timestamps=" + timestamps + "; values=" + values + "; position=" + position;
         int firstTimestamp = timestamps.getFirstValueIndex(position);
         int firstValue = values.getFirstValueIndex(position);
-        ReducedState state = getOrInitializeState(groupId);
         for (int i = 0; i < count; i++) {
-            state.append(timestamps.getLong(firstTimestamp + i), values.get$Type$(firstValue + i));
+            rawBuffer.append(groupId, timestamps.getLong(firstTimestamp + i), values.get$Type$(firstValue + i));
         }
     }
 
     @Override
     public PreparedForEvaluation prepareEvaluateIntermediate(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        flushQueues();
         return this::evaluateIntermediate;
     }
 
@@ -288,16 +282,17 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
         ) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
-                ReducedState state = group < states.size() ? states.get(group) : null;
-                if (state == null) {
+                FlushQueue flushQueue = preparedFlushQueues.getFlushQueue(group, rawBuffer::compareValues);
+                if (flushQueue == null) {
                     timestamps.appendNull();
                     values.appendNull();
                 } else {
                     timestamps.beginPositionEntry();
                     values.beginPositionEntry();
-                    for (int point = state.head; point >= 0; point = points.next(point)) {
-                        timestamps.appendLong(points.timestamp(point));
-                        values.append$Type$(points.value(point));
+                    while (flushQueue.size() > 0) {
+                        int position = nextPosition(flushQueue);
+                        timestamps.appendLong(rawBuffer.timestamp(position));
+                        values.append$Type$(rawBuffer.value(position));
                     }
                     timestamps.endPositionEntry();
                     values.endPositionEntry();
@@ -310,6 +305,7 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
 
     @Override
     public PreparedForEvaluation prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        flushQueues();
         return this::evaluateFinal;
     }
 
@@ -318,157 +314,103 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
         try (LongBlock.Builder changes = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
-                ReducedState state = group < states.size() ? states.get(group) : null;
-                if (state == null) {
+                FlushQueue flushQueue = preparedFlushQueues.getFlushQueue(group, rawBuffer::compareValues);
+                if (flushQueue == null) {
                     changes.appendNull();
                 } else {
-                    changes.appendLong(state.changes());
+                    changes.appendLong(countChanges(flushQueue));
                 }
             }
             blocks[offset] = changes.build();
         }
     }
 
-    private ReducedState getOrInitializeState(int groupId) {
-        states = bigArrays.grow(states, groupId + 1);
-        ReducedState state = states.get(groupId);
-        if (state == null) {
-            state = new ReducedState();
-            states.set(groupId, state);
+    private FlushQueues flushQueues() {
+        if (preparedFlushQueues == null) {
+            preparedFlushQueues = rawBuffer.prepareForFlush();
         }
-        return state;
+        return preparedFlushQueues;
+    }
+
+    private static int nextPosition(FlushQueue flushQueue) {
+        Slice top = flushQueue.top();
+        int position = top.next();
+        if (top.exhausted()) {
+            flushQueue.pop();
+        } else {
+            flushQueue.updateTop();
+        }
+        return position;
+    }
+
+    private long countChanges(FlushQueue flushQueue) {
+        int previous = nextPosition(flushQueue);
+        long changes = 0;
+        while (flushQueue.size() > 0) {
+            int current = nextPosition(flushQueue);
+            if (valuesEqual(rawBuffer.value(previous), rawBuffer.value(current)) == false) {
+                changes++;
+            }
+            previous = current;
+        }
+        return changes;
+    }
+
+    private static boolean valuesEqual($type$ left, $type$ right) {
+        return left == right$if(double)$ || (Double.isNaN(left) && Double.isNaN(right))$endif$;
     }
 
     @Override
     public void close() {
-        Releasables.close(states, points);
+        Releasables.close(rawBuffer);
     }
 
-    private final class ReducedState {
-        private int head = -1;
-        private int count;
-
-        void append(long timestamp, $type$ value) {
-            head = points.append(timestamp, value, head);
-            count++;
-        }
-
-        long changes() {
-            if (count < 2) {
-                return 0;
-            }
-            // Pages and intermediate results for one series may have interleaved timestamps.
-            long bytes = (long) count * Integer.BYTES;
-            driverContext.breaker().addEstimateBytesAndMaybeBreak(bytes, "changes-sort");
-            try {
-                int[] sorted = new int[count];
-                int point = head;
-                for (int i = 0; i < count; i++) {
-                    sorted[i] = point;
-                    point = points.next(point);
-                }
-                new IntroSorter() {
-                    private int pivotPoint;
-
-                    @Override
-                    protected void setPivot(int i) {
-                        pivotPoint = sorted[i];
-                    }
-
-                    @Override
-                    protected int comparePivot(int j) {
-                        return comparePoints(pivotPoint, sorted[j]);
-                    }
-
-                    @Override
-                    protected int compare(int i, int j) {
-                        return comparePoints(sorted[i], sorted[j]);
-                    }
-
-                    @Override
-                    protected void swap(int i, int j) {
-                        int tmp = sorted[i];
-                        sorted[i] = sorted[j];
-                        sorted[j] = tmp;
-                    }
-                }.sort(0, count);
-                long changes = 0;
-                for (int i = 1; i < count; i++) {
-                    if (valuesEqual(points.value(sorted[i]), points.value(sorted[i - 1])) == false) {
-                        changes++;
-                    }
-                }
-                return changes;
-            } finally {
-                driverContext.breaker().addWithoutBreaking(-bytes);
-            }
-        }
-
-        private int comparePoints(int leftPoint, int rightPoint) {
-            int timestampOrder = Long.compare(points.timestamp(rightPoint), points.timestamp(leftPoint));
-            if (timestampOrder != 0) {
-                return timestampOrder;
-            }
-            // Multiple values can share a timestamp. Order them by value so the result does not depend on page or merge order.
-            return $if(double)$Double.compare(points.value(leftPoint), points.value(rightPoint))$else$Long.compare(points.value(leftPoint), points.value(rightPoint))$endif$;
-        }
-
-        private boolean valuesEqual($type$ left, $type$ right) {
-            return left == right$if(double)$ || (Double.isNaN(left) && Double.isNaN(right))$endif$;
-        }
-    }
-
-    private static final class PointBuffer implements org.elasticsearch.core.Releasable {
-        private final LongBuffer timestamps;
+    private static final class $Type$RawBuffer extends RawBuffer {
         private final $Type$Buffer values;
-        private final IntBuffer next;
 
-        PointBuffer(org.elasticsearch.common.breaker.CircuitBreaker breaker) {
-            LongBuffer timestamps = null;
-            $Type$Buffer values = null;
-            IntBuffer next = null;
+        $Type$RawBuffer(org.elasticsearch.common.breaker.CircuitBreaker breaker) {
+            super(breaker);
             boolean success = false;
             try {
-                timestamps = new LongBuffer(breaker, PAGE_SIZE);
-                values = new $Type$Buffer(breaker, PAGE_SIZE);
-                next = new IntBuffer(breaker, PAGE_SIZE);
+                this.values = new $Type$Buffer(breaker, PAGE_SIZE);
                 success = true;
             } finally {
                 if (success == false) {
-                    Releasables.close(timestamps, values, next);
+                    close();
                 }
             }
-            this.timestamps = timestamps;
-            this.values = values;
-            this.next = next;
         }
 
-        int append(long timestamp, $type$ value, int nextPoint) {
-            int id = timestamps.size();
-            timestamps.ensureCapacity(id + 1);
-            values.ensureCapacity(id + 1);
-            next.ensureCapacity(id + 1);
+        void append(int groupId, long timestamp, $type$ value) {
+            prepareSlicesOnly(groupId, timestamp);
+            int newSize = timestamps.size() + 1;
+            timestamps.ensureCapacity(newSize);
+            values.ensureCapacity(newSize);
             timestamps.append(timestamp);
             values.append(value);
-            next.append(nextPoint);
-            return id;
         }
 
-        long timestamp(int point) {
-            return timestamps.get(point);
+        long timestamp(int position) {
+            return timestamps.get(position);
         }
 
-        $type$ value(int point) {
-            return values.get(point);
+        $type$ value(int position) {
+            return values.get(position);
         }
 
-        int next(int point) {
-            return next.get(point);
+        int compareValues(int leftPosition, int rightPosition) {
+            return $if(double)$Double.compare(value(leftPosition), value(rightPosition))$else$Long.compare(value(leftPosition), value(rightPosition))$endif$;
+        }
+
+        @Override
+        void clearBuffers() {
+            timestamps.clear();
+            values.clear();
         }
 
         @Override
         public void close() {
-            Releasables.close(timestamps, values, next);
+            Releasables.close(values, super::close);
         }
     }
 }

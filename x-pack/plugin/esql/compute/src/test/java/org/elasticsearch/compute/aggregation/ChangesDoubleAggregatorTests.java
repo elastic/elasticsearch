@@ -108,6 +108,52 @@ public class ChangesDoubleAggregatorTests extends OperatorTests {
         }
     }
 
+    public void testDuplicateTimestampsHaveDeterministicOrderingAcrossIntermediateMerge() {
+        DriverContext driverContext = driverContext();
+        try (
+            var selected = driverContext.blockFactory().newConstantIntVector(0, 1);
+            var left = newAggregator(driverContext);
+            var right = newAggregator(driverContext);
+            var merged = newIntermediateAggregator(driverContext);
+            var evalContext = new GroupingAggregatorEvaluationContext(driverContext)
+        ) {
+            addRaw(left, driverContext, new double[] { 2 }, new long[] { 10 });
+            addRaw(right, driverContext, new double[] { 1, 1 }, new long[] { 10, 10 });
+
+            for (var source : List.of(left, right)) {
+                Block[] intermediate = new Block[source.intermediateBlockCount()];
+                source.prepareEvaluateIntermediate(selected, evalContext).evaluate(intermediate, 0, selected);
+                try (Page page = new Page(intermediate)) {
+                    merged.addIntermediateInput(0, selected, page);
+                }
+            }
+
+            Block[] intermediate = new Block[merged.intermediateBlockCount()];
+            merged.prepareEvaluateIntermediate(selected, evalContext).evaluate(intermediate, 0, selected);
+            try (LongBlock timestamps = (LongBlock) intermediate[0]; DoubleBlock values = (DoubleBlock) intermediate[1]) {
+                assertEquals(3, timestamps.getValueCount(0));
+                assertEquals(3, values.getValueCount(0));
+                int firstTimestamp = timestamps.getFirstValueIndex(0);
+                int firstValue = values.getFirstValueIndex(0);
+                assertEquals(10L, timestamps.getLong(firstTimestamp));
+                assertEquals(10L, timestamps.getLong(firstTimestamp + 1));
+                assertEquals(10L, timestamps.getLong(firstTimestamp + 2));
+                assertEquals(1.0, values.getDouble(firstValue), 0.0);
+                assertEquals(1.0, values.getDouble(firstValue + 1), 0.0);
+                assertEquals(2.0, values.getDouble(firstValue + 2), 0.0);
+            }
+
+            Block[] resultBlocks = new Block[1];
+            merged.prepareEvaluateFinal(selected, evalContext).evaluate(resultBlocks, 0, selected);
+            try (LongBlock result = (LongBlock) resultBlocks[0]) {
+                assertEquals(1L, result.getLong(0));
+            }
+        } finally {
+            driverContext.finish();
+            assertDriverContext(driverContext);
+        }
+    }
+
     public void testSingleSampleReturnsZeroAndMissingGroupReturnsNull() {
         DriverContext driverContext = driverContext();
         try (

@@ -1713,6 +1713,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         StoragePath lastSchemaPath;
         @Nullable
         List<Attribute> lastBoundSchema;
+        // The header columns last read for a split of a file with several, and that file: saves the re-read when
+        // this operator opens consecutive splits of one file. A null value is a real answer; the path says it was read.
+        @Nullable
+        StoragePath lastHeaderPath;
+        @Nullable
+        List<String> lastHeaderColumns;
         // 1-based index of the split / file the producer is currently working on (0 = not started).
         int currentSplitIndex;
         /**
@@ -2290,6 +2296,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // Owning the file's trailing bytes means the last segment may close its last stripe to EOF.
                 // Same fact as the reader's lastSplit below — one derivation, so the two cannot disagree.
                 boolean splitIsFileFinal = FileSplitProvider.isLastInFile(fileSplit);
+                // Every split of a file is handed its header columns, read once per file and kept for the next split. The
+                // exception is a split that is both the file's first and last: it has no later split to share them with, and
+                // the dispatch modes that stream it (compressed files, bracket multi-value CSV) read the header from the
+                // stream they are already reading, so a read here would be a whole extra open per file. Only a reader of
+                // header lines has columns to hand over, and an empty schema (which the read context drops) has no use
+                // for them.
+                boolean soleSplitOfItsFile = firstSplit && splitIsFileFinal;
+                List<String> headerColumns = soleSplitOfItsFile
+                    || perFileReadSchema == null
+                    || perFileReadSchema.isEmpty()
+                    || fileReader.readsHeaderLine() == false ? null : headerColumnsFor(fileSplit, fileReader, state);
                 pages = openWithParallelism(
                     fileReader,
                     obj,
@@ -2306,7 +2323,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     state.buffer::recordWarning,
                     bufferedInformationalWarningSink(state.buffer),
                     state.buffer.readCounters(),
-                    state.formatCounters
+                    state.formatCounters,
+                    headerColumns
                 );
                 adapterOwnsRowCount = pages != null;
                 if (pages == null) {
@@ -2319,6 +2337,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .lastSplit(splitIsFileFinal)
                         .recordAligned(recordAlignedMacro)
                         .readSchema(PhysicalNames.translateSchema(perFileReadSchema, renames))
+                        .fileHeaderColumns(headerColumns)
                         .splitStartByte(fileSplit.offset())
                         .maxRecordBytes(maxRecordBytes)
                         .readCounters(state.formatCounters)
@@ -2383,6 +2402,28 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (e instanceof RuntimeException re) throw re;
             throw new IOException(e);
         }
+    }
+
+    /**
+     * The header columns of {@code fileSplit}'s file, read over the whole file rather than the split's range so a
+     * compressed file is decompressed from its start. Remembered for the next split of the same file.
+     */
+    @Nullable
+    private List<String> headerColumnsFor(FileSplit fileSplit, FormatReader fileReader, ProducerState state) throws IOException {
+        if (fileSplit.path().equals(state.lastHeaderPath)) {
+            return state.lastHeaderColumns;
+        }
+        StorageObject headerObject = FileSplitProvider.newObjectForFile(storageProvider, fileSplit);
+        attachStorageMetrics(headerObject); // before any read, as for the schema probe above
+        List<String> headerColumns;
+        try {
+            headerColumns = fileReader.fileHeaderColumns(headerObject);
+        } finally {
+            foldObjectMetrics(state.buffer, headerObject);
+        }
+        state.lastHeaderPath = fileSplit.path();
+        state.lastHeaderColumns = headerColumns;
+        return headerColumns;
     }
 
     /**
@@ -2955,25 +2996,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (seg == null) {
             return ParallelDispatchMode.NOT_PARALLELIZABLE;
         }
-        // A header-bound declaration must resolve column names against the header at byte 0 (the coordinators give only
-        // chunk 0 the file's leading bytes — firstSplit(chunk.index == 0)), so it must read the WHOLE file from the
-        // leader — never a mid-file range with no header. It must NOT go NOT_PARALLELIZABLE: that mode's synchronous
-        // whole-file fallback wraps no StatsCapturingIterator, so it strips the cold read's row-count/stripe harvest and
-        // breaks the warm COUNT(*)/MIN/MAX serve. Both whole-file streaming paths below read leader-anchored AND capture
-        // stats, so a declared header read warms exactly like an inferred one. Compression is resolved first so a
-        // gz/… declaration stays on the compressed path (decoding correctly) rather than the uncompressed one.
-        boolean needsFileStart = reader.declaredNameBindingNeedsFileStart();
+        // Compression is resolved first so a compressed file stays on the compressed path (decoding correctly) rather
+        // than the uncompressed one.
         if (reader instanceof CompressionDelegatingFormatReader cdr) {
             DecompressionCodec codec = cdr.codec();
-            // A splittable/indexed codec could range-split into headerless chunks; a header-bound declaration forces the
-            // stream-only (whole-file, leader-anchored) compressed path instead. A non-splittable codec is stream-only anyway.
-            if (needsFileStart == false && (codec instanceof SplittableDecompressionCodec || codec instanceof IndexedDecompressionCodec)) {
+            if (codec instanceof SplittableDecompressionCodec || codec instanceof IndexedDecompressionCodec) {
                 return ParallelDispatchMode.SPLITTABLE_OR_INDEXED_COMPRESSED;
             }
             return ParallelDispatchMode.STREAM_ONLY_COMPRESSED;
-        }
-        if (needsFileStart) {
-            return ParallelDispatchMode.SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL;
         }
         RecordSplitter splitter = seg.recordSplitter();
         // A null splitter (only reachable from mocks) keeps the strided default.
@@ -2998,6 +3028,46 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable Consumer<String> warningSink,
         @Nullable ExternalReadCounters readCounters,
         @Nullable FormatReadCounters formatCounters
+    ) throws IOException {
+        return openWithParallelism(
+            reader,
+            obj,
+            cols,
+            policy,
+            recordAlignedMacroSplit,
+            splitIncludesFileLeader,
+            splitIsFileFinal,
+            perFileReadSchema,
+            baseFileOffset,
+            captureSink,
+            partialResultsWarningSink,
+            warningSink,
+            readCounters,
+            formatCounters,
+            null
+        );
+    }
+
+    /**
+     * As the overload without it, plus the file's header columns, read once per file by the caller; {@code null} for a
+     * split that reads its own header (the file's only split).
+     */
+    CloseableIterator<Page> openWithParallelism(
+        FormatReader reader,
+        StorageObject obj,
+        List<String> cols,
+        ErrorPolicy policy,
+        boolean recordAlignedMacroSplit,
+        boolean splitIncludesFileLeader,
+        boolean splitIsFileFinal,
+        @Nullable List<Attribute> perFileReadSchema,
+        long baseFileOffset,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        @Nullable Consumer<String> partialResultsWarningSink,
+        @Nullable Consumer<String> warningSink,
+        @Nullable ExternalReadCounters readCounters,
+        @Nullable FormatReadCounters formatCounters,
+        @Nullable List<String> fileHeaderColumns
     ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             // LIMIT and p<=1 never enter SPPC, so they take no streaming floor / extra
@@ -3033,7 +3103,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     warningSink,
                     readCounters,
                     formatCounters,
-                    this::noFurtherCandidates
+                    this::noFurtherCandidates,
+                    fileHeaderColumns
                 );
             }
             case SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL -> {
@@ -3048,10 +3119,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // coordinator below eagerly allocates parallelism-many segment-sized (1 MiB) buffers per file
                 // up front; that is necessary for a sequential-only stream but wastes memory on a seekable
                 // file, and at high parallelism and concurrency it exhausts the heap.
-                // A header-bound declaration must resolve names against the header at byte 0, so it can never take
-                // the proven-probing macro-split path (a non-leader range has no header). Force it onto the streaming
-                // whole-file path below, which reads leader-anchored in a single pass and still captures stats.
-                if (splitter != null && splitter.supportsProvenProbing() && reader.declaredNameBindingNeedsFileStart() == false) {
+                if (splitter != null && splitter.supportsProvenProbing()) {
                     return ParallelParsingCoordinator.parallelRead(
                         seg,
                         obj,
@@ -3074,7 +3142,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         warningSink,
                         readCounters,
                         formatCounters,
-                        this::noFurtherCandidates
+                        this::noFurtherCandidates,
+                        fileHeaderColumns
                     );
                 }
                 // Bracket multi-value CSV cannot prove a record start at a mid-file offset (bracket depth is

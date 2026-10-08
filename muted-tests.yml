@@ -153,9 +153,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testNdjsonBadDateTokenHonorsErrorPolicyMatchingColumnar
   issue: https://github.com/elastic/elasticsearch/issues/153158
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  method: testSourceRelocationAndTargetRestart
-  issue: https://github.com/elastic/elasticsearch/issues/153173
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testColumnarBadDateTokenNullsCellEagerAndDeferred
   issue: https://github.com/elastic/elasticsearch/issues/153187
@@ -492,21 +489,6 @@ tests:
   method: testLiveVersionMapMemoryUsed
   issue: https://github.com/elastic/elasticsearch/issues/159839
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: "test {yaml=aggregations/terms_text_docvalues/Terms aggregation on text field with doc_values}"
-  issue: https://github.com/elastic/elasticsearch/issues/159560
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: "test {yaml=aggregations/terms_text_docvalues/Terms aggregation on text field with doc_values - multi value}"
-  issue: https://github.com/elastic/elasticsearch/issues/159560
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: "test {yaml=aggregations/terms_text_docvalues/Indexing disabled}"
-  issue: https://github.com/elastic/elasticsearch/issues/159560
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: "test {yaml=search/400_synthetic_source/text with doc_values}"
-  issue: https://github.com/elastic/elasticsearch/issues/159560
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: "test {yaml=search/400_synthetic_source/text with doc_values multi-value}"
-  issue: https://github.com/elastic/elasticsearch/issues/159560
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {yaml=search/396_text_doc_values_multiterm_search/*}"
   issue: https://github.com/elastic/elasticsearch/issues/159693
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
@@ -574,9 +556,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.FlattenedRollingUpgradeIT
   method: testIndexing
   issue: https://github.com/elastic/elasticsearch/issues/160423
-- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
-  method: testTranslogMasterFailureOnlyStressRecoveryTest
-  issue: https://github.com/elastic/elasticsearch/issues/147835
 - class: org.elasticsearch.index.store.BytesReadHeaderIT
   method: testRequestCacheWorks
   issue: https://github.com/elastic/elasticsearch/issues/160611
@@ -596,9 +575,6 @@ tests:
   method: testRemoteReductionRejectionWithPendingCoordinatorReduction
   issue: https://github.com/elastic/elasticsearch/issues/160620
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
-  method: testStatsBlowupParquet
-  issue: https://github.com/elastic/elasticsearch/issues/160899
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   method: testStatsBlowupParquetZstd
   issue: https://github.com/elastic/elasticsearch/issues/160906
 - class: org.elasticsearch.xpack.esql.qa.multi_node.DatasetCacheIsolationIT
@@ -607,12 +583,6 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testCancelNewShardRecoveryAndUsesExistingShardCopy
   issue: https://github.com/elastic/elasticsearch/issues/160953
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
-  method: testStatsBlowupNdjson
-  issue: https://github.com/elastic/elasticsearch/issues/161026
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
-  method: testStatsBlowupCsv
-  issue: https://github.com/elastic/elasticsearch/issues/161060
 - class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
   method: "test {yaml=/36_columnar_sorting/field collapse on columnar keyword field}"
   issue: https://github.com/elastic/elasticsearch/issues/158753
@@ -692,6 +662,12 @@ tests:
 - class: org.elasticsearch.columnar.substrate.MonotonicTableTests
   method: testTablesInterleavedInOneFile
   issue: https://github.com/elastic/elasticsearch/issues/161435
-- class: org.elasticsearch.xpack.esql.datasources.StreamingPermitCycleSmallTests
-  method: testEightGzipStreamsCompleteUnderTinyLimiterBudget
-  issue: https://github.com/elastic/elasticsearch/issues/161165
+- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonManyFileWarmFoldIT
+  method: testNdjsonManyFileCountStarWarmShortCircuits
+  issue: https://github.com/elastic/elasticsearch/issues/161443
+- class: org.elasticsearch.xpack.esql.action.ExternalCountStarUsesShippedSchemaIT
+  method: testCountStarAtParallelismOne
+  issue: https://github.com/elastic/elasticsearch/issues/161451
+- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
+  method: testPeerRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/161463

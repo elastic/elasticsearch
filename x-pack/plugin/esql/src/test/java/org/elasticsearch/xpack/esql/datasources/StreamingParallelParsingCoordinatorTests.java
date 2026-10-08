@@ -168,6 +168,81 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * The columns read from chunk 0 are handed to every later chunk, so each binds the pinned schema by name. Chunk 0
+     * reads its own header and is handed none.
+     */
+    public void testHeaderColumnsReadFromChunkZeroReachEveryLaterChunk() throws Exception {
+        LineFormatReader reader = new LineFormatReader(512);
+        reader.headerColumns = List.of("line");
+
+        List<FormatReadContext> contexts = readAllPinned(reader);
+
+        assertThat(contexts.size(), Matchers.greaterThan(1));
+        for (FormatReadContext ctx : contexts) {
+            assertEquals(ctx.firstSplit() ? null : List.of("line"), ctx.fileHeaderColumns());
+        }
+    }
+
+    /**
+     * An empty answer means chunk 0 held no header line (a comment or skipped run longer than the chunk), which says
+     * nothing about the file. It must not be stored: later chunks are then handed no columns and fail loudly, rather
+     * than being handed "the file has no columns" and silently reading nothing.
+     */
+    public void testAnEmptyHeaderFromChunkZeroIsNotHandedToLaterChunks() throws Exception {
+        LineFormatReader reader = new LineFormatReader(512);
+        reader.headerColumns = List.of();
+
+        List<FormatReadContext> contexts = readAllPinned(reader);
+
+        assertThat(contexts.size(), Matchers.greaterThan(1));
+        for (FormatReadContext ctx : contexts) {
+            assertNull(ctx.fileHeaderColumns());
+        }
+    }
+
+    private static List<FormatReadContext> readAllPinned(LineFormatReader reader) throws Exception {
+        InputStream stream = new ByteArrayInputStream(buildContent(500).getBytes(StandardCharsets.UTF_8));
+        List<Attribute> pinned = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try (
+            CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                null,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                pinned,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("test"),
+                ExternalReadCounters.NOOP,
+                null,
+                null
+            )
+        ) {
+            while (iter.hasNext()) {
+                iter.next().releaseBlocks();
+            }
+        } finally {
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
+        }
+        synchronized (reader.seenContexts) {
+            return new ArrayList<>(reader.seenContexts);
+        }
+    }
+
     public void testSingleLineFallback() throws Exception {
         String content = "line-0000\n";
         InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
@@ -3826,6 +3901,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         final AtomicInteger boundReadCalls;
         final AtomicInteger unboundReadCalls;
         final List<FormatReadContext> seenContexts;
+        /** What {@link #fileHeaderColumns} answers; {@code null} makes this a reader without a header line. */
+        volatile List<String> headerColumns;
 
         LineFormatReader(long minSegment) {
             this(
@@ -3875,7 +3952,26 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public FormatReader withSchema(List<Attribute> schema) {
-            return new LineFormatReader(minSegment, schema, metadataCalls, boundReadCalls, unboundReadCalls, seenContexts);
+            LineFormatReader bound = new LineFormatReader(
+                minSegment,
+                schema,
+                metadataCalls,
+                boundReadCalls,
+                unboundReadCalls,
+                seenContexts
+            );
+            bound.headerColumns = headerColumns;
+            return bound;
+        }
+
+        @Override
+        public boolean readsHeaderLine() {
+            return headerColumns != null;
+        }
+
+        @Override
+        public List<String> fileHeaderColumns(StorageObject file) {
+            return headerColumns;
         }
 
         @Override

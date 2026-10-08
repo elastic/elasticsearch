@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
@@ -295,13 +296,24 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         } else {
             for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
                 Block labelBlock = page.getBlock(i);
-                // Omit null labels (e.g. a null-filled missing BY label) rather than emitting "". PromQL distinguishes
-                // an absent label from one whose value is empty; this mirrors writeMetricFields on the _timeseries path.
+                // Omit null labels (e.g. a null-filled missing BY label) and empty ones (a label function that emptied a
+                // label): Prometheus treats a label with an empty value as absent. This mirrors writeMetricFields on the
+                // _timeseries path.
                 if (labelBlock.isNull(position)) {
                     continue;
                 }
+                DataType type = columns.get(i).type();
+                if (type == DataType.KEYWORD || type == DataType.TEXT) {
+                    BytesRef val = ((BytesRefBlock) labelBlock).getBytesRef(labelBlock.getFirstValueIndex(position), scratch);
+                    if (val.length == 0) {
+                        continue;
+                    }
+                    builder.field(columns.get(i).name());
+                    builder.utf8Value(val.bytes, val.offset, val.length);
+                    continue;
+                }
                 builder.field(columns.get(i).name());
-                writeLabelValue(builder, labelBlock, columns.get(i).type(), position, zoneId, scratch);
+                writeLabelValue(builder, labelBlock, type, position, zoneId, scratch);
             }
         }
         builder.endObject(); // metric
@@ -423,6 +435,22 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         return millis / 1000.0;
     }
 
+    /** The response of a string literal instant query: Prometheus renders it as {@code [<unix_time>, "<string>"]}. */
+    static XContentBuilder buildStringResult(Instant time, String value) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        builder.field("status", "success");
+        builder.startObject("data");
+        builder.field("resultType", "string");
+        builder.startArray("result");
+        builder.value(parseTimestamp(time.toEpochMilli()));
+        builder.value(value);
+        builder.endArray();
+        builder.endObject(); // data
+        builder.endObject(); // root
+        return builder;
+    }
+
     /**
      * Formats a sample value for the Prometheus JSON response.
      * Prometheus represents values as strings, with special handling for NaN and Infinity.
@@ -461,7 +489,8 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
             String key = prefix + entry.getKey();
             if (entry.getValue() instanceof Map<?, ?> nested) {
                 writeMetricFields(builder, key + ".", nested);
-            } else if (entry.getValue() != null) {
+            } else if (entry.getValue() != null && entry.getValue().toString().isEmpty() == false) {
+                // a label with an empty value is absent in Prometheus
                 builder.field(key, entry.getValue().toString());
             }
         }

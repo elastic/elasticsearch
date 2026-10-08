@@ -14,6 +14,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 
 import java.util.List;
 import java.util.function.Function;
@@ -61,8 +62,31 @@ public final class ExternalSourceSettings {
      * value so in-flight GET size and the concurrency formula stay in lockstep. This is not a bound on bytes
      * retained after a GET completes (unread prefetch, current row group) and is not the NDJSON whole-object
      * byte-array fast-path cap.
+     *
+     * <p>Just under 8 MiB so the GET's {@code byte[]}, header included, fits in exactly 8 MiB of heap at every G1
+     * region size. The previous 10 MiB occupied 12 MiB at 4 MiB regions and 16 MiB at 8 MiB regions, and an exact
+     * 8 MiB would too. Do not round it back up; see {@link HeapFootprint#regionFriendlyLength(int)}.
      */
-    public static final int BLOB_STORE_GET_SIZE_BYTES = 10 * 1024 * 1024;
+    public static final int BLOB_STORE_GET_SIZE_BYTES = HeapFootprint.regionFriendlyLength(8 * 1024 * 1024);
+
+    /**
+     * Heap bytes to allocate for a fill or sliding-window buffer. {@code requestedMax} is the format ceiling
+     * (NDJSON {@code minimumSegmentSize}, Parquet window) and must be non-negative. When
+     * {@code knownObjectBytes} is a real object size, tiny objects pay that size instead of the ceiling
+     * (at least one byte when the ceiling is at least one). Negative {@code knownObjectBytes} — including
+     * {@code StorageObject.READ_TO_END} — means unknown, so the result is {@code requestedMax} capped at
+     * {@link Integer#MAX_VALUE}. The returned value always fits a {@code byte[]} length.
+     */
+    public static int ioFillBytes(long requestedMax, long knownObjectBytes) {
+        if (requestedMax < 0) {
+            throw new IllegalArgumentException("requestedMax must be non-negative [" + requestedMax + "]");
+        }
+        long max = Math.min(requestedMax, Integer.MAX_VALUE);
+        if (knownObjectBytes < 0) {
+            return (int) max;
+        }
+        return (int) Math.min(max, Math.max(1L, knownObjectBytes));
+    }
 
     /** Heap share reserved for in-flight blob-store buffers: {@code M = min(heap / this, half the request breaker)}. */
     static final int BLOB_STORE_MEMORY_HEAP_DIVISOR = 4;
@@ -71,12 +95,12 @@ public final class ExternalSourceSettings {
      * The default per-node concurrency for accessing an external blob store. CPU slope is {@code processors * 3}
      * clamped to {@code [}{@value #BLOB_STORE_CONCURRENCY_FLOOR}{@code , }{@value #BLOB_STORE_CONCURRENCY_CEILING}{@code ]}.
      * A byte budget {@code M = min(heap/4, half of indices.breaker.request.limit)} then caps that at
-     * {@code floor(M / 10 MiB)}, so small heaps cut connections instead of also taking a latency-hiding
+     * {@code floor(M / 8 MiB)}, so small heaps cut connections instead of also taking a latency-hiding
      * floor of 16. Tightening the request breaker in node-start settings ({@code elasticsearch.yml}) binds
      * first; {@code indices.breaker.request.limit} is Dynamic, but this default is resolved for the NodeScope
      * concurrency knob at startup, so a live REQUEST update does not resize permits, SDK pools, or
      * {@code esql_external_io}. Leftover {@code M} is left unused rather than shrinking the GET size. The parse
-     * floor of {@value #BLOB_STORE_CONCURRENCY_FLOOR} still wins when {@code M / 10 MiB} is smaller, so gzip/zstd
+     * floor of {@value #BLOB_STORE_CONCURRENCY_FLOOR} still wins when {@code M / 8 MiB} is smaller, so gzip/zstd
      * streaming keeps a parser thread.
      */
     public static int defaultBlobStoreConcurrency(Settings settings) {
@@ -96,7 +120,7 @@ public final class ExternalSourceSettings {
 
     // visible for testing
     /**
-     * Upper bound on in-flight 10 MiB GET slots from {@code M = min(heap/4, REQUEST/2)}. Never below the parse
+     * Upper bound on in-flight 8 MiB GET slots from {@code M = min(heap/4, REQUEST/2)}. Never below the parse
      * floor, so gzip/zstd still has a parser thread when {@code M / B} would be 2.
      */
     static int memoryBoundConcurrency(long heapBytes, long requestBreakerLimitBytes) {
@@ -189,7 +213,7 @@ public final class ExternalSourceSettings {
      * The default is {@link #defaultBlobStoreConcurrency(Settings)} rather than a fixed literal: CPU slope
      * {@code allocatedProcessors * 3} clamped to
      * {@code [}{@value #BLOB_STORE_CONCURRENCY_FLOOR}{@code , }{@value #BLOB_STORE_CONCURRENCY_CEILING}{@code ]},
-     * then further limited so concurrent 10 MiB reads stay within a quarter of heap (or half the request breaker
+     * then further limited so concurrent 8 MiB reads stay within a quarter of heap (or half the request breaker
      * when that is tighter). A positive operator override is capped by that same memory term, so a leftover
      * {@code 16} (the old floor) cannot skip the budget; {@code 0} still disables permit limiting. Operators can
      * raise it up to the memory cap (setting range 0–500) for high-throughput clusters or lower it when a store
@@ -398,6 +422,54 @@ public final class ExternalSourceSettings {
         Setting.Property.Dynamic
     );
 
+    /** Default for {@link #SCHEMA_MAX_FIELDS}, matching the default of {@code index.mapping.total_fields.limit}. */
+    public static final int DEFAULT_SCHEMA_MAX_FIELDS = 1000;
+
+    /**
+     * Ceiling for {@link #SCHEMA_MAX_FIELDS} and for a dataset's {@code schema_max_fields}. Unlike a mapping, which
+     * grows a few fields at a time, a resolved schema is built in one go on the coordinating node from bytes the
+     * caller controls, so neither the node nor a dataset may lift the cap without bound. 100,000 sits well above any
+     * legitimate schema while staying far below the widths that exhaust a small heap. Long names are still bounded
+     * only by the circuit breaker charge.
+     */
+    public static final int MAX_SCHEMA_MAX_FIELDS = 100_000;
+
+    /**
+     * Fields a format reader may materialise while resolving a file's schema before it refuses the file, counting
+     * every object and leaf field the way {@code index.mapping.total_fields.limit} does. A small file can describe a
+     * schema far larger than itself, and schema resolution runs on the coordinating node during planning. This is
+     * the node-wide default for schema inference, read by the NDJSON reader today and meant for every format that
+     * infers a schema; a dataset overrides it with its {@code schema_max_fields} key, as an index overrides its
+     * mapping limit. Readers capture it from the node settings, so a change needs a restart.
+     */
+    public static final Setting<Integer> SCHEMA_MAX_FIELDS = Setting.intSetting(
+        "esql.external.schema_max_fields",
+        DEFAULT_SCHEMA_MAX_FIELDS,
+        1,
+        MAX_SCHEMA_MAX_FIELDS,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Parses a dataset's {@code schema_max_fields} under the same bounds as {@link #SCHEMA_MAX_FIELDS}. The dataset key
+     * reaches a format reader as a raw config value rather than through the setting, so the setting's own bounds never
+     * see it. Returns {@code defaultValue} when the dataset does not set the key.
+     */
+    public static int parseDatasetSchemaMaxFields(Object value, String key, int defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        try {
+            return Setting.parseInt(value.toString(), 1, MAX_SCHEMA_MAX_FIELDS, key);
+        } catch (NumberFormatException e) {
+            // Setting.parseInt rethrows the JDK's message, which does not name the key, when the value is not a number.
+            throw new IllegalArgumentException(
+                "[" + key + "] must be an integer between 1 and " + MAX_SCHEMA_MAX_FIELDS + ", got [" + value + "]",
+                e
+            );
+        }
+    }
+
     /**
      * Deprecated pre-rename key for {@link #WORKLOAD_IDENTITY_ENABLED}, from before the external-dataset settings
      * were unified under {@code esql.external.*}. It shipped in released versions, so it stays registered — a node
@@ -591,6 +663,7 @@ public final class ExternalSourceSettings {
             MAX_GLOB_EXPANSION,
             MAX_DECOMPRESSION_RATIO,
             MAX_DECOMPRESSION_RATIO_ZSTD,
+            SCHEMA_MAX_FIELDS,
             WORKLOAD_IDENTITY_ENABLED,
             WORKLOAD_IDENTITY_ENABLED_OLD,
             MANAGED_IDENTITY_ENABLED,

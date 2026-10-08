@@ -216,6 +216,50 @@ public class ExternalFileMetadataPruningIT extends AbstractExternalDataSourceIT 
     }
 
     /**
+     * {@code STARTS_WITH} on {@code _file.name} skips opening files whose names miss the prefix.
+     * {@code registerDataset(..., Map.of())} hydrates {@code union_by_name}, so this path never
+     * re-lists in {@code listForQuery} — proving evaluateFilter even if listing hints are broken.
+     */
+    public void testStartsWithFileNamePrunesAtEvaluateFilterUnionByName() throws Exception {
+        assertAPrefixKeepsTwoOfThree(
+            registerDataset("file_meta", dirUri(prefixCsvDir()) + "*.csv", Map.of()),
+            "STARTS_WITH(`_file.name`, \"a-\")"
+        );
+    }
+
+    public void testLikeFileNamePrunesAtEvaluateFilterUnionByName() throws Exception {
+        assertAPrefixKeepsTwoOfThree(registerDataset("file_meta", dirUri(prefixCsvDir()) + "*.csv", Map.of()), "`_file.name` LIKE \"a-*\"");
+    }
+
+    public void testRLikeFileNamePrunesAtEvaluateFilterUnionByName() throws Exception {
+        assertAPrefixKeepsTwoOfThree(
+            registerDataset("file_meta", dirUri(prefixCsvDir()) + "*.csv", Map.of()),
+            "`_file.name` RLIKE \"a-.*\""
+        );
+    }
+
+    /**
+     * {@code registerLocalFileDataset} stores {@code first_file_wins}, so resolution re-lists
+     * through {@code listForQuery}. Path coverage of that re-list: it must not fail, and
+     * evaluateFilter still skips the non-prefix file. COUNT/rowsEmitted match the union_by_name
+     * tests even if listing hints are broken — listing-size shrink is
+     * {@code PartitionFilterHintExtractorTests} and {@code GlobExpanderTests}.
+     */
+    public void testStartsWithFileNamePrunesAtListingFirstFileWins() throws Exception {
+        assertAPrefixKeepsTwoOfThree(
+            registerLocalFileDataset("file_meta", dirUri(prefixCsvDir()) + "*.csv", Map.of()),
+            "STARTS_WITH(`_file.name`, \"a-\")"
+        );
+    }
+
+    public void testLikeFileNamePrunesAtListingFirstFileWins() throws Exception {
+        assertAPrefixKeepsTwoOfThree(
+            registerLocalFileDataset("file_meta", dirUri(prefixCsvDir()) + "*.csv", Map.of()),
+            "`_file.name` LIKE \"a-*\""
+        );
+    }
+
+    /**
      * ES|QL orders keywords by UTF-8 bytes, where the supplementary-plane name sorts above {@code U+E000}; UTF-16
      * code-unit order puts its leading surrogate below it.
      */
@@ -234,6 +278,26 @@ public class ExternalFileMetadataPruningIT extends AbstractExternalDataSourceIT 
     private List<Long> ids(String query) {
         try (var response = run(syncEsqlQueryRequest(query))) {
             return getValuesList(response).stream().map(row -> ((Number) row.get(0)).longValue()).toList();
+        }
+    }
+
+    private Path prefixCsvDir() throws IOException {
+        Path dir = createTempDir();
+        writeCsv(dir, "a-1.csv", "1");
+        writeCsv(dir, "a-2.csv", "2");
+        writeCsv(dir, "b-1.csv", "3");
+        return dir;
+    }
+
+    private void assertAPrefixKeepsTwoOfThree(String dataset, String predicate) {
+        String query = "FROM " + dataset + " METADATA _file.name | WHERE " + predicate + " | STATS c = COUNT(*)";
+        var request = syncEsqlQueryRequest(query);
+        request.profile(true);
+        try (var response = run(request)) {
+            List<List<Object>> rows = getValuesList(response);
+            long count = ((Number) rows.get(0).get(0)).longValue();
+            assertThat("two of three files start with a-", count, equalTo(2L));
+            assertSourceOperatorRowsPruned(response, 2);
         }
     }
 

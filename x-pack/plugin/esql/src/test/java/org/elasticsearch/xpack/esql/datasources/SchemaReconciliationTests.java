@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -118,9 +119,36 @@ public class SchemaReconciliationTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
         assertEquals(
-            "[s3://b/f2.parquet] has [1] columns, [s3://b/f1.parquet] has [2]; set [schema_resolution] to [union_by_name] to merge schemas",
+            "[f2.parquet] has [1] columns, [f1.parquet] has [2]; set [schema_resolution] to [union_by_name] to merge schemas",
             e.getMessage()
         );
+    }
+
+    /**
+     * Files are named below the directory they share, so the bucket and dataset prefix stay out of the message. Files
+     * that share no bucket have no such directory, and a path below the scheme would name the buckets.
+     */
+    public void testStrictMismatchNamesFilesBelowTheirCommonDirectoryOnly() {
+        List<Attribute> schema1 = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        List<Attribute> schema2 = List.of(attr("id", DataType.INTEGER));
+
+        StoragePath p1 = path("s3://secret-bucket/warehouse/logs/day=1/part-0.parquet");
+        StoragePath p2 = path("s3://secret-bucket/warehouse/logs/day=2/part-0.parquet");
+        IllegalArgumentException partitioned = expectThrows(
+            IllegalArgumentException.class,
+            () -> SchemaReconciliation.reconcileStrict(p1, orderedMap(p1, meta(schema1), p2, meta(schema2)))
+        );
+        assertThat(partitioned.getMessage(), containsString("[day=2/part-0.parquet] has [1] columns, [day=1/part-0.parquet] has [2]"));
+        assertThat(partitioned.getMessage(), not(containsString("warehouse")));
+
+        StoragePath b1 = path("s3://secret-one/data/f1.parquet");
+        StoragePath b2 = path("s3://secret-two/data/f2.parquet");
+        IllegalArgumentException acrossBuckets = expectThrows(
+            IllegalArgumentException.class,
+            () -> SchemaReconciliation.reconcileStrict(b1, orderedMap(b1, meta(schema1), b2, meta(schema2)))
+        );
+        assertThat(acrossBuckets.getMessage(), containsString("[f2.parquet] has [1] columns, [f1.parquet] has [2]"));
+        assertThat(acrossBuckets.getMessage(), not(containsString("secret")));
     }
 
     public void testStrictTypeMismatch() {
@@ -134,7 +162,7 @@ public class SchemaReconciliationTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
         assertEquals(
-            "[s3://b/f2.parquet]: column [salary] is [long], in [s3://b/f1.parquet] it is [integer]; "
+            "[f2.parquet]: column [salary] is [long], in [f1.parquet] it is [integer]; "
                 + "set [schema_resolution] to [union_by_name] to merge schemas",
             e.getMessage()
         );
@@ -239,7 +267,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
 
         assertEquals(
-            "[s3://logs/day=2/app.ndjson] has no column [level], which [s3://logs/day=1/app.ndjson] has; "
+            "[day=2/app.ndjson] has no column [level], which [day=1/app.ndjson] has; "
                 + "set [schema_resolution] to [union_by_name] to merge schemas",
             e.getMessage()
         );
@@ -254,7 +282,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, "ndjson"), f2, meta(schema2, "ndjson"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
 
-        assertThat(e.getMessage(), containsString("[s3://logs/day=2/app.ndjson] has [1] columns, [s3://logs/day=1/app.ndjson] has [2]"));
+        assertThat(e.getMessage(), containsString("[day=2/app.ndjson] has [1] columns, [day=1/app.ndjson] has [2]"));
     }
 
     public void testStrictOrderedFormatRejectsPermutedColumns() {
@@ -267,7 +295,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
 
         assertEquals(
-            "[s3://logs/day=2/app.csv]: column 0 is [level], in [s3://logs/day=1/app.csv] it is [id]; "
+            "[day=2/app.csv]: column 0 is [level], in [day=1/app.csv] it is [id]; "
                 + "set [schema_resolution] to [union_by_name] to merge schemas",
             e.getMessage()
         );
@@ -408,7 +436,7 @@ public class SchemaReconciliationTests extends ESTestCase {
             List.of(
                 "Columns mixing [long] and [double] across files are read as [double], losing precision above 2^53; "
                     + "set [schema_resolution] to [strict] to fail instead",
-                "column [val]: s3://b/f1.parquet (long), s3://b/f2.parquet (double); types [long, double]"
+                "column [val]: f1.parquet (long), f2.parquet (double); types [long, double]"
             ),
             warnings
         );
@@ -815,6 +843,60 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(result.perFileInfo().size(), equalTo(1));
     }
 
+    /**
+     * {@code strict} must refuse a within-file schema-inference widen even on a single-file dataset,
+     * where {@code validateStrictMatch} skips the only file (it equals the reference file) and so would
+     * otherwise see nothing to compare. The reader reports the widen via
+     * {@link SourceMetadata#widenedColumns()}, independent of file count.
+     */
+    public void testStrictSingleFileRefusesWithinFileWidening() {
+        List<Attribute> schema = List.of(attr("a", DataType.KEYWORD));
+        StoragePath f1 = path("s3://b/f1.csv");
+        WidenedColumn widened = new WidenedColumn("a", DataType.INTEGER, DataType.KEYWORD, "oops", 3);
+
+        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
+        metadata.put(f1, metaWithWidenedColumns(schema, List.of(widened)));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
+        assertThat(e.getMessage(), containsString("[f1.csv]"));
+        assertThat(e.getMessage(), containsString("column [a]"));
+        assertThat(e.getMessage(), containsString("[keyword]"));
+        assertThat(e.getMessage(), containsString("[integer]"));
+        assertThat(e.getMessage(), containsString("oops"));
+    }
+
+    /**
+     * A file with more than one widened column must name all of them in the one exception, not just the
+     * first — otherwise fixing the named column and rerunning would only reveal the next one.
+     */
+    public void testStrictRefusesWithinFileWideningNamesEveryWidenedColumn() {
+        List<Attribute> schema = List.of(attr("a", DataType.KEYWORD), attr("b", DataType.DOUBLE));
+        StoragePath f1 = path("s3://b/f1.csv");
+        WidenedColumn widenedA = new WidenedColumn("a", DataType.INTEGER, DataType.KEYWORD, "oops", 3);
+        WidenedColumn widenedB = new WidenedColumn("b", DataType.LONG, DataType.DOUBLE, "1.5", 5);
+
+        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
+        metadata.put(f1, metaWithWidenedColumns(schema, List.of(widenedA, widenedB)));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
+        assertThat(e.getMessage(), containsString("column [a]"));
+        assertThat(e.getMessage(), containsString("oops"));
+        assertThat(e.getMessage(), containsString("column [b]"));
+        assertThat(e.getMessage(), containsString("1.5"));
+    }
+
+    /** A dataset with no within-file widening reports nothing extra: {@code strict} behaves as before this fix. */
+    public void testStrictSingleFileWithNoWideningIsUnaffected() {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER));
+        StoragePath f1 = path("s3://b/f1.csv");
+
+        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
+        metadata.put(f1, metaWithWidenedColumns(schema, List.of()));
+
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileStrict(f1, metadata);
+        assertThat(result.unifiedSchema().size(), equalTo(1));
+    }
+
     public void testUnionByNameSingleFile() {
         List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
         StoragePath f1 = path("s3://b/f1.parquet");
@@ -854,7 +936,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertEquals(
             List.of(
                 "Columns whose type differs between files are read as [keyword]; set [schema_resolution] to [strict] to fail instead",
-                "column [val]: s3://b/f1.parquet (integer), s3://b/f2.parquet (keyword); types [integer, keyword]"
+                "column [val]: f1.parquet (integer), f2.parquet (keyword); types [integer, keyword]"
             ),
             warnings
         );
@@ -1047,8 +1129,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertEquals(
             List.of(
                 "Columns whose type differs between files are read as [keyword]; set [schema_resolution] to [strict] to fail instead",
-                "column [val]: s3://b/z.parquet (integer), s3://b/a.parquet (integer), s3://b/m.parquet (integer), "
-                    + "+3 more; types [integer, keyword]"
+                "column [val]: z.parquet (integer), a.parquet (integer), m.parquet (integer), " + "+3 more; types [integer, keyword]"
             ),
             warnings
         );
@@ -1083,8 +1164,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertEquals(
             List.of(
                 "Columns whose type differs between files are read as [keyword]; set [schema_resolution] to [strict] to fail instead",
-                "column [val]: s3://b/z.parquet (keyword), s3://b/a.parquet (keyword), s3://b/m.parquet (keyword), "
-                    + "+1 more; types [keyword, integer]"
+                "column [val]: z.parquet (keyword), a.parquet (keyword), m.parquet (keyword), " + "+1 more; types [keyword, integer]"
             ),
             warnings
         );
@@ -1240,9 +1320,8 @@ public class SchemaReconciliationTests extends ESTestCase {
     }
 
     public void testUnionByNameTextSourceWidenDatetimeToDateNanosKeepsCastNotPinned() {
-        // DATE_NANOS is excluded from read-type pinning: a text reader parsing an epoch number at
-        // DATE_NANOS reads it as epoch-nanos, not the epoch-millis a DATETIME column holds, so the
-        // DATETIME file keeps its inferred read type and the post-read cast rescales the unit.
+        // DATE_NANOS is excluded from read-type pinning: the DATETIME file keeps its inferred read
+        // type and the post-read cast widens millis to nanos.
         List<Attribute> schema1 = List.of(attr("c", DataType.DATETIME));
         List<Attribute> schema2 = List.of(attr("c", DataType.DATE_NANOS));
 
@@ -1430,12 +1509,17 @@ public class SchemaReconciliationTests extends ESTestCase {
     }
 
     private static SourceMetadata meta(List<Attribute> schema) {
-        return new SimpleMetadata(schema, "parquet");
+        return new SimpleMetadata(schema, "parquet", List.of());
     }
 
     /** Like {@link #meta(List)} but with an explicit {@code sourceType}, e.g. {@code "ndjson"}. */
     private static SourceMetadata meta(List<Attribute> schema, String sourceType) {
-        return new SimpleMetadata(schema, sourceType);
+        return new SimpleMetadata(schema, sourceType, List.of());
+    }
+
+    /** Like {@link #meta(List)} but carrying a within-file widening record, as a CSV/TSV/NDJSON reader would report it. */
+    private static SourceMetadata metaWithWidenedColumns(List<Attribute> schema, List<WidenedColumn> widenedColumns) {
+        return new SimpleMetadata(schema, "csv", widenedColumns);
     }
 
     private static Map<StoragePath, SourceMetadata> orderedMap(StoragePath k1, SourceMetadata v1, StoragePath k2, SourceMetadata v2) {
@@ -1448,10 +1532,12 @@ public class SchemaReconciliationTests extends ESTestCase {
     private static class SimpleMetadata implements SourceMetadata {
         private final List<Attribute> schema;
         private final String sourceType;
+        private final List<WidenedColumn> widenedColumns;
 
-        SimpleMetadata(List<Attribute> schema, String sourceType) {
+        SimpleMetadata(List<Attribute> schema, String sourceType, List<WidenedColumn> widenedColumns) {
             this.schema = schema;
             this.sourceType = sourceType;
+            this.widenedColumns = widenedColumns;
         }
 
         @Override
@@ -1467,6 +1553,11 @@ public class SchemaReconciliationTests extends ESTestCase {
         @Override
         public String location() {
             return "test";
+        }
+
+        @Override
+        public List<WidenedColumn> widenedColumns() {
+            return widenedColumns;
         }
     }
 

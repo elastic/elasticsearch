@@ -140,7 +140,9 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                 )
             ) {
                 LeafReader leaf = reader.leaves().getFirst().reader();
-                assertFalse(ESNextRescoreOversampleTestFixture.persistedPreconditionOnLeaf(leaf));
+                IvfSegmentConfig ivfSegmentConfig = ESNextRescoreOversampleTestFixture.readPersistedSegmentConfig(leaf);
+                assertNotNull(ivfSegmentConfig);
+                assertFalse(ivfSegmentConfig.usePrecondition());
 
                 FieldInfo fieldInfo = leaf.getFieldInfos().fieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
                 IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(false, true, 1, MAPPING_OVERSAMPLE, null);

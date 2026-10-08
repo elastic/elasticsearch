@@ -165,7 +165,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         final var clientSecret = config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET);
 
         final var timeout = config.getSetting(MicrosoftGraphAuthzRealmSettings.HTTP_REQUEST_TIMEOUT);
-        final var httpClient = new OkHttpClient.Builder().callTimeout(Duration.ofSeconds(timeout.seconds())).build();
+        final var tokenHttpClient = new OkHttpClient.Builder().callTimeout(Duration.ofSeconds(timeout.seconds())).build();
         // Kiota's RetryHandler only supports Kiota requests; Azure Identity retries token requests itself
         final var graphHttpClient = tokenHttpClient.newBuilder().addInterceptor(new RetryHandler()).build();
 

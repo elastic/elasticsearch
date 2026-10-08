@@ -116,18 +116,21 @@ public final class ExpandUnmappedFieldsPostProcessor {
      * Coarse per-token heap overheads {@link #structuralReservation} charges on top of the retained character bytes. Each are a
      * deliberate over-estimate - a {@code LinkedHashMap} (what {@link #parseJson} builds for every object) with its lazily allocated
      * default table, an {@code ArrayList} with its default backing array, and a {@code LinkedHashMap.Entry} plus the skeleton of the
-     * {@code String} key it holds. The breaker only needs the reservation to climb fast enough to fire before a structure-heavy parse
-     * exhausts the heap, so precision past the right order of magnitude buys nothing.
+     * {@code String} key it holds and a representative boxed {@code Long} for its value. The value is modelled as a boxed number for
+     * concreteness; string and other value types differ, but the constant is deliberately coarse. The breaker only needs the reservation
+     * to climb fast enough to fire before a structure-heavy parse exhausts the heap, so precision past the right order of magnitude buys
+     * nothing. Package-private so {@code ExpandUnmappedFieldsPostProcessorTests} can pin their magnitudes against an accidental shrink
+     * (e.g. a dropped {@code alignObjectSize}) that would silently make the reservation too small to protect anything.
      */
-    private static final long MAP_OVERHEAD_BYTES = RamUsageEstimator.alignObjectSize(
+    static final long MAP_OVERHEAD_BYTES = RamUsageEstimator.alignObjectSize(
         RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 8L * RamUsageEstimator.NUM_BYTES_OBJECT_REF + 4L * Integer.BYTES
     ) + RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + 16L * RamUsageEstimator.NUM_BYTES_OBJECT_REF);
 
-    private static final long LIST_OVERHEAD_BYTES = RamUsageEstimator.alignObjectSize(
+    static final long LIST_OVERHEAD_BYTES = RamUsageEstimator.alignObjectSize(
         RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF + 2L * Integer.BYTES
     ) + RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + 10L * RamUsageEstimator.NUM_BYTES_OBJECT_REF);
 
-    private static final long MEMBER_OVERHEAD_BYTES = RamUsageEstimator.alignObjectSize(
+    static final long MEMBER_OVERHEAD_BYTES = RamUsageEstimator.alignObjectSize(
         RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 5L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
     ) + RamUsageEstimator.alignObjectSize(
         RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF + Integer.BYTES + 1
@@ -303,14 +306,15 @@ public final class ExpandUnmappedFieldsPostProcessor {
      * name twice costs one lookup, and deciding if a new name is alphabetically later than any already encountered one costs one
      * comparison against the head of the heap. Only a new name that makes the cut pays the heap's logarithmic insert.
      */
-    private static final class FieldNameCollector implements BiConsumer<String, Object>, Releasable {
+    static final class FieldNameCollector implements BiConsumer<String, Object>, Releasable {
         /**
-         * Per-kept-name heap charged on top of the name's own {@link RamUsageEstimator#sizeOf(String) string size}: the {@code HashMap.Node}
+         * Per-kept-name heap charged on top of the name's own {@link RamUsageEstimator#sizeOf(String) string size}: a {@code HashMap.Node}
          * backing {@link #keptNames} (object header, {@code int} hash and the key/value/next references) plus the one {@code Object[]} slot
          * {@link #largestFirst} and the one {@link #keptNames} table each hold the same reference in. A coarse constant is enough - the
-         * breaker only needs the estimate to track the true footprint closely enough to fire before the heap is exhausted.
+         * breaker only needs the estimate to track the true footprint closely enough to fire before the heap is exhausted. Package-private
+         * so {@code ExpandUnmappedFieldsPostProcessorTests} can pin its magnitude alongside the structural-reservation overheads.
          */
-        private static final long PER_NAME_CONTAINER_OVERHEAD = RamUsageEstimator.alignObjectSize(
+        static final long PER_NAME_CONTAINER_OVERHEAD = RamUsageEstimator.alignObjectSize(
             RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 3L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
         ) + 2L * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
 
@@ -437,6 +441,12 @@ public final class ExpandUnmappedFieldsPostProcessor {
      * merely contains braces or colons (JSON embedded in text, say) does not inflate the estimate. The per-token constants are coarse
      * over-estimates: the breaker only needs the reservation to grow large enough to fire before the parse exhausts the heap, not to
      * predict the map's footprint exactly.
+     * <p>
+     * Only {@code {}}, {@code [} and {@code :} are counted, so this pass captures object- and member-heavy shapes but <b>not</b> an array
+     * of scalars: {@code [1,2,3,...]} carries one {@code [} and no {@code :}, so it is charged a single {@code LIST_OVERHEAD} for the whole
+     * array even though each distinct, uncached element boxes to its own {@code Integer}/{@code Long}. That shape therefore leans on the
+     * flat {@code json.length * factor} estimate in {@link #reserveForParse}, not on this structural pass. It is out of scope here (the
+     * follow-up streaming parse removes the materialised map entirely); the flat factor sits close to its real per-element cost.
      */
     private static long structuralReservation(BytesRef json) {
         long objects = 0;
@@ -447,7 +457,9 @@ public final class ExpandUnmappedFieldsPostProcessor {
         byte[] bytes = json.bytes;
         int end = json.offset + json.length;
         for (int i = json.offset; i < end; i++) {
-            char c = (char) bytes[i];
+            // Every structural token we match ({ [ : " \) is ASCII, so comparing the raw byte is exact and sidesteps sign extension:
+            // any non-ASCII continuation byte is negative and cannot equal one of these small positive constants.
+            byte c = bytes[i];
             if (inString) {
                 if (escaped) {
                     escaped = false;

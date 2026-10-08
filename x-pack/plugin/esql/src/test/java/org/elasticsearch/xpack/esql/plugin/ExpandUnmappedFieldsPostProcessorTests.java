@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -57,7 +58,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -944,6 +947,36 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
         arrayOfObjects.append("]}");
         expectThrows(CircuitBreakingException.class, () -> runExpandSingleRowUnderLimit(limit, arrayOfObjects.toString()));
+    }
+
+    /**
+     * Pins the coarse heap-overhead constants that feed the parse and field-name reservations. They are hand-derived from
+     * {@link RamUsageEstimator} primitives, so nothing else would catch a typo - a dropped {@code alignObjectSize} or a wrong reference
+     * count - that silently shrinks one toward zero and makes the reservation too small to protect anything. Assert each is a positive,
+     * 8-byte-aligned value within the order of magnitude a small heap object occupies, not an exact footprint.
+     */
+    public void testHeapOverheadConstantsAreSanePositiveMagnitudes() {
+        Map<String, Long> constants = Map.of(
+            "MAP_OVERHEAD_BYTES",
+            ExpandUnmappedFieldsPostProcessor.MAP_OVERHEAD_BYTES,
+            "LIST_OVERHEAD_BYTES",
+            ExpandUnmappedFieldsPostProcessor.LIST_OVERHEAD_BYTES,
+            "MEMBER_OVERHEAD_BYTES",
+            ExpandUnmappedFieldsPostProcessor.MEMBER_OVERHEAD_BYTES,
+            "PER_NAME_CONTAINER_OVERHEAD",
+            ExpandUnmappedFieldsPostProcessor.FieldNameCollector.PER_NAME_CONTAINER_OVERHEAD
+        );
+        for (Map.Entry<String, Long> constant : constants.entrySet()) {
+            String name = constant.getKey();
+            long bytes = constant.getValue();
+            // At least one object header: anything smaller is a derivation slip, not a real heap-object overhead.
+            assertThat(name + " is implausibly small", bytes, greaterThanOrEqualTo((long) RamUsageEstimator.NUM_BYTES_OBJECT_HEADER));
+            // A handful of small objects is tens of bytes; into the kilobytes means a wrong multiplier.
+            assertThat(name + " is implausibly large", bytes, lessThanOrEqualTo(4096L));
+            // Each constant is a sum of alignObjectSize(...) terms, so it must stay 8-aligned; a stray unaligned term flags a dropped
+            // alignObjectSize.
+            assertThat(name + " is not 8-byte aligned (dropped alignObjectSize?)", bytes % 8, equalTo(0L));
+        }
     }
 
     /**

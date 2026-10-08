@@ -24,13 +24,27 @@ public class TrackingCircuitBreaker extends NoopCircuitBreaker {
     private final long limit;
 
     public TrackingCircuitBreaker() {
-        this(-1L);
+        this("tracking", -1L);
     }
 
     /** @param limit the number of bytes above which reservations trip, or a negative value for no limit */
     public TrackingCircuitBreaker(long limit) {
-        super("tracking");
+        this("tracking", limit);
+    }
+
+    public TrackingCircuitBreaker(String name, long limit) {
+        super(name);
         this.limit = limit;
+    }
+
+    @Override
+    public void circuitBreak(String fieldName, long bytesNeeded) {
+        throw new CircuitBreakingException(
+            "TrackingCircuitBreaker breaker tripped: " + fieldName,
+            bytesNeeded,
+            limit,
+            Durability.TRANSIENT
+        );
     }
 
     @Override
@@ -38,7 +52,7 @@ public class TrackingCircuitBreaker extends NoopCircuitBreaker {
         long current = used.addAndGet(bytes);
         if (limit >= 0 && current > limit) {
             used.addAndGet(-bytes);
-            throw new CircuitBreakingException("test breaker tripped", bytes, limit, Durability.TRANSIENT);
+            circuitBreak(label, bytes);
         }
         peak.accumulateAndGet(current, Math::max);
     }

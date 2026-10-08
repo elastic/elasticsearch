@@ -703,3 +703,6 @@ tests:
 - class: org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapperTests
   method: testPredicatesOverTheValuesItKeeps
   issue: https://github.com/elastic/elasticsearch/issues/161317
+- class: org.elasticsearch.index.mapper.TextFieldValueQueriesTests
+  method: testColumnarTextAnswersOverItsValues
+  issue: https://github.com/elastic/elasticsearch/issues/161318

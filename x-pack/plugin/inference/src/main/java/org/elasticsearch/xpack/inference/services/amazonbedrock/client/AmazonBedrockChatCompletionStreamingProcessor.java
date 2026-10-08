@@ -405,41 +405,25 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
     private ChatCompletionMessageResponse handleReasoningDelta(ReasoningContentBlockDelta reasoning, int contentBlockIndex) {
         var type = reasoning.type();
         if (emitReasoningDetails == false) {
-            return type == ReasoningContentBlockDelta.Type.TEXT
-                ? new ChatCompletionMessageResponse(null, null, null, null, reasoning.text(), null)
-                : null;
+            return type == ReasoningContentBlockDelta.Type.TEXT ? reasoningMessage(reasoning.text(), null) : null;
         }
 
         // Converse sends no content block start for reasoning, so the first delta of a block assigns its reasoning index.
         long reasoningIdx = contentBlockIndexToReasoningIndex.computeIfAbsent(contentBlockIndex, k -> reasoningBlockCount++);
         return switch (type) {
-            case ReasoningContentBlockDelta.Type.TEXT -> new ChatCompletionMessageResponse(
-                null,
-                null,
-                null,
-                null,
+            case ReasoningContentBlockDelta.Type.TEXT -> reasoningMessage(
                 reasoning.text(),
-                List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, reasoningIdx, reasoning.text(), null))
+                new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, reasoningIdx, reasoning.text(), null)
             );
-            case ReasoningContentBlockDelta.Type.SIGNATURE -> new ChatCompletionMessageResponse(
+            case ReasoningContentBlockDelta.Type.SIGNATURE -> reasoningMessage(
                 null,
-                null,
-                null,
-                null,
-                null,
-                List.of(
-                    new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, reasoningIdx, null, reasoning.signature())
-                )
+                new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, reasoningIdx, null, reasoning.signature())
             );
             case ReasoningContentBlockDelta.Type.REDACTED_CONTENT -> {
                 var data = Base64.getEncoder().encodeToString(reasoning.redactedContent().asByteArray());
-                yield new ChatCompletionMessageResponse(
+                yield reasoningMessage(
                     null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    List.of(new ReasoningDetail.EncryptedReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, reasoningIdx, data))
+                    new ReasoningDetail.EncryptedReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, reasoningIdx, data)
                 );
             }
             case ReasoningContentBlockDelta.Type.UNKNOWN_TO_SDK_VERSION -> {
@@ -447,6 +431,10 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
                 yield null;
             }
         };
+    }
+
+    private static ChatCompletionMessageResponse reasoningMessage(@Nullable String reasoning, @Nullable ReasoningDetail detail) {
+        return new ChatCompletionMessageResponse(null, null, null, null, reasoning, detail == null ? null : List.of(detail));
     }
 
     /**

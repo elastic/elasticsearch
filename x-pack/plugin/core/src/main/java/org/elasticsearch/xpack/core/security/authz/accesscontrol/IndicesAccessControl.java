@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.security.support.CacheKey;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -354,14 +355,44 @@ public class IndicesAccessControl {
             Set<String> commonIndexes = Sets.intersection(indexes, otherIndexes);
 
             Map<String, IndexAccessControl> indexPermissionsMap = Maps.newMapWithExpectedSize(commonIndexes.size());
+            final Map<IndexAccessControl, Map<IndexAccessControl, IndexAccessControl>> limitedPairs = commonIndexes.size() > 1
+                ? new IdentityHashMap<>(1)
+                : null;
             for (String index : commonIndexes) {
                 IndexAccessControl indexAccessControl = getIndexPermissions(index);
                 IndexAccessControl limitedByIndexAccessControl = limitedByIndicesAccessControl.getIndexPermissions(index);
-                indexPermissionsMap.put(index, indexAccessControl.limitIndexAccessControl(limitedByIndexAccessControl));
+                indexPermissionsMap.put(index, limitOrReuse(limitedPairs, indexAccessControl, limitedByIndexAccessControl));
             }
             return indexPermissionsMap;
         };
         return new IndicesAccessControl(isGranted, limitedIndexPermissions);
+    }
+
+    /**
+     * Limits {@code indexAccessControl} by {@code limitedByIndexAccessControl}, or reuses the result already held in
+     * {@code limitedPairs} for that pair. Each side shares one {@code IndexAccessControl} across all backing indices of a
+     * data stream (see {@code IndicesPermission#buildIndicesAccessControl}), so the same pair recurs once per backing
+     * index, and limiting is a pure function of the pair, so the result is keyed on the pair's identity. A {@code null}
+     * {@code limitedPairs} limits directly: the single-index case has nothing to reuse.
+     */
+    private static IndexAccessControl limitOrReuse(
+        @Nullable Map<IndexAccessControl, Map<IndexAccessControl, IndexAccessControl>> limitedPairs,
+        IndexAccessControl indexAccessControl,
+        IndexAccessControl limitedByIndexAccessControl
+    ) {
+        if (limitedPairs == null) {
+            return indexAccessControl.limitIndexAccessControl(limitedByIndexAccessControl);
+        }
+        final Map<IndexAccessControl, IndexAccessControl> limitedForOwner = limitedPairs.computeIfAbsent(
+            indexAccessControl,
+            k -> new IdentityHashMap<>(1)
+        );
+        IndexAccessControl limited = limitedForOwner.get(limitedByIndexAccessControl);
+        if (limited == null) {
+            limited = indexAccessControl.limitIndexAccessControl(limitedByIndexAccessControl);
+            limitedForOwner.put(limitedByIndexAccessControl, limited);
+        }
+        return limited;
     }
 
     @Override

@@ -4810,16 +4810,16 @@ public class ExternalSourceResolver {
      * number the shared entry serves — and the file+config-shared entry is exact for the one statistic it serves.
      * <p>
      * The direction that IS open runs the other way, and is a pre-existing property of the {@code FAIL_FAST}
-     * licence rather than anything this identity introduces. A read bound POSITIONALLY — a pinned-inferred read —
-     * carries a row-width tripwire set by the PINNED schema's width, so a file whose later rows are wider than that
-     * aborts on {@code COUNT(*)} when read that way. A declared read of the same file+config can still complete where
-     * the positional one aborts, commit the physical count, and stamp it read-configuration-independent; the entry
-     * matches on path, mtime and config fingerprint, so the licence carries that count back to the positional reader,
-     * which then answers where its own scan errors. A masked abort, not a wrong number, and it flaps with cache
-     * state. The gap is narrower than it was: a headered declared read now aborts on any row wider than that file's
-     * own header, so the two diverge only where the pinned width differs from the file's header (a glob whose later
-     * files are wider than the first), or for a HEADERLESS declared read, which carries no width bound at all. Withdrawing the licence
-     * would close it and stop every strict dataset warming; scoping it to the binding mode that produced the count
+     * licence rather than anything this identity introduces. It exists only for HEADERLESS files. A headered file binds
+     * by its own header whatever the schema's provenance, and bounds rows by that header's width, so a declared and an
+     * inferred read of it abort on the same rows. A headerless file binds differently by provenance: an inferred read is
+     * bound positionally and carries a row-width tripwire set by the PINNED schema's width, so a file whose later rows
+     * are wider than that aborts on {@code COUNT(*)} when read that way, while a declared read of the same file+config
+     * carries no width bound at all and completes, commits the physical count, and stamps it
+     * read-configuration-independent; the entry matches on path, mtime and config fingerprint, so the licence carries
+     * that count back to the positional reader, which then answers where its own scan errors. A masked abort, not a
+     * wrong number, and it flaps with cache state. Withdrawing the licence would close it and stop every strict dataset
+     * warming; scoping it to the binding mode that produced the count
      * would close it without that cost, and is the shape of the fix if this is ever worth closing.
      * File-typed (columnar) formats are excluded: they already warm via split-discovery per-split stats, and the strict
      * columnar coercibility check seeds a physical-schema entry under the inferred key. The non-cacheable branch (e.g.
@@ -5497,7 +5497,7 @@ public class ExternalSourceResolver {
             for (Attribute a : unified.absent()) {
                 DatasetFieldMapping field = declaredMapping.mappings().properties().get(a.name());
                 String physical = field != null && field.path() != null ? field.path() : a.name();
-                pendingSchemaWarnings.add(SkipWarnings.absentDeclaredColumnMessage(physical));
+                pendingSchemaWarnings.add(SkipWarnings.absentColumnMessage(physical));
             }
         }
         DeclaredReadSpec declaredReadSpec = declaredReadSpecOf(declaredMapping);

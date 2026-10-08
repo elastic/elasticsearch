@@ -1,4 +1,0 @@
-pr: 160185
-summary: "[XM Cyber] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system`"
-area: Authorization
-type: enhancement

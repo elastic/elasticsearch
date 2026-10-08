@@ -274,7 +274,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         List<Attribute> schema = resolution.resolvedSource(DECLARED_GLOB).metadata().schema();
         assertEquals(List.of("id", "dept"), schema.stream().map(Attribute::name).toList());
         assertEquals(DataType.KEYWORD, schema.get(1).dataType());
-        assertThat(resolution.warnings(), hasItem(SkipWarnings.absentDeclaredColumnMessage("department")));
+        assertThat(resolution.warnings(), hasItem(SkipWarnings.absentColumnMessage("department")));
     }
 
     private static final String DECLARED_GLOB = "s3://bucket/data/*.parquet";

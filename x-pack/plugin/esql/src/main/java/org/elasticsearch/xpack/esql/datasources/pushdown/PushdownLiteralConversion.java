@@ -388,9 +388,10 @@ public final class PushdownLiteralConversion {
         if (d < min) {
             return outOfRangeIntegral(op, d, min, max);
         }
-        // LONG columns: beyond 2^53 a double does not uniquely name a long, and the evaluator
-        // compares in double space. Decline rather than push a stricter point / floor / ceil bound.
-        if (columnType == DataType.LONG && Math.abs(d) > MAX_EXACT_LONG_IN_DOUBLE) {
+        // LONG columns: at |d| >= 2^53 a double is not an injective long preimage
+        // ((double)(2^53+1) == (double)2^53). The evaluator compares in double space; a point /
+        // floor / ceil rewrite would be stricter or looser. Decline the non-injective range.
+        if (columnType == DataType.LONG && Math.abs(d) >= MAX_EXACT_LONG_IN_DOUBLE) {
             return null;
         }
         // Exact whole number in range → keep op.
@@ -481,9 +482,7 @@ public final class PushdownLiteralConversion {
             // WHERE's rejection of nulls (unlike a bare true literal).
             return new LessThanOrEqual(source, field, new Literal(source, Long.MAX_VALUE, columnType), null);
         }
-        if (columnType == DataType.DOUBLE) {
-            return new LessThanOrEqual(source, field, new Literal(source, Double.MAX_VALUE, DataType.DOUBLE), null);
-        }
+        // DOUBLE is never a tautology/contradiction target: convertToDouble only exact-widens.
         throw new IllegalArgumentException("no domain tautology for [" + columnType + "]");
     }
 
@@ -498,9 +497,7 @@ public final class PushdownLiteralConversion {
         if (columnType == DataType.DATETIME || columnType == DataType.DATE_NANOS) {
             return new LessThan(source, field, new Literal(source, Long.MIN_VALUE, columnType), null);
         }
-        if (columnType == DataType.DOUBLE) {
-            return new LessThan(source, field, new Literal(source, -Double.MAX_VALUE, DataType.DOUBLE), null);
-        }
+        // DOUBLE is never a tautology/contradiction target: convertToDouble only exact-widens.
         throw new IllegalArgumentException("no domain contradiction for [" + columnType + "]");
     }
 

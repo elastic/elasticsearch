@@ -145,16 +145,21 @@ public class PushdownLiteralConversionTests extends ESTestCase {
         assertThat(((Number) ((Literal) lte.right()).value()).intValue(), equalTo(5));
     }
 
-    public void testLongEqualsDoubleAboveTwoToFiftyThreeDeclines() {
-        // 2^53 and 2^53+1 share a double; evaluator promotes long→double, so a point rewrite is stricter.
-        double d = 0x1p53; // 2^53 — boundary still unique, allowed
-        Equals atBoundary = new Equals(SRC, field("id", DataType.LONG), new Literal(SRC, d, DataType.DOUBLE), null);
-        Equals rewrittenBoundary = asInstanceOf(Equals.class, PushdownLiteralConversion.rewrite(atBoundary));
-        assertThat(((Number) ((Literal) rewrittenBoundary.right()).value()).longValue(), equalTo(1L << 53));
+    public void testLongEqualsDoubleAtOrAboveTwoToFiftyThreeDeclines() {
+        // (double)(2^53+1) == (double)2^53 — boundary is not an injective preimage; decline |d| >= 2^53.
+        double atBoundary = 0x1p53;
+        Equals boundaryEq = new Equals(SRC, field("id", DataType.LONG), new Literal(SRC, atBoundary, DataType.DOUBLE), null);
+        assertSame(boundaryEq, PushdownLiteralConversion.rewrite(boundaryEq));
 
-        double above = Math.nextUp(0x1p53); // first double past 2^53 still well below Long.MAX_VALUE
-        Equals original = new Equals(SRC, field("id", DataType.LONG), new Literal(SRC, above, DataType.DOUBLE), null);
-        assertSame(original, PushdownLiteralConversion.rewrite(original));
+        double above = Math.nextUp(0x1p53);
+        Equals aboveEq = new Equals(SRC, field("id", DataType.LONG), new Literal(SRC, above, DataType.DOUBLE), null);
+        assertSame(aboveEq, PushdownLiteralConversion.rewrite(aboveEq));
+
+        // Just inside the injective range still converts (2^53-1 is exact in double).
+        double justBelow = Math.nextDown(0x1p53);
+        Equals below = new Equals(SRC, field("id", DataType.LONG), new Literal(SRC, justBelow, DataType.DOUBLE), null);
+        Equals rewrittenBelow = asInstanceOf(Equals.class, PushdownLiteralConversion.rewrite(below));
+        assertThat(((Number) ((Literal) rewrittenBelow.right()).value()).longValue(), equalTo((1L << 53) - 1));
     }
 
     public void testDateNanosLessThanOnDateColumnRoundsOutward() {

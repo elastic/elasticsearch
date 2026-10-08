@@ -74,7 +74,7 @@ public class CsvMultiValueSyntaxParseBenchmark {
     @Setup(Level.Trial)
     public void setup() {
         BenchmarkLogging.configure();
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("bench")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         csvData = generateStandardCsv(rowCount);
         // Reader (and its CsvMapper) constructed once per trial so the measurement loop reflects
         // only per-stream parse cost, not per-invocation mapper construction. In production the

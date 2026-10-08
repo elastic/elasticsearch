@@ -29,9 +29,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.hamcrest.Matcher;
 import org.junit.AfterClass;
 import org.mockito.ArgumentCaptor;
@@ -1391,35 +1389,39 @@ public class QuerySettingsTests extends ESTestCase {
      * settings are resolved, so that every phase of the query sees {@code LOAD}.
      */
     public void testLoadAllResolvesToLoadWhenTheLoadAllFieldLimitIsZero() {
-        ResolvedSettings resolved = ResolvedSettings.EMPTY.withOverride(QuerySettings.UNMAPPED_FIELDS, UnmappedResolution.LOAD_ALL);
+        assumeTrue("LOAD_ALL is snapshot-only", Build.current().isSnapshot());
 
-        ResolvedSettings settled = EsqlSession.applyLoadAllMaxFields(resolved, PlannerSettings.DEFAULTS.loadAllMaxFields(0));
+        ResolvedSettings resolved = resolveWithLoadAllFieldLimit(clusterSetting(QuerySettings.UNMAPPED_FIELDS, "LOAD_ALL"), 0);
 
-        assertThat(settled.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.LOAD));
+        assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.LOAD));
     }
 
     public void testLoadAllStaysLoadAllWhenTheLoadAllFieldLimitIsPositive() {
-        ResolvedSettings resolved = ResolvedSettings.EMPTY.withOverride(QuerySettings.UNMAPPED_FIELDS, UnmappedResolution.LOAD_ALL);
+        assumeTrue("LOAD_ALL is snapshot-only", Build.current().isSnapshot());
 
-        ResolvedSettings settled = EsqlSession.applyLoadAllMaxFields(
-            resolved,
-            PlannerSettings.DEFAULTS.loadAllMaxFields(between(1, 100_000))
+        ResolvedSettings resolved = resolveWithLoadAllFieldLimit(
+            clusterSetting(QuerySettings.UNMAPPED_FIELDS, "LOAD_ALL"),
+            between(1, 100_000)
         );
 
-        assertThat(settled.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.LOAD_ALL));
+        assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.LOAD_ALL));
     }
 
     public void testOtherUnmappedFieldsResolutionsAreLeftAloneByAZeroLoadAllFieldLimit() {
+        assumeTrue("LOAD is snapshot-only", Build.current().isSnapshot());
         for (UnmappedResolution resolution : new UnmappedResolution[] {
             UnmappedResolution.DEFAULT,
             UnmappedResolution.NULLIFY,
             UnmappedResolution.LOAD }) {
-            ResolvedSettings resolved = ResolvedSettings.EMPTY.withOverride(QuerySettings.UNMAPPED_FIELDS, resolution);
+            ResolvedSettings resolved = resolveWithLoadAllFieldLimit(clusterSetting(QuerySettings.UNMAPPED_FIELDS, resolution.name()), 0);
 
-            ResolvedSettings settled = EsqlSession.applyLoadAllMaxFields(resolved, PlannerSettings.DEFAULTS.loadAllMaxFields(0));
-
-            assertThat(settled.get(QuerySettings.UNMAPPED_FIELDS), equalTo(resolution));
+            assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(resolution));
         }
+    }
+
+    private static ResolvedSettings resolveWithLoadAllFieldLimit(Settings clusterState, int loadAllMaxFields) {
+        // No approximation is in play, so the license is never asked.
+        return QuerySettings.resolve(clusterState, Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED, null, loadAllMaxFields);
     }
 
     public void testDerivedClusterSettingRejectsMalformedValueAtWriteTime() {

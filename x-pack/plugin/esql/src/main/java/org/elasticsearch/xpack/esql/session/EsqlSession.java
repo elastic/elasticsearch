@@ -43,7 +43,6 @@ import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.iplocation.api.IpLocationService;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
@@ -452,20 +451,14 @@ public class EsqlSession {
         // supplied, before any view-resolution work. An operator's cluster default can never fail a query here: if it
         // is no longer usable the setting falls back to its built-in default, and the operator is warned on the
         // settings-update or license-transition path rather than in the request.
-        ResolvedSettings resolved = applyLoadAllMaxFields(
-            applyApproximationLicense(
-                QuerySettings.resolve(
-                    clusterService.state().metadata().settings(),
-                    clusterService.getSettings(),
-                    request.requestSettings(),
-                    statement,
-                    SettingsValidationContext.from(crossProjectModeDecider)
-                ),
-                request,
-                statement,
-                verifier.licenseState()
-            ),
-            plannerSettings
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterService.state().metadata().settings(),
+            clusterService.getSettings(),
+            request.requestSettings(),
+            statement,
+            SettingsValidationContext.from(crossProjectModeDecider),
+            verifier.licenseState(),
+            plannerSettings.loadAllMaxFields()
         );
         if (explainContext == null) {
             gatherSettingsMetrics(request, statement);
@@ -1526,56 +1519,6 @@ public class EsqlSession {
             }
         });
         return IpLocationResolution.fromPrefetched(databaseInfo);
-    }
-
-    /**
-     * Decide what an unlicensed cluster does about approximation, which depends on who asked for it.
-     * <p>
-     * A user who asked — in the request body or with {@code SET} — gets today's licensing error, unchanged: they
-     * requested a paid feature this cluster does not have. An operator's cluster-wide default is different. The
-     * operator is not in the request path, so failing would break every query on the cluster for people who never
-     * asked and cannot turn it off. Instead the default simply does not apply and the query runs exactly.
-     * <p>
-     * The operator learns of it from {@code QuerySettings.watchApproximationLicense}, which logs once when the
-     * license transitions. It cannot be logged here: this runs on every query.
-     * <p>
-     * Licenses change under a running cluster, so this cannot be settled when the setting is written: the value is
-     * valid, and it is the entitlement that comes and goes.
-     */
-    static ResolvedSettings applyApproximationLicense(
-        ResolvedSettings resolved,
-        EsqlQueryRequest request,
-        EsqlStatement statement,
-        XPackLicenseState licenseState
-    ) {
-        if (ApproximationSettings.isOn(QuerySettings.APPROXIMATION.get(resolved)) == false) {
-            return resolved;
-        }
-        boolean userSupplied = request.requestSettings().containsKey(QuerySettings.APPROXIMATION)
-            || (statement != null && statement.setting(QuerySettings.APPROXIMATION.name()) != null);
-        if (userSupplied) {
-            EsqlLicenseChecker.checkQueryApproximation(licenseState);
-            return resolved;
-        }
-        if (EsqlLicenseChecker.isQueryApproximationAllowed(licenseState)) {
-            return resolved;
-        }
-        return resolved.withOverride(QuerySettings.APPROXIMATION, null);
-    }
-
-    /**
-     * A limit of {@code 0} on the fields {@code LOAD_ALL} discovers makes {@code LOAD_ALL} discover nothing, which is what
-     * {@code LOAD} is. Resolve it to {@code LOAD} then, so that every phase downstream sees {@code LOAD}: no
-     * {@code _unmapped_fields} column is planned and shipped from the data nodes only to be dropped, and the restrictions
-     * that only {@code LOAD_ALL} has do not apply.
-     * <p>
-     * Public so that the tests of the query settings can reach it.
-     */
-    public static ResolvedSettings applyLoadAllMaxFields(ResolvedSettings resolved, PlannerSettings plannerSettings) {
-        if (plannerSettings.loadAllMaxFields() == 0 && QuerySettings.UNMAPPED_FIELDS.get(resolved) == UnmappedResolution.LOAD_ALL) {
-            return resolved.withOverride(QuerySettings.UNMAPPED_FIELDS, UnmappedResolution.LOAD);
-        }
-        return resolved;
     }
 
     private void gatherSettingsMetrics(EsqlQueryRequest request, EsqlStatement statement) {

@@ -845,7 +845,7 @@ GET /my-index-000001/_search?filter_path=profile.shards.rescore
 ```
 % TEST[continued]
 
-And here is the rescore profile:
+The `rescore` section in the profile response is an array with one element per rescorer, in the order the rescorers ran:
 
 ```console-result
 {

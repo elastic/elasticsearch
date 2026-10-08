@@ -289,7 +289,7 @@ Because a search request may be executed against one or more shards in an index,
 
 The profile itself may consist of one or more "searches", where a search is a query executed against the underlying Lucene index. Most search requests submitted by the user will only execute a single `search` against the Lucene index. But occasionally multiple searches will be executed, such as including a global aggregation (which needs to execute a secondary "match_all" query for the global context).
 
-Inside each `search` object there will be two arrays of profiled information: a `query` array and a `collector` array. Alongside the `search` object is an `aggregations` object that contains the profile information for the aggregations. If the request has rescorers, there is also a [`rescore`](#profiling-rescore) array that contains the profile information for each rescorer. In the future, more sections may be added, such as `suggest`, `highlight`, etc.
+Each `search` object contains two arrays of profiled information: a `query` array and a `collector` array. In addition to the `search` object, an`aggregations` object contains profile information for aggregations. If the request has rescorers, there is also a [`rescore`](#profiling-rescore) array that contains the profile information for each rescorer.
 
 There will also be a `rewrite` metric showing the total time spent rewriting the query (in nanoseconds).
 

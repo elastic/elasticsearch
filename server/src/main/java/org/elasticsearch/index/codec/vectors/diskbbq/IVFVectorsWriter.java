@@ -42,6 +42,7 @@ import org.elasticsearch.index.codec.vectors.cluster.ClusteringByteVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansByteVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
+import org.elasticsearch.index.store.VectorFieldHint;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -710,7 +711,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
             IndexOutput vectorsOut = mergeState.segmentInfo.dir.createTempOutput(
                 mergeState.segmentInfo.name,
                 "ivfvec_",
-                rawVectorsContext(DataAccessHint.SEQUENTIAL)
+                rawVectorsContext(fieldInfo, DataAccessHint.SEQUENTIAL)
             )
         ) {
             tempRawVectorsFileName = vectorsOut.getName();
@@ -762,7 +763,10 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         // now open the temp files and build the index structures. Clustering reads the vectors in increasing order, over
         // several passes; the doc ids are looked up per cluster
         try (
-            IndexInput vectors = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, rawVectorsContext(DataAccessHint.SEQUENTIAL));
+            IndexInput vectors = mergeState.segmentInfo.dir.openInput(
+                tempRawVectorsFileName,
+                rawVectorsContext(fieldInfo, DataAccessHint.SEQUENTIAL)
+            );
             IndexInput docs = docsFileName == null
                 ? null
                 : mergeState.segmentInfo.dir.openInput(docsFileName, mergeContext().union(DataAccessHint.RANDOM))
@@ -858,7 +862,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
                     try (
                         IndexInput postingsVectors = mergeState.segmentInfo.dir.openInput(
                             tempRawVectorsFileName,
-                            rawVectorsContext(DataAccessHint.RANDOM)
+                            rawVectorsContext(fieldInfo, DataAccessHint.RANDOM)
                         )
                     ) {
                         final ClusteringVectorValues<?> postingsVectorValues = isByte
@@ -1026,11 +1030,11 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
     }
 
     /**
-     * The context of the merged raw vectors in a temp file. They are much larger than the other files and not expected to fit in
-     * the page cache, so they are not reused.
+     * The context of the merged raw vectors of {@code fieldInfo} in a temp file. They are much larger than the other files and
+     * not expected to fit in the page cache, so they are not reused; the field they hold says how its mapping wants them read.
      */
-    private IOContext rawVectorsContext(DataAccessHint access) {
-        return mergeContext().union(access, NoReuseHint.INSTANCE);
+    private IOContext rawVectorsContext(FieldInfo fieldInfo, DataAccessHint access) {
+        return mergeContext().union(access, NoReuseHint.INSTANCE, new VectorFieldHint(fieldInfo.name));
     }
 
     private record FieldWriter(FieldInfo fieldInfo, FlatFieldVectorsWriter<?> delegate) {}

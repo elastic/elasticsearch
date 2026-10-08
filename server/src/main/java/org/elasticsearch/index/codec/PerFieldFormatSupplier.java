@@ -32,6 +32,7 @@ import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
+import org.elasticsearch.index.codec.vectors.FieldKnnVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -251,6 +252,15 @@ public class PerFieldFormatSupplier {
             }
         }
         return knnVectorsFormat;
+    }
+
+    /**
+     * The format that writes {@code field}, saying which field its files hold. Fields sharing the default format share its
+     * files, which hold no single field, so that format is not wrapped.
+     */
+    public KnnVectorsFormat getKnnVectorsFormatToWrite(String field) {
+        KnnVectorsFormat format = getKnnVectorsFormatForField(field);
+        return format == knnVectorsFormat ? format : new FieldKnnVectorsFormat(field, format);
     }
 
     public DocValuesFormat getDocValuesFormatForField(String field) {

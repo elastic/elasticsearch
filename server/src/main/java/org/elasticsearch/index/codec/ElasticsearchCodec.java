@@ -55,7 +55,7 @@ public abstract class ElasticsearchCodec extends FilterCodec {
     private final KnnVectorsFormat knnVectorsFormat = new PerFieldKnnVectorsFormat() {
         @Override
         public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-            return ElasticsearchCodec.this.getKnnVectorsFormatForField(field);
+            return ElasticsearchCodec.this.getKnnVectorsFormatToWrite(field);
         }
     };
 
@@ -151,5 +151,10 @@ public abstract class ElasticsearchCodec extends FilterCodec {
     /** Vectors format for writing new segments of {@code field}; subclasses dispatch per field. */
     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
         return delegateKnnVectorsFormat.getKnnVectorsFormatForField(field);
+    }
+
+    /** The format that writes {@code field} in new segments: {@link #getKnnVectorsFormatForField}, unless a subclass says more. */
+    protected KnnVectorsFormat getKnnVectorsFormatToWrite(String field) {
+        return getKnnVectorsFormatForField(field);
     }
 }

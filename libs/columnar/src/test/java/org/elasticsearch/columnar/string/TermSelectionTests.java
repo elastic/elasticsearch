@@ -20,13 +20,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class TermSelectionTests extends ESTestCase {
 
     private static final DictionaryPolicy ROOMY_DICTIONARY = new DictionaryPolicy(512 * 1024, 0.5, 1.0);
-    private static final SummaryPolicy ROOMY_SUMMARY = new SummaryPolicy(512 * 1024);
+    private static final SummaryPolicy ROOMY_SUMMARY = SummaryPolicy.sized(512 * 1024);
 
     public void testDictionaryLeavesOutTermsHeldOnceAndASummaryKeepsThem() {
         final Fixture fixture = fixture(Map.of("INFO", 10, "WARN", 5, "DEBUG", 1));
@@ -46,7 +47,7 @@ public class TermSelectionTests extends ESTestCase {
 
     public void testTheCapBoundsASummary() {
         final Fixture fixture = fixture(Map.of("INFO", 10, "WARN", 5, "ERROR", 3));
-        assertEquals(List.of("INFO", "WARN"), fixture.forSummary(new SummaryPolicy(8)));
+        assertEquals(List.of("INFO", "WARN"), fixture.forSummary(SummaryPolicy.sized(8)));
         assertEquals(List.of(), fixture.forSummary(SummaryPolicy.NONE));
     }
 
@@ -62,11 +63,32 @@ public class TermSelectionTests extends ESTestCase {
     public void testTheEmptyTermDoesNotFitABudgetOfNothing() {
         final Fixture fixture = fixture(Map.of("", 9, "INFO", 4));
         assertEquals(List.of(), fixture.forSummary(SummaryPolicy.NONE));
-        assertEquals(List.of(""), fixture.forSummary(new SummaryPolicy(1)));
+        assertEquals(List.of(""), fixture.forSummary(SummaryPolicy.sized(1)));
     }
 
-    // NOTE: whatever the column holds, an answer stays inside the quota, admits nothing rarer than the quota
-    // allows, and only grows as the budget does, since every answer is a prefix of one ranking.
+    // NOTE: a term the budget cannot afford is stepped over rather than ending the walk, so an answer packs
+    // the density ranking rather than prefixing it. Budgets therefore choose sets that need not nest in
+    // either direction: eleven bytes spent on one term leave less room than six bytes never spent on it.
+    public void testSelectionsUnderDifferentBudgetsNeedNotNest() {
+        final Map<String, Integer> termCounts = new LinkedHashMap<>();
+        termCounts.put("aaaaaaaaaa", 100);
+        termCounts.put("bbb", 12);
+        termCounts.put("ccc", 12);
+        final Fixture fixture = fixture(termCounts);
+
+        assertEquals("ten bytes buys nothing, so six bytes buys both", List.of("bbb", "ccc"), fixture.forSummary(SummaryPolicy.sized(6)));
+        assertEquals(
+            "eleven bytes buys the densest term and no room after it",
+            List.of("aaaaaaaaaa"),
+            fixture.forSummary(SummaryPolicy.sized(11))
+        );
+    }
+
+    // NOTE: a larger budget can keep a different set of terms, but never names fewer values. At the first
+    // term two budgets decide differently, the one the larger affords outranks everything behind it by
+    // density and costs more than the smaller has left, so what the smaller packs into that capacity names
+    // at most its density times that capacity, which is less than the skipped term names alone. The bound
+    // is on a sum over any subset, so indivisible terms do not break it.
     public void testAnyColumnIsAnsweredWithinItsQuota() {
         final Map<String, Integer> termCounts = new LinkedHashMap<>();
         for (int term = 0; term < between(1, 60); term++) {
@@ -75,16 +97,24 @@ public class TermSelectionTests extends ESTestCase {
         final Fixture fixture = fixture(termCounts);
 
         final int cap = between(0, 200);
-        final List<String> summarised = fixture.forSummary(new SummaryPolicy(cap));
+        final List<String> summarised = fixture.forSummary(SummaryPolicy.sized(cap));
         assertEquals("in term order", summarised.stream().sorted().toList(), summarised);
         assertThat(
             "within the cap",
             summarised.stream().mapToLong(term -> Math.max(1, term.length())).sum(),
             lessThanOrEqualTo((long) cap)
         );
-        assertTrue(
-            "a larger cap keeps what a smaller one kept",
-            fixture.forSummary(new SummaryPolicy(cap + between(1, 200))).containsAll(summarised)
+        final long spent = summarised.stream().mapToLong(term -> Math.max(1, term.length())).sum();
+        for (String term : termCounts.keySet()) {
+            if (summarised.contains(term) == false) {
+                assertThat("no room was left for [" + term + "]", spent + Math.max(1, term.length()), greaterThan((long) cap));
+            }
+        }
+        final List<String> wider = fixture.forSummary(SummaryPolicy.sized(cap + between(1, 200)));
+        assertThat(
+            "a larger cap names at least as many values",
+            wider.stream().mapToLong(termCounts::get).sum(),
+            greaterThanOrEqualTo(summarised.stream().mapToLong(termCounts::get).sum())
         );
 
         final List<String> named = fixture.forDictionary(ROOMY_DICTIONARY, 1000);
@@ -125,14 +155,14 @@ public class TermSelectionTests extends ESTestCase {
         // cost it the one behind, which names a hundred of the hundred and one values.
         final Fixture fixture = fixture(Map.of("a", 1, "t".repeat(200), 100));
         assertEquals(List.of("t".repeat(200)), fixture.forDictionary(new DictionaryPolicy(512, 0.5, 1.0), 10_000));
-        assertEquals(List.of("a", "t".repeat(200)), fixture.forSummary(new SummaryPolicy(512)));
+        assertEquals(List.of("a", "t".repeat(200)), fixture.forSummary(SummaryPolicy.sized(512)));
     }
 
     // NOTE: the two quotas admit different terms, so the same size does not make the same set.
     public void testTheSameSizeDoesNotMakeASummaryTheDictionary() {
         final Fixture fixture = fixture(Map.of("a", 1, "t".repeat(200), 100));
         assertEquals(List.of("t".repeat(200)), fixture.forDictionary(new DictionaryPolicy(200, 0.5, 1.0), 10_000));
-        assertEquals("one term each, and not the same one", List.of("a"), fixture.forSummary(new SummaryPolicy(200)));
+        assertEquals("one term each, and not the same one", List.of("a"), fixture.forSummary(SummaryPolicy.sized(200)));
     }
 
     public void testDensitiesAreComparedAsFractions() {

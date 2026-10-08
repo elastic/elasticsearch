@@ -1181,3 +1181,20 @@ FROM employees_no_mv
 emp_no:integer | salary:integer
 10001          | 57305
 ;
+
+
+query approximation
+required_capability: approximation_v7
+required_capability: external_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+SET approximation=true\;
+FROM employees_no_mv
+| STATS avg_emp_no=AVG(emp_no)
+;
+
+warning:line 2:1: approximation not supported: query with [FROM employees_no_mv] cannot be approximated
+
+avg_emp_no:double
+10050.5
+;

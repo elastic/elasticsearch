@@ -1390,40 +1390,33 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testSubqueryWithFork() throws IOException {
         bulkLoadTestData(10);
-
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
-                requestObjectBuilder().query(
-                    format(
-                        null,
-                        "from {}, (from {} | where integer > 1) | fork (where long > 2) (where ip == \"127.0.0.1\") | stats count(*)",
-                        testIndexName(),
-                        testIndexName()
-                    )
+        // 10 docs with integer/long = i and ip = 127.0.0.i for i in [0, 9].
+        // Main: 10 rows. Subquery integer > 1: 8 rows (2-9). Union: 18 rows.
+        // FORK (long > 2): 7 main + 7 subquery. FORK (ip == 127.0.0.1): 1 main + 0 subquery. Total 15.
+        Map<String, Object> result = runEsql(
+            requestObjectBuilder().query(
+                format(
+                    null,
+                    "from {}, (from {} | where integer > 1) | fork (where long > 2) (where ip == \"127.0.0.1\") | stats count(*)",
+                    testIndexName(),
+                    testIndexName()
                 )
             )
         );
-        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("FORK after subquery is not supported"));
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(15)));
 
-        re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
-                requestObjectBuilder().query(
-                    format(
-                        null,
-                        "from {}, (from {} | where integer > 1 | fork (where long > 2) ( where ip == \"127.0.0.1\")) | stats count(*)",
-                        testIndexName(),
-                        testIndexName()
-                    )
+        // Main: 10 rows. Subquery integer > 1 then FORK: long > 2 keeps 7, ip == 127.0.0.1 keeps 0. Total 17.
+        result = runEsql(
+            requestObjectBuilder().query(
+                format(
+                    null,
+                    "from {}, (from {} | where integer > 1 | fork (where long > 2) (where ip == \"127.0.0.1\")) | stats count(*)",
+                    testIndexName(),
+                    testIndexName()
                 )
             )
         );
-        error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("FORK inside subquery is not supported"));
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(17)));
     }
 
     private static String queryWithComplexFieldNames(int field) {
@@ -1516,7 +1509,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         @Nullable ProfileLogger profileLogger
     ) throws IOException {
         Boolean profileEnabled = requestObject.profile;
-        prepareProfileLogger(requestObject, profileLogger);
+        prepareProfileLogger(profileLogger);
         Request request = prepareRequestWithOptions(requestObject, SYNC);
 
         Response response = performRequest(request);
@@ -1551,7 +1544,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         @Nullable ProfileLogger profileLogger
     ) throws IOException {
         Boolean profileEnabled = requestObject.profile;
-        prepareProfileLogger(requestObject, profileLogger);
+        prepareProfileLogger(profileLogger);
         addAsyncParameters(requestObject, keepOnCompletion);
         Request request = prepareRequestWithOptions(requestObject, ASYNC);
 
@@ -1641,13 +1634,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return removeAsyncProperties(result);
     }
 
-    private static void prepareProfileLogger(RequestObjectBuilder requestObject, @Nullable ProfileLogger profileLogger) throws IOException {
+    private static void prepareProfileLogger(@Nullable ProfileLogger profileLogger) {
         if (profileLogger != null) {
             profileLogger.clearProfile();
-            var isProfileSafe = hasCapabilities(adminClient(), List.of("fixed_profile_serialization"));
-            if (isProfileSafe) {
-                requestObject.profile(true);
-            }
         }
     }
 
@@ -2056,7 +2045,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         // deliberately short in order to frequently trigger return without results
         requestObject.waitForCompletion(TimeValue.timeValueNanos(randomIntBetween(1, 100)));
         requestObject.keepOnCompletion(keepOnCompletion);
-        requestObject.keepAlive(TimeValue.timeValueDays(randomIntBetween(1, 10)));
+        // capped at 7d so it stays within serverless's async_search.max_keep_alive
+        requestObject.keepAlive(TimeValue.timeValueDays(randomIntBetween(1, 7)));
     }
 
     // If keep_on_completion is set then an id must always be present, regardless of the value of any other property.

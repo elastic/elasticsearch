@@ -19,12 +19,13 @@ import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFor
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Random;
 import java.util.function.ToLongBiFunction;
+import java.util.stream.IntStream;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
 import static org.hamcrest.Matchers.closeTo;
@@ -1087,6 +1088,124 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
     }
 
+    static int scalarIndexOfAny(byte[] bytes, final int offset, final int length, byte b0, byte b1, byte b2, byte b3) {
+        final int end = offset + length;
+        for (int i = offset; i < end; i++) {
+            byte c = bytes[i];
+            if (c == b0 || c == b1 || c == b2 || c == b3) {
+                return i - offset;
+            }
+        }
+        return -1;
+    }
+
+    // -- indexOfLineTerminatorLeadByte
+
+    // The 5 line terminators recognized by java.util.regex.Pattern's default (non-UNIX_LINES) mode --
+    // see ESVectorUtil#indexOfLineTerminatorLeadByte's javadoc. \u2028 and \u2029 share a UTF-8 lead
+    // byte, so these 5 terminators have only 4 distinct lead bytes.
+    private static final char[] LINE_TERMINATORS = { '\n', '\r', '\u0085', '\u2028', '\u2029' };
+
+    private static byte leadByte(char terminator) {
+        return String.valueOf(terminator).getBytes(UTF_8)[0];
+    }
+
+    private static boolean isLineTerminatorLeadByte(byte b) {
+        return IntStream.range(0, LINE_TERMINATORS.length).anyMatch(i -> leadByte(LINE_TERMINATORS[i]) == b);
+    }
+
+    /** A byte array of random "noise" bytes, none of which are a line-terminator lead byte. */
+    private static byte[] randomBytesExcludingLineTerminatorLeadBytes(int size) {
+        byte[] bytes = new byte[size];
+        for (int i = 0; i < size; i++) {
+            bytes[i] = randomValueOtherThanMany(ESVectorUtilTests::isLineTerminatorLeadByte, ESVectorUtilTests::randomByte);
+        }
+        return bytes;
+    }
+
+    public void testIndexOfLineTerminatorLeadByteBounds() {
+        int iterations = atLeast(50);
+        for (int i = 0; i < iterations; i++) {
+            int size = random().nextInt(2, 5000);
+            var bytes = new byte[size];
+            expectThrows(IOOBE, () -> ESVectorUtil.indexOfLineTerminatorLeadByte(bytes, 0, bytes.length + 1));
+            expectThrows(IOOBE, () -> ESVectorUtil.indexOfLineTerminatorLeadByte(bytes, 1, bytes.length));
+            expectThrows(IOOBE, () -> ESVectorUtil.indexOfLineTerminatorLeadByte(bytes, bytes.length, 1));
+            expectThrows(IOOBE, () -> ESVectorUtil.indexOfLineTerminatorLeadByte(bytes, bytes.length - 1, 2));
+            expectThrows(IOOBE, () -> ESVectorUtil.indexOfLineTerminatorLeadByte(bytes, randomIntBetween(2, size), bytes.length));
+        }
+    }
+
+    // Widest plausible SIMD lane width (bytes) across supported hardware: 16/32/64 for 128/256/512-bit
+    // vectors.
+    private static final int MAX_TAIL_SWEEP = 128;
+
+    public void testIndexOfLineTerminatorLeadByteSimple() {
+        for (int size = 1; size <= MAX_TAIL_SWEEP; size++) {
+            testIndexOfLineTerminatorLeadByteSimpleImpl(size);
+        }
+        // plus some larger, non-boundary sizes for extra confidence
+        int iterations = atLeast(20);
+        for (int i = 0; i < iterations; i++) {
+            testIndexOfLineTerminatorLeadByteSimpleImpl(random().nextInt(MAX_TAIL_SWEEP + 1, 5000));
+        }
+    }
+
+    private void testIndexOfLineTerminatorLeadByteSimpleImpl(int size) {
+        for (char terminator : LINE_TERMINATORS) {
+            byte marker = leadByte(terminator);
+            var bytes = randomBytesExcludingLineTerminatorLeadBytes(size);
+            int markerIdx = randomIntBetween(0, bytes.length - 1);
+            bytes[markerIdx] = marker;
+
+            assertEquals(markerIdx, ESVectorUtil.indexOfLineTerminatorLeadByte(bytes, 0, bytes.length));
+            assertEquals(markerIdx, defaultedProvider.getVectorUtilSupport().indexOfLineTerminatorLeadByte(bytes, 0, bytes.length));
+            assertEquals(markerIdx, panamaProvider.getVectorUtilSupport().indexOfLineTerminatorLeadByte(bytes, 0, bytes.length));
+        }
+
+        var bytes = new byte[size];
+        assertEquals(-1, ESVectorUtil.indexOfLineTerminatorLeadByte(bytes, 0, bytes.length));
+        assertEquals(-1, defaultedProvider.getVectorUtilSupport().indexOfLineTerminatorLeadByte(bytes, 0, bytes.length));
+        assertEquals(-1, panamaProvider.getVectorUtilSupport().indexOfLineTerminatorLeadByte(bytes, 0, bytes.length));
+
+        bytes = new byte[size];
+        bytes[0] = leadByte('\n');
+        assertEquals(-1, ESVectorUtil.indexOfLineTerminatorLeadByte(bytes, 1, bytes.length - 1));
+        assertEquals(-1, defaultedProvider.getVectorUtilSupport().indexOfLineTerminatorLeadByte(bytes, 1, bytes.length - 1));
+        assertEquals(-1, panamaProvider.getVectorUtilSupport().indexOfLineTerminatorLeadByte(bytes, 1, bytes.length - 1));
+
+        // first match wins when more than one marker is present -- needs 2 distinct positions
+        if (size >= 2) {
+            bytes = new byte[size];
+            bytes[bytes.length - 1] = leadByte('\u2029');
+            bytes[bytes.length - 2] = leadByte('\n');
+            assertEquals(bytes.length - 2, ESVectorUtil.indexOfLineTerminatorLeadByte(bytes, 0, bytes.length));
+            assertEquals(bytes.length - 2, defaultedProvider.getVectorUtilSupport().indexOfLineTerminatorLeadByte(bytes, 0, bytes.length));
+            assertEquals(bytes.length - 2, panamaProvider.getVectorUtilSupport().indexOfLineTerminatorLeadByte(bytes, 0, bytes.length));
+        }
+    }
+
+    public void testIndexOfLineTerminatorLeadByteRandom() {
+        byte b0 = leadByte('\n'), b1 = leadByte('\r'), b2 = leadByte('\u0085'), b3 = leadByte('\u2028');
+        assertEquals(b3, leadByte('\u2029')); // sanity check: shared lead byte, so only 4 distinct values here
+        int iterations = atLeast(50);
+        for (int i = 0; i < iterations; i++) {
+            int size = random().nextInt(2, 5000);
+            var bytes = randomBytesExcludingLineTerminatorLeadBytes(size);
+            random().nextBytes(bytes);
+            byte marker = leadByte(LINE_TERMINATORS[randomInt(LINE_TERMINATORS.length - 1)]);
+            int markerIdx = randomIntBetween(0, bytes.length - 1);
+            bytes[markerIdx] = marker;
+
+            final int offset = randomIntBetween(0, bytes.length - 2);
+            final int length = randomIntBetween(0, bytes.length - offset);
+            final int expectedIdx = scalarIndexOfAny(bytes, offset, length, b0, b1, b2, b3);
+            assertEquals(expectedIdx, ESVectorUtil.indexOfLineTerminatorLeadByte(bytes, offset, length));
+            assertEquals(expectedIdx, defaultedProvider.getVectorUtilSupport().indexOfLineTerminatorLeadByte(bytes, offset, length));
+            assertEquals(expectedIdx, panamaProvider.getVectorUtilSupport().indexOfLineTerminatorLeadByte(bytes, offset, length));
+        }
+    }
+
     public void testCodePointCountSimple() {
         assertCodePoint(new BytesRef(""), 0);
         assertCodePoint(new BytesRef("a"), 1); // 1 byte
@@ -1127,15 +1246,15 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     }
 
     public void testContainsEmpty() {
-        byte[] value = "hello".getBytes(StandardCharsets.UTF_8);
+        byte[] value = "hello".getBytes(UTF_8);
         byte[] emptyTerm = new byte[0];
         assertTrue(ESVectorUtil.contains(value, 0, value.length, emptyTerm, 0, 0));
         assertFalse(ESVectorUtil.contains(emptyTerm, 0, 0, value, 0, value.length));
     }
 
     public void testContainsWithOffset() {
-        byte[] backing = "XXXXXhello worldXXXXX".getBytes(StandardCharsets.UTF_8);
-        byte[] term = "world".getBytes(StandardCharsets.UTF_8);
+        byte[] backing = "XXXXXhello worldXXXXX".getBytes(UTF_8);
+        byte[] term = "world".getBytes(UTF_8);
         assertTrue(ESVectorUtil.contains(backing, 5, 11, term, 0, term.length));
         assertFalse(ESVectorUtil.contains(backing, 5, 5, term, 0, term.length));
     }
@@ -1185,8 +1304,8 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     }
 
     private void assertContains(String value, String term, boolean expected) {
-        byte[] valueBytes = value.getBytes(StandardCharsets.UTF_8);
-        byte[] termBytes = term.getBytes(StandardCharsets.UTF_8);
+        byte[] valueBytes = value.getBytes(UTF_8);
+        byte[] termBytes = term.getBytes(UTF_8);
         assertEquals(expected, ESVectorUtil.contains(valueBytes, 0, valueBytes.length, termBytes, 0, termBytes.length));
         assertEquals(
             expected,

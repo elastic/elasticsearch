@@ -18,6 +18,8 @@ import org.testcontainers.images.RemoteDockerImage;
 import java.io.File;
 import java.io.IOException;
 
+import static org.elasticsearch.test.fixtures.testcontainers.DockerAvailability.assumeDockerIsAvailable;
+
 public final class MinioTestContainer extends DockerEnvironmentAwareTestContainer {
 
     /*
@@ -34,7 +36,7 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
 
     private static final int servicePort = 9000;
     private final boolean enabled;
-    private final String bucketName;
+    private final File bucketFolder;
 
     private final TemporaryFolder dataFolder = TemporaryFolder.builder().assureDeletion().build();
 
@@ -48,19 +50,12 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
 
     public MinioTestContainer(boolean enabled, String accessKey, String secretKey, String bucketName) {
         super(new RemoteDockerImage(DOCKER_BASE_IMAGE));
-        this.bucketName = bucketName;
         withEnv("MINIO_ROOT_USER", accessKey);
         withEnv("MINIO_ROOT_PASSWORD", secretKey);
         withCommand("server", "/minio/data");
-        File bucketFolder = null;
         try {
             dataFolder.create();
-            bucketFolder = dataFolder.newFolder("minio", "data", bucketName);
-            // Chainguard's image runs as a non-root user, so the bind-mounted data path must be writable by arbitrary UIDs.
-            makeWritableByContainerUser(dataFolder.getRoot());
-            makeWritableByContainerUser(bucketFolder.getParentFile().getParentFile());
-            makeWritableByContainerUser(bucketFolder.getParentFile());
-            makeWritableByContainerUser(bucketFolder);
+            this.bucketFolder = dataFolder.newFolder("minio", "data", bucketName);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -79,6 +74,8 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
     @Override
     public void start() {
         if (enabled) {
+            assumeDockerIsAvailable();
+            prepareDataPathForContainerUser();
             super.start();
         }
     }
@@ -105,6 +102,18 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
 
     public String getAddress() {
         return "http://127.0.0.1:" + getMappedPort(servicePort);
+    }
+
+    private void prepareDataPathForContainerUser() {
+        // Chainguard's image runs as a non-root user, so the bind-mounted data path must be writable by arbitrary UIDs.
+        try {
+            makeWritableByContainerUser(dataFolder.getRoot());
+            makeWritableByContainerUser(bucketFolder.getParentFile().getParentFile());
+            makeWritableByContainerUser(bucketFolder.getParentFile());
+            makeWritableByContainerUser(bucketFolder);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static void makeWritableByContainerUser(File directory) throws IOException {

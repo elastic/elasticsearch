@@ -197,7 +197,8 @@ public class Knn extends SingleFieldFullTextFunction
                     valueHint = { "3.5" },
                     description = "Applies the specified oversampling for rescoring quantized vectors. "
                         + "See [oversampling and rescoring quantized vectors]"
-                        + "(docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details."
+                        + "(docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md"
+                        + "#dense-vector-knn-search-rescoring) for details."
                 ), },
             description = "(Optional) kNN additional options as <<esql-function-named-params,function named parameters>>."
                 + " See [knn query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) for more information.",
@@ -300,10 +301,27 @@ public class Knn extends SingleFieldFullTextFunction
         Translatable translatable = super.translatable(pushdownPredicates);
         // We need to check whether filter expressions are translatable as well
         for (Expression filterExpression : filterExpressions()) {
-            translatable = translatable.merge(TranslationAware.translatable(filterExpression, pushdownPredicates));
+            Translatable filter = TranslationAware.translatable(filterExpression, pushdownPredicates);
+            if (filter == Translatable.YES && prefilterReachesLucene(filterExpression) == false) {
+                return Translatable.NO;
+            }
+            translatable = translatable.merge(filter);
         }
 
         return translatable;
+    }
+
+    /**
+     * Does this prefilter make it into the query this function will be pushed as? A prefilter only reaches Lucene
+     * through the query builder {@code QueryBuilderResolver} resolves on the coordinator, which translates the
+     * prefilters {@link LucenePushdownPredicates#DEFAULT} allows - it has no shard to ask. A filter this node can
+     * push but that one could not is absent from that builder, and a knn searching for the nearest {@code k}
+     * without it has already dropped the documents the filter keeps: running the filter again above the search
+     * cannot bring them back. Report such a prefilter as out of reach, so the whole predicate stays in the compute
+     * engine and the search sees every document.
+     */
+    private static boolean prefilterReachesLucene(Expression filterExpression) {
+        return TranslationAware.translatable(filterExpression, LucenePushdownPredicates.DEFAULT) == Translatable.YES;
     }
 
     /**
@@ -586,6 +604,14 @@ public class Knn extends SingleFieldFullTextFunction
             filterExpressions(),
             configuration()
         );
+    }
+
+    public Knn replaceOptions(Expression newOptions) {
+        return new Knn(source(), field(), query(), newOptions, implicitK(), queryBuilder(), filterExpressions(), configuration());
+    }
+
+    public Knn replaceQuery(Expression newQuery) {
+        return new Knn(source(), field(), newQuery, options(), implicitK(), queryBuilder(), filterExpressions(), configuration());
     }
 
     @Override

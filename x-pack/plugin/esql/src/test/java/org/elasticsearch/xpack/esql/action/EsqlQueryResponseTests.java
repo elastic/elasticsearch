@@ -1235,6 +1235,113 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
     }
 
+    /**
+     * {@code _source} values are copied into a JSON response byte for byte when that is safe, and re-serialised token by token
+     * otherwise. Both paths have to produce the same, valid, document, including the separators between the rows and between
+     * a row's columns, and a {@code _source} stored in another content type has to be converted rather than copied.
+     */
+    public void testSourceXContent() throws IOException {
+        // Compact but otherwise unusual formatting that a token-by-token copy would normalise away, so the two paths are told apart.
+        String firstSource = "{\"title\" : \"first\",\"nested\":{\"a\":[1,2,{\"b\":null}]}}";
+        String secondSource = "{\"title\":\"second\"}";
+        BytesReference cborSource;
+        try (XContentBuilder cbor = XContentBuilder.builder(XContentType.CBOR.xContent())) {
+            cbor.startObject().field("title", "third").endObject();
+            cborSource = BytesReference.bytes(cbor);
+        }
+        try (
+            BytesRefBlock.Builder sources = blockFactory.newBytesRefBlockBuilder(3);
+            IntBlock.Builder ids = blockFactory.newIntBlockBuilder(3)
+        ) {
+            sources.appendBytesRef(new BytesRef(firstSource));
+            sources.appendBytesRef(new BytesRef(secondSource));
+            sources.appendBytesRef(cborSource.toBytesRef());
+            ids.appendInt(1).appendInt(2).appendInt(3);
+            try (
+                EsqlQueryResponse response = new EsqlQueryResponse(
+                    List.of(new ColumnInfoImpl("id", "integer", null), new ColumnInfoImpl("_source", "_source", null)),
+                    List.of(new Page(ids.build(), sources.build())),
+                    0,
+                    0,
+                    null,
+                    false,
+                    null,
+                    false,
+                    false,
+                    randomZone(),
+                    0L,
+                    0L,
+                    null
+                )
+            ) {
+                String compact = Strings.toString(wrapAsToXContent(response), false, false);
+                assertThat(
+                    compact,
+                    equalTo(
+                        "{\"documents_found\":0,\"values_loaded\":0,\"rows_emitted\":0,\"bytes_read\":0,\"read_nanos\":0,"
+                            + "\"read_cpu_nanos\":0,\"cpu_nanos\":0,"
+                            + "\"columns\":[{\"name\":\"id\",\"type\":\"integer\"},{\"name\":\"_source\",\"type\":\"_source\"}],"
+                            + "\"values\":[[1,"
+                            + firstSource
+                            + "],[2,"
+                            + secondSource
+                            + "],[3,{\"title\":\"third\"}]]}"
+                    )
+                );
+                // Pretty printing can't copy the bytes as they are, so this goes through the token-by-token copy.
+                assertThat(Strings.toString(wrapAsToXContent(response), true, false), equalTo("""
+                    {
+                      "documents_found" : 0,
+                      "values_loaded" : 0,
+                      "rows_emitted" : 0,
+                      "bytes_read" : 0,
+                      "read_nanos" : 0,
+                      "read_cpu_nanos" : 0,
+                      "cpu_nanos" : 0,
+                      "columns" : [
+                        {
+                          "name" : "id",
+                          "type" : "integer"
+                        },
+                        {
+                          "name" : "_source",
+                          "type" : "_source"
+                        }
+                      ],
+                      "values" : [
+                        [
+                          1,
+                          {
+                            "title" : "first",
+                            "nested" : {
+                              "a" : [
+                                1,
+                                2,
+                                {
+                                  "b" : null
+                                }
+                              ]
+                            }
+                          }
+                        ],
+                        [
+                          2,
+                          {
+                            "title" : "second"
+                          }
+                        ],
+                        [
+                          3,
+                          {
+                            "title" : "third"
+                          }
+                        ]
+                      ]
+                    }"""));
+            }
+        }
+    }
+
     public void testNullColumnsXContentDropNulls() {
         try (
             EsqlQueryResponse response = new EsqlQueryResponse(

@@ -200,6 +200,34 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         final int precision = in.readVInt();
         assert precision == precision() : "precision [" + precision + "] differs from [" + precision() + "]";
         final boolean algorithm = in.readBoolean();
+        // this=LC, other=LC: insert each value into this, and upgrade this to HLL if it passes the threshold.
+        if (algorithm == LINEAR_COUNTING && getAlgorithm(bucket) == LINEAR_COUNTING) {
+            final int length = Math.toIntExact(in.readVLong());
+            final long bytesUsed = (long) length * Integer.BYTES;
+            breaker.addEstimateBytesAndMaybeBreak(bytesUsed, "merge linear counting");
+            try {
+                int[] values = new int[length];
+                for (int i = 0; i < length; i++) {
+                    values[i] = in.readInt();
+                }
+                int i = 0;
+                long hllBucket = -1;
+                while (i < length) {
+                    // TODO: bulk
+                    int size = lc.addEncoded(bucket, values[i++]);
+                    if (size > lc.threshold) {
+                        hllBucket = upgradeToHll(bucket);
+                        break;
+                    }
+                }
+                while (i < length) {
+                    hll.collectEncoded(hllBucket, values[i++]);
+                }
+            } finally {
+                breaker.addWithoutBreaking(-bytesUsed);
+            }
+            return;
+        }
         // this=LC/HLL, other=HLL: upgrade this to HLL if needed, then merge the registers in bulk.
         if (algorithm == HYPERLOGLOG) {
             final int registers = 1 << precision;
@@ -208,38 +236,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             mergeRegisters(bucket, other.bytes, in.getPosition());
             return;
         }
-        final int length = Math.toIntExact(in.readVLong());
         // this=HLL, other=LC: collect each value into the registers as it is read.
-        if (getAlgorithm(bucket) == HYPERLOGLOG) {
-            final long hllBucket = hllBuckets.get(bucket) - 1;
-            for (int i = 0; i < length; i++) {
-                hll.collectEncoded(hllBucket, in.readInt());
-            }
-            return;
-        }
-        // this=LC, other=LC: insert each value into this, and upgrade this to HLL if it passes the threshold.
-        final long bytesUsed = (long) length * Integer.BYTES;
-        breaker.addEstimateBytesAndMaybeBreak(bytesUsed, "merge linear counting");
-        try {
-            int[] values = new int[length];
-            for (int i = 0; i < length; i++) {
-                values[i] = in.readInt();
-            }
-            int i = 0;
-            long hllBucket = -1;
-            while (i < length) {
-                int size = lc.addEncoded(bucket, values[i++]);
-                if (size > lc.threshold) {
-                    hllBucket = upgradeToHll(bucket);
-                    break;
-                }
-            }
-            // The rest go straight into the registers.
-            while (i < length) {
-                hll.collectEncoded(hllBucket, values[i++]);
-            }
-        } finally {
-            breaker.addWithoutBreaking(-bytesUsed);
+        final int length = Math.toIntExact(in.readVLong());
+        final long hllBucket = hllBuckets.get(bucket) - 1;
+        for (int i = 0; i < length; i++) {
+            hll.collectEncoded(hllBucket, in.readInt());
         }
     }
 

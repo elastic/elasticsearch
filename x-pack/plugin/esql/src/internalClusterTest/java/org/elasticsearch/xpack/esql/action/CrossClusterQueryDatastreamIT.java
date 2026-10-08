@@ -1264,19 +1264,16 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
         assumeTrue("pragmas only enabled on snapshot builds", Build.current().isSnapshot());
         // uses shard partitioning as segments can be merged during these queries
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.DATA_PARTITIONING.getKey(), DataPartitioning.SHARD).build());
-        // Use single replicas for the target indices, to make sure we hit the same set of target nodes
-        client(LOCAL_CLUSTER).admin()
-            .indices()
-            .prepareUpdateSettings("logs-1::failures")
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.rebalance.enable", "none"))
-            .get();
-        waitForNoInitializingShards(client(LOCAL_CLUSTER), TimeValue.timeValueSeconds(30), "logs-1");
-        client(REMOTE_CLUSTER_1).admin()
-            .indices()
-            .prepareUpdateSettings("logs-2::failures")
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.rebalance.enable", "none"))
-            .get();
-        waitForNoInitializingShards(client(REMOTE_CLUSTER_1), TimeValue.timeValueSeconds(30), "logs-2");
+        // Use single replicas for the target indices, to make sure we hit the same set of target nodes.
+        // Failure store indices default to auto_expand_replicas 0-1, which would otherwise override number_of_replicas.
+        Settings singleCopy = Settings.builder()
+            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "false")
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        client(LOCAL_CLUSTER).admin().indices().prepareUpdateSettings("logs-1::failures").setSettings(singleCopy).get();
+        waitForNoInitializingShards(client(LOCAL_CLUSTER), TEST_REQUEST_TIMEOUT, (String) testClusterInfo.get("local.index.fs"));
+        client(REMOTE_CLUSTER_1).admin().indices().prepareUpdateSettings("logs-2::failures").setSettings(singleCopy).get();
+        waitForNoInitializingShards(client(REMOTE_CLUSTER_1), TEST_REQUEST_TIMEOUT, (String) testClusterInfo.get("remote1.index.fs"));
         final int localOnlyProfiles;
         {
             try (

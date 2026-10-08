@@ -48,9 +48,15 @@ The following table compares the available strategies:
 | `union_by_name` | Inspects every file and merges columns by name. Missing columns contain null values. Compatible types are widened, and incompatible types become `keyword`. | Files can gain or lose columns, and those differences shouldn't fail the query. |
 | `strict` | Inspects every file and requires the same schema, apart from nullability. | Schema drift should fail the query. |
 
-### How `first_file_wins` handles type mismatches
+### How `first_file_wins` handles type mismatches [first-file-wins-type-mismatches]
 
 A type mismatch in a later Parquet file doesn't fail the query. If a column's type can't be read as the type from the first file, that column contains null values for the file, and the response includes a warning. The [`error_mode`](esql-data-federation-dataset-settings.md#error-mode) setting doesn't control this case.
+
+{applies_to}`stack: experimental 9.6+` If the column is [declared in `mappings`](#declare-a-schema-explicitly), `error_mode` decides instead, and only when a query reads the column:
+
+- `fail_fast`: The query fails.
+- `null_field`: The column contains null values for that file, and the response includes a warning.
+- `skip_row`: All rows of that file are skipped. Each counts as a malformed row against [`max_errors`](esql-data-federation-dataset-settings.md#max-errors) and [`max_error_ratio`](esql-data-federation-dataset-settings.md#max-error-ratio), so the file exceeds any `max_error_ratio` below `1.0`, and a large file can exceed a small `max_errors`.
 
 ## Control which file supplies the schema
 ```{applies_to}
@@ -158,7 +164,9 @@ The `mappings` block supports the following properties:
 - `properties`: Columns keyed by their logical name. Each column requires a `type`.
   - `path`: Optional physical column name. Use it to expose a file column under a different logical name, including renaming a timestamp column to `@timestamp`.
     - {applies_to}`stack: experimental 9.6` To keep a file column whose name matches a metadata name, rename it here before requesting that name through `METADATA`.
-  - `format`: Optional date parsing pattern for a column with type `date`.
+  - `format`: Optional date parsing pattern for a column with type `date` or `date_nanos`. Without a `format`, a plain number in a `date` column is read as epoch milliseconds. Set `format` to `epoch_second` for epoch seconds.
+    - {applies_to}`stack: experimental 9.6+` A plain number in a `date_nanos` column without a `format` is also read as epoch milliseconds. A value before 1970 or after 2262, such as an epoch-nanoseconds count, can't be represented and is handled according to [`error_mode`](esql-data-federation-dataset-settings.md#error-mode). There is no `format` for epoch nanoseconds: to read epoch-nanoseconds values, declare the column as `long` and convert it with `TO_DATE_NANOS` in the query.
+    - {applies_to}`stack: experimental =9.5` A plain number in a `date_nanos` column without a `format` is read as epoch nanoseconds.
 - `dynamic`: Controls undeclared columns. The default, `true`, overlays the declared columns on the inferred schema. Set it to `false` to treat the declaration as the complete schema, skip schema inference, and leave undeclared columns unavailable to queries.
 
 {applies_to}`stack: experimental 9.6+` A `mappings` block can't include `_id`. A create or update request that contains one is rejected.
@@ -175,9 +183,8 @@ Matching is exact and case-sensitive, and it works the same way whether `dynamic
 - **CSV and TSV without a header row:** Columns are named by position. To read the third field as `status_code`, set its `path` to `col2`.
 - **NDJSON:** A dotted name such as `user.id` matches either a nested key or a flat key with that name.
 
-When a declared column can't be found, the result depends on `dynamic`:
+When a declared column can't be found, it reads as null for each file that lacks it, and the response includes a warning. This applies whether `dynamic` is `true` or `false`.
 
-- **`dynamic: false`:** The column reads as null for each file that lacks it, and the response includes a warning.
-- **`dynamic: true`:** For Parquet and for CSV and TSV with a header row, the query fails if the column isn't in the inferred schema. For NDJSON and for CSV and TSV without a header row, the column reads as null, because their schemas come from a sample.
+For Parquet, a declared type must match the file's type or be one it can be converted to. An incompatible type makes the query fail. With `dynamic: false`, this check uses one file. With `dynamic: true`, it uses the merged schema.
 
-For Parquet, a declared type must match the file's type or be one it can be converted to. An incompatible type makes the query fail. With `dynamic: false`, this check uses one file. If another file has a type that can't be read as the declared type, that column reads as null for that file, and the response includes a warning.
+{applies_to}`stack: experimental 9.6+` If another file has a type that can't be read as the declared type, [`error_mode`](esql-data-federation-dataset-settings.md#error-mode) decides, as described in [How `first_file_wins` handles type mismatches](#first-file-wins-type-mismatches). With `dynamic: true` and `schema_resolution` set to `union_by_name`, the types of every file are known when the query is planned, so `fail_fast` fails the query then, whether or not the query reads the column.

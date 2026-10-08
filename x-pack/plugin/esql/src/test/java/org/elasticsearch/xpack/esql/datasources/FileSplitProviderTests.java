@@ -262,7 +262,11 @@ public class FileSplitProviderTests extends ESTestCase {
             hints.stream().noneMatch(h -> h.columnName().equals("@timestamp"))
         );
         assertEquals(
-            List.of(new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.IN, List.of(2024))),
+            List.of(
+                new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.IN, List.of(2024)),
+                new PartitionFilterHintExtractor.PartitionFilterHint("month", PartitionFilterHintExtractor.Operator.IN, List.of(6)),
+                new PartitionFilterHintExtractor.PartitionFilterHint("day", PartitionFilterHintExtractor.Operator.IN, List.of(15))
+            ),
             hints
         );
     }
@@ -293,7 +297,11 @@ public class FileSplitProviderTests extends ESTestCase {
             hints.stream().noneMatch(h -> h.columnName().equals("@timestamp"))
         );
         assertEquals(
-            List.of(new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.IN, List.of(2024))),
+            List.of(
+                new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.IN, List.of(2024)),
+                new PartitionFilterHintExtractor.PartitionFilterHint("month", PartitionFilterHintExtractor.Operator.IN, List.of(6)),
+                new PartitionFilterHintExtractor.PartitionFilterHint("day", PartitionFilterHintExtractor.Operator.IN, List.of(15, 16))
+            ),
             hints
         );
     }

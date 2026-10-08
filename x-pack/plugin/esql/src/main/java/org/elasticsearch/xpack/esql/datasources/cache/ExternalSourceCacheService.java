@@ -1356,14 +1356,14 @@ public class ExternalSourceCacheService implements Closeable {
             // of fact. The check this replaces existed because both kinds shared a store, and the sibling
             // whole-file arm had it while this one did not — which was a shipped defect.
             StatisticsKey statsKey = StatisticsKey.of(key, delta.readConfig());
-            // Read-shape gate, stricter than the whole-file path's: stripe state is an accumulating fold, so a
-            // foreign-configured delta cannot contribute even its row count without mixing two reads' stripes
-            // into one cover. Same-shape only; anything else safe-misses to a scan. The gate is now the address
-            // itself for the stripe state, and this comparison keeps a delta off a file whose schema record was
-            // resolved under a different read, where the types below would be the wrong ones to coerce against.
-            if (Objects.equals(readConfigStampOf(schemaRecord), delta.readConfig()) == false) {
-                continue;
-            }
+            // Whether this delta is the read the schema record itself was resolved under. The address above already
+            // separates the two, so a foreign read's stripes accumulate in their OWN record and can never mix into
+            // this record's cover - which is what the refusal this replaces was protecting. The refusal cost the
+            // whole measurement: a non-strict declaration that retypes a column resolves to a read whose stamp
+            // never equals the record's, so a segmented text read of a mapped dataset filed nothing, on any
+            // address, forever (esql-planning#2246). Its whole-file sibling has filed a foreign read at its own
+            // address all along; this is the same rule for the chunked path.
+            boolean deltaIsTheRecordsOwnRead = Objects.equals(readConfigStampOf(schemaRecord), delta.readConfig());
             StatisticsRecord priorStats = statisticsStore.get(statsKey);
             Map<String, Object> enriched = new HashMap<>(priorStats == null ? Map.of() : priorStats.measurements());
             enriched.putAll(statisticsIdentity(schemaRecord));
@@ -1382,16 +1382,19 @@ public class ExternalSourceCacheService implements Closeable {
             for (Map.Entry<Long, Map<String, Object>> stripe : delta.stripes().entrySet()) {
                 // Push the resolved column type down to each stripe's min/max before it is stored, so the
                 // 0..K fold (foldCommittedStripes -> mergeStatistics) never folds a Long extremum against a
-                // Double one for the same column. The types are the schema record's OWN, which is sound here
-                // precisely because the gate above established that this delta's read IS that record's read.
+                // Double one for the same column. The types are the schema record's OWN, so this is sound only
+                // where this delta's read IS that record's read.
                 // dropUnrepresentable=false: an unrepresentable value is left for that fold's POISON to
                 // safe-miss the whole column (a per-stripe drop would fold a subset).
-                Map<String, Object> stripeStats = coerceColumnStatsToResolvedTypes(
-                    stripe.getValue(),
-                    schemaRecord.columnNames(),
-                    schemaRecord.columnTypes(),
-                    false
-                );
+                //
+                // A foreign read is stored AS HARVESTED, exactly as the whole-file path stores it: there is no
+                // record whose types are the right ones to normalise its values against, and inventing one is the
+                // defect that split the two stores apart in the first place. Its values are already in the types
+                // its own address names, so every stripe in that record agrees; a pair that still cannot fold is
+                // poisoned by mergeStatistics and safe-misses the column, never a wrong number.
+                Map<String, Object> stripeStats = deltaIsTheRecordsOwnRead
+                    ? coerceColumnStatsToResolvedTypes(stripe.getValue(), schemaRecord.columnNames(), schemaRecord.columnTypes(), false)
+                    : stripe.getValue();
                 enriched.put(ExternalStats.STRIPE_ENTRY_PREFIX + stripe.getKey(), stripeStats);
             }
             if (delta.lastStripeOrdinal() >= 0) {
@@ -1401,7 +1404,12 @@ public class ExternalSourceCacheService implements Closeable {
             if (wholeFile != null) {
                 clearStripeState(enriched); // compaction: the fold subsumes the stripes; weight back to O(1)
                 enriched.putAll(wholeFile);
-                if (completedFold == null) {
+                // Only the record's own read returns a fold to the caller. The returned fold feeds the pending
+                // dataset-aggregate promise, whose key carries no read configuration, so handing it a foreign
+                // read's numbers would write one read's count onto a channel every read of these files shares.
+                // The caller already folds the query's own delta when nothing is returned, so the promise keeps
+                // exactly the behaviour it has today. Stamping that channel is esql-planning#2201's step 3.
+                if (completedFold == null && deltaIsTheRecordsOwnRead) {
                     completedFold = wholeFile;
                 }
             }

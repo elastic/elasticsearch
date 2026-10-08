@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -1058,7 +1059,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             MapperService mapperService = createMapperService.get();
             merge(mapperService, autoCalibrateMapping(enabled));
             assertEquals(
-                Boolean.parseBoolean(enabled.toString()),
+                Booleans.parseBoolean(enabled.toString()),
                 getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrate()
             );
         }

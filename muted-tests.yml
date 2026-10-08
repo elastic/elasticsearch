@@ -616,9 +616,6 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testCancelNewShardRecoveryAndUsesExistingShardCopy
   issue: https://github.com/elastic/elasticsearch/issues/160953
-- class: org.elasticsearch.xpack.transform.integration.RestoringShardTransformIT
-  method: testPutTransformValidationWhileRestoringParks
-  issue: https://github.com/elastic/elasticsearch/issues/160991
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   method: testStatsBlowupNdjson
   issue: https://github.com/elastic/elasticsearch/issues/161026
@@ -673,24 +670,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.PartitionSpecProjectorTests
   method: testOverlapsExpressionsDatetimeLongIsNotScaledAsSeconds
   issue: https://github.com/elastic/elasticsearch/issues/161281
-- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/161304
 - class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/161309
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testRemoveAsyncIndex
   issue: https://github.com/elastic/elasticsearch/issues/161316
-- class: org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapperTests
-  method: testPredicatesOverTheValuesItKeeps
-  issue: https://github.com/elastic/elasticsearch/issues/161317
-- class: org.elasticsearch.index.mapper.TextFieldValueQueriesTests
-  method: testColumnarTextAnswersOverItsValues
-  issue: https://github.com/elastic/elasticsearch/issues/161318
-- class: org.elasticsearch.xpack.esql.action.TextValuePushdownIT
-  method: testTheColumnarIndexAnswersInLucene
-  issue: https://github.com/elastic/elasticsearch/issues/161356
 - class: org.elasticsearch.xpack.esql.action.ExternalSchemaDiscoveryBoundIT
   method: testReadingQueryAfterSchemaDiscoverySeesEveryFile
   issue: https://github.com/elastic/elasticsearch/issues/161359
@@ -700,3 +685,20 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalSchemaDiscoveryBoundIT
   method: testRepeatedSchemaDiscoveryAnswersTheSameSchema
   issue: https://github.com/elastic/elasticsearch/issues/161361
+- class: org.elasticsearch.xpack.esql.action.ExternalWarmDatasetAggregatePartialEvictionIT
+  method: testNdjsonWarmCountSurvivesOneMissingPerFileEntry
+  issue: https://github.com/elastic/elasticsearch/issues/161381
+- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonManyFileWarmFoldIT
+  method: testNdjsonFileSetChangeInvalidatesDatasetAggregate
+  issue: https://github.com/elastic/elasticsearch/issues/161390
+- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonManyFileWarmFoldIT
+  method: testNdjsonWarmCountSurvivesPerFileEntryEviction
+  issue: https://github.com/elastic/elasticsearch/issues/161391
+- class: org.elasticsearch.xpack.esql.qa.csv.TsvFormatSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/161394
+- class: org.elasticsearch.integration.FieldLevelSecurityTests
+  method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
+  issue: https://github.com/elastic/elasticsearch/issues/161396
+- class: org.elasticsearch.xpack.esql.action.ExternalPartitionSpecPruningIT
+  method: testAwsHiveHourlySecondsRangeInsideOneHour
+  issue: https://github.com/elastic/elasticsearch/issues/161409

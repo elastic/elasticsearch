@@ -22,6 +22,10 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToGeohex;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeohex;
 
 @FunctionName("to_geohex")
 public class ToGeohexTests extends AbstractScalarFunctionTestCase {
@@ -33,12 +37,31 @@ public class ToGeohexTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         final String attribute = "Attribute[channel=0]";
         final String evaluator = "ToGeohexFromStringEvaluator[in=Attribute[channel=0]]";
+        final String fromLong = "ToGeohexFromLongEvaluator[in=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryGeoGrid(suppliers, attribute, DataType.GEOHEX, DataType.GEOHEX, v -> v, List.of());
-        TestCaseSupplier.forUnaryGeoGrid(suppliers, attribute, DataType.LONG, DataType.GEOHEX, v -> v, List.of());
+        TestCaseSupplier.forUnaryGeoGrid(suppliers, fromLong, DataType.LONG, DataType.GEOHEX, v -> v, List.of());
         TestCaseSupplier.forUnaryGeoGrid(suppliers, evaluator, DataType.KEYWORD, DataType.GEOHEX, ToGeohexTests::valueOf, List.of());
         TestCaseSupplier.forUnaryGeoGrid(suppliers, evaluator, DataType.TEXT, DataType.GEOHEX, ToGeohexTests::valueOf, List.of());
+
+        // Invalid values produce a warning and null, instead of failing later when rendering the results
+        TestCaseSupplier.forUnaryGeoGridInvalid(
+            suppliers,
+            fromLong,
+            DataType.LONG,
+            DataType.GEOHEX,
+            List.of(0L, 1L, -1L, Long.MIN_VALUE),
+            v -> expectThrows(IllegalArgumentException.class, () -> longToGeohex((Long) v))
+        );
+        TestCaseSupplier.forUnaryGeoGridInvalid(
+            suppliers,
+            evaluator,
+            DataType.KEYWORD,
+            DataType.GEOHEX,
+            Stream.of("", "1", "not hex").<Object>map(BytesRef::new).toList(),
+            v -> expectThrows(IllegalArgumentException.class, () -> stringToGeohex(((BytesRef) v).utf8ToString()))
+        );
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }

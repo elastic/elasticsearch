@@ -614,7 +614,14 @@ public class BatchDriverTests extends ESTestCase {
             // Start driver first
             ThreadContext threadContext = threadPool.getThreadContext();
             PlainActionFuture<Void> driverFuture = new PlainActionFuture<>();
-            Driver.start(threadContext, threadPool.executor(ThreadPool.Names.SEARCH), batchDriver, 1000, driverFuture);
+            Driver.start(
+                threadContext,
+                threadPool.executor(ThreadPool.Names.SEARCH),
+                threadPool.generic(),
+                batchDriver,
+                1000,
+                driverFuture
+            );
 
             // Feed all batches immediately in a separate thread (not via executor to avoid deadlock)
             Thread batchFeedingThread = new Thread(() -> {
@@ -796,7 +803,7 @@ public class BatchDriverTests extends ESTestCase {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
 
         // Start driver first (Driver.start() is asynchronous and returns immediately)
-        Driver.start(threadContext, threadPool.executor(ThreadPool.Names.SEARCH), batchDriver, 1000, future);
+        Driver.start(threadContext, threadPool.executor(ThreadPool.Names.SEARCH), threadPool.generic(), batchDriver, 1000, future);
 
         // Start batch feeding in a separate thread to create concurrent execution
         // This helps catch timing-related issues that might be hidden when everything runs sequentially
@@ -1020,7 +1027,14 @@ public class BatchDriverTests extends ESTestCase {
             // Start driver
             ThreadContext threadContext = threadPool.getThreadContext();
             PlainActionFuture<Void> driverFuture = new PlainActionFuture<>();
-            Driver.start(threadContext, threadPool.executor(ThreadPool.Names.SEARCH), batchDriver, 1000, driverFuture);
+            Driver.start(
+                threadContext,
+                threadPool.executor(ThreadPool.Names.SEARCH),
+                threadPool.generic(),
+                batchDriver,
+                1000,
+                driverFuture
+            );
 
             // Feed batches in a way that triggers out-of-order error:
             // 1. Send batch 0 completely

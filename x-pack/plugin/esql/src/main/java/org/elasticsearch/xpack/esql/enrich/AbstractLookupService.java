@@ -500,26 +500,33 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 driver.cancel(reason);
             });
             var threadContext = transportService.getThreadPool().getThreadContext();
-            Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, new ActionListener<Void>() {
-                @Override
-                public void onResponse(Void unused) {
-                    DriverCompletionInfo completionInfo = DriverCompletionInfo.excludingProfiles(List.of(driver), 0L, false);
-                    List<Page> out = collectedPages;
-                    if (mergePages && out.isEmpty()) {
-                        out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
+            Driver.start(
+                threadContext,
+                executor,
+                transportService.getThreadPool().generic(),
+                driver,
+                Driver.DEFAULT_MAX_ITERATIONS,
+                new ActionListener<Void>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        DriverCompletionInfo completionInfo = DriverCompletionInfo.excludingProfiles(List.of(driver), 0L, false);
+                        List<Page> out = collectedPages;
+                        if (mergePages && out.isEmpty()) {
+                            out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
+                        }
+                        respondWithPages(listener, out, completionInfo.bytesRead(), completionInfo.warnings());
                     }
-                    respondWithPages(listener, out, completionInfo.bytesRead(), completionInfo.warnings());
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(collectedPages.iterator(), p -> () -> {
-                        p.allowPassingToDifferentDriver();
-                        p.releaseBlocks();
-                    })));
-                    listener.onFailure(e);
+                    @Override
+                    public void onFailure(Exception e) {
+                        Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(collectedPages.iterator(), p -> () -> {
+                            p.allowPassingToDifferentDriver();
+                            p.releaseBlocks();
+                        })));
+                        listener.onFailure(e);
+                    }
                 }
-            });
+            );
             started = true;
         } catch (Exception e) {
             listener.onFailure(e);

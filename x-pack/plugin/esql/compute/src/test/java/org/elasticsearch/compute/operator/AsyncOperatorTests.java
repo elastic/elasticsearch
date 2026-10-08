@@ -180,7 +180,14 @@ public class AsyncOperatorTests extends ESTestCase {
             Driver.DEFAULT_STATUS_INTERVAL,
             () -> assertFalse(it.hasNext())
         );
-        Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), future);
+        Driver.start(
+            threadPool.getThreadContext(),
+            threadPool.executor(ESQL_TEST_EXECUTOR),
+            threadPool.generic(),
+            driver,
+            between(1, 10000),
+            future
+        );
         future.actionGet();
         Releasables.close(localBreaker);
     }
@@ -323,7 +330,14 @@ public class AsyncOperatorTests extends ESTestCase {
             Driver.DEFAULT_STATUS_INTERVAL,
             localBreaker
         );
-        Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), future);
+        Driver.start(
+            threadPool.getThreadContext(),
+            threadPool.executor(ESQL_TEST_EXECUTOR),
+            threadPool.generic(),
+            driver,
+            between(1, 1000),
+            future
+        );
         assertBusy(() -> assertTrue(future.isDone()));
         if (failed.get()) {
             ElasticsearchException error = expectThrows(ElasticsearchException.class, future::actionGet);

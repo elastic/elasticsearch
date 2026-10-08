@@ -761,6 +761,35 @@ public final class MappingLookup {
     }
 
     /**
+     * Returns the passthrough status for {@code field}. Mapper-backed passthrough sources are resolved directly;
+     * auto-flattened objects in strict columnar index modes are resolved from the root mapping's prefix properties.
+     *
+     * @return {@code true} for an enabled passthrough source, {@code false} for a field that could be a passthrough
+     *         source but is not, or {@code null} when passthrough is not applicable to the field
+     */
+    @Nullable
+    public Boolean isPassthrough(String field) {
+        ObjectMapper objectMapper = objectMappers.get(field);
+        if (objectMapper != null) {
+            if (objectMapper instanceof PassThroughFieldSource passThroughFieldSource) {
+                return passThroughFieldSource.isPassthrough();
+            }
+            return objectMapper instanceof NestedObjectMapper ? null : false;
+        }
+
+        Mapper fieldMapper = fieldMappers.get(field);
+        if (fieldMapper != null) {
+            return fieldMapper instanceof PassThroughFieldSource passThroughFieldSource ? passThroughFieldSource.isPassthrough() : null;
+        }
+
+        PrefixProperties properties = mapping.getRoot().getPrefixProperties().get(field);
+        if (properties != null) {
+            return properties.passthrough() != null;
+        }
+        return null;
+    }
+
+    /**
      * Check if the provided {@link MappedFieldType} shadows a dimension
      * or metric field.
      */

@@ -131,7 +131,7 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
         // Test variants reuse the same StorageObject path with different file contents; footer
         // caches are per reader instance and each variant constructs fresh readers below, so no
         // stale footer can leak across variants.
-        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         MessageType schema;
         if (nullable) {

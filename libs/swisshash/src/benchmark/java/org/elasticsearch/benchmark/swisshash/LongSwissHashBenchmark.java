@@ -73,7 +73,7 @@ public class LongSwissHashBenchmark {
         keys = generate(distribution, cardinality);
         bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
-        breaker = new NoopCircuitBreaker("dummy");
+        breaker = NoopCircuitBreaker.INSTANCE;
     }
 
     private LongSwissHash newSwiss() {

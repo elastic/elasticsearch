@@ -697,3 +697,5 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalNdJsonManyFileWarmFoldIT
   method: testNdjsonWarmCountSurvivesPerFileEntryEviction
   issue: https://github.com/elastic/elasticsearch/issues/161391
+- class: org.elasticsearch.xpack.esql.qa.csv.TsvFormatSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/161394

@@ -15,9 +15,12 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ZeroBucket;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 public class ChangesExponentialHistogramAggregatorTests extends OperatorTests {
 
@@ -102,6 +105,38 @@ public class ChangesExponentialHistogramAggregatorTests extends OperatorTests {
         }
     }
 
+    public void testIgnoresMinAndMax() {
+        assertChanges(List.of(histogram(3.0, 1.0, 3.0), histogram(3.0, -100.0, 100.0)), new long[] { 20, 10 }, 0L);
+    }
+
+    public void testSumComparisonIsExact() {
+        assertChanges(List.of(histogram(1.0, 1.0, 1.0), histogram(Math.nextUp(1.0), 1.0, 1.0)), new long[] { 20, 10 }, 1L);
+    }
+
+    public void testSumComparisonDistinguishesSignedZero() {
+        assertChanges(List.of(histogram(+0.0, 1.0, 1.0), histogram(-0.0, 1.0, 1.0)), new long[] { 20, 10 }, 1L);
+    }
+
+    public void testDuplicateTimestampOrderingMatchesSumEquality() {
+        assertChanges(
+            List.of(histogram(+0.0, 1.0, 1.0), histogram(-0.0, 1.0, 1.0), histogram(+0.0, 1.0, 1.0)),
+            new long[] { 10, 10, 10 },
+            1L
+        );
+    }
+
+    public void testZeroBucketDifferencesAreChanges() {
+        assertChanges(
+            List.of(
+                histogramWithZeroBucket(ZeroBucket.create(0.5, 1)),
+                histogramWithZeroBucket(ZeroBucket.create(1.0, 1)),
+                histogramWithZeroBucket(ZeroBucket.create(1.0, 2))
+            ),
+            new long[] { 30, 20, 10 },
+            2L
+        );
+    }
+
     private static GroupingAggregatorFunction newAggregator(DriverContext driverContext) {
         return new ChangesExponentialHistogramAggregatorFunctionSupplier().groupingAggregator(driverContext, List.of(0, 1));
     }
@@ -124,6 +159,66 @@ public class ChangesExponentialHistogramAggregatorTests extends OperatorTests {
             var addInput = aggregator.prepareProcessRawInputPage(new SeenGroupIds.Empty(), page)
         ) {
             addInput.add(0, groups);
+        }
+    }
+
+    private static void addRaw(
+        GroupingAggregatorFunction aggregator,
+        DriverContext driverContext,
+        List<Consumer<ExponentialHistogramBuilder>> histograms,
+        long[] timestamps
+    ) {
+        assert histograms.size() == timestamps.length;
+        ExponentialHistogramBlock values;
+        try (
+            ExponentialHistogramBlock.Builder blockBuilder = driverContext.blockFactory()
+                .newExponentialHistogramBlockBuilder(histograms.size())
+        ) {
+            for (Consumer<ExponentialHistogramBuilder> configure : histograms) {
+                try (
+                    ExponentialHistogramBuilder histogramBuilder = ExponentialHistogram.builder(
+                        0,
+                        ExponentialHistogramCircuitBreaker.noop()
+                    )
+                ) {
+                    configure.accept(histogramBuilder);
+                    try (var histogram = histogramBuilder.build()) {
+                        blockBuilder.append(histogram);
+                    }
+                }
+            }
+            values = blockBuilder.build();
+        }
+        LongBlock timestampBlock = driverContext.blockFactory().newLongArrayVector(timestamps, timestamps.length).asBlock();
+        try (
+            Page page = new Page(values, timestampBlock);
+            var groups = driverContext.blockFactory().newConstantIntVector(0, histograms.size());
+            var addInput = aggregator.prepareProcessRawInputPage(new SeenGroupIds.Empty(), page)
+        ) {
+            addInput.add(0, groups);
+        }
+    }
+
+    private static Consumer<ExponentialHistogramBuilder> histogram(double sum, double min, double max) {
+        return builder -> builder.sum(sum).min(min).max(max).setPositiveBucket(0, 1);
+    }
+
+    private static Consumer<ExponentialHistogramBuilder> histogramWithZeroBucket(ZeroBucket zeroBucket) {
+        return builder -> builder.zeroBucket(zeroBucket).sum(0.0).min(0.0).max(0.0);
+    }
+
+    private void assertChanges(List<Consumer<ExponentialHistogramBuilder>> histograms, long[] timestamps, long expected) {
+        DriverContext driverContext = driverContext();
+        try (
+            var selected = driverContext.blockFactory().newConstantIntVector(0, 1);
+            var state = newAggregator(driverContext);
+            var evalContext = new GroupingAggregatorEvaluationContext(driverContext)
+        ) {
+            addRaw(state, driverContext, histograms, timestamps);
+            assertChanges(state, selected, evalContext, expected);
+        } finally {
+            driverContext.finish();
+            assertDriverContext(driverContext);
         }
     }
 

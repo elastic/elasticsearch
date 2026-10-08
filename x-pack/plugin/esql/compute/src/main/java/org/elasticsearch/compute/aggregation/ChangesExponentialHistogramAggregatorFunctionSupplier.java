@@ -370,7 +370,7 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
                     for (int i = 1; i < count; i++) {
                         ExponentialHistogram left = points.value(sorted[i], leftScratch);
                         ExponentialHistogram right = points.value(sorted[i - 1], rightScratch);
-                        if (ExponentialHistogram.equals(left, right) == false) {
+                        if (histogramsEqual(left, right) == false) {
                             changes++;
                         }
                     }
@@ -392,15 +392,15 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
         }
 
         private static int compareHistograms(ExponentialHistogram left, ExponentialHistogram right) {
+            if (histogramsEqual(left, right)) {
+                return 0;
+            }
             int result = Integer.compare(left.scale(), right.scale());
             if (result == 0) {
-                result = compareDouble(left.sum(), right.sum());
+                result = Long.compare(left.valueCount(), right.valueCount());
             }
             if (result == 0) {
-                result = compareDouble(left.min(), right.min());
-            }
-            if (result == 0) {
-                result = compareDouble(left.max(), right.max());
+                result = compareRawDouble(left.sum(), right.sum());
             }
             if (result == 0) {
                 result = compareZeroBuckets(left.zeroBucket(), right.zeroBucket());
@@ -414,15 +414,26 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
             return result;
         }
 
-        private static int compareDouble(double left, double right) {
-            return left == right || (Double.isNaN(left) && Double.isNaN(right)) ? 0 : Double.compare(left, right);
+        private static boolean histogramsEqual(ExponentialHistogram left, ExponentialHistogram right) {
+            return left.scale() == right.scale()
+                && left.valueCount() == right.valueCount()
+                && Double.doubleToRawLongBits(left.sum()) == Double.doubleToRawLongBits(right.sum())
+                && left.zeroBucket().zeroThreshold() == right.zeroBucket().zeroThreshold()
+                && left.zeroBucket().count() == right.zeroBucket().count()
+                && compareBuckets(left.negativeBuckets().iterator(), right.negativeBuckets().iterator()) == 0
+                && compareBuckets(left.positiveBuckets().iterator(), right.positiveBuckets().iterator()) == 0;
+        }
+
+        private static int compareRawDouble(double left, double right) {
+            int result = Double.compare(left, right);
+            if (result == 0) {
+                result = Long.compareUnsigned(Double.doubleToRawLongBits(left), Double.doubleToRawLongBits(right));
+            }
+            return result;
         }
 
         private static int compareZeroBuckets(ZeroBucket left, ZeroBucket right) {
-            int result = compareDouble(left.zeroThreshold(), right.zeroThreshold());
-            if (result == 0) {
-                result = left.compareZeroThreshold(right);
-            }
+            int result = left.zeroThreshold() == right.zeroThreshold() ? 0 : Double.compare(left.zeroThreshold(), right.zeroThreshold());
             if (result == 0) {
                 result = Long.compare(left.count(), right.count());
             }

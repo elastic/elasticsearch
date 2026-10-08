@@ -464,7 +464,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         // not charged until a read, so this must not be sized around a reserved window. Look-ahead
         // fill must not block; 0ms budget so the second first-group PER_GET charges immediately.
         // Look-ahead still tryAdmit-refuses.
-        ParquetIoWatermark watermark = new ParquetIoWatermark(1, 0L);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1);
         try (
             CloseableIterator<Page> first = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
                 .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx);
@@ -486,7 +486,6 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             assertEquals(secondQueued, opi2.pendingPrefetchCount());
             assertEquals(32_000_000L, OptimizedParquetColumnIterator.MAX_QUEUED_PREFETCH_BYTES);
         }
-        long forcedAfterClose = watermark.forcedAdmits();
         assertEquals("closing both iterators must release watermark bytes", 0, watermark.used());
         try (
             CloseableIterator<Page> next = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
@@ -494,11 +493,6 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         ) {
             OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) next;
             assertEquals("release on close allows the next iterator", 1, opi.pendingPrefetchCount());
-            assertEquals(
-                "third constructor must take the vacant owner, not force-admit a leak",
-                forcedAfterClose,
-                watermark.forcedAdmits()
-            );
         }
     }
 

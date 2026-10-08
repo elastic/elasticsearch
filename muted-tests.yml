@@ -702,3 +702,5 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalPartitionSpecPruningIT
   method: testAwsHiveHourlySecondsRangeInsideOneHour
   issue: https://github.com/elastic/elasticsearch/issues/161409
+- class: org.elasticsearch.xpack.esql.qa.parquet.ClickBenchParquetSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/161413

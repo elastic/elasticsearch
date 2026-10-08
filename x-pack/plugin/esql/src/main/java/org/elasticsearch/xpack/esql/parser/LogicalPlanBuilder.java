@@ -417,8 +417,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             LogicalPlan inner;
             if (mainQueryAndSubqueries.size() == 1) {
-                // if there is only one child, return it directly, no need for UnionAll
-                inner = subqueries.get(0).plan();
+                // A single FROM subquery does not need UnionAll unless the body contains a FORK. That one-child UnionAll is the merge
+                // boundary checkForUnseparatedFork uses so an outer FORK is not treated as consecutive with the inner one.
+                Subquery subquery = subqueries.get(0);
+                inner = Fork.containsFork(subquery.plan())
+                    ? new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), List.of(subquery), List.of())
+                    : subquery.plan();
             } else {
                 // the output of UnionAll is resolved by analyzer
                 inner = new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), mainQueryAndSubqueries, List.of());

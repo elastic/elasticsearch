@@ -556,22 +556,26 @@ public class SubqueryTests extends AbstractStatementParserTests {
     }
 
     /**
-     * Keep[[?g]]
-     * \_Drop[[?f]]
-     *   \_Limit[10[INTEGER],false]
-     *     \_OrderBy[[Order[?cnt,DESC,FIRST]]]
-     *       \_Aggregate[[?e],[?COUNT[*] AS cnt#7, ?e]]
-     *         \_Fork[[]]
-     *           |_Eval[[fork1[KEYWORD] AS _fork#3]]
-     *           | \_Filter[?c &lt; 100[INTEGER]]
-     *           |   \_Eval[[?a * 2[INTEGER] AS b#13]]
-     *           |     \_Filter[?a &gt; 10[INTEGER]]
-     *           |       \_UnresolvedRelation[]
-     *           \_Eval[[fork2[KEYWORD] AS _fork#3]]
-     *             \_Filter[?d &gt; 200[INTEGER]]
-     *               \_Eval[[?a * 2[INTEGER] AS b#13]]
-     *                 \_Filter[?a &gt; 10[INTEGER]]
-     *                   \_UnresolvedRelation[]
+     * A lone FROM ( ... | FORK ) keeps a one-child UnionAll so the inner FORK is a separate merge segment.
+     *
+     * UnionAll[[]]
+     * \_Subquery[]
+     *   \_Keep[[?g]]
+     *     \_Drop[[?f]]
+     *       \_Limit[10[INTEGER],false]
+     *         \_OrderBy[[Order[?cnt,DESC,FIRST]]]
+     *           \_Aggregate[[?e],[?COUNT[*] AS cnt#7, ?e]]
+     *             \_Fork[[]]
+     *               |_Eval[[fork1[KEYWORD] AS _fork#3]]
+     *               | \_Filter[?c &lt; 100[INTEGER]]
+     *               |   \_Eval[[?a * 2[INTEGER] AS b#13]]
+     *               |     \_Filter[?a &gt; 10[INTEGER]]
+     *               |       \_UnresolvedRelation[]
+     *               \_Eval[[fork2[KEYWORD] AS _fork#3]]
+     *                 \_Filter[?d &gt; 200[INTEGER]]
+     *                   \_Eval[[?a * 2[INTEGER] AS b#13]]
+     *                     \_Filter[?a &gt; 10[INTEGER]]
+     *                       \_UnresolvedRelation[]
      */
     public void testSubqueryOnlyWithProcessingCommandsInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -589,7 +593,10 @@ public class SubqueryTests extends AbstractStatementParserTests {
             """, subqueryIndexPattern);
 
         LogicalPlan plan = query(query);
-        Keep keep = as(plan, Keep.class);
+        UnionAll unionAll = as(plan, UnionAll.class);
+        assertEquals(1, unionAll.children().size());
+        Subquery subquery = as(unionAll.children().getFirst(), Subquery.class);
+        Keep keep = as(subquery.child(), Keep.class);
         Drop drop = as(keep.child(), Drop.class);
         Limit limit = as(drop.child(), Limit.class);
         OrderBy orderBy = as(limit.child(), OrderBy.class);
@@ -607,7 +614,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
     }
 
     /**
-     * If the FROM command contains only a subquery, the subquery is merged into an index pattern.
+     * A lone FROM ( ... | FORK ) keeps a one-child UnionAll under the outer pipeline.
      *
      * Keep[[?g]]
      * \_Drop[[?f]]
@@ -619,42 +626,22 @@ public class SubqueryTests extends AbstractStatementParserTests {
      *           | \_Filter[?c &lt; 100[INTEGER]]
      *           |   \_Eval[[?a * 2[INTEGER] AS b#17]]
      *           |     \_Filter[?a &gt; 10[INTEGER]]
-     *           |       \_Keep[[?g]]
-     *           |         \_Drop[[?f]]
-     *           |           \_Limit[10[INTEGER],false]
-     *           |             \_OrderBy[[Order[?cnt,DESC,FIRST]]]
-     *           |               \_Aggregate[[?e],[?COUNT[*] AS cnt#7, ?e]]
+     *           |       \_UnionAll[[]]
+     *           |         \_Subquery[]
+     *           |           \_Keep[[?g]]
+     *           |             \_Drop[[?f]]
+     *           |               ...
      *           |                 \_Fork[[]]
-     *           |                   |_Eval[[fork1[KEYWORD] AS _fork#3]]
-     *           |                   | \_Filter[?c &lt; 100[INTEGER]]
-     *           |                   |   \_Eval[[?a * 2[INTEGER] AS b#13]]
-     *           |                   |     \_Filter[?a &gt; 10[INTEGER]]
-     *           |                   |       \_UnresolvedRelation[]
-     *           |                   \_Eval[[fork2[KEYWORD] AS _fork#3]]
-     *           |                     \_Filter[?d &gt; 200[INTEGER]]
-     *           |                       \_Eval[[?a * 2[INTEGER] AS b#13]]
-     *           |                         \_Filter[?a &gt; 10[INTEGER]]
-     *           |                           \_UnresolvedRelation[]
      *           \_Eval[[fork2[KEYWORD] AS _fork#19]]
      *             \_Filter[?d &gt; 200[INTEGER]]
      *               \_Eval[[?a * 2[INTEGER] AS b#17]]
      *                 \_Filter[?a &gt; 10[INTEGER]]
-     *                   \_Keep[[?g]]
-     *                     \_Drop[[?f]]
-     *                       \_Limit[10[INTEGER],false]
-     *                         \_OrderBy[[Order[?cnt,DESC,FIRST]]]
-     *                           \_Aggregate[[?e],[?COUNT[*] AS cnt#7, ?e]]
+     *                   \_UnionAll[[]]
+     *                     \_Subquery[]
+     *                       \_Keep[[?g]]
+     *                         \_Drop[[?f]]
+     *                           ...
      *                             \_Fork[[]]
-     *                               |_Eval[[fork1[KEYWORD] AS _fork#3]]
-     *                               | \_Filter[?c &lt; 100[INTEGER]]
-     *                               |   \_Eval[[?a * 2[INTEGER] AS b#13]]
-     *                               |     \_Filter[?a &gt; 10[INTEGER]]
-     *                               |       \_UnresolvedRelation[]
-     *                               \_Eval[[fork2[KEYWORD] AS _fork#3]]
-     *                                 \_Filter[?d &gt; 200[INTEGER]]
-     *                                   \_Eval[[?a * 2[INTEGER] AS b#13]]
-     *                                     \_Filter[?a &gt; 10[INTEGER]]
-     *                                       \_UnresolvedRelation[]
      */
     public void testSubqueryOnlyWithProcessingCommandsInSubqueryAndMainquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -692,7 +679,10 @@ public class SubqueryTests extends AbstractStatementParserTests {
             Filter forkFilter = as(forkEval.child(), Filter.class);
             Eval eval = as(forkFilter.child(), Eval.class);
             Filter filter = as(eval.child(), Filter.class);
-            Keep subqueryKeep = as(filter.child(), Keep.class);
+            UnionAll unionAll = as(filter.child(), UnionAll.class);
+            assertEquals(1, unionAll.children().size());
+            Subquery subquery = as(unionAll.children().getFirst(), Subquery.class);
+            Keep subqueryKeep = as(subquery.child(), Keep.class);
             Drop subqueryDrop = as(subqueryKeep.child(), Drop.class);
             Limit subqueryLimit = as(subqueryDrop.child(), Limit.class);
             OrderBy subqueryOrderby = as(subqueryLimit.child(), OrderBy.class);

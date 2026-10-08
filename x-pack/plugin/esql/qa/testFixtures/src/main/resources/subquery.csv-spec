@@ -2049,3 +2049,24 @@ c:long | m:date_nanos
 4      | 2023-10-23T12:00:00.000Z
 10     | 2023-10-23T13:00:00.000Z
 ;
+
+forkAfterSingleFromSubqueryWithFork
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: fork_after_single_fork_subquery_or_view
+
+FROM (
+    FROM employees
+    | WHERE emp_no >= 10091 AND emp_no < 10093
+    | FORK (WHERE emp_no == 10091) (WHERE emp_no == 10092)
+)
+| FORK (WHERE emp_no > 10091) (WHERE emp_no <= 10091)
+| KEEP _fork, emp_no
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer
+fork1         | 10092
+fork2         | 10091
+;

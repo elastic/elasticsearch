@@ -13,6 +13,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
@@ -111,14 +112,16 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * stay separate (Strategy A from esql-planning#543).
      *
      * @param preserveViewBoundaries {@code true} when the request carries a DSL filter that must be
-     *                               applied at view-output boundaries. This is the <em>only</em> reason
-     *                               to keep a wrapper that would otherwise be compacted away: when
-     *                               {@code false} every collapse that was possible before the
-     *                               request-filter feature is still performed. When {@code true}, a
+     *                               applied at view-output boundaries. When {@code false} every collapse
+     *                               that was possible before the request-filter feature is still performed,
+     *                               except a single-survivor wrapper whose body contains a {@link Fork}:
+     *                               that merge is kept so {@code checkFork} can treat the view or
+     *                               {@code FROM (...)} scope as a boundary. When {@code true}, a
      *                               single-survivor {@link ViewUnionAll} whose surviving branch is a view
      *                               branch is kept intact so that
      *                               {@link org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter}
-     *                               can find the boundary; every other branch kind still collapses.
+     *                               can find the boundary; every other branch kind still collapses unless
+     *                               it contains a {@code Fork}.
      */
     public static LogicalPlan postIndexResolution(LogicalPlan plan, boolean preserveViewBoundaries) {
         plan = stripViewShadowRelations(plan, preserveViewBoundaries);
@@ -130,7 +133,35 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         plan = rewriteUnionAllsWithNamedSubqueries(plan);
         plan = compactNestedViewUnionAlls(plan, preserveViewBoundaries);
         plan = plan.transformDown(NamedSubquery.class, UnaryPlan::child);
-        return plan;
+        // A single FROM ( ... | FORK ) keeps its Subquery through parsing so StripDatasetShadowRelations
+        // does not collapse a one-child UnionAll. After NamedSubquery strip, wrap that Subquery in a
+        // one-child UnionAll so checkFork can treat the inner FORK as a separate merge segment.
+        return wrapForkBearingSubqueries(plan);
+    }
+
+    /**
+     * Wraps a {@link Subquery} whose body contains a {@link Fork} in a one-child {@link UnionAll}, unless it is already a {@link UnionAll}
+     * child. User-written multi-source {@code FROM} already has that parent; this is the single subquery case the parser no longer unwraps.
+     */
+    private static LogicalPlan wrapForkBearingSubqueries(LogicalPlan plan) {
+        return wrapForkBearingSubqueries(plan, false);
+    }
+
+    private static LogicalPlan wrapForkBearingSubqueries(LogicalPlan plan, boolean underUnionAll) {
+        boolean childrenUnderUnionAll = plan instanceof UnionAll;
+        List<LogicalPlan> children = plan.children();
+        List<LogicalPlan> newChildren = new ArrayList<>(children.size());
+        boolean changed = false;
+        for (LogicalPlan child : children) {
+            LogicalPlan newChild = wrapForkBearingSubqueries(child, childrenUnderUnionAll);
+            changed |= newChild != child;
+            newChildren.add(newChild);
+        }
+        LogicalPlan rewritten = changed ? plan.replaceChildren(newChildren) : plan;
+        if (rewritten instanceof Subquery sq && underUnionAll == false && Fork.containsFork(sq.child())) {
+            return new UnionAll(sq.source(), List.of(sq), List.of());
+        }
+        return rewritten;
     }
 
     /**
@@ -158,7 +189,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                 // applied above; a bare index or a user-written subquery takes the ordinary Lucene
                 // pushdown path instead and so collapses freely even when a filter is present.
                 String survivingKey = prunedVua.namedSubqueries().keySet().iterator().next();
-                if (preserveViewBoundaries == false || prunedVua.isViewBranch(survivingKey) == false) {
+                if ((preserveViewBoundaries == false || prunedVua.isViewBranch(survivingKey) == false)
+                    && Fork.containsFork(prunedVua.children().getFirst()) == false) {
                     // Recurse into the exposed child rather than just returning it. Collapsing can expose another
                     // ViewUnionAll — nested pass-through views under CPS produce exactly that — and transformDown
                     // descends into the *children* of whatever the rule returns, so the rule would never be applied
@@ -395,7 +427,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             // Same two-part decision as in stripViewShadowRelations: collapse the lone entry unless a
             // request filter still needs this view boundary. With no filter this always collapses, so
             // the pre-feature compaction is preserved in full.
-            if (preserveViewBoundaries == false || flatViewBranchKeys.contains(survivingKey) == false) {
+            if ((preserveViewBoundaries == false || flatViewBranchKeys.contains(survivingKey) == false)
+                && Fork.containsFork(survivingPlan) == false) {
                 return survivingPlan;
             }
         }

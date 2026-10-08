@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -700,6 +701,11 @@ public class TestAnalyzer {
         if (resolved.size() == 1) {
             var subplan = resolved.get(0);
             if (subplan instanceof NamedSubquery n) {
+                if (Fork.containsFork(n.child())) {
+                    LinkedHashMap<String, LogicalPlan> subplans = new LinkedHashMap<>();
+                    subplans.put(n.name(), n);
+                    return new ViewUnionAll(ur.source(), subplans, Set.of(n.name()), List.of());
+                }
                 return n.child();
             }
             return subplan;

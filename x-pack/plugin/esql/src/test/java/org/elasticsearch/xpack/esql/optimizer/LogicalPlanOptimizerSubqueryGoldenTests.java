@@ -523,6 +523,23 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    public void testForkAfterSingleFromSubqueryWithFork() {
+        runGoldenTest("""
+            FROM (
+                FROM employees
+                | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
+            )
+            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
+            """, STAGES);
+    }
+
+    public void testForkAfterSingleForkView() {
+        runGoldenTest("""
+            FROM fork_view
+            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
+            """, STAGES, Map.of("fork_view", "FROM employees | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)"));
+    }
+
     public void testForkAfterSubquery() {
         runGoldenTest("""
             FROM employees, (FROM employees_incompatible

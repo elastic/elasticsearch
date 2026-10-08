@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
@@ -712,7 +713,7 @@ public class ViewResolver {
                 // too: a plain UnionAll nested under the ViewUnionAll boundary verifies and executes like any other
                 // nested subquery, and the wrapper is what lets the request filter apply to the view's *output* while
                 // the boundary marking blocks the raw DSL from the leaves inside. See ViewRequestFilterIT for the shape.
-                if (subqueries.size() == 1 && preserveViewBoundaries == false) {
+                if (subqueries.size() == 1 && preserveViewBoundaries == false && Fork.containsFork(subqueries.getFirst().plan()) == false) {
                     return subqueries.getFirst().plan();
                 }
                 return buildPlanFromBranches(unresolvedRelation, subqueries, depth, preserveViewBoundaries);
@@ -1046,7 +1047,7 @@ public class ViewResolver {
         // view performs. Both conditions are required: no filter means collapse as before, and a lone
         // pass-through (bare-UR) branch is not a view branch so it collapses even with a filter.
         boolean mustPreserveBoundary = preserveViewBoundaries && viewBranchKeys.isEmpty() == false;
-        if (plans.size() == 1 && mustPreserveBoundary == false) {
+        if (plans.size() == 1 && mustPreserveBoundary == false && Fork.containsFork(plans.values().iterator().next()) == false) {
             return plans.values().iterator().next();
         }
         traceUnionAllBranches(depth, plans);

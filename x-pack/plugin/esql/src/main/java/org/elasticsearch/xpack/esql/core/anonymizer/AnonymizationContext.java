@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.HexFormat;
@@ -31,9 +32,9 @@ import javax.crypto.spec.SecretKeySpec;
  * Two scopes of stability:
  * <ul>
  *   <li>Column, index, enrich and lookup names get a per-cluster-stable token via
- *       {@code HMAC-SHA256(cluster_uuid, name)}. Same name on the same cluster yields the same
- *       token across queries — useful for cross-incident field-usage telemetry. Disjoint across
- *       clusters by construction.</li>
+ *       {@code HMAC-SHA256(SHA-256(cluster_uuid), name)}. Same name on the same cluster yields the
+ *       same token across queries — useful for cross-incident field-usage telemetry. Disjoint
+ *       across clusters by construction.</li>
  *   <li>Literals get a per-submission interning id so identity within one query is preserved
  *       (the two {@code 5}s in {@code f == 5 AND bar == 5} share a token) but the same {@code 5}
  *       gets a fresh token in the next query.</li>
@@ -46,12 +47,18 @@ public final class AnonymizationContext {
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     /**
+     * Widens the cluster identifier to a fixed-width HMAC key. FIPS approved mode rejects an HMAC key
+     * under 112 bits, and the identifier does not clear that on its own: it is absent in test fixtures
+     * and {@code _na_} until the cluster UUID is committed, either of which would otherwise throw and
+     * cost us the anonymized failure log at the moment we need it.
+     */
+    private static final String KEY_DIGEST_ALGORITHM = "SHA-256";
+    /**
      * Length of each hashed identifier. We use 12 because it takes ~16M entries before we're 50/50
      * to hit a collision (two field names hashing to the same {@code col_xxxxxxxx}).
      */
     private static final int TOKEN_HEX_LEN = 12;
 
-    private final byte[] clusterKey;
     private final Mac mac;
     private final Map<String, String> columnTokens = new HashMap<>();
     private final Map<String, String> indexTokens = new HashMap<>();
@@ -94,14 +101,15 @@ public final class AnonymizationContext {
     };
 
     private AnonymizationContext(String clusterUuid) {
-        this.clusterKey = (clusterUuid == null ? "" : clusterUuid).getBytes(StandardCharsets.UTF_8);
         // One Mac instance per submission, reused across every token() call. Mac is not
         // thread-safe but AnonymizationContext is constructed per submission and used single-
         // threadedly, so caching saves the Mac.getInstance() + SecretKeySpec allocations per
         // identifier render — non-trivial on wide schemas.
         try {
+            byte[] clusterKey = MessageDigest.getInstance(KEY_DIGEST_ALGORITHM)
+                .digest((clusterUuid == null ? "" : clusterUuid).getBytes(StandardCharsets.UTF_8));
             this.mac = Mac.getInstance(HMAC_ALGORITHM);
-            mac.init(new SecretKeySpec(clusterKey.length == 0 ? new byte[] { 0 } : clusterKey, HMAC_ALGORITHM));
+            mac.init(new SecretKeySpec(clusterKey, HMAC_ALGORITHM));
         } catch (NoSuchAlgorithmException | InvalidKeyException e) {
             throw new IllegalStateException("HMAC-SHA256 unavailable", e);
         }

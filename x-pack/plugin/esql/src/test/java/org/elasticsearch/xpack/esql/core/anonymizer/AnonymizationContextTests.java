@@ -88,4 +88,26 @@ public class AnonymizationContextTests extends ESTestCase {
         assertNotNull(ctx.mapper().index("bar"));
         assertNotNull(ctx.mapper().literal(1, DataType.INTEGER));
     }
+
+    /**
+     * The identifiers production can hand us that are shorter than the 112-bit minimum an HMAC key
+     * must clear in FIPS approved mode: {@code resolveClusterUuid} answers {@code ""} when the cluster
+     * state is unavailable, and {@code Metadata.UNKNOWN_CLUSTER_UUID} is {@code _na_} until the cluster
+     * UUID is committed. Each must still render a token rather than throw, and the only run that can
+     * tell this apart from keying on the raw bytes is a FIPS one ({@code -Dtests.fips.enabled=true}).
+     */
+    public void testShortClusterUuidStillRendersTokens() {
+        for (String clusterUuid : new String[] { "", "_na_" }) {
+            var ctx = AnonymizationContext.forSubmission(clusterUuid);
+            assertNotNull("column token for cluster uuid [" + clusterUuid + "]", ctx.mapper().column("foo"));
+            assertNotNull("index token for cluster uuid [" + clusterUuid + "]", ctx.mapper().index("bar"));
+        }
+    }
+
+    public void testShortClusterUuidsAreStillDisjoint() {
+        // Widening the key must not collapse distinct short identifiers onto one key.
+        String fromEmpty = AnonymizationContext.forSubmission("").mapper().column("salary");
+        String fromUnknown = AnonymizationContext.forSubmission("_na_").mapper().column("salary");
+        assertNotEquals("distinct cluster identifiers must not share a token", fromEmpty, fromUnknown);
+    }
 }

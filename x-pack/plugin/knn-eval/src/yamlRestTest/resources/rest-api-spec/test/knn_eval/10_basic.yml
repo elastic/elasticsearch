@@ -374,6 +374,7 @@ teardown:
           query_source:
             from: docs
             size: 10
+          allow_exact_baseline: true
           baseline:
             exact: true
           knn_settings:
@@ -422,6 +423,7 @@ teardown:
           query_source:
             from: docs
             size: 5
+          allow_exact_baseline: true
           baseline:
             exact: true
             visit_percentage: 100
@@ -476,13 +478,7 @@ teardown:
   - match: { response.results.0.included_queries: 10 }
 
 ---
-"An exact baseline needs expensive queries to be allowed":
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            search.allow_expensive_queries: false
-
+"An exact baseline requires allow_exact_baseline":
   - do:
       catch: bad_request
       knn_eval:
@@ -498,7 +494,15 @@ teardown:
           knn_settings:
             - visit_percentage: 100
 
-  # a non-exact baseline is an ordinary kNN search; the setting does not apply
+  - match: { error.caused_by.reason: "/.*\\[allow_exact_baseline\\].*/" }
+
+  # search.allow_expensive_queries doesn't gate exact baselines
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.allow_expensive_queries: false
+
   - do:
       knn_eval:
         index: knn_eval_test
@@ -508,13 +512,13 @@ teardown:
           query_source:
             from: docs
             size: 5
+          allow_exact_baseline: true
           baseline:
-            visit_percentage: 100
-            rescore_vector:
-              oversample: 50
+            exact: true
           knn_settings:
             - visit_percentage: 100
 
+  - match: { baseline.exact: true }
   - match: { results.0.recall: 1.0 }
 
 ---
@@ -732,6 +736,7 @@ teardown:
           query_source:
             from: docs
             size: 2
+          allow_exact_baseline: true
           baseline:
             exact: true
           knn_settings:
@@ -874,6 +879,7 @@ teardown:
                 query_vector: [0.26, 0.36, 0.46, 0.56]
               - id: q2
                 query_vector: [0.985, 1.085, 1.185, 1.285]
+          allow_exact_baseline: true
           baseline:
             exact: true
           knn_settings:
@@ -901,6 +907,7 @@ teardown:
           query_source:
             from: docs
             size: 30
+          allow_exact_baseline: true
           baseline:
             exact: true
           knn_settings:

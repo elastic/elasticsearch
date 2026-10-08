@@ -48,7 +48,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -113,21 +112,6 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         if (clusterService.getClusterSettings().get(KnnEvalPlugin.ENABLED) == false) {
             listener.onFailure(
                 new IllegalArgumentException("[" + RestKnnEvalAction.ENDPOINT + "] is disabled by [" + KnnEvalPlugin.ENABLED.getKey() + "]")
-            );
-            return;
-        }
-        if (request.getKnnEvalSpec().getBaseline().isExact()
-            && clusterService.getClusterSettings().get(SearchService.ALLOW_EXPENSIVE_QUERIES) == false) {
-            // a full scan is what that setting guards; approximate baselines are ordinary kNN searches
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "["
-                        + KnnEvalSettings.EXACT_FIELD.getPreferredName()
-                        + "] baseline requires ["
-                        + SearchService.ALLOW_EXPENSIVE_QUERIES.getKey()
-                        + "] to be true; set it or pass a non-exact baseline such as "
-                        + "{visit_percentage: 100, rescore_vector: {oversample: 50}}"
-                )
             );
             return;
         }

@@ -36,6 +36,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
     static final ParseField QUERY_SOURCE_FIELD = KnnEvalQuerySource.QUERY_SOURCE_FIELD;
     static final ParseField BASELINE_FIELD = new ParseField("baseline");
     static final ParseField KNN_SETTINGS_FIELD = new ParseField("knn_settings");
+    static final ParseField ALLOW_EXACT_BASELINE_FIELD = new ParseField("allow_exact_baseline");
 
     /** Bounded, so an omitted baseline can't scan every vector; exact must be explicit. */
     private static final KnnEvalSettings DEFAULT_BASELINE = new KnnEvalSettings(20.0f, null, 100.0f, false);
@@ -48,7 +49,8 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
             (Integer) args[1],
             (KnnEvalQuerySource) args[2],
             args[3] == null ? DEFAULT_BASELINE : (KnnEvalSettings) args[3],
-            (List<KnnEvalSettings>) args[4]
+            (List<KnnEvalSettings>) args[4],
+            Boolean.TRUE.equals(args[5])
         )
     );
 
@@ -58,6 +60,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> KnnEvalQuerySource.fromXContent(p), QUERY_SOURCE_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> KnnEvalSettings.fromXContent(p), BASELINE_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> KnnEvalSettings.fromXContent(p), KNN_SETTINGS_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_EXACT_BASELINE_FIELD);
     }
 
     private final String field;
@@ -65,12 +68,25 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
     private final KnnEvalQuerySource querySource;
     private final KnnEvalSettings baseline;
     private final List<KnnEvalSettings> knnSettings;
+    private final boolean allowExactBaseline;
 
     KnnEvalSpec(String field, int k, KnnEvalQuerySource querySource, KnnEvalSettings baseline, List<KnnEvalSettings> knnSettings) {
+        this(field, k, querySource, baseline, knnSettings, false);
+    }
+
+    KnnEvalSpec(
+        String field,
+        int k,
+        KnnEvalQuerySource querySource,
+        KnnEvalSettings baseline,
+        List<KnnEvalSettings> knnSettings,
+        boolean allowExactBaseline
+    ) {
         validateBounds(field, k);
         Objects.requireNonNull(querySource, "[" + QUERY_SOURCE_FIELD.getPreferredName() + "] must be provided");
         validateVectorsSource(querySource, k);
         baseline = normalizeBaseline(baseline);
+        validateExactOptIn(baseline, allowExactBaseline);
         boolean sampling = querySource instanceof KnnEvalQuerySource.DocsSource;
         // a sampled query also retrieves its own document: one extra candidate
         int maxNumCandidates = sampling ? KnnEvalRescore.MAX_NUM_CANDIDATES - 1 : KnnEvalRescore.MAX_NUM_CANDIDATES;
@@ -81,6 +97,20 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         this.querySource = querySource;
         this.baseline = baseline;
         this.knnSettings = List.copyOf(knnSettings);
+        this.allowExactBaseline = allowExactBaseline;
+    }
+
+    /** Exact scans every vector at full precision, so it needs an explicit opt-in. */
+    private static void validateExactOptIn(KnnEvalSettings baseline, boolean allowExactBaseline) {
+        if (baseline.isExact() && allowExactBaseline == false) {
+            throw new IllegalArgumentException(
+                "an ["
+                    + KnnEvalSettings.EXACT_FIELD.getPreferredName()
+                    + "] baseline brute-forces every vector at full precision and can severely slow other searches; set ["
+                    + ALLOW_EXACT_BASELINE_FIELD.getPreferredName()
+                    + "] to true if you accept that impact"
+            );
+        }
     }
 
     private static void validateBounds(String field, int k) {
@@ -176,7 +206,8 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
             in.readVInt(),
             KnnEvalQuerySource.read(in),
             new KnnEvalSettings(in),
-            in.readCollectionAsList(KnnEvalSettings::new)
+            in.readCollectionAsList(KnnEvalSettings::new),
+            in.readBoolean()
         );
     }
 
@@ -217,6 +248,10 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         return knnSettings;
     }
 
+    public boolean isAllowExactBaseline() {
+        return allowExactBaseline;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
@@ -224,6 +259,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         querySource.writeTo(out);
         baseline.writeTo(out);
         out.writeCollection(knnSettings);
+        out.writeBoolean(allowExactBaseline);
     }
 
     @Override
@@ -240,6 +276,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
             candidate.toXContent(builder, params);
         }
         builder.endArray();
+        builder.field(ALLOW_EXACT_BASELINE_FIELD.getPreferredName(), allowExactBaseline);
         builder.endObject();
         return builder;
     }
@@ -262,11 +299,12 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
             && Objects.equals(field, other.field)
             && Objects.equals(querySource, other.querySource)
             && Objects.equals(baseline, other.baseline)
-            && Objects.equals(knnSettings, other.knnSettings);
+            && Objects.equals(knnSettings, other.knnSettings)
+            && allowExactBaseline == other.allowExactBaseline;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, querySource, baseline, knnSettings);
+        return Objects.hash(field, k, querySource, baseline, knnSettings, allowExactBaseline);
     }
 }

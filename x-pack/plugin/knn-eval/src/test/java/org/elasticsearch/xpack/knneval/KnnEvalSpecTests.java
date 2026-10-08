@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.knneval;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.search.vectors.VectorData;
@@ -79,7 +80,9 @@ public class KnnEvalSpecTests extends ESTestCase {
             }
         }
         KnnEvalSettings baseline = randomBoolean() ? new KnnEvalSettings(null, null, null, true) : createTestSettings();
-        return new KnnEvalSpec(randomAlphaOfLengthBetween(1, 10), k, querySource, baseline, candidates);
+        // exact requires the opt-in; non-exact may carry it
+        boolean allowExactBaseline = baseline.isExact() || randomBoolean();
+        return new KnnEvalSpec(randomAlphaOfLengthBetween(1, 10), k, querySource, baseline, candidates, allowExactBaseline);
     }
 
     public void testXContentRoundtrip() throws IOException {
@@ -115,8 +118,9 @@ public class KnnEvalSpecTests extends ESTestCase {
         KnnEvalQuerySource querySource = original.getQuerySource();
         KnnEvalSettings baseline = original.getBaseline();
         List<KnnEvalSettings> candidates = new ArrayList<>(original.getKnnSettings());
+        boolean allowExactBaseline = original.isAllowExactBaseline();
 
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 4)) {
             case 0 -> field = field + "_mutated";
             case 1 -> k = k + 1;
             case 2 -> {
@@ -137,9 +141,50 @@ public class KnnEvalSpecTests extends ESTestCase {
                     querySource = new KnnEvalQuerySource.VectorsSource(updated);
                 }
             }
+            case 4 -> {
+                if (baseline.isExact()) {
+                    // exact can't drop the opt-in
+                    k = k + 1;
+                } else {
+                    allowExactBaseline = allowExactBaseline == false;
+                }
+            }
             default -> throw new AssertionError("unreachable");
         }
-        return new KnnEvalSpec(field, k, querySource, baseline, candidates);
+        return new KnnEvalSpec(field, k, querySource, baseline, candidates, allowExactBaseline);
+    }
+
+    public void testExactBaselineRequiresOptIn() {
+        KnnEvalQuerySource docsSource = new KnnEvalQuerySource.DocsSource(new KnnEvalSample(10, null));
+        KnnEvalSettings exact = new KnnEvalSettings(null, null, null, true);
+        List<KnnEvalSettings> candidates = List.of(new KnnEvalSettings(5.0f, null, null, false));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new KnnEvalSpec("emb", 10, docsSource, exact, candidates, false)
+        );
+        assertThat(e.getMessage(), containsString("set [allow_exact_baseline] to true if you accept that impact"));
+
+        assertTrue(new KnnEvalSpec("emb", 10, docsSource, exact, candidates, true).getBaseline().isExact());
+        // the opt-in alone doesn't make a baseline exact
+        KnnEvalSettings approximate = new KnnEvalSettings(100.0f, null, null, false);
+        assertFalse(new KnnEvalSpec("emb", 10, docsSource, approximate, candidates, true).getBaseline().isExact());
+    }
+
+    public void testAllowExactBaselineIsParsed() throws IOException {
+        String body = """
+            {"field": "emb", "k": 10, "query_source": {"from": "docs", "size": 10},
+             "baseline": {"exact": true}, "knn_settings": [{"visit_percentage": 5}]%s}""";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, body.formatted(", \"allow_exact_baseline\": true"))) {
+            KnnEvalSpec spec = KnnEvalSpec.parse(parser);
+            assertTrue(spec.isAllowExactBaseline());
+            assertTrue(spec.getBaseline().isExact());
+        }
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, body.formatted(""))) {
+            Exception e = expectThrows(Exception.class, () -> KnnEvalSpec.parse(parser));
+            // the parser wraps the constructor's exception
+            assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), containsString("[allow_exact_baseline]"));
+        }
     }
 
     public void testQuerySourceIsRequired() {

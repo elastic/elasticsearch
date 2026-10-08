@@ -436,30 +436,20 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[_knn_eval] is disabled by [search.knn_eval.enabled]"));
     }
 
-    public void testExactBaselineIsGatedOnAllowExpensiveQueries() {
+    /** {@code search.allow_expensive_queries} doesn't gate exact baselines. */
+    public void testExactBaselineIgnoresAllowExpensiveQueries() {
         KnnEvalSpec exactBaseline = specWithBaseline(new KnnEvalSettings(null, null, null, true));
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        TransportKnnEvalAction blocked = new TransportKnnEvalAction(
+        RecordingClient client = new RecordingClient();
+        client.exactBaseline = true;
+        TransportKnnEvalAction action = new TransportKnnEvalAction(
             ActionFilters.EMPTY,
-            new RecordingClient(),
-            transportService,
+            client,
+            MockUtils.setupTransportServiceWithThreadpoolExecutor(),
             clusterService(false)
         );
         PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
-        blocked.doExecute(null, new KnnEvalRequest(exactBaseline, new String[] { "index" }), future);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
-        assertThat(e.getMessage(), containsString("[exact] baseline requires [search.allow_expensive_queries] to be true"));
-
-        // a non-exact baseline is an ordinary kNN search; the setting does not apply
-        RecordingClient client = new RecordingClient();
-        TransportKnnEvalAction allowed = new TransportKnnEvalAction(ActionFilters.EMPTY, client, transportService, clusterService(false));
-        PlainActionFuture<KnnEvalResponse> ok = new PlainActionFuture<>();
-        allowed.doExecute(
-            null,
-            new KnnEvalRequest(specWithBaseline(new KnnEvalSettings(100.0f, null, null, false)), new String[] { "index" }),
-            ok
-        );
-        assertEquals(1, safeGet(ok).getResults().size());
+        action.doExecute(null, new KnnEvalRequest(exactBaseline, new String[] { "index" }), future);
+        assertEquals(1, safeGet(future).getResults().size());
     }
 
     public void testExactBaselineWorkIsCappedByDocumentsTimesQueries() {
@@ -470,7 +460,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             K,
             new KnnEvalQuerySource.DocsSource(new KnnEvalSample(10, null)),
             exact,
-            List.of(candidate)
+            List.of(candidate),
+            true
         );
         TransportKnnEvalAction.validateExactWorkload(atLimit, 10_000_000);
 
@@ -479,7 +470,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             K,
             new KnnEvalQuerySource.DocsSource(new KnnEvalSample(11, null)),
             exact,
-            List.of(candidate)
+            List.of(candidate),
+            true
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -594,13 +586,14 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             K,
             new KnnEvalQuerySource.VectorsSource(List.of(new KnnEvalQuery("q0", VectorData.fromFloats(new float[] { 0 })))),
             baseline,
-            List.of(new KnnEvalSettings(5.0f, null, null, false))
+            List.of(new KnnEvalSettings(5.0f, null, null, false)),
+            baseline.isExact()
         );
     }
 
     /** An exact baseline brute-forces every document, so it uses exact_knn, not the knn section. */
     public void testExactBaselineUsesTheExactKnnQuery() {
-        boolean allowExpensiveQueries = true;
+        boolean allowExpensiveQueries = randomBoolean();
         RecordingClient client = new RecordingClient();
         client.exactBaseline = true;
         List<KnnEvalQuery> queries = List.of(new KnnEvalQuery("q0", VectorData.fromFloats(new float[] { 0 })));
@@ -609,7 +602,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             K,
             new KnnEvalQuerySource.VectorsSource(queries),
             new KnnEvalSettings(null, null, null, true),
-            List.of(new KnnEvalSettings(5.0f, null, null, false))
+            List.of(new KnnEvalSettings(5.0f, null, null, false)),
+            true
         );
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         TransportKnnEvalAction action = new TransportKnnEvalAction(

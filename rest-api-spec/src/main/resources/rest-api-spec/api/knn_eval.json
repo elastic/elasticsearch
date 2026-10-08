@@ -2,7 +2,7 @@
   "knn_eval": {
     "documentation": {
       "url": null,
-      "description": "Estimate the recall and cost of approximate kNN search configurations on a bbq_disk dense_vector field against a more thorough baseline. Requires the read and view_index_metadata index privileges: the field mapping is validated as the calling user. The bounded default baseline uses 20% visit with rescore_vector.oversample 100; exact full-precision search must be requested explicitly and is limited to 100 million vector-by-query comparisons. Each knn_settings entry reports mean recall of the baseline's top-k, not of relevance judgments, plus included/excluded query counts and cost totals. A query is excluded from mean recall when the candidate finds a document scoring above the baseline's lowest top-k score. A baseline returning fewer than k hits fails that query because recall@k is undefined. A rescore_window_capped flag reports when search_size multiplied by oversample exceeds the 10,000-vector rescore limit. All configurations run against one point-in-time."
+      "description": "Estimate the recall and cost of approximate kNN search configurations on a bbq_disk dense_vector field against a more thorough baseline. Requires the read and view_index_metadata index privileges: the field mapping is validated as the calling user. The bounded default baseline uses 20% visit with rescore_vector.oversample 100; an exact full-precision baseline must be requested explicitly with allow_exact_baseline:true and is limited to 100 million vector-by-query comparisons. Each knn_settings entry reports mean recall of the baseline's top-k, not of relevance judgments, plus included/excluded query counts and cost totals. A query is excluded from mean recall when the candidate finds a document scoring above the baseline's lowest top-k score. A baseline returning fewer than k hits fails that query because recall@k is undefined. A rescore_window_capped flag reports when search_size multiplied by oversample exceeds the 10,000-vector rescore limit. All configurations run against one point-in-time."
     },
     "stability": "experimental",
     "visibility": "private",
@@ -61,7 +61,7 @@
       }
     },
     "body": {
-      "description": "The kNN evaluation definition: a bbq_disk dense_vector field (not inside a nested object); k from 1 to 1000; a query_source object with a from discriminator (docs to sample from stored documents, vectors to supply explicit query vectors); an optional baseline (default visit_percentage:20 and rescore_vector.oversample:100; exact:true is gated by search.allow_expensive_queries); and 1 to 32 unique knn_settings entries (visit_percentage, num_candidates up to 10000, or 9999 with sampling, and rescore_vector). Explicit visit_percentage:0 selects DiskBBQ's automatic visit calculation.",
+      "description": "The kNN evaluation definition: a bbq_disk dense_vector field (not inside a nested object); k from 1 to 1000; a query_source object with a from discriminator (docs to sample from stored documents, vectors to supply explicit query vectors); an optional baseline (default visit_percentage:20 and rescore_vector.oversample:100; exact:true also requires allow_exact_baseline:true); and 1 to 32 unique knn_settings entries (visit_percentage, num_candidates up to 10000, or 9999 with sampling, and rescore_vector). Explicit visit_percentage:0 selects DiskBBQ's automatic visit calculation. allow_exact_baseline (default false) must be true when the baseline is exact.",
       "required": true
     }
   }

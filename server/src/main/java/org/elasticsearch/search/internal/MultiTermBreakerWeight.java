@@ -47,6 +47,8 @@ final class MultiTermBreakerWeight extends Weight {
     /** Mirrors Lucene's package-private {@code AbstractMultiTermQueryConstantScoreWrapper#BOOLEAN_REWRITE_TERM_COUNT_THRESHOLD}. */
     private static final int BOOLEAN_REWRITE_TERM_COUNT_THRESHOLD = 16;
 
+    private static final String BREAKER_LABEL = "multiterm-execution";
+
     private final ContextIndexSearcher searcher;
     private final Weight in;
     @Nullable
@@ -97,7 +99,7 @@ final class MultiTermBreakerWeight extends Weight {
 
     private void chargeLeaf(LeafReaderContext context, long cost) throws IOException {
         final long charge = skipsDocIdSet(context) ? 0L : TermsQueryCostEstimator.executionBytesForLeaf(cost, context.reader().maxDoc());
-        searcher.chargeLeaf(context, charge, "multiterm-execution");
+        searcher.chargeLeaf(context, charge, BREAKER_LABEL);
     }
 
     private boolean skipsDocIdSet(LeafReaderContext context) throws IOException {

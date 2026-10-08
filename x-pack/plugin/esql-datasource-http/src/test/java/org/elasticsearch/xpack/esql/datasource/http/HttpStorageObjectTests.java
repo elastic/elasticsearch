@@ -67,7 +67,7 @@ import static org.mockito.Mockito.when;
 @SuppressWarnings("unchecked")
 public class HttpStorageObjectTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     public void testPath() {
         HttpClient mockClient = mock(HttpClient.class);

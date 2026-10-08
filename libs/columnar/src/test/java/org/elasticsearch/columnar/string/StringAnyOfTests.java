@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.NavigableSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeSet;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
@@ -86,8 +87,8 @@ public class StringAnyOfTests extends ColumnarStringTestCase {
                 randomTargetChunkBytes(),
                 dictionaryPolicy(),
                 (metadata, reader) -> {
-                    assertEquals("one term " + one, expectedAnyOf(docValues, single), matched(reader.matchAnyOf(single)));
-                    assertEquals("every term", expectedAnyOf(docValues, all), matched(reader.matchAnyOf(all)));
+                    assertEquals("one term " + one, expectedAnyOf(docValues, single), matched(anyOf(reader, single)));
+                    assertEquals("every term", expectedAnyOf(docValues, all), matched(anyOf(reader, all)));
                 }
             );
         }
@@ -108,10 +109,10 @@ public class StringAnyOfTests extends ColumnarStringTestCase {
                 withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
                     final String how = "sorted=" + inTermOrder + " policy=" + policy;
                     final List<Integer> expected = expectedAnyOf(docValues, ascending);
-                    assertEquals(how + " ascending", expected, matched(reader.matchAnyOf(ascending)));
-                    assertEquals(how + " natural order", expected, matched(reader.matchAnyOf(naturalOrder)));
-                    assertEquals(how + " descending", expected, matched(reader.matchAnyOf(descending)));
-                    assertEquals(how + " by length", expected, matched(reader.matchAnyOf(byLength)));
+                    assertEquals(how + " ascending", expected, matched(anyOf(reader, ascending)));
+                    assertEquals(how + " natural order", expected, matched(anyOf(reader, naturalOrder)));
+                    assertEquals(how + " descending", expected, matched(anyOf(reader, descending)));
+                    assertEquals(how + " by length", expected, matched(anyOf(reader, byLength)));
                 });
             }
         }
@@ -121,7 +122,7 @@ public class StringAnyOfTests extends ColumnarStringTestCase {
         final BytesRef[] docValues = repeated(between(400, 1500));
         for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, dictionaryPolicy())) {
             withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
-                assertEquals("empty term set", List.of(), matched(reader.matchAnyOf(new TreeSet<>())));
+                assertEquals("empty term set", List.of(), matched(anyOf(reader, new TreeSet<>())));
             });
         }
     }
@@ -130,7 +131,7 @@ public class StringAnyOfTests extends ColumnarStringTestCase {
         final BytesRef[] docValues = new BytesRef[between(400, 1500)];
         for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, dictionaryPolicy())) {
             withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
-                assertEquals("empty column", List.of(), matched(reader.matchAnyOf(termsOf("alpha", "bravo"))));
+                assertEquals("empty column", List.of(), matched(anyOf(reader, termsOf("alpha", "bravo"))));
             });
         }
     }
@@ -151,7 +152,7 @@ public class StringAnyOfTests extends ColumnarStringTestCase {
             randomTargetChunkBytes(),
             dictionaryPolicy(),
             (metadata, reader) -> {
-                final List<Integer> found = matched(reader.matchAnyOf(termsOf(escaped.utf8ToString())));
+                final List<Integer> found = matched(anyOf(reader, termsOf(escaped.utf8ToString())));
                 assertEquals("escape matched by bytes", List.of(escapeDoc), found);
             }
         );
@@ -166,7 +167,7 @@ public class StringAnyOfTests extends ColumnarStringTestCase {
         final NavigableSet<BytesRef> queryTerms = termsOf("alpha", "charlie");
         for (DictionaryPolicy policy : new DictionaryPolicy[] { DictionaryPolicy.NONE, dictionaryPolicy() }) {
             withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
-                final List<Integer> matches = matched(reader.matchAnyOf(queryTerms));
+                final List<Integer> matches = matched(anyOf(reader, queryTerms));
                 assertEquals("multi-valued policy=" + policy, List.of(0, 2), matches);
             });
         }
@@ -191,8 +192,8 @@ public class StringAnyOfTests extends ColumnarStringTestCase {
         final BytesRef[] docValues = repeated(between(600, 2000));
         final NavigableSet<BytesRef> adjacent = termsOf("alpha", "alpine");
         withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), dictionaryPolicy(), (m, reader) -> {
-            assertEquals(expectedAnyOf(docValues, adjacent), matched(reader.matchAnyOf(adjacent)));
-            final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(reader.matchAnyOf(adjacent));
+            assertEquals(expectedAnyOf(docValues, adjacent), matched(anyOf(reader, adjacent)));
+            final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(anyOf(reader, adjacent));
             assertNotNull(twoPhase);
             assertEquals("one run of ordinals settles it", 0f, twoPhase.matchCost(), 0f);
         });
@@ -213,8 +214,8 @@ public class StringAnyOfTests extends ColumnarStringTestCase {
             scattered.add(new BytesRef(vocabulary[t]));
         }
         withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), dictionaryPolicy(), (m, reader) -> {
-            assertEquals(expectedAnyOf(docValues, scattered), matched(reader.matchAnyOf(scattered)));
-            final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(reader.matchAnyOf(scattered));
+            assertEquals(expectedAnyOf(docValues, scattered), matched(anyOf(reader, scattered)));
+            final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(anyOf(reader, scattered));
             assertNotNull(twoPhase);
             assertEquals("too many runs for a window, so the ordinals are tested per slot", 3f, twoPhase.matchCost(), 0f);
         });
@@ -279,7 +280,7 @@ public class StringAnyOfTests extends ColumnarStringTestCase {
             assertTrue("column written in term order", reader.valuesSorted());
             // NOTE: the results match the unordered path, so the iterator's shape is what proves the bisection ran:
             // a dense column answers with the runs themselves, a sparse one with a rank check costing 1.
-            final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(reader.matchAnyOf(termsOf("alpha", "delta")));
+            final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(anyOf(reader, termsOf("alpha", "delta")));
             if (Arrays.stream(docValues).allMatch(Objects::nonNull)) {
                 assertNull("dense sorted column answers without a per-document check", twoPhase);
             } else {
@@ -288,7 +289,7 @@ public class StringAnyOfTests extends ColumnarStringTestCase {
             checkAnyOf(docValues, reader);
             // NOTE: alpha and delta are not adjacent in term order, so their runs leave a gap advance has to cross.
             for (NavigableSet<BytesRef> terms : List.of(termsOf("alpha", "delta"), termsOf("alpine", "bravo", "delta"), termsOf(TERMS))) {
-                assertAdvanceAgrees("advance " + terms, expectedAnyOf(docValues, terms), docValues.length, () -> reader.matchAnyOf(terms));
+                assertAdvanceAgrees("advance " + terms, expectedAnyOf(docValues, terms), docValues.length, () -> anyOf(reader, terms));
             }
         });
     }
@@ -296,16 +297,16 @@ public class StringAnyOfTests extends ColumnarStringTestCase {
     private void checkAnyOf(BytesRef[] docValues, StringColumnReader reader) throws IOException {
         for (String t : TERMS) {
             final NavigableSet<BytesRef> single = termsOf(t);
-            assertEquals("single term " + t, expectedAnyOf(docValues, single), matched(reader.matchAnyOf(single)));
+            assertEquals("single term " + t, expectedAnyOf(docValues, single), matched(anyOf(reader, single)));
         }
         final NavigableSet<BytesRef> all = termsOf(TERMS);
-        assertEquals("all terms", expectedAnyOf(docValues, all), matched(reader.matchAnyOf(all)));
+        assertEquals("all terms", expectedAnyOf(docValues, all), matched(anyOf(reader, all)));
         final NavigableSet<BytesRef> subset = termsOf("alpha", "delta");
-        assertEquals("subset terms", expectedAnyOf(docValues, subset), matched(reader.matchAnyOf(subset)));
+        assertEquals("subset terms", expectedAnyOf(docValues, subset), matched(anyOf(reader, subset)));
         final NavigableSet<BytesRef> absent = termsOf("zzz-not-present");
-        assertEquals("absent term", List.of(), matched(reader.matchAnyOf(absent)));
+        assertEquals("absent term", List.of(), matched(anyOf(reader, absent)));
         final NavigableSet<BytesRef> partlyAbsent = termsOf("aardvark", "bravo", "zzz-not-present");
-        assertEquals("partly absent terms", expectedAnyOf(docValues, partlyAbsent), matched(reader.matchAnyOf(partlyAbsent)));
+        assertEquals("partly absent terms", expectedAnyOf(docValues, partlyAbsent), matched(anyOf(reader, partlyAbsent)));
     }
 
     private void assertAdvanceAgrees(String label, List<Integer> expected, int docCount, Match match) throws IOException {
@@ -346,5 +347,9 @@ public class StringAnyOfTests extends ColumnarStringTestCase {
             docs.add(doc);
         }
         return docs;
+    }
+
+    private static DocIdSetIterator anyOf(StringColumnReader reader, NavigableSet<BytesRef> terms) throws IOException {
+        return reader.matchAnyOf(terms, Set.copyOf(terms));
     }
 }

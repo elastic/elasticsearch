@@ -17,7 +17,6 @@ import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -270,10 +269,9 @@ public final class PlainStringColumnReader extends StringColumnReader {
     }
 
     @Override
-    protected DocIdSetIterator unorderedAnyOfMatches(NavigableSet<BytesRef> terms) throws IOException {
+    protected DocIdSetIterator unorderedAnyOfMatches(NavigableSet<BytesRef> terms, Set<BytesRef> membership) throws IOException {
         final ColumnIterator presence = iterator();
         final LastSeen lastSeen = new LastSeen();
-        final Set<BytesRef> membership = new HashSet<>(terms);
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
             @Override
             public boolean matches() throws IOException {

@@ -28,6 +28,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.NavigableSet;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -419,19 +420,22 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      *
      * <p>The set's own comparator cannot change the answer. A set iterating in byte order costs less, since
      * each term is then resolved from where the one before it stopped, but any order is answered the same.
+     *
+     * <p>{@code membership} holds the same terms, for the paths that decide a value by lookup rather than by
+     * order. The caller owns it so that a query builds it once rather than once a segment.
      */
-    public DocIdSetIterator matchAnyOf(NavigableSet<BytesRef> terms) throws IOException {
+    public DocIdSetIterator matchAnyOf(NavigableSet<BytesRef> terms, Set<BytesRef> membership) throws IOException {
         if (numDocsWithField() == 0 || terms.isEmpty()) {
             return DocIdSetIterator.empty();
         }
         if (valuesSorted() && hasValueAddresses() == false) {
             return documents(sortedRangesOfTerms(terms));
         }
-        return unorderedAnyOfMatches(terms);
+        return unorderedAnyOfMatches(terms, membership);
     }
 
     /** Documents whose value is in {@code terms}, for a column that knows how its values are reached. */
-    protected abstract DocIdSetIterator unorderedAnyOfMatches(NavigableSet<BytesRef> terms) throws IOException;
+    protected abstract DocIdSetIterator unorderedAnyOfMatches(NavigableSet<BytesRef> terms, Set<BytesRef> membership) throws IOException;
 
     /**
      * Documents holding a value that has {@code term} somewhere inside it.

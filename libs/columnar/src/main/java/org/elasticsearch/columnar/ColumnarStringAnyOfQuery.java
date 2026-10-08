@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.NavigableSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeSet;
 
 /**
@@ -49,6 +50,8 @@ public final class ColumnarStringAnyOfQuery extends Query {
 
     private final String field;
     private final NavigableSet<BytesRef> terms;
+    /** The same terms, for the paths that decide a value by lookup; built once here rather than per segment. */
+    private final Set<BytesRef> membership;
     private final ScanBudget budget;
 
     /**
@@ -59,6 +62,7 @@ public final class ColumnarStringAnyOfQuery extends Query {
     public ColumnarStringAnyOfQuery(String field, Collection<BytesRef> terms, ScanBudget budget) {
         this.field = Objects.requireNonNull(field);
         this.terms = new TreeSet<>(Objects.requireNonNull(terms));
+        this.membership = Set.copyOf(this.terms);
         this.budget = Objects.requireNonNull(budget);
     }
 
@@ -89,7 +93,7 @@ public final class ColumnarStringAnyOfQuery extends Query {
                             return DocIdSetIterator.empty();
                         }
                         if (values instanceof StringColumnSource columnar) {
-                            return columnar.reader().matchAnyOf(terms);
+                            return columnar.reader().matchAnyOf(terms, membership);
                         }
                         return fallbackIterator(values, ColumNARDocValuesFormat.isSingleValued(info));
                     }
@@ -108,7 +112,7 @@ public final class ColumnarStringAnyOfQuery extends Query {
             return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
                 @Override
                 public boolean matches() throws IOException {
-                    return terms.contains(values.binaryValue());
+                    return membership.contains(values.binaryValue());
                 }
 
                 @Override
@@ -124,7 +128,7 @@ public final class ColumnarStringAnyOfQuery extends Query {
                 final int slots = decoder.reset(values.binaryValue());
                 for (int slot = 0; slot < slots; slot++) {
                     final BytesRef candidate = decoder.next();
-                    if (candidate != null && terms.contains(candidate)) {
+                    if (candidate != null && membership.contains(candidate)) {
                         return true;
                     }
                 }

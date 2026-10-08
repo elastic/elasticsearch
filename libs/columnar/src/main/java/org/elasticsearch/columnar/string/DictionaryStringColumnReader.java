@@ -21,7 +21,6 @@ import org.elasticsearch.columnar.substrate.MonotonicReader;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -656,9 +655,8 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         return matching;
     }
 
-    private FixedBitSet matchingBySweep(NavigableSet<BytesRef> terms, int end) throws IOException {
+    private FixedBitSet matchingBySweep(Set<BytesRef> wanted, int end) throws IOException {
         final FixedBitSet matching = new FixedBitSet(end);
-        final Set<BytesRef> wanted = new HashSet<>(terms);
         final BytesRef scratchTerm = new BytesRef();
         for (int ordinal = StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL; ordinal < end; ordinal++) {
             if (wanted.contains(termAt(ordinal, scratchTerm))) {
@@ -669,9 +667,9 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     }
 
     @Override
-    protected DocIdSetIterator unorderedAnyOfMatches(NavigableSet<BytesRef> terms) throws IOException {
+    protected DocIdSetIterator unorderedAnyOfMatches(NavigableSet<BytesRef> terms, Set<BytesRef> membership) throws IOException {
         final int end = dictionarySize + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
-        final FixedBitSet matching = sweepIsCheaper(terms.size()) ? matchingBySweep(terms, end) : matchingByBisection(terms, end);
+        final FixedBitSet matching = sweepIsCheaper(terms.size()) ? matchingBySweep(membership, end) : matchingByBisection(terms, end);
         if (matching.cardinality() == 0 && escapeCount == 0) {
             return DocIdSetIterator.empty();
         }
@@ -683,7 +681,6 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         }
         final ColumnIterator presence = iterator();
         final BytesRef value = new BytesRef();
-        final Set<BytesRef> membership = new HashSet<>(terms);
         final OrdinalBlockMask mask = new OrdinalBlockMask(matching, escapeCount > 0);
         final SlotFold fold = new SlotFold();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {

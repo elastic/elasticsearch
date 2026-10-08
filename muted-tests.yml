@@ -698,3 +698,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalWarmDatasetAggregatePartialEvictionIT
   method: testWarmNonCountAggregatesSafeMissUnderEviction
   issue: https://github.com/elastic/elasticsearch/issues/161428
+- class: org.elasticsearch.xpack.esql.action.ExternalWarmDatasetAggregatePartialEvictionIT
+  method: testNdjsonWarmCountSurvivesHalfMissingPerFileEntries
+  issue: https://github.com/elastic/elasticsearch/issues/161434

@@ -94,6 +94,8 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         "withDeclaredTypeColumns",
         WitherLifecycle.IDENTITY_NO_COPY,
         "withDeclaredProvenanceBinding",
+        WitherLifecycle.IDENTITY_NO_COPY,
+        "withHeaderBindingByProvenance",
         WitherLifecycle.IDENTITY_NO_COPY
     );
 
@@ -248,6 +250,7 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
             case "withPushedFilter" -> new Object[] { new Object() };
             case "withDeclaredTypeColumns" -> new Object[] { Set.of("a") };
             case "withDeclaredProvenanceBinding" -> new Object[] { true };
+            case "withHeaderBindingByProvenance" -> new Object[] { true };
             default -> throw new AssertionError("update sampleArgsFor() for new wither: " + wither);
         };
     }

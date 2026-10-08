@@ -487,7 +487,7 @@ public class RestTable {
         }
 
         static FormattedDouble formatPercent1Decimal(double numericValue) {
-            return new FormattedDouble(String.format(Locale.ROOT, "%1.1f%%", numericValue), numericValue);
+            return new FormattedDouble(Strings.format("%1.1f%%", numericValue), numericValue);
         }
 
         @Override

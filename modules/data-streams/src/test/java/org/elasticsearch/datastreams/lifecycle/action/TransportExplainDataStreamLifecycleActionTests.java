@@ -46,8 +46,10 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -62,6 +64,7 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
     public void setUpAction() {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings());
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         testAction = new TransportExplainDataStreamLifecycleAction(
             mock(TransportService.class),
             clusterService,
@@ -158,6 +161,11 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
                 explain.isManagedByLifecycle(),
                 is(isLookup == false)
             );
+            if (isLookup) {
+                assertThat(explain.getUnmanagedReason(), containsString("is a lookup index"));
+            } else {
+                assertThat(explain.getUnmanagedReason(), nullValue());
+            }
         }
     }
 
@@ -244,5 +252,91 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
                 is(false)
             );
         }
+    }
+
+    public void testUnmanagedReasonWhenIndexIsNotInDataStream() throws Exception {
+        IndexMetadata index = indexMetadata("standalone-index", Settings.builder());
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault()).put(index, false);
+
+        ExplainIndexDataStreamLifecycle explain = explainSingleIndex(builder.build(), index);
+
+        assertThat(explain.isManagedByLifecycle(), is(false));
+        assertThat(explain.getUnmanagedReason(), containsString("does not belong to a data stream"));
+    }
+
+    public void testUnmanagedReasonWhenDataStreamHasNoLifecycle() throws Exception {
+        ExplainIndexDataStreamLifecycle explain = explainBackingIndex(null, Settings.builder());
+
+        assertThat(explain.isManagedByLifecycle(), is(false));
+        assertThat(explain.getUnmanagedReason(), containsString("does not have data stream lifecycle configuration"));
+    }
+
+    public void testUnmanagedReasonWhenLifecycleIsDisabled() throws Exception {
+        ExplainIndexDataStreamLifecycle explain = explainBackingIndex(
+            DataStreamLifecycle.dataLifecycleBuilder().enabled(false).build(),
+            Settings.builder()
+        );
+
+        assertThat(explain.isManagedByLifecycle(), is(false));
+        assertThat(explain.getUnmanagedReason(), containsString("has disabled data stream lifecycle"));
+    }
+
+    public void testUnmanagedReasonWhenIndexIsManagedByIlm() throws Exception {
+        ExplainIndexDataStreamLifecycle explain = explainBackingIndex(
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.timeValueDays(30)).build(),
+            Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, "my-ilm-policy").put(IndexSettings.PREFER_ILM, true)
+        );
+
+        assertThat(explain.isManagedByLifecycle(), is(false));
+        assertThat(explain.getUnmanagedReason(), containsString("managed by Index Lifecycle Management (ILM) policy [my-ilm-policy]"));
+        assertThat(explain.getUnmanagedReason(), containsString("prefer_ilm to false"));
+    }
+
+    public void testNoUnmanagedReasonWhenManagedByDlm() throws Exception {
+        ExplainIndexDataStreamLifecycle explain = explainBackingIndex(
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.timeValueDays(30)).build(),
+            Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, "my-ilm-policy").put(IndexSettings.PREFER_ILM, false)
+        );
+
+        assertThat(explain.isManagedByLifecycle(), is(true));
+        assertThat(explain.getUnmanagedReason(), nullValue());
+    }
+
+    private static IndexMetadata indexMetadata(String name, Settings.Builder settings) {
+        return IndexMetadata.builder(name)
+            .settings(settings(IndexVersion.current()).put(settings.build()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .creationDate(System.currentTimeMillis() - 1000L)
+            .build();
+    }
+
+    /**
+     * Explains the only backing index of a data stream with the given lifecycle, where the backing index has the given extra settings.
+     */
+    private ExplainIndexDataStreamLifecycle explainBackingIndex(DataStreamLifecycle lifecycle, Settings.Builder indexSettings)
+        throws Exception {
+        String dataStreamName = "test-data-stream";
+        IndexMetadata backingIndex = indexMetadata(DataStream.getDefaultBackingIndexName(dataStreamName, 1), indexSettings);
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault()).put(backingIndex, false);
+        builder.put(newInstance(dataStreamName, List.of(backingIndex.getIndex()), 1, Map.of(), false, lifecycle));
+        return explainSingleIndex(builder.build(), backingIndex);
+    }
+
+    private ExplainIndexDataStreamLifecycle explainSingleIndex(ProjectMetadata projectMetadata, IndexMetadata index) throws Exception {
+        ProjectState projectState = ClusterState.builder(new ClusterName("_name"))
+            .putProjectMetadata(projectMetadata)
+            .build()
+            .projectState(projectMetadata.id());
+        AtomicReference<ExplainDataStreamLifecycleAction.Response> responseRef = new AtomicReference<>();
+        testAction.masterOperation(
+            mock(Task.class),
+            new ExplainDataStreamLifecycleAction.Request(TEST_REQUEST_TIMEOUT, new String[] { index.getIndex().getName() }),
+            projectState,
+            ActionListener.wrap(responseRef::set, e -> fail(e.getMessage()))
+        );
+        assertNotNull(responseRef.get());
+        assertThat(responseRef.get().getIndices().size(), equalTo(1));
+        return responseRef.get().getIndices().get(0);
     }
 }

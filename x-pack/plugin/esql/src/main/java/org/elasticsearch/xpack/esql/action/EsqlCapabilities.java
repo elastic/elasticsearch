@@ -3669,7 +3669,8 @@ public class EsqlCapabilities {
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, the cap on the number of fields discovered in {@code _source} is the cluster
-         * setting {@code esql.load_all.max_fields}. Needed by tests that set it, which older nodes would reject as an unknown setting.
+         * setting {@code esql.query.unmapped_fields.load_all_max_fields}. Needed by tests that set it, which older nodes would reject
+         * as an unknown setting.
          * See https://github.com/elastic/elasticsearch/issues/161340.
          */
         OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),

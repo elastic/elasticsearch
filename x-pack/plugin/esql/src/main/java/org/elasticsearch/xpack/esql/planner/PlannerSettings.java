@@ -234,7 +234,7 @@ public class PlannerSettings {
      * Registered only where the capability for it is enabled, so that a setting without effect is not exposed.
      */
     public static final Setting<Integer> LOAD_ALL_MAX_FIELDS = Setting.intSetting(
-        "esql.load_all.max_fields",
+        "esql.query.unmapped_fields.load_all_max_fields",
         1000,
         0,
         100_000,

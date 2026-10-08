@@ -8,7 +8,7 @@ setup:
           parameters: [ ]
           capabilities: [ optional_fields_load_all_max_fields_setting ]
       reason: >
-        The number of fields LOAD_ALL expands _source into is capped by the cluster setting esql.load_all.max_fields. Older nodes
+        The number of fields LOAD_ALL expands _source into is capped by the cluster setting esql.query.unmapped_fields.load_all_max_fields. Older nodes
         reject the setting as unknown, so this file cannot run against them.
 
   - do:
@@ -34,7 +34,7 @@ teardown:
       cluster.put_settings:
         body:
           persistent:
-            esql.load_all.max_fields: null
+            esql.query.unmapped_fields.load_all_max_fields: null
 
   - do:
       indices.delete:
@@ -57,7 +57,7 @@ teardown:
       cluster.put_settings:
         body:
           persistent:
-            esql.load_all.max_fields: 3
+            esql.query.unmapped_fields.load_all_max_fields: 3
 
   - do:
       warnings:
@@ -74,7 +74,7 @@ teardown:
       cluster.put_settings:
         body:
           persistent:
-            esql.load_all.max_fields: 5
+            esql.query.unmapped_fields.load_all_max_fields: 5
 
   - do:
       esql.query:
@@ -89,7 +89,7 @@ teardown:
       cluster.put_settings:
         body:
           persistent:
-            esql.load_all.max_fields: 0
+            esql.query.unmapped_fields.load_all_max_fields: 0
 
   # Nothing is discovered, and there is nothing to warn about either.
   - do:
@@ -122,11 +122,11 @@ teardown:
       cluster.put_settings:
         body:
           persistent:
-            esql.load_all.max_fields: -1
+            esql.query.unmapped_fields.load_all_max_fields: -1
 
   - do:
       catch: bad_request
       cluster.put_settings:
         body:
           persistent:
-            esql.load_all.max_fields: 100001
+            esql.query.unmapped_fields.load_all_max_fields: 100001

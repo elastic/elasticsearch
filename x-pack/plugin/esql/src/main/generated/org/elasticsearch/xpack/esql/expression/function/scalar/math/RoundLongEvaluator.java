@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
@@ -55,7 +56,7 @@ public final class RoundLongEvaluator implements ExpressionEvaluator {
         if (decimalsVector == null) {
           return eval(page.getPositionCount(), valBlock, decimalsBlock);
         }
-        return eval(page.getPositionCount(), valVector, decimalsVector).asBlock();
+        return eval(page.getPositionCount(), valVector, decimalsVector);
       }
     }
   }
@@ -97,18 +98,28 @@ public final class RoundLongEvaluator implements ExpressionEvaluator {
         }
         long val = valBlock.getLong(valBlock.getFirstValueIndex(p));
         long decimals = decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p));
-        result.appendLong(Round.process(val, decimals));
+        try {
+          result.appendLong(Round.process(val, decimals));
+        } catch (ArithmeticException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public LongVector eval(int positionCount, LongVector valVector, LongVector decimalsVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, LongVector valVector, LongVector decimalsVector) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         long val = valVector.getLong(p);
         long decimals = decimalsVector.getLong(p);
-        result.appendLong(p, Round.process(val, decimals));
+        try {
+          result.appendLong(Round.process(val, decimals));
+        } catch (ArithmeticException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

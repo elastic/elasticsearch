@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 156195
+pr: 156196
+summary: Fix ROUND of whole numbers with negative decimals
+type: bug

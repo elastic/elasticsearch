@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -28,7 +29,9 @@ import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -62,9 +65,13 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
+import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
@@ -76,24 +83,35 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.into.IntoPageWriter;
+import org.elasticsearch.xpack.esql.into.IntoTarget;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContextBuilder;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
@@ -104,6 +122,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private static final Logger logger = LogManager.getLogger(TransportEsqlQueryAction.class);
 
     private final ThreadPool threadPool;
+    private final BlockFactory blockFactory;
+    private final Client client;
     private final PlanExecutor planExecutor;
     private final ComputeService computeService;
     private final ExchangeService exchangeService;
@@ -155,6 +175,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
+        this.blockFactory = blockFactoryProvider.blockFactory();
+        this.client = client;
         this.planExecutor = planExecutor;
         this.clusterService = clusterService;
         this.viewResolver = viewResolver;
@@ -343,6 +365,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+        if (executeIntoIfPresent(task, request, listener)) {
+            return;
+        }
         if (requestIsAsync(request)) {
             assert task instanceof CancellableTask : "EsqlQueryRequest.createTask always returns CancellableTask";
             asyncTaskManagementService.asyncExecute(
@@ -376,15 +401,157 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         EsqlResponseListener.logOnFailure(exception);
     }
 
-    private void innerExecuteWithLogging(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
-        activityLogger.wrapAndRun(
-            listener,
-            new EsqlLogContextBuilder(task, request),
-            (l) -> ActionListener.run(EsqlFailureBounds.wrap(l, request.query()), bounded -> innerExecute(task, request, bounded))
+    /** Runs a query that ends in {@code INTO}, returning false when it is an ordinary read. */
+    private boolean executeIntoIfPresent(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+        // A request carries either query text or an already-parsed statement; INTO has to come off either.
+        if (request instanceof PreparedEsqlQueryRequest prepared) {
+            final EsqlStatement statement = prepared.statement();
+            if ((statement.plan() instanceof Into) == false) {
+                return false;
+            }
+            final Into into = (Into) statement.plan();
+            Into.verifyProducer(into.child(), into.destination());
+            final EsqlQueryRequest producer = PreparedEsqlQueryRequest.from(
+                request,
+                new EsqlStatement(into.child(), statement.settings()),
+                prepared.queryDescription()
+            );
+            executeInto(task, producer, into.destination(), listener);
+            return true;
+        }
+        final Optional<IntoTarget> target = IntoTarget.split(request.query());
+        if (target.isEmpty()) {
+            return false;
+        }
+        final EsqlQueryRequest producer = EsqlQueryRequest.syncEsqlQueryRequest(target.get().producer());
+        producer.pragmas(request.pragmas());
+        if (request.filter() != null) {
+            producer.filter(request.filter());
+        }
+        executeInto(task, producer, target.get().destination(), listener);
+        return true;
+    }
+
+    /**
+     * Runs the producing half of an {@code INTO} query with its rows going to the destination as they are produced,
+     * and replies with how many were written.
+     */
+    private void executeInto(Task task, EsqlQueryRequest producer, String destination, ActionListener<EsqlQueryResponse> listener) {
+        if (destinationIsDefined(destination) == false) {
+            // Writing would create it by dynamic mapping over whatever the first rows held, so a mistyped name would
+            // succeed.
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "["
+                        + destination
+                        + "] does not exist and no index template matches it; INTO writes to a destination whose "
+                        + "layout something chose, not one implied by the first rows written to it"
+                )
+            );
+            return;
+        }
+        // Built once execution knows the output schema, and kept here to report what it wrote.
+        final AtomicReference<IntoPageWriter> writer = new AtomicReference<>();
+
+        innerExecuteWithLogging(task, producer, noLimits(), (output, configuration) -> {
+            final List<String> columns = new ArrayList<>(output.size());
+            final List<DataType> dataTypes = new ArrayList<>(output.size());
+            for (Attribute attribute : output) {
+                columns.add(attribute.name());
+                dataTypes.add(attribute.dataType());
+            }
+            final IntoPageWriter created = new IntoPageWriter(
+                client,
+                destination,
+                columns,
+                dataTypes,
+                QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())
+            );
+            writer.set(created);
+            return created;
+        }, listener.delegateFailureAndWrap((outer, rows) -> {
+            final EsqlExecutionInfo executionInfo = rows.getExecutionInfo();
+            final ZoneId zoneId = rows.zoneId();
+            rows.close();
+            final IntoPageWriter wrote = writer.get();
+            if (wrote != null && wrote.failure() != null) {
+                outer.onFailure(wrote.failure());
+                return;
+            }
+            outer.onResponse(
+                new EsqlQueryResponse(
+                    IntoPageWriter.summaryColumns(),
+                    List.of(IntoPageWriter.summaryPage(blockFactory, wrote == null ? 0L : wrote.written())),
+                    0,
+                    0,
+                    null,
+                    false,
+                    false,
+                    zoneId,
+                    System.currentTimeMillis(),
+                    0,
+                    executionInfo
+                )
+            );
+        }));
+    }
+
+    /**
+     * Whether there is a destination to write to, or a template saying what one would look like - a data stream is
+     * created by its first write, with the shape its template gives it.
+     */
+    private boolean destinationIsDefined(String destination) {
+        final var project = clusterService.state().metadata().getProject();
+        return project.getIndicesLookup().containsKey(destination)
+            || MetadataIndexTemplateService.findV2Template(project, destination, false) != null;
+    }
+
+    /** The caps on what a query returns to a caller. */
+    private AnalyzerSettings displayLimits() {
+        return new AnalyzerSettings(
+            resultTruncationMaxSize,
+            resultTruncationDefaultSize,
+            timeseriesResultTruncationMaxSize,
+            timeseriesResultTruncationDefaultSize
         );
     }
 
-    private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+    /**
+     * No caps, for a query whose rows are written rather than returned: truncating would silently write a destination
+     * that disagrees with its source.
+     */
+    private static AnalyzerSettings noLimits() {
+        return new AnalyzerSettings(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
+    }
+
+    private void innerExecuteWithLogging(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+        innerExecuteWithLogging(task, request, displayLimits(), null, listener);
+    }
+
+    private void innerExecuteWithLogging(
+        Task task,
+        EsqlQueryRequest request,
+        AnalyzerSettings analyzerSettings,
+        @Nullable BiFunction<List<Attribute>, Configuration, Consumer<Page>> pageSink,
+        ActionListener<EsqlQueryResponse> listener
+    ) {
+        activityLogger.wrapAndRun(
+            listener,
+            new EsqlLogContextBuilder(task, request),
+            (l) -> ActionListener.run(
+                EsqlFailureBounds.wrap(l, request.query()),
+                bounded -> innerExecute(task, request, analyzerSettings, pageSink, bounded)
+            )
+        );
+    }
+
+    private void innerExecute(
+        Task task,
+        EsqlQueryRequest request,
+        AnalyzerSettings analyzerSettings,
+        @Nullable BiFunction<List<Attribute>, Configuration, Consumer<Page>> pageSink,
+        ActionListener<EsqlQueryResponse> listener
+    ) {
         if (request.allowPartialResults() == null) {
             request.allowPartialResults(defaultAllowPartialResults);
         }
@@ -403,18 +570,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             foldCtx,
             executionInfo,
             planTimeProfile,
+            pageSink == null ? null : output -> pageSink.apply(output, configuration),
             resultListener
         );
         planExecutor.esql(
             request,
             sessionId,
             localMinimumVersion,
-            new AnalyzerSettings(
-                resultTruncationMaxSize,
-                resultTruncationDefaultSize,
-                timeseriesResultTruncationMaxSize,
-                timeseriesResultTruncationDefaultSize
-            ),
+            analyzerSettings,
             enrichPolicyResolver,
             viewResolver,
             datasetResolver,

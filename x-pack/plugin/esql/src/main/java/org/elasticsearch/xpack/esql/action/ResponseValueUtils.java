@@ -75,8 +75,12 @@ public final class ResponseValueUtils {
         );
     }
 
-    /** Returns an iterable of iterables over the values in the given pages. There is one iterables for each row. */
-    static Iterable<Iterable<Object>> valuesForRowsInPages(List<DataType> dataTypes, List<Page> pages, ZoneId zoneId) {
+    /**
+     * Returns an iterable of iterables over the values in the given pages. There is one iterables for each row.
+     * <p>
+     * Public because {@code INTO} turns pages into rows as they arrive rather than through a response.
+     */
+    public static Iterable<Iterable<Object>> valuesForRowsInPages(List<DataType> dataTypes, List<Page> pages, ZoneId zoneId) {
         BytesRef scratch = new BytesRef();
         var valueExtractors = valueExtractorsFor(dataTypes, zoneId);
         return () -> Iterators.flatMap(pages.iterator(), page -> valuesForRowsInPage(valueExtractors, page, scratch));

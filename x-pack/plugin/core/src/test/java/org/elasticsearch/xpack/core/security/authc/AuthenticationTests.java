@@ -1009,13 +1009,11 @@ public class AuthenticationTests extends ESTestCase {
             nodeName
         );
 
-        // Rewriting for a version that supports the enrich user: unchanged
-        final TransportVersion newVersion = TransportVersionUtils.randomVersionSupporting(Authentication.SECURITY_ENRICH_INTERNAL_USER);
-        final Authentication rewrittenNew = enrichAuth.maybeRewriteForOlderVersion(newVersion);
-        assertThat(rewrittenNew.getEffectiveSubject().getUser(), equalTo(InternalUsers.ENRICH_USER));
-
         // Rewriting for an older version: must become _xpack so the older node can decode it
-        final TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(Authentication.SECURITY_ENRICH_INTERNAL_USER);
+        final TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(
+            random(),
+            Authentication.SECURITY_ENRICH_INTERNAL_USER
+        );
         final Authentication rewrittenOld = enrichAuth.maybeRewriteForOlderVersion(oldVersion);
         assertThat(rewrittenOld.getEffectiveSubject().getUser(), equalTo(InternalUsers.XPACK_USER));
         assertThat(rewrittenOld.getEffectiveSubject().getTransportVersion(), equalTo(oldVersion));

@@ -492,21 +492,6 @@ tests:
   method: testLiveVersionMapMemoryUsed
   issue: https://github.com/elastic/elasticsearch/issues/159839
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: "test {yaml=aggregations/terms_text_docvalues/Terms aggregation on text field with doc_values}"
-  issue: https://github.com/elastic/elasticsearch/issues/159560
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: "test {yaml=aggregations/terms_text_docvalues/Terms aggregation on text field with doc_values - multi value}"
-  issue: https://github.com/elastic/elasticsearch/issues/159560
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: "test {yaml=aggregations/terms_text_docvalues/Indexing disabled}"
-  issue: https://github.com/elastic/elasticsearch/issues/159560
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: "test {yaml=search/400_synthetic_source/text with doc_values}"
-  issue: https://github.com/elastic/elasticsearch/issues/159560
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: "test {yaml=search/400_synthetic_source/text with doc_values multi-value}"
-  issue: https://github.com/elastic/elasticsearch/issues/159560
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {yaml=search/396_text_doc_values_multiterm_search/*}"
   issue: https://github.com/elastic/elasticsearch/issues/159693
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT

@@ -358,8 +358,6 @@ count:long | lang:integer | lang_plus:integer
 2          | 5            | 6
 ;
 
-// A kept grouping reading a pruned one used to fail optimization with a 500 (PruneRedundantAggregateGroupings dropped the
-// pruned alias from the EVAL below the aggregate while the kept grouping still read it).
 derivedGroupingReadByKeptGrouping
 required_capability: fix_prune_derived_external_grouping_read_by_kept_field
 dataset: employees_no_mv: "{{employees_no_mv}}"

@@ -2281,10 +2281,14 @@ public class InternalEngine extends Engine {
     public DeleteResult delete(Delete delete) throws IOException {
         versionMap.enforceSafeAccess();
         assert assertIncomingSequenceNumber(delete.origin(), delete.seqNo());
+        final boolean doThrottle = delete.origin().isRecovery() == false;
         final DeleteResult deleteResult;
         int reservedDocs = 0;
-        // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
-        try (var ignored = acquireEnsureOpenRef(); Releasable ignored2 = versionMap.acquireLock(delete.uid())) {
+        try (
+            var ignored = acquireEnsureOpenRef();
+            Releasable ignored2 = versionMap.acquireLock(delete.uid());
+            Releasable deleteThrottle = doThrottle ? throttle.acquireThrottle() : () -> {}
+        ) {
             lastWriteNanos = delete.startTime();
             final DeletionStrategy plan = deletionStrategyForOperation(delete);
             reservedDocs = plan.reservedDocs;

@@ -679,6 +679,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 if (nextRowRanges != null && canSynchronizeListRows(nextOrdinal) == false) {
                     nextRowRanges = null;
                 }
+                if (nextRowRanges != null && nextRowRanges.isEmpty()) {
+                    // Column-index eliminated this group: no rows, no GET. Skipping it leaves
+                    // later matching groups queued. Do not enqueueEmptyPrefetch here — that path
+                    // is for groups that still have rows (unsupported-only KEEP).
+                    nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
+                    continue;
+                }
                 long prefetchBytes;
                 if (nextRowRanges != null) {
                     prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(

@@ -677,3 +677,5 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
   method: testStreamingBranchCountsCorrectlyWithParsingParallelism
   issue: https://github.com/elastic/elasticsearch/issues/161472
+- class: org.elasticsearch.xpack.esql.qa.csv.TsvCompressedFormatSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/161473

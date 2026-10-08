@@ -29,6 +29,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -188,17 +189,9 @@ public class IpFieldMapper extends FieldMapper {
             if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
                 return docValuesParameters.get().enabled() ? IndexType.archivedPoints() : IndexType.NONE;
             }
-<<<<<<< HEAD
-            if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
-=======
-            if (usesBinaryDocValues()) {
-                // Disable skippers if using binary doc values
-                return IndexType.points(indexed.get(), true);
-            }
             if (timeSeriesSkippersHonorIndexAndDocValues(indexSettings.getIndexVersionCreated()) == false
                 && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
                 // NOTE: older time series indices ignored [index] and [doc_values], so their segments have skippers and no points
->>>>>>> 206a562ff796 (fix(mapping): honor index and doc_values on TSDB ip fields (#161299))
                 return IndexType.skippers();
             }
             if (indexed.get() == false && docValuesParameters.get().enabled()) {
@@ -214,15 +207,7 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         private static boolean timeSeriesSkippersHonorIndexAndDocValues(IndexVersion indexVersionCreated) {
-            return indexVersionCreated.onOrAfter(IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES)
-                || indexVersionCreated.between(
-                    IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_5,
-                    IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG
-                )
-                || indexVersionCreated.between(
-                    IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_4,
-                    IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES
-                );
+            return indexVersionCreated.onOrAfter(IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_4);
         }
 
         @Override

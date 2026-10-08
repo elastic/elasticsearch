@@ -20,12 +20,15 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -302,9 +305,10 @@ public class IpFieldMapperTests extends MapperTestCase {
     public void testTimeSeriesHonorsIndexAndDocValues() throws IOException {
         final List<IndexVersion> indexVersions = List.of(
             IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_4,
-            IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_5,
-            IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES,
-            IndexVersionUtils.randomVersionBetween(IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES, IndexVersion.current())
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_4,
+                IndexVersion.current()
+            )
         );
         for (IndexVersion indexVersion : indexVersions) {
             assertTimeSeriesIndexTypes(
@@ -318,22 +322,10 @@ public class IpFieldMapperTests extends MapperTestCase {
         final IndexVersion lastBefore94Backport = IndexVersionUtils.getPreviousVersion(
             IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_4
         );
-        final IndexVersion lastBefore95Backport = IndexVersionUtils.getPreviousVersion(
-            IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES_BACKPORT_9_5
-        );
-        final IndexVersion lastBeforeFix = IndexVersionUtils.getPreviousVersion(
-            IndexVersions.TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES
-        );
         final List<IndexVersion> indexVersions = List.of(
             IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS,
             IndexVersionUtils.randomVersionBetween(IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS, lastBefore94Backport),
-            lastBefore94Backport,
-            IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES,
-            IndexVersionUtils.randomVersionBetween(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES, lastBefore95Backport),
-            lastBefore95Backport,
-            IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG,
-            IndexVersionUtils.randomVersionBetween(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG, lastBeforeFix),
-            lastBeforeFix
+            lastBefore94Backport
         );
         for (IndexVersion indexVersion : indexVersions) {
             assertTimeSeriesIndexTypes(indexVersion, (indexed, docValues) -> IndexType.skippers());

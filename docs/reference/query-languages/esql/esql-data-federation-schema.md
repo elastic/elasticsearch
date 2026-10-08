@@ -63,7 +63,9 @@ A type mismatch in a later Parquet file doesn't fail the query. If a column's ty
 stack: experimental 9.6+
 ```
 
-Later CSV and TSV files with a header row are matched to the schema's columns by their own header names, so files whose columns come in a different order read the same values. A column that a file lacks contains null values for that file, and the response includes a warning. Columns that exist only in a later file are ignored. Later files without a header row are read by position, so [`error_mode`](esql-data-federation-dataset-settings.md#error-mode) handles a row wider than the schema.
+Each CSV or TSV file after the one that supplies the schema is matched to the schema's columns by its own header names, so files whose columns come in a different order read the same values. A column that a file lacks contains null values for that file, and the response includes a warning. Columns that only that file has are ignored. A file with duplicate header names fails the query.
+
+Files without a header row are read by position. A row with more fields than the schema is handled according to [`error_mode`](esql-data-federation-dataset-settings.md#error-mode). Declared schemas follow the same header rules, as described in [How declared columns match file columns](#how-declared-columns-match-file-columns).
 
 ## Control which file supplies the schema
 ```{applies_to}

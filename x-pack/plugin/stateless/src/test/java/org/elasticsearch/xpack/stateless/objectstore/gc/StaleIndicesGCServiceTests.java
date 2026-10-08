@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.objectstore.gc;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,6 +41,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+// The removed shard cleanup tests assert the exact blobs in real FsBlobStore directories, so ExtrasFS must not add stray files to them
+@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class StaleIndicesGCServiceTests extends ESTestCase {
 
     public void testGetStaleIndicesUUIDsSkipsRemovingProject() throws IOException {

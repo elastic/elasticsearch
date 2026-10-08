@@ -247,6 +247,8 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                             }
                         }),
                         timestampMillis,
+                        // online prewarming is best-effort and must stay fast, so don't wait for a range another caller is already filling
+                        false,
                         ActionListener.runAfter(refs.acquire().map(b -> null), store::decRef)
                     );
                 }

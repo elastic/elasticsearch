@@ -1692,6 +1692,12 @@ public class SharedBlobCacheWarmingService {
         protected final RefCountingListener listeners;
         protected final AtomicLong tasksCount = new AtomicLong(0L);
         protected final AtomicLong totalBytesCopied = new AtomicLong(0L);
+        /**
+         * Whether a warming task must wait for a range that another caller is already filling, instead of reporting that range done as
+         * soon as it sees someone else owns it. Only search warming needs this guarantee: search shard recovery resumes when warming
+         * reports done, so reporting done for bytes that are not resident yet resumes recovery against a partially warm cache.
+         */
+        protected final boolean awaitPendingFills;
 
         AbstractWarmer(
             WarmingRun warmingRun,
@@ -1700,6 +1706,7 @@ public class SharedBlobCacheWarmingService {
             ActionListener<Void> listener
         ) {
             this.warmingRun = warmingRun;
+            this.awaitPendingFills = warmingRun.type() == Type.SEARCH;
             this.isStoreClosing = isStoreClosing;
             this.directory = directory;
             this.listeners = new RefCountingListener(metering(logging(listener)));
@@ -1872,7 +1879,8 @@ public class SharedBlobCacheWarmingService {
                                 if (ExceptionsHelper.unwrap(e, ResourceAlreadyUploadedException.class) != null) {
                                     logger.debug(() -> "retrying " + blobLocation + " from object store", e);
                                     // retrying runs on {@link StatelessPlugin#FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL}
-                                    // threads, but that is OK because fetchRange doesn't block or wait for anything.
+                                    // threads, but that is OK because fetchRange never blocks a thread: with awaitPendingFills set it
+                                    // waits for another caller's fill, but it does so by subscribing to a listener.
                                     maybeFetchBlobRange(item, cacheBlobReader, cacheKey, l);
                                 } else {
                                     l.onFailure(e);
@@ -1924,6 +1932,7 @@ public class SharedBlobCacheWarmingService {
                         ),
                         fetchExecutor,
                         item.timestampMillis(),
+                        awaitPendingFills,
                         l.map(ignored -> null)
                     );
                 });
@@ -2019,7 +2028,8 @@ public class SharedBlobCacheWarmingService {
                     if (ExceptionsHelper.unwrap(e, ResourceAlreadyUploadedException.class) != null) {
                         logger.debug(() -> "retrying " + blobFile + " " + byteRangeToWarm + " from object store", e);
                         // retrying runs on {@link StatelessPlugin#FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL}
-                        // threads, but that is OK because fetchRange doesn't block or wait for anything.
+                        // threads, but that is OK because fetchRange never blocks a thread: with awaitPendingFills set it waits for
+                        // another caller's fill, but it does so by subscribing to a listener.
                         fetchRange(cacheKey, cacheBlobReader, l);
                     } else {
                         l.onFailure(e);
@@ -2045,6 +2055,7 @@ public class SharedBlobCacheWarmingService {
                     perFileRunner.asExecutor(),
                     true,
                     timestampMillis,
+                    awaitPendingFills,
                     l
                 );
             }

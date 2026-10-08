@@ -1403,6 +1403,11 @@ public class EsqlCapabilities {
         METRICS_GROUP_BY_ALL(),
 
         /**
+         * Support for the {@code exemplars} query setting.
+         */
+        EXEMPLARS_SETTING_DEVELOPMENT_V1(Build.current().isSnapshot()),
+
+        /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
          * in the response and profile?
          */

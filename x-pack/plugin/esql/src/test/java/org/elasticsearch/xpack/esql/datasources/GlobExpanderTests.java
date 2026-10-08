@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -18,6 +19,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 
 import java.io.IOException;
@@ -54,7 +57,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -62,6 +70,7 @@ import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.lessThan;
@@ -4988,6 +4997,110 @@ public class GlobExpanderTests extends ESTestCase {
         submitted.forEach(Runnable::run);
 
         expectThrows(TaskCancelledException.class, future::actionGet);
+    }
+
+    private static void burnCpu(long nanos) {
+        long start = ThreadCpuTimer.currentNanos();
+        while (ThreadCpuTimer.elapsedNanos(start) < nanos) {
+            Thread.onSpinWait();
+        }
+    }
+
+    /**
+     * A concurrency above the folder count never exhausts the permits, so no release dispatches a continuation onto the
+     * fan-out executor, whose threads a test may hold.
+     */
+    private static void expandTwoFolders(TreeStubProvider provider, Executor fanOutExecutor, ActionListener<FileList> listener) {
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        GlobExpander.expandAsync(
+            pattern,
+            provider,
+            null,
+            HIVE_ON,
+            MAX,
+            MAX,
+            MAX,
+            ListingExtents.UNBOUNDED,
+            PlanningMemory.NONE,
+            16,
+            () -> false,
+            fanOutExecutor,
+            listener
+        );
+    }
+
+    /**
+     * The calling thread lists the slots, dispatches the drains and only then unwinds out of its planning CPU
+     * measurement, so the listing can complete and planning finish first. The slot listing CPU must be committed
+     * before the drains are dispatched, or it is dropped from the frozen total. The drains run unmetered, so the
+     * total is the calling thread's alone.
+     */
+    public void testFanOutCommitsSlotListingPlanningCpuBeforeDispatchingDrains() throws Exception {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(50);
+        PlanningCpuTracker tracker = new PlanningCpuTracker();
+        CountDownLatch finished = new CountDownLatch(1);
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(entry("s3://bucket/data/d1/a.parquet", 10), entry("s3://bucket/data/d2/b.parquet", 10))
+        ) {
+            @Override
+            public StorageChildren listChildren(StoragePath prefix, int limit) {
+                burnCpu(burnNanos);
+                return super.listChildren(prefix, limit);
+            }
+        };
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        PlainActionFuture<FileList> future = new PlainActionFuture<>();
+        Thread caller = new Thread(() -> tracker.meteredCpu(() -> {
+            expandTwoFolders(provider, pool::execute, future);
+            // Holds the measurement open, as a slow unwind would, until planning has finished.
+            safeAwait(finished);
+        }));
+        caller.start();
+        try {
+            assertEquals(2, future.actionGet(30, TimeUnit.SECONDS).fileCount());
+            assertThat(tracker.finish(), greaterThanOrEqualTo(burnNanos));
+        } finally {
+            finished.countDown();
+            caller.join();
+            terminate(pool);
+        }
+    }
+
+    /**
+     * A folder drain releases its permit while its planning CPU measurement is still open, so the listing can complete
+     * and planning finish before that measurement settles. Each drain's listing CPU must be committed before the
+     * release, or it is dropped from the frozen total.
+     */
+    public void testFolderDrainCommitsPlanningCpuBeforeReleasingItsPermit() {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(50);
+        PlanningCpuTracker tracker = new PlanningCpuTracker();
+        CountDownLatch finished = new CountDownLatch(1);
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(entry("s3://bucket/data/d1/a.parquet", 10), entry("s3://bucket/data/d2/b.parquet", 10))
+        ) {
+            @Override
+            public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+                burnCpu(burnNanos);
+                return super.listObjects(prefix, recursive);
+            }
+        };
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            PlainActionFuture<FileList> future = new PlainActionFuture<>();
+            expandTwoFolders(provider, command -> pool.execute(() -> tracker.meteredCpu(() -> {
+                command.run();
+                // Holds the measurement open past the permit release, as a slow unwind would, until planning has finished.
+                safeAwait(finished);
+            })), future);
+            assertEquals(2, future.actionGet(30, TimeUnit.SECONDS).fileCount());
+            assertThat(tracker.finish(), greaterThanOrEqualTo(2 * burnNanos));
+        } finally {
+            finished.countDown();
+            terminate(pool);
+        }
     }
 
     /**

@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.AutoPartitionDetector;
@@ -1859,6 +1860,9 @@ public final class GlobExpander {
         AtomicReference<Exception> failure = new AtomicReference<>();
         AtomicInteger sharedKeptCount = new AtomicInteger();
 
+        // The drain that completes the listing can finish planning while this thread is still returning from run,
+        // so commit the planning CPU spent building the slots before any drain is dispatched.
+        PlanningCpuTracker.checkpointCurrentThread();
         ThrottledIterator.run(indexIterator(size), (releasable, i) -> {
             if (failure.get() != null || isCancelled.getAsBoolean()) {
                 // Record cancellation so the completion callback propagates TaskCancelledException rather
@@ -1919,6 +1923,9 @@ public final class GlobExpander {
                         } catch (Exception e) {
                             failure.compareAndSet(null, e);
                         } finally {
+                            // Releasing the permit can let another drain complete the listing and finish planning
+                            // before this drain's measurement settles, so commit its planning CPU first.
+                            PlanningCpuTracker.checkpointCurrentThread();
                             releasable.close();
                         }
                     };

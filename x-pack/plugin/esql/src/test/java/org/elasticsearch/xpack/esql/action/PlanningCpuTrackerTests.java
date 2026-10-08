@@ -220,6 +220,22 @@ public class PlanningCpuTrackerTests extends ESTestCase {
         assertEquals(9L, tracker.cpuNanos());
     }
 
+    public void testCheckpointCurrentThread() {
+        FakeCpuClock clock = new FakeCpuClock();
+        PlanningCpuTracker outer = new PlanningCpuTracker(clock);
+        PlanningCpuTracker inner = new PlanningCpuTracker(clock);
+        PlanningCpuTracker.checkpointCurrentThread();
+        outer.meteredCpu(() -> inner.meteredCpu(() -> {
+            clock.burn(50);
+            PlanningCpuTracker.checkpointCurrentThread();
+            assertEquals(50L, inner.cpuNanos());
+            assertEquals(0L, outer.cpuNanos());
+            clock.burn(5);
+        }));
+        assertEquals(55L, inner.cpuNanos());
+        assertEquals(0L, outer.cpuNanos());
+    }
+
     public void testThrowingWorkCommitsAndRestores() {
         FakeCpuClock clock = new FakeCpuClock();
         PlanningCpuTracker tracker = new PlanningCpuTracker(clock);

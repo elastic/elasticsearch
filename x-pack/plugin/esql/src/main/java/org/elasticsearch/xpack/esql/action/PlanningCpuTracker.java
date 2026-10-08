@@ -25,8 +25,8 @@ import java.util.function.LongSupplier;
  * <p>
  * Each thread keeps one stack of open measurements, shared by all trackers, and each measurement records the tracker
  * that owns it. A nested call on the same tracker is counted by the enclosing measurement. A call on another tracker
- * pauses the enclosing measurement until it returns, so no CPU time is counted twice. {@link #inheritMeteredCpu} uses
- * the stack to find the tracker that is metering the calling thread.
+ * pauses the enclosing measurement until it returns, so no CPU time is counted twice. {@link #inheritMeteredCpu} and
+ * {@link #checkpointCurrentThread} use the stack to find the tracker that is metering the calling thread.
  * <p>
  * {@link #meteredCpu(ActionListener)} carries metering across async boundaries: the completion is measured on
  * whichever thread completes the listener. {@link #finish()} settles the calling thread's open measurement and
@@ -188,6 +188,17 @@ public final class PlanningCpuTracker {
         long nowCpuNanos = cpuClock.getAsLong();
         add(nowCpuNanos - measurement.startCpuNanos);
         measurement.startCpuNanos = nowCpuNanos;
+    }
+
+    /**
+     * {@link #checkpoint()} for whichever tracker is metering the calling thread, or nothing when none is. For code
+     * that signals another thread but has no tracker in hand, such as a listing fan-out releasing its permits.
+     */
+    public static void checkpointCurrentThread() {
+        Measurement measurement = CURRENT.get();
+        if (measurement != null) {
+            measurement.owner.checkpoint();
+        }
     }
 
     /**

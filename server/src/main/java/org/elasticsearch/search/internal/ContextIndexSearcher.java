@@ -325,9 +325,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             getOrCreateLeafExecutionAccounting();
             return new PointRangeBreakerWeight(this, weight, pointRangeQuery, query instanceof IndexOrDocValuesQuery);
         }
-        if (circuitBreaker != null && CostlyMultiTermQueries.isCostlyMultiTermQuery(unwrapBoost(query))) {
+        Query multiTermQuery = multiTermQueryOrNull(unwrapBoost(query));
+        if (circuitBreaker != null && multiTermQuery != null) {
             getOrCreateLeafExecutionAccounting();
-            return new MultiTermBreakerWeight(this, weight);
+            return new MultiTermBreakerWeight(this, weight, multiTermQuery, unwrapBoost(query) instanceof IndexOrDocValuesQuery);
         }
         return weight;
     }
@@ -366,6 +367,14 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return prq;
         }
         return null;
+    }
+
+    @Nullable
+    private static Query multiTermQueryOrNull(Query query) {
+        if (query instanceof IndexOrDocValuesQuery iodvq) {
+            query = iodvq.getIndexQuery();
+        }
+        return CostlyMultiTermQueries.isCostlyMultiTermQuery(query) ? query : null;
     }
 
     /**

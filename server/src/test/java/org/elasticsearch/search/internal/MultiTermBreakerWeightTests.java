@@ -11,6 +11,7 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -18,12 +19,15 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
@@ -62,6 +66,11 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
     /** Mirrors Lucene's package-private {@code AbstractMultiTermQueryConstantScoreWrapper#BOOLEAN_REWRITE_TERM_COUNT_THRESHOLD}. */
     private static final int BOOLEAN_REWRITE_TERM_COUNT_THRESHOLD = 16;
 
+    private static final String LEAD_FIELD = "lead";
+    private static final String RARE_LEAD = "rare";
+    private static final String COMMON_LEAD = "common";
+    private static final int RARE_DOCS = 5;
+
     private Directory directory;
     private DirectoryReader reader;
 
@@ -72,6 +81,8 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
             for (int docId = 0; docId < NUM_DOCS; docId++) {
                 Document doc = new Document();
                 doc.add(new StringField(FIELD, term(docId % NUM_TERMS), Field.Store.NO));
+                doc.add(new SortedSetDocValuesField(FIELD, new BytesRef(term(docId % NUM_TERMS))));
+                doc.add(new StringField(LEAD_FIELD, docId < RARE_DOCS ? RARE_LEAD : COMMON_LEAD, Field.Store.NO));
                 writer.addDocument(doc);
             }
             writer.forceMerge(1);
@@ -93,11 +104,23 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
     }
 
     private static Query termInSetQuery(int numTerms) {
+        return new TermInSetQuery(FIELD, firstTerms(numTerms));
+    }
+
+    private static Query indexOrDocValuesQuery() {
+        return TermInSetQuery.newIndexOrDocValuesQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, FIELD, firstTerms(NUM_TERMS));
+    }
+
+    private static List<BytesRef> firstTerms(int numTerms) {
         List<BytesRef> terms = new ArrayList<>();
         for (int i = 0; i < numTerms; i++) {
             terms.add(new BytesRef(term(i)));
         }
-        return new TermInSetQuery(FIELD, terms);
+        return terms;
+    }
+
+    private static Query conjunction(Query first, Query second) {
+        return new BooleanQuery.Builder().add(first, BooleanClause.Occur.MUST).add(second, BooleanClause.Occur.MUST).build();
     }
 
     /** More terms than the boolean-rewrite threshold, but only a few of them are actually indexed. */
@@ -120,6 +143,31 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
 
     public void testTermRangeQueryChargesAndReleasesAcrossSearch() throws IOException {
         assertChargesThenReleases(termRangeQuery());
+    }
+
+    public void testIndexOrDocValuesChargesAndReleasesAcrossSearch() throws IOException {
+        assertChargesThenReleases(indexOrDocValuesQuery());
+    }
+
+    public void testIndexOrDocValuesInConjunctionChargesWhenIndexBranchSelected() throws IOException {
+        long expectedPeak = expectedSearchPerLeafCharges(indexOrDocValuesQuery()).stream().mapToLong(Long::longValue).max().orElse(0L);
+        assertThat("test setup: the index branch must have a positive per-leaf execution charge", expectedPeak, greaterThan(0L));
+
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        Query commonLead = new TermQuery(new Term(LEAD_FIELD, COMMON_LEAD));
+        int hits = runSearch(conjunction(commonLead, indexOrDocValuesQuery()), breaker);
+        assertThat("the conjunction must match documents so its scorer actually runs", hits, greaterThan(0));
+        assertThat("an unselective lead routes to the multi-term index branch, charged once", breaker.peak(), equalTo(expectedPeak));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testIndexOrDocValuesInConjunctionSkipsChargeWhenDocValuesBranchSelected() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        Query rareLead = new TermQuery(new Term(LEAD_FIELD, RARE_LEAD));
+        int hits = runSearch(conjunction(rareLead, indexOrDocValuesQuery()), breaker);
+        assertThat("the selective lead clause must still match documents so the scorer runs", hits, greaterThan(0));
+        assertThat("the doc-values branch allocates no result set, so nothing is charged", breaker.peak(), equalTo(0L));
+        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     public void testConstantScoreWrappedTermInSetChargedExactlyOnce() throws IOException {

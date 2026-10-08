@@ -36,7 +36,9 @@ import java.util.function.Supplier;
  * package-private {@code MultiTermQueryConstantScoreWrapper}/{@code MultiTermQueryConstantScoreBlendedWrapper}
  * it rewrites into) allocates, sized via {@link TermsQueryCostEstimator#executionBytesForLeaf} and
  * released by {@link ContextIndexSearcher#searchLeaf}. Leaves that Lucene runs as a plain disjunction
- * instead of materialising a result set are not charged; see {@link #skipsDocIdSet}. Charges go through
+ * instead of materialising a result set are not charged; see {@link #skipsDocIdSet}. For an
+ * {@link org.apache.lucene.search.IndexOrDocValuesQuery} the charge applies only on the path Lucene routes
+ * to the multi-term index branch (otherwise doc values run and allocate no result set). Charges go through
  * {@link ContextIndexSearcher#chargeLeaf} rather than a cached accounting reference, so this survives a
  * {@link ContextIndexSearcher#setCircuitBreaker} swap.
  */
@@ -49,12 +51,14 @@ final class MultiTermBreakerWeight extends Weight {
     private final Weight in;
     @Nullable
     private final MultiTermQuery multiTermQuery;
+    private final boolean indexOrDocValues;
 
-    MultiTermBreakerWeight(ContextIndexSearcher searcher, Weight in) {
+    MultiTermBreakerWeight(ContextIndexSearcher searcher, Weight in, Query costlyQuery, boolean indexOrDocValues) {
         super(in.getQuery());
         this.searcher = searcher;
         this.in = in;
-        this.multiTermQuery = unwrapMultiTermQuery(in.getQuery());
+        this.multiTermQuery = unwrapMultiTermQuery(costlyQuery);
+        this.indexOrDocValues = indexOrDocValues;
     }
 
     @Override
@@ -67,7 +71,9 @@ final class MultiTermBreakerWeight extends Weight {
         return new ScorerSupplier() {
             @Override
             public Scorer get(long leadCost) throws IOException {
-                chargeLeaf(context, inner.cost());
+                if (indexOrDocValues == false || (inner.cost() >>> 3) <= leadCost) {
+                    chargeLeaf(context, inner.cost());
+                }
                 return inner.get(leadCost);
             }
 

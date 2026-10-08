@@ -228,7 +228,6 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         assertWarmCountShortCircuits(dataset, total);
     }
 
-    @AwaitsFix(bugUrl = "the non-strict declared overlay is not wired to the read-addressed statistics record")
     public void testCsvHeterogeneousCorpusWarmCountServedUnderNullFieldDeclaredDynamic() throws Exception {
         Path dir = createTempDir();
         long total = writeCsvCorpus(dir, true);

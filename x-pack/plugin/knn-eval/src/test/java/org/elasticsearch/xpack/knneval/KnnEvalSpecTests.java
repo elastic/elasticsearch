@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.knneval;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.search.vectors.VectorData;
@@ -15,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -25,6 +25,7 @@ import java.util.List;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class KnnEvalSpecTests extends ESTestCase {
 
@@ -181,9 +182,10 @@ public class KnnEvalSpecTests extends ESTestCase {
             assertTrue(spec.getBaseline().isExact());
         }
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, body.formatted(""))) {
-            Exception e = expectThrows(Exception.class, () -> KnnEvalSpec.parse(parser));
+            XContentParseException e = expectThrows(XContentParseException.class, () -> KnnEvalSpec.parse(parser));
             // the parser wraps the constructor's exception
-            assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), containsString("[allow_exact_baseline]"));
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(e.getCause().getMessage(), containsString("[allow_exact_baseline]"));
         }
     }
 

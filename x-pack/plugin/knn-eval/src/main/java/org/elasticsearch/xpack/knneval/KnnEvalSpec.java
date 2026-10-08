@@ -276,7 +276,9 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
             candidate.toXContent(builder, params);
         }
         builder.endArray();
-        builder.field(ALLOW_EXACT_BASELINE_FIELD.getPreferredName(), allowExactBaseline);
+        if (allowExactBaseline) {
+            builder.field(ALLOW_EXACT_BASELINE_FIELD.getPreferredName(), true);
+        }
         builder.endObject();
         return builder;
     }

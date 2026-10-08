@@ -221,6 +221,23 @@ public class StringAnyOfTests extends ColumnarStringTestCase {
         });
     }
 
+    public void testTermsTheDictionaryHoldsSettleEvenWhereValuesEscaped() throws IOException {
+        // NOTE: an escaped value is one no term names, so a term the dictionary does hold was never escaped and
+        // the ordinals settle the query however many other values escaped.
+        final BytesRef[] docValues = repeated(between(800, 2000));
+        for (int d = 0; d < docValues.length; d += 50) {
+            docValues[d] = new BytesRef(String.format(Locale.ROOT, "zz-unique-%06d", d));
+        }
+        final NavigableSet<BytesRef> adjacent = termsOf("alpha", "alpine");
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), dictionaryPolicy(), (m, reader) -> {
+            assertTrue("the shape has to escape for this to test anything", reader.escapeCount() > 0);
+            assertEquals(expectedAnyOf(docValues, adjacent), matched(anyOf(reader, adjacent)));
+            final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(anyOf(reader, adjacent));
+            assertNotNull(twoPhase);
+            assertEquals("every query term resolved, so no escape can match", 0f, twoPhase.matchCost(), 0f);
+        });
+    }
+
     private static final String[] TERMS = { "alpha", "alpine", "bravo", "charlie", "delta" };
 
     private static BytesRef[] repeated(int count) {

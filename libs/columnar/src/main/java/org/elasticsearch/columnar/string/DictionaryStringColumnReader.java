@@ -670,10 +670,13 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     protected DocIdSetIterator unorderedAnyOfMatches(NavigableSet<BytesRef> terms, Set<BytesRef> membership) throws IOException {
         final int end = dictionarySize + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
         final FixedBitSet matching = sweepIsCheaper(terms.size()) ? matchingBySweep(membership, end) : matchingByBisection(terms, end);
-        if (matching.cardinality() == 0 && escapeCount == 0) {
+        // NOTE: an escaped value is one no term names, so a term the dictionary does hold was never escaped.
+        // Only a term that failed to resolve leaves an escape able to carry it.
+        final boolean escapesCanMatch = escapeCount > 0 && matching.cardinality() != terms.size();
+        if (matching.cardinality() == 0 && escapesCanMatch == false) {
             return DocIdSetIterator.empty();
         }
-        if (escapeCount == 0) {
+        if (escapesCanMatch == false) {
             final long[] runs = runsOf(matching, end, MAX_WINDOW_RUNS);
             if (runs != null) {
                 return settledBy(slotsHeld(new SlotWindow(SlotBlocks.of(ordinals), runs)));
@@ -681,7 +684,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         }
         final ColumnIterator presence = iterator();
         final BytesRef value = new BytesRef();
-        final OrdinalBlockMask mask = new OrdinalBlockMask(matching, escapeCount > 0);
+        final OrdinalBlockMask mask = new OrdinalBlockMask(matching, escapesCanMatch);
         final SlotFold fold = new SlotFold();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
             @Override

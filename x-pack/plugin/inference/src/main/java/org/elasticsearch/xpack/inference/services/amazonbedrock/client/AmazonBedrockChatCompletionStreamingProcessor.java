@@ -201,7 +201,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
             downstream.onNext(new StreamingUnifiedChatCompletionResults.Results(chunks));
         } else if (upstream != null) {
             logger.debug("No chunks to send downstream, requesting more items from upstream");
-            upstream.request(1);
+            requestNextOnBehalfOfDownstream();
         }
     }
 

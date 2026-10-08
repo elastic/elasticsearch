@@ -54,6 +54,7 @@ import static org.hamcrest.Matchers.isA;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.assertArg;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -341,6 +342,64 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         var messages = messagesFrom(toolUseDeltaOutput("{}", 1));
 
         assertThat(messages.size(), is(0));
+    }
+
+    public void testErrorAfterSkippedEventIsDelivered() {
+        var upstream = mock(Flow.Subscription.class);
+        var downstream = subscribedDownstream(upstream);
+        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+
+        processor.onNext(skippedDeltaOutput());
+        verify(upstream, times(2)).request(1);
+        processor.onError(expectedError);
+
+        verify(downstream, times(1)).onError(same(expectedError));
+        verify(downstream, never()).onComplete();
+    }
+
+    public void testCompletionAfterSkippedEventIsDelivered() {
+        var upstream = mock(Flow.Subscription.class);
+        var downstream = subscribedDownstream(upstream);
+
+        processor.onNext(skippedDeltaOutput());
+        processor.onComplete();
+
+        verify(downstream, times(1)).onComplete();
+        verify(downstream, never()).onError(any());
+    }
+
+    public void testErrorAfterSkippedEventAndBlockStopIsDelivered() {
+        var upstream = mock(Flow.Subscription.class);
+        var downstream = subscribedDownstream(upstream);
+        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+
+        processor.onNext(skippedDeltaOutput());
+        processor.onNext(contentBlockStopOutput());
+        verify(upstream, times(3)).request(1);
+        processor.onError(expectedError);
+
+        verify(downstream, times(1)).onError(same(expectedError));
+        verify(downstream, never()).onComplete();
+    }
+
+    /**
+     * Subscribes a downstream that requests one item, the way the SSE listener does.
+     */
+    private Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> subscribedDownstream(Flow.Subscription upstream) {
+        processor.onSubscribe(upstream);
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        doAnswer(ans -> {
+            Flow.Subscription subscription = ans.getArgument(0);
+            subscription.request(1);
+            return null;
+        }).when(downstream).onSubscribe(any());
+        processor.subscribe(downstream);
+        verify(upstream).request(1);
+        return downstream;
+    }
+
+    private ConverseStreamOutput skippedDeltaOutput() {
+        return contentBlockDeltaOutput(ContentBlockDelta.fromCitation(CitationsDelta.builder().build()), 0);
     }
 
     /**

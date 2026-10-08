@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.storage.QuerySamplingIndex;
 import org.elasticsearch.xpack.querysampling.storage.SampleRetention;
 import org.elasticsearch.xpack.querysampling.storage.SampleWriter;
-import org.elasticsearch.xpack.querysampling.storage.Tier1Buffer;
 import org.elasticsearch.xpack.querysampling.storage.WeightsRefresher;
 
 import java.util.Collection;
@@ -66,7 +65,6 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
     private static final int WRITE_BATCH_SIZE = 100;
     private static final int MAX_PENDING_WRITES = 1000;
     private static final TimeValue WRITE_INTERVAL = TimeValue.timeValueSeconds(1);
-    private static final int TIER1_CAPACITY = 10_000;
     private static final double ACCEPTANCE_SCALE = 1.0;
     private static final long HEAD_THRESHOLD = 100;
 
@@ -98,7 +96,6 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
     @Override
     public Collection<?> createComponents(PluginServices services) {
         MultiplicityTracker tracker = new MultiplicityTracker(MAX_DISTINCT_QUERIES, MULTIPLICITY_WINDOW, System::nanoTime);
-        Tier1Buffer buffer = new Tier1Buffer(TIER1_CAPACITY);
         // a new id for every run of the sampler: its weights only make sense against the counts it keeps
         OriginSettingClient client = new OriginSettingClient(services.client(), QUERY_SAMPLING_ORIGIN);
         String samplerId = UUIDs.randomBase64UUID();
@@ -123,23 +120,24 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
             MAX_PENDING_WRITES,
             WRITE_INTERVAL
         );
+        SampleRetention retention = new SampleRetention(
+            (request, listener) -> client.execute(DeleteByQueryAction.INSTANCE, request, listener),
+            () -> services.clusterService().state().nodes().isLocalNodeElectedMaster(),
+            services.threadPool()::absoluteTimeInMillis,
+            QuerySamplingSettings.RETENTION.get(services.clusterService().getSettings())
+        );
         if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled()) {
-            new SampleRetention(
-                (request, listener) -> client.execute(DeleteByQueryAction.INSTANCE, request, listener),
-                () -> services.clusterService().state().nodes().isLocalNodeElectedMaster(),
-                services.threadPool()::absoluteTimeInMillis,
-                QuerySamplingSettings.RETENTION.get(services.clusterService().getSettings())
-            ).start(services.threadPool(), services.threadPool().generic());
+            retention.start(services.threadPool(), services.threadPool().generic());
         }
         SamplingPipeline pipeline = new SamplingPipeline(
             tracker,
             new QuerySampler(ACCEPTANCE_SCALE, HEAD_THRESHOLD, Randomness.get()),
-            List.of(buffer, writer)
+            List.of(writer)
         );
         CaptureHandoff handoff = new CaptureHandoff(services.threadPool().executor(THREAD_POOL_NAME), pipeline);
         QueryCaptureFilter filter = new QueryCaptureFilter(services.clusterService().getClusterSettings(), handoff);
         captureFilter.set(filter);
-        return List.of(new QuerySamplingService(filter, handoff, tracker, buffer));
+        return List.of(new QuerySamplingService(filter, handoff, tracker, pipeline, writer, refresher, retention));
     }
 
     @Override

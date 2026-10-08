@@ -14,7 +14,8 @@
   - match: { nodes.$node_id.dropped: 0 }
   - match: { nodes.$node_id.distinct_queries: 0 }
   - match: { nodes.$node_id.picked: 0 }
-  - match: { nodes.$node_id.buffered: 0 }
+  - match: { nodes.$node_id.written: 0 }
+  - match: { nodes.$node_id.expired: 0 }
 
   # nothing has been sampled yet, so there is nothing to compute
   - do:

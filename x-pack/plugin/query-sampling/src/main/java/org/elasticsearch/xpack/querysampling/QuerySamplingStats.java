@@ -25,8 +25,11 @@ import java.io.IOException;
  * @param distinctQueries    distinct queries being counted
  * @param untrackedArrivals  arrivals of queries that could not be counted because the counter was full
  * @param picked             distinct queries picked for the sample
- * @param buffered           picked queries currently held in Tier 1
- * @param rejected           picked queries turned away because Tier 1 was full
+ * @param written            picked queries written to the index of the sample
+ * @param writeFailures      picked queries that could not be written
+ * @param writeDropped       picked queries turned away because too many were waiting to be written
+ * @param weightsRefreshed   updates of the weights of written queries
+ * @param expired            sampled queries deleted from the index because they were older than the retention
  */
 public record QuerySamplingStats(
     long knnSearches,
@@ -35,12 +38,18 @@ public record QuerySamplingStats(
     long distinctQueries,
     long untrackedArrivals,
     long picked,
-    long buffered,
-    long rejected
+    long written,
+    long writeFailures,
+    long writeDropped,
+    long weightsRefreshed,
+    long expired
 ) implements Writeable, ToXContentFragment {
 
     public QuerySamplingStats(StreamInput in) throws IOException {
         this(
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong(),
             in.readVLong(),
             in.readVLong(),
             in.readVLong(),
@@ -60,8 +69,11 @@ public record QuerySamplingStats(
         out.writeVLong(distinctQueries);
         out.writeVLong(untrackedArrivals);
         out.writeVLong(picked);
-        out.writeVLong(buffered);
-        out.writeVLong(rejected);
+        out.writeVLong(written);
+        out.writeVLong(writeFailures);
+        out.writeVLong(writeDropped);
+        out.writeVLong(weightsRefreshed);
+        out.writeVLong(expired);
     }
 
     @Override
@@ -72,8 +84,11 @@ public record QuerySamplingStats(
         builder.field("distinct_queries", distinctQueries);
         builder.field("untracked_arrivals", untrackedArrivals);
         builder.field("picked", picked);
-        builder.field("buffered", buffered);
-        builder.field("rejected", rejected);
+        builder.field("written", written);
+        builder.field("write_failures", writeFailures);
+        builder.field("write_dropped", writeDropped);
+        builder.field("weights_refreshed", weightsRefreshed);
+        builder.field("expired", expired);
         return builder;
     }
 }

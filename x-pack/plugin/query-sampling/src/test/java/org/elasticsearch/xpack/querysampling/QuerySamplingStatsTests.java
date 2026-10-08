@@ -27,7 +27,10 @@ public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<Que
 
     @Override
     protected QuerySamplingStats createTestInstance() {
-        return new QuerySamplingStats(
+        return stats(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -48,14 +51,29 @@ public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<Que
             instance.distinctQueries(),
             instance.untrackedArrivals(),
             instance.picked(),
-            instance.buffered(),
-            instance.rejected() };
+            instance.written(),
+            instance.writeFailures(),
+            instance.writeDropped(),
+            instance.weightsRefreshed(),
+            instance.expired() };
         values[between(0, values.length - 1)]++;
-        return new QuerySamplingStats(values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7]);
+        return stats(
+            values[0],
+            values[1],
+            values[2],
+            values[3],
+            values[4],
+            values[5],
+            values[6],
+            values[7],
+            values[8],
+            values[9],
+            values[10]
+        );
     }
 
     public void testRendersEveryCounter() throws IOException {
-        QuerySamplingStats stats = new QuerySamplingStats(1, 2, 3, 4, 5, 6, 7, 8);
+        QuerySamplingStats stats = stats(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
@@ -63,9 +81,25 @@ public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<Que
         assertThat(
             Strings.toString(builder),
             equalTo(
-                "{\"knn_searches\":1,\"captured\":2,\"dropped\":3,\"distinct_queries\":4,"
-                    + "\"untracked_arrivals\":5,\"picked\":6,\"buffered\":7,\"rejected\":8}"
+                "{\"knn_searches\":1,\"captured\":2,\"dropped\":3,\"distinct_queries\":4,\"untracked_arrivals\":5,"
+                    + "\"picked\":6,\"written\":7,\"write_failures\":8,\"write_dropped\":9,\"weights_refreshed\":10,\"expired\":11}"
             )
+        );
+    }
+
+    private static QuerySamplingStats stats(long... values) {
+        return new QuerySamplingStats(
+            values[0],
+            values[1],
+            values[2],
+            values[3],
+            values[4],
+            values[5],
+            values[6],
+            values[7],
+            values[8],
+            values[9],
+            values[10]
         );
     }
 }

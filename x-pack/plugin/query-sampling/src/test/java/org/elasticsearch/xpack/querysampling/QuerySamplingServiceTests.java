@@ -8,12 +8,19 @@
 package org.elasticsearch.xpack.querysampling;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.Task;
@@ -25,7 +32,10 @@ import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.capture.QueryCaptureFilter;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
-import org.elasticsearch.xpack.querysampling.storage.Tier1Buffer;
+import org.elasticsearch.xpack.querysampling.storage.QuerySamplingIndex;
+import org.elasticsearch.xpack.querysampling.storage.SampleRetention;
+import org.elasticsearch.xpack.querysampling.storage.SampleWriter;
+import org.elasticsearch.xpack.querysampling.storage.WeightsRefresher;
 
 import java.util.List;
 import java.util.Map;
@@ -38,12 +48,40 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class QuerySamplingServiceTests extends ESTestCase {
 
+    private final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
     private final MultiplicityTracker tracker = new MultiplicityTracker(2);
-    private final Tier1Buffer buffer = new Tier1Buffer(1);
+    // the writer sends a batch as soon as two queries are picked, and the test answers it right away
+    private final SampleWriter writer = new SampleWriter(
+        "sampler",
+        (request, listener) -> listener.onResponse(allWritten(request.numberOfActions())),
+        taskQueue.getThreadPool(),
+        taskQueue.getThreadPool().generic(),
+        () -> 42L,
+        (fingerprint, tracked, weights) -> {},
+        2,
+        10,
+        TimeValue.timeValueSeconds(1)
+    );
+    private final WeightsRefresher refresher = new WeightsRefresher(
+        "sampler",
+        (request, listener) -> {},
+        taskQueue.getThreadPool(),
+        taskQueue.getThreadPool().generic(),
+        () -> 42L,
+        (fingerprint, tracked) -> true,
+        10,
+        TimeValue.timeValueSeconds(30)
+    );
+    private final SampleRetention retention = new SampleRetention(
+        (request, listener) -> {},
+        () -> true,
+        () -> 42L,
+        TimeValue.timeValueDays(7)
+    );
 
     public void testNothingHappenedYet() {
         QuerySamplingService service = service(filter(1.0), handoff(Runnable::run, new Random(0L)));
-        assertThat(service.stats(), equalTo(new QuerySamplingStats(0, 0, 0, 0, 0, 0, 0, 0)));
+        assertThat(service.stats(), equalTo(new QuerySamplingStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)));
     }
 
     public void testGateCountersOnlyCountEligibleKnnSearches() {
@@ -68,14 +106,15 @@ public class QuerySamplingServiceTests extends ESTestCase {
         handoff.accept(search(2f));
         handoff.accept(search(3f));
         handoff.accept(search(1f));
+        taskQueue.runAllRunnableTasks();
 
         QuerySamplingStats stats = service.stats();
         assertThat(stats.distinctQueries(), equalTo(2L));
         assertThat(stats.untrackedArrivals(), equalTo(1L));
-        // both tracked queries were picked, but Tier 1 only has room for one
         assertThat(stats.picked(), equalTo(2L));
-        assertThat(stats.buffered(), equalTo(1L));
-        assertThat(stats.rejected(), equalTo(1L));
+        assertThat("both picked queries went out in one batch", stats.written(), equalTo(2L));
+        assertThat(stats.writeFailures(), equalTo(0L));
+        assertThat(stats.writeDropped(), equalTo(0L));
         assertThat(stats.dropped(), equalTo(0L));
     }
 
@@ -92,12 +131,27 @@ public class QuerySamplingServiceTests extends ESTestCase {
         assertThat(stats.distinctQueries(), equalTo(0L));
     }
 
+    private SamplingPipeline pipeline;
+
     private CaptureHandoff handoff(Executor executor, Random random) {
-        return new CaptureHandoff(executor, new SamplingPipeline(tracker, new QuerySampler(1.0, 100, random), List.of(buffer)));
+        pipeline = new SamplingPipeline(tracker, new QuerySampler(1.0, 100, random), List.of(writer));
+        return new CaptureHandoff(executor, pipeline);
     }
 
     private QuerySamplingService service(QueryCaptureFilter filter, CaptureHandoff handoff) {
-        return new QuerySamplingService(filter, handoff, tracker, buffer);
+        return new QuerySamplingService(filter, handoff, tracker, pipeline, writer, refresher, retention);
+    }
+
+    private static BulkResponse allWritten(int queries) {
+        BulkItemResponse[] items = new BulkItemResponse[queries];
+        for (int i = 0; i < queries; i++) {
+            items[i] = BulkItemResponse.success(
+                i,
+                DocWriteRequest.OpType.INDEX,
+                new IndexResponse(new ShardId(QuerySamplingIndex.NAME, "_na_", 0), "id", 0, 1, 1, true)
+            );
+        }
+        return new BulkResponse(items, 1);
     }
 
     private static Random picking() {

@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.querysampling;
 import org.elasticsearch.xpack.querysampling.capture.CaptureHandoff;
 import org.elasticsearch.xpack.querysampling.capture.QueryCaptureFilter;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
-import org.elasticsearch.xpack.querysampling.storage.Tier1Buffer;
+import org.elasticsearch.xpack.querysampling.storage.SampleRetention;
+import org.elasticsearch.xpack.querysampling.storage.SampleWriter;
+import org.elasticsearch.xpack.querysampling.storage.WeightsRefresher;
 
 /**
  * Node-local owner of the query sampling state. Each coordinating node samples the slice of traffic it
@@ -22,28 +24,42 @@ public class QuerySamplingService {
     private final QueryCaptureFilter filter;
     private final CaptureHandoff handoff;
     private final MultiplicityTracker tracker;
-    private final Tier1Buffer buffer;
+    private final SamplingPipeline pipeline;
+    private final SampleWriter writer;
+    private final WeightsRefresher refresher;
+    private final SampleRetention retention;
 
-    public QuerySamplingService(QueryCaptureFilter filter, CaptureHandoff handoff, MultiplicityTracker tracker, Tier1Buffer buffer) {
+    public QuerySamplingService(
+        QueryCaptureFilter filter,
+        CaptureHandoff handoff,
+        MultiplicityTracker tracker,
+        SamplingPipeline pipeline,
+        SampleWriter writer,
+        WeightsRefresher refresher,
+        SampleRetention retention
+    ) {
         this.filter = filter;
         this.handoff = handoff;
         this.tracker = tracker;
-        this.buffer = buffer;
+        this.pipeline = pipeline;
+        this.writer = writer;
+        this.refresher = refresher;
+        this.retention = retention;
     }
 
     public QuerySamplingStats stats() {
-        // the sampler picks a query at most once and a pick ends up either buffered or rejected
-        long rejected = buffer.rejected();
-        int buffered = buffer.size();
         return new QuerySamplingStats(
             filter.knnSearches(),
             filter.captured(),
             handoff.dropped(),
             tracker.distinct(),
             tracker.untracked(),
-            buffered + rejected,
-            buffered,
-            rejected
+            pipeline.picked(),
+            writer.written(),
+            writer.failed(),
+            writer.dropped(),
+            refresher.refreshed(),
+            retention.deleted()
         );
     }
 }

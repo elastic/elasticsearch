@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.querysampling.sampling.SampleListener;
 import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
 
 import java.util.List;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 
 /**
@@ -32,6 +33,7 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
     private final MultiplicityTracker tracker;
     private final QuerySampler sampler;
     private final List<SampleListener> listeners;
+    private final LongAdder picked = new LongAdder();
 
     public SamplingPipeline(MultiplicityTracker tracker, QuerySampler sampler, List<SampleListener> listeners) {
         this.tracker = tracker;
@@ -39,11 +41,19 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
         this.listeners = List.copyOf(listeners);
     }
 
+    /**
+     * Distinct queries that were picked for the sample.
+     */
+    public long picked() {
+        return picked.sum();
+    }
+
     @Override
     public void accept(CapturedSearch captured) {
         QueryFingerprint fingerprint = QueryFingerprint.of(captured.query());
         TrackedQuery tracked = tracker.record(fingerprint, captured.captureRate());
         if (tracked != null && sampler.offer(tracked)) {
+            picked.increment();
             SampledQuery sampled = new SampledQuery(fingerprint, captured, tracked);
             for (SampleListener listener : listeners) {
                 try {

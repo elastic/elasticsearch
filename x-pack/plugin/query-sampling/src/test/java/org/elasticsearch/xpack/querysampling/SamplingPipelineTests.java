@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
-import org.elasticsearch.xpack.querysampling.storage.Tier1Buffer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,9 +24,9 @@ import static org.hamcrest.Matchers.sameInstance;
 public class SamplingPipelineTests extends ESTestCase {
 
     private final MultiplicityTracker tracker = new MultiplicityTracker(100);
-    private final Tier1Buffer buffer = new Tier1Buffer(100);
+    private final List<SampledQuery> sampled = new ArrayList<>();
 
-    public void testRepeatedQueryIsStoredOnceAndKeepsBeingCounted() {
+    public void testRepeatedQueryIsPickedOnceAndKeepsBeingCounted() {
         SamplingPipeline pipeline = pipeline(new Random(0L) {
             @Override
             public double nextDouble() {
@@ -40,11 +39,12 @@ public class SamplingPipelineTests extends ESTestCase {
             pipeline.accept(search(vector));
         }
 
-        assertThat(buffer.size(), equalTo(1));
+        assertThat(sampled.size(), equalTo(1));
+        assertThat(pipeline.picked(), equalTo(1L));
         assertThat(tracker.distinct(), equalTo(1));
     }
 
-    public void testDistinctQueriesAreStoredSeparately() {
+    public void testDistinctQueriesArePickedSeparately() {
         SamplingPipeline pipeline = pipeline(new Random(0L) {
             @Override
             public double nextDouble() {
@@ -56,11 +56,12 @@ public class SamplingPipelineTests extends ESTestCase {
         pipeline.accept(search(new float[] { 2f }));
         pipeline.accept(search(new float[] { 3f }));
 
-        assertThat(buffer.size(), equalTo(3));
+        assertThat(sampled.size(), equalTo(3));
+        assertThat(pipeline.picked(), equalTo(3L));
         assertThat(tracker.distinct(), equalTo(3));
     }
 
-    public void testNothingIsStoredWhenNothingIsPicked() {
+    public void testNothingIsPassedOnWhenNothingIsPicked() {
         SamplingPipeline pipeline = pipeline(new Random(0L) {
             @Override
             public double nextDouble() {
@@ -72,26 +73,9 @@ public class SamplingPipelineTests extends ESTestCase {
             pipeline.accept(search(new float[] { i }));
         }
 
-        assertThat(buffer.size(), equalTo(0));
+        assertThat(sampled.size(), equalTo(0));
+        assertThat(pipeline.picked(), equalTo(0L));
         assertThat(tracker.distinct(), equalTo(10));
-    }
-
-    public void testFullBufferDoesNotStopTheCounting() {
-        Tier1Buffer smallBuffer = new Tier1Buffer(2);
-        SamplingPipeline pipeline = new SamplingPipeline(tracker, new QuerySampler(1.0, 100, new Random(0L) {
-            @Override
-            public double nextDouble() {
-                return 0.0;
-            }
-        }), List.of(smallBuffer));
-
-        for (int i = 0; i < 5; i++) {
-            pipeline.accept(search(new float[] { i }));
-        }
-
-        assertThat(smallBuffer.size(), equalTo(2));
-        assertThat(smallBuffer.rejected(), equalTo(3L));
-        assertThat(tracker.distinct(), equalTo(5));
     }
 
     public void testEveryListenerIsToldAndAFailingOneDoesNotStopTheOthers() {
@@ -112,7 +96,7 @@ public class SamplingPipelineTests extends ESTestCase {
     }
 
     private SamplingPipeline pipeline(Random random) {
-        return new SamplingPipeline(tracker, new QuerySampler(1.0, 100, random), List.of(buffer));
+        return new SamplingPipeline(tracker, new QuerySampler(1.0, 100, random), List.of(sampled::add));
     }
 
     private static CapturedSearch search(float[] vector) {

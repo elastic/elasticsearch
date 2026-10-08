@@ -675,29 +675,38 @@ public class CsvTestsDataLoader {
                 }
             }
             if (load) {
+                Set<String> loadedIndices = Set.of();
                 if (indexes) {
-                    loadDataSets(client, true, true, false, false, cap -> true, (restClient, indexName, indexMapping, indexSettings) -> {
-                        // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
-                        StringBuilder jsonBody = new StringBuilder("{");
-                        if (indexSettings != null && indexSettings.isEmpty() == false) {
-                            jsonBody.append("\"settings\":");
-                            jsonBody.append(Strings.toString(indexSettings));
-                            jsonBody.append(",");
-                        }
-                        jsonBody.append("\"mappings\":");
-                        jsonBody.append(indexMapping);
-                        jsonBody.append("}");
+                    loadedIndices = loadDataSets(
+                        client,
+                        true,
+                        true,
+                        false,
+                        false,
+                        cap -> true,
+                        (restClient, indexName, indexMapping, indexSettings) -> {
+                            // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
+                            StringBuilder jsonBody = new StringBuilder("{");
+                            if (indexSettings != null && indexSettings.isEmpty() == false) {
+                                jsonBody.append("\"settings\":");
+                                jsonBody.append(Strings.toString(indexSettings));
+                                jsonBody.append(",");
+                            }
+                            jsonBody.append("\"mappings\":");
+                            jsonBody.append(indexMapping);
+                            jsonBody.append("}");
 
-                        Request request = new Request("PUT", "/" + indexName);
-                        request.setJsonEntity(jsonBody.toString());
-                        restClient.performRequest(request);
-                    });
+                            Request request = new Request("PUT", "/" + indexName);
+                            request.setJsonEntity(jsonBody.toString());
+                            restClient.performRequest(request);
+                        }
+                    );
                 }
                 if (policies) {
                     loadEnrichPolicies(client);
                 }
                 if (indexes) {
-                    loadAliasesIntoEs(client);
+                    loadAliasesIntoEs(client, loadedIndices);
                 }
                 if (views) {
                     loadViewsIntoEs(client);
@@ -815,13 +824,15 @@ public class CsvTestsDataLoader {
         if (indicesToLoad != null && indicesToLoad.isEmpty()) {
             return;
         }
+        Set<String> loadedIndices;
         if (indicesToLoad != null) {
             loadDatasetsIntoEs(client, indicesToLoad);
+            loadedIndices = new HashSet<>(indicesToLoad);
             if (timeSeriesOnly == false) {
                 loadEnrichPoliciesForLoadedSourceIndices(client, indicesToLoad);
             }
         } else {
-            loadDataSets(
+            loadedIndices = loadDataSets(
                 client,
                 supportsIndexModeLookup,
                 supportsSourceFieldMapping,
@@ -834,7 +845,7 @@ public class CsvTestsDataLoader {
                 loadEnrichPolicies(client);
             }
         }
-        loadAliasesIntoEs(client, indicesToLoad);
+        loadAliasesIntoEs(client, loadedIndices);
     }
 
     /**
@@ -877,7 +888,7 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static void loadDataSets(
+    private static Set<String> loadDataSets(
         RestClient client,
         boolean supportsIndexModeLookup,
         boolean supportsSourceFieldMapping,
@@ -899,6 +910,7 @@ public class CsvTestsDataLoader {
             loadedDatasets.add(dataset.indexName);
         }
         forceMerge(client, loadedDatasets);
+        return loadedDatasets;
     }
 
     private static void loadEnrichPolicies(RestClient client) throws IOException {
@@ -932,20 +944,15 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static void loadAliasesIntoEs(RestClient client) throws IOException {
-        loadAliasesIntoEs(client, null);
-    }
-
     /**
-     * Creates index aliases from {@link #ALIAS_CONFIGS}. When {@code indicesToLoad} is non-null,
-     * only aliases whose backing index is in that list are created — aliases for indices that were
-     * not loaded in this run are skipped to avoid {@code index_not_found_exception}.
+     * Creates index aliases from {@link #ALIAS_CONFIGS}. Only aliases whose backing index was
+     * loaded in this run are created.
      */
-    private static void loadAliasesIntoEs(RestClient client, @Nullable List<String> indicesToLoad) throws IOException {
+    private static void loadAliasesIntoEs(RestClient client, Set<String> loadedIndices) throws IOException {
         logger.info("Loading aliases");
         for (var alias : ALIAS_CONFIGS.values()) {
-            if (indicesToLoad != null && indicesToLoad.contains(alias.indexName()) == false) {
-                logger.debug("Skipping alias [{}] -> [{}]: backing index not in indicesToLoad", alias.aliasName(), alias.indexName());
+            if (loadedIndices.contains(alias.indexName()) == false) {
+                logger.debug("Skipping alias [{}] -> [{}]: backing index was not loaded", alias.aliasName(), alias.indexName());
                 continue;
             }
             Request request = new Request("POST", "/_aliases");

@@ -96,6 +96,14 @@ setup:
 
 ---
 'profile includes unmapped load mode':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          # No capability gates profile.unmapped_fields (#152762 only versioned the wire format), so use one that was added after it.
+          capabilities: [optional_fields_fix_implicit_cast_on_small_numeric_punk]
+      reason: "profile.unmapped_fields is not reported by 9.4 coordinators"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"

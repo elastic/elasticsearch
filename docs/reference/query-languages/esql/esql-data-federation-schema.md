@@ -58,7 +58,7 @@ A type mismatch in a later Parquet file doesn't fail the query. If a column's ty
 - `null_field`: The column contains null values for that file, and the response includes a warning.
 - `skip_row`: All rows of that file are skipped. Each counts as a malformed row against [`max_errors`](esql-data-federation-dataset-settings.md#max-errors) and [`max_error_ratio`](esql-data-federation-dataset-settings.md#max-error-ratio), so the file exceeds any `max_error_ratio` below `1.0`, and a large file can exceed a small `max_errors`.
 
-### How `first_file_wins` reads later CSV and TSV files [first-file-wins-csv-tsv]
+### How `first_file_wins` matches columns in CSV and TSV files [first-file-wins-csv-tsv]
 ```{applies_to}
 stack: experimental 9.6+
 ```

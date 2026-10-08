@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.NodeByteBudgetService;
@@ -18,9 +20,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 /**
  * Node-scoped admission limit on retained Parquet I/O bytes (prefetch buffers and sliding
@@ -121,6 +125,18 @@ final class ParquetIoWatermark implements AdmissionGate {
     AdmitHold tryAdmit(long bytes) {
         NodeByteBudget.Hold hold = budget.tryAdmit(bytes);
         return hold == null ? null : new AdmitHold(this, hold);
+    }
+
+    /**
+     * FIFO ticket for a unit that must proceed. Uncontended grants complete on the caller;
+     * contended grants are forked onto {@code executor}. {@link AdmitHold#drop()} is the
+     * same leftover-estimate swap as {@link #tryAdmit}.
+     */
+    SubscribableListener<AdmitHold> admitAsync(long bytes, RowGroupIo lease, BooleanSupplier cancelSignal, Executor executor) {
+        SubscribableListener<AdmitHold> listener = new SubscribableListener<>();
+        budget.admitAsync(bytes, lease, cancelSignal, executor)
+            .addListener(ActionListener.wrap(hold -> { listener.onResponse(wrap(hold)); }, listener::onFailure));
+        return listener;
     }
 
     AdmitHold wrap(NodeByteBudget.Hold hold) {

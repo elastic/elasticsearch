@@ -14,7 +14,7 @@
  * mapping) invisible to ESQL data source plugins.
  *
  * <p>The {@code requires} clauses on the bundled compression libraries
- * ({@code snappy.java}, {@code aircompressor}) pull those auto-modules into this plugin's
+ * ({@code org.xerial.snappy}, {@code aircompressor}) pull those auto-modules into this plugin's
  * resolved module layer so the per-auto-module {@code load_native_libraries} entitlements
  * declared in {@code entitlement-policy.yaml} can be enabled for them — ES's
  * {@code PluginsLoader.enableNativeAccess} only enables native access on modules it can find
@@ -51,7 +51,7 @@ module org.elasticsearch.xpack.esql.datasource.compress {
     requires org.elasticsearch.server;
     requires org.elasticsearch.nativeaccess;
 
-    requires transitive snappy.java;
+    requires transitive org.xerial.snappy;
     requires transitive aircompressor;
 
     exports org.elasticsearch.xpack.esql.datasource.compress;

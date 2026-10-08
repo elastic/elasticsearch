@@ -479,9 +479,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormatTests
   method: testRandomWithUpdatesAndGraph
   issue: https://github.com/elastic/elasticsearch/issues/160958
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/41_knn_search_byte_quantized_bfloat16/kNN search plus query}
-  issue: https://github.com/elastic/elasticsearch/issues/161087
 - class: org.elasticsearch.reindex.management.ReindexRelocationIT
   method: testManualSlicedLocalReindexRelocation
   issue: https://github.com/elastic/elasticsearch/issues/161095

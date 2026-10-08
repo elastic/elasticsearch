@@ -87,10 +87,10 @@ public final class ExpandUnmappedFieldsPostProcessor {
     /**
      * The most discovered fields a {@code LOAD_ALL} result expands into. Without a cap, a wide or heterogeneous index turns every
      * distinct {@code _source} leaf into a column, and merely collecting their names - before a single column is built - is enough
-     * to exhaust the coordinator's heap. 1000 matches the default of
-     * {@code index.mapping.total_fields.limit}.
+     * to exhaust the coordinator's heap. 1000 matches the default of {@code index.mapping.total_fields.limit}.
      * <p>
-     * The cap keeps the alphabetically first names, so which fields survive does not depend on the order pages arrive in. {@code KEEP} or {@code DROP} can be used to reach fields that would go over the limit.
+     * The cap keeps the alphabetically first names, so which fields survive does not depend on the order pages arrive in.
+     * {@code KEEP} or {@code DROP} can be used to reach fields that would go over the limit.
      */
     static final int MAX_EXPANDED_FIELDS = 1000;
 
@@ -249,10 +249,10 @@ public final class ExpandUnmappedFieldsPostProcessor {
     }
 
     /**
-     * Essentially a max-heap that keeps the alphabetically first {@link #MAX_EXPANDED_FIELDS} distinct names it is fed, and never more than one extra. The same
-     * name typically turns up in many rows, so the kept names also live in a hash set: encountering the same name twice costs one lookup, and deciding if a new name is alphabetically later than any already encountered one
-     * costs one comparison against the head of the heap. Only a new name that makes the cut pays the
-     * heap's logarithmic insert.
+     * Essentially a max-heap that keeps the alphabetically first {@link #MAX_EXPANDED_FIELDS} distinct names it is fed, and never more
+     * than one extra. The same name typically turns up in many rows, so the kept names also live in a hash set: encountering the same
+     * name twice costs one lookup, and deciding if a new name is alphabetically later than any already encountered one costs one
+     * comparison against the head of the heap. Only a new name that makes the cut pays the heap's logarithmic insert.
      */
     private static final class FieldNameCollector implements BiConsumer<String, Object> {
         private final UnmappedFieldsPattern pattern;

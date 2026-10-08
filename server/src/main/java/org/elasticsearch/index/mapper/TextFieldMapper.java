@@ -1293,7 +1293,12 @@ public final class TextFieldMapper extends FieldMapper {
             if (isReanalyzing(analyzed)) {
                 return analyzed; // a phrase wraps itself, knowing the positions it asks about
             }
-            return new ReanalyzingTextQuery(analyzed, valueFetcherProvider(context), context.getIndexAnalyzer(f -> null), true);
+            return new ReanalyzingTextQuery(
+                ReanalyzingTextQuery.withoutWrappers(analyzed),
+                valueFetcherProvider(context),
+                context.getIndexAnalyzer(f -> null),
+                true
+            );
         }
 
         /** Whether this field can read its parent's values, which a multi-field keeping none of its own does. */

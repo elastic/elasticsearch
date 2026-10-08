@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchPhraseQuery;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -276,7 +277,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
                 queryAsObject().toString()
             );
         } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to tokenize query string: " + e.getMessage(), e);
+            throw new UncheckedIOException("Failed to tokenize query string", e);
         }
     }
 

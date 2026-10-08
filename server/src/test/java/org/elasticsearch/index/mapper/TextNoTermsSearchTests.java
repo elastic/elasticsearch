@@ -30,6 +30,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.query.MatchBoolPrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -121,6 +122,10 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
         queries.add(new MatchPhrasePrefixQueryBuilder("body", "qui"));
         queries.add(new MatchPhrasePrefixQueryBuilder("body", "quick bro"));
         queries.add(new MatchPhrasePrefixQueryBuilder("body", "nothing"));
+        // A boolean prefix holds a prefix clause the field wraps itself, beside the terms before it.
+        queries.add(new MatchBoolPrefixQueryBuilder("body", "bro"));
+        queries.add(new MatchBoolPrefixQueryBuilder("body", "quick bro"));
+        queries.add(new MatchBoolPrefixQueryBuilder("body", "the quick bro"));
 
         final List<List<Integer>> indexed = matching(true, queries);
         final List<List<Integer>> notIndexed = matching(false, queries);
@@ -172,6 +177,7 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
             new QueryStringQueryBuilder("quick brown").defaultField("body"),
             new MultiMatchQueryBuilder("quick brown", "body"),
             new MultiMatchQueryBuilder("quick brown", "body").type(MultiMatchQueryBuilder.Type.PHRASE),
+            new MultiMatchQueryBuilder("quick bro", "body").type(MultiMatchQueryBuilder.Type.BOOL_PREFIX),
             new SimpleQueryStringBuilder("quick brown").field("body")
         );
         final List<List<Integer>> indexed = matching(true, queries);

@@ -17,6 +17,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermStates;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -67,6 +68,46 @@ import java.util.function.Supplier;
  * This query matches and scores the same way as the wrapped query.
  */
 public final class ReanalyzingTextQuery extends Query {
+
+    /**
+     * {@code query} with the wrappers of this class taken off the clauses inside it, for a caller about to wrap the
+     * whole of it. The wrapper reads a document's values and answers the query it holds against an index of those
+     * values alone, which holds no doc values, so a clause reading them again would find none where the field has
+     * them. One read of a document answers every clause it holds.
+     */
+    static Query withoutWrappers(Query query) {
+        if (query instanceof ReanalyzingTextQuery reanalyzing) {
+            return withoutWrappers(reanalyzing.getQuery());
+        }
+        if (query instanceof ConstantScoreQuery constantScore) {
+            final Query inner = withoutWrappers(constantScore.getQuery());
+            return inner == constantScore.getQuery() ? query : new ConstantScoreQuery(inner);
+        }
+        if (query instanceof BoostQuery boost) {
+            final Query inner = withoutWrappers(boost.getQuery());
+            return inner == boost.getQuery() ? query : new BoostQuery(inner, boost.getBoost());
+        }
+        if (query instanceof BooleanQuery bool) {
+            BooleanQuery.Builder unwrapped = null;
+            for (BooleanClause clause : bool.clauses()) {
+                final Query inner = withoutWrappers(clause.query());
+                if (inner != clause.query() && unwrapped == null) {
+                    unwrapped = new BooleanQuery.Builder().setMinimumNumberShouldMatch(bool.getMinimumNumberShouldMatch());
+                    for (BooleanClause before : bool.clauses()) {
+                        if (before == clause) {
+                            break;
+                        }
+                        unwrapped.add(before);
+                    }
+                }
+                if (unwrapped != null) {
+                    unwrapped.add(inner, clause.occur());
+                }
+            }
+            return unwrapped == null ? query : unwrapped.build();
+        }
+        return query;
+    }
 
     /**
      * Create an approximation for the given query. The returned approximation

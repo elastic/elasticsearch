@@ -452,17 +452,20 @@ public class EsqlSession {
         // supplied, before any view-resolution work. An operator's cluster default can never fail a query here: if it
         // is no longer usable the setting falls back to its built-in default, and the operator is warned on the
         // settings-update or license-transition path rather than in the request.
-        ResolvedSettings resolved = applyApproximationLicense(
-            QuerySettings.resolve(
-                clusterService.state().metadata().settings(),
-                clusterService.getSettings(),
-                request.requestSettings(),
+        ResolvedSettings resolved = applyLoadAllMaxFields(
+            applyApproximationLicense(
+                QuerySettings.resolve(
+                    clusterService.state().metadata().settings(),
+                    clusterService.getSettings(),
+                    request.requestSettings(),
+                    statement,
+                    SettingsValidationContext.from(crossProjectModeDecider)
+                ),
+                request,
                 statement,
-                SettingsValidationContext.from(crossProjectModeDecider)
+                verifier.licenseState()
             ),
-            request,
-            statement,
-            verifier.licenseState()
+            plannerSettings
         );
         if (explainContext == null) {
             gatherSettingsMetrics(request, statement);
@@ -550,16 +553,9 @@ public class EsqlSession {
         final Configuration finalConfiguration = explainContext != null ? configuration.withExplainOnly() : configuration;
         final FoldContext foldContext = finalConfiguration.newFoldContext();
 
-        UnmappedResolution unmappedResolution = QuerySettings.UNMAPPED_FIELDS.get(finalConfiguration.resolvedSettings());
-        if (unmappedResolution == UnmappedResolution.LOAD_ALL && plannerSettings.loadAllMaxFields() == 0) {
-            // A limit of 0 discovers no fields, which is what LOAD is: analyze it as such, so that no _unmapped_fields column is
-            // planned and shipped from the data nodes only to be dropped.
-            unmappedResolution = UnmappedResolution.LOAD;
-        }
-
         analyzedPlan(
             plan,
-            unmappedResolution,
+            QuerySettings.UNMAPPED_FIELDS.get(finalConfiguration.resolvedSettings()),
             finalConfiguration,
             executionInfo,
             request.filter(),
@@ -1565,6 +1561,19 @@ public class EsqlSession {
             return resolved;
         }
         return resolved.withOverride(QuerySettings.APPROXIMATION, null);
+    }
+
+    /**
+     * A limit of {@code 0} on the fields {@code LOAD_ALL} discovers makes {@code LOAD_ALL} discover nothing, which is what
+     * {@code LOAD} is. Resolve it to {@code LOAD} then, so that every phase downstream sees {@code LOAD}: no
+     * {@code _unmapped_fields} column is planned and shipped from the data nodes only to be dropped, and the restrictions
+     * that only {@code LOAD_ALL} has do not apply.
+     */
+    static ResolvedSettings applyLoadAllMaxFields(ResolvedSettings resolved, PlannerSettings plannerSettings) {
+        if (plannerSettings.loadAllMaxFields() == 0 && QuerySettings.UNMAPPED_FIELDS.get(resolved) == UnmappedResolution.LOAD_ALL) {
+            return resolved.withOverride(QuerySettings.UNMAPPED_FIELDS, UnmappedResolution.LOAD);
+        }
+        return resolved;
     }
 
     private void gatherSettingsMetrics(EsqlQueryRequest request, EsqlStatement statement) {

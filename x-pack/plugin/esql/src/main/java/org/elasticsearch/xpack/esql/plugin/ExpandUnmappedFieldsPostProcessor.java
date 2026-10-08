@@ -226,11 +226,6 @@ public final class ExpandUnmappedFieldsPostProcessor {
         double reservationFactor,
         BooleanSupplier isCancelled
     ) {
-        if (maxFields == 0) {
-            // Nothing is discovered. Such a query is analyzed as LOAD, so no _unmapped_fields column is planned in the first place;
-            // this just keeps a limit of 0 from tripping over the empty heap below.
-            return List.of();
-        }
         FieldNameCollector fieldNames = new FieldNameCollector(maxFields, pattern, existingNames);
         BytesRef scratch = new BytesRef();
         for (Page page : result.pages()) {
@@ -279,7 +274,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
         private boolean truncated = false;
 
         FieldNameCollector(int maxFields, UnmappedFieldsPattern pattern, Set<String> existingNames) {
-            assert maxFields >= 1 : "an empty heap has no head to compare against";
+            assert maxFields >= 1 : "a limit of 0 resolves unmapped_fields to LOAD, so there is nothing to expand";
             this.maxFields = maxFields;
             this.pattern = pattern;
             this.existingNames = existingNames;

@@ -39,6 +39,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.lucene.search.cost.TermsQueryCostEstimator;
+import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -57,6 +58,9 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
     private static final String FIELD = "f";
     private static final int NUM_DOCS = 2000;
     private static final int NUM_TERMS = 500;
+
+    /** Mirrors Lucene's package-private {@code AbstractMultiTermQueryConstantScoreWrapper#BOOLEAN_REWRITE_TERM_COUNT_THRESHOLD}. */
+    private static final int BOOLEAN_REWRITE_TERM_COUNT_THRESHOLD = 16;
 
     private Directory directory;
     private DirectoryReader reader;
@@ -85,9 +89,23 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
     }
 
     private static Query termInSetQuery() {
+        return termInSetQuery(NUM_TERMS);
+    }
+
+    private static Query termInSetQuery(int numTerms) {
         List<BytesRef> terms = new ArrayList<>();
-        for (int i = 0; i < NUM_TERMS; i++) {
+        for (int i = 0; i < numTerms; i++) {
             terms.add(new BytesRef(term(i)));
+        }
+        return new TermInSetQuery(FIELD, terms);
+    }
+
+    /** More terms than the boolean-rewrite threshold, but only a few of them are actually indexed. */
+    private static Query fewPresentTermsQuery() {
+        List<BytesRef> terms = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            terms.add(new BytesRef(term(i)));
+            terms.add(new BytesRef("missing-" + i));
         }
         return new TermInSetQuery(FIELD, terms);
     }
@@ -129,6 +147,56 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(100L);
         expectThrows(CircuitBreakingException.class, () -> runSearch(termInSetQuery(), breaker));
         assertThat("a tripped reservation must not leak onto the breaker", breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testChargedOnlyAboveBooleanRewriteThreshold() throws IOException {
+        assertNeverCharges(termInSetQuery(BOOLEAN_REWRITE_TERM_COUNT_THRESHOLD));
+        assertChargesThenReleases(termInSetQuery(BOOLEAN_REWRITE_TERM_COUNT_THRESHOLD + 1));
+    }
+
+    public void testFewTermsPresentInLeafChargesNothing() throws IOException {
+        assertNeverCharges(fewPresentTermsQuery());
+    }
+
+    public void testFewTermsPresentInLeafChargesNothingWhenProfiled() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        ContextIndexSearcher searcher = newContextIndexSearcher(reader);
+        searcher.setCircuitBreaker(breaker);
+        searcher.setProfiler(new QueryProfiler());
+        int hits = searcher.search(fewPresentTermsQuery(), new CountingCollectorManager());
+        assertThat("the query must match documents so its scorer actually runs", hits, greaterThan(0));
+        assertThat("profiling must not hide the query Lucene runs as a plain disjunction", breaker.peak(), equalTo(0L));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testTermMatchingEveryDocChargesNothing() throws IOException {
+        try (Directory sharedDirectory = newDirectory()) {
+            int numDocs = 50;
+            try (IndexWriter writer = new IndexWriter(sharedDirectory, new IndexWriterConfig(null))) {
+                for (int docId = 0; docId < numDocs; docId++) {
+                    Document doc = new Document();
+                    // "common" is on every doc and sorts before "unique-*", so Lucene sees it within its first few terms.
+                    doc.add(new StringField(FIELD, "common", Field.Store.NO));
+                    doc.add(new StringField(FIELD, "unique-" + docId, Field.Store.NO));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader sharedReader = DirectoryReader.open(sharedDirectory)) {
+                List<BytesRef> terms = new ArrayList<>();
+                terms.add(new BytesRef("common"));
+                for (int i = 0; i < 2 * BOOLEAN_REWRITE_TERM_COUNT_THRESHOLD; i++) {
+                    terms.add(new BytesRef("unique-" + i));
+                }
+                TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+                ContextIndexSearcher searcher = newContextIndexSearcher(sharedReader);
+                searcher.setCircuitBreaker(breaker);
+                int hits = searcher.search(new TermInSetQuery(FIELD, terms), new CountingCollectorManager());
+                assertThat(hits, equalTo(numDocs));
+                assertThat("a term matching every doc is run as a single term query, with no doc-id set", breaker.peak(), equalTo(0L));
+                assertThat(breaker.getUsed(), equalTo(0L));
+            }
+        }
     }
 
     public void testAccountingNotAllocatedWithoutMultiTermQuery() throws IOException {
@@ -192,6 +260,14 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
             equalTo(expectedPeak)
         );
         assertThat("the per-leaf execution charge must be released once the leaf is scored", breaker.getUsed(), equalTo(0L));
+    }
+
+    private void assertNeverCharges(Query query) throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        int hits = runSearch(query, breaker);
+        assertThat("the query must match documents so its scorer actually runs", hits, greaterThan(0));
+        assertThat("a leaf Lucene runs as a plain disjunction allocates no doc-id set", breaker.peak(), equalTo(0L));
+        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     private List<Long> expectedSearchPerLeafCharges(Query query) throws IOException {

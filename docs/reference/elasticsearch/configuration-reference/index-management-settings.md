@@ -77,11 +77,15 @@ The following settings for Elastic Universal Profiling are supported:
 
 
 ### Metric exemplar ingestion settings
+```{applies_to}
+stack: ga 9.6
+```
 
 `xpack.metrics.exemplars.enabled`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Specifies whether metric exemplars received through
     the [OTLP endpoint](docs-content://manage-data/data-store/data-streams/tsds-ingest-otlp.md) or
-    [Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md) are indexed.
+    [Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md) are indexed
+    into `exemplars-*` data streams. When set to `false`, exemplars are silently dropped and only the metric samples are indexed.
     Defaults to *true*.
 
 

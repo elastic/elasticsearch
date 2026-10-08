@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.esql.core.anonymizer;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+
+import static org.hamcrest.Matchers.matchesRegex;
 
 public class AnonymizationContextTests extends ESTestCase {
 
@@ -92,15 +95,17 @@ public class AnonymizationContextTests extends ESTestCase {
     /**
      * Identifiers shorter than the 14 bytes an HMAC key needs to clear 112 bits, which is the minimum
      * FIPS approved mode enforces: {@code resolveClusterUuid} answers {@code ""} from a {@code null}
-     * cluster state, and {@code Metadata.UNKNOWN_CLUSTER_UUID} is {@code _na_} until a cluster UUID
+     * cluster state, and {@link Metadata#UNKNOWN_CLUSTER_UUID} is {@code _na_} until a cluster UUID
      * is generated. Each must render a token rather than throw. Only a FIPS run
      * ({@code -Dtests.fips.enabled=true}) reaches the throw.
      */
     public void testShortClusterUuidStillRendersTokens() {
-        for (String clusterUuid : new String[] { "", "_na_" }) {
+        for (String clusterUuid : new String[] { "", Metadata.UNKNOWN_CLUSTER_UUID }) {
             var ctx = AnonymizationContext.forSubmission(clusterUuid);
-            assertNotNull("column token for cluster uuid [" + clusterUuid + "]", ctx.mapper().column("foo"));
-            assertNotNull("index token for cluster uuid [" + clusterUuid + "]", ctx.mapper().index("bar"));
+            // Assert the rendered shape, not just non-nullity: column() cannot return null, so a null check
+            // holds against either derivation and would carry no information on a non-FIPS run.
+            assertThat("column token for cluster uuid [" + clusterUuid + "]", ctx.mapper().column("foo"), matchesRegex("col_[0-9a-f]{12}"));
+            assertThat("index token for cluster uuid [" + clusterUuid + "]", ctx.mapper().index("bar"), matchesRegex("idx_[0-9a-f]{12}"));
         }
     }
 

@@ -3818,23 +3818,28 @@ public class GlobExpanderTests extends ESTestCase {
     public void testKeyedAwsGlobWalksPastLeadingIdentityKeys() throws IOException {
         List<StorageEntry> files = List.of(
             entry(
-                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=10/day=13/hour=10/a.parquet",
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2026/month=10/day=13/hour=10/a.parquet",
                 100
             ),
             entry(
-                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=10/day=13/hour=11/b.parquet",
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2026/month=10/day=13/hour=11/b.parquet",
                 100
             ),
             entry(
-                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/aws-region=eu-west-1/year=2026/month=10/day=13/hour=10/c.parquet",
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/"
+                    + "aws-region=eu-west-1/year=2026/month=10/day=13/hour=10/c.parquet",
                 100
             ),
             entry(
-                "s3://bucket/AWSLogs/aws-account-id=222/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=10/day=13/hour=10/d.parquet",
+                "s3://bucket/AWSLogs/aws-account-id=222/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2026/month=10/day=13/hour=10/d.parquet",
                 100
             ),
             entry(
-                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=10/day=12/hour=10/e.parquet",
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2026/month=10/day=12/hour=10/e.parquet",
                 100
             )
         );
@@ -3852,9 +3857,12 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expand(glob, provider, hints, HIVE_ON, MAX, MAX);
         assertEquals(
             Set.of(
-                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=10/day=13/hour=10/a.parquet",
-                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/aws-region=eu-west-1/year=2026/month=10/day=13/hour=10/c.parquet",
-                "s3://bucket/AWSLogs/aws-account-id=222/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=10/day=13/hour=10/d.parquet"
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2026/month=10/day=13/hour=10/a.parquet",
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/"
+                    + "aws-region=eu-west-1/year=2026/month=10/day=13/hour=10/c.parquet",
+                "s3://bucket/AWSLogs/aws-account-id=222/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2026/month=10/day=13/hour=10/d.parquet"
             ),
             new LinkedHashSet<>(paths(result))
         );
@@ -3868,21 +3876,26 @@ public class GlobExpanderTests extends ESTestCase {
     public void testGlobstarOnAwsTreeStillWithdrawsAtUnhintedAccountId() throws IOException {
         List<StorageEntry> files = List.of(
             entry(
-                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=10/day=13/hour=10/a.parquet",
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2026/month=10/day=13/hour=10/a.parquet",
                 100
             ),
             entry(
-                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/aws-region=us-east-1/year=2025/month=10/day=13/hour=10/old.parquet",
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2025/month=10/day=13/hour=10/old.parquet",
                 100
             )
         );
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.IN, 2026, 2030));
         TreeStubProvider provider = new TreeStubProvider(files);
-        FileList result = GlobExpander.expand("s3://bucket/AWSLogs/**/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String globstar = "s3://bucket/AWSLogs/**/*.parquet";
+        FileList result = GlobExpander.expand(globstar, provider, hints, HIVE_ON, MAX, MAX);
         assertEquals(1, result.fileCount());
         assertEquals(
             List.of(
-                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=10/day=13/hour=10/a.parquet"
+                "s3://bucket/AWSLogs/aws-account-id=111/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2026/month=10/day=13/hour=10/a.parquet"
             ),
             paths(result)
         );

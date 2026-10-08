@@ -1763,17 +1763,17 @@ public final class PartitionSpec {
         if (lastMillis < startMillis) {
             return List.of();
         }
-        OffsetDateTime start = Instant.ofEpochMilli(startMillis).atOffset(ZoneOffset.UTC);
-        OffsetDateTime last = Instant.ofEpochMilli(lastMillis).atOffset(ZoneOffset.UTC);
-        OffsetDateTime cursor = truncateToStep(start, step);
-        OffsetDateTime end = truncateToStep(last, step);
+        ZonedDateTime start = Instant.ofEpochMilli(startMillis).atZone(ZoneOffset.UTC);
+        ZonedDateTime last = Instant.ofEpochMilli(lastMillis).atZone(ZoneOffset.UTC);
+        ZonedDateTime cursor = truncateToStep(start, step);
+        ZonedDateTime end = truncateToStep(last, step);
         LinkedHashSet<Integer> parts = new LinkedHashSet<>();
         while (cursor.compareTo(end) <= 0) {
             parts.add(cursor.get(field));
             if (parts.size() >= completeSize) {
                 return List.of();
             }
-            OffsetDateTime next = cursor.plus(1, step);
+            ZonedDateTime next = cursor.plus(1, step);
             if (next.compareTo(cursor) <= 0) {
                 break;
             }
@@ -1785,17 +1785,18 @@ public final class PartitionSpec {
         return List.copyOf(parts);
     }
 
-    private static OffsetDateTime truncateToStep(OffsetDateTime time, ChronoUnit step) {
+    private static ZonedDateTime truncateToStep(ZonedDateTime time, ChronoUnit step) {
+        LocalDate date = time.toLocalDate();
         return switch (step) {
-            case HOURS -> time.truncatedTo(ChronoUnit.HOURS);
-            case DAYS -> time.truncatedTo(ChronoUnit.DAYS);
-            case MONTHS -> time.withDayOfMonth(1).truncatedTo(ChronoUnit.DAYS);
+            case HOURS -> time.withMinute(0).withSecond(0).withNano(0);
+            case DAYS -> date.atStartOfDay(time.getZone());
+            case MONTHS -> date.withDayOfMonth(1).atStartOfDay(time.getZone());
             default -> throw new AssertionError("unexpected listing grain step [" + step + "]");
         };
     }
 
     private static int utcField(long millis, ChronoField field) {
-        return Instant.ofEpochMilli(millis).atOffset(ZoneOffset.UTC).get(field);
+        return Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).get(field);
     }
 
     @Nullable

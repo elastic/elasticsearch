@@ -550,9 +550,16 @@ public class EsqlSession {
         final Configuration finalConfiguration = explainContext != null ? configuration.withExplainOnly() : configuration;
         final FoldContext foldContext = finalConfiguration.newFoldContext();
 
+        UnmappedResolution unmappedResolution = QuerySettings.UNMAPPED_FIELDS.get(finalConfiguration.resolvedSettings());
+        if (unmappedResolution == UnmappedResolution.LOAD_ALL && plannerSettings.loadAllMaxFields() == 0) {
+            // A limit of 0 discovers no fields, which is what LOAD is: analyze it as such, so that no _unmapped_fields column is
+            // planned and shipped from the data nodes only to be dropped.
+            unmappedResolution = UnmappedResolution.LOAD;
+        }
+
         analyzedPlan(
             plan,
-            QuerySettings.UNMAPPED_FIELDS.get(finalConfiguration.resolvedSettings()),
+            unmappedResolution,
             finalConfiguration,
             executionInfo,
             request.filter(),

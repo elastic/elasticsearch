@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.util.HashSet;
 
@@ -63,31 +64,44 @@ public class PlannerSettingsTests extends ESTestCase {
         assertThat(PlannerSettings.DEFAULTS.loadAllMaxFields(), equalTo(1000));
     }
 
-    public void testLoadAllMaxFieldsIsRegistered() {
+    /** The setting is only exposed where its capability is, so that it is not exposed where it has no effect. */
+    public void testLoadAllMaxFieldsIsRegisteredExactlyWhereItsCapabilityIs() {
         var registeredKeys = PlannerSettings.settings().stream().map(Setting::getKey).toList();
-        assertThat(registeredKeys, hasItems(PlannerSettings.LOAD_ALL_MAX_FIELDS.getKey()));
+        assertThat(
+            registeredKeys.contains(PlannerSettings.LOAD_ALL_MAX_FIELDS.getKey()),
+            equalTo(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled())
+        );
     }
 
+    /**
+     * Runs the update the way {@code PUT _cluster/settings} does, which is where an update of a setting that is not dynamic is
+     * rejected: {@code ClusterSettings#updateDynamicSettings}. No cluster service is needed for that.
+     */
     public void testLoadAllMaxFieldsIsDynamic() {
+        assumeTrue("the setting is registered", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled());
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(PlannerSettings.settings()));
-        // ClusterService is mocked for the same reason as above: the Holder only reads getClusterSettings().
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        PlannerSettings.Holder holder = new PlannerSettings.Holder(clusterService);
+        String key = PlannerSettings.LOAD_ALL_MAX_FIELDS.getKey();
 
-        assertThat(holder.get().loadAllMaxFields(), equalTo(1000));
-
-        clusterSettings.applySettings(Settings.builder().put(PlannerSettings.LOAD_ALL_MAX_FIELDS.getKey(), 2500).build());
-        assertThat(holder.get().loadAllMaxFields(), equalTo(2500));
-
-        // Removing the setting restores the default.
-        clusterSettings.applySettings(Settings.EMPTY);
-        assertThat(holder.get().loadAllMaxFields(), equalTo(1000));
+        Settings.Builder target = Settings.builder();
+        Settings.Builder updates = Settings.builder();
+        assertTrue(clusterSettings.updateDynamicSettings(Settings.builder().put(key, 2500).build(), target, updates, "persistent"));
+        assertThat(updates.build().get(key), equalTo("2500"));
     }
 
-    public void testLoadAllMaxFieldsMustBePositive() {
-        Settings zero = Settings.builder().put(PlannerSettings.LOAD_ALL_MAX_FIELDS.getKey(), 0).build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PlannerSettings.LOAD_ALL_MAX_FIELDS.get(zero));
-        assertThat(e.getMessage(), containsString("must be >= 1"));
+    public void testLoadAllMaxFieldsBounds() {
+        String key = PlannerSettings.LOAD_ALL_MAX_FIELDS.getKey();
+        assertThat(PlannerSettings.LOAD_ALL_MAX_FIELDS.get(Settings.builder().put(key, 0).build()), equalTo(0));
+        assertThat(PlannerSettings.LOAD_ALL_MAX_FIELDS.get(Settings.builder().put(key, 100_000).build()), equalTo(100_000));
+
+        IllegalArgumentException tooSmall = expectThrows(
+            IllegalArgumentException.class,
+            () -> PlannerSettings.LOAD_ALL_MAX_FIELDS.get(Settings.builder().put(key, -1).build())
+        );
+        assertThat(tooSmall.getMessage(), containsString("must be >= 0"));
+        IllegalArgumentException tooBig = expectThrows(
+            IllegalArgumentException.class,
+            () -> PlannerSettings.LOAD_ALL_MAX_FIELDS.get(Settings.builder().put(key, 100_001).build())
+        );
+        assertThat(tooBig.getMessage(), containsString("must be <= 100000"));
     }
 }

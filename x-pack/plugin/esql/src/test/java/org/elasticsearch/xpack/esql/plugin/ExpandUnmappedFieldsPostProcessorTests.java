@@ -832,6 +832,21 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         assertWarnings(truncationWarning(limit));
     }
 
+    /** A limit of 0 discovers nothing: the {@code _unmapped_fields} column is just dropped, with no warning. */
+    public void testLimitOfZeroExpandsNothing() {
+        BlockFactory bf = blockFactory();
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonObject("{'pet':'Rex','city':'Berlin'}")));
+
+        Result expanded = expand(result, bf, PlannerSettings.DEFAULTS.loadAllMaxFields(0));
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR)));
+            assertThat(rowCount(expanded), equalTo(1));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+        // ESTestCase fails the test on any warning left unasserted, so not asserting one checks that there is none.
+    }
+
     /** The limit can be raised above the default: that many fields are all returned, with nothing cut off and no warning. */
     public void testLimitCanBeRaisedAboveTheDefault() {
         BlockFactory bf = blockFactory();

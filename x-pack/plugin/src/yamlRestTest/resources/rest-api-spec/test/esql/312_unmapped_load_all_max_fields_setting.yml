@@ -84,10 +84,49 @@ teardown:
   - match: { columns.5.name: f5 }
 
 ---
-'the limit has to be positive':
+'a limit of 0 makes LOAD_ALL behave like LOAD':
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            esql.load_all.max_fields: 0
+
+  # Nothing is discovered, and there is nothing to warn about either.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_cfg | LIMIT 10'
+  - length: { columns: 1 }
+  - match: { columns.0.name: id }
+
+  # A field the query names is still loaded from _source, as with LOAD.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_cfg | KEEP id, f1 | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.1.name: f1 }
+  - match: { values.0: [ "1", "a" ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM la_cfg | KEEP id, f1 | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { values.0: [ "1", "a" ] }
+
+---
+'the limit has to be between 0 and 100000':
   - do:
       catch: bad_request
       cluster.put_settings:
         body:
           persistent:
-            esql.load_all.max_fields: 0
+            esql.load_all.max_fields: -1
+
+  - do:
+      catch: bad_request
+      cluster.put_settings:
+        body:
+          persistent:
+            esql.load_all.max_fields: 100001

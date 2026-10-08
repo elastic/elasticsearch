@@ -317,14 +317,12 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
      */
     public void testSkipNodesWhenReceivedRowsSatisfyLimit() throws Exception {
         assumeTrue("Requires pragmas", canUseQueryPragmas());
-        internalCluster().ensureAtLeastNumDataNodes(3);
-        long minDocsPerShard = createOneShardPerNodeIndex(between(50, 100) * internalCluster().numDataNodes());
-        int limit = between(1, Math.toIntExact(minDocsPerShard));
-        int exchanges = queryWithStarvedCoordinator(
+        int limit = between(1, Math.toIntExact(createOneShardPerNodeIndex().minDocsPerShard()));
+        int queriedNodes = queryWithStarvedCoordinator(
             "FROM " + ONE_SHARD_PER_NODE_INDEX + " | LIMIT " + limit,
             result -> assertThat(Iterables.size(result.rows()), equalTo((long) limit))
         );
-        assertThat(exchanges, equalTo(1));
+        assertThat(queriedNodes, equalTo(1));
     }
 
     /**
@@ -332,14 +330,12 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
      */
     public void testQueryAllNodesWhenNoNodeSatisfiesLimit() throws Exception {
         assumeTrue("Requires pragmas", canUseQueryPragmas());
-        internalCluster().ensureAtLeastNumDataNodes(3);
-        int numDocs = between(50, 100) * internalCluster().numDataNodes();
-        createOneShardPerNodeIndex(numDocs);
-        int exchanges = queryWithStarvedCoordinator(
+        int numDocs = createOneShardPerNodeIndex().numDocs();
+        int queriedNodes = queryWithStarvedCoordinator(
             "FROM " + ONE_SHARD_PER_NODE_INDEX + " | LIMIT " + numDocs,
             result -> assertThat(Iterables.size(result.rows()), equalTo((long) numDocs))
         );
-        assertThat(exchanges, equalTo(internalCluster().numDataNodes()));
+        assertThat(queriedNodes, equalTo(internalCluster().numDataNodes()));
     }
 
     /**
@@ -347,14 +343,12 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
      */
     public void testQueryAllNodesWithoutLimit() throws Exception {
         assumeTrue("Requires pragmas", canUseQueryPragmas());
-        internalCluster().ensureAtLeastNumDataNodes(3);
-        int numDocs = between(50, 100) * internalCluster().numDataNodes();
-        createOneShardPerNodeIndex(numDocs);
-        int exchanges = queryWithStarvedCoordinator(
+        int numDocs = createOneShardPerNodeIndex().numDocs();
+        int queriedNodes = queryWithStarvedCoordinator(
             "FROM " + ONE_SHARD_PER_NODE_INDEX,
             result -> assertThat(Iterables.size(result.rows()), equalTo((long) numDocs))
         );
-        assertThat(exchanges, equalTo(internalCluster().numDataNodes()));
+        assertThat(queriedNodes, equalTo(internalCluster().numDataNodes()));
     }
 
     /**
@@ -362,23 +356,23 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
      */
     public void testQueryAllNodesForStats() throws Exception {
         assumeTrue("Requires pragmas", canUseQueryPragmas());
-        internalCluster().ensureAtLeastNumDataNodes(3);
-        int numDocs = between(50, 100) * internalCluster().numDataNodes();
-        createOneShardPerNodeIndex(numDocs);
-        int exchanges = queryWithStarvedCoordinator(
+        int numDocs = createOneShardPerNodeIndex().numDocs();
+        int queriedNodes = queryWithStarvedCoordinator(
             "FROM " + ONE_SHARD_PER_NODE_INDEX + " | STATS c = COUNT(*)",
             result -> assertThat(EsqlTestUtils.getValuesList(result), equalTo(List.of(List.of((long) numDocs))))
         );
-        assertThat(exchanges, equalTo(internalCluster().numDataNodes()));
+        assertThat(queriedNodes, equalTo(internalCluster().numDataNodes()));
     }
 
+    private record OneShardPerNodeIndex(int numDocs, long minDocsPerShard) {}
+
     /**
-     * Creates an index with exactly one shard on each data node. A node holding a single shard completes without waiting
-     * for the coordinator to drain its pages, so the coordinator cannot rely on backpressure to stop early.
-     *
-     * @return the smallest number of documents in any shard
+     * Creates an index with exactly one shard on each of at least three data nodes. A node holding a single shard completes
+     * without waiting for the coordinator to drain its pages, so the coordinator cannot rely on backpressure to stop early.
      */
-    private long createOneShardPerNodeIndex(int numDocs) {
+    private OneShardPerNodeIndex createOneShardPerNodeIndex() {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        int numDocs = between(50, 100) * internalCluster().numDataNodes();
         client().admin()
             .indices()
             .prepareCreate(ONE_SHARD_PER_NODE_INDEX)
@@ -402,7 +396,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
             assertThat("no doc for shard " + shardStats.getShardRouting().shardId(), docs, greaterThan(0L));
             minDocsPerShard = Math.min(minDocsPerShard, docs);
         }
-        return minDocsPerShard;
+        return new OneShardPerNodeIndex(numDocs, minDocsPerShard);
     }
 
     /**
@@ -410,7 +404,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
      * opened, the coordinator's ES|QL worker threads are kept busy, so its final driver cannot consume any rows before the next
      * node is picked. The coordinator holds no shards, so every exchange it opens goes through the mock transport and is counted.
      *
-     * @return the number of exchanges the coordinator opened
+     * @return the number of data nodes the coordinator queried
      */
     private int queryWithStarvedCoordinator(String esqlQuery, Consumer<EsqlQueryResponse> checkResult) throws Exception {
         String coordinatingNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);

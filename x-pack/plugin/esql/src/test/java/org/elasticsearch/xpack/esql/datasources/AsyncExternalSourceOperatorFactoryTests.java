@@ -9,12 +9,16 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -3852,6 +3856,151 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
+    /**
+     * A producer parked on {@link CloseableIterator#waitForReady()} must release its
+     * {@code producerExecutor} thread so other work can run.
+     */
+    public void testParkedProducerReleasesExecutorThread() throws Exception {
+        CountDownLatch allowPage = new CountDownLatch(1);
+        ParkingReader reader = new ParkingReader(allowPage);
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(
+            List.of(new FileSplit("test", StoragePath.of("s3://bucket/park.parquet"), 0, 100, "parquet", Map.of(), Map.of()))
+        );
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        ExecutorService ioExec = Executors.newSingleThreadExecutor(EsExecutors.daemonThreadFactory("test", "park-io"));
+        ExecutorService producerExec = Executors.newSingleThreadExecutor(EsExecutors.daemonThreadFactory("test", "park-producer"));
+        try {
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                new StubMultiFileStorageProvider(),
+                reader,
+                StoragePath.of("s3://bucket/park.parquet"),
+                List.of(
+                    new FieldAttribute(
+                        Source.EMPTY,
+                        "value",
+                        new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                    )
+                ),
+                100,
+                10,
+                ioExec
+            ).sliceQueue(sliceQueue).producerExecutor(producerExec).build();
+
+            SourceOperator operator = factory.get(driverContext);
+            assertBusy(() -> assertTrue("producer must park on waitForReady", reader.parked.get()), 5, TimeUnit.SECONDS);
+
+            CountDownLatch otherWork = new CountDownLatch(1);
+            producerExec.execute(otherWork::countDown);
+            assertTrue("parked producer must not pin the consumer thread", otherWork.await(5, TimeUnit.SECONDS));
+
+            allowPage.countDown();
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (operator.isFinished() == false && System.nanoTime() < deadline) {
+                Page p = operator.getOutput();
+                if (p != null) {
+                    p.releaseBlocks();
+                }
+            }
+            assertTrue(operator.isFinished());
+            operator.close();
+        } finally {
+            allowPage.countDown();
+            ioExec.shutdownNow();
+            producerExec.shutdownNow();
+            assertTrue(ioExec.awaitTermination(5, TimeUnit.SECONDS));
+            assertTrue(producerExec.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * T8: park resume only. Saturate a 1-thread {@link EsThreadPoolExecutor} with queue capacity 0
+     * after the producer has parked; the force-execution resume still runs. Does not claim
+     * start-of-producer liveness — the initial submit is not force-execution.
+     */
+    public void testForcedResubmitRunsWhenProducerQueueIsFull() throws Exception {
+        CountDownLatch allowPage = new CountDownLatch(1);
+        ParkingReader reader = new ParkingReader(allowPage);
+        EsThreadPoolExecutor producerExec = EsExecutors.newFixed(
+            "test-t8",
+            1,
+            0,
+            EsExecutors.daemonThreadFactory("test", "t8"),
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(
+            List.of(new FileSplit("test", StoragePath.of("s3://bucket/force.parquet"), 0, 100, "parquet", Map.of(), Map.of()))
+        );
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+        ExecutorService ioExec = Executors.newSingleThreadExecutor(EsExecutors.daemonThreadFactory("test", "force-io"));
+        CountDownLatch occupied = new CountDownLatch(1);
+        CountDownLatch releaseBlocker = new CountDownLatch(1);
+        try {
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                new StubMultiFileStorageProvider(),
+                reader,
+                StoragePath.of("s3://bucket/force.parquet"),
+                List.of(
+                    new FieldAttribute(
+                        Source.EMPTY,
+                        "value",
+                        new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                    )
+                ),
+                100,
+                10,
+                ioExec
+            ).sliceQueue(sliceQueue).producerExecutor(producerExec).build();
+
+            SourceOperator operator = factory.get(driverContext);
+            assertBusy(() -> assertTrue(reader.parked.get()), 5, TimeUnit.SECONDS);
+
+            producerExec.execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() throws Exception {
+                    occupied.countDown();
+                    if (releaseBlocker.await(15, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("blocker not released");
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    occupied.countDown();
+                }
+            });
+            assertTrue("producer thread must be occupied after park", occupied.await(5, TimeUnit.SECONDS));
+
+            allowPage.countDown();
+            assertFalse("force resume must wait behind the occupied thread", operator.isFinished());
+
+            releaseBlocker.countDown();
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (operator.isFinished() == false && System.nanoTime() < deadline) {
+                Page p = operator.getOutput();
+                if (p != null) {
+                    p.releaseBlocks();
+                }
+            }
+            assertTrue(operator.isFinished());
+            operator.close();
+        } finally {
+            allowPage.countDown();
+            releaseBlocker.countDown();
+            ioExec.shutdownNow();
+            producerExec.shutdownNow();
+            assertTrue(ioExec.awaitTermination(5, TimeUnit.SECONDS));
+            assertTrue(producerExec.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
     public void testDescribeSplittableCompressedUsesSyncWrapperMode() throws IOException {
         SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
         CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new StubSplittableCodec());
@@ -5372,6 +5521,95 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         @Override
         public String formatName() {
             return "two-page-huge";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Iterator whose {@link CloseableIterator#waitForReady()} stays incomplete until {@code allowPage}
+     * counts down. Used to park the AESOF producer without pinning the consumer thread.
+     */
+    private static final class ParkingReader implements NoConfigFormatReader {
+        private final CountDownLatch allowPage;
+        private final AtomicBoolean parked = new AtomicBoolean();
+
+        private ParkingReader(CountDownLatch allowPage) {
+            this.allowPage = allowPage;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            SubscribableListener<Void> ready = new SubscribableListener<>();
+            Thread releaser = new Thread(() -> {
+                try {
+                    parked.set(true);
+                    allowPage.await();
+                    ready.onResponse(null);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    ready.onFailure(e);
+                }
+            }, "parking-reader-release");
+            releaser.setDaemon(true);
+            releaser.start();
+            return new CloseableIterator<>() {
+                private boolean emitted;
+
+                @Override
+                public SubscribableListener<Void> waitForReady() {
+                    return ready.isDone() ? SubscribableListener.newSucceeded(null) : ready;
+                }
+
+                @Override
+                public Page tryAdvance() {
+                    if (ready.isDone() == false || emitted) {
+                        return null;
+                    }
+                    emitted = true;
+                    return createTestPage();
+                }
+
+                @Override
+                public boolean hasNext() {
+                    return emitted == false && ready.isDone();
+                }
+
+                @Override
+                public Page next() {
+                    Page page = tryAdvance();
+                    if (page == null) {
+                        throw new NoSuchElementException();
+                    }
+                    return page;
+                }
+
+                @Override
+                public void close() {
+                    allowPage.countDown();
+                }
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "parking";
         }
 
         @Override

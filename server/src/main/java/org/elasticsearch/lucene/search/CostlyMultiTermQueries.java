@@ -28,8 +28,8 @@ public final class CostlyMultiTermQueries {
      * of {@code lucene-core 10.5.1}. Kept in sync with {@code UsageTrackingQueryCachingPolicy#isCostly}.
      */
     private static final Set<String> CONSTANT_SCORE_WRAPPER_CLASS_NAMES = Set.of(
-        "MultiTermQueryConstantScoreWrapper",
-        "MultiTermQueryConstantScoreBlendedWrapper"
+        "org.apache.lucene.search.MultiTermQueryConstantScoreWrapper",
+        "org.apache.lucene.search.MultiTermQueryConstantScoreBlendedWrapper"
     );
 
     private CostlyMultiTermQueries() {}
@@ -39,6 +39,6 @@ public final class CostlyMultiTermQueries {
         if (query instanceof MultiTermQuery) {
             return true;
         }
-        return CONSTANT_SCORE_WRAPPER_CLASS_NAMES.contains(query.getClass().getSimpleName());
+        return CONSTANT_SCORE_WRAPPER_CLASS_NAMES.contains(query.getClass(). getName());
     }
 }

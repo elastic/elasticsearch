@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Context for a single {@link RangeAwareFormatReader#readRange} call. Bundles the per-split
@@ -24,6 +25,27 @@ public final class RangeReadContext {
     private final long rangeEnd;
     private final List<Attribute> resolvedAttributes;
     private final ErrorPolicy errorPolicy;
+    /** See {@link #informationalWarningSink()}. */
+    @Nullable
+    private final Consumer<String> informationalWarningSink;
+    /**
+     * Remaining row budget for this split ({@link FormatReader#NO_LIMIT} when unbounded).
+     * Threaded from the producer so range-aware readers can clip prefetch the same way
+     * whole-file {@link FormatReadContext#rowLimit()} already does.
+     */
+    private final int rowLimit;
+    /**
+     * Per-read error budget shared between the columnar reader and {@code SchemaAdaptingIterator}.
+     * {@code null} when the split's error policy is not {@code SKIP_ROW}.
+     */
+    @Nullable
+    private final SharedErrorBudget sharedErrorBudget;
+    /**
+     * Per-operator counter struct. {@code null} when the caller does not participate in
+     * instrumentation (tests, benchmarks, planning-time reads).
+     */
+    @Nullable
+    private final FormatReadCounters readCounters;
     /**
      * Opaque file-level context, single-writer/single-reader, carried by the owning producer across successive readRange calls.
      */
@@ -38,12 +60,107 @@ public final class RangeReadContext {
         List<Attribute> resolvedAttributes,
         ErrorPolicy errorPolicy
     ) {
+        this(projectedColumns, batchSize, rangeStart, rangeEnd, resolvedAttributes, errorPolicy, null);
+    }
+
+    /**
+     * As the above, plus {@code informationalWarningSink} — see {@link #informationalWarningSink()}.
+     * Kept as a separate constructor so the many existing callers (tests, benchmarks) that don't
+     * care about relaying warnings off this thread are unaffected.
+     */
+    public RangeReadContext(
+        List<String> projectedColumns,
+        int batchSize,
+        long rangeStart,
+        long rangeEnd,
+        List<Attribute> resolvedAttributes,
+        ErrorPolicy errorPolicy,
+        @Nullable Consumer<String> informationalWarningSink
+    ) {
+        this(
+            projectedColumns,
+            batchSize,
+            rangeStart,
+            rangeEnd,
+            resolvedAttributes,
+            errorPolicy,
+            informationalWarningSink,
+            FormatReader.NO_LIMIT
+        );
+    }
+
+    /**
+     * As the above, plus {@code rowLimit} — remaining rows this split may emit.
+     * {@link FormatReader#NO_LIMIT} keeps the historical unbounded behavior.
+     */
+    public RangeReadContext(
+        List<String> projectedColumns,
+        int batchSize,
+        long rangeStart,
+        long rangeEnd,
+        List<Attribute> resolvedAttributes,
+        ErrorPolicy errorPolicy,
+        @Nullable Consumer<String> informationalWarningSink,
+        int rowLimit
+    ) {
+        this(projectedColumns, batchSize, rangeStart, rangeEnd, resolvedAttributes, errorPolicy, informationalWarningSink, rowLimit, null);
+    }
+
+    /**
+     * As the above, plus {@code sharedErrorBudget} — per-read budget shared with the adapter.
+     * {@code null} when the error policy is not {@code SKIP_ROW}.
+     */
+    public RangeReadContext(
+        List<String> projectedColumns,
+        int batchSize,
+        long rangeStart,
+        long rangeEnd,
+        List<Attribute> resolvedAttributes,
+        ErrorPolicy errorPolicy,
+        @Nullable Consumer<String> informationalWarningSink,
+        int rowLimit,
+        @Nullable SharedErrorBudget sharedErrorBudget
+    ) {
+        this(
+            projectedColumns,
+            batchSize,
+            rangeStart,
+            rangeEnd,
+            resolvedAttributes,
+            errorPolicy,
+            informationalWarningSink,
+            rowLimit,
+            sharedErrorBudget,
+            null
+        );
+    }
+
+    /**
+     * As the above, plus {@code readCounters} — per-operator counter struct.
+     * {@code null} when the caller does not participate in instrumentation.
+     */
+    public RangeReadContext(
+        List<String> projectedColumns,
+        int batchSize,
+        long rangeStart,
+        long rangeEnd,
+        List<Attribute> resolvedAttributes,
+        ErrorPolicy errorPolicy,
+        @Nullable Consumer<String> informationalWarningSink,
+        int rowLimit,
+        @Nullable SharedErrorBudget sharedErrorBudget,
+        @Nullable FormatReadCounters readCounters
+    ) {
         this.projectedColumns = projectedColumns;
         this.batchSize = batchSize;
         this.rangeStart = rangeStart;
         this.rangeEnd = rangeEnd;
         this.resolvedAttributes = resolvedAttributes;
         this.errorPolicy = errorPolicy;
+        this.informationalWarningSink = informationalWarningSink;
+        this.rowLimit = rowLimit;
+        this.sharedErrorBudget = sharedErrorBudget;
+        this.readCounters = readCounters;
     }
 
     public List<String> projectedColumns() {
@@ -68,6 +185,39 @@ public final class RangeReadContext {
 
     public ErrorPolicy errorPolicy() {
         return errorPolicy;
+    }
+
+    /**
+     * Optional relay for client-visible lenient-policy warnings (see {@code SkipWarnings}) raised
+     * while reading this range. {@code null} disables sink-only informational warnings;
+     * {@code SkipWarnings}-based paths use their legacy direct
+     * {@link org.elasticsearch.common.logging.HeaderWarning} fallback on the invoking thread. This is
+     * retained for standalone tests and benchmarks. Driver-associated production reads must provide an explicit
+     * structured or buffered sink; merely running on the driver thread does not make direct headers part
+     * of ES|QL's structured warning transport. See {@link FormatReadContext#informationalWarningSink()}
+     * for the non-range-read counterpart.
+     */
+    @Nullable
+    public Consumer<String> informationalWarningSink() {
+        return informationalWarningSink;
+    }
+
+    public int rowLimit() {
+        return rowLimit;
+    }
+
+    @Nullable
+    public SharedErrorBudget sharedErrorBudget() {
+        return sharedErrorBudget;
+    }
+
+    /**
+     * Per-operator counter struct for format-specific instrumentation, or {@code null} when the
+     * caller does not participate in instrumentation (tests, benchmarks, planning-time reads).
+     */
+    @Nullable
+    public FormatReadCounters readCounters() {
+        return readCounters;
     }
 
     @Nullable

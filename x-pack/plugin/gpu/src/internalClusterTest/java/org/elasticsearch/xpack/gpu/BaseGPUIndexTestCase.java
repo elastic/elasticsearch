@@ -13,6 +13,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.gpu.GPUSupport;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -218,7 +219,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         try {
             SearchHit[] exactHits1 = exactSearchResponse1.getHits().getHits();
             SearchHit[] exactHits2 = exactSearchResponse2.getHits().getHits();
-            assertExactMatches(exactHits1, exactHits2, k);
+            assertExactMatches(exactHits1, exactHits2, k, type);
         } finally {
             exactSearchResponse1.decRef();
             exactSearchResponse2.decRef();
@@ -267,7 +268,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         try {
             SearchHit[] exactHits3 = exactSearchResponse3.getHits().getHits();
             SearchHit[] exactHits4 = exactSearchResponse4.getHits().getHits();
-            assertExactMatches(exactHits3, exactHits4, k);
+            assertExactMatches(exactHits3, exactHits4, k, type);
         } finally {
             exactSearchResponse3.decRef();
             exactSearchResponse4.decRef();
@@ -364,7 +365,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         // Attempt to index a document and expect it to fail
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareIndex(indexName).setId("1").setSource("my_vector", randomNonUnitFloatVector(dims)).get()
+            () -> client().prepareIndex(indexName).setId("1").setSource("my_vector", VectorTestUtils.randomFloatVector(dims)).get()
         );
         assertThat(
             ex.getMessage(),
@@ -429,33 +430,9 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         );
     }
 
-    protected static float[] randomNonUnitFloatVector(int dims) {
-        float[] vector = new float[dims];
-        for (int i = 0; i < dims; i++) {
-            vector[i] = randomFloat();
-        }
-        return vector;
-    }
-
-    protected static float[] randomUnitVector(int dims) {
-        float[] vector = new float[dims];
-        double sumSquares = 0.0;
-        for (int i = 0; i < dims; i++) {
-            vector[i] = randomFloat() * 2 - 1; // Generate values between -1 and 1 for better distribution
-            sumSquares += vector[i] * vector[i];
-        }
-        float magnitude = (float) Math.sqrt(sumSquares);
-        if (magnitude > 0) {
-            for (int i = 0; i < dims; i++) {
-                vector[i] /= magnitude;
-            }
-        }
-        return vector;
-    }
-
     protected float[] randomFloatVector(int dims, String similarity) {
         boolean useUnitVectors = "dot_product".equals(similarity);
-        return useUnitVectors ? randomUnitVector(dims) : randomNonUnitFloatVector(dims);
+        return useUnitVectors ? VectorTestUtils.randomNormalizedFloatVector(dims) : VectorTestUtils.randomFloatVector(dims);
     }
 
     /**
@@ -491,13 +468,19 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
     }
 
     /**
-     * Asserts that two result sets have exactly the same document IDs in the same order with the same scores.
-     * Used for exact (brute-force) KNN search which should be deterministic.
-     * Expects k out of k matches.
+     * Asserts that two result sets from exact (brute-force) KNN search agree. For float32 the search is deterministic,
+     * so we require the same document IDs in the same order with the same scores (k out of k). For int8_hnsw the
+     * quantiles differ between the sorted and unsorted index, so near-tied docs can reorder or drop out; there we only
+     * require at least k - 1 of k to match, order-insensitively.
      */
-    protected static void assertExactMatches(SearchHit[] hits1, SearchHit[] hits2, int k) {
+    protected static void assertExactMatches(SearchHit[] hits1, SearchHit[] hits2, int k, String type) {
         Assert.assertEquals("Both result sets should have k hits", k, hits1.length);
         Assert.assertEquals("Both result sets should have k hits", k, hits2.length);
+
+        if ("int8_hnsw".equals(type)) {
+            assertAtLeastNOutOfKMatches(hits1, hits2, k - 1, k);
+            return;
+        }
 
         for (int i = 0; i < k; i++) {
             Assert.assertEquals(String.format(Locale.ROOT, "Document ID mismatch at position %d", i), hits1[i].getId(), hits2[i].getId());

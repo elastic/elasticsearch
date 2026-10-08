@@ -9,26 +9,33 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.FilteredAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FromPartialGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.aggregation.ToPartialAggregatorFunction;
 import org.elasticsearch.compute.aggregation.ToPartialGroupingAggregatorFunction;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 /**
@@ -37,7 +44,7 @@ import java.util.stream.IntStream;
  * which always receives the intermediate input. Since an intermediate aggregate output can
  * consist of multiple blocks, we wrap these output blocks in a single composite block.
  * The {@link FromPartial} then unwraps this input block into multiple primitive blocks and
- * passes them to the delegating GroupingAggregatorFunction.
+ * passes them to the delegating aggregator.
  * <p>
  * Both of these commands yield the same result, except the second plan executes aggregates twice:
  * <pre>
@@ -67,13 +74,38 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
     }
 
     public ToPartial(Source source, Expression field, Expression filter, Expression window, Expression function) {
-        super(source, field, filter, window, List.of(function));
+        super(source, List.of(field), filter, window, List.of(function));
         this.function = function;
     }
 
     private ToPartial(StreamInput in) throws IOException {
-        super(in);
-        function = parameters().getFirst();
+        // Legacy serialization format for backwards compatibility: source, field, filter, window, parameters
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // Legacy serialization format for backwards compatibility: source, field, filter, window, parameters
+        source().writeTo(out);
+        out.writeNamedWriteable(field());
+        out.writeNamedWriteable(filter());
+        if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {
+            out.writeNamedWriteable(window());
+        }
+        out.writeNamedWriteableCollection(CollectionUtils.combine(parameters()));
+    }
+
+    /**
+     * The wrapped aggregate whose per-row inputs this node reads to produce partial state.
+     */
+    public Expression field() {
+        return fields().getFirst();
     }
 
     @Override
@@ -101,8 +133,14 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    public ToPartial withFilter(Expression filter) {
-        return new ToPartial(source(), field(), filter, window(), function);
+    public List<Attribute> aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
+        // `function` is the wrapped aggregate, so its references already cover every input channel the inner
+        // aggregator reads. The base implementation would additionally add the function parameter (the same wrapped
+        // aggregate), duplicating those channels. The per-aggregate filter is intentionally excluded: it is applied by
+        // an evaluator around the supplier (see supplierWithInnerFilter), not read as an input channel by the inner
+        // aggregator. Note this differs from FromPartial, which also overrides references() to drop the filter; here the
+        // filter references must stay in references() so the branch keeps the filtered columns in scope.
+        return ((AggregateFunction) function).aggregateInputReferences(inputAttributes);
     }
 
     @Override
@@ -112,7 +150,22 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
 
     @Override
     public AggregatorFunctionSupplier supplier() {
-        final AggregatorFunctionSupplier supplier = ((ToAggregator) function).supplier();
+        return supplier(((ToAggregator) function).supplier());
+    }
+
+    /**
+     * Like {@link #supplier()}, but applies {@code innerFilter} to the wrapped aggregate before it folds rows
+     * into its intermediate state. Used when a per-aggregate filter is carried on this {@code ToPartial} node
+     * (see {@code PushAggregateThroughUnionAll}): the branch must compute its partial state over only the matching
+     * rows, so the filter is wrapped <em>inside</em> {@code ToPartial} rather than around it. This must only be
+     * called in the initial phase ({@code mode.isInputPartial() == false}); on partial input the rows are already
+     * filtered upstream, so no filter is applied (matching {@link #supplier()}).
+     */
+    public AggregatorFunctionSupplier supplierWithInnerFilter(ExpressionEvaluator.Factory innerFilter) {
+        return supplier(new FilteredAggregatorFunctionSupplier(((ToAggregator) function).supplier(), innerFilter));
+    }
+
+    private AggregatorFunctionSupplier supplier(final AggregatorFunctionSupplier supplier) {
         return new AggregatorFunctionSupplier() {
             @Override
             public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {

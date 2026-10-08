@@ -172,15 +172,11 @@ class ScriptedMetricAggregator extends MetricsAggregator {
 
         State() {
             // Its possible for building the initial state to mutate the parameters as a side effect
-            Map<String, Object> aggParamsForState = ScriptedMetricAggregatorFactory.deepCopyParams(aggParams);
+            Map<String, Object> aggParamsForState = CollectionUtils.deepCopy(aggParams);
             Map<String, Object> mapScriptParamsForState = ScriptedMetricAggregatorFactory.mergeParams(aggParamsForState, mapScriptParams);
             combineScriptParamsForState = ScriptedMetricAggregatorFactory.mergeParams(aggParamsForState, combineScriptParams);
             aggState = newInitialState(ScriptedMetricAggregatorFactory.mergeParams(aggParamsForState, initScriptParams));
-            mapScript = mapScriptFactory.newFactory(
-                ScriptedMetricAggregatorFactory.deepCopyParams(mapScriptParamsForState),
-                aggState,
-                lookup
-            );
+            mapScript = mapScriptFactory.newFactory(CollectionUtils.deepCopy(mapScriptParamsForState), aggState, lookup);
         }
 
         private Map<String, Object> newInitialState(Map<String, Object> initScriptParamsForState) {

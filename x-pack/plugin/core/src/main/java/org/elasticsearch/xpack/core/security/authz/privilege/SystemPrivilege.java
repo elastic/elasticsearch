@@ -48,6 +48,7 @@ public final class SystemPrivilege extends Privilege {
         "indices:data/write/*", // needed for SystemIndexMigrator
         "indices:data/read/*", // needed for SystemIndexMigrator
         "indices:admin/refresh*", // needed for SystemIndexMigrator and resharding
+        "indices:admin/flush*", // needed for flushing a project's indices before it is soft-deleted
         "indices:admin/aliases", // needed for SystemIndexMigrator
         TransportCreateIndexAction.TYPE.name() + "*", // needed for SystemIndexMigrator
         TransportAddIndexBlockAction.TYPE.name() + "*", // needed for SystemIndexMigrator

@@ -42,6 +42,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -65,6 +66,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedProjectRoutingDiagnostics;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -230,7 +232,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         // Verify data extractor factory can be created, then start persistent task
         Consumer<Job> createDataExtractor = job -> {
-            final List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices());
+            final List<String> remoteIndices = trueRemoteIndices(params.getDatafeedIndices());
             if (remoteIndices.isEmpty() == false) {
                 if (remoteClusterClient == false) {
                     responseHeaderPreservingListener.onFailure(
@@ -249,9 +251,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 // Apply CPS mode to detect if we're using cross-project search
                 DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(
                     datafeedConfigHolder.get(),
-                    crossProjectModeDecider
+                    crossProjectModeDecider,
+                    datafeedConfigHolder.get().getCloudInternalCredential() != null
                 );
-                boolean isCpsMode = effectiveDatafeed.getIndicesOptions().resolveCrossProjectIndexExpression();
+                boolean isCpsMode = isCrossProjectMode(effectiveDatafeed);
 
                 if (isCpsMode) {
                     // Skip license check for CPS - all projects share the same highest license
@@ -276,7 +279,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     remoteClusterLicenseChecker.checkRemoteClusterLicenses(
                         RemoteClusterLicenseChecker.remoteClusterAliases(
                             transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(),
-                            params.getDatafeedIndices()
+                            remoteIndices
                         ),
                         ActionListener.wrap(response -> {
                             if (response.isSuccess() == false) {
@@ -296,11 +299,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                             }
                         },
                             e -> responseHeaderPreservingListener.onFailure(
-                                createUnknownLicenseError(
-                                    params.getDatafeedId(),
-                                    RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices()),
-                                    e
-                                )
+                                createUnknownLicenseError(params.getDatafeedId(), remoteIndices, e)
                             )
                         )
                     );
@@ -319,15 +318,54 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         ActionListener<DatafeedConfig.Builder> datafeedListener = ActionListener.wrap(datafeedBuilder -> {
             DatafeedConfig datafeedConfig = datafeedBuilder.build();
+            try {
+                validateEsqlDatafeedEnabled(datafeedConfig, state);
+            } catch (ElasticsearchStatusException e) {
+                responseHeaderPreservingListener.onFailure(e);
+                return;
+            }
+            DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(
+                datafeedConfig,
+                crossProjectModeDecider,
+                datafeedConfig.getCloudInternalCredential() != null
+            );
             params.setDatafeedIndices(datafeedConfig.getIndices());
             params.setJobId(datafeedConfig.getJobId());
-            params.setIndicesOptions(datafeedConfig.getIndicesOptions());
+            setIndicesOptionsIfPresent(params, effectiveDatafeed);
             datafeedConfigHolder.set(datafeedConfig);
 
             jobConfigProvider.getJob(datafeedConfig.getJobId(), null, jobListener);
         }, responseHeaderPreservingListener::onFailure);
 
         datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), null, datafeedListener);
+    }
+
+    static void validateEsqlDatafeedEnabled(DatafeedConfig datafeedConfig, ClusterState state) {
+        DatafeedEsqlGates.validateEsqlDatafeedEnabled(
+            datafeedConfig,
+            state,
+            Messages.DATAFEED_ESQL_START_UPGRADE_IN_PROGRESS,
+            Messages.DATAFEED_ESQL_START_DISABLED
+        );
+    }
+
+    // _origin: is the CPS origin-project qualifier, resolved at search time by the CPS rewriter, not a
+    // registered remote cluster. Exclude it from remote-cluster checks (mirrors SourceDestValidator).
+    static List<String> trueRemoteIndices(List<String> datafeedIndices) {
+        return RemoteClusterLicenseChecker.remoteIndices(datafeedIndices)
+            .stream()
+            .filter(index -> index.startsWith(ProjectRoutingResolver.ORIGIN + ":") == false)
+            .toList();
+    }
+
+    static boolean isCrossProjectMode(DatafeedConfig datafeed) {
+        return datafeed.getIndicesOptions() != null && datafeed.getIndicesOptions().resolveCrossProjectIndexExpression();
+    }
+
+    static void setIndicesOptionsIfPresent(StartDatafeedAction.DatafeedParams params, DatafeedConfig datafeed) {
+        if (datafeed.getIndicesOptions() != null) {
+            params.setIndicesOptions(datafeed.getIndicesOptions());
+        }
     }
 
     static void checkRemoteConfigVersions(
@@ -368,7 +406,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> listener
     ) {
         // Apply cross-project search mode to IndicesOptions before creating the factory
-        DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, crossProjectModeDecider);
+        DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(
+            datafeed,
+            crossProjectModeDecider,
+            datafeed.getCloudInternalCredential() != null
+        );
 
         DataExtractorFactory.create(
             new ParentTaskAssigningClient(client, clusterService.localNode(), task),
@@ -387,7 +429,16 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                     listener
                 ),
-                listener::onFailure
+                e -> {
+                    Exception enriched = DatafeedProjectRoutingDiagnostics.enrichIfNoMatchingProject(
+                        effectiveDatafeed.getId(),
+                        effectiveDatafeed.getProjectRouting(),
+                        e,
+                        DatafeedProjectRoutingDiagnostics.Phase.VALIDATE_BEFORE_MINT
+                    );
+                    auditor.error(job.getId(), enriched.getMessage());
+                    listener.onFailure(enriched);
+                }
             )
         );
     }
@@ -580,8 +631,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 datafeedTask.completeOrFailIfRequired(null);
                 return;
             }
+            // DatafeedState has no allocation id: null state means a fresh user start (fail-fast path),
+            // STARTED means the task was already running and this is a system reassignment (retry path).
+            boolean isReassignment = DatafeedState.STARTED.equals(datafeedState);
             switch (datafeedTask.setDatafeedRunner(datafeedRunner)) {
-                case NEITHER -> datafeedRunner.run(datafeedTask, datafeedTask::completeOrFailIfRequired);
+                case NEITHER -> datafeedRunner.run(datafeedTask, isReassignment, datafeedTask::completeOrFailIfRequired);
                 case ISOLATED -> logger.info("[{}] datafeed isolated immediately after reassignment.", params.getDatafeedId());
                 case STOPPED -> {
                     logger.info("[{}] datafeed stopped immediately after reassignment. Marking as completed", params.getDatafeedId());

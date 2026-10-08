@@ -10,10 +10,10 @@ applies_to:
 # Knn query [query-dsl-knn-query]
 
 
-Finds the *k* nearest vectors to a query vector, as measured by a similarity metric. *knn* query finds nearest vectors through approximate search on indexed `dense_vector`s or [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) fields which use `dense_vector` under the hood. For `dense_vector` fields, you can also use the [top level knn section](docs-content://solutions/search/vector/knn.md) of a search request.
+Finds the *k* nearest vectors to a query vector, as measured by a similarity metric. The `knn` query finds nearest vectors through approximate search on indexed [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md), [`semantic`](/reference/elasticsearch/mapping-reference/semantic-field.md), or [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) fields that use dense vectors. For `dense_vector` fields, you can also use the [top-level `knn` section](docs-content://solutions/search/vector/knn.md) of a search request.
 
 ::::{note}
-The top-level `knn` option does not support `semantic_text` fields. To run a kNN search on a `semantic_text` field, use the `knn` query described on this page. You can also query `semantic_text` fields using a [`match` query](/reference/query-languages/query-dsl/query-dsl-match-query.md), which is the simplest approach.
+The top-level `knn` option does not support `semantic` or `semantic_text` fields. To run a kNN search on either field type, use the `knn` query described on this page. For text query input, you can also use a [`match` query](/reference/query-languages/query-dsl/query-dsl-match-query.md), which is the simplest approach.
 ::::
 
 ## Example request [knn-query-ex-request]
@@ -108,7 +108,7 @@ PUT my-image-index
 ## Top-level parameters for `knn` [knn-query-top-level-parameters]
 
 `field`
-:   (Required, string) The name of the vector field to search against. Must be a [`dense_vector` field with indexing enabled](/reference/elasticsearch/mapping-reference/dense-vector.md#index-vectors-knn-search), or a [`semantic_text` field](/reference/elasticsearch/mapping-reference/semantic-text.md) with a compatible dense vector {{infer}} model.
+:   (Required, string) The name of the vector field to search against. Must be a [`dense_vector` field with indexing enabled](/reference/elasticsearch/mapping-reference/dense-vector.md#index-vectors-knn-search), a [`semantic` field](/reference/elasticsearch/mapping-reference/semantic-field.md), or a [`semantic_text` field](/reference/elasticsearch/mapping-reference/semantic-text.md) with a compatible dense vector {{infer}} model.
 
 $$$knn-query-query-vector$$$ `query_vector`
 :   (Optional, array of floats or string) Query vector. Must have the same number of dimensions as the vector field you are searching against.
@@ -124,11 +124,11 @@ $$$knn-query-query-vector-builder$$$ `query_vector_builder`
 
 
 `k`
-:   (Optional, integer) The number of nearest neighbors to return from each shard. {{es}} collects `k` (or `k * oversample` if conditions for [`rescore_vector`](docs-content://solutions/search/vector/knn.md#the-rescore_vector-option) are met) results from each shard, then merges them to find the global top `k` results. This value must be less than or equal to `num_candidates`. Defaults to search request size.
+:   (Optional, integer) The number of nearest neighbors to return from each shard. {{es}} collects `k` (or `k * oversample` if conditions for [`rescore_vector`](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#the-rescore_vector-option) are met) results from each shard, then merges them to find the global top `k` results. This value must be less than or equal to `num_candidates`. Defaults to search request size.
 
 
 `num_candidates`
-:   (Optional, integer) The number of nearest neighbor candidates to consider per shard while doing knn search. Cannot exceed 10,000. Increasing `num_candidates` tends to improve the accuracy of the final results. Defaults to `1.5 * k` if `k` is set, or `1.5 * size` if `k` is not set. When [`rescore_vector`](docs-content://solutions/search/vector/knn.md#the-rescore_vector-option) are met) is applied, `num_candidates` is set to `max(num_candidates, k * oversample)`
+:   (Optional, integer) The number of nearest neighbor candidates to consider per shard while doing knn search. Cannot exceed 10,000. Increasing `num_candidates` tends to improve the accuracy of the final results. Defaults to `1.5 * k` if `k` is set, or `1.5 * size` if `k` is not set. When [`rescore_vector`](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#the-rescore_vector-option) are met) is applied, `num_candidates` is set to `max(num_candidates, k * oversample)`
 
 
 `visit_percentage` {applies_to}`stack: ga 9.2`
@@ -168,7 +168,7 @@ The filter is a pre-filter, meaning that it is applied **during** the approximat
        * \>= 1f to indicate the oversample factor
        * Exactly `0` to indicate that no oversampling and rescoring should occur. {applies_to}`stack: ga 9.1`
 
-    For more information, refer to [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring).
+    For more information, refer to [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#dense-vector-knn-search-rescoring).
 
     ::::{note}
     Rescoring only makes sense for [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization) vectors. The `rescore_vector` option will be ignored for non-quantized `dense_vector` fields, because the original vectors are used for scoring.
@@ -246,7 +246,7 @@ POST my-image-index/_search
 
 ## Knn query inside a nested query [knn-query-with-nested-query]
 
-The `knn` query can be used inside a nested query. The behaviour here is similar to [top level nested kNN search](docs-content://solutions/search/vector/knn.md#nested-knn-search):
+The `knn` query can be used inside a nested query. The behaviour here is similar to [top level nested kNN search](docs-content://solutions/search/vector/knn/nested-knn-search.md):
 
 * kNN search over nested `dense_vector`s diversifies the top results over the top-level document
 * `filter` both over the top-level document metadata and `nested` is supported and acts as a pre-filter
@@ -352,14 +352,13 @@ word and have "paragraph.language" set to "EN":
 
 Note that nested `knn` only supports `score_mode=max`.
 
-## Knn query on a semantic_text field [knn-query-with-semantic-text]
+## Knn query on an inference field [knn-query-with-semantic-text]
 
 ::::{note}
-The top-level `knn` search option does not support `semantic_text` fields. Use the `knn` query shown below to run a kNN search on a `semantic_text` field which uses `dense_vector` under the hood. For simpler use cases, you can also use a [`match` query](/reference/query-languages/query-dsl/query-dsl-match-query.md) directly on the `semantic_text` field.
+The top-level `knn` search option does not support `semantic` or `semantic_text` fields. Use the `knn` query shown below to run a kNN search on an inference field that uses dense vectors. For text query input, you can also use a [`match` query](/reference/query-languages/query-dsl/query-dsl-match-query.md) directly on the field.
 ::::
 
-Elasticsearch supports knn queries over a [
-`semantic_text` field](/reference/elasticsearch/mapping-reference/semantic-text.md).
+Elasticsearch supports `knn` queries over [`semantic`](/reference/elasticsearch/mapping-reference/semantic-field.md) fields and [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) fields that use dense vectors.
 
 Here is an example using the `query_vector_builder`:
 
@@ -386,6 +385,8 @@ provided as it can be inferred from the `semantic_text` field mapping.
 
 Knn search using query vectors over `semantic_text` fields is also supported,
 with no change to the API.
+
+For `semantic` fields, use the [`embedding`](#knn-query-builder-embedding) query vector builder for text or multimodal input, or provide a compatible raw `query_vector`. The `inference_id` can be inferred from the field mapping. Refer to [Query a `semantic` field](/reference/elasticsearch/mapping-reference/semantic-field-reference.md#query-semantic-field) for an example.
 
 ## Build query vectors for knn search
 
@@ -438,17 +439,17 @@ For [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md)
       For an example request, refer to [`text_embedding`](#text-embedding-builder). For a broader overview of semantic kNN search, refer to [Perform semantic search](docs-content://solutions/search/vector/knn.md#knn-semantic-search).
 
 $$$knn-query-builder-embedding$$$ `embedding` {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
-:   Build the query vector by generating an embedding from text or a base64-encoded image. This enables multimodal search, where different types of input can be used to generate a vector and retrieve similar documents. For an example, refer to [`embedding`](#embedding-builder).
+:   Build the query vector by generating an embedding from text, image, audio, video, or PDF input. This enables multimodal search, where different types of input can be used to generate a vector and retrieve similar documents. For an example, refer to [`embedding`](#embedding-builder).
 
       **Parameters for `embedding`**:
 
         `inference_id`
-        :   (Required, string) The ID of the {{infer}} service used to generate the embedding. Must reference an {{infer}} service configured with the `embedding` task type.
+        :   (Optional, string) The ID of the {{infer}} endpoint used to generate the embedding. It must reference an endpoint configured with the `embedding` task type. When the query targets only inference fields, Elasticsearch can infer this value from the field mapping(s). Specify it when querying a `dense_vector` field.
 
         `input`
         :   (Required, string, object, or array) The input used to generate the query vector. You can provide the input in one of the following formats:
 
-            - Single object: A single multimodal input (text or image). For an example, refer to [single input object](#embedding-example-single-object).
+            - Single object: A single multimodal input. For an example, refer to [single input object](#embedding-example-single-object).
 
             - Array of objects: Multiple inputs. These are combined into a single embedding. For an example, refer to [multiple inputs](#embedding-example-array-input).
 

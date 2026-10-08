@@ -53,6 +53,8 @@ public class CountOverTime extends TimeSeriesAggregateFunction
         .withinSeries(CountOverTime::new)
         .description("Returns the count of all values in the specified time range.")
         .example("count_over_time(http_requests_total[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.COUNT_NOTE)
         .name("count_over_time");
 
     private final Expression timestamp;
@@ -101,11 +103,11 @@ public class CountOverTime extends TimeSeriesAggregateFunction
         ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
+        this(source, field, timestamp, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public CountOverTime(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
+    public CountOverTime(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        super(source, List.of(field, timestamp), filter, window, List.of());
         this.timestamp = timestamp;
     }
 
@@ -115,13 +117,8 @@ public class CountOverTime extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public CountOverTime withFilter(Expression filter) {
-        return new CountOverTime(source(), field(), filter, window(), timestamp);
-    }
-
-    @Override
     protected NodeInfo<CountOverTime> info() {
-        return NodeInfo.create(this, CountOverTime::new, field(), filter(), window(), timestamp);
+        return NodeInfo.create(this, CountOverTime::new, field(), timestamp, filter(), window());
     }
 
     @Override
@@ -152,7 +149,7 @@ public class CountOverTime extends TimeSeriesAggregateFunction
     @Override
     public Expression surrogate() {
         if (field().dataType() == EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
-            var mergeOverTime = new HistogramMergeOverTime(source(), field(), filter(), window(), timestamp);
+            var mergeOverTime = new HistogramMergeOverTime(source(), field(), timestamp, filter(), window());
             return new Coalesce(
                 source(),
                 new ToLong(source(), ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.COUNT)),

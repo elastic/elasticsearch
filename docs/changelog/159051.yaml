@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159051
+summary: Apply the request `filter` to external datasets, dropping untranslatable clauses with a warning
+type: enhancement

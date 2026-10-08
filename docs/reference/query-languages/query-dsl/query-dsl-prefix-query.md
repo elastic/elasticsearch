@@ -46,7 +46,7 @@ GET /_search
     This parameter was added in 7.10.0.
     :::
 
-    (Optional, Boolean) Allows ASCII case insensitive matching of the value with the indexed field values when set to true. Default is false which means the case sensitivity of matching depends on the underlying field’s mapping.
+    (Optional, Boolean) Allows case insensitive matching of the value with the indexed field values when set to true. Default is false which means the case sensitivity of matching depends on the underlying field’s mapping.
 
 
 ## Notes [prefix-query-notes]

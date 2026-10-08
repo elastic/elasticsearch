@@ -37,11 +37,8 @@ AFTER_IN_WS
 // `mode(DEFAULT_MODE)` replaces (rather than pushes) so the stack depth matches
 // the EXPRESSION_MODE → DEFAULT_MODE pairing the existing FROM_RP / PROJECT_RP /
 // etc. (each `popMode, popMode`) expect when closing the subquery.
-// TODO: drop the {this.isDevVersion()}? predicate when WHERE_IN_SUBQUERY graduates
-// to production (see EsqlCapabilities.WHERE_IN_SUBQUERY).
 IN_SUBQUERY_LP
-    : {this.isDevVersion()}?
-      '(' (WS | LINE_COMMENT | MULTILINE_COMMENT)*
+    : '(' (WS | LINE_COMMENT | MULTILINE_COMMENT)*
       ('from' | 'row' | 'show' | 'ts' | 'promql')
       { this.rewindToTokenStart(1); }
       -> type(LP), mode(DEFAULT_MODE)

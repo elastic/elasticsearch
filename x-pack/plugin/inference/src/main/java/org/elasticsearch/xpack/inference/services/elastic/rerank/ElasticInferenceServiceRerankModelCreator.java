@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils.ensureEmptyTaskSettingsInRequestContext;
+
 /**
  * Creates {@link ElasticInferenceServiceRerankModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
@@ -40,6 +42,8 @@ public class ElasticInferenceServiceRerankModelCreator extends ElasticInferenceS
         ConfigurationParseContext context,
         @Nullable EndpointMetadata endpointMetadata
     ) {
+        ensureEmptyTaskSettingsInRequestContext(taskSettings, context);
+
         return new ElasticInferenceServiceRerankModel(
             inferenceId,
             taskType,

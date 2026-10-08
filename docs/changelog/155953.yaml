@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 155953
+summary: Make MV_IN_RANGE ip/version/keyword types pushable to Lucene when negated
+type: enhancement

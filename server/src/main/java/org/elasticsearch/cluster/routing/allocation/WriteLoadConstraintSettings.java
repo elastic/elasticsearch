@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -60,16 +61,31 @@ public class WriteLoadConstraintSettings {
     }
 
     /**
-     * Controls what type of shard-level write load estimate value the write load decider will use.
+     * Controls what type of shard-level write load estimate value will be placed in the ClusterInfo for the allocation code to use.
      */
     public enum WriteLoadDeciderShardWriteLoadType {
         /** Max recent write load value seen for the life of the shard on a node */
         PEAK,
         /** The recent write load value */
-        RECENT;
+        RECENT,
+        /** The shard's total thread time in the last polling interval, divided by the total possible thread time. */
+        AVERAGE;
 
+        /**
+         * Parses the stats for the desired write load type.
+         */
         public double getWriteLoad(IndexingStats indexingStats) {
+            assert this != AVERAGE
+                : "Unexpectedly found AVERAGE value setting in this path: should not reach this code when that value is set";
             return this == PEAK ? indexingStats.getTotal().getPeakWriteLoad() : indexingStats.getTotal().getRecentWriteLoad();
+        }
+
+        /**
+         * The PEAK and RECENT shard write load stats are collected via the {@link IndicesStatsAction}, whereas {@link AVERAGE} is collected
+         * via a different transport action.
+         */
+        public boolean useIndicesStats() {
+            return this != AVERAGE;
         }
     }
 
@@ -93,10 +109,9 @@ public class WriteLoadConstraintSettings {
      * The threshold over which we consider write thread pool utilization hot-spotting in a balancing movement,
      * when a node is being considered as a destination for a shard
      */
-    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING = new Setting<>(
+    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING = Setting.ratioSetting(
         SETTING_PREFIX + "allocation_utilization_threshold",
-        "90%",
-        RatioValue::parseRatioValue,
+        RatioValue.ofPercent(90),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -117,10 +132,9 @@ public class WriteLoadConstraintSettings {
      * The threshold over which we consider write thread pool utilization hotspotting in a canRemain check, when a shard
      * is being considered for moving off of a node
      */
-    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING = new Setting<>(
+    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING = Setting.ratioSetting(
         SETTING_PREFIX + "hotspot_utilization_threshold",
-        "50%",
-        RatioValue::parseRatioValue,
+        RatioValue.ofPercent(50),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -177,6 +191,19 @@ public class WriteLoadConstraintSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * The minimum shard write load (in write threads) below or equal to which a shard will not be considered for movement in a
+     * {@code canRemain} hotspot check. A shard using fewer threads than this threshold cannot meaningfully relieve
+     * the hotspot by being moved. Set to {@code -1.0} to disable the check (all shards eligible for movement).
+     */
+    public static final Setting<Double> WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING = new Setting<>(
+        SETTING_PREFIX + "hotspot_min_shard_write_load_threshold",
+        "0.001",
+        WriteLoadConstraintSettings::parseHotspotMinShardWriteLoadThreshold,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private volatile WriteLoadDeciderStatus writeLoadDeciderStatus;
     private volatile TimeValue minimumRerouteInterval;
     private volatile float allocationUtilizationThreshold;
@@ -185,6 +212,7 @@ public class WriteLoadConstraintSettings {
     private volatile String hotspotUtilizationThresholdString;
     private volatile double hotspotMaxShardWriteLoadProportionThreshold;
     private volatile String hotspotMaxShardWriteLoadProportionThresholdString;
+    private volatile double hotspotMinShardWriteLoadThreshold;
 
     public WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, status -> this.writeLoadDeciderStatus = status);
@@ -208,6 +236,10 @@ public class WriteLoadConstraintSettings {
             hotspotMaxShardWriteLoadProportionThreshold = value.getAsRatio();
             hotspotMaxShardWriteLoadProportionThresholdString = value.formatNoTrailingZerosPercent();
         });
+        clusterSettings.initializeAndWatch(
+            WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING,
+            value -> this.hotspotMinShardWriteLoadThreshold = value
+        );
     }
 
     public WriteLoadDeciderStatus getWriteLoadConstraintEnabled() {
@@ -256,5 +288,23 @@ public class WriteLoadConstraintSettings {
      */
     public float getAllocationUtilizationThreshold() {
         return this.allocationUtilizationThreshold;
+    }
+
+    /**
+     * @return The minimum shard write load (in write threads) below or equal to which a shard will not be moved in a hotspot
+     * {@code canRemain} check. Returns -1.0 when the check is disabled (all shards eligible for movement).
+     */
+    public double getHotspotMinShardWriteLoadThreshold() {
+        return this.hotspotMinShardWriteLoadThreshold;
+    }
+
+    private static double parseHotspotMinShardWriteLoadThreshold(String sValue) {
+        double value = Double.parseDouble(sValue);
+        if (value == -1.0 || value >= 0.0) {
+            return value;
+        }
+        throw new IllegalArgumentException(
+            WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING.getKey() + " must be -1 (to disable) or >= 0, got: " + value
+        );
     }
 }

@@ -10,10 +10,11 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.rest.RestStatus;
 
 /**
- * A retryable transport failure talking to the remote store backing an external data source — the
- * store returned a 5xx, throttled us, or the connection timed out / was reset. Maps to
- * {@code 503 Service Unavailable}: the read might succeed on retry, so it is neither a permanent
- * client error nor a cluster bug.
+ * The retryable, 503-class carrier for a back-pressure / temporarily-unavailable condition on an
+ * external read. Most commonly a transport failure talking to the remote store (the store returned a
+ * 5xx, throttled us, or the connection timed out / was reset), but also a node-local admission
+ * condition such as storage concurrency permit exhaustion. Maps to {@code 503 Service Unavailable}:
+ * the read might succeed on retry, so it is neither a permanent client error nor a cluster bug.
  * <p>
  * Permanent transport outcomes (object not found, a malformed response) are not raised here; those
  * are client-class and surface as {@link ExternalClientException}.
@@ -27,30 +28,122 @@ import org.elasticsearch.rest.RestStatus;
 public final class ExternalUnavailableException extends ExternalException {
 
     private final boolean throttling;
+    /** Server-supplied wait hint in milliseconds; 0 means absent. */
+    private final long retryAfterMs;
 
-    public ExternalUnavailableException(String message, Throwable cause) {
+    ExternalUnavailableException(String message, Throwable cause) {
         super(message, cause);
         this.throttling = false;
+        this.retryAfterMs = 0L;
     }
 
-    public ExternalUnavailableException(Throwable cause, String message, Object... args) {
+    ExternalUnavailableException(Throwable cause, String message, Object... args) {
         super(cause, message, args);
         this.throttling = false;
+        this.retryAfterMs = 0L;
     }
 
-    public ExternalUnavailableException(String message, Object... args) {
+    ExternalUnavailableException(String message, Object... args) {
         super(message, args);
         this.throttling = false;
+        this.retryAfterMs = 0L;
     }
 
-    public ExternalUnavailableException(boolean throttling, Throwable cause, String message, Object... args) {
+    ExternalUnavailableException(boolean throttling, Throwable cause, String message, Object... args) {
         super(cause, message, args);
         this.throttling = throttling;
+        this.retryAfterMs = 0L;
     }
 
-    public ExternalUnavailableException(boolean throttling, String message, Object... args) {
+    ExternalUnavailableException(boolean throttling, String message, Object... args) {
         super(message, args);
         this.throttling = throttling;
+        this.retryAfterMs = 0L;
+    }
+
+    /**
+     * Constructs a throttle exception carrying an explicit server-supplied retry-after hint.
+     *
+     * @param throttling     {@code true} for a 429/503 throttle signal
+     * @param retryAfterMs   server-suggested wait in milliseconds; 0 means absent
+     * @param cause          underlying cause
+     * @param message        format string
+     * @param args           format arguments
+     */
+    ExternalUnavailableException(boolean throttling, long retryAfterMs, Throwable cause, String message, Object... args) {
+        super(cause, message, args);
+        this.throttling = throttling;
+        this.retryAfterMs = retryAfterMs > 0 ? retryAfterMs : 0L;
+    }
+
+    /**
+     * Constructs a throttle exception carrying an explicit server-supplied retry-after hint (no cause).
+     *
+     * @param throttling     {@code true} for a 429/503 throttle signal
+     * @param retryAfterMs   server-suggested wait in milliseconds; 0 means absent
+     * @param message        format string
+     * @param args           format arguments
+     */
+    ExternalUnavailableException(boolean throttling, long retryAfterMs, String message, Object... args) {
+        super(message, args);
+        this.throttling = throttling;
+        this.retryAfterMs = retryAfterMs > 0 ? retryAfterMs : 0L;
+    }
+
+    /**
+     * Structured constructor. The condition should be {@link Condition#STORE_UNAVAILABLE} for
+     * plain transient failures or {@link Condition#STORE_THROTTLED} for back-pressure (429/503).
+     * Only the object name (last path segment) appears in the message — the full URI is never
+     * included.
+     *
+     * @param condition      {@link Condition#STORE_UNAVAILABLE} or {@link Condition#STORE_THROTTLED}
+     * @param path           storage path — only {@link StoragePath#objectName()} is used in the message
+     * @param detailCode     short qualifier, e.g. "HTTP 503"; empty string if absent
+     * @param remedy         actionable advice; empty string if absent
+     * @param throttling     {@code true} for a 429/503 back-pressure signal
+     * @param retryAfterMs   server-suggested wait in milliseconds; 0 means absent
+     * @param cause          underlying cause
+     */
+    public ExternalUnavailableException(
+        Condition condition,
+        StoragePath path,
+        String detailCode,
+        String remedy,
+        boolean throttling,
+        long retryAfterMs,
+        Throwable cause
+    ) {
+        super(condition, path, detailCode, remedy, cause);
+        this.throttling = throttling;
+        this.retryAfterMs = retryAfterMs > 0 ? retryAfterMs : 0L;
+    }
+
+    /**
+     * Structured constructor without a cause.
+     * See {@link #ExternalUnavailableException(Condition, StoragePath, String, String, boolean, long, Throwable)}.
+     */
+    public ExternalUnavailableException(
+        Condition condition,
+        StoragePath path,
+        String detailCode,
+        String remedy,
+        boolean throttling,
+        long retryAfterMs
+    ) {
+        super(condition, path, detailCode, remedy);
+        this.throttling = throttling;
+        this.retryAfterMs = retryAfterMs > 0 ? retryAfterMs : 0L;
+    }
+
+    private ExternalUnavailableException(ExternalUnavailableException source) {
+        super(source);
+        this.throttling = source.throttling;
+        this.retryAfterMs = source.retryAfterMs;
+    }
+
+    @Override
+    protected ExternalUnavailableException copyWithoutCause() {
+        return new ExternalUnavailableException(this);
     }
 
     @Override
@@ -64,6 +157,36 @@ public final class ExternalUnavailableException extends ExternalException {
      */
     public boolean throttling() {
         return throttling;
+    }
+
+    /**
+     * Server-supplied retry-after hint in milliseconds, or {@code 0} if the server sent no hint.
+     * When non-zero, the retry policy uses this as the backoff delay instead of its computed value,
+     * provided the hint fits within the remaining time budget.
+     */
+    public long retryAfterMs() {
+        return retryAfterMs;
+    }
+
+    /**
+     * Parses a {@code Retry-After} HTTP header value (integer seconds as sent by S3, Azure, and GCS)
+     * to milliseconds. Returns {@code 0} if the value is absent, blank, non-positive, or unparseable
+     * (the HTTP-date form is not supported — cloud stores use integer seconds in practice).
+     */
+    public static long parseRetryAfterMs(String headerValue) {
+        if (headerValue == null || headerValue.isBlank()) {
+            return 0L;
+        }
+        try {
+            long seconds = Long.parseLong(headerValue.strip());
+            if (seconds <= 0) {
+                return 0L;
+            }
+            // Cap before multiplying to avoid overflow; no real server sends more than a day.
+            return Math.min(seconds, 86_400L) * 1000L;
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
     }
 
     /**

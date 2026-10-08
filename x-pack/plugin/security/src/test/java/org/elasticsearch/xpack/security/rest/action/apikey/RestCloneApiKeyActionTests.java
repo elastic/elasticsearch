@@ -90,6 +90,30 @@ public class RestCloneApiKeyActionTests extends ESTestCase {
         }
     }
 
+    public void testParseXContentWithExpirationNullFollowedByMetadata() throws Exception {
+        // Regression test: a `null` expiration must not consume the field that follows it in the body.
+        final String encodedApiKey = randomBase64ApiKey();
+        final String name = randomAlphaOfLength(8);
+        try (
+            XContentParser parser = createParser(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("api_key", encodedApiKey)
+                    .field("name", name)
+                    .nullField("expiration")
+                    .startObject("metadata")
+                    .field("foo", "bar")
+                    .endObject()
+                    .endObject()
+            )
+        ) {
+            CloneApiKeyRequest request = RestCloneApiKeyAction.PARSER.parse(parser, null);
+            assertThat(request.getExpiration(), equalTo(TimeValue.MINUS_ONE));
+            assertThat(request.getMetadata(), notNullValue());
+            assertThat(request.getMetadata(), is(Map.of("foo", "bar")));
+        }
+    }
+
     public void testParseXContentWithMetadata() throws Exception {
         final String encodedApiKey = randomBase64ApiKey();
         final String name = randomAlphaOfLength(8);

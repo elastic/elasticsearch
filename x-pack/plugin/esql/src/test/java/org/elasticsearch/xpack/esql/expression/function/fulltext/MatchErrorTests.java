@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -38,7 +37,7 @@ public class MatchErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        Match match = new Match(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null, EsqlTestUtils.TEST_CFG);
+        Match match = new Match(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
         // We need to add the QueryBuilder to the match expression, as it is used to implement equals() and hashCode() and
         // thus test the serialization methods. But we can only do this if the parameters make sense .
         if (args.get(0) instanceof FieldAttribute && args.get(1).foldable()) {

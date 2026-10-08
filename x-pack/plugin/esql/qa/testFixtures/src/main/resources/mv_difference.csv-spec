@@ -88,3 +88,15 @@ FROM employees
 first_name:keyword | job_positions:keyword                                             | result:keyword
 Shahaf             | [Data Scientist, Internship, Python Developer, Reporting Analyst] | [Data Scientist, Python Developer, Reporting Analyst] 
 ;
+
+mvDifference_from_keyword_field2
+required_capability: fn_mv_difference
+FROM employees
+| WHERE emp_no == 10001
+| KEEP emp_no, job_positions, last_name
+| EVAL result = mv_difference(job_positions, last_name)
+;
+
+emp_no:integer | job_positions:keyword                  | last_name:keyword | result:keyword
+10001          | [Accountant, Senior Python Developer]  | Facello           | [Accountant, Senior Python Developer] 
+;

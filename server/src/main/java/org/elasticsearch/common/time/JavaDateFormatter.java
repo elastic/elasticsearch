@@ -34,7 +34,7 @@ class JavaDateFormatter implements DateFormatter {
         if (parser instanceof JavaTimeDateTimeParser jtp) {
             return (T) defaultRoundUp(jtp);
         }
-        if (parser instanceof Iso8601DateTimeParser iso) {
+        if (parser instanceof FastDateTimeParser iso) {
             return (T) defaultRoundUp(iso);
         }
         throw new IllegalArgumentException("Unknown parser implementation " + parser.getClass());
@@ -85,7 +85,7 @@ class JavaDateFormatter implements DateFormatter {
         return new JavaTimeDateTimeParser(builder.toFormatter(parser.getLocale()));
     }
 
-    private static Iso8601DateTimeParser defaultRoundUp(Iso8601DateTimeParser parser) {
+    private static FastDateTimeParser defaultRoundUp(FastDateTimeParser parser) {
         return parser.withDefaults(
             Map.ofEntries(
                 entry(ChronoField.MONTH_OF_YEAR, 1),
@@ -338,7 +338,7 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj.getClass().equals(this.getClass()) == false) {
+        if (obj == null || obj.getClass().equals(this.getClass()) == false) {
             return false;
         }
         JavaDateFormatter other = (JavaDateFormatter) obj;

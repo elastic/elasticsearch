@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
@@ -30,8 +31,8 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
-import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
@@ -301,7 +302,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
     }
 
     /**
-     * Verify that the `withoutFields` parameter correctly excludes labels from the output.
+     * Verify that the `skipFieldNames` parameter correctly excludes labels from the output.
      * When using PromQL's `without(instance)` clause, the `instance` label must not appear
      * in the emitted `_timeseries` JSON.
      */
@@ -332,7 +333,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
 
     /**
      * Regression test for OTel passthrough alias exclusion (GitHub issue #151540). PromQL
-     * {@code without(cpu)} passes the short alias name {@code "cpu"} in {@code withoutFields}. The block
+     * {@code without(cpu)} passes the short alias name {@code "cpu"} in {@code skipFieldNames}. The block
      * loader must resolve the alias to the concrete dimension path {@code "attributes.cpu"} (via
      * {@link MappingLookup#getFieldType}) so the exclusion actually matches and the dimension is dropped from
      * the {@code _timeseries} source paths. Before the fix, {@code "cpu" != "attributes.cpu"} caused the
@@ -350,7 +351,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
 
     /**
      * Prometheus-style passthrough: {@code labels.job} is exposed as the short alias {@code job} at the
-     * root level. Passing {@code "job"} in withoutFields must resolve to {@code "labels.job"} and exclude
+     * root level. Passing {@code "job"} in skipFieldNames must resolve to {@code "labels.job"} and exclude
      * it, leaving only {@code labels.__name__} and {@code labels.instance}.
      */
     public void testPrometheusPassthroughAliasExcludedByShortName() throws IOException {
@@ -377,7 +378,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
     }
 
     /**
-     * An unknown field in withoutFields must be silently ignored: the exclusion simply
+     * An unknown field in skipFieldNames must be silently ignored: the exclusion simply
      * does not match any dimension and the full dimension set is returned.
      */
     public void testWithoutUnknownFieldIsIgnored() throws IOException {
@@ -447,8 +448,8 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
                 SourceFilter filter = loaderSpec.requiresSource()
                     ? new SourceFilter(loaderSpec.sourcePaths().toArray(new String[0]), null)
                     : null;
-                SourceLoader sourceLoader = mapperService.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP);
-                SourceLoader.Leaf sourceLeaf = sourceLoader.leaf(ctx.reader(), null);
+                SourceLoader sourceLoader = mapperService.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP, null);
+                SourceLoader.Leaf sourceLeaf = sourceLoader.leaf(ctx, null);
                 StoredFieldsSpec storedFieldsSpec = loaderSpec.merge(
                     new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields())
                 );
@@ -486,7 +487,14 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
             (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
         );
         IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
-            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
+            new PerFieldMapperCodec(
+                Lucene104Codec.Mode.BEST_SPEED,
+                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                mapperService,
+                BigArrays.NON_RECYCLING_INSTANCE,
+                null
+            )
         );
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);

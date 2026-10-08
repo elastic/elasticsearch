@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.execute;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,7 +28,7 @@ import java.util.Map;
 /**
  * A request to execute a watch by id
  */
-public class ExecuteWatchRequest extends LegacyActionRequest {
+public class ExecuteWatchRequest extends UntypedActionRequest {
 
     public static final String INLINE_WATCH_ID = "_inlined_";
 

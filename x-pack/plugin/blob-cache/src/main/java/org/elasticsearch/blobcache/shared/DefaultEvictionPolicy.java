@@ -7,14 +7,18 @@
 
 package org.elasticsearch.blobcache.shared;
 
+import org.elasticsearch.core.Predicates;
+
+import java.util.function.Predicate;
+
 /**
  * Default eviction policy where all entries are evictable.
  */
 public class DefaultEvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> implements EvictionPolicy<KeyType> {
 
     @Override
-    public boolean canEvict(CacheRegion<KeyType> region, CacheRegion<KeyType> incoming) {
-        return true;
+    public Predicate<CacheRegion<KeyType>> createPredicate(CacheRegion<KeyType> incoming) {
+        return Predicates.always();
     }
 
     @Override

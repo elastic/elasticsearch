@@ -55,7 +55,9 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
+import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collection;
@@ -84,9 +86,8 @@ public class ClusterModuleTests extends ModuleTestCase {
         threadPool = null;
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initClusterService() throws Exception {
         clusterService = new ClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -95,9 +96,8 @@ public class ClusterModuleTests extends ModuleTestCase {
         );
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeClusterService() throws Exception {
         clusterService.close();
     }
 

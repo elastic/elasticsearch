@@ -21,9 +21,9 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
@@ -147,7 +147,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                     if (agg instanceof Alias as) {
                         Expression child = as.child();
                         if (child instanceof Count || child instanceof CountApproximate) {
-                            AggregateFunction count = (AggregateFunction) child;
+                            UnaryAggregateFunction count = (UnaryAggregateFunction) child;
                             var target = count.field();
                             String fieldName = null;
                             QueryBuilder query = null;
@@ -159,7 +159,8 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                             else {
                                 if (target instanceof FieldAttribute fa) {
                                     var fName = fa.fieldName();
-                                    if (context.searchStats().isSingleValue(fName)) {
+                                    // Potentially unmapped fields don't appear in the mapping and shouldn't be filtered on.
+                                    if (fa.isPotentiallyUnmapped() == false && context.searchStats().isSingleValue(fName)) {
                                         fieldName = fName.string();
                                         query = QueryBuilders.existsQuery(fieldName);
                                     }

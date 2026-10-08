@@ -36,6 +36,10 @@ public interface IndexSettingProvider {
      *                                              otherwise <code>null</code>
      * @param templateIndexMode                     The index mode defined in template if template creates data streams,
      *                                              otherwise <code>null</code> is returned.
+     * @param registryInstalledTemplate             {@code true} when the matched composable index template is owned by an
+     *                                              {@code IndexTemplateRegistry}
+     *                                              {@code false} when no composable template matched or when the matched
+     *                                              template does not carry that flag
      * @param projectMetadata                       The current project metadata instance that doesn't yet contain the index to be created
      * @param resolvedAt                            The time the request to create this new index was accepted.
      * @param indexTemplateAndCreateRequestSettings All the settings resolved from the template that matches and any settings
@@ -51,6 +55,7 @@ public interface IndexSettingProvider {
         String indexName,
         @Nullable String dataStreamName,
         @Nullable IndexMode templateIndexMode,
+        boolean registryInstalledTemplate,
         ProjectMetadata projectMetadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,

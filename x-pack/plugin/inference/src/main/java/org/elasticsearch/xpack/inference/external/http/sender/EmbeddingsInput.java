@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
@@ -20,26 +21,52 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class EmbeddingsInput extends InferenceInputs {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(EmbeddingsInput.class);
+    private static final long INPUT_TYPE_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InputType.class);
+
     private final Supplier<List<InferenceStringGroup>> inputListSupplier;
     private final InputType inputType;
     private final AtomicBoolean supplierInvoked = new AtomicBoolean();
+    private final long estimatedSizeInBytes;
+    private final long supplierShallowSize;
 
-    public EmbeddingsInput(List<String> input, @Nullable InputType inputType) {
-        this(() -> input.stream().map(InferenceStringGroup::new).collect(Collectors.toList()), inputType, false);
+    public EmbeddingsInput(List<InferenceStringGroup> input, @Nullable InputType inputType, boolean stream) {
+        this(() -> input, estimateSizeInBytes(input), inputType, stream);
     }
 
-    public EmbeddingsInput(List<String> input, @Nullable InputType inputType, boolean stream) {
-        this(() -> input.stream().map(InferenceStringGroup::new).collect(Collectors.toList()), inputType, stream);
+    public EmbeddingsInput(List<InferenceStringGroup> input, @Nullable InputType inputType) {
+        this(() -> input, estimateSizeInBytes(input), inputType);
     }
 
-    public EmbeddingsInput(Supplier<List<InferenceStringGroup>> inputSupplier, @Nullable InputType inputType) {
-        this(inputSupplier, inputType, false);
+    public EmbeddingsInput(Supplier<List<InferenceStringGroup>> inputSupplier, long estimatedSizeInBytes, @Nullable InputType inputType) {
+        this(inputSupplier, estimatedSizeInBytes, inputType, false);
     }
 
-    private EmbeddingsInput(Supplier<List<InferenceStringGroup>> inputSupplier, @Nullable InputType inputType, boolean stream) {
+    private EmbeddingsInput(
+        Supplier<List<InferenceStringGroup>> inputSupplier,
+        long estimatedSizeInBytes,
+        @Nullable InputType inputType,
+        boolean stream
+    ) {
         super(stream);
         this.inputListSupplier = Objects.requireNonNull(inputSupplier);
         this.inputType = inputType;
+        this.estimatedSizeInBytes = estimatedSizeInBytes;
+        this.supplierShallowSize = RamUsageEstimator.shallowSizeOf(inputSupplier);
+    }
+
+    public static EmbeddingsInput fromStrings(List<String> input, @Nullable InputType inputType) {
+        return fromStrings(input, inputType, false);
+    }
+
+    public static EmbeddingsInput fromStrings(List<String> input, @Nullable InputType inputType, boolean stream) {
+        var groups = input.stream().map(InferenceStringGroup::new).collect(Collectors.toList());
+        return new EmbeddingsInput(groups, inputType, stream);
+    }
+
+    private static long estimateSizeInBytes(List<InferenceStringGroup> input) {
+        return RamUsageEstimator.sizeOfCollection(input);
     }
 
     /**
@@ -83,5 +110,11 @@ public class EmbeddingsInput extends InferenceInputs {
         // We can't measure the size of the input list without executing
         // the supplier.
         return false;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        var inputTypeRamBytesUsed = inputType == null ? 0L : INPUT_TYPE_SHALLOW_SIZE;
+        return SHALLOW_SIZE + inputTypeRamBytesUsed + supplierShallowSize + estimatedSizeInBytes;
     }
 }

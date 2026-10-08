@@ -52,7 +52,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 /**
  * Represents a Lucene commit point with additional information required to manage this commit in the object store as well as locally. Such
- * objects are uploaded to the object store as binary blobs.
+ * objects are uploaded to the object store as part of {@link BatchedCompoundCommit} binary blobs.
  *
  * A hollow commit is one that does not have translog and will be recovered with a hollow engine (i.e., not fully ready for ingestion, but
  * will be loaded when ingestion first comes). For a hollow commit, the translog recovery start file is set to
@@ -160,8 +160,6 @@ public record StatelessCompoundCommit(
         );
     }
 
-    public static final String PREFIX = "stateless_commit_";
-
     public static boolean isGenerationalFile(String file) {
         return file.startsWith("_") && (file.endsWith(".tmp") == false) && IndexFileNames.parseGeneration(file) > 0L;
     }
@@ -203,23 +201,7 @@ public record StatelessCompoundCommit(
     }
 
     public String toShortDescription() {
-        return '[' + blobNameFromGeneration(generation()) + "][" + primaryTerm() + "][" + generation() + ']' + (hollow() ? "[h]" : "");
-    }
-
-    public String toLongDescription() {
-        return shardId
-            + toShortDescription()
-            + '['
-            + translogRecoveryStartFile
-            + "]["
-            + nodeEphemeralId
-            + "]["
-            + commitFiles
-            + "]["
-            + extraContent
-            + "]["
-            + timestampFieldValueRange
-            + ']';
+        return "[term:" + primaryTerm() + "][gen:" + generation() + ']' + (hollow() ? "[h]" : "");
     }
 
     @Override
@@ -311,6 +293,19 @@ public record StatelessCompoundCommit(
     }
 
     /**
+     * Returns the BCC blob file that physically contains this compound commit's internal files.
+     */
+    public BlobFile getContainingBccBlobFile() {
+        for (String internalFile : internalFiles) {
+            BlobLocation location = commitFiles.get(internalFile);
+            assert location != null : "internal file [" + internalFile + "] does not exist as a commit file [" + commitFiles + "]";
+            return location.blobFile();
+        }
+        assert false : "a commit should always have at least one internal file";
+        return null;
+    }
+
+    /**
      * Returns the "first" blob location of the internal files after comparing all the offsets in the current term and
      * generation using the provided comparator.
      *
@@ -332,6 +327,10 @@ public record StatelessCompoundCommit(
         }
         assert commitBoundary != null : "commit must have at least the segments_N file in the current term and generation";
         return commitBoundary;
+    }
+
+    public Set<BlobFile> getBlobFiles() {
+        return commitFiles.values().stream().map(BlobLocation::blobFile).collect(Collectors.toSet());
     }
 
     /**
@@ -637,7 +636,7 @@ public record StatelessCompoundCommit(
         @Nullable TimestampFieldValueRange timestampFieldValueRange
     ) {
         PrimaryTermAndGeneration bccTermAndGen = new PrimaryTermAndGeneration(primaryTerm, bccGenSupplier.apply(generation));
-        var blobFile = new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation()), bccTermAndGen);
+        var blobFile = new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation()), bccTermAndGen);
         final var combinedCommitFilesResult = combineCommitFiles(
             blobFile,
             replicatedContentRanges,
@@ -683,6 +682,10 @@ public record StatelessCompoundCommit(
 
         public TimestampFieldValueRange(StreamInput in) throws IOException {
             this(in.readLong(), in.readLong());
+        }
+
+        public long midpointMillis() {
+            return minMillis + (maxMillis - minMillis) / 2;
         }
 
         @Override
@@ -744,23 +747,6 @@ public record StatelessCompoundCommit(
     static {
         SHARD_ID_PARSER.declareObject(constructorArg(), (p, c) -> Index.fromXContent(p), new ParseField("index"));
         SHARD_ID_PARSER.declareInt(constructorArg(), new ParseField("id"));
-    }
-
-    // Since CC and BCC share the same naming scheme, this method works equally for both of them.
-    public static boolean startsWithBlobPrefix(String name) {
-        return name.startsWith(StatelessCompoundCommit.PREFIX);
-    }
-
-    // Since CC and BCC share the same naming scheme, this method works equally for both of them.
-    public static String blobNameFromGeneration(long generation) {
-        assert generation > 0 : generation;
-        return StatelessCompoundCommit.PREFIX + generation;
-    }
-
-    // Since CC and BCC share the same naming scheme, this method works equally for both of them.
-    public static long parseGenerationFromBlobName(String name) {
-        assert startsWithBlobPrefix(name) : name;
-        return Long.parseLong(name.substring(name.lastIndexOf('_') + 1));
     }
 
     private static boolean assertSortedBySize(Iterable<InternalFile> files) {

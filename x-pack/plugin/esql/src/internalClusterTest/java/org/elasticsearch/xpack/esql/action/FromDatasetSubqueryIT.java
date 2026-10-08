@@ -8,30 +8,24 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
-import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
-import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
-import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
-import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
-import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,8 +33,12 @@ import java.util.Set;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * End-to-end integration for subqueries in the FROM clause whose source is a registered dataset
@@ -50,53 +48,16 @@ import static org.hamcrest.Matchers.hasSize;
  * {@code UnresolvedExternalRelation} composes correctly with the {@code UnionAll} the subquery-in-FROM machinery emits.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
-public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
+public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
 
-    private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
     private Path csvFixture;
     private Path csvFixtureAlt;
     private Path csvFixtureSalaryInt;
     private Path csvFixtureSalaryLong;
 
-    public static final class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
-        @Override
-        public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
-            return Map.of("test", new TestValidator());
-        }
-    }
-
-    private static final class TestValidator implements DataSourceValidator {
-        @Override
-        public String type() {
-            return "test";
-        }
-
-        @Override
-        public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
-            Map<String, DataSourceSetting> out = new HashMap<>();
-            for (Map.Entry<String, Object> e : datasourceSettings.entrySet()) {
-                out.put(e.getKey(), new DataSourceSetting(e.getValue(), e.getKey().startsWith("secret_")));
-            }
-            return out;
-        }
-
-        @Override
-        public Map<String, Object> validateDataset(
-            Map<String, DataSourceSetting> datasourceSettings,
-            String resource,
-            Map<String, Object> datasetSettings
-        ) {
-            return datasetSettings == null ? Map.of() : new HashMap<>(datasetSettings);
-        }
-    }
-
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(CsvDataSourcePlugin.class);
-        plugins.add(TestDataSourcePlugin.class);
-        return plugins;
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(CsvDataSourcePlugin.class);
     }
 
     @Override
@@ -107,15 +68,6 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     @Before
     public void requireCapability() {
         assumeTrue("requires external dataset in from command support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
-    }
-
-    private static void requireInSubquery() {
-        assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-
-    }
-
-    private static void requireWhereInSubqueryWithTS() {
-        assumeTrue("Requires IN subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
     }
 
     @Before
@@ -159,29 +111,32 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    /**
-     * Names every dataset {@code testXxx} bodies PUT. New tests must register their dataset name here so the SUITE-scoped cluster
-     * doesn't carry state across methods.
-     */
-    private static final Set<String> CREATED_DATASETS = Set.of("employees", "employees_alt", "salaries_int", "salaries_long");
+    /** Names every view {@code testXxx} bodies PUT, dropped after each method so the SUITE cluster stays clean. */
+    private static final Set<String> CREATED_VIEWS = Set.of(
+        "emp_meta_view",
+        "emp_ds_view",
+        "emp_union_view",
+        "emp_alt_view",
+        "emp_subq_view",
+        "emp_fork_view"
+    );
 
+    /**
+     * Datasets and the {@code local_ds} data source are registered through the base
+     * {@link AbstractExternalDataSourceIT#registerDataset}/{@link AbstractExternalDataSourceIT#registerDataSource}
+     * helpers, so the base {@code cleanupRegistry()} tears them down. Only views need bespoke teardown here.
+     */
     @After
-    public void cleanupRegistry() {
-        for (String ds : CREATED_DATASETS) {
+    public void cleanupViews() {
+        for (String view : CREATED_VIEWS) {
             try {
-                client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds)).actionGet(TIMEOUT);
+                client().execute(DeleteViewAction.INSTANCE, new DeleteViewAction.Request(TIMEOUT, TIMEOUT, new String[] { view }))
+                    .actionGet(TIMEOUT);
             } catch (ResourceNotFoundException ignored) {
-                // already deleted by the test itself
+                // not created by this test
             } catch (Exception e) {
-                logger.warn("dataset cleanup [{}] failed", ds, e);
+                logger.warn("view cleanup [{}] failed", view, e);
             }
-        }
-        try {
-            client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds")).actionGet(TIMEOUT);
-        } catch (ResourceNotFoundException ignored) {
-            // already deleted by the test itself
-        } catch (Exception e) {
-            logger.warn("data source cleanup [local_ds] failed", e);
         }
     }
 
@@ -348,24 +303,77 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
         assertThat(((Number) rows.get(3).get(2)).longValue(), equalTo(75000L));
     }
 
-    public void testMixedTargetsInSubqueryRejected() {
+    /**
+     * A subquery that mixes a real index with a dataset is allowed — {@code DatasetRewriter} builds a
+     * {@code UnionAll} for the inner {@code FROM real_employees, employees} instead of rejecting it.
+     * The outer query sees a single subquery result; real_employees rows carry nulls for the dataset-only columns.
+     */
+    public void testMixedTargetsInSubqueryAllowed() {
         createRealEmployees();
         registerEmployees();
 
-        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM (FROM real_employees, employees)"), TIMEOUT));
-        assertCauseMessageContains(ex, "mixing datasets and non-datasets");
+        try (var response = run(syncEsqlQueryRequest("FROM (FROM real_employees, employees) | SORT emp_no, first_name"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(5));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(8)); // 5 from real_employees + 3 from employees
+
+            int empNoIdx = columns.stream().map(ColumnInfo::name).toList().indexOf("emp_no");
+            int firstNameIdx = columns.stream().map(ColumnInfo::name).toList().indexOf("first_name");
+            int lastNameIdx = columns.stream().map(ColumnInfo::name).toList().indexOf("last_name");
+
+            // emp_no=1: dataset row (Alice) sorts before index row (Alice-real)
+            assertThat(rows.get(0).get(empNoIdx), equalTo(1));
+            assertThat(rows.get(0).get(firstNameIdx).toString(), equalTo("Alice"));
+            assertThat(rows.get(0).get(lastNameIdx).toString(), equalTo("Anderson"));
+            assertThat(rows.get(1).get(empNoIdx), equalTo(1));
+            assertThat(rows.get(1).get(firstNameIdx).toString(), equalTo("Alice-real"));
+            assertNull(rows.get(1).get(lastNameIdx)); // real_employees has no last_name
+
+            // emp_no=2: dataset only
+            assertThat(rows.get(2).get(empNoIdx), equalTo(2));
+            assertThat(rows.get(2).get(firstNameIdx).toString(), equalTo("Bob"));
+
+            // emp_no=3: dataset row (Carol) then index row (Carol-real)
+            assertThat(rows.get(3).get(empNoIdx), equalTo(3));
+            assertThat(rows.get(3).get(firstNameIdx).toString(), equalTo("Carol"));
+            assertThat(rows.get(4).get(empNoIdx), equalTo(3));
+            assertThat(rows.get(4).get(firstNameIdx).toString(), equalTo("Carol-real"));
+            assertNull(rows.get(4).get(lastNameIdx));
+
+            // emp_no >= 99: real_employees only, null-padded
+            assertThat(rows.get(5).get(empNoIdx), equalTo(99));
+            assertNull(rows.get(5).get(lastNameIdx));
+            assertThat(rows.get(6).get(empNoIdx), equalTo(100));
+            assertThat(rows.get(7).get(empNoIdx), equalTo(101));
+        }
     }
 
-    public void testIndexInMainMultipleDatasetInSubqueryRejected() {
+    public void testIndexInMainMultipleDatasetInSubquery() {
         createRealEmployees();
         registerEmployees();
         registerEmployeesAlt();
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM real_employees, (FROM employees, employees_alt) | SORT emp_no, first_name"),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(10)); // 5 from real_employees + 3 from employees + 2 from employees_alt
 
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM real_employees, (FROM employees, employees_alt)"), TIMEOUT)
-        );
-        assertCauseMessageContains(ex, "Nested subqueries are not supported");
+            // same union as testIndexInMainDatasetInSubquery, spot-check the overlap rows and branch provenance
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            assertThat(rows.get(1).get(0), equalTo(1));
+            assertThat(rows.get(1).get(1).toString(), equalTo("Alice-real"));
+            assertNull(rows.get(1).get(2)); // real_employees has no last_name
+            assertThat(rows.get(5).get(0), equalTo(10));
+            assertThat(rows.get(5).get(1).toString(), equalTo("Diana"));
+            assertThat(rows.get(9).get(0), equalTo(101));
+            assertThat(rows.get(9).get(1).toString(), equalTo("Grace"));
+        }
     }
 
     // With basic(WHERE/STATS/KEEP/EVAL) processing command in subqueries or main query
@@ -549,15 +557,78 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testMetadataOnDatasetInSubqueryRejected() {
+    public void testMetadataOnDatasetInSubquery() {
         registerEmployees();
 
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM (FROM employees METADATA _index | KEEP _index) | LIMIT 1"), TIMEOUT)
-        );
-        assertCauseMessageContains(ex, "METADATA fields are not supported on datasets");
-        assertCauseMessageContains(ex, "employees");
+        // Standard metadata binds on a dataset inside a subquery, consistent with how it binds on a
+        // regular index in the same position (see IndexResolutionIT / subquery.csv-spec). On a dataset
+        // _index answers NULL -- a dataset is not an index -- and what this test pins is that it binds
+        // and surfaces, not what it holds. KEEP is irrelevant to metadata presence on the FROM path:
+        // METADATA _index surfaces _index with no explicit KEEP.
+        try (var response = run(syncEsqlQueryRequest("FROM (FROM employees METADATA _index) | LIMIT 1"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat("_index must surface without an explicit KEEP, got " + names, names, hasItem("_index"));
+
+            int idx = names.indexOf("_index");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat("_index is null on a dataset", rows.get(0).get(idx), nullValue());
+        }
+    }
+
+    public void testFileMetadataOnDatasetInSubquery() {
+        registerEmployees();
+
+        // KEEP is irrelevant to metadata presence on the FROM path: METADATA _file.path must surface
+        // _file.path in the output with NO explicit KEEP, inside a subquery too.
+        try (var response = run(syncEsqlQueryRequest("FROM (FROM employees METADATA _file.path) | LIMIT 1"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            List<String> names = columns.stream().map(ColumnInfo::name).toList();
+            assertThat("_file.path must surface without an explicit KEEP, got " + names, names, hasItem("_file.path"));
+
+            int idx = names.indexOf("_file.path");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.get(0).get(idx), notNullValue());
+            assertThat(rows.get(0).get(idx).toString(), containsString(".csv"));
+        }
+    }
+
+    public void testMetadataSurvivesDeepSubqueryNesting() {
+        registerEmployees();
+
+        // Surfacing is independent of subquery depth: METADATA named two levels down still reaches the
+        // top-level output with no KEEP at any level. Mixes standard (_index) and file (_file.path)
+        // metadata in one clause to prove both families ride the same no-KEEP path.
+        try (var response = run(syncEsqlQueryRequest("FROM (FROM (FROM employees METADATA _index, _file.path)) | LIMIT 1"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat("_index must surface through nested subqueries without KEEP, got " + names, names, hasItem("_index"));
+            assertThat("_file.path must surface through nested subqueries without KEEP, got " + names, names, hasItem("_file.path"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(names.indexOf("_index")), nullValue());
+            assertThat(rows.get(0).get(names.indexOf("_file.path")).toString(), containsString(".csv"));
+        }
+    }
+
+    public void testMetadataSurfacesThroughViewOverDataset() {
+        registerEmployees();
+        createView("emp_meta_view", "FROM employees METADATA _index, _file.path");
+
+        // A view is a saved query; FROM <view> expands to it, so metadata named in the view's body
+        // surfaces at the call site with no KEEP — directly and inside a subquery, matching the FROM
+        // contract. The view body carries the METADATA clause; the caller adds nothing.
+        for (String query : List.of("FROM emp_meta_view | LIMIT 1", "FROM (FROM emp_meta_view) | LIMIT 1")) {
+            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+                List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+                assertThat(query + " must surface _index without KEEP, got " + names, names, hasItem("_index"));
+                assertThat(query + " must surface _file.path without KEEP, got " + names, names, hasItem("_file.path"));
+
+                List<List<Object>> rows = getValuesList(response);
+                assertThat(rows.get(0).get(names.indexOf("_index")), nullValue());
+                assertThat(rows.get(0).get(names.indexOf("_file.path")).toString(), containsString(".csv"));
+            }
+        }
     }
 
     // More processing pipelines inside the subquery
@@ -832,26 +903,72 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    // Full-text functions against external data sources
-
-    public void testMatchOnDatasetFieldRejected() {
+    public void testMatchAfterSubquery() {
         registerEmployees();
+        registerEmployeesAlt();
 
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE MATCH(first_name, \"Alice\"))"), TIMEOUT)
-        );
-        assertCauseMessageContains(ex, "[MATCH] function cannot operate on [first_name], which is not a field from an index mapping");
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees METADATA _index), (FROM employees_alt METADATA _index)
+            | WHERE MATCH(first_name, "Alice")
+            | KEEP first_name, last_name, _index
+            | SORT _index
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("first_name", "last_name", "_index"));
+            assertColumnTypes(response.columns(), List.of("keyword", "keyword", "keyword"));
+            // Both branches are datasets, so _index is null on either side of the union.
+            assertValues(response.values(), List.of(Arrays.asList("Alice", "Anderson", null)));
+        }
     }
 
-    public void testMatchPhraseOnDatasetFieldRejected() {
+    // Full-text functions against external data sources
+    public void testMatchOnDatasetField() {
+        registerEmployees();
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees | WHERE MATCH(first_name, "Alice"))
+            | KEEP first_name, last_name
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("first_name", "last_name"));
+            assertColumnTypes(response.columns(), List.of("keyword", "keyword"));
+            assertValues(response.values(), List.of(List.of("Alice", "Anderson")));
+        }
+    }
+
+    /**
+     * The values analyzer of a dataset-backed text column is declared through TO_TEXT, exactly as for any other
+     * runtime column: with the whitespace analyzer declared, the (defaulted) query analyzer keeps case too, so
+     * matching turns case-sensitive.
+     */
+    public void testMatchOnDatasetFieldWithDeclaredAnalyzer() {
+        registerEmployees();
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees | EVAL name = TO_TEXT(first_name, {"analyzer": "whitespace"}) | WHERE MATCH(name, "Alice"))
+            | KEEP first_name
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("first_name"));
+            assertValues(response.values(), List.of(List.of("Alice")));
+        }
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees | EVAL name = TO_TEXT(first_name, {"analyzer": "whitespace"}) | WHERE MATCH(name, "alice"))
+            | KEEP first_name
+            """), TIMEOUT)) {
+            assertValues(response.values(), List.of());
+        }
+    }
+
+    /**
+     * MATCH_PHRASE on a dataset (keyword) field works via runtime search, matching the exact value like the term
+     * query a pushed-down match_phrase on a keyword field rewrites to.
+     */
+    public void testMatchPhraseOnDatasetField() {
         registerEmployees();
 
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE MATCH_PHRASE(first_name, \"Alice\"))"), TIMEOUT)
-        );
-        assertCauseMessageContains(ex, "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping");
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees | WHERE MATCH_PHRASE(first_name, "Alice"))
+            | KEEP first_name, last_name
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("first_name", "last_name"));
+            assertValues(response.values(), List.of(List.of("Alice", "Anderson")));
+        }
     }
 
     public void testKQLOnDatasetRejected() {
@@ -861,7 +978,11 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
             Exception.class,
             () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE KQL(\"first_name: Alice\"))"), TIMEOUT)
         );
-        assertCauseMessageContains(ex, "[KQL] function cannot be used after [FROM employees]");
+        assertCauseMessageContains(
+            ex,
+            "[KQL] function is not supported on federated data sources [employees]; it requires an index. "
+                + "Use MATCH(field, \"term\") for full-text search on non-indexed data."
+        );
     }
 
     public void testQSTROnDatasetRejected() {
@@ -871,17 +992,28 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
             Exception.class,
             () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE QSTR(\"first_name: Alice\"))"), TIMEOUT)
         );
-        assertCauseMessageContains(ex, "[QSTR] function cannot be used after [FROM employees]");
+        assertCauseMessageContains(
+            ex,
+            "[QSTR] function is not supported on federated data sources [employees]; it requires an index. "
+                + "Use MATCH(field, \"term\") for full-text search on non-indexed data."
+        );
     }
 
-    public void testMatchAfterSubqueryRejected() {
+    /**
+     * MATCH_PHRASE after a subquery union of datasets works via runtime search, mirroring
+     * {@link #testMatchAfterSubquery}.
+     */
+    public void testMatchPhraseAfterSubquery() {
         registerEmployees();
         registerEmployeesAlt();
 
-        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("""
-            FROM (FROM employees), (FROM employees_alt) | WHERE MATCH(first_name, "Alice")
-            """), TIMEOUT));
-        assertCauseMessageContains(ex, "[MATCH] function cannot operate on [first_name], which is not a field from an index mapping");
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees), (FROM employees_alt) | WHERE MATCH_PHRASE(first_name, "Alice")
+            | KEEP first_name, last_name
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("first_name", "last_name"));
+            assertValues(response.values(), List.of(List.of("Alice", "Anderson")));
+        }
     }
 
     // Mixed data types across subquery branches
@@ -955,7 +1087,6 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     // WHERE ... IN / NOT IN (subquery) crossed with external datasets
 
     public void testInSubqueryMainDatasetSubqueryIndex() {
-        requireInSubquery();
         registerEmployees();
         createRealEmployees();
 
@@ -973,7 +1104,6 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNotInSubqueryMainDatasetSubqueryIndex() {
-        requireInSubquery();
         registerEmployees();
         createRealEmployees();
 
@@ -990,7 +1120,6 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testInSubqueryMainIndexSubqueryDataset() {
-        requireInSubquery();
         registerEmployees();
         createRealEmployees();
 
@@ -1008,7 +1137,6 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNotInSubqueryMainIndexSubqueryDataset() {
-        requireInSubquery();
         registerEmployees();
         createRealEmployees();
 
@@ -1027,7 +1155,6 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testInSubqueryMainDatasetSubqueryDataset() {
-        requireInSubquery();
         registerEmployees();
         registerEmployeesAlt();
 
@@ -1045,7 +1172,6 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNotInSubqueryMainDatasetSubqueryDataset() {
-        requireInSubquery();
         registerEmployees();
         registerEmployeesAlt();
 
@@ -1064,10 +1190,151 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * An IN subquery with an empty result collapses the SEMI join to an empty {@code LocalRelation}. Previously it substituted a
+     * constant-false filter into the main plan without re-running the logical optimizer, and split discovery then pruned every file of
+     * the dataset scan. The gather exchange must survive that empty scan when the plan ends. Before the fix the exchange was collapsed
+     * and planning failed with {@code IndexOutOfBoundsException: toIndex = 2} from
+     * {@code AbstractPhysicalOperationProviders$IntermediateInputs}.
+     */
+    public void testEmptyInSubqueryThenStatsOnDataset() {
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM employees
+            | WHERE first_name IN (FROM employees | STATS c = COUNT(*) BY first_name | WHERE c > 100 | KEEP first_name)
+            | STATS count = COUNT(*)
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(0L));
+        }
+    }
+
+    public void testEmptyInSubqueryThenGroupedStatsOnDataset() {
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM employees
+            | WHERE first_name IN (FROM employees | STATS c = COUNT(*) BY first_name | WHERE c > 100 | KEEP first_name)
+            | STATS count = COUNT(*) BY department
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(0));
+        }
+    }
+
+    /**
+     * TopN rides the same preserved-exchange path as STATS for an exhaustively-pruned scan ({@code needsGatherBoundary} covers both):
+     * zero rows, no crash.
+     */
+    public void testEmptyInSubqueryThenSortOnDataset() {
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM employees
+            | WHERE first_name IN (FROM employees | STATS c = COUNT(*) BY first_name | WHERE c > 100 | KEEP first_name)
+            | SORT emp_no
+            | LIMIT 5
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(0));
+        }
+    }
+
+    /**
+     * Companion to {@link #testEmptyInSubqueryThenStatsOnDataset} with a non-empty subquery result: the substituted IN-list keeps the
+     * dataset scan alive, so this pins the unchanged collapse/scan path next to the empty one.
+     */
+    public void testNonEmptyInSubqueryThenStatsOnDataset() {
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM employees
+            | WHERE first_name IN (FROM employees | STATS c = COUNT(*) BY first_name | WHERE c >= 1 | KEEP first_name)
+            | STATS count = COUNT(*)
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
+        }
+    }
+
+    /**
+     * ANTI join, empty right side: {@code x NOT IN ()} is TRUE for every row, so {@code AntiJoin#buildEmptyRightSidePlan} substitutes
+     * a constant-true filter and the whole dataset survives. The trailing STATS pins that the surviving scan still composes with the
+     * external aggregation split (the counterpart of {@link #testEmptyInSubqueryThenStatsOnDataset}).
+     */
+    public void testNotInEmptySubqueryThenStatsOnDataset() {
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM employees
+            | WHERE first_name NOT IN (FROM employees | STATS c = COUNT(*) BY first_name | WHERE c > 100 | KEEP first_name)
+            | STATS count = COUNT(*)
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
+        }
+    }
+
+    /** Row-returning variant of {@link #testNotInEmptySubqueryThenStatsOnDataset}: every dataset row comes back. */
+    public void testNotInEmptySubqueryOnDatasetKeepsAllRows() {
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | STATS c = COUNT(*) BY emp_no | WHERE c > 100 | KEEP emp_no)
+            | SORT emp_no
+            | KEEP emp_no
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(1).get(0), equalTo(2));
+            assertThat(rows.get(2).get(0), equalTo(3));
+        }
+    }
+
+    /**
+     * ANTI join with a NULL on the right: {@code x NOT IN (..., NULL, ...)} is never TRUE (FALSE for matches, NULL otherwise), so
+     * {@code AbstractSubqueryJoin#buildShortCircuitPlan} collapses the join to an empty LocalRelation and no dataset row survives. The
+     * trailing STATS makes this the ANTI mirror of {@link #testEmptyInSubqueryThenStatsOnDataset}: with the former {@code Filter(FALSE)}
+     * substitution this shape crashed external physical planning the same way.
+     */
+    public void testNotInSubqueryWithNullThenStatsOnDataset() {
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | EVAL e = CASE(emp_no == 1, null, emp_no) | KEEP e)
+            | STATS count = COUNT(*)
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(0L));
+        }
+    }
+
+    /** Every right value NULL: same ANTI short-circuit, pinned on the row-returning path — zero rows, no crash. */
+    public void testNotInSubqueryAllNullOnDataset() {
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | EVAL e = TO_INTEGER(null) | KEEP e)
+            | SORT emp_no
+            | KEEP emp_no
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(0));
+        }
+    }
+
     // WHERE ... IN / NOT IN (subquery) crossing a time-series index with an external dataset
 
     public void testInSubqueryMainTimeSeriesIndexSubqueryDataset() {
-        requireInSubquery();
         registerEmployees();
         createTimeSeriesMetrics();
 
@@ -1084,7 +1351,6 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNotInSubqueryMainTimeSeriesIndexSubqueryDataset() {
-        requireInSubquery();
         registerEmployees();
         createTimeSeriesMetrics();
 
@@ -1101,7 +1367,6 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testInSubqueryMainDatasetSubqueryTimeSeriesIndex() {
-        requireInSubquery();
         registerEmployees();
         createTimeSeriesMetrics();
 
@@ -1119,7 +1384,6 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNotInSubqueryMainDatasetSubqueryTimeSeriesIndex() {
-        requireInSubquery();
         registerEmployees();
         createTimeSeriesMetrics();
 
@@ -1143,8 +1407,6 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     // testInSubqueryMainTimeSeriesIndexSubqueryDataset, exercising the IN/NOT IN join below a lowered TS aggregation.
 
     public void testInSubqueryMainTimeSeriesRateSubqueryDataset() {
-        requireInSubquery();
-        requireWhereInSubqueryWithTS();
         registerEmployees();
         createTimeSeriesCounters();
 
@@ -1164,8 +1426,6 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNotInSubqueryMainTimeSeriesRateSubqueryDataset() {
-        requireInSubquery();
-        requireWhereInSubqueryWithTS();
         registerEmployees();
         createTimeSeriesCounters();
 
@@ -1187,8 +1447,6 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     // index via TS with a rate(...) aggregate (instead of plain FROM). Mirrors testInSubqueryMainDatasetSubqueryTimeSeriesIndex.
 
     public void testInSubqueryMainDatasetSubqueryTimeSeriesRate() {
-        requireInSubquery();
-        requireWhereInSubqueryWithTS();
         registerEmployees();
         createTimeSeriesCounters();
 
@@ -1208,8 +1466,6 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNotInSubqueryMainDatasetSubqueryTimeSeriesRate() {
-        requireInSubquery();
-        requireWhereInSubqueryWithTS();
         registerEmployees();
         createTimeSeriesCounters();
 
@@ -1226,6 +1482,191 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
             assertThat(rows.get(0).get(1).toString(), equalTo("Engineering"));
             assertThat(rows.get(1).get(0), equalTo(2));
             assertThat(rows.get(1).get(1).toString(), equalTo("Engineering"));
+        }
+    }
+
+    // Nested subquery, view, FORK and dataset
+
+    public void testForkAfterSubqueryOnDatasets() {
+        registerEmployees();
+        registerEmployeesAlt();
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees), (FROM employees_alt)
+            | FORK (WHERE emp_no < 10) (WHERE emp_no >= 10)
+            | STATS c = COUNT(*) BY _fork
+            | KEEP _fork, c
+            | SORT _fork
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(3L));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(1).get(1), equalTo(2L));
+        }
+    }
+
+    public void testForkInsideDatasetSubquery() {
+        registerEmployees();
+        registerEmployeesAlt();
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees | FORK (WHERE department == "Engineering") (WHERE department == "Sales")),
+                 (FROM employees_alt | WHERE emp_no == 10 | EVAL _fork = "fork1")
+            | KEEP _fork, emp_no
+            | SORT _fork, emp_no
+            """), TIMEOUT)) {
+            assertThat(
+                getValuesList(response),
+                equalTo(List.of(List.of("fork1", 1), List.of("fork1", 2), List.of("fork1", 10), List.of("fork2", 3)))
+            );
+        }
+    }
+
+    public void testForkAfterViewOverDataset() {
+        registerEmployees();
+        createView("emp_ds_view", "FROM employees");
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM emp_ds_view
+            | FORK (WHERE emp_no <= 2) (WHERE emp_no > 2)
+            | KEEP _fork, emp_no
+            | SORT _fork, emp_no
+            """), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of("fork1", 1), List.of("fork1", 2), List.of("fork2", 3))));
+        }
+    }
+
+    public void testViewReferencingForkAndDataset() {
+        registerEmployees();
+        createView("emp_fork_view", "FROM employees | FORK (WHERE emp_no <= 2) (WHERE emp_no > 2)");
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM emp_fork_view
+            | STATS c = COUNT(*) BY _fork
+            | KEEP _fork, c
+            | SORT _fork
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(2L));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(1).get(1), equalTo(1L));
+        }
+    }
+
+    public void testForkAfterSubqueryDatasetView() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_alt_view", "FROM employees_alt");
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees), emp_alt_view
+            | FORK (WHERE emp_no < 10) (WHERE emp_no >= 10)
+            | STATS c = COUNT(*) BY _fork
+            | KEEP _fork, c
+            | SORT _fork
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(3L));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(1).get(1), equalTo(2L));
+        }
+    }
+
+    public void testViewReferencingForkDatasetInSubquery() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_fork_view", "FROM employees | FORK (WHERE emp_no <= 2) (WHERE emp_no > 2)");
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM emp_fork_view),
+                 (FROM employees_alt | WHERE emp_no == 10 | EVAL _fork = "fork1")
+            | STATS c = COUNT(*) BY _fork
+            | KEEP _fork, c
+            | SORT _fork
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(3L));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(1).get(1), equalTo(1L));
+        }
+    }
+
+    public void testNestedDatasetSubqueryWithRequestFilter() {
+        registerEmployees();
+        registerEmployeesAlt();
+        var request = syncEsqlQueryRequest("""
+            FROM (FROM employees, (FROM employees_alt)),
+                 (FROM employees_alt)
+            | KEEP emp_no
+            | SORT emp_no
+            """);
+        request.filter(QueryBuilders.rangeQuery("emp_no").gte(10));
+        try (var response = run(request, TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(10), List.of(10), List.of(11), List.of(11))));
+        }
+    }
+
+    public void testForkAfterSubqueryOnDatasetsWithRequestFilter() {
+        registerEmployees();
+        registerEmployeesAlt();
+        var request = syncEsqlQueryRequest("""
+            FROM (FROM employees), (FROM employees_alt)
+            | FORK (WHERE emp_no < 10) (WHERE emp_no >= 10)
+            | STATS c = COUNT(*) BY _fork
+            | KEEP _fork, c
+            | SORT _fork
+            """);
+        request.filter(QueryBuilders.rangeQuery("emp_no").gte(2));
+        try (var response = run(request, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(2L));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(1).get(1), equalTo(2L));
+        }
+    }
+
+    public void testForkAfterSubqueryDatasetViewWithRequestFilter() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_alt_view", "FROM employees_alt");
+        var request = syncEsqlQueryRequest("""
+            FROM (FROM employees), emp_alt_view
+            | FORK (WHERE emp_no < 10) (WHERE emp_no >= 10)
+            | STATS c = COUNT(*) BY _fork
+            | KEEP _fork, c
+            | SORT _fork
+            """);
+        request.filter(QueryBuilders.rangeQuery("emp_no").gte(2));
+        try (var response = run(request, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(2L));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(1).get(1), equalTo(2L));
+        }
+    }
+
+    public void testMixedViewDatasetIndexWithRequestFilter() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createRealEmployees();
+        createView("emp_fork_view", "FROM employees | FORK (WHERE emp_no <= 2) (WHERE emp_no > 2)");
+        var request = syncEsqlQueryRequest("""
+            FROM emp_fork_view, (FROM employees_alt), real_employees
+            | KEEP emp_no
+            | SORT emp_no
+            """);
+        request.filter(QueryBuilders.rangeQuery("emp_no").gte(3));
+        try (var response = run(request, TIMEOUT)) {
+            assertThat(
+                getValuesList(response),
+                equalTo(List.of(List.of(3), List.of(3), List.of(10), List.of(11), List.of(99), List.of(100), List.of(101)))
+            );
         }
     }
 
@@ -1325,44 +1766,30 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     private void registerEmployees() {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+    }
+
+    private void createView(String name, String query) {
         assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
-            )
+            client().execute(PutViewAction.INSTANCE, new PutViewAction.Request(TIMEOUT, TIMEOUT, new View(name, query))).actionGet(TIMEOUT)
         );
     }
 
     private void registerEmployeesAlt() {
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
     }
 
     /** Registers {@code salaries_int} whose {@code salary} column is typed {@code integer}. */
     private void registerSalariesInt() {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("salaries_int", "local_ds", csvFixtureSalaryInt.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("salaries_int", "local_ds", csvFixtureSalaryInt.toUri().toString(), Map.of("format", "csv"));
     }
 
     /** Registers {@code salaries_long} whose {@code salary} column is typed {@code long}. */
     private void registerSalariesLong() {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest("salaries_long", "local_ds", csvFixtureSalaryLong.toUri().toString(), Map.of("format", "csv"))
-            )
-        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("salaries_long", "local_ds", csvFixtureSalaryLong.toUri().toString(), Map.of("format", "csv"));
     }
 
     private static void assertCauseMessageContains(Throwable throwable, String fragment) {
@@ -1371,26 +1798,5 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
             cause = cause.getCause();
         }
         assertThat("error chain should contain message fragment [" + fragment + "]", cause, org.hamcrest.Matchers.notNullValue());
-    }
-
-    private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
-        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
-    }
-
-    private static PutDatasetAction.Request putDatasetRequest(
-        String name,
-        String dataSource,
-        String resource,
-        Map<String, Object> settings
-    ) {
-        return new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, dataSource, resource, null, new HashMap<>(settings));
-    }
-
-    private static DeleteDataSourceAction.Request deleteDataSourceRequest(String name) {
-        return new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
-    }
-
-    private static DeleteDatasetAction.Request deleteDatasetRequest(String name) {
-        return new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
     }
 }

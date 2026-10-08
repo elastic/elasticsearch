@@ -167,6 +167,7 @@ public class DefaultHighlighter implements Highlighter {
         return new CustomUnifiedHighlighter(
             builder,
             offsetSource,
+            false,
             fieldContext.field.fieldOptions().boundaryScannerLocale(),
             fieldContext.context.getIndexName(),
             fieldContext.fieldName,

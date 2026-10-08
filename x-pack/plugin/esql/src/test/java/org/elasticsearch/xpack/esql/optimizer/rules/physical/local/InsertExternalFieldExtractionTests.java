@@ -10,17 +10,26 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
+import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -35,8 +44,10 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Plan-rewrite tests for {@link InsertExternalFieldExtraction}: covers the happy-path narrowing,
@@ -78,6 +89,34 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         ExternalSourceExec narrowed = (ExternalSourceExec) rewrittenTopN.child();
         List<String> narrowedNames = narrowed.output().stream().map(Attribute::name).toList();
         assertEquals(List.of("id", ColumnExtractor.ROW_POSITION_COLUMN), narrowedNames);
+
+        // The paired-exec flag — not _rowPosition presence — is the operator factory's signal to
+        // enable deferred extraction. InjectRowPositionForRecordRef produces the same projection
+        // shape with no extract operator downstream, where deferred mode would create a
+        // SourceExtractors registry nothing ever closes.
+        assertTrue("narrowed source must carry the deferred-extraction flag", narrowed.deferredExtraction());
+    }
+
+    /**
+     * A source whose projection contains {@code _rowPosition} but that was never paired with an
+     * {@code ExternalFieldExtractExec} (the InjectRowPositionForRecordRef shape — plain
+     * {@code METADATA _file.record_ref}, no TopN) must NOT carry the deferred-extraction flag: with no extract
+     * operator downstream, deferred mode would leak the SourceExtractors registry, its
+     * ColumnExtractors, and the factory's onClose budget.
+     */
+    public void testRowPositionInProjectionAloneDoesNotFlagDeferredExtraction() {
+        List<Attribute> schema = sixColumnSchema();
+        ExternalSourceExec source = parquetSource(schema, null);
+        List<Attribute> extended = new ArrayList<>(source.output());
+        extended.add(SyntheticColumns.newRowPositionMetadataAttribute(Source.EMPTY));
+
+        ExternalSourceExec withRowPosition = source.withAttributes(extended);
+
+        assertTrue(withRowPosition.output().stream().anyMatch(a -> a.name().equals(ColumnExtractor.ROW_POSITION_COLUMN)));
+        assertFalse(
+            "_rowPosition in the projection without a paired extract exec must not flag deferred extraction",
+            withRowPosition.deferredExtraction()
+        );
     }
 
     public void testNoOpWhenNoTopN() {
@@ -100,6 +139,41 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         TopNExec topN = topN(source.output().get(0), 100, source);
         PhysicalPlan result = applyRule(topN, /* registry = */ null);
         assertSame(topN, result);
+    }
+
+    /**
+     * {@code skip_row} + declared column types is the one combination where the columnar reader has to drop rows
+     * at the page emit point. An {@link ExternalFieldExtractExec} runs after the page shape is fixed and cannot
+     * participate, so the operator factory turns deferred extraction off for such a read — and a plan that still
+     * carried the extract exec would ask a {@code SourceExtractors} registry nobody filled for extractor 0,
+     * failing with "extractor id [0] is out of range [0, 0)". The rule must bail out instead.
+     */
+    public void testNoOpWhenSkipRowWithDeclaredTypeColumns() {
+        List<Attribute> schema = sixColumnSchema();
+        ExternalSourceExec source = parquetSource(schema, "skip_row", Set.of("a"));
+        TopNExec topN = topN(schema.get(0), 100, source);
+
+        PhysicalPlan result = applyRule(topN, columnExtractorAwareRegistry());
+        assertSame("skip_row + declared types must not get an extract exec", topN, result);
+    }
+
+    /** {@code skip_row} with no declared column types coerces nothing, so no row is ever dropped and the
+     *  optimization stays available. */
+    public void testSkipRowWithoutDeclaredTypeColumnsStillDefers() {
+        List<Attribute> schema = sixColumnSchema();
+        ExternalSourceExec source = parquetSource(schema, "skip_row", Set.of());
+        TopNExec topN = topN(schema.get(0), 100, source);
+
+        assertThat(applyRule(topN, columnExtractorAwareRegistry()), instanceOf(ExternalFieldExtractExec.class));
+    }
+
+    /** Declared column types under a mode that keeps every row ({@code null_field}) also stay eligible. */
+    public void testDeclaredTypeColumnsUnderNullFieldStillDefers() {
+        List<Attribute> schema = sixColumnSchema();
+        ExternalSourceExec source = parquetSource(schema, "null_field", Set.of("a"));
+        TopNExec topN = topN(schema.get(0), 100, source);
+
+        assertThat(applyRule(topN, columnExtractorAwareRegistry()), instanceOf(ExternalFieldExtractExec.class));
     }
 
     public void testNoOpWhenNoExternalSourceReachable() {
@@ -272,12 +346,170 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         assertEquals(List.of("a", "b", "c", "d"), deferredNames);
     }
 
+    public void testPartitionColumnsPinnedEagerNotDeferred() {
+        // The regression cell (#153503): hive-style partition columns are plain
+        // ReferenceAttributes carrying no VirtualAttribute marker, but they are NOT file-resident —
+        // deferring them to the positional ColumnExtractor read throws "column [X] is missing" at
+        // runtime. Their names are stamped in sourceMetadata under PARTITION_COLUMNS_KEY. Sort on a
+        // data column so the partition columns are projection-only; they must still stay eager.
+        List<Attribute> schema = List.of(
+            field("id", DataType.LONG),
+            refField("STATION", DataType.KEYWORD),
+            refField("ELEMENT", DataType.KEYWORD),
+            field("a", DataType.KEYWORD),
+            field("b", DataType.KEYWORD),
+            field("c", DataType.INTEGER),
+            field("d", DataType.DOUBLE)
+        );
+        ExternalSourceExec source = parquetSource(schema, null, partitionMetadata("STATION", "ELEMENT"));
+        TopNExec topN = topN(schema.get(0), 100, source);
+
+        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
+        ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
+
+        // Partition columns must NOT be deferred — only the plain data columns are.
+        List<String> deferredNames = extract.attributesToExtract().stream().map(Attribute::name).toList();
+        assertEquals(List.of("a", "b", "c", "d"), deferredNames);
+
+        // The narrowed forward scan keeps id (sort key), both partition columns, and _rowPosition —
+        // VirtualColumnIterator materialises STATION/ELEMENT there as constant blocks.
+        ExternalSourceExec narrowed = (ExternalSourceExec) ((TopNExec) extract.child()).child();
+        List<String> narrowedNames = narrowed.output().stream().map(Attribute::name).toList();
+        assertEquals(List.of("id", "STATION", "ELEMENT", ColumnExtractor.ROW_POSITION_COLUMN), narrowedNames);
+    }
+
+    public void testWithoutPartitionStampSameColumnsAreDeferred() {
+        // Control for the test above: partition-ness is driven solely by the PARTITION_COLUMNS_KEY
+        // stamp. With no stamp, the very same ReferenceAttributes are ordinary deferrable data
+        // columns (this is why the eager pin must read the stamp, not the attribute subtype).
+        List<Attribute> schema = List.of(
+            field("id", DataType.LONG),
+            refField("STATION", DataType.KEYWORD),
+            refField("ELEMENT", DataType.KEYWORD),
+            field("a", DataType.KEYWORD),
+            field("b", DataType.KEYWORD),
+            field("c", DataType.INTEGER),
+            field("d", DataType.DOUBLE)
+        );
+        ExternalSourceExec source = parquetSource(schema, null, Map.of());
+        TopNExec topN = topN(schema.get(0), 100, source);
+
+        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
+        ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
+
+        List<String> deferredNames = extract.attributesToExtract().stream().map(Attribute::name).toList();
+        assertEquals(List.of("STATION", "ELEMENT", "a", "b", "c", "d"), deferredNames);
+    }
+
+    public void testBailsWhenPartitionPinningLeavesTooFewDeferred() {
+        // Blast-radius guard: pinning partition columns eager only ever removes columns from the
+        // deferred set. If that pushes the deferred count below DEFERRED_COLUMN_MIN, the rule must
+        // bail and return the plan unchanged — the query then runs fully eager (correct, just not
+        // late-materialised). id (sort) + STATION + ELEMENT eager leaves only {a, b} = 2 deferred.
+        List<Attribute> schema = List.of(
+            field("id", DataType.LONG),
+            refField("STATION", DataType.KEYWORD),
+            refField("ELEMENT", DataType.KEYWORD),
+            field("a", DataType.KEYWORD),
+            field("b", DataType.KEYWORD)
+        );
+        ExternalSourceExec source = parquetSource(schema, null, partitionMetadata("STATION", "ELEMENT"));
+        TopNExec topN = topN(schema.get(0), 100, source);
+
+        PhysicalPlan result = applyRule(topN, columnExtractorAwareRegistry());
+        assertSame("rule must bail when pinning partition columns leaves too few deferred", topN, result);
+    }
+
+    public void testPartitionColumnAsSortKeyStaysEager() {
+        // A partition column used as the sort key is caught by both the eagerRefs arm and the
+        // partition-name arm; it must remain eager exactly once and never be deferred.
+        List<Attribute> schema = List.of(
+            refField("STATION", DataType.KEYWORD),
+            field("a", DataType.KEYWORD),
+            field("b", DataType.KEYWORD),
+            field("c", DataType.INTEGER),
+            field("d", DataType.DOUBLE)
+        );
+        ExternalSourceExec source = parquetSource(schema, null, partitionMetadata("STATION"));
+        TopNExec topN = topN(schema.get(0), 100, source);
+
+        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
+        ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
+
+        List<String> deferredNames = extract.attributesToExtract().stream().map(Attribute::name).toList();
+        assertEquals(List.of("a", "b", "c", "d"), deferredNames);
+
+        ExternalSourceExec narrowed = (ExternalSourceExec) ((TopNExec) extract.child()).child();
+        List<String> narrowedNames = narrowed.output().stream().map(Attribute::name).toList();
+        assertEquals(List.of("STATION", ColumnExtractor.ROW_POSITION_COLUMN), narrowedNames);
+    }
+
+    public void testPartitionColumnReferencedByPushedFilterStaysEager() {
+        // A partition column that is also read by a pushed filter is eager on two independent grounds
+        // (the eagerRefs filter-expression arm and the partition-name arm). It must be pinned exactly
+        // once and never deferred — no interaction between the two paths.
+        List<Attribute> schema = List.of(
+            field("id", DataType.LONG),
+            refField("STATION", DataType.KEYWORD),
+            field("a", DataType.KEYWORD),
+            field("b", DataType.KEYWORD),
+            field("c", DataType.INTEGER),
+            field("d", DataType.DOUBLE)
+        );
+        ExternalSourceExec source = parquetSource(schema, null, partitionMetadata("STATION")).withPushedFilterAndExpressions(
+            "opaque",
+            List.of((Expression) schema.get(1)) // pushed filter reads STATION
+        );
+        TopNExec topN = topN(schema.get(0), 100, source);
+
+        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
+        ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
+
+        List<String> deferredNames = extract.attributesToExtract().stream().map(Attribute::name).toList();
+        assertEquals(List.of("a", "b", "c", "d"), deferredNames);
+
+        ExternalSourceExec narrowed = (ExternalSourceExec) ((TopNExec) extract.child()).child();
+        List<String> narrowedNames = narrowed.output().stream().map(Attribute::name).toList();
+        assertEquals(List.of("id", "STATION", ColumnExtractor.ROW_POSITION_COLUMN), narrowedNames);
+    }
+
+    public void testIdDoesNotPinDataColumn() {
+        Attribute sortKey = field("ts", DataType.DATETIME);
+        Attribute id = new ExternalMetadataAttribute(Source.EMPTY, ExternalMetadataColumns.ID, DataType.KEYWORD);
+        List<Attribute> schema = List.of(
+            sortKey,
+            id,
+            field("first_name", DataType.KEYWORD),
+            field("a", DataType.KEYWORD),
+            field("b", DataType.KEYWORD),
+            field("c", DataType.INTEGER)
+        );
+        ExternalSourceExec source = parquetSource(schema, null);
+        TopNExec topN = topN(sortKey, 100, source);
+
+        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
+        ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
+
+        List<String> deferredNames = extract.attributesToExtract().stream().map(Attribute::name).toList();
+        assertEquals(List.of("first_name", "a", "b", "c"), deferredNames);
+    }
+
     // ---------------------------------------------------------------------------------------------
     // helpers
     // ---------------------------------------------------------------------------------------------
 
     private static FieldAttribute field(String name, DataType type) {
         return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    /** A plain {@link ReferenceAttribute}, the shape hive partition columns are surfaced as. */
+    private static ReferenceAttribute refField(String name, DataType type) {
+        return new ReferenceAttribute(Source.EMPTY, name, type);
+    }
+
+    /** sourceMetadata stamping the given names as hive partition columns (see {@code PARTITION_COLUMNS_KEY}). */
+    private static Map<String, Object> partitionMetadata(String... names) {
+        return Map.of(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.of(names));
     }
 
     private static Literal literal(int value) {
@@ -290,7 +522,27 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
     }
 
     private static ExternalSourceExec parquetSource(List<Attribute> schema, Object pushedFilter) {
-        return new ExternalSourceExec(Source.EMPTY, "file:///test.parquet", "parquet", schema, Map.of(), Map.of(), pushedFilter, null);
+        return parquetSource(schema, pushedFilter, Map.of());
+    }
+
+    private static ExternalSourceExec parquetSource(List<Attribute> schema, Object pushedFilter, Map<String, Object> sourceMetadata) {
+        return parquetSource(schema, pushedFilter, sourceMetadata, Map.of());
+    }
+
+    private static ExternalSourceExec parquetSource(
+        List<Attribute> schema,
+        Object pushedFilter,
+        Map<String, Object> sourceMetadata,
+        Map<String, Object> config
+    ) {
+        return new ExternalSourceExec(Source.EMPTY, "file:///test.parquet", "parquet", schema, config, sourceMetadata, pushedFilter, null);
+    }
+
+    /** A source reading with the given {@code error_mode} and declared-type columns — the pair the row-drop guard keys on. */
+    private static ExternalSourceExec parquetSource(List<Attribute> schema, String errorMode, Set<String> declaredTypeColumns) {
+        return parquetSource(schema, null, Map.of(), Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode)).withDeclaredReadSpec(
+            DeclaredReadSpec.of(Map.of(), Map.of(), declaredTypeColumns)
+        );
     }
 
     private static FormatReaderRegistry columnExtractorAwareRegistry() {
@@ -323,6 +575,11 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
      *  remaining {@link NoConfigFormatReader} methods stay unimplemented to make accidental use
      *  during a rule pass loud. */
     private static class StubReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
         @Override
         public SourceMetadata metadata(StorageObject object) {
             throw new UnsupportedOperationException();

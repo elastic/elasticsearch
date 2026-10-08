@@ -1,0 +1,6 @@
+{
+    "dynamic": "false",
+    "properties": {
+        "foo": { "type": "keyword" }
+    }
+}

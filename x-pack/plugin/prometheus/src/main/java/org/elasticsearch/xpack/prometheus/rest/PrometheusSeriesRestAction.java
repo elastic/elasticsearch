@@ -33,6 +33,8 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEF
  * REST handler for the Prometheus {@code GET} and {@code POST /api/v1/series} endpoint.
  * Returns the list of time series matching a label selector.
  *
+ * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/#finding-series-by-label-matchers">Prometheus Series API</a>
+ *
  * <p>When the path omits {@code {index}} and no {@code index} query parameter is set, the index
  * expression defaults to {@link PromqlCommand#DEFAULT_PROMQL_INDEX_PATTERN} (same as PromQL query APIs).
  */
@@ -90,10 +92,21 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
 
         String index = request.param(INDEX_PARAM, DEFAULT_PROMQL_INDEX_PATTERN);
         LogicalPlan plan = PrometheusSeriesPlanBuilder.buildPlan(index, matchSelectors, start, end, limit);
-        EsqlStatement statement = new EsqlStatement(plan, List.of());
-        PreparedEsqlQueryRequest esqlRequest = PreparedEsqlQueryRequest.sync(statement, "prometheus_series");
+        EsqlStatement statement = new EsqlStatement(plan, PrometheusPlanBuilderUtils.QUERY_SETTINGS);
+        PreparedEsqlQueryRequest esqlRequest = new PromqlQueryRequest(
+            index,
+            statement,
+            "prometheus_series",
+            LIMIT_PARAM,
+            limit == DEFAULT_LIMIT ? null : limit,
+            START_PARAM,
+            startParam,
+            END_PARAM,
+            endParam,
+            MATCH_PARAM,
+            matchSelectors
+        );
 
         return channel -> client.execute(EsqlQueryAction.INSTANCE, esqlRequest, new PrometheusSeriesResponseListener(channel, limit));
     }
-
 }

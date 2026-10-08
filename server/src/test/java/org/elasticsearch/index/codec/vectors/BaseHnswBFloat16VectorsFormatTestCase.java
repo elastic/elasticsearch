@@ -30,7 +30,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.SameThreadExecutorService;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -44,10 +43,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public abstract class BaseHnswBFloat16VectorsFormatTestCase extends BaseBFloat16KnnVectorsFormatTestCase {
 
-    static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
-
     protected abstract KnnVectorsFormat createFormat();
 
     protected abstract KnnVectorsFormat createFormat(int maxConn, int beamWidth);
@@ -57,13 +52,10 @@ public abstract class BaseHnswBFloat16VectorsFormatTestCase extends BaseBFloat16
     private KnnVectorsFormat format;
 
     @Override
-    public void setUp() throws Exception {
-        format = createFormat();
-        super.setUp();
-    }
-
-    @Override
-    protected Codec getCodec() {
+    protected final Codec getCodec() {
+        if (format == null) {
+            format = createFormat();
+        }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 

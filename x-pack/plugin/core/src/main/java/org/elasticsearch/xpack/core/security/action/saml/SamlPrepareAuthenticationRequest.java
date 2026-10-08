@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.action.saml;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -17,7 +17,7 @@ import java.io.IOException;
 /**
  * Represents a request to prepare a SAML {@code &lt;AuthnRequest&gt;}.
  */
-public final class SamlPrepareAuthenticationRequest extends LegacyActionRequest {
+public final class SamlPrepareAuthenticationRequest extends UntypedActionRequest {
 
     @Nullable
     private String realmName;

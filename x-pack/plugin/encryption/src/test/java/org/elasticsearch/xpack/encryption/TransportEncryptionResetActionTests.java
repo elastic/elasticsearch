@@ -34,6 +34,8 @@ import java.util.Objects;
 
 public class TransportEncryptionResetActionTests extends ESTestCase {
 
+    private static final ProjectEncryptionKeyMetadata.PekEncryption NO_OP_ENCRYPTION = TestPekEncryption.NO_OP;
+
     public void testApplyDestructiveResetRemovesCustomWhenHandlerReturnsNull() {
         ProjectId projectId = ProjectId.DEFAULT;
         TestCustom existing = new TestCustom("encrypted-blob");
@@ -173,7 +175,7 @@ public class TransportEncryptionResetActionTests extends ESTestCase {
     private static ProjectEncryptionKeyMetadata somePek() {
         byte[] key = new byte[PasswordBasedEncryption.PEK_LENGTH_BYTES];
         random().nextBytes(key);
-        return new ProjectEncryptionKeyMetadata(Map.of("k1", new KeyEntry(key, 42L)), "k1", "v1");
+        return new ProjectEncryptionKeyMetadata(Map.of("k1", new KeyEntry(key, 42L)), "k1", "v1", Map.of(), NO_OP_ENCRYPTION);
     }
 
     private static TransportEncryptionResetAction.EncryptionResetTask resetTask(List<EncryptedDataHandler<?>> handlers) {

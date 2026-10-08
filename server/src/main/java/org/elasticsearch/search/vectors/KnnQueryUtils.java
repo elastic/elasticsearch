@@ -9,9 +9,10 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -30,17 +31,48 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 public final class KnnQueryUtils {
 
     public record FilterWeight(@Nullable Weight weight) {
         static final FilterWeight MATCH_NO_DOCS = new FilterWeight(null);
+    }
+
+    /**
+     * Total number of {@code FLOAT32}-encoded vectors indexed for {@code field} across {@code leaves}.
+     * Use for {@link org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType#FLOAT} and
+     * {@code BFLOAT16} fields, which both index as {@link org.apache.lucene.index.VectorEncoding#FLOAT32}.
+     * A leaf that does not index {@code field} contributes nothing.
+     */
+    public static int countFloatVectors(String field, List<LeafReaderContext> leaves) throws IOException {
+        int totalVectors = 0;
+        for (LeafReaderContext leaf : leaves) {
+            FloatVectorValues values = leaf.reader().getFloatVectorValues(field);
+            if (values != null) {
+                totalVectors += values.size();
+            }
+        }
+        return totalVectors;
+    }
+
+    /**
+     * Total number of {@code BYTE}-encoded vectors indexed for {@code field} across {@code leaves}.
+     * Counting the wrong encoding yields 0, which {@link #computeSelectivity} turns into a selectivity of
+     * 0 and silently disables post-filtering — so implementations must pick the counter that matches the
+     * query's own encoding.
+     */
+    public static int countByteVectors(String field, List<LeafReaderContext> leaves) throws IOException {
+        int totalVectors = 0;
+        for (LeafReaderContext leaf : leaves) {
+            ByteVectorValues values = leaf.reader().getByteVectorValues(field);
+            if (values != null) {
+                totalVectors += values.size();
+            }
+        }
+        return totalVectors;
     }
 
     public static float computeSelectivity(Weight filterWeight, List<LeafReaderContext> leaves, int totalVectors) throws IOException {
@@ -52,23 +84,6 @@ public final class KnnQueryUtils {
             }
         }
         return totalVectors > 0 ? Math.min(1f, (float) filterCost / totalVectors) : 0f;
-    }
-
-    /**
-     * Combines a pre-filter with an {@link ExcludeDocsQuery} over already-collected docs into a
-     * single filter for the augmented post-filter fallback. Returns {@code baseFilter} unchanged
-     * when {@code excludedDocs} is empty, and the bare {@link ExcludeDocsQuery} when
-     * {@code baseFilter} is null.
-     */
-    public static Query augmentFilter(Query baseFilter, int[] excludedDocs, IndexReader reader) {
-        if (excludedDocs == null || excludedDocs.length == 0) {
-            return baseFilter;
-        }
-        Query exclude = new ExcludeDocsQuery(excludedDocs, reader);
-        if (baseFilter == null) {
-            return exclude;
-        }
-        return new BooleanQuery.Builder().add(baseFilter, BooleanClause.Occur.FILTER).add(exclude, BooleanClause.Occur.FILTER).build();
     }
 
     public static FilterWeight createFilterWeight(IndexSearcher searcher, Query filter, String field) throws IOException {
@@ -86,96 +101,58 @@ public final class KnnQueryUtils {
     }
 
     /**
-     * Applies the filter to ScoreDocs with global doc IDs. Groups docs by leaf for efficient
-     * filter iterator advancement and returns passing docs in an unspecified order. Order is
-     * imposed downstream by {@link #dedupAndSelectTopK} via partial selection, so we deliberately
-     * avoid a full sort here.
+     * Deduplicates {@code docs} by global doc id (highest-scoring duplicate wins) and returns the top
+     * {@code k} hits sorted by score descending. Top-k is found via {@link ArrayUtil#select} (introselect),
+     * so only the chosen k are sorted at the end rather than the full deduplicated array.
+
      */
-    public static ScoreDoc[] applyFilter(ScoreDoc[] scoreDocs, Weight filterWeight, IndexSearcher searcher) throws IOException {
-        List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
-
-        // group docs by leaf ordinal
-        @SuppressWarnings({ "unchecked", "rawtypes" })
-        List<ScoreDoc>[] byLeaf = new List[leaves.size()];
-        for (ScoreDoc sd : scoreDocs) {
-            int leafOrd = ReaderUtil.subIndex(sd.doc, leaves);
-            if (byLeaf[leafOrd] == null) {
-                byLeaf[leafOrd] = new ArrayList<>();
-            }
-            byLeaf[leafOrd].add(sd);
-        }
-
-        // filter each leaf separately
-        List<ScoreDoc> passingDocs = new ArrayList<>();
-        for (int leafOrd = 0; leafOrd < leaves.size(); leafOrd++) {
-            if (byLeaf[leafOrd] == null) continue;
-            LeafReaderContext ctx = leaves.get(leafOrd);
-            ScorerSupplier ss = filterWeight.scorerSupplier(ctx);
-            if (ss == null) continue;
-
-            DocIdSetIterator filterIter = ss.get(byLeaf[leafOrd].size()).iterator();
-            List<ScoreDoc> leafDocs = byLeaf[leafOrd];
-            leafDocs.sort(Comparator.comparingInt(sd -> sd.doc));
-
-            int filterDoc = -1;
-            for (ScoreDoc sd : leafDocs) {
-                int localDoc = sd.doc - ctx.docBase;
-                if (filterDoc < localDoc) {
-                    filterDoc = filterIter.advance(localDoc);
-                }
-                if (filterDoc == localDoc) {
-                    passingDocs.add(sd);
-                }
-                if (filterDoc == NO_MORE_DOCS) break;
-            }
-        }
-
-        return passingDocs.toArray(new ScoreDoc[0]);
-    }
-
-    /**
-     * Deduplicates {@code docs} and returns the top {@code k} hits sorted by score descending.
-     * When {@code parentsFilter} is non-null, dedup is by parent doc (highest-scoring child per
-     * parent wins); otherwise it is by global doc id (highest-scoring duplicate wins). Top-k is
-     * found via {@link ArrayUtil#select} (introselect), so only the chosen k are sorted at the end
-     * rather than the full deduplicated array.
-     *
-     * <p>Input order is irrelevant — both the dedup pass and the partition pass treat candidates
-     * symmetrically.
-     */
-    public static ScoreDoc[] dedupAndSelectTopK(ScoreDoc[] docs, IndexReader reader, BitSetProducer parentsFilter, int k)
-        throws IOException {
+    public static ScoreDoc[] dedupAndSelectTopK(ScoreDoc[] docs, int k) {
         if (docs.length == 0 || k == 0) {
             return new ScoreDoc[0];
         }
-        ScoreDoc[] deduped = parentsFilter != null ? dedupByParent(docs, reader, parentsFilter) : dedupByDocId(docs);
-        return selectTopK(deduped, k);
+        return selectTopK(dedupByDocId(docs), k);
     }
 
-    private static ScoreDoc[] dedupByParent(ScoreDoc[] docs, IndexReader reader, BitSetProducer parentsFilter) throws IOException {
+    /**
+     * Expands each matched child into every child doc ID in its parent's block.
+     * Used to build the post-filter retry's exclusion set for nested (block-join) queries: once a
+     * parent has produced a matching hit we want no more children from it (we keep only one hit per
+     * parent), so the retry should skip the whole block rather than just the one matched child. A
+     * parent whose child was <em>filtered out</em> instead is deliberately not expanded here - it stays
+     * eligible, because a deeper, untried child of it may still pass the filter.
+     */
+    static int[] expandToParentBlocks(ScoreDoc[][] matchingPerLeaf, IndexReader reader, BitSetProducer parentsFilter) throws IOException {
         List<LeafReaderContext> leaves = reader.leaves();
-        BitSet[] bitSetByLeaf = new BitSet[leaves.size()];
-        boolean[] resolved = new boolean[leaves.size()];
-        IntObjectHashMap<ScoreDoc> bestByParent = new IntObjectHashMap<>(docs.length);
-        for (ScoreDoc sd : docs) {
-            int leafOrd = ReaderUtil.subIndex(sd.doc, leaves);
+        int[] parentBlockDocIdsToFilter = new int[16];
+        int size = 0;
+        for (int leafOrd = 0; leafOrd < matchingPerLeaf.length; leafOrd++) {
+            ScoreDoc[] cands = matchingPerLeaf[leafOrd];
+            if (cands == null || cands.length == 0) continue;
             LeafReaderContext ctx = leaves.get(leafOrd);
-            if (resolved[leafOrd] == false) {
-                bitSetByLeaf[leafOrd] = parentsFilter.getBitSet(ctx);
-                resolved[leafOrd] = true;
-            }
-            BitSet parentBitSet = bitSetByLeaf[leafOrd];
+            BitSet parentBitSet = parentsFilter.getBitSet(ctx);
             if (parentBitSet == null) continue;
-            int localDoc = sd.doc - ctx.docBase;
-            int parentDoc = parentBitSet.nextSetBit(localDoc);
-            if (parentDoc == DocIdSetIterator.NO_MORE_DOCS) continue;
-            int globalParent = parentDoc + ctx.docBase;
-            ScoreDoc existing = bestByParent.get(globalParent);
-            if (existing == null || sd.score > existing.score) {
-                bestByParent.put(globalParent, sd);
+            int docBase = ctx.docBase;
+            int lastParentLocal = -1;
+            for (ScoreDoc sd : cands) {
+                int localDoc = sd.doc - docBase;
+                int parentLocal = parentBitSet.nextSetBit(localDoc);
+                // Skip if the child has no parent (should not happen for a real candidate) or if this
+                // parent's block was already emitted for the previous, lower-ordered candidate.
+                if (parentLocal == DocIdSetIterator.NO_MORE_DOCS || parentLocal == lastParentLocal) {
+                    continue;
+                }
+                lastParentLocal = parentLocal;
+                int blockStartLocal = parentLocal == 0 ? 0 : parentBitSet.prevSetBit(parentLocal - 1) + 1;
+                int blockLen = parentLocal - blockStartLocal + 1;
+                parentBlockDocIdsToFilter = ArrayUtil.grow(parentBlockDocIdsToFilter, size + blockLen);
+                for (int local = blockStartLocal; local <= parentLocal; local++) {
+                    parentBlockDocIdsToFilter[size++] = local + docBase;
+                }
             }
         }
-        return toArray(bestByParent);
+        return size == parentBlockDocIdsToFilter.length
+            ? parentBlockDocIdsToFilter
+            : ArrayUtil.copyOfSubArray(parentBlockDocIdsToFilter, 0, size);
     }
 
     private static ScoreDoc[] dedupByDocId(ScoreDoc[] docs) {
@@ -209,6 +186,25 @@ public final class KnnQueryUtils {
         ArrayUtil.select(docs, 0, docs.length, k - 1, byScoreDesc);
         ArrayUtil.introSort(docs, 0, k, byScoreDesc);
         return Arrays.copyOf(docs, k);
+    }
+
+    /**
+     * Merges two disjoint, individually-sorted int arrays into one sorted array
+     */
+    public static int[] sortedMerge(int[] a, int[] b) {
+        if (a.length == 0) return b.length == 0 ? a : b.clone();
+        if (b.length == 0) return a.clone();
+        int[] merged = new int[a.length + b.length];
+        int i = 0, j = 0, k = 0;
+        while (i < a.length && j < b.length) {
+            merged[k++] = a[i] <= b[j] ? a[i++] : b[j++];
+        }
+        if (i < a.length) {
+            System.arraycopy(a, i, merged, k, a.length - i);
+        } else {
+            System.arraycopy(b, j, merged, k, b.length - j);
+        }
+        return merged;
     }
 
     public static ScoreDoc[] mergeScoreDocArrays(ScoreDoc[] left, ScoreDoc[] right) {

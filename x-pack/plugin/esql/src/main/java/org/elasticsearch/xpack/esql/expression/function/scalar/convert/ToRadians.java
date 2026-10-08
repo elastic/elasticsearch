@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -45,6 +47,7 @@ public class ToRadians extends AbstractConvertFunction implements EvaluatorMappe
         .unaryValueTransformation(ToRadians::new)
         .description("Converts input values from degrees to radians for all elements in the input vector.")
         .example("rad(some_metric)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("rad");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
@@ -58,6 +61,7 @@ public class ToRadians extends AbstractConvertFunction implements EvaluatorMappe
     );
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "double",
         briefSummary = "Converts a number in degrees to radians.",
         description = "Converts a number in {wikipedia}/Degree_(angle)[degrees] to {wikipedia}/Radian[radians].",
@@ -101,6 +105,12 @@ public class ToRadians extends AbstractConvertFunction implements EvaluatorMappe
     @Override
     public DataType dataType() {
         return DOUBLE;
+    }
+
+    @Override
+    public boolean isNoop() {
+        // Computes even when the input is already double, so it's never a no-op.
+        return false;
     }
 
     @ConvertEvaluator

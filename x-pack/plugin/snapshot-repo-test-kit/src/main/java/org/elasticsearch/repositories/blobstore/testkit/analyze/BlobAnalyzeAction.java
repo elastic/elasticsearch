@@ -15,7 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -447,7 +447,8 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
                         blobContainer,
                         request.blobName,
                         request.copyBlobName,
-                        request.targetLength
+                        request.targetLength,
+                        null
                     );
                     copySuccess = true;
                 } catch (UnsupportedOperationException uoe) {
@@ -499,7 +500,8 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
                         blobContainer,
                         request.blobName,
                         request.copyBlobName,
-                        request.targetLength
+                        request.targetLength,
+                        null
                     );
                     copySuccess = true;
                 } catch (UnsupportedOperationException uoe) {
@@ -827,7 +829,7 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
         }
     }
 
-    static class Request extends LegacyActionRequest {
+    static class Request extends UntypedActionRequest {
 
         private static final TransportVersion REPO_ANALYSIS_COPY_BLOB = TransportVersion.fromName("repo_analysis_copy_blob");
 

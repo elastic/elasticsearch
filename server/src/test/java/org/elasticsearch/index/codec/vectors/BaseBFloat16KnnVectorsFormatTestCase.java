@@ -44,7 +44,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
@@ -62,7 +61,7 @@ import java.util.Set;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
-public abstract class BaseBFloat16KnnVectorsFormatTestCase extends BaseKnnVectorsFormatTestCase {
+public abstract class BaseBFloat16KnnVectorsFormatTestCase extends ESBaseKnnVectorsFormatTestCase {
 
     @Override
     protected boolean supportsFloatVectorFallback() {
@@ -101,6 +100,11 @@ public abstract class BaseBFloat16KnnVectorsFormatTestCase extends BaseKnnVector
 
     @Override
     public void testRandomBytes() throws Exception {
+        throw new AssumptionViolatedException("No bytes");
+    }
+
+    @Override
+    public void testWriterByteVectorRamEstimate() throws Exception {
         throw new AssumptionViolatedException("No bytes");
     }
 
@@ -303,7 +307,7 @@ public abstract class BaseBFloat16KnnVectorsFormatTestCase extends BaseKnnVector
                     // assert that searchNearestVectors returns the expected number of documents,
                     // in descending score order
                     int size = ctx.reader().getFloatVectorValues(fieldName).size();
-                    int k = random().nextInt(size / 10 + 1) + 1;
+                    int k = random().nextInt(size / 50 + 1) + 1;
                     if (k > numLiveDocsWithVectors) {
                         k = numLiveDocsWithVectors;
                     }

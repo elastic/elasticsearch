@@ -7,9 +7,14 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+
+import java.util.Iterator;
+import java.util.Map;
 
 /**
  * This class holds dynamic settings to control the behavior of {@link SearchCommitPrefetcher}.
@@ -38,6 +43,34 @@ public class SearchCommitPrefetcherDynamicSettings {
     public static final Setting<Boolean> STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT = Setting.boolSetting(
         "stateless.search.use_internal_files_replicated_content",
         true,
+        // Cache boost preference requires per-CC timestamps in {@link BlobFileRanges} which are only built up when this setting is enabled.
+        // The validator here mirrors the one on STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING so that a dynamic flip of this setting is
+        // rejected if it would leave boost in an invalid state.
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean value, Map<Setting<?>, Object> settings) {
+                final boolean boostEnabled = (boolean) settings.get(
+                    StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING
+                );
+                if (value == false && boostEnabled) {
+                    throw new IllegalArgumentException(
+                        Strings.format(
+                            "Setting [%s] cannot be [false] while setting [%s] is [true]",
+                            STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(),
+                            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey()
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return Iterators.single(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING);
+            }
+        },
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

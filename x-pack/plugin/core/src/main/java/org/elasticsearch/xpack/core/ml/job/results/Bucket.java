@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -30,6 +32,9 @@ import java.util.Objects;
  * Bucket Result POJO
  */
 public class Bucket implements ToXContentObject, Writeable {
+
+    private static final TransportVersion ML_ANOMALY_EVENT_INGESTED = TransportVersion.fromName("ml_anomaly_event_ingested");
+
     /*
      * Field Names
      */
@@ -101,6 +106,7 @@ public class Bucket implements ToXContentObject, Writeable {
         parser.declareLong(Bucket::setProcessingTimeMs, PROCESSING_TIME_MS);
         parser.declareString((bucket, s) -> {}, Result.RESULT_TYPE);
         parser.declareStringArray(Bucket::setScheduledEvents, SCHEDULED_EVENTS);
+        parser.declareObject(Bucket::setEventIngested, (p, c) -> Result.parseEventIngested(p), Result.EVENT);
 
         return parser;
     }
@@ -116,6 +122,7 @@ public class Bucket implements ToXContentObject, Writeable {
     private List<BucketInfluencer> bucketInfluencers = new ArrayList<>(); // Can't use emptyList as might be appended to
     private long processingTimeMs;
     private List<String> scheduledEvents = Collections.emptyList();
+    private Instant eventIngested;
 
     public Bucket(String jobId, Date timestamp, long bucketSpan) {
         this.jobId = jobId;
@@ -135,6 +142,7 @@ public class Bucket implements ToXContentObject, Writeable {
         this.bucketInfluencers = new ArrayList<>(other.bucketInfluencers);
         this.processingTimeMs = other.processingTimeMs;
         this.scheduledEvents = new ArrayList<>(other.scheduledEvents);
+        this.eventIngested = other.eventIngested;
     }
 
     public Bucket(StreamInput in) throws IOException {
@@ -152,6 +160,9 @@ public class Bucket implements ToXContentObject, Writeable {
         if (scheduledEvents.isEmpty()) {
             scheduledEvents = Collections.emptyList();
         }
+        if (in.getTransportVersion().supports(ML_ANOMALY_EVENT_INGESTED)) {
+            eventIngested = in.readOptionalInstant();
+        }
     }
 
     @Override
@@ -167,6 +178,9 @@ public class Bucket implements ToXContentObject, Writeable {
         out.writeCollection(bucketInfluencers);
         out.writeLong(processingTimeMs);
         out.writeStringCollection(scheduledEvents);
+        if (out.getTransportVersion().supports(ML_ANOMALY_EVENT_INGESTED)) {
+            out.writeOptionalInstant(eventIngested);
+        }
     }
 
     @Override
@@ -191,6 +205,11 @@ public class Bucket implements ToXContentObject, Writeable {
 
         if (scheduledEvents.isEmpty() == false) {
             builder.field(SCHEDULED_EVENTS.getPreferredName(), scheduledEvents);
+        }
+        if (eventIngested != null) {
+            builder.startObject(Result.EVENT.getPreferredName());
+            builder.field(Result.INGESTED.getPreferredName(), eventIngested.toEpochMilli());
+            builder.endObject();
         }
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.endObject();
@@ -308,6 +327,14 @@ public class Bucket implements ToXContentObject, Writeable {
         this.scheduledEvents = ExceptionsHelper.requireNonNull(scheduledEvents, SCHEDULED_EVENTS.getPreferredName());
     }
 
+    public Instant getEventIngested() {
+        return eventIngested;
+    }
+
+    public void setEventIngested(Instant eventIngested) {
+        this.eventIngested = eventIngested;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(
@@ -321,7 +348,8 @@ public class Bucket implements ToXContentObject, Writeable {
             bucketSpan,
             bucketInfluencers,
             processingTimeMs,
-            scheduledEvents
+            scheduledEvents,
+            eventIngested
         );
     }
 
@@ -350,7 +378,8 @@ public class Bucket implements ToXContentObject, Writeable {
             && Objects.equals(this.isInterim, that.isInterim)
             && Objects.equals(this.bucketInfluencers, that.bucketInfluencers)
             && (this.processingTimeMs == that.processingTimeMs)
-            && Objects.equals(this.scheduledEvents, that.scheduledEvents);
+            && Objects.equals(this.scheduledEvents, that.scheduledEvents)
+            && Objects.equals(this.eventIngested, that.eventIngested);
     }
 
     /**

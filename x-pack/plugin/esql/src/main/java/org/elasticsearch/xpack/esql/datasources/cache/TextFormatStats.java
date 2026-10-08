@@ -98,6 +98,11 @@ public final class TextFormatStats {
             }
 
             @Override
+            public OptionalLong valueCount() {
+                return OptionalLong.of(cs.valueCount());
+            }
+
+            @Override
             public OptionalLong distinctCount() {
                 return OptionalLong.empty();
             }

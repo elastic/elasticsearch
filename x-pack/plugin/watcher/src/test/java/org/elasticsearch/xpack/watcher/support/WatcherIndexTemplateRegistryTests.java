@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.NotMultiProjectCapable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -107,7 +108,14 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             )
         );
         xContentRegistry = new NamedXContentRegistry(entries);
-        registry = new WatcherIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
+        registry = new WatcherIndexTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            xContentRegistry,
+            new FeatureService(List.of())
+        );
     }
 
     public void testThatNonExistingTemplatesAreAddedImmediately() {
@@ -142,7 +150,8 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            xContentRegistry
+            xContentRegistry,
+            new FeatureService(List.of())
         );
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
@@ -192,7 +201,8 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            xContentRegistry
+            xContentRegistry,
+            new FeatureService(List.of())
         );
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);

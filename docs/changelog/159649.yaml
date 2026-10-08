@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 159649
+summary: "[Native] Score four cosine int8 vectors per random batch"
+type: enhancement

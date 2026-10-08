@@ -15,6 +15,7 @@ import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRerankRequest;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
@@ -42,9 +43,10 @@ public class ElasticInferenceServiceRerankRequest extends ElasticInferenceServic
         ElasticInferenceServiceRerankModel model,
         TraceContext traceContext,
         ElasticInferenceServiceRequestMetadata metadata,
+        InferencePreferences preferences,
         CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
-        super(metadata, authApplier);
+        super(metadata, preferences, authApplier);
         this.query = query;
         this.documents = documents;
         this.topN = topN;

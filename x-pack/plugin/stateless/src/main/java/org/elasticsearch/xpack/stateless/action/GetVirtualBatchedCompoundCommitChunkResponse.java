@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,8 +31,20 @@ import java.io.IOException;
  * rather than {@link ActionResponse}, and its wire format also differs (it puts the fully serialized body in bytes, whereas
  * here we split the length into writeThin and the payload into bytes). Also, we do not need its {@link org.elasticsearch.TransportVersion}
  * since the response is opaque bytes, sent directly from the indexing node to the search node, without a proxy in-between.
+ * <p>
+ * Wire format for {@link #writeThin(StreamOutput)}:
+ * <ul>
+ *     <li>Legacy: a VInt length prefix before the zero-copy payload (for BwC with nodes that shipped the initial
+ *     {@link BytesTransportMessage} implementation).</li>
+ *     <li>From {@link #VBCC_CHUNK_RESPONSE_WITHOUT_LENGTH_PREFIX}: empty {@code writeThin}; payload length is taken from the
+ *     transport message header.</li>
+ * </ul>
  */
 public class GetVirtualBatchedCompoundCommitChunkResponse extends ActionResponse implements BytesTransportMessage {
+
+    public static final TransportVersion VBCC_CHUNK_RESPONSE_WITHOUT_LENGTH_PREFIX = TransportVersion.fromName(
+        "vbcc_chunk_response_without_length_prefix"
+    );
 
     private final ReleasableBytesReference data;
 
@@ -41,7 +54,15 @@ public class GetVirtualBatchedCompoundCommitChunkResponse extends ActionResponse
     }
 
     public GetVirtualBatchedCompoundCommitChunkResponse(StreamInput in) throws IOException {
-        data = in.readReleasableBytesReference();
+        if (in.getTransportVersion().supports(VBCC_CHUNK_RESPONSE_WITHOUT_LENGTH_PREFIX)) {
+            assert in.supportReadAllToReleasableBytesReference() : "StreamInput must support readAllToReleasableBytesReference";
+            if (in.supportReadAllToReleasableBytesReference() == false) {
+                throw new IllegalStateException("StreamInput does not support readAllToReleasableBytesReference");
+            }
+            data = in.readAllToReleasableBytesReference();
+        } else {
+            data = in.readReleasableBytesReference();
+        }
     }
 
     @Override
@@ -51,7 +72,9 @@ public class GetVirtualBatchedCompoundCommitChunkResponse extends ActionResponse
 
     @Override
     public void writeThin(StreamOutput out) throws IOException {
-        out.writeVInt(data.length());
+        if (out.getTransportVersion().supports(VBCC_CHUNK_RESPONSE_WITHOUT_LENGTH_PREFIX) == false) {
+            out.writeVInt(data.length());
+        }
     }
 
     @Override

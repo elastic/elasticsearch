@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.datastreams;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.SecureString;
@@ -24,7 +25,7 @@ import org.junit.ClassRule;
 
 public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    public DataStreamsClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
+    public DataStreamsClientYamlTestSuiteIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
@@ -50,8 +51,6 @@ public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             .keystore("bootstrap.password", "x-pack-test-password")
             .user("x_pack_rest_user", "x-pack-test-password")
             .feature(FeatureFlag.LOGS_STREAM)
-            .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
-            .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
             .systemProperty("es.queryable_built_in_roles_enabled", "false");
         if (initTestSeed().nextBoolean()) {
             clusterBuilder.setting("xpack.license.self_generated.type", "trial");

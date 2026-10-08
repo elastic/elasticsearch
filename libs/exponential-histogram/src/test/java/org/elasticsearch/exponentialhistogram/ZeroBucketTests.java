@@ -89,5 +89,4 @@ public class ZeroBucketTests extends ExponentialHistogramTestCase {
         assertThat(a, equalTo(b));
         assertThat(a.hashCode(), equalTo(b.hashCode()));
     }
-
 }

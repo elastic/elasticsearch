@@ -15,6 +15,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -29,8 +30,8 @@ public class EsThreadPoolExecutorHotThreadsTests extends ESTestCase {
 
     private EsThreadPoolExecutor executor;
 
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateExecutor() throws Exception {
         if (executor != null) {
             ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
         }

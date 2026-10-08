@@ -11,10 +11,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,6 +46,19 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
     private final BlockFactory blockFactory;
     private final int[] dataColumnIndices;
     private final int[] partitionColumnIndices;
+    /**
+     * Index of {@link ColumnExtractor#ROW_POSITION_COLUMN} within {@link #dataColumnIndices} (i.e.
+     * position in the incoming data page's block list), or {@code -1} when not present. Non-negative
+     * whenever {@code _file.record_ref} is requested, since it is composed from it.
+     */
+    private final int rowPositionDataChannel;
+    /**
+     * Index of {@code _file.record_ref} within {@link #fullOutput}, or {@code -1} when not present.
+     * When non-negative the iterator fills that slot with the masked physical position from the
+     * reader-emitted {@link ColumnExtractor#ROW_POSITION_COLUMN} channel, exposed as the opaque
+     * per-record token.
+     */
+    private final int recordRefOutputIndex;
 
     VirtualColumnIterator(
         CloseableIterator<Page> delegate,
@@ -62,15 +78,35 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
 
         List<Integer> dataIdxList = new ArrayList<>();
         List<Integer> partIdxList = new ArrayList<>();
+        int recordRefIdx = -1;
+        int rowPosChannelInData = -1;
+        int nextDataChannel = 0;
         for (int i = 0; i < fullOutput.size(); i++) {
-            if (partitionColumnNames.contains(fullOutput.get(i).name())) {
+            String name = fullOutput.get(i).name();
+            if (partitionColumnNames.contains(name)) {
                 partIdxList.add(i);
+                if (FileMetadataColumns.RECORD_REF.equals(name)) {
+                    recordRefIdx = i;
+                }
             } else {
                 dataIdxList.add(i);
+                if (ColumnExtractor.ROW_POSITION_COLUMN.equals(name)) {
+                    rowPosChannelInData = nextDataChannel;
+                }
+                nextDataChannel++;
             }
         }
         this.dataColumnIndices = toIntArray(dataIdxList);
         this.partitionColumnIndices = toIntArray(partIdxList);
+        this.recordRefOutputIndex = recordRefIdx;
+        this.rowPositionDataChannel = rowPosChannelInData;
+        // _file.record_ref is composed from the reader-emitted _rowPosition channel, which the optimizer injects
+        // whenever it is requested. If the slot is present but the channel is missing, fail loud rather than
+        // silently emit wrong tokens.
+        Check.isTrue(
+            recordRefIdx < 0 || rowPosChannelInData >= 0,
+            "_file.record_ref requested but reader did not emit the _rowPosition channel"
+        );
     }
 
     @Override
@@ -81,6 +117,12 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
     @Override
     public Page next() {
         return inject(delegate.next());
+    }
+
+    @Override
+    public Page tryAdvance() {
+        Page raw = delegate.tryAdvance();
+        return raw != null ? inject(raw) : null;
     }
 
     @Override
@@ -120,31 +162,48 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
 
         int producedBlocks = dataPage.getBlockCount();
         int expectedDataBlocks = dataColumnIndices.length;
+        // Same under-projection guard as projectAndReleaseSurplus: fail loud before touching block
+        // refcounts so a contract-breaking reader cannot leak the page through an out-of-bounds read.
+        if (producedBlocks < expectedDataBlocks) {
+            dataPage.releaseBlocks();
+            throw new IllegalStateException(
+                "format reader produced " + producedBlocks + " blocks, projection expects " + expectedDataBlocks
+            );
+        }
         int dataBlockIdx = 0;
         for (int idx : dataColumnIndices) {
             blocks[idx] = dataPage.getBlock(dataBlockIdx++);
-        }
-        // Producer emitted more blocks than we project (e.g. a format reader that falls back to
-        // the full file schema when the projection list is empty). Release the surplus so their
-        // breaker bytes are returned; the kept blocks are still owned by {@code blocks}.
-        if (producedBlocks > expectedDataBlocks) {
-            for (int i = expectedDataBlocks; i < producedBlocks; i++) {
-                Block extra = dataPage.getBlock(i);
-                if (extra != null) {
-                    extra.close();
-                }
-            }
         }
 
         int partitionBlocksAllocated = 0;
         try {
             for (int idx : partitionColumnIndices) {
                 Attribute attr = fullOutput.get(idx);
-                Object value = partitionValues.get(attr.name());
-                blocks[idx] = createConstantBlock(attr, value, positions);
+                if (idx == recordRefOutputIndex) {
+                    // _file.record_ref = the same masked physical position, surfaced directly as the
+                    // opaque per-record LONG token (no location prefix).
+                    Block rowPosBlock = dataPage.getBlock(rowPositionDataChannel);
+                    blocks[idx] = buildRecordRefBlock((LongBlock) rowPosBlock, positions);
+                } else {
+                    Object value = partitionValues.get(attr.name());
+                    blocks[idx] = createConstantBlock(attr, value, positions);
+                }
                 partitionBlocksAllocated++;
             }
-            return new Page(positions, blocks);
+            Page result = new Page(positions, blocks);
+            // Producer over-projected (e.g. format reader fell back to the full file schema when the
+            // projection list was empty). Release the surplus only on the success path: in the catch
+            // arm below, {@link Page#releaseBlocks} on dataPage closes every block in the page —
+            // including these — so an early surplus close here would double-close on failure.
+            if (producedBlocks > expectedDataBlocks) {
+                for (int i = expectedDataBlocks; i < producedBlocks; i++) {
+                    Block extra = dataPage.getBlock(i);
+                    if (extra != null) {
+                        extra.close();
+                    }
+                }
+            }
+            return result;
         } catch (Throwable t) {
             for (int i = 0, released = 0; i < partitionColumnIndices.length && released < partitionBlocksAllocated; i++) {
                 Block b = blocks[partitionColumnIndices[i]];
@@ -161,21 +220,38 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
     /**
      * Builds a page containing only the projected data blocks and releases the surplus. Used when
      * there are no partition columns to inject but the producer over-projected.
+     * <p>
+     * Producer invariant: every format reader emits data columns at the head of the page in the
+     * order declared by {@link #dataColumnNames()}; surplus blocks (e.g. the parquet-mr "empty
+     * projection → full schema" fallback) trail at higher indices. This method drops the trailing
+     * surplus; callers that emit a permuted block order will silently lose data.
      */
     private Page projectAndReleaseSurplus(Page dataPage) {
         int positions = dataPage.getPositionCount();
         int expected = dataColumnIndices.length;
-        Block[] kept = new Block[expected];
-        for (int i = 0; i < expected; i++) {
-            kept[i] = dataPage.getBlock(i);
+        // Under-projection means the reader broke its contract — fail loud before touching block
+        // refcounts, releasing the whole page so nothing leaks (mirrors the inject() cleanup).
+        if (dataPage.getBlockCount() < expected) {
+            int produced = dataPage.getBlockCount();
+            dataPage.releaseBlocks();
+            throw new IllegalStateException("format reader produced " + produced + " blocks, projection expects " + expected);
         }
-        for (int i = expected; i < dataPage.getBlockCount(); i++) {
-            Block extra = dataPage.getBlock(i);
-            if (extra != null) {
-                extra.close();
+        try {
+            Block[] kept = new Block[expected];
+            for (int i = 0; i < expected; i++) {
+                kept[i] = dataPage.getBlock(i);
             }
+            for (int i = expected; i < dataPage.getBlockCount(); i++) {
+                Block extra = dataPage.getBlock(i);
+                if (extra != null) {
+                    extra.close();
+                }
+            }
+            return new Page(positions, kept);
+        } catch (Throwable t) {
+            dataPage.releaseBlocks();
+            throw t;
         }
-        return new Page(positions, kept);
     }
 
     boolean hasPartitionColumns() {
@@ -198,6 +274,28 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         return result;
     }
 
+    /**
+     * Builds the {@code _file.record_ref} block: the masked physical position from the reader-emitted
+     * {@code _rowPosition} channel, surfaced as an opaque per-record LONG. Decoding masks off any
+     * deferred-extraction extractor id, keeping the token independent of which extractor the driver
+     * registered (a no-op for the row-index / byte-offset readers). Independence from split layout
+     * comes from the reader anchoring {@code _rowPosition} file-globally, upstream of here. Null
+     * positions propagate to null.
+     */
+    private Block buildRecordRefBlock(LongBlock rowPositionBlock, int positions) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (rowPositionBlock.isNull(i)) {
+                    builder.appendNull();
+                } else {
+                    long encoded = rowPositionBlock.getLong(rowPositionBlock.getFirstValueIndex(i));
+                    builder.appendLong(SourceExtractors.decodeLocalPosition(encoded));
+                }
+            }
+            return builder.build();
+        }
+    }
+
     private Block createConstantBlock(Attribute attr, Object value, int positions) {
         return switch (value) {
             case null -> blockFactory.newConstantNullBlock(positions);
@@ -206,7 +304,12 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
             case Double doubleVal -> blockFactory.newConstantDoubleBlockWith(doubleVal, positions);
             case Boolean boolVal -> blockFactory.newConstantBooleanBlockWith(boolVal, positions);
             case BytesRef bytesRef -> blockFactory.newConstantBytesRefBlockWith(bytesRef, positions);
-            default -> blockFactory.newConstantBytesRefBlockWith(new BytesRef(value.toString()), positions);
+            case String stringVal -> blockFactory.newConstantBytesRefBlockWith(new BytesRef(stringVal), positions);
+            // No stringify fallback: an unenumerated value type (a future extractor returning
+            // Instant, Float, ...) must be rendered intentionally, not as toString() bytes.
+            default -> throw new EsqlIllegalArgumentException(
+                "cannot render constant column [" + attr.name() + "] from value type [" + value.getClass().getName() + "]"
+            );
         };
     }
 }

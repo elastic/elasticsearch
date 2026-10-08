@@ -14,27 +14,30 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
-import java.util.concurrent.CountDownLatch;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 
 public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
+
+    // The buffer file is sealed before the node stops, so it is drainable right after restart.
+    private static final int BUFFER_DRAIN_TIMEOUT = 3;
 
     public static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
     public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
-        .systemProperty("telemetry.otel.metrics.enabled", "true")
-        .setting("telemetry.otel.metrics.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics")
-        .setting("telemetry.otel.metrics.disk_buffer_size", "10mb")
-        .setting("telemetry.otel.metrics.buffer_ttl", "5m")
-        // Tight write/read windows so pre-existing buffered files become drainable within the test budget.
-        .setting("telemetry.otel.metrics.disk_buffer_write_window", "100ms")
-        .setting("telemetry.otel.metrics.disk_buffer_read_min_age", "200ms")
-        // metrics.interval must be > otlp.send_timeout so that the OTLP exporter can fully fail, and so that PeriodicMetricReader does not
-        // skip an export cycle
-        .setting("telemetry.otel.metrics.interval", "500ms")
-        .setting("telemetry.otel.otlp.send_timeout", "300ms")
-        // initial_backoff that is way smaller than otlp.send_timeout allows the exporter to fully exhaust the retries
-        .setting("telemetry.otel.otlp.retry.initial_backoff", "100ms")
+        .setting("telemetry.export.endpoint", () -> recordingApmServer.getGrpcEndpoint())
+        .setting("telemetry.metrics.buffer.disk_size", "10mb")
+        .setting("telemetry.metrics.buffer.ttl", "5m")
+        // Seal buffer files quickly (production default is 30s) so the pre-existing file is drainable right after restart.
+        .systemProperty("telemetry.metrics.buffer.write_window", "200ms")
+        // interval > send_timeout > initial_backoff so a failing export fully fails within an interval and the
+        // PeriodicMetricReader does not skip a cycle.
+        .setting("telemetry.export.interval", "1000ms")
+        .setting("telemetry.export.send_timeout", "200ms")
         .build();
 
     @ClassRule
@@ -51,26 +54,40 @@ public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
     }
 
     public void testPreExistingBufferFilesDrainAfterRestart() throws Exception {
+        Path bufferDir = cluster.getNodeDataPath(0).resolve("telemetry-buffer");
         recordingApmServer.setResponseCode(503);
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
-        Thread.sleep(1000);
 
-        cluster.restart(false);
+        assertBusy(() -> assertTrue("expected a completed buffer file before restart", hasWrittenBufferFile(bufferDir)));
+
+        cluster.stop(false);
         closeClients();
-        initClient();
         recordingApmServer.reset();
-        recordingApmServer.clearResponseCode();
 
-        CountDownLatch replayed = new CountDownLatch(1);
+        AtomicBoolean replayed = new AtomicBoolean();
         recordingApmServer.addMessageConsumer(msg -> {
             if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m
                 && "elasticsearch".equals(m.instrumentationScopeName())
                 && positiveLongSample(m, "es.apm.metrics.disk_buffer.replays")) {
-                replayed.countDown();
+                replayed.set(true);
             }
         });
+
+        cluster.start();
+        initClient();
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 
-        assertTrue("expected pre-existing buffer files to be replayed after restart", replayed.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS));
+        assertBusy(
+            () -> assertTrue("expected pre-existing buffer files to be replayed after restart", replayed.get()),
+            BUFFER_DRAIN_TIMEOUT,
+            TimeUnit.SECONDS
+        );
+    }
+
+    // Files still being written carry a ".tmp" suffix and are renamed once the write is complete.
+    private static boolean hasWrittenBufferFile(Path bufferDir) throws IOException {
+        try (Stream<Path> files = Files.list(bufferDir)) {
+            return files.anyMatch(f -> f.getFileName().toString().endsWith(".tmp") == false);
+        }
     }
 }

@@ -495,6 +495,42 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.DoubleRangeBuilder doubleRangeBuilder(int expectedSize) {
+                return new DoubleRangeBuilder(expectedSize);
+            }
+
+            @Override
+            public BlockLoader.Block buildOrdinalBytesRefDirect(
+                int[] ordinals,
+                int valueCount,
+                int[] valueCounts,
+                int positionCount,
+                BytesRef[] dictionary,
+                int dictionarySize
+            ) {
+                // Resolved here rather than kept as ordinals: a test block holds the values a position has, and a
+                // caller comparing against one should not have to know which shape the page happened to arrive in.
+                BlockLoader.BytesRefBuilder builder = bytesRefs(positionCount);
+                int at = 0;
+                for (int position = 0; position < positionCount; position++) {
+                    int held = valueCounts == null ? 1 : valueCounts[position];
+                    if (held == 0) {
+                        builder.appendNull();
+                    } else if (held == 1) {
+                        builder.appendBytesRef(dictionary[ordinals[at++]]);
+                    } else {
+                        builder.beginPositionEntry();
+                        for (int i = 0; i < held; i++) {
+                            builder.appendBytesRef(dictionary[ordinals[at++]]);
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+                assert at == valueCount : "read " + at + " ordinals, was given " + valueCount;
+                return builder.build();
+            }
+
+            @Override
             public BlockLoader.Block buildAggregateMetricDoubleDirect(
                 BlockLoader.Block minBlock,
                 BlockLoader.Block maxBlock,
@@ -1043,6 +1079,77 @@ public class TestBlock implements BlockLoader.Block {
 
             @Override
             public BlockLoader.LongBuilder appendLong(long value) {
+                add(value);
+                return this;
+            }
+        }
+    }
+
+    public static class DoubleRangeBuilder implements BlockLoader.DoubleRangeBuilder {
+        private final DoubleBuilder from;
+        private final DoubleBuilder to;
+
+        DoubleRangeBuilder(int expectedSize) {
+            from = new DoubleBuilder(expectedSize);
+            to = new DoubleBuilder(expectedSize);
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder from() {
+            return from;
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder to() {
+            return to;
+        }
+
+        @Override
+        public BlockLoader.Block build() {
+            var fromBlock = from.build();
+            var toBlock = to.build();
+            assert fromBlock.size() == toBlock.size();
+            var values = new ArrayList<>(fromBlock.size());
+            for (int i = 0; i < fromBlock.size(); i++) {
+                Object f = fromBlock.values.get(i);
+                if (f == null) {
+                    values.add(null);
+                } else {
+                    values.add(List.of(f, toBlock.values.get(i)));
+                }
+            }
+            return new TestBlock(values);
+        }
+
+        @Override
+        public BlockLoader.Builder appendNull() {
+            from.appendNull();
+            to.appendNull();
+            return this;
+        }
+
+        @Override
+        public BlockLoader.Builder beginPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder endPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {
+
+        }
+
+        private static class DoubleBuilder extends TestBlock.Builder implements BlockLoader.DoubleBuilder {
+            private DoubleBuilder(int expectedSize) {
+                super(expectedSize);
+            }
+
+            @Override
+            public BlockLoader.DoubleBuilder appendDouble(double value) {
                 add(value);
                 return this;
             }

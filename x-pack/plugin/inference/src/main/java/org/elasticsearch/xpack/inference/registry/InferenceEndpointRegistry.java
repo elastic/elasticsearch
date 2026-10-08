@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.inference.registry;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -22,6 +21,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.common.DiagnosticsCache;
 import org.elasticsearch.xpack.inference.common.InferenceIdAndProject;
@@ -162,4 +163,14 @@ public class InferenceEndpointRegistry extends DiagnosticsCache<Model> {
         return state.clusterRecovered() && featureService.clusterHasFeature(state, InferenceFeatures.INFERENCE_ENDPOINT_CACHE);
     }
 
+    public static void refreshCacheOnAllNodes(Client client) {
+        client.execute(
+            ClearInferenceEndpointCacheAction.INSTANCE,
+            new ClearInferenceEndpointCacheAction.Request(),
+            ActionListener.wrap(
+                ignored -> log.debug("Successfully refreshed inference endpoint cache on all nodes."),
+                e -> log.debug("Failed to refresh inference endpoint cache on all nodes.", e)
+            )
+        );
+    }
 }

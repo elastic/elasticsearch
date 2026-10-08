@@ -30,8 +30,13 @@ public class LiveVersionMapTestUtils {
         return new DeleteVersionValue(version, seqNo, term, time);
     }
 
-    public static IndexVersionValue newIndexVersionValue(Translog.Location location, long version, long seqNo, long term) {
-        return new IndexVersionValue(location, version, seqNo, term);
+    public static IndexVersionValue newIndexVersionValue(
+        Translog.OperationLocation operationLocation,
+        long version,
+        long seqNo,
+        long term
+    ) {
+        return new IndexVersionValue(operationLocation, version, seqNo, term);
     }
 
     public static VersionValue get(LiveVersionMap map, String id) {
@@ -71,14 +76,14 @@ public class LiveVersionMapTestUtils {
     }
 
     public static IndexVersionValue randomIndexVersionValue() {
-        return new IndexVersionValue(randomTranslogLocation(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+        return new IndexVersionValue(randomOperationLocation(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
-    public static Translog.Location randomTranslogLocation() {
+    public static Translog.OperationLocation randomOperationLocation() {
         if (randomBoolean()) {
             return null;
         } else {
-            return new Translog.Location(randomNonNegativeLong(), randomNonNegativeLong(), randomInt());
+            return new Translog.OperationLocation(new Translog.Location(randomNonNegativeLong(), randomNonNegativeLong(), randomInt()));
         }
     }
 

@@ -43,7 +43,7 @@ public abstract class AbstractArrayOrderBlockLoaderTests<V extends Comparable<V>
 
     protected static final String FIELD = "field";
     protected static final String OFFSETS = FieldArrayContext.offsetsFieldName(FIELD);
-    protected static final CircuitBreaker BREAKER = new NoopCircuitBreaker("test");
+    protected static final CircuitBreaker BREAKER = NoopCircuitBreaker.INSTANCE;
 
     private static final int ARRAY_LENGTH = 8;
 
@@ -126,9 +126,7 @@ public abstract class AbstractArrayOrderBlockLoaderTests<V extends Comparable<V>
                     // alternate shape (Singleton, BytesRefsFromBinary, ...) it lands on instead
                     assertFalse(
                         "dispatcher must elide ArrayOrder for single-valued segments, got " + r,
-                        r instanceof AbstractNumericBlockLoader.ArrayOrder<?>
-                            || r instanceof BytesRefsFromOrdsBlockLoader.ArrayOrder
-                            || r instanceof BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrder
+                        r instanceof AbstractNumericBlockLoader.ArrayOrder<?> || r instanceof BytesRefsFromOrdsBlockLoader.ArrayOrder
                     );
                     TestBlock block = (TestBlock) r.read(TestBlock.factory(), TestBlock.docs(0, 1), 0, false);
                     assertEquals(val1, block.get(0));

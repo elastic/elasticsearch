@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -885,9 +886,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             """;
 
         var e = expectThrows(VerificationException.class, () -> run(firstQuery));
-        assertTrue(
-            e.getMessage().contains("[count_distinct(embedding)] must be [any exact type except unsigned_long, _source, or counter types]")
-        );
+        assertTrue(e.getMessage().contains("Cannot use field [embedding] with unsupported type [sparse_vector]"));
 
         var secondQuery = """
                 FROM test*
@@ -1042,9 +1041,11 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             EsqlQueryResponse.Profile profile = resp.profile();
             assertNotNull(profile);
 
-            assertEquals(
-                Set.of("data", "main.final", "node_reduce", "subplan-0.final", "subplan-1.final"),
-                profile.drivers().stream().map(DriverProfile::description).collect(Collectors.toSet())
+            assertThat(
+                profile.drivers().stream().map(DriverProfile::description).collect(Collectors.toSet()),
+                either(equalTo(Set.of("data", "main.final", "node_reduce", "subplan-0.final", "subplan-1.final"))).or(
+                    equalTo(Set.of("data", "main.final", "subplan-0.final", "subplan-1.final"))
+                )
             );
         }
     }

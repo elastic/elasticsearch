@@ -1,2 +1,2 @@
-org.elasticsearch.xpack.stateless.memory.StatelessHeapUsageCollector
+org.elasticsearch.xpack.stateless.memory.StatelessHeapUsageReader
 

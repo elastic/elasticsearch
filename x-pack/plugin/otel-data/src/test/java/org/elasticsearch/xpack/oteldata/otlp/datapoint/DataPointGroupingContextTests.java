@@ -12,7 +12,6 @@ import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
 
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
@@ -29,6 +28,7 @@ import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createGaugeMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createHistogramMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createLongDataPoint;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createMetricsRequest;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createNoValueDataPoint;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createResourceMetrics;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createScopeMetrics;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSumMetric;
@@ -98,14 +98,8 @@ public class DataPointGroupingContextTests extends ESTestCase {
 
         AtomicInteger groupCount = new AtomicInteger(0);
         context.consume(dataPointGroup -> groupCount.incrementAndGet());
-        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
-            // gauge (null temporality), cumulative counter, and delta histograms are in separate groups
-            assertEquals(3, groupCount.get());
-        } else {
-            // without the feature flag, temporality is not a grouping dimension
-            // gauge, cumulative counter, and delta histograms all end up in same group (same TSID)
-            assertEquals(1, groupCount.get());
-        }
+        // gauge (null temporality), cumulative counter, and delta histograms are in separate groups
+        assertEquals(3, groupCount.get());
     }
 
     public void testGroupingDifferentTargetIndex() throws Exception {
@@ -168,6 +162,25 @@ public class DataPointGroupingContextTests extends ESTestCase {
         AtomicInteger groupCount = new AtomicInteger(0);
         context.consume(dataPointGroup -> groupCount.incrementAndGet());
         assertEquals(1, groupCount.get());
+    }
+
+    public void testGroupingIgnoresNumberDataPointWithoutValue() throws Exception {
+        // A NumberDataPoint whose oneof value is unset must be filtered out during grouping rather than
+        // reaching document building, where it would leave a dangling field name and corrupt the document.
+        ExportMetricsServiceRequest metricsRequest = createMetricsRequest(
+            List.of(
+                createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))),
+                createGaugeMetric("system.memory.usage", "", List.of(createNoValueDataPoint(nowUnixNanos)))
+            )
+        );
+        context.groupDataPoints(metricsRequest);
+        assertEquals(2, context.totalItems());
+        assertEquals(1, context.getIgnoredItems());
+        assertThat(context.getIgnoredItemsMessage(10), containsString("number data point without a value, ignoring system.memory.usage"));
+
+        List<String> metricNames = new ArrayList<>();
+        context.consume(dataPointGroup -> dataPointGroup.dataPoints().forEach(dp -> metricNames.add(dp.getMetricName())));
+        assertThat(metricNames, containsInAnyOrder("system.cpu.usage"));
     }
 
     public void testGroupingDuplicateNameDifferentTimeSeries() throws Exception {

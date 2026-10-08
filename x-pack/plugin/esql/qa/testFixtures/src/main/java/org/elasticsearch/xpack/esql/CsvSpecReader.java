@@ -30,7 +30,9 @@ public final class CsvSpecReader {
         ctx.addOptionParser(new WarningRegex(ctx));
         ctx.addOptionParser(new IgnoreOrder(ctx));
         ctx.addOptionParser(new DocumentsFound(ctx));
+        ctx.addOptionParser(new ApproximationApplied(ctx));
         ctx.addOptionParser(new SkipFlattenedRewrite(ctx));
+        ctx.addOptionParser(new SkipColumnar(ctx));
         return ctx;
     }
 
@@ -49,6 +51,7 @@ public final class CsvSpecReader {
         private final StringBuilder data = new StringBuilder();
         private final List<String> requiredCapabilities = new ArrayList<>();
         private final List<String> requiredCapabilitiesLocalCluster = new ArrayList<>();
+        private final List<String> missingCapabilitiesLocalCluster = new ArrayList<>();
         private final List<String> missingCapabilitiesRemoteCluster = new ArrayList<>();
         private final List<DatasetSource> datasetSources = new ArrayList<>();
         private final List<SpecReader.Parser> optionParsers = new ArrayList<>();
@@ -57,6 +60,7 @@ public final class CsvSpecReader {
         String requestTimeRangeGte;
         String requestTimeRangeLte;
         String skipFlattenedRewrite;
+        String skipColumnar;
         CsvTestCase testCase;
 
         private ParserContext() {}
@@ -85,6 +89,7 @@ public final class CsvSpecReader {
                 testCase.query = query.toString();
                 testCase.requiredCapabilities = List.copyOf(requiredCapabilities);
                 testCase.requiredCapabilitiesLocalCluster = List.copyOf(requiredCapabilitiesLocalCluster);
+                testCase.missingCapabilitiesLocalCluster = List.copyOf(missingCapabilitiesLocalCluster);
                 testCase.missingCapabilitiesRemoteCluster = List.copyOf(missingCapabilitiesRemoteCluster);
                 testCase.datasetSources = List.copyOf(datasetSources);
                 testCase.pragmas = Map.copyOf(pragmas);
@@ -92,14 +97,17 @@ public final class CsvSpecReader {
                 testCase.requestTimeRangeGte = requestTimeRangeGte;
                 testCase.requestTimeRangeLte = requestTimeRangeLte;
                 testCase.skipFlattenedRewrite = skipFlattenedRewrite;
+                testCase.skipColumnar = skipColumnar;
                 requiredCapabilities.clear();
                 requiredCapabilitiesLocalCluster.clear();
+                missingCapabilitiesLocalCluster.clear();
                 missingCapabilitiesRemoteCluster.clear();
                 datasetSources.clear();
                 requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
                 requestTimeRangeGte = null;
                 requestTimeRangeLte = null;
                 skipFlattenedRewrite = null;
+                skipColumnar = null;
                 query.setLength(0);
             } else {
                 query.append(line).append("\r\n");
@@ -135,6 +143,10 @@ public final class CsvSpecReader {
                 state.requiredCapabilitiesLocalCluster.add(line.substring("required_capability_coordinator:".length()).trim());
                 return Boolean.TRUE;
             }
+            if (lower.startsWith("missing_capability_coordinator:")) {
+                state.missingCapabilitiesLocalCluster.add(line.substring("missing_capability_coordinator:".length()).trim());
+                return Boolean.TRUE;
+            }
             if (lower.startsWith("missing_capability_data_node:")) {
                 state.missingCapabilitiesRemoteCluster.add(line.substring("missing_capability_data_node:".length()).trim());
                 return Boolean.TRUE;
@@ -154,16 +166,22 @@ public final class CsvSpecReader {
      * @param resource  the decoded resource URI or {@code {{template}}} placeholder: surrounding quotes
      *                  removed and backslash escapes resolved (e.g. {@code \"} -&gt; {@code "})
      * @param withJson  the brace-delimited JSON options object (e.g. {@code {"header_row": false}}), or
-     *                  {@code null} when the directive carries no {@code WITH} clause
+     *                  {@code null} when the directive carries no {@code WITH} clause. Uninterpreted here;
+     *                  the reserved {@code mappings} key is split out downstream by {@code DatasetRegistry}
      */
     public record DatasetSource(String name, String resource, String withJson) {}
 
     /**
      * Parses {@code dataset:} preamble directives of the form
      * {@code dataset: <name>: "<resource>" [WITH {<json>}] [// comment]}. Each declares one named external
-     * source whose format options are exactly today's EXTERNAL {@code WITH} options; storage connection
-     * settings are still injected by the test harness, never written in the spec. The directive is
+     * source. The {@code WITH} object is the dataset's option surface: every key is a format option except
+     * the reserved {@code mappings}, whose value is the dataset's declared schema and which
+     * {@code DatasetRegistry} lifts out to the PUT body's top-level {@code mappings} field. Storage
+     * connection settings are still injected by the test harness, never written in the spec. The directive is
      * repeatable so a single query can reference multiple datasets.
+     * <p>
+     * This parser does not interpret the JSON at all -- it only delimits it -- so the reserved key needs no
+     * grammar support here.
      * <p>
      * The resource string supports {@code \\}-escapes (so it may contain an embedded {@code "}), and a
      * trailing {@code //} comment is permitted after the resource or after the {@code WITH} object.
@@ -412,6 +430,18 @@ public final class CsvSpecReader {
         }
     }
 
+    record ApproximationApplied(ParserContext state) implements SpecReader.Parser {
+        @Override
+        public Object parse(String line) {
+            String lower = line.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("approximation_applied:")) {
+                state.testCase.expectedApproximationApplied = line.substring("approximation_applied:".length()).trim();
+                return Boolean.TRUE;
+            }
+            return null;
+        }
+    }
+
     record Pragma(ParserContext state) implements SpecReader.Parser {
         @Override
         public Object parse(String line) {
@@ -454,6 +484,25 @@ public final class CsvSpecReader {
         }
     }
 
+    /**
+     * Marks a test as a known limitation under the columnar index-mode variant
+     * ({@code CsvColumnarIT}). The directive is a single line of the form
+     * {@code skip_columnar: <free-text reason>}. The variant skips the test and the reason surfaces
+     * in the JUnit XML {@code <skipped>} element so the silence is self-explanatory in CI tooling.
+     * Every other test driver ignores the directive.
+     */
+    record SkipColumnar(ParserContext state) implements SpecReader.Parser {
+        @Override
+        public Object parse(String line) {
+            String lower = line.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("skip_columnar:")) {
+                state.skipColumnar = line.substring("skip_columnar:".length()).trim();
+                return Boolean.TRUE;
+            }
+            return null;
+        }
+    }
+
     public static class CsvTestCase {
         final List<String> expectedWarnings = new ArrayList<>();
         final List<String> expectedWarningsRegexString = new ArrayList<>();
@@ -461,6 +510,7 @@ public final class CsvSpecReader {
         public String query;
         public String expectedResults;
         public String expectedDocumentsFound;
+        public String expectedApproximationApplied;
         public boolean ignoreOrder;
         /**
          * How to change the test when requesting all values be loaded from stored fields.
@@ -475,6 +525,11 @@ public final class CsvSpecReader {
          * (equivalent to {@link CsvTestCase#requiredCapabilities} for single-cluster tests)
          */
         public List<String> requiredCapabilitiesLocalCluster = List.of();
+        /**
+         * Capabilities that must be missing on the local (coordinating) cluster.
+         * (not supported for single-cluster tests)
+         */
+        public List<String> missingCapabilitiesLocalCluster = List.of();
         /**
          * Capabilities that must be missing on the remote cluster.
          * (not supported for single-cluster tests)
@@ -501,6 +556,14 @@ public final class CsvSpecReader {
          * driver ignores this field.
          */
         public String skipFlattenedRewrite;
+
+        /**
+         * Free-text reason carried over from a {@code skip_columnar:} preamble line, or
+         * {@code null} when the test has no such directive. Consumed by
+         * {@code CsvColumnarIT} to skip the test as a known limitation of the columnar index mode;
+         * every other test driver ignores this field.
+         */
+        public String skipColumnar;
 
         /**
          * Pragmas that must be sent.
@@ -532,6 +595,21 @@ public final class CsvSpecReader {
             expectedWarningsRegexString.replaceAll(updater::apply);
             expectedWarningsRegex.clear();
             expectedWarningsRegex.addAll(expectedWarningsRegexString.stream().map(CsvSpecReader::warningRegexToPattern).toList());
+        }
+
+        /**
+         * Makes expected warnings optional: they may or may not appear in the response.
+         * Any actual warning must still match one of the expected patterns.
+         * Used in mixed/multi-cluster tests where older nodes (pre-9.6) may not propagate
+         * warnings correctly due to a threading bug fixed in 9.6.
+         */
+        public void makeWarningsOptional() {
+            if (expectedWarnings.isEmpty() == false) {
+                expectedWarningsRegexString.addAll(expectedWarnings.stream().map(Pattern::quote).toList());
+                expectedWarnings.clear();
+                expectedWarningsRegex.clear();
+                expectedWarningsRegex.addAll(expectedWarningsRegexString.stream().map(CsvSpecReader::warningRegexToPattern).toList());
+            }
         }
 
         /**

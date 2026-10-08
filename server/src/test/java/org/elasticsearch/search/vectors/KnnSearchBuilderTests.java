@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -337,11 +338,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
     }
 
     public static float[] randomVector(int dim) {
-        float[] vector = new float[dim];
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = randomFloat();
-        }
-        return vector;
+        return VectorTestUtils.randomFloatVector(dim);
     }
 
     private static class RewriteableQuery extends AbstractQueryBuilder<RewriteableQuery> {

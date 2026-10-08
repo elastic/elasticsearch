@@ -40,6 +40,7 @@ abstract class AbstractGradleInternalPluginFuncTest extends AbstractJavaGradleFu
 
         buildFile << """
         import ${getPluginClassUnderTest().getName()}
+        import org.elasticsearch.gradle.internal.info.BuildParameterExtension
 
         plugins {
           // bring in build-tools-internal onto the classpath

@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 157902
+summary: "[Inference API] Add `model_identity` to inference endpoint metadata"
+type: enhancement

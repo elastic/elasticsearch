@@ -56,8 +56,8 @@ public class DataSourceSettingsTests extends ESTestCase {
         Map<String, Object> masked = new DataSourceSettings(in).toPresentationMap();
         assertEquals("us-east-1", masked.get("region"));
         assertEquals(DataSourceSetting.MASK_SENTINEL, masked.get("access_key"));
-        // A null-valued secret still presents as the sentinel (masking is by classification, not value).
-        assertEquals(DataSourceSetting.MASK_SENTINEL, masked.get("optional_secret"));
+        // A null-valued secret presents as null — it was wiped (e.g. by an encryption reset) and has no value to mask.
+        assertNull(masked.get("optional_secret"));
         expectThrows(UnsupportedOperationException.class, () -> masked.put("x", "y"));
     }
 

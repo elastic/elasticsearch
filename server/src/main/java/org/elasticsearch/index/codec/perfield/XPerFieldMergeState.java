@@ -60,7 +60,8 @@ final class XPerFieldMergeState {
             in.maxDocs,
             in.infoStream,
             in.intraMergeTaskExecutor,
-            in.needsIndexSort
+            in.needsIndexSort,
+            in.oneMerge
         );
     }
 

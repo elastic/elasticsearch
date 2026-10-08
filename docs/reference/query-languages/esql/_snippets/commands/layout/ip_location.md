@@ -38,7 +38,7 @@ The first `IP_LOCATION` query triggers a one-time download of IP location databa
 
 The `IP_LOCATION` command resolves geographic information for an IP address and adds the results as new columns prefixed with the specified `prefix` followed by a dot (`.`).
 
-This command is the query-time equivalent of the [GeoIP ingest processor](/reference/enrich-processor/geoip-processor.md).
+This command is the query-time equivalent of the [GeoIP ingest processor](/reference/ingest-processor/geoip-processor.md).
 
 The output columns depend on the `database_file` and `properties` options. For the default GeoLite2-City database, the following columns are produced:
 
@@ -68,7 +68,7 @@ If the database is not yet available on the node (e.g., still downloading), KEYW
 
 ## Supported databases and properties
 
-The available `properties` depend on the `database_file`. Properties listed under **default** are included when `properties` is not specified. For a full description of each property, refer to the [GeoIP ingest processor](/reference/enrich-processor/geoip-processor.md) documentation.
+The available `properties` depend on the `database_file`. Properties listed under **default** are included when `properties` is not specified. For a full description of each property, refer to the [GeoIP ingest processor](/reference/ingest-processor/geoip-processor.md) documentation.
 
 **GeoLite2-City / GeoIP2-City** (default database)
 :   **default:** `country_iso_code`, `country_name`, `continent_name`, `region_iso_code`, `region_name`, `city_name`, `location`

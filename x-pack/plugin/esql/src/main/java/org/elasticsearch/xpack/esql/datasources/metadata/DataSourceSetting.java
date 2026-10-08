@@ -109,9 +109,10 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
         return value;
     }
 
-    /** Returns the masked sentinel for secrets, or the plaintext value otherwise. Safe for REST responses. */
+    /** Returns the masked sentinel for set secrets, {@code null} for wiped secrets, or the plaintext value for non-secrets. */
     public Object presentationValue() {
-        return secret ? MASK_SENTINEL : value;
+        if (secret == false) return value;
+        return value == null ? null : MASK_SENTINEL;
     }
 
     public static DataSourceSetting fromXContent(XContentParser parser) throws IOException {

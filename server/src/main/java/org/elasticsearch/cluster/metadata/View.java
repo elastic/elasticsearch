@@ -8,10 +8,12 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -24,22 +26,26 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Represents a single view definition, which is simply a name and a query string.
+ * Represents a single view definition: a name, a query string and an optional description.
  */
 public final class View implements Writeable, ToXContentObject, IndexAbstraction {
+    private static final TransportVersion VIEW_DESCRIPTION_VERSION = TransportVersion.fromName("esql_view_description");
+
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField QUERY = new ParseField("query");
+    private static final ParseField DESCRIPTION = new ParseField("description");
 
     // Parser that includes the name field (eg. serializing/deserializing the full object)
     static final ConstructingObjectParser<View, Void> PARSER = new ConstructingObjectParser<>(
         "view",
         false,
-        (args, ctx) -> new View((String) args[0], (String) args[1])
+        (args, ctx) -> new View((String) args[0], (String) args[1], (String) args[2])
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), QUERY);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
     }
 
     // Parser that excludes the name field (eg. when the name is provided externally, in the URL path)
@@ -47,23 +53,32 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
         ConstructingObjectParser<View, Void> parser = new ConstructingObjectParser<>(
             "view",
             false,
-            (args, ctx) -> new View(name, (String) args[0])
+            (args, ctx) -> new View(name, (String) args[0], (String) args[1])
         );
         parser.declareString(ConstructingObjectParser.constructorArg(), QUERY);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
         return parser;
     }
 
     private final String name;
     private final String query;
+    @Nullable
+    private final String description;
 
     public View(String name, String query) {
+        this(name, query, null);
+    }
+
+    public View(String name, String query, @Nullable String description) {
         this.name = Objects.requireNonNull(name, "view name must not be null");
         this.query = Objects.requireNonNull(query, "view query must not be null");
+        this.description = description;
     }
 
     public View(StreamInput in) throws IOException {
         this.name = in.readString();
         this.query = in.readString();
+        this.description = in.getTransportVersion().supports(VIEW_DESCRIPTION_VERSION) ? in.readOptionalString() : null;
     }
 
     public static View fromXContent(XContentParser parser) throws IOException {
@@ -74,6 +89,9 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(query);
+        if (out.getTransportVersion().supports(VIEW_DESCRIPTION_VERSION)) {
+            out.writeOptionalString(description);
+        }
     }
 
     public String name() {
@@ -84,11 +102,19 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
         return query;
     }
 
+    @Nullable
+    public String description() {
+        return description;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(NAME.getPreferredName(), name);
         builder.field(QUERY.getPreferredName(), query);
+        if (description != null) {
+            builder.field(DESCRIPTION.getPreferredName(), description);
+        }
         builder.endObject();
         return builder;
     }
@@ -98,12 +124,12 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         View other = (View) o;
-        return Objects.equals(name, other.name) && Objects.equals(query, other.query);
+        return Objects.equals(name, other.name) && Objects.equals(query, other.query) && Objects.equals(description, other.description);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, query);
+        return Objects.hash(name, query, description);
     }
 
     public String toString() {

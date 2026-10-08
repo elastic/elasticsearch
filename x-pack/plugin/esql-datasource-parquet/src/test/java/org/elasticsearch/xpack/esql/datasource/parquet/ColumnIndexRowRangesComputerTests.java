@@ -464,6 +464,89 @@ public class ColumnIndexRowRangesComputerTests extends ESTestCase {
         );
     }
 
+    // -----------------------------------------------------------------------------------
+    // esql-planning#1030: a Parquet uint32 column (physical INT32) whose true max exceeds
+    // Integer.MAX_VALUE stores a raw int32 that reads as negative under Java's signed
+    // Integer ordering, even though the ColumnIndex's own min/max were computed by the
+    // writer using unsigned ordering. Comparisons here must agree with the writer's
+    // unsigned ordering or this (deliberately conservative, "never fewer rows") visitor
+    // would itself drop the matching page.
+    // -----------------------------------------------------------------------------------
+
+    public void testUnsignedInt32GtKeepsPageWithOverflowedMax() {
+        PrimitiveType ptype = Types.required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(32, false))
+            .named("u32");
+        // True unsigned range [50_000, 4_000_000_000]; raw int32 bits of 4_000_000_000 are negative.
+        PreloadedRowGroupMetadata metadata = buildSinglePageMetadata(
+            "u32",
+            ptype,
+            intToBuffer(50_000),
+            intToBuffer((int) 4_000_000_000L),
+            PAGE_SIZE
+        );
+        FilterPredicate pred = FilterApi.gt(FilterApi.intColumn("u32"), 100_000);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, PAGE_SIZE);
+
+        assertTrue(
+            "unsigned max (4_000_000_000) is > 100_000; a signed read of its raw negative bits must not prune this page",
+            result.overlaps(0, PAGE_SIZE)
+        );
+    }
+
+    public void testUnsignedInt32LtExcludesPageEntirelyAboveThreshold() {
+        PrimitiveType ptype = Types.required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(32, false))
+            .named("u32");
+        // True unsigned range [3_000_000_000, 4_000_000_000], both with negative raw int32 bits.
+        PreloadedRowGroupMetadata metadata = buildSinglePageMetadata(
+            "u32",
+            ptype,
+            intToBuffer((int) 3_000_000_000L),
+            intToBuffer((int) 4_000_000_000L),
+            PAGE_SIZE
+        );
+        FilterPredicate pred = FilterApi.lt(FilterApi.intColumn("u32"), 100_000);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, PAGE_SIZE);
+
+        assertFalse(
+            "unsigned min (3_000_000_000) is not < 100_000; a signed read (negative min) must not wrongly keep this page",
+            result.overlaps(0, PAGE_SIZE)
+        );
+    }
+
+    public void testUnsignedInt32InKeepsPageMatchingOverflowedValue() {
+        PrimitiveType ptype = Types.required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(32, false))
+            .named("u32");
+        PreloadedRowGroupMetadata metadata = buildSinglePageMetadata(
+            "u32",
+            ptype,
+            intToBuffer(50_000),
+            intToBuffer((int) 4_000_000_000L),
+            PAGE_SIZE
+        );
+        FilterPredicate pred = FilterApi.in(FilterApi.intColumn("u32"), Set.of((int) 4_000_000_000L));
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, PAGE_SIZE);
+
+        assertTrue("IN value 4_000_000_000 (narrowed) falls within the page's unsigned range", result.overlaps(0, PAGE_SIZE));
+    }
+
+    public void testSignedInt32StillUsesSignedComparisonNoRegression() {
+        // No logical type annotation (plain signed INT32): a negative min must still be
+        // ordered below a small positive value, exactly as natural Integer ordering dictates.
+        PrimitiveType ptype = Types.required(PrimitiveType.PrimitiveTypeName.INT32).named("delta");
+        PreloadedRowGroupMetadata metadata = buildSinglePageMetadata("delta", ptype, intToBuffer(-1000), intToBuffer(-1), PAGE_SIZE);
+        FilterPredicate pred = FilterApi.lt(FilterApi.intColumn("delta"), 0);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, PAGE_SIZE);
+
+        assertTrue("plain signed INT32 must keep the signed-negative page for Lt(0)", result.overlaps(0, PAGE_SIZE));
+    }
+
     public void testBooleanColumnEq() {
         PreloadedRowGroupMetadata metadata = buildBooleanMetadata("flag", PAGE_COUNT, PAGE_SIZE);
         FilterPredicate pred = FilterApi.eq(FilterApi.booleanColumn("flag"), true);

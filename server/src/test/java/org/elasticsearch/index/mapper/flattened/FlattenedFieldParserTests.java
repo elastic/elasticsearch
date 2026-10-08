@@ -33,8 +33,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
     private FlattenedFieldParser parser;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initParser() throws Exception {
         parser = new FlattenedFieldParser(
             "field",
             "field._keyed",
@@ -49,6 +48,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
+            false,
             false
         );
     }
@@ -319,6 +319,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
+            false,
             false
         );
 
@@ -350,6 +351,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
+            false,
             false
         );
 
@@ -376,6 +378,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
+            false,
             false
         );
 
@@ -402,6 +405,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             false,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
+            false,
             false
         );
 
@@ -434,6 +438,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
+            false,
             false
         );
 

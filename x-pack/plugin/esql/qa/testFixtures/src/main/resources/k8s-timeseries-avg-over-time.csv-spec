@@ -93,6 +93,35 @@ cost:double                      | step:datetime
 [13.25, 36.375, 37.9375, 39.5417] | [2024-05-10T00:11:00.000Z, 2024-05-10T00:12:00.000Z, 2024-05-10T00:13:00.000Z, 2024-05-10T00:14:00.000Z]
 ;
 
+// Range window (1m) smaller than the step (10m): the per-step result at B is the average over (B-1m, B], identical to
+// the values the step=1m query above produces at the same instants. 
+avg_over_time_of_double_small_window_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_window_filter_rounding
+
+PROMQL index=k8s step=10m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:20:00.000Z" cost=(round(sum(avg_over_time(network.cost[1m])), 0.0001))
+| SORT step;
+
+cost:double | step:datetime
+69.6875     | 2024-05-10T00:10:00.000Z
+46.4375     | 2024-05-10T00:20:00.000Z
+;
+
+// date_nanos counterpart of avg_over_time_of_double_small_window_promql. 
+avg_over_time_of_double_small_window_of_date_nanos_promql
+required_capability: promql_command_v0
+required_capability: fix_tstep_window_filter_rounding
+required_capability: fix_promql_date_nanos_step
+
+PROMQL index=datenanos-k8s step=10m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:20:00.000Z" cost=(round(sum(avg_over_time(network.cost[1m])), 0.0001))
+| SORT step;
+
+cost:double | step:datetime
+69.6875     | 2024-05-10T00:10:00.000Z
+46.4375     | 2024-05-10T00:20:00.000Z
+;
+
 avg_over_time_of_integer
 required_capability: ts_command_v0
 TS k8s 

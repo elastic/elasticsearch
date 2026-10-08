@@ -1,0 +1,142 @@
+// Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+// or more contributor license agreements. Licensed under the Elastic License
+// 2.0; you may not use this file except in compliance with the Elastic License
+// 2.0.
+package org.elasticsearch.xpack.esql.expression.function.scalar.date;
+
+import java.lang.IllegalArgumentException;
+import java.lang.Override;
+import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+
+/**
+ * {@link ExpressionEvaluator} implementation for {@link RangeIntersects}.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
+ */
+public final class RangeIntersectsDoublePointEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RangeIntersectsDoublePointEvaluator.class);
+
+  private final Source source;
+
+  private final ExpressionEvaluator point;
+
+  private final ExpressionEvaluator range;
+
+  private final DriverContext driverContext;
+
+  private Warnings warnings;
+
+  public RangeIntersectsDoublePointEvaluator(Source source, ExpressionEvaluator point,
+      ExpressionEvaluator range, DriverContext driverContext) {
+    this.source = source;
+    this.point = point;
+    this.range = range;
+    this.driverContext = driverContext;
+  }
+
+  @Override
+  public Block eval(Page page) {
+    try (DoubleBlock pointBlock = (DoubleBlock) point.eval(page)) {
+      try (DoubleRangeBlock rangeBlock = (DoubleRangeBlock) range.eval(page)) {
+        return eval(page.getPositionCount(), pointBlock, rangeBlock);
+      }
+    }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += point.baseRamBytesUsed();
+    baseRamBytesUsed += range.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
+  public BooleanBlock eval(int positionCount, DoubleBlock pointBlock, DoubleRangeBlock rangeBlock) {
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      DoubleRangeBlockBuilder.DoubleRange rangeScratch = new DoubleRangeBlockBuilder.DoubleRange();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (pointBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        switch (pointBlock.getValueCount(p)) {
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
+        }
+        if (rangeBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        switch (rangeBlock.getValueCount(p)) {
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
+        }
+        double point = pointBlock.getDouble(pointBlock.getFirstValueIndex(p));
+        DoubleRangeBlockBuilder.DoubleRange range = rangeBlock.getDoubleRange(rangeBlock.getFirstValueIndex(p), rangeScratch);
+        result.appendBoolean(RangeIntersects.processPoint(point, range));
+      }
+      return result.build();
+    }
+  }
+
+  @Override
+  public String toString() {
+    return "RangeIntersectsDoublePointEvaluator[" + "point=" + point + ", range=" + range + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(point, range);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = driverContext.createWarnings(source);
+    }
+    return warnings;
+  }
+
+  static class Factory implements ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final ExpressionEvaluator.Factory point;
+
+    private final ExpressionEvaluator.Factory range;
+
+    public Factory(Source source, ExpressionEvaluator.Factory point,
+        ExpressionEvaluator.Factory range) {
+      this.source = source;
+      this.point = point;
+      this.range = range;
+    }
+
+    @Override
+    public RangeIntersectsDoublePointEvaluator get(DriverContext context) {
+      return new RangeIntersectsDoublePointEvaluator(source, point.get(context), range.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "RangeIntersectsDoublePointEvaluator[" + "point=" + point + ", range=" + range + "]";
+    }
+  }
+}

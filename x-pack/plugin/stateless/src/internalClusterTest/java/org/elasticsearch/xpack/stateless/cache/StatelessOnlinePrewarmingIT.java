@@ -26,7 +26,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -126,9 +125,11 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
         // this is the executor Lucene uses to fetch data from the object store in the cache in an on-demand manner
         // (e.g. when a reader is opened or when a search operation is executed)
         String shardReadThreadPool = StatelessPlugin.SHARD_READ_THREAD_POOL;
+        String fillVbccThreadPool = StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL;
         // let's get the number of completed tasks before we start indexing so when we wait for the downloads to finish
         // we can assert that the number of completed tasks is higher, to make sure downloads actually occurred
         long preRefreshCompletedDownloadTasks = getNumberOfCompletedTasks(threadPool, shardReadThreadPool);
+        long preRefreshCompletedFillVbccTasks = getNumberOfCompletedTasks(threadPool, fillVbccThreadPool);
         long preRefreshCompletedRefreshTasks = getNumberOfCompletedTasks(threadPool, ThreadPool.Names.REFRESH);
         for (int i = 0; i < 20; i++) {
             indexDocs(indexName, 1000);
@@ -141,7 +142,13 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
         }
         flush(indexName);
         assertNoRunningAndQueueTasks(threadPool, ThreadPool.Names.REFRESH, preRefreshCompletedRefreshTasks);
-        assertNoRunningAndQueueTasks(threadPool, shardReadThreadPool, preRefreshCompletedDownloadTasks);
+        assertNoRunningAndQueueTasks(
+            threadPool,
+            shardReadThreadPool,
+            preRefreshCompletedDownloadTasks,
+            fillVbccThreadPool,
+            preRefreshCompletedFillVbccTasks
+        );
 
         IndexShard indexShard = findSearchShard(indexName);
         var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
@@ -203,6 +210,7 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
         assertThat(bytesWarmedAfterSecondPrewarming, is(bytesWarmedAfterFirstPrewarming));
 
         long downloadTasksAfterPrewarming = getNumberOfCompletedTasks(threadPool, shardReadThreadPool);
+        long fillVbccTasksAfterPrewarming = getNumberOfCompletedTasks(threadPool, fillVbccThreadPool);
         long refreshTasksAfterPrewarming = getNumberOfCompletedTasks(threadPool, ThreadPool.Names.REFRESH);
         // let's create some more segments and trigger prewarming via a search operation
         for (int i = 0; i < 5; i++) {
@@ -211,7 +219,13 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
         }
         flush(indexName);
         assertNoRunningAndQueueTasks(threadPool, ThreadPool.Names.REFRESH, refreshTasksAfterPrewarming);
-        assertNoRunningAndQueueTasks(threadPool, shardReadThreadPool, downloadTasksAfterPrewarming);
+        assertNoRunningAndQueueTasks(
+            threadPool,
+            shardReadThreadPool,
+            downloadTasksAfterPrewarming,
+            fillVbccThreadPool,
+            fillVbccTasksAfterPrewarming
+        );
 
         logger.info("-> searching index after additional indexing");
         // clear the cache to make sure prewarming doesn't race with readers opening
@@ -269,16 +283,53 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
     private static void assertNoRunningAndQueueTasks(ThreadPool threadPool, String executorName, long previouslyObservedCompletedTasks)
         throws Exception {
         assertBusy(() -> {
-            final ThreadPoolStats.Stats stats = threadPool.stats()
-                .stats()
-                .stream()
-                .filter(s -> s.name().equals(executorName))
-                .findFirst()
-                .orElse(null);
+            final ThreadPoolStats.Stats stats = executorStats(threadPool, executorName);
             assertThat(stats, is(notNullValue()));
-            assertThat(stats.completed(), greaterThan(previouslyObservedCompletedTasks));
-            assertThat(stats.active() + stats.queue(), is(0));
+            assertThat(
+                "[" + executorName + "] completed no task since baseline [" + previouslyObservedCompletedTasks + "]: " + stats,
+                stats.completed(),
+                greaterThan(previouslyObservedCompletedTasks)
+            );
+            assertThat("[" + executorName + "] still has active or queued tasks: " + stats, stats.active() + stats.queue(), is(0));
         });
+    }
+
+    private static void assertNoRunningAndQueueTasks(
+        ThreadPool threadPool,
+        String shardReadThreadPool,
+        long shardReadCompletedBaseline,
+        String fillVbccThreadPool,
+        long fillVbccCompletedBaseline
+    ) throws Exception {
+        assertBusy(() -> {
+            final ThreadPoolStats.Stats shardReadStats = executorStats(threadPool, shardReadThreadPool);
+            final ThreadPoolStats.Stats fillVbccStats = executorStats(threadPool, fillVbccThreadPool);
+            assertThat(shardReadStats, is(notNullValue()));
+            assertThat(fillVbccStats, is(notNullValue()));
+
+            long executorTasksCompleted = shardReadStats.completed() + fillVbccStats.completed();
+            long executorTasksBaseline = shardReadCompletedBaseline + fillVbccCompletedBaseline;
+            assertThat(
+                "no task completed since baseline [" + executorTasksBaseline + "] on " + shardReadStats + " and " + fillVbccStats,
+                executorTasksCompleted,
+                greaterThan(executorTasksBaseline)
+            );
+
+            assertThat(
+                "[" + shardReadThreadPool + "] still has active or queued tasks: " + shardReadStats,
+                shardReadStats.active() + shardReadStats.queue(),
+                is(0)
+            );
+            assertThat(
+                "[" + fillVbccThreadPool + "] still has active or queued tasks: " + fillVbccStats,
+                fillVbccStats.active() + fillVbccStats.queue(),
+                is(0)
+            );
+        });
+    }
+
+    private static ThreadPoolStats.Stats executorStats(ThreadPool threadPool, String executorName) {
+        return threadPool.stats().stats().stream().filter(s -> s.name().equals(executorName)).findFirst().orElse(null);
     }
 
     private static void assertContainsMeasurement(
@@ -306,18 +357,6 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
 
         public TestCacheStatelessPluginNoRecoveryPrewarming(Settings settings) {
             super(settings);
-        }
-
-        @Override
-        public Collection<Object> createComponents(Plugin.PluginServices services) {
-            final Collection<Object> components = super.createComponents(services);
-            components.add(
-                new PluginComponentBinding<>(
-                    StatelessCommitService.class,
-                    components.stream().filter(c -> c instanceof TestStatelessCommitService).findFirst().orElseThrow()
-                )
-            );
-            return components;
         }
 
         @Override
@@ -351,17 +390,25 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider
+            WarmingRatioProvider warmingRatioProvider,
+            SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             // no-op the warming on shard recovery so we can manually fetch ranges into the cache on the search tier
-            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider) {
+            return new SharedBlobCacheWarmingService(
+                cacheService,
+                threadPool,
+                telemetryProvider,
+                clusterSettings,
+                warmingRatioProvider,
+                searchRecoveryTimeoutCalculationService
+            ) {
                 @Override
                 protected void warmCache(
                     Type type,
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
-                    @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                    @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     org.elasticsearch.action.ActionListener<Void> listener
                 ) {

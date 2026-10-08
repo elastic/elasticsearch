@@ -98,6 +98,7 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
             state,
             maxConn,
             beamWidth,
+            flatVectorFormat,
             flatVectorFormat.fieldsWriter(state),
             numMergeWorkers,
             mergeExec,

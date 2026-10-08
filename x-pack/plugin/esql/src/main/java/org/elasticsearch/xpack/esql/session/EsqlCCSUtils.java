@@ -10,14 +10,10 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
-import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -29,14 +25,13 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -69,42 +64,6 @@ public class EsqlCCSUtils {
             }
         }
         return unavailableRemotes;
-    }
-
-    /**
-     * ActionListener that receives LogicalPlan or error from logical planning.
-     * Any Exception sent to onFailure stops processing, but not all are fatal (return a 4xx or 5xx), so
-     * the onFailure handler determines whether to return an empty successful result or a 4xx/5xx error.
-     */
-    abstract static class CssPartialErrorsActionListener implements ActionListener<Versioned<LogicalPlan>> {
-        private final Configuration configuration;
-        private final EsqlExecutionInfo executionInfo;
-        private final ActionListener<Versioned<Result>> listener;
-
-        CssPartialErrorsActionListener(
-            Configuration configuration,
-            EsqlExecutionInfo executionInfo,
-            ActionListener<Versioned<Result>> listener
-        ) {
-            this.configuration = configuration;
-            this.executionInfo = executionInfo;
-            this.listener = listener;
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            if (returnSuccessWithEmptyResult(executionInfo, e)) {
-                updateExecutionInfoToReturnEmptyResult(executionInfo, e);
-                listener.onResponse(
-                    new Versioned<>(
-                        new Result(Analyzer.NO_FIELDS, List.of(), Map.of(), configuration, DriverCompletionInfo.EMPTY, executionInfo),
-                        TransportVersion.current()
-                    )
-                );
-            } else {
-                listener.onFailure(e);
-            }
-        }
     }
 
     /**
@@ -168,13 +127,28 @@ public class EsqlCCSUtils {
         }
     }
 
-    static String createQualifiedLookupIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo, String localPattern) {
-        if (executionInfo.getClusters().isEmpty()) {
-            return localPattern;
-        }
-        return executionInfo.getRunningClusterAliases()
+    static String createQualifiedLookupIndexExpressionFromAvailableClusters(Set<String> lookupIndexScope, String localPattern) {
+        return lookupIndexScope.stream()
             .map(clusterAlias -> RemoteClusterAware.buildRemoteIndexName(clusterAlias, localPattern))
             .collect(joining(","));
+    }
+
+    static Set<String> onlyRunning(EsqlExecutionInfo executionInfo, Set<String> clusterAliases) {
+        if (executionInfo.getClusters().isEmpty()) {
+            return Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);// Happens when joining to ROW
+        }
+        // Use a LinkedHashSet so the local cluster (added below) is always iterated last, giving a deterministic qualified lookup
+        // expression (e.g. "cluster-a:idx,idx" rather than a hash-ordered variant) for error messages.
+        Set<String> running = new LinkedHashSet<>(
+            executionInfo.getRunningClusterAliases().filter(clusterAliases::contains).collect(toSet())
+        );
+        // This is validated by CrossClusterSubqueryIT.testSubqueryWithRowAndLookupIndicesMissingOnClustersReferencedBySubquery
+        // It happens when lookup join is in the main query, and the subqueries have ROW and remote index patterns, the remote cluster
+        // presents in executionInfo
+        if (clusterAliases.contains(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+            running.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        }
+        return running;
     }
 
     static void updateExecutionInfoWithUnavailableClusters(
@@ -194,26 +168,6 @@ public class EsqlCCSUtils {
             } else {
                 throw e;
             }
-        }
-    }
-
-    /**
-     * Check per-cluster failures for view detection errors thrown by remote clusters. Views are never supported in CCS,
-     * so any such error must fail the entire query regardless of whether other clusters succeeded.
-     * Collects all view errors across all clusters and merges them into a single exception.
-     */
-    static void checkForViewErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
-        RemoteViewNotSupportedException merged = null;
-        for (var entry : failures.entrySet()) {
-            for (FieldCapabilitiesFailure failure : entry.getValue()) {
-                Throwable cause = ExceptionsHelper.unwrapCause(failure.getException());
-                if (cause instanceof RemoteViewNotSupportedException viewEx) {
-                    merged = merged == null ? viewEx : RemoteViewNotSupportedException.merge(merged, viewEx);
-                }
-            }
-        }
-        if (merged != null) {
-            throw merged;
         }
     }
 
@@ -347,6 +301,7 @@ public class EsqlCCSUtils {
     static void updateExecutionInfoAtEndOfPlanning(EsqlExecutionInfo execInfo) {
         // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINE STATS is made CCS compatible
         execInfo.queryProfile().planning().stop();
+        execInfo.queryProfile().foldResolutionIo(execInfo.externalPlanning());
         if (execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS) {
             for (String clusterAlias : execInfo.clusterAliases()) {
                 EsqlExecutionInfo.Cluster cluster = execInfo.getCluster(clusterAlias);
@@ -431,6 +386,27 @@ public class EsqlCCSUtils {
         resolution.failures().forEach((clusterAlias, failures) -> {
             executionInfo.initCluster(clusterAlias, EsqlExecutionInfo.ORIGIN_CLUSTER_NAME_REPRESENTATION, "");
         });
+    }
+
+    /**
+     * Finalize remote clusters that were only involved in sub-plan execution (e.g. an IN-subquery running on a remote cluster while
+     * the outer FROM is local). During sub-plan execution, {@code ClusterComputeHandler.updateExecutionInfo} accumulates shard counts
+     * and took time but never advances a cluster's status past {@code RUNNING} because {@code isMainPlan()} is {@code false}. After the
+     * main plan completes, any cluster still in {@code RUNNING} state was not touched by the main plan; set its final status based on
+     * accumulated failures from the sub-plan (PARTIAL if there were failures, SUCCESSFUL otherwise).
+     */
+    public static void finalizeSubPlanOnlyRemoteClusters(EsqlExecutionInfo executionInfo) {
+        for (String clusterAlias : executionInfo.clusterAliases()) {
+            if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+                continue;
+            }
+            Cluster cluster = executionInfo.getCluster(clusterAlias);
+            if (cluster.getStatus() == Cluster.Status.RUNNING) {
+                Cluster.Status finalStatus = (Objects.requireNonNullElse(cluster.getFailedShards(), 0) > 0
+                    || cluster.getFailures().isEmpty() == false) ? Cluster.Status.PARTIAL : Cluster.Status.SUCCESSFUL;
+                executionInfo.swapCluster(clusterAlias, (k, v) -> new Cluster.Builder(v).setStatus(finalStatus).build());
+            }
+        }
     }
 
     /**

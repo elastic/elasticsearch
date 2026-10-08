@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
@@ -282,6 +283,17 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public GetResult getForUpdate(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Searcher, Searcher> searcherWrapper
+    ) {
+        assert false : "this should not be called";
+        throw new UnsupportedOperationException("updates are not supported on a read-only engine");
+    }
+
+    @Override
     protected ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope) {
         return readerManager;
     }
@@ -429,8 +441,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public List<Segment> segments(boolean includeVectorFormatsInfo) {
-        return Arrays.asList(getSegmentInfo(lastCommittedSegmentInfos, includeVectorFormatsInfo));
+    public List<Segment> segments(boolean includeVectorFormatsInfo, boolean includeAutoCalibration) {
+        return Arrays.asList(getSegmentInfo(lastCommittedSegmentInfos, includeVectorFormatsInfo, includeAutoCalibration));
     }
 
     @Override
@@ -622,9 +634,10 @@ public class ReadOnlyEngine extends Engine {
     public SearcherSupplier acquireSearcherSupplier(
         Function<Searcher, Searcher> wrapper,
         SearcherScope scope,
-        SplitShardCountSummary splitShardCountSummary
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> externalDirectoryReaderWrapper,
+        ReferenceManager<ElasticsearchDirectoryReader> referenceManager
     ) throws EngineException {
-        final SearcherSupplier delegate = super.acquireSearcherSupplier(wrapper, scope, splitShardCountSummary);
+        final SearcherSupplier delegate = super.acquireSearcherSupplier(wrapper, scope, externalDirectoryReaderWrapper, referenceManager);
         return new SearcherSupplier(wrapper) {
             @Override
             protected void doClose() {

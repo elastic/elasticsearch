@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.cache.reader;
 
+import org.elasticsearch.ResourceAlreadyUploadedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -39,6 +40,8 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
+import static org.elasticsearch.xpack.stateless.TestUtils.NOOP_TIME_PROVIDER;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static org.hamcrest.Matchers.equalTo;
@@ -63,10 +66,9 @@ public class CacheFileReaderTests extends ESTestCase {
     }
 
     public void testTryPrefetchFetches() throws Exception {
-        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
 
         try (
             NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -78,11 +80,12 @@ public class CacheFileReaderTests extends ESTestCase {
             AtomicInteger fetchCount = new AtomicInteger();
             CacheBlobReader reader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), fetchCount);
             CacheFileReader cacheFileReader = new CacheFileReader(
-                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
-                System::currentTimeMillis
+                System::currentTimeMillis,
+                true
             );
 
             assertFalse("first call should miss the fast path", cacheFileReader.tryPrefetch(0L, blob.length));
@@ -99,10 +102,9 @@ public class CacheFileReaderTests extends ESTestCase {
     }
 
     public void testTryPrefetchRecordsFailure() throws Exception {
-        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
 
         try (
             NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -123,11 +125,12 @@ public class CacheFileReaderTests extends ESTestCase {
                 }
             };
             CacheFileReader cacheFileReader = new CacheFileReader(
-                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
-                System::currentTimeMillis
+                System::currentTimeMillis,
+                true
             );
 
             assertFalse(cacheFileReader.tryPrefetch(0L, blob.length));
@@ -138,10 +141,9 @@ public class CacheFileReaderTests extends ESTestCase {
     }
 
     public void testTryPrefetchWithOversizedFileLength() throws Exception {
-        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
 
         try (
             NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -153,11 +155,12 @@ public class CacheFileReaderTests extends ESTestCase {
             AtomicInteger fetchCount = new AtomicInteger();
             CacheBlobReader reader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), fetchCount);
             CacheFileReader cacheFileReader = new CacheFileReader(
-                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
-                System::currentTimeMillis
+                System::currentTimeMillis,
+                true
             );
 
             long oversizedLength = (long) blob.length * 1024L;
@@ -173,10 +176,9 @@ public class CacheFileReaderTests extends ESTestCase {
     }
 
     public void testTryPrefetchPastEOF() throws Exception {
-        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
 
         try (
             NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -188,11 +190,12 @@ public class CacheFileReaderTests extends ESTestCase {
             AtomicInteger fetchCount = new AtomicInteger();
             CacheBlobReader reader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), fetchCount);
             CacheFileReader cacheFileReader = new CacheFileReader(
-                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
-                System::currentTimeMillis
+                System::currentTimeMillis,
+                true
             );
 
             long offsetAtOrPastEof = randomBoolean() ? blob.length : blob.length + randomLongBetween(1L, 1024L);
@@ -205,10 +208,9 @@ public class CacheFileReaderTests extends ESTestCase {
     }
 
     public void testTryPrefetchNonPositiveLength() throws Exception {
-        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
 
         try (
             NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -220,11 +222,12 @@ public class CacheFileReaderTests extends ESTestCase {
             AtomicInteger fetchCount = new AtomicInteger();
             CacheBlobReader reader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), fetchCount);
             CacheFileReader cacheFileReader = new CacheFileReader(
-                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
-                System::currentTimeMillis
+                System::currentTimeMillis,
+                true
             );
 
             long nonPositiveLength = randomBoolean() ? 0L : -randomLongBetween(1L, 1024L);
@@ -237,10 +240,9 @@ public class CacheFileReaderTests extends ESTestCase {
     }
 
     public void testTryPrefetchOversizedLengthIsLimited() throws Exception {
-        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
 
         try (
             NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -252,11 +254,12 @@ public class CacheFileReaderTests extends ESTestCase {
             AtomicInteger fetchCount = new AtomicInteger();
             CacheBlobReader reader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), fetchCount);
             CacheFileReader cacheFileReader = new CacheFileReader(
-                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
-                System::currentTimeMillis
+                System::currentTimeMillis,
+                true
             );
 
             long midFileOffset = randomLongBetween(1L, blob.length - 1);
@@ -269,19 +272,175 @@ public class CacheFileReaderTests extends ESTestCase {
         }
     }
 
+    public void testTryPrefetchRetriesOnAlreadyUploaded() throws Exception {
+        Settings settings = nodeSettings();
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
+
+        try (
+            NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService service = newCacheService(env, settings, threadPool)
+        ) {
+            String fileName = "prefetch-already-uploaded-retry";
+            byte[] blob = randomByteArrayOfLength(BLOB_LENGTH);
+            FileCacheKey cacheKey = new FileCacheKey(new ShardId(new Index("idx", "uid"), 0), 1L, fileName);
+            AtomicInteger fetchCount = new AtomicInteger();
+            CacheBlobReader reader = alreadyUploadedThenServingReader(fileName, blob, service.getRangeSize(), 1, fetchCount);
+            CacheFileReader cacheFileReader = new CacheFileReader(
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
+                reader,
+                createBlobFileRanges(1L, 0L, 0, blob.length),
+                metrics,
+                System::currentTimeMillis,
+                true
+            );
+
+            assertFalse(
+                "first call should miss the fast path and schedule an async download",
+                cacheFileReader.tryPrefetch(0L, blob.length)
+            );
+            assertThat("the fetch should have failed once and then succeeded on the retry", fetchCount.get(), equalTo(2));
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 1);
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 0);
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 0);
+
+            assertTrue("the retry should have populated the cache", cacheFileReader.tryPrefetch(0L, blob.length));
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 1);
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 1);
+        }
+    }
+
+    public void testTryPrefetchFailsAfterMaxAlreadyUploadedRetries() throws Exception {
+        Settings settings = nodeSettings();
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
+
+        try (
+            NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService service = newCacheService(env, settings, threadPool)
+        ) {
+            String fileName = "prefetch-already-uploaded-exhausted";
+            byte[] blob = randomByteArrayOfLength(BLOB_LENGTH);
+            FileCacheKey cacheKey = new FileCacheKey(new ShardId(new Index("idx", "uid"), 0), 1L, fileName);
+            AtomicInteger fetchCount = new AtomicInteger();
+            // Always fail with ResourceAlreadyUploadedException; if retries were unbounded this reader would be called forever.
+            CacheBlobReader reader = alreadyUploadedThenServingReader(
+                fileName,
+                blob,
+                service.getRangeSize(),
+                Integer.MAX_VALUE,
+                fetchCount
+            );
+            CacheFileReader cacheFileReader = new CacheFileReader(
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
+                reader,
+                createBlobFileRanges(1L, 0L, 0, blob.length),
+                metrics,
+                System::currentTimeMillis,
+                true
+            );
+
+            assertFalse(cacheFileReader.tryPrefetch(0L, blob.length));
+            assertThat("prefetch must stop after exhausting the retry budget", fetchCount.get(), equalTo(3));
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 1);
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 0);
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 0);
+        }
+    }
+
+    public void testTryPrefetchDoesNotRetryOnOtherError() throws Exception {
+        Settings settings = nodeSettings();
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
+
+        try (
+            NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService service = newCacheService(env, settings, threadPool)
+        ) {
+            String fileName = "prefetch-other-error";
+            byte[] blob = randomByteArrayOfLength(BLOB_LENGTH);
+            FileCacheKey cacheKey = new FileCacheKey(new ShardId(new Index("idx", "uid"), 0), 1L, fileName);
+            AtomicInteger fetchCount = new AtomicInteger();
+            // A non-ResourceAlreadyUploadedException failure must not be retried.
+            CacheBlobReader reader = new ObjectStoreCacheBlobReader(
+                TestUtils.singleBlobContainer(fileName, blob),
+                fileName,
+                service.getRangeSize(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            ) {
+                @Override
+                public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+                    fetchCount.incrementAndGet();
+                    listener.onFailure(new java.io.IOException("simulated blob fetch failure"));
+                }
+            };
+            CacheFileReader cacheFileReader = new CacheFileReader(
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
+                reader,
+                createBlobFileRanges(1L, 0L, 0, blob.length),
+                metrics,
+                System::currentTimeMillis,
+                true
+            );
+
+            assertFalse(cacheFileReader.tryPrefetch(0L, blob.length));
+            assertThat(fetchCount.get(), equalTo(1));
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 1);
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 0);
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 0);
+        }
+    }
+
+    public void testTryPrefetchDisabledOnlyUsesFastPath() throws Exception {
+        Settings settings = nodeSettings();
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
+
+        try (
+            NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService service = newCacheService(env, settings, threadPool)
+        ) {
+            String fileName = "prefetch-disabled";
+            byte[] blob = randomByteArrayOfLength(BLOB_LENGTH);
+            FileCacheKey cacheKey = new FileCacheKey(new ShardId(new Index("idx", "uid"), 0), 1L, fileName);
+            AtomicInteger fetchCount = new AtomicInteger();
+            CacheBlobReader reader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), fetchCount);
+            CacheFileReader cacheFileReader = new CacheFileReader(
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
+                reader,
+                createBlobFileRanges(1L, 0L, 0, blob.length),
+                metrics,
+                System::currentTimeMillis,
+                false
+            );
+
+            assertFalse(
+                "cache miss must not schedule an async download when object store prefetch is disabled",
+                cacheFileReader.tryPrefetch(0L, blob.length)
+            );
+            assertThat("no fetch should be triggered when object store prefetch is disabled", fetchCount.get(), equalTo(0));
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 0);
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 0);
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 0);
+
+            // populate the cache through a regular read; the fast path must still succeed when prefetch is disabled
+            cacheFileReader.read(this, ByteBuffer.allocate(blob.length), 0, blob.length, blob.length, "test-plain");
+            assertTrue(
+                "fast path must still succeed for cached data when object store prefetch is disabled",
+                cacheFileReader.tryPrefetch(0L, blob.length)
+            );
+        }
+    }
+
     /**
      * {@code SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME} must carry {@link CachePopulationSource#BlobStore}
      * for SEARCH-thread reads, {@link CachePopulationSource#Peer} for VBCC-thread reads, and no measurement
      * for non-{@code EsThread} callers.
      */
     public void testReadRecordsSearchOriginMetricWithCorrectAttributes() throws Exception {
-        assumeTrue(
-            "pre-population via tryPrefetch requires OBJECT_STORE_PREFETCH_FEATURE_FLAG",
-            CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled()
-        );
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
 
         try (
             NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -292,11 +451,12 @@ public class CacheFileReaderTests extends ESTestCase {
             FileCacheKey cacheKey = new FileCacheKey(new ShardId(new Index("idx", "uid"), 0), 1L, fileName);
             CacheBlobReader blobReader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), new AtomicInteger());
             CacheFileReader cacheFileReader = new CacheFileReader(
-                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 blobReader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
-                System::currentTimeMillis
+                System::currentTimeMillis,
+                true
             );
 
             // Pre-populate the cache so read() calls go through the fast path
@@ -355,6 +515,30 @@ public class CacheFileReaderTests extends ESTestCase {
             public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
                 counter.incrementAndGet();
                 super.getRangeInputStream(position, length, listener);
+            }
+        };
+    }
+
+    private static CacheBlobReader alreadyUploadedThenServingReader(
+        String fileName,
+        byte[] blob,
+        long cacheRangeSize,
+        int failCount,
+        AtomicInteger fetchCount
+    ) {
+        return new ObjectStoreCacheBlobReader(
+            TestUtils.singleBlobContainer(fileName, blob),
+            fileName,
+            cacheRangeSize,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        ) {
+            @Override
+            public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+                if (fetchCount.getAndIncrement() < failCount) {
+                    listener.onFailure(new ResourceAlreadyUploadedException("VBCC already uploaded: " + position + "+" + length));
+                } else {
+                    super.getRangeInputStream(position, length, listener);
+                }
             }
         };
     }

@@ -17,12 +17,13 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
+import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
 import org.elasticsearch.simdvec.internal.BFloat16VectorScorer;
 import org.elasticsearch.simdvec.internal.BFloat16VectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Float32VectorScorer;
 import org.elasticsearch.simdvec.internal.Float32VectorScorerSupplier;
-import org.elasticsearch.simdvec.internal.IndexInputUtils;
 import org.elasticsearch.simdvec.internal.Int4VectorScorer;
 import org.elasticsearch.simdvec.internal.Int4VectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorer;
@@ -33,8 +34,12 @@ import org.elasticsearch.simdvec.internal.Int8VectorScorer;
 import org.elasticsearch.simdvec.internal.Int8VectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.MemorySegmentES92NativeInt7VectorsScorer;
 import org.elasticsearch.simdvec.internal.PanamaFlatVectorScorer;
+import org.elasticsearch.simdvec.internal.vectorization.ESNextAshBBQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES940OSQVectorsScorer;
+import org.elasticsearch.simdvec.internal.vectorization.NativeBBQDotProduct;
 import org.elasticsearch.simdvec.internal.vectorization.NativeBinaryQuantizedVectorScorer;
+import org.elasticsearch.simdvec.internal.vectorization.PanamaAshSphericalScalarQuantizer;
+import org.elasticsearch.simdvec.internal.vectorization.PanamaOptimizedScalarQuantization;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants;
 
 import java.io.IOException;
@@ -65,14 +70,13 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     ) throws IOException {
         // native scorers might still use panama for some things, so check panama is ok
         // this is true for all modern CPUs anyway
-        if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS && ES940OSQVectorsScorer.supportsQuantization(queryBits, indexBits)) {
+        if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS && ES940OSQVectorsScorer.supportsQuantization(indexBits, queryBits)) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
             if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
                 return MemorySegmentES940OSQVectorsScorer.usingNative(
                     unwrappedInput,
-                    queryBits,
-                    indexBits,
+                    new BBQEncoding(indexBits, queryBits),
                     dimension,
                     dataLength,
                     bulkSize,
@@ -80,7 +84,7 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
                 );
             }
         }
-        return new ES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, bitEncoding);
+        return new ES940OSQVectorsScorer(input, new BBQEncoding(indexBits, queryBits), dimension, dataLength, bulkSize, bitEncoding);
     }
 
     @Override
@@ -95,6 +99,21 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     }
 
     @Override
+    public AshScorer<float[]> newESNextAshFloatVectorsScorer(IndexInput input, int nDims, int bitsPerDim) throws IOException {
+        return new PanamaVectorScorerFactory().newESNextAshFloatVectorsScorer(input, nDims, bitsPerDim);
+    }
+
+    @Override
+    public AshScorer<byte[]> newESNextAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
+        throws IOException {
+        IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
+        unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
+        return new ESNextAshBBQVectorsScorer(
+            NativeBBQDotProduct.create(unwrappedInput, nDims, new BBQEncoding(bitsPerDim, queryBitsPerDim))
+        );
+    }
+
+    @Override
     public ES93BinaryQuantizedVectorScorer newES93BinaryQuantizedVectorScorer(IndexInput input, int dimensions, int vectorLengthInBytes)
         throws IOException {
         IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
@@ -105,6 +124,16 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     @Override
     public FlatVectorsScorer newFlatVectorsScorer() {
         return new PanamaFlatVectorScorer();
+    }
+
+    @Override
+    public OptimizedScalarQuantization newOptimizedScalarQuantization() {
+        return new PanamaOptimizedScalarQuantization();
+    }
+
+    @Override
+    public AshSphericalScalarQuantizer newAshSphericalScalarQuantizer(int bitsPerDim) {
+        return new PanamaAshSphericalScalarQuantizer(bitsPerDim);
     }
 
     @Override
@@ -183,7 +212,7 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     public Optional<RandomVectorScorerSupplier> getInt7SQVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
-        QuantizedByteVectorValues values,
+        LegacyQuantizedByteVectorValues values,
         float scoreCorrectionConstant
     ) {
         input = FilterIndexInput.unwrapOnlyTest(input);
@@ -203,7 +232,7 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     @Override
     public Optional<RandomVectorScorer> getInt7SQVectorScorer(
         VectorSimilarityFunction sim,
-        QuantizedByteVectorValues values,
+        LegacyQuantizedByteVectorValues values,
         float[] queryVector
     ) {
         return Int7SQVectorScorer.create(sim, values, queryVector);
@@ -213,7 +242,7 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     public Optional<RandomVectorScorerSupplier> getInt7uOSQVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
-        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
+        org.apache.lucene.util.quantization.QuantizedByteVectorValues values
     ) {
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
@@ -228,7 +257,7 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     @Override
     public Optional<RandomVectorScorer> getInt7uOSQVectorScorer(
         VectorSimilarityFunction sim,
-        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values,
+        org.apache.lucene.util.quantization.QuantizedByteVectorValues values,
         byte[] quantizedQuery,
         float lowerInterval,
         float upperInterval,
@@ -250,7 +279,7 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     public Optional<RandomVectorScorerSupplier> getInt4VectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
-        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
+        org.apache.lucene.util.quantization.QuantizedByteVectorValues values
     ) {
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
@@ -261,7 +290,7 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     @Override
     public Optional<RandomVectorScorer> getInt4VectorScorer(
         VectorSimilarityFunction sim,
-        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values,
+        org.apache.lucene.util.quantization.QuantizedByteVectorValues values,
         byte[] unpackedQuery,
         float lowerInterval,
         float upperInterval,

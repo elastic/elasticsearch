@@ -121,11 +121,6 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean isSearchable() {
-            return indexType.hasTerms();
-        }
-
-        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
         }
@@ -549,13 +544,23 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         @Override
         public BytesRef binaryValue() {
             try {
+                // Counts must be written in Lucene UTF-8 byte order to align with SortedSetDocValues
+                // iteration order. TreeMap<String,Integer> uses Java String.compareTo() (UTF-16 char
+                // order), which diverges from UTF-8 byte order for supplementary characters (U+10000+)
+                // stored as surrogate pairs in Java. Sort by BytesRef here to match Lucene's order.
+                // Note: in index modes where sourceKeepMode != NONE (e.g. logsdb) the raw source bytes
+                // are stored and the synthetic-source loader is never used, masking this mismatch.
+                // In strict-columnar mode (logsdb_columnar) sourceKeepMode == NONE so the loader is
+                // used to reconstruct source from doc values, and the wrong order would corrupt counts.
+                List<Map.Entry<String, Integer>> sortedEntries = new ArrayList<>(counts.entrySet());
+                sortedEntries.sort((a, b) -> new BytesRef(a.getKey()).compareTo(new BytesRef(b.getKey())));
                 int maxBytesPerVInt = 5;
                 int bytesSize = (counts.size() + 1) * maxBytesPerVInt;
                 BytesStreamOutput out = new BytesStreamOutput(bytesSize);
-                int countsArr[] = new int[counts.size()];
+                int[] countsArr = new int[counts.size()];
                 int i = 0;
-                for (Integer currCount : counts.values()) {
-                    countsArr[i++] = currCount;
+                for (Map.Entry<String, Integer> entry : sortedEntries) {
+                    countsArr[i++] = entry.getValue();
                 }
                 out.writeVIntArray(countsArr);
                 return out.bytes().toBytesRef();

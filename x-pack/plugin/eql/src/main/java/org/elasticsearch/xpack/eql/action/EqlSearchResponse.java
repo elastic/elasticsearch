@@ -10,6 +10,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -28,6 +29,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.transport.LeakTracker;
@@ -64,6 +66,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     private final boolean isRunning;
     private final boolean isPartial;
     private final ShardSearchFailure[] shardFailures;
+    private DirectoryMetrics directoryMetrics = DirectoryMetrics.EMPTY;
 
     private static final class Fields {
         static final String TOOK = "took";
@@ -132,6 +135,9 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         isPartial = in.readBoolean();
         isRunning = in.readBoolean();
         shardFailures = in.readArray(ShardSearchFailure::readShardSearchFailure, ShardSearchFailure[]::new);
+        if (in.getTransportVersion().supports(SearchResponse.SEARCH_DIRECTORY_METRICS)) {
+            directoryMetrics = new DirectoryMetrics(in);
+        }
     }
 
     public static EqlSearchResponse fromXContent(XContentParser parser) {
@@ -147,6 +153,9 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         out.writeBoolean(isPartial);
         out.writeBoolean(isRunning);
         out.writeArray(shardFailures);
+        if (out.getTransportVersion().supports(SearchResponse.SEARCH_DIRECTORY_METRICS)) {
+            directoryMetrics.writeTo(out);
+        }
     }
 
     @Override
@@ -177,6 +186,14 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
 
     public long took() {
         return tookInMillis;
+    }
+
+    public DirectoryMetrics directoryMetrics() {
+        return directoryMetrics;
+    }
+
+    public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
+        this.directoryMetrics = directoryMetrics;
     }
 
     public boolean isTimeout() {

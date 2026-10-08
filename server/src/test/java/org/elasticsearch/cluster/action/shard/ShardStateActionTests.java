@@ -18,8 +18,6 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
-import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -120,10 +118,8 @@ public class ShardStateActionTests extends ESTestCase {
         THREAD_POOL = new TestThreadPool("ShardStateActionTest");
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initShardStateAction() throws Exception {
         this.transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
         transportService = transport.createTransportService(
@@ -141,12 +137,10 @@ public class ShardStateActionTests extends ESTestCase {
         shardStateAction.setOnAfterWaitForNewMasterAndRetry(() -> {});
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void closeShardStateAction() throws Exception {
         clusterService.close();
         transportService.close();
-        super.tearDown();
         assertThat(shardStateAction.remoteShardRequestsInFlight(), equalTo(0));
     }
 
@@ -168,8 +162,8 @@ public class ShardStateActionTests extends ESTestCase {
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertEquals(1, capturedRequests.length);
         // the request is a shard failed request
-        assertThat(capturedRequests[0].request(), is(instanceOf(ShardStateAction.FailedShardEntry.class)));
-        ShardStateAction.FailedShardEntry shardEntry = (ShardStateAction.FailedShardEntry) capturedRequests[0].request();
+        assertThat(capturedRequests[0].request(), is(instanceOf(FailedShardEntry.class)));
+        FailedShardEntry shardEntry = (FailedShardEntry) capturedRequests[0].request();
         // for the right shard
         assertEquals(shardEntry.getShardId(), shardRouting.shardId());
         assertEquals(shardEntry.getAllocationId(), shardRouting.allocationId().getId());
@@ -328,10 +322,7 @@ public class ShardStateActionTests extends ESTestCase {
             listener
         );
 
-        ShardStateAction.NoLongerPrimaryShardException catastrophicError = new ShardStateAction.NoLongerPrimaryShardException(
-            failedShard.shardId(),
-            "dummy failure"
-        );
+        NoLongerPrimaryShardException catastrophicError = new NoLongerPrimaryShardException(failedShard.shardId(), "dummy failure");
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         transport.handleRemoteError(capturedRequests[0].requestId(), catastrophicError);
 
@@ -339,7 +330,7 @@ public class ShardStateActionTests extends ESTestCase {
 
         final Exception failure = listener.failure.get();
         assertNotNull(failure);
-        assertThat(failure, instanceOf(ShardStateAction.NoLongerPrimaryShardException.class));
+        assertThat(failure, instanceOf(NoLongerPrimaryShardException.class));
         assertThat(failure.getMessage(), equalTo(catastrophicError.getMessage()));
     }
 
@@ -493,9 +484,9 @@ public class ShardStateActionTests extends ESTestCase {
         );
 
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
-        assertThat(capturedRequests[0].request(), instanceOf(ShardStateAction.StartedShardEntry.class));
+        assertThat(capturedRequests[0].request(), instanceOf(StartedShardEntry.class));
 
-        ShardStateAction.StartedShardEntry entry = (ShardStateAction.StartedShardEntry) capturedRequests[0].request();
+        StartedShardEntry entry = (StartedShardEntry) capturedRequests[0].request();
         assertThat(entry.shardId, equalTo(shardRouting.shardId()));
         assertThat(entry.allocationId, equalTo(shardRouting.allocationId().getId()));
         assertThat(entry.primaryTerm, equalTo(primaryTerm));

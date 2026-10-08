@@ -25,17 +25,17 @@ import java.util.stream.Collectors;
  * @param caseInsensitive whether this field's values are case-insensitive (e.g. enum-like
  *                        fields like "auth"). Case-insensitive fields are normalized to
  *                        lowercase on input for consistent storage and comparison.
- * @param keylessAuth whether this field contributes to keyless authentication (e.g. workload
+ * @param federatedAuth whether this field contributes to federated authentication (e.g. workload
  *                    identity federation settings that replace explicit credentials). A field
- *                    cannot be both {@code secret} and {@code keylessAuth}: the two represent
+ *                    cannot be both {@code secret} and {@code federatedAuth}: the two represent
  *                    mutually exclusive authentication kinds, and combining them on a single
  *                    field would make it self-conflict during validation.
  */
-public record DataSourceConfigDefinition(String name, boolean secret, boolean caseInsensitive, boolean keylessAuth) {
+public record DataSourceConfigDefinition(String name, boolean secret, boolean caseInsensitive, boolean federatedAuth) {
 
     public DataSourceConfigDefinition {
-        if (secret && keylessAuth) {
-            throw new IllegalArgumentException("field [" + name + "] cannot be both secret and keyless auth");
+        if (secret && federatedAuth) {
+            throw new IllegalArgumentException("field [" + name + "] cannot be both secret and federated auth");
         }
     }
 
@@ -51,11 +51,11 @@ public record DataSourceConfigDefinition(String name, boolean secret, boolean ca
 
     /** Returns a copy whose values are treated as case-insensitive (normalized to lowercase on input). */
     public DataSourceConfigDefinition asCaseInsensitive() {
-        return new DataSourceConfigDefinition(name, secret, true, keylessAuth);
+        return new DataSourceConfigDefinition(name, secret, true, federatedAuth);
     }
 
-    /** Returns a copy that marks this field as contributing to keyless authentication. */
-    public DataSourceConfigDefinition asKeylessAuth() {
+    /** Returns a copy that marks this field as contributing to federated authentication. */
+    public DataSourceConfigDefinition asFederatedAuth() {
         return new DataSourceConfigDefinition(name, secret, caseInsensitive, true);
     }
 

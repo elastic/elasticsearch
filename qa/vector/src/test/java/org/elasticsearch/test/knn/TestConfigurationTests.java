@@ -71,6 +71,41 @@ public class TestConfigurationTests extends ESTestCase {
         }
     }
 
+    public void testExactSearchParsingDefaults() throws Exception {
+        String json = """
+            {
+              "doc_vectors": ["/path/to/docs"],
+              "dimensions": 128
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            TestConfiguration config = TestConfiguration.fromXContent(parser);
+            assertEquals(1, config.searchParams().size());
+            assertFalse(config.searchParams().get(0).exact());
+            assertFalse(config.searchParams().get(0).exactQuantized());
+        }
+    }
+
+    public void testExactSearchParsing() throws Exception {
+        String json = """
+            {
+              "doc_vectors": ["/path/to/docs"],
+              "dimensions": 128,
+              "quantize_bits": 4,
+              "exact": [true],
+              "exact_quantized": [true]
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            TestConfiguration config = TestConfiguration.fromXContent(parser);
+            assertEquals(1, config.searchParams().size());
+            assertTrue(config.searchParams().get(0).exact());
+            assertTrue(config.searchParams().get(0).exactQuantized());
+        }
+    }
+
     public void testQueryQuantizeBitsParsing() throws Exception {
         String json = """
             {
@@ -87,6 +122,41 @@ public class TestConfigurationTests extends ESTestCase {
             assertEquals(KnnIndexTester.IndexType.IVF, config.indexType());
             assertEquals(1, config.quantizeBits().intValue());
             assertEquals(1, config.queryQuantizeBits().intValue());
+        }
+    }
+
+    public void testNumDeletedDocsParsing() throws Exception {
+        String json = """
+            {
+              "doc_vectors": ["/path/to/docs"],
+              "dimensions": 128,
+              "num_docs": 1000,
+              "num_deleted_docs": 100,
+              "delete_seed": 42
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            TestConfiguration config = TestConfiguration.fromXContent(parser);
+            assertEquals(1000, config.numDocs());
+            assertEquals(100, config.numDeletedDocs());
+            assertEquals(42L, config.deleteSeed());
+        }
+    }
+
+    public void testNumDeletedDocsValidation() throws Exception {
+        String json = """
+            {
+              "doc_vectors": ["/path/to/docs"],
+              "dimensions": 128,
+              "num_docs": 100,
+              "num_deleted_docs": 100
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> TestConfiguration.fromXContent(parser));
+            assertTrue(e.getMessage(), e.getMessage().contains("num_deleted_docs"));
         }
     }
 
@@ -313,6 +383,22 @@ public class TestConfigurationTests extends ESTestCase {
             DatasetConfig.FileDataset fd = (DatasetConfig.FileDataset) builder2.datasetConfig();
             assertThat(fd.docVectors(), contains("/data/docs.fvec"));
             assertEquals("/data/queries.fvec", fd.queryVectors());
+        }
+    }
+
+    public void testExactQuantizedRequiresQuantizedIndex() throws Exception {
+        String json = """
+            {
+              "doc_vectors": ["/path/to/docs"],
+              "dimensions": 128,
+              "exact": [true],
+              "exact_quantized": [true]
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> TestConfiguration.fromXContent(parser));
+            assertTrue(e.getMessage(), e.getMessage().contains("exact_quantized requires a quantized index"));
         }
     }
 

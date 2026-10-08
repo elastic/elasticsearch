@@ -7,22 +7,28 @@
 
 package org.elasticsearch.xpack.esql.analysis.rules;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
@@ -42,7 +48,7 @@ import java.util.Locale;
  * Resolves {@link UnresolvedPromqlFunction} nodes inside a {@link PromqlCommand}'s
  * plan tree into their concrete plan-node equivalents
  * ({@link WithinSeriesAggregate}, {@link AcrossSeriesAggregate},
- * {@link ValueTransformationFunction}, etc.).
+ * {@link AcrossSeriesReduction}, {@link ValueTransformationFunction}, etc.).
  */
 public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlCommand, AnalyzerContext> {
 
@@ -78,8 +84,12 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
         LogicalPlan child = null;
         List<Expression> extraParams = new ArrayList<>(Math.max(0, rawParams.size() - 1));
         List<PromqlFunctionDefinition.PromqlParamInfo> functionParams = metadata.params();
-        for (int i = 0; i < functionParams.size() && rawParams.size() > i; i++) {
-            PromqlFunctionDefinition.PromqlParamInfo expectedParam = functionParams.get(i);
+        for (int i = 0; i < rawParams.size(); i++) {
+            // Variadic functions reuse their final parameter descriptor for any additional arguments;
+            // arity checks above guarantee safe indexing for fixed-arity functions.
+            PromqlFunctionDefinition.PromqlParamInfo expectedParam = i < functionParams.size()
+                ? functionParams.get(i)
+                : functionParams.getLast();
             LogicalPlan providedParam = rawParams.get(i);
             PromqlDataType actualType = PromqlPlan.getType(providedParam);
             PromqlDataType expectedType = expectedParam.type();
@@ -113,8 +123,12 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
         }
 
         AcrossSeriesAggregate.Grouping grouping = unresolved.grouping();
+        if (metadata == PromqlBuiltinFunctionDefinitions.LIMIT_RATIO) {
+            validateLimitRatio(unresolved, extraParams);
+        }
         if (grouping != null) {
-            if (metadata.functionType() != FunctionType.ACROSS_SERIES_AGGREGATION) {
+            if (metadata.functionType() != FunctionType.ACROSS_SERIES_AGGREGATION
+                && metadata.functionType() != FunctionType.ACROSS_SERIES_REDUCTION) {
                 throw new VerificationException(
                     List.of(
                         Failure.fail(
@@ -125,6 +139,9 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
                         )
                     )
                 );
+            }
+            if (metadata.functionType() == FunctionType.ACROSS_SERIES_REDUCTION) {
+                return new AcrossSeriesReduction(unresolved.source(), child, metadata, extraParams, grouping, unresolved.groupingKeys());
             }
             return new AcrossSeriesAggregate(unresolved.source(), child, metadata, extraParams, grouping, unresolved.groupingKeys());
         }
@@ -138,7 +155,20 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
                 AcrossSeriesAggregate.Grouping.NONE,
                 List.of()
             );
-            case HISTOGRAM -> new HistogramQuantile(unresolved.source(), child, metadata, extraParams);
+            case ACROSS_SERIES_REDUCTION -> new AcrossSeriesReduction(
+                unresolved.source(),
+                child,
+                metadata,
+                extraParams,
+                AcrossSeriesAggregate.Grouping.NONE,
+                List.of()
+            );
+            case HISTOGRAM -> {
+                var classicHistogramHandler = metadata.classicHistogramHandler();
+                yield classicHistogramHandler == null
+                    ? new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams)
+                    : classicHistogramHandler.build(unresolved.source(), child, metadata, extraParams);
+            }
             case WITHIN_SERIES_AGGREGATION -> new WithinSeriesAggregate(unresolved.source(), child, metadata, extraParams);
             case VALUE_TRANSFORMATION -> new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams);
             case VECTOR_CONVERSION -> new VectorConversionFunction(unresolved.source(), child, metadata, extraParams);
@@ -146,10 +176,115 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
             case SCALAR, TIME_EXTRACTION -> child == null
                 ? new ScalarFunction(unresolved.source(), metadata)
                 : new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams);
+            case METADATA_MANIPULATION -> resolveMetadataManipulation(unresolved, child, metadata, extraParams);
             default -> throw new VerificationException(
                 List.of(Failure.fail(unresolved, "Unsupported function type [{}] for function [{}]", metadata.functionType(), name))
             );
         };
+    }
+
+    /**
+     * Resolves a {@code label_replace}/{@code label_join} call into a {@link MetadataManipulationFunction}, after validating
+     * the arguments the way Prometheus does: the child must be an instant vector, the destination must be a valid label name,
+     * and (for {@code label_replace}) the regular expression must compile. Structural constraints of the v1 scope (the
+     * derived destination must be consumed by an enclosing {@code by(...)}) are enforced later, in
+     * {@code PromqlCommand#verify} and the analyzer.
+     */
+    private static LogicalPlan resolveMetadataManipulation(
+        UnresolvedPromqlFunction unresolved,
+        LogicalPlan child,
+        PromqlFunctionDefinition metadata,
+        List<Expression> extraParams
+    ) {
+        String name = unresolved.functionName();
+        if (child == null) {
+            throw new VerificationException(
+                List.of(Failure.fail(unresolved, "[{}] requires an instant vector as its first argument", name))
+            );
+        }
+        // extraParams are the keyword-literal arguments after the child: [dst, ...]. The destination is validated here; the
+        // remaining arguments (replacement/regex or separator/sources) are consumed during translation.
+        String destination = literalString(extraParams.getFirst());
+        if (PromqlLabels.isValidLabelName(destination) == false) {
+            throw new VerificationException(
+                List.of(Failure.fail(unresolved, "invalid destination label name [{}] in call to function [{}]", destination, name))
+            );
+        }
+        if (metadata == PromqlBuiltinFunctionDefinitions.LABEL_JOIN) {
+            // Prometheus (funcLabelJoin) validates every source label name, unlike label_replace which validates only the
+            // destination. Mirror that here so an invalid source is rejected at analysis time rather than silently read as the
+            // empty string. The source labels are the arguments after [dst, separator], i.e. extraParams[2..].
+            for (int i = 2; i < extraParams.size(); i++) {
+                String source = literalString(extraParams.get(i));
+                if (PromqlLabels.isValidLabelName(source) == false) {
+                    throw new VerificationException(
+                        List.of(Failure.fail(unresolved, "invalid source label name [{}] in call to function [{}]", source, name))
+                    );
+                }
+            }
+        }
+        if (metadata == PromqlBuiltinFunctionDefinitions.LABEL_REPLACE) {
+            String regex = literalString(extraParams.get(3));
+            // Validate exactly as the evaluator/Prometheus compiles it, so a bad pattern fails at analysis rather than
+            // execution. The anchoring and RE2/J compilation live in RegexExpand, keeping that dependency out of here.
+            String regexError = RegexExpand.validateRegex(regex);
+            if (regexError != null) {
+                throw new VerificationException(
+                    List.of(
+                        Failure.fail(unresolved, "invalid regular expression [{}] in call to function [{}]: {}", regex, name, regexError)
+                    )
+                );
+            }
+        }
+        return new MetadataManipulationFunction(unresolved.source(), child, metadata, extraParams);
+    }
+
+    private static String literalString(Expression e) {
+        return BytesRefs.toString(((Literal) e).value());
+    }
+
+    /**
+     * Validates the {@code r} argument of {@code limit_ratio(r, v)} at analysis time.
+     * <p>
+     * Like Prometheus, negative ratios select offsets at or above {@code 1 + r}, complementing the
+     * selection for that threshold. Only {@code NaN} is rejected; ratios outside {@code [-1, 1]},
+     * including infinities, keep every row.
+     * Non-numeric literals (e.g. strings) are likewise rejected so a clear verification error surfaces instead of
+     * a {@code ClassCastException} in the execution planner.
+     */
+    private static void validateLimitRatio(UnresolvedPromqlFunction unresolved, List<Expression> extraParams) {
+        String name = unresolved.functionName();
+        if (extraParams.isEmpty()) {
+            return;
+        }
+        Expression ratio = extraParams.getFirst();
+        if (ratio.resolved() == false || ratio.dataType().isNumeric() == false) {
+            throw new VerificationException(
+                List.of(
+                    Failure.fail(
+                        unresolved,
+                        "expected numeric ratio in call to function [{}], got [{}]",
+                        name,
+                        ratio.resolved() ? ratio.dataType() : "unresolved"
+                    )
+                )
+            );
+        }
+        if (ratio.foldable() == false) {
+            throw new VerificationException(List.of(Failure.fail(unresolved, "expected literal ratio in call to function [{}]", name)));
+        }
+        // Any numeric literal is accepted, except NaN which Prometheus rejects: like Prometheus,
+        // out-of-range ratios need no clamping (r > 1 and r < -1 keep everything) and negative
+        // ratios keep the inverted selection (offsets at or above 1 + r).
+        Object folded = ratio.fold(FoldContext.small());
+        if (folded instanceof Number number && Double.isNaN(number.doubleValue())) {
+            throw new VerificationException(List.of(Failure.fail(unresolved, "ratio in call to function [{}] must not be NaN", name)));
+        }
+        if (folded instanceof Number == false) {
+            throw new VerificationException(
+                List.of(Failure.fail(unresolved, "expected numeric ratio in call to function [{}], got [{}]", name, folded))
+            );
+        }
     }
 
     /**

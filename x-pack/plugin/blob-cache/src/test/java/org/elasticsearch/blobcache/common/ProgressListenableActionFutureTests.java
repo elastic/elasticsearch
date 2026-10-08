@@ -19,6 +19,8 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -357,13 +359,13 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
                 listenerInLower.actionGet(),
                 greaterThanOrEqualTo(thresholdInLower)
             );
-            // listenerAtSplit fires at upper.progress (>= splitPoint), caught up via onProgressAtLeast
+            // listenerAtSplit fires at upper.progress (>= splitPoint), reached via the catch-up when lower completes
             assertThat(
                 "listener at split fires when lower completes, at or above splitPoint",
                 listenerAtSplit.actionGet(),
                 greaterThanOrEqualTo(splitPoint)
             );
-            // Both halves now done: listener in upper fires via onProgressAtLeast catch-up or via onResponse(end)
+            // Both halves now done: listener in upper fires via the catch-up or via onResponse(end)
             assertThat(
                 "listener in upper fires at or above its threshold",
                 listenerInUpper.actionGet(),
@@ -400,7 +402,7 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         future.addListener(listener, upperMid);
         assertFalse("listener must not fire before lower completes", listener.isDone());
 
-        // Complete lower — onProgressAtLeast must catch up to upper.progress (= upperMid), firing the listener
+        // Complete lower — the catch-up must advance to upper.progress (= upperMid), firing the listener
         lower.onResponse(splitPoint);
         assertTrue("listener must fire when lower completes after upper already reached its threshold", listener.isDone());
         assertFalse("outer future must not be done until upper also completes", future.isDone());
@@ -409,41 +411,105 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         assertTrue(future.isDone());
     }
 
-    public void testOnProgressAtLeastFiresListeners() {
-        final ProgressListenableActionFuture future = randomFuture();
-        assertTrue("randomFuture must produce a range of at least 2", future.end - future.start >= 2);
+    // Test that a race between lower completing and upper forwarding progress to the parent does not cause assertion errors.
+    public void testConcurrentSplitProgressForwardingIsIdempotent() throws Exception {
+        final int iterations = 100;
+        for (int i = 0; i < iterations; i++) {
+            final long end = 2000L;
+            final long splitPoint = 1000L;
+            final ProgressListenableActionFuture future = new ProgressListenableActionFuture(0L, end, null);
+            final ProgressListenableActionFuture[] parts = future.split(splitPoint);
+            final ProgressListenableActionFuture lower = parts[0];
+            final ProgressListenableActionFuture upper = parts[1];
 
-        final long threshold = randomLongBetween(future.start + 1L, future.end - 1L);
-        final PlainActionFuture<Long> listener = new PlainActionFuture<>();
-        future.addListener(listener, threshold);
-        assertFalse(listener.isDone());
+            final CyclicBarrier barrier = new CyclicBarrier(2);
+            final AtomicReference<Throwable> failure = new AtomicReference<>();
 
-        future.onProgressAtLeast(randomLongBetween(threshold, future.end - 1L));
-        assertTrue("onProgressAtLeast should fire listener once threshold is reached", listener.isDone());
+            final Thread upperThread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    // Sweep upper across its whole range so that lower's completion is likely to land in the tiny window
+                    // between "upper.progress := p" and upper forwarding p to the parent.
+                    for (long p = splitPoint + 1L; p < end; p++) {
+                        upper.onProgress(p);
+                    }
+                    upper.onResponse(end);
+                } catch (Throwable t) {
+                    failure.compareAndSet(null, t);
+                }
+            }, "upper-" + i);
+
+            final Thread lowerThread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    lower.onResponse(splitPoint);
+                } catch (Throwable t) {
+                    failure.compareAndSet(null, t);
+                }
+            }, "lower-" + i);
+
+            upperThread.start();
+            lowerThread.start();
+            upperThread.join();
+            lowerThread.join();
+
+            final Throwable t = failure.get();
+            assertThat("Split progress forwarding should cause assertion errors", t, nullValue());
+        }
     }
 
-    public void testOnProgressAtLeastIsNoOpWhenAlreadyAdvanced() {
-        final ProgressListenableActionFuture future = randomFuture();
-        assertTrue("randomFuture must produce a range of at least 3", future.end - future.start >= 3);
+    // Recursive split: lower is itself split into lowerLower/lowerUpper.
+    public void testConcurrentNestedSplitProgressForwardingIsIdempotent() throws Exception {
+        final int iterations = 100;
+        for (int i = 0; i < iterations; i++) {
+            final long end = 3000L;
+            final long parentSplit = 2000L;
+            final long lowerSplit = 1000L;
+            final ProgressListenableActionFuture future = new ProgressListenableActionFuture(0L, end, null);
+            final ProgressListenableActionFuture[] parts = future.split(parentSplit);
+            final ProgressListenableActionFuture lower = parts[0];
+            final ProgressListenableActionFuture upper = parts[1];
+            final ProgressListenableActionFuture[] lowerParts = lower.split(lowerSplit);
+            final ProgressListenableActionFuture lowerLower = lowerParts[0];
+            final ProgressListenableActionFuture lowerUpper = lowerParts[1];
 
-        // Advance to some mid-point
-        final long mid = randomLongBetween(future.start + 1L, future.end - 2L);
-        future.onProgress(mid);
+            final CyclicBarrier barrier = new CyclicBarrier(2);
+            final AtomicReference<Throwable> failure = new AtomicReference<>();
 
-        // Add a listener above the current progress — it should NOT fire via onProgressAtLeast below
-        final long aboveThreshold = randomLongBetween(mid + 1L, future.end - 1L);
-        final PlainActionFuture<Long> listener = new PlainActionFuture<>();
-        future.addListener(listener, aboveThreshold);
-        assertFalse(listener.isDone());
+            final Thread lowerUpperThread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    // Sweep lowerUpper across its whole range so its forwards to lower (once ungated by lowerLower's
+                    // completion) race with lower's catch-up forwarding to the parent.
+                    for (long p = lowerSplit + 1L; p < parentSplit; p++) {
+                        lowerUpper.onProgress(p);
+                    }
+                    lowerUpper.onResponse(parentSplit);
+                } catch (Throwable t) {
+                    failure.compareAndSet(null, t);
+                }
+            }, "lower-upper-" + i);
 
-        // onProgressAtLeast with a value <= current progress is a no-op
-        future.onProgressAtLeast(randomLongBetween(future.start + 1L, mid));
-        assertFalse("onProgressAtLeast must be a no-op when progress already advanced past the value", listener.isDone());
+            final Thread lowerLowerThread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    lowerLower.onResponse(lowerSplit);
+                } catch (Throwable t) {
+                    failure.compareAndSet(null, t);
+                }
+            }, "lower-lower-" + i);
 
-        future.onProgress(future.end);
-        future.onResponse(future.end);
+            lowerUpperThread.start();
+            lowerLowerThread.start();
+            lowerUpperThread.join();
+            lowerLowerThread.join();
 
-        assertTrue(listener.isDone());
+            assertThat("nested split progress forwarding tripped a concurrency bug", failure.get(), nullValue());
+
+            // Complete the outer upper half so the whole future can complete cleanly.
+            upper.onResponse(end);
+            assertTrue(future.isDone());
+        }
     }
 
     private static ProgressListenableActionFuture randomFuture() {

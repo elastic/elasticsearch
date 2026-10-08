@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Optional;
@@ -20,9 +19,11 @@ import static org.hamcrest.Matchers.is;
 public class IvfSegmentConfigTests extends ESTestCase {
 
     public void testFromCodecDefaultsUsesNaNOversampling() {
-        var q = ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC;
-        IvfSegmentConfig c = IvfSegmentConfig.fromCodecDefaults(q, true);
-        assertThat(c.quantEncoding(), is(q));
+        var ci = CentroidIndexFormat.FLAT;
+        var q = QuantEncoding.FOUR_BIT_SYMMETRIC;
+        IvfSegmentConfig c = IvfSegmentConfig.fromCodecDefaults(ci, new IvfSegmentConfig.OsqConfig(q), true);
+        assertThat(c.centroidIndexFormat(), is(ci));
+        assertThat(c.osqEncoding(), is(q));
         assertTrue(c.usePrecondition());
         assertTrue(Float.isNaN(c.rescoreOversample()));
     }
@@ -34,7 +35,11 @@ public class IvfSegmentConfigTests extends ESTestCase {
 
     public void testMergeResolverReturnsCodecDefault() throws Exception {
         IvfMergeConfigResolver r = IvfMergeConfigResolver.useCodecDefault();
-        IvfSegmentConfig def = IvfSegmentConfig.fromCodecDefaults(ESNextDiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC, false);
+        IvfSegmentConfig def = IvfSegmentConfig.fromCodecDefaults(
+            CentroidIndexFormat.FLAT,
+            new IvfSegmentConfig.OsqConfig(QuantEncoding.SEVEN_BIT_SYMMETRIC),
+            false
+        );
         assertSame(def, r.resolve(null, null, def));
     }
 
@@ -51,7 +56,12 @@ public class IvfSegmentConfigTests extends ESTestCase {
     }
 
     public void testWithEffectiveRescoreOversampleReplacesNaN() {
-        IvfSegmentConfig raw = new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, true, Float.NaN);
+        IvfSegmentConfig raw = IvfSegmentConfig.of(
+            CentroidIndexFormat.FLAT,
+            new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
+            true,
+            Float.NaN
+        );
         IvfSegmentConfig effective = IvfSegmentConfig.withEffectiveRescoreOversample(raw, null, 2.5f);
         assertThat(effective.rescoreOversample(), equalTo(2.5f));
         assertThat(effective.usePrecondition(), is(true));
@@ -63,5 +73,28 @@ public class IvfSegmentConfigTests extends ESTestCase {
 
     public void testShardMergeBudget() {
         assertThat(IvfSegmentConfig.shardMergeBudget(10, 5f), equalTo(50));
+    }
+
+    /**
+     * The IVF budget functions take the user's {@code k} and expand it themselves. These numbers are the
+     * default {@code bbq_disk} shape (k=10, 1-bit quantization -> oversample 3) and exist so that handing
+     * these functions an already-oversampled {@code k} - which would triple the collector and the merge cap -
+     * shows up as a failure here as well as in the query wiring.
+     */
+    public void testBudgetsExpandFromTheFinalK() {
+        assertEquals("per-leaf collector: 2 * k * oversample", 60, IvfSegmentConfig.leafCollectorBudget(10, 3f));
+        assertEquals("shard merge cap: ceil(k * oversample)", 30, IvfSegmentConfig.shardMergeBudget(10, 3f));
+
+        // Passing k*oversample instead of k is the regression this guards against.
+        assertEquals(180, IvfSegmentConfig.leafCollectorBudget(30, 3f));
+        assertEquals(90, IvfSegmentConfig.shardMergeBudget(30, 3f));
+    }
+
+    /** An oversample below 1 (or absent) must never shrink the budget below the plain k shape. */
+    public void testBudgetsFloorOversampleAtOne() {
+        assertEquals(20, IvfSegmentConfig.leafCollectorBudget(10, 0.5f));
+        assertEquals(10, IvfSegmentConfig.shardMergeBudget(10, 0.5f));
+        assertEquals(20, IvfSegmentConfig.leafCollectorBudget(10, 1f));
+        assertEquals(10, IvfSegmentConfig.shardMergeBudget(10, 1f));
     }
 }

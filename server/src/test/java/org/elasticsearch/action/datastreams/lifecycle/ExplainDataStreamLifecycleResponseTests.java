@@ -121,6 +121,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                 } else {
                     assertThat(explainIndexMap.get("error"), is(nullValue()));
                 }
+                assertFrozenTransitionXContent(explainIndex, explainIndexMap);
             }
         }
 
@@ -204,14 +205,15 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                 Map<String, Object> lifecycleRollover = (Map<String, Object>) lifecycleMap.get("rollover");
                 assertThat(lifecycleRollover.get("min_primary_shard_docs"), is(4));
                 assertThat(lifecycleRollover.get("max_primary_shard_docs"), is(9));
+
+                assertFrozenTransitionXContent(explainIndex, explainIndexMap);
             }
         }
         {
             // Make sure generation_date is not present if it is null (which it is for a write index):
             String index = randomAlphaOfLengthBetween(10, 30);
-            ExplainIndexDataStreamLifecycle explainIndexWithNullGenerationDate = new ExplainIndexDataStreamLifecycle(
+            ExplainIndexDataStreamLifecycle explainIndexWithNullGenerationDate = ExplainIndexDataStreamLifecycle.managedIndexResponse(
                 index,
-                true,
                 randomBoolean(),
                 now,
                 randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
@@ -224,7 +226,8 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                         System.currentTimeMillis(),
                         randomIntBetween(0, 30)
                     )
-                    : null
+                    : null,
+                null
             );
             Response response = new Response(List.of(explainIndexWithNullGenerationDate), null, null, null);
 
@@ -243,6 +246,15 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
             Map<String, Object> explainIndexMap = (Map<String, Object>) indices.get(explainIndexWithNullGenerationDate.getIndex());
             assertThat(explainIndexMap.get("managed_by_lifecycle"), is(true));
             assertThat(explainIndexMap.get("generation_time"), is(nullValue()));
+        }
+    }
+
+    private void assertFrozenTransitionXContent(ExplainIndexDataStreamLifecycle explainIndex, Map<String, Object> explainIndexMap) {
+        FrozenTransitionStatus frozenTransitionStatus = explainIndex.getFrozenTransitionStatus();
+        if (frozenTransitionStatus != null) {
+            assertThat(explainIndexMap.get("frozen_transition_status"), is(frozenTransitionStatus.toString()));
+        } else {
+            assertThat(explainIndexMap.get("frozen_transition_status"), is(nullValue()));
         }
     }
 
@@ -270,9 +282,8 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
         @Nullable DataStreamLifecycle lifecycle
     ) {
         String index = randomAlphaOfLengthBetween(10, 30);
-        return new ExplainIndexDataStreamLifecycle(
+        return ExplainIndexDataStreamLifecycle.managedIndexResponse(
             index,
-            true,
             randomBoolean(),
             now,
             randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
@@ -285,7 +296,8 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     System.currentTimeMillis(),
                     randomIntBetween(0, 30)
                 )
-                : null
+                : null,
+            randomBoolean() ? randomFrom(FrozenTransitionStatus.values()) : null
         );
     }
 

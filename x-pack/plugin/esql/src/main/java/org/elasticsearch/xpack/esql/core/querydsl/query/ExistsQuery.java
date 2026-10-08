@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.core.querydsl.query;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.util.Objects;
+
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 
 public class ExistsQuery extends Query {
@@ -33,5 +35,24 @@ public class ExistsQuery extends Query {
     @Override
     public boolean containsPlan() {
         return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        ExistsQuery other = (ExistsQuery) obj;
+        return Objects.equals(name, other.name);
     }
 }

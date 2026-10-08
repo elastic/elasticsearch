@@ -100,7 +100,7 @@ EXPORT f32_t vec_cosi8(const int8_t* a, const int8_t* b, const int32_t dims) {
     return (f32_t) ((double) res.sum / __builtin_sqrt((double) res.norm1 * res.norm2));
 }
 
-template <typename TData, const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t)>
+template <typename TData, const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t), int batches = 4>
 static inline void cosi8_inner_bulk(
     const TData* a,
     const int8_t* b,
@@ -110,7 +110,7 @@ static inline void cosi8_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    constexpr int batches = 2;
+    static_assert(batches == 2 || batches == 4, "the results are converted two or four at a time");
 
     // First of all, calculate the b norm
     int32x4_t b_norms_vec = vdupq_n_s32(0);
@@ -166,15 +166,18 @@ static inline void cosi8_inner_bulk(
             });
         }
 
-        float32x2_t sum_vec = vcvt_f32_s32(vcreate_s32(((uint64_t)sum[1] << 32) | (uint32_t)sum[0]));
-        float32x2_t a_norm_vec = vcvt_f32_s32(vcreate_s32(((uint64_t)a_norm[1] << 32) | (uint32_t)a_norm[0]));
-        float32x2_t b_norm_vec = vcvt_f32_s32(vdup_n_s32(b_norm));
-
-        // sum / sqrt(a_norm * b_norm)
-        float32x2_t res = vdiv_f32(sum_vec, vsqrt_f32(vmul_f32(a_norm_vec, b_norm_vec)));
-
-        // store directly in results
-        vst1_f32(results + c, res);
+        // sum / sqrt(a_norm * b_norm), stored directly in results
+        if constexpr (batches == 4) {
+            float32x4_t sum_vec = vcvtq_f32_s32(vld1q_s32(sum));
+            float32x4_t a_norm_vec = vcvtq_f32_s32(vld1q_s32(a_norm));
+            float32x4_t b_norm_vec = vcvtq_f32_s32(vdupq_n_s32(b_norm));
+            vst1q_f32(results + c, vdivq_f32(sum_vec, vsqrtq_f32(vmulq_f32(a_norm_vec, b_norm_vec))));
+        } else {
+            float32x2_t sum_vec = vcvt_f32_s32(vcreate_s32(((uint64_t)sum[1] << 32) | (uint32_t)sum[0]));
+            float32x2_t a_norm_vec = vcvt_f32_s32(vcreate_s32(((uint64_t)a_norm[1] << 32) | (uint32_t)a_norm[0]));
+            float32x2_t b_norm_vec = vcvt_f32_s32(vdup_n_s32(b_norm));
+            vst1_f32(results + c, vdiv_f32(sum_vec, vsqrt_f32(vmul_f32(a_norm_vec, b_norm_vec))));
+        }
     }
 
     // Tail-handling: remaining vectors
@@ -184,8 +187,11 @@ static inline void cosi8_inner_bulk(
     }
 }
 
+// Four contiguous vectors per batch overrun the stream prefetchers of Neoverse N1 and V1 (DRAM-resident
+// sequential sets lose up to 50 %), so the sequential layout keeps two; the random layouts gain 20 to 25 %
+// from four vectors per batch on every tested core.
 EXPORT void vec_cosi8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    cosi8_inner_bulk<int8_t, sequential_mapper>(a, b, dims, dims, NULL, count, results);
+    cosi8_inner_bulk<int8_t, sequential_mapper, 2>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_cosi8_bulk_offsets(
@@ -206,15 +212,6 @@ EXPORT void vec_cosi8_bulk_sparse(
     const int32_t count,
     f32_t* results) {
     cosi8_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
-}
-
-EXPORT void vec_cosi8_bulk8(
-    const int8_t* a0, const int8_t* a1, const int8_t* a2, const int8_t* a3,
-    const int8_t* a4, const int8_t* a5, const int8_t* a6, const int8_t* a7,
-    const int8_t* b, const int32_t dims, f32_t* results
-) {
-    const int8_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
-    cosi8_inner_bulk<const int8_t*, sparse_mapper>(ptrs, b, dims, 0, NULL, 8, results);
 }
 
 static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
@@ -312,8 +309,7 @@ static inline void call_i8_bulk(
             acc[I] = acc_ops<TAcc>::zero();
         });
 
-        int i=0;
-        for (; i < blk; i += stride) {
+        for (int i = 0; i < blk; i += stride) {
             int8x16_t vb = vld1q_s8(b + i);
 
             apply_indexed<batches>([&](auto I) {
@@ -326,8 +322,9 @@ static inline void call_i8_bulk(
         apply_indexed<batches>([&](auto I) {
             res[I] = acc_ops<TAcc>::reduce(acc[I]);
         });
-        // scalar tail
-        for (; i < dims; i++) {
+        // indexed from the loop-invariant block end: reusing the main loop's counter makes clang keep a second
+        // set of per-vector pointers alive in the main loop to feed the tail
+        for (int i = blk; i < dims; i++) {
             const int8_t bb = b[i];
             apply_indexed<batches>([&](auto I) {
                 res[I] += scalar_op(as[I][i], bb);
@@ -392,16 +389,6 @@ EXPORT void vec_doti8_bulk_sparse(
     const int32_t count,
     f32_t* results) {
     call_i8_bulk<const int8_t*, int32x4_t, sparse_mapper, vdotq_s32, dot_scalar<int8_t>, vec_doti8>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
-}
-
-EXPORT void vec_doti8_bulk8(
-    const int8_t* a0, const int8_t* a1, const int8_t* a2, const int8_t* a3,
-    const int8_t* a4, const int8_t* a5, const int8_t* a6, const int8_t* a7,
-    const int8_t* b, const int32_t dims, f32_t* results
-) {
-    const int8_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
-    call_i8_bulk<const int8_t*, int32x4_t, sparse_mapper, vdotq_s32, dot_scalar<int8_t>, vec_doti8>(
-        ptrs, b, dims, 0, NULL, 8, results);
 }
 
 // Bulk inner_op for sqri8: computes |a-b|^2 using vabdq + vdotq_u32
@@ -502,14 +489,4 @@ EXPORT void vec_sqri8_bulk_sparse(
     const int32_t count,
     f32_t* results) {
     call_i8_bulk<const int8_t*, uint32x4_t, sparse_mapper, sqri8_vector_op, sqr_scalar<int8_t>, vec_sqri8>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
-}
-
-EXPORT void vec_sqri8_bulk8(
-    const int8_t* a0, const int8_t* a1, const int8_t* a2, const int8_t* a3,
-    const int8_t* a4, const int8_t* a5, const int8_t* a6, const int8_t* a7,
-    const int8_t* b, const int32_t dims, f32_t* results
-) {
-    const int8_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
-    call_i8_bulk<const int8_t*, uint32x4_t, sparse_mapper, sqri8_vector_op, sqr_scalar<int8_t>, vec_sqri8>(
-        ptrs, b, dims, 0, NULL, 8, results);
 }

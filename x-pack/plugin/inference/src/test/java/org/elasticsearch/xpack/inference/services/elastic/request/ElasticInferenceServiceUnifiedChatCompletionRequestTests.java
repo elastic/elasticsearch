@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
-import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -130,7 +129,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
         var modelId = "my-model-id";
         var inferenceEntityId = "test-endpoint-id";
 
-        var model = new ElasticInferenceServiceCompletionModel(
+        var model = ElasticInferenceServiceCompletionModelTests.createModel(
             inferenceEntityId,
             TaskType.COMPLETION,
             new ElasticInferenceServiceCompletionServiceSettings(modelId),
@@ -143,6 +142,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
             model,
             new TraceContext("trace-parent", "trace-state"),
             randomElasticInferenceServiceRequestMetadata(),
+            null,
             CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
 
@@ -211,6 +211,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
             model,
             new TraceContext(traceParent, traceState),
             randomElasticInferenceServiceRequestMetadata(),
+            null,
             CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
 
@@ -237,6 +238,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
             model,
             new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
             randomElasticInferenceServiceRequestMetadata(),
+            null,
             CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
     }

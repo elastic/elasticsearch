@@ -20,6 +20,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
@@ -165,17 +166,23 @@ public class RankFeaturePhase extends SearchPhase {
             listener.onFailure(e);
             return;
         }
+        ShardSearchRequest rankFeatureShardRequest = context.buildShardSearchRequest(
+            context.shardIterators[queryResult.getShardIndex()],
+            queryResult.getShardIndex()
+        );
         context.getSearchTransport()
             .sendExecuteRankFeature(
                 connection,
                 new RankFeatureShardRequest(
                     context.getOriginalIndices(queryResult.getShardIndex()),
                     queryResult.getContextId(),
-                    queryResult.getShardSearchRequest(),
+                    rankFeatureShardRequest,
                     entry
                 ),
                 context.getTask(),
-                listener
+                listener,
+                context::trackPhaseResultBytesRead,
+                context::trackPhaseRequestBytesWritten
             );
     }
 

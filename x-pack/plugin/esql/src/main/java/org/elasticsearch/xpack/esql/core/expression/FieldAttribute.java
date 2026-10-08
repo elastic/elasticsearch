@@ -17,7 +17,9 @@ import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -184,7 +186,11 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
             if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
                 dataType().writeTo(out);
             }
-            field.writeTo(out);
+            if (field instanceof PotentiallyUnmappedKeywordEsField punk) {
+                punk.writeTo(out, fieldName().string());
+            } else {
+                field.writeTo(out);
+            }
             if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
                 // We used to write the qualifier here, even though it was always null.
                 out.writeOptionalString(null);
@@ -321,6 +327,10 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
         return Objects.hash(super.innerHashCode(ignoreIds), parentName, field);
     }
 
+    public FieldAttribute withField(EsField field) {
+        return new FieldAttribute(source(), parentName(), qualifier(), name(), field, nullable(), id(), synthetic());
+    }
+
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (FieldAttribute) o;
@@ -364,5 +374,10 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
             sb.append('$');
         }
         sb.append("}#").append(id());
+    }
+
+    public boolean isPotentiallyUnmapped() {
+        return field() instanceof PotentiallyUnmappedKeywordEsField
+            || field() instanceof UnionTypeEsField utf && utf.getUnmappedConversionExpression() != null;
     }
 }

@@ -10,7 +10,10 @@
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Query string in KQL query string format."
+          "description" : "Query string in KQL query string format.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -29,7 +32,10 @@
           "name" : "query",
           "type" : "text",
           "optional" : false,
-          "description" : "Query string in KQL query string format."
+          "description" : "Query string in KQL query string format.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",

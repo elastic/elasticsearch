@@ -55,8 +55,7 @@ public class TransportFetchPhaseResponseChunkActionTests extends ESTestCase {
     private ActiveFetchPhaseTasks activeFetchPhaseTasks;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startServices() throws Exception {
         threadPool = new TestThreadPool(getTestName());
         transportService = MockTransportService.createNewService(
             Settings.EMPTY,
@@ -76,8 +75,7 @@ public class TransportFetchPhaseResponseChunkActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void stopServices() throws Exception {
         if (transportService != null) {
             transportService.close();
         }
@@ -90,7 +88,7 @@ public class TransportFetchPhaseResponseChunkActionTests extends ESTestCase {
         final long coordinatingTaskId = 123L;
         AtomicReference<FetchPhaseResponseChunk> processedChunk = new AtomicReference<>();
 
-        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(0, 1, new NoopCircuitBreaker("test")) {
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(0, 1, NoopCircuitBreaker.INSTANCE) {
             @Override
             void writeChunk(FetchPhaseResponseChunk chunk, Releasable releasable) {
                 processedChunk.set(chunk);
@@ -139,7 +137,7 @@ public class TransportFetchPhaseResponseChunkActionTests extends ESTestCase {
 
     public void testProcessChunkSuccessWritesChunkAndReturnsAck() throws Exception {
         final long coordinatingTaskId = 321L;
-        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(0, 1, new NoopCircuitBreaker("test"));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(0, 1, NoopCircuitBreaker.INSTANCE);
         Releasable registration = activeFetchPhaseTasks.registerResponseBuilder(coordinatingTaskId, TEST_SHARD_ID, stream);
         SearchHit originalHit = createHit(9);
         FetchPhaseResponseChunk chunk = null;
@@ -201,7 +199,7 @@ public class TransportFetchPhaseResponseChunkActionTests extends ESTestCase {
 
     public void testProcessChunkForLateChunkReturnsResourceNotFound() throws Exception {
         final long coordinatingTaskId = 777L;
-        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(0, 1, new NoopCircuitBreaker("test"));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(0, 1, NoopCircuitBreaker.INSTANCE);
         Releasable registration = activeFetchPhaseTasks.registerResponseBuilder(coordinatingTaskId, TEST_SHARD_ID, stream);
 
         registration.close();
@@ -238,7 +236,7 @@ public class TransportFetchPhaseResponseChunkActionTests extends ESTestCase {
         ReleasableBytesReference wireBytes = null;
         try {
             chunk = new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(originalHit), 1, 1, 0L);
-            long expectedBytes = chunk.getBytesLength();
+            long expectedBytes = originalHit.ramBytesUsed();
             wireBytes = chunk.toReleasableBytesReference(coordinatingTaskId);
 
             PlainActionFuture<ActionResponse.Empty> future = sendChunk(wireBytes);

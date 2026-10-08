@@ -11,6 +11,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -194,6 +195,28 @@ public abstract class AbstractDataSourceValidatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * A request that omits every secret field fails without existing-secret context, but succeeds and does
+     * not re-emit the omitted secrets when the caller passes those field names as {@code existingSecretKeys},
+     * as {@code DataSourceService} does on a PUT-as-update. Skips validators with no secret fields.
+     */
+    public void testMergeAwareValidateDatasourceOmitsExistingSecrets() {
+        Set<String> secretKeys = expectedSecretFieldNames();
+        assumeFalse("validator has no secret fields", secretKeys.isEmpty());
+        Map<String, Object> withoutSecrets = new HashMap<>(sampleConfigWithAllSecrets());
+        secretKeys.forEach(withoutSecrets::remove);
+
+        expectThrows(ValidationException.class, () -> validator().validateDatasource(withoutSecrets));
+
+        Map<String, DataSourceSetting> merged = validator().validateDatasource(withoutSecrets, secretKeys);
+        for (String key : secretKeys) {
+            assertFalse(
+                "merge-aware validateDatasource should not re-emit an omitted, carried-forward secret [" + key + "]",
+                merged.containsKey(key)
+            );
+        }
+    }
+
     public void testValidateDatasetRequiresResource() {
         expectThrows(ValidationException.class, () -> validator().validateDataset(Map.of(), null, Map.of()));
     }
@@ -203,7 +226,11 @@ public abstract class AbstractDataSourceValidatorTests extends ESTestCase {
     }
 
     public void testValidateDatasetNullSettings() {
-        assertTrue(validator().validateDataset(Map.of(), sampleResource(), null).isEmpty());
+        // FileDataSourceValidator materializes omitted schema_resolution as first_file_wins.
+        Map<String, Object> first = validator().validateDataset(Map.of(), sampleResource(), null);
+        Map<String, Object> second = validator().validateDataset(Map.of(), sampleResource(), Map.of());
+        assertEquals("first_file_wins", first.get("schema_resolution"));
+        assertEquals(first, second);
     }
 
     public void testValidateDatasetWrongScheme() {

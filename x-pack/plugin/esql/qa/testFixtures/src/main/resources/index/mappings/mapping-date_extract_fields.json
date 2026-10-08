@@ -5,6 +5,18 @@
         },
         "date_val": {
             "type": "date"
+        },
+        "format_val": {
+            "type": "keyword"
+        },
+        "date_string": {
+            "type": "keyword"
+        },
+        "inner_val": {
+            "type": "keyword"
+        },
+        "outer_val": {
+            "type": "keyword"
         }
     }
 }

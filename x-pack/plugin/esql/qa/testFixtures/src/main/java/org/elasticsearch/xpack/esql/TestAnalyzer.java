@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -34,6 +37,7 @@ import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
@@ -42,7 +46,9 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
@@ -55,12 +61,15 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.groupingBy;
 import static junit.framework.Assert.assertTrue;
 import static org.elasticsearch.test.ESTestCase.expectThrows;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_IP_LOCATION_RESOLUTION;
@@ -83,10 +92,19 @@ import static org.hamcrest.Matchers.instanceOf;
 public class TestAnalyzer {
     private Configuration configuration = EsqlTestUtils.TEST_CFG;
     private EsqlFunctionRegistry functionRegistry = EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+    private AnalysisRegistry analysisRegistry = EsqlTestUtils.TEST_ANALYSIS_REGISTRY;
+
     private final Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
     private final Map<String, IndexResolution> lookupResolution = new HashMap<>();
     private final Map<LinkedIndexPattern, IndexResolution> lenientResolution = new HashMap<>();
     private final EnrichResolution enrichResolution = new EnrichResolution();
+    // EnrichResolution is keyed by the Source of the specific ENRICH occurrence it resolves, but addEnrichPolicy/addEnrichError
+    // are called before the query is parsed (builder pattern), so a Source isn't available yet. Registrations are queued here
+    // by policy name + mode and matched against the actual Enrich occurrences once the plan is known, see resolveEnrichResolution.
+    private final List<PendingEnrich> pendingEnrichResolutions = new ArrayList<>();
+
+    private record PendingEnrich(String policyName, Enrich.Mode mode, ResolvedEnrichPolicy resolved, String error) {}
+
     private final InferenceResolution.Builder inferenceResolution = InferenceResolution.builder();
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
     private TimestampBounds timestampBounds;
@@ -114,6 +132,15 @@ public class TestAnalyzer {
      */
     public TestAnalyzer functionRegistry(EsqlFunctionRegistry functionRegistry) {
         this.functionRegistry = functionRegistry;
+        return this;
+    }
+
+    /**
+     * Set the {@link AnalysisRegistry} used to resolve analyzer names during verification.
+     * Defaults to {@link EsqlTestUtils#TEST_ANALYSIS_REGISTRY} (prebuilt analyzers only).
+     */
+    public TestAnalyzer analysisRegistry(AnalysisRegistry analysisRegistry) {
+        this.analysisRegistry = analysisRegistry;
         return this;
     }
 
@@ -154,6 +181,11 @@ public class TestAnalyzer {
      * Convenience overload of {@link #addLenientResolution(LinkedIndexPattern, IndexResolution)} for the
      * common no-exclusion case: keys the entry by an {@link IndexPattern} built from
      * {@code esIndex.name()} (which the test should match the local view name).
+     * <p>
+     * The shadow rules treat a resolution with no resolved indices as no-match, so a matched
+     * fixture's {@code EsIndex} must carry {@code indexProperties} (build it with the 3-arg
+     * {@code EsIndexGenerator.esIndex(name, mapping, indexNameWithModes)}); otherwise the shadow
+     * is stripped instead of resolved.
      */
     public TestAnalyzer addLenientResolution(EsIndex esIndex) {
         return addLenientResolution(
@@ -186,7 +218,7 @@ public class TestAnalyzer {
         EsIndex noFieldsIndex = new EsIndex(
             noFieldsIndexName,
             Map.of(),
-            Map.of(noFieldsIndexName, IndexMode.STANDARD),
+            Map.of(noFieldsIndexName, new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of("", List.of(noFieldsIndexName)),
             Map.of("", List.of(noFieldsIndexName))
         );
@@ -265,6 +297,13 @@ public class TestAnalyzer {
     }
 
     /**
+     * Adds the multi_column_joinable_lookup lookup index.
+     */
+    public TestAnalyzer addMultiColumnJoinableLookup() {
+        return addLookupIndex("multi_column_joinable_lookup", "mapping-multi_column_joinable_lookup.json");
+    }
+
+    /**
      * Adds the test index with mapping-default.json.
      */
     public TestAnalyzer addDefaultIndex() {
@@ -297,6 +336,14 @@ public class TestAnalyzer {
      */
     public TestAnalyzer addK8sDownsampled() {
         return addIndex("k8s", "k8s-downsampled-mappings.json", IndexMode.TIME_SERIES);
+    }
+
+    /**
+     * Adds the datenanos-k8s index with k8s-mappings-date_nanos.json in time series mode. It mirrors {@link #addK8s()}
+     * but carries a {@code date_nanos} {@code @timestamp}, so tests can exercise the date_nanos time-bucket/step path.
+     */
+    public TestAnalyzer addK8sDateNanos() {
+        return addIndex("datenanos-k8s", "k8s-mappings-date_nanos.json", IndexMode.TIME_SERIES);
     }
 
     /**
@@ -337,7 +384,13 @@ public class TestAnalyzer {
         mapping.put("host.name", new KeywordEsField("host.name", Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION));
         mapping.put("metrics", new EsField("metrics", DataType.OBJECT, metricsChildren, false, EsField.TimeSeriesFieldType.NONE));
 
-        EsIndex otelMetrics = new EsIndex("otel-metrics", mapping, Map.of("otel-metrics", IndexMode.TIME_SERIES), Map.of(), Map.of());
+        EsIndex otelMetrics = new EsIndex(
+            "otel-metrics",
+            mapping,
+            Map.of("otel-metrics", new IndexProperties(IndexMode.TIME_SERIES, 0)),
+            Map.of(),
+            Map.of()
+        );
         return addIndex(otelMetrics);
     }
 
@@ -367,7 +420,7 @@ public class TestAnalyzer {
      * Add an error resolving enrich indices.
      */
     public TestAnalyzer addEnrichError(String policyName, Enrich.Mode mode, String reason) {
-        enrichResolution.addError(policyName, mode, reason);
+        pendingEnrichResolutions.add(new PendingEnrich(policyName, mode, null, reason));
         return this;
     }
 
@@ -439,8 +492,29 @@ public class TestAnalyzer {
      * Adds an enrich policy resolution with a specific mode by loading the mapping from a resource file.
      */
     public TestAnalyzer addEnrichPolicy(Enrich.Mode mode, String policy, ResolvedEnrichPolicy resolved) {
-        enrichResolution.addResolvedPolicy(policy, mode, resolved);
+        pendingEnrichResolutions.add(new PendingEnrich(policy, mode, resolved, null));
         return this;
+    }
+
+    /**
+     * Matches pending {@link #addEnrichPolicy}/{@link #addEnrichError} registrations (queued by policy name + mode before the
+     * query was known) against the actual {@link Enrich} occurrences in the now-parsed plan, and registers each match into the
+     * real {@link #enrichResolution} keyed by that occurrence's {@code Source} - mirroring how {@code EnrichPolicyResolver}
+     * keys production resolutions. If several occurrences share the same policy name and mode, every one of them is
+     * registered with the same resolution.
+     */
+    private void resolveEnrichResolution(LogicalPlan plan) {
+        plan.forEachUp(Enrich.class, enrich -> {
+            for (PendingEnrich pending : pendingEnrichResolutions) {
+                if (pending.policyName().equals(enrich.resolvedPolicyName()) && pending.mode() == enrich.mode()) {
+                    if (pending.resolved() != null) {
+                        enrichResolution.addResolvedPolicy(enrich.source(), pending.resolved());
+                    } else {
+                        enrichResolution.addError(enrich.source(), pending.error());
+                    }
+                }
+            }
+        });
     }
 
     /**
@@ -452,8 +526,11 @@ public class TestAnalyzer {
     }
 
     /**
-     * Set external source resolution. Enriches the schema with {@code _file.*} metadata columns
-     * to mirror the production path in {@link ExternalSourceResolver}.
+     * Set external source resolution from a bare data-only schema, mirroring the production path in
+     * {@link ExternalSourceResolver}: the schema is used as-is, with no {@code _file.*} auto-attach.
+     * External metadata columns are request-driven now — they reach the relation only through the
+     * METADATA clause (FROM path) or the temporary EXTERNAL-command shim that injects {@code _file.*}
+     * into the relation's metadataFields at parse time.
      */
     public TestAnalyzer externalSourceResolution(String path, List<Attribute> schema, FileList fileSet) {
         var metadata = new ExternalSourceMetadata() {
@@ -472,8 +549,7 @@ public class TestAnalyzer {
                 return "parquet";
             }
         };
-        var enriched = ExternalSourceResolver.enrichSchemaWithFileMetadataColumns(metadata);
-        var resolvedSource = new ExternalSourceResolution.ResolvedSource(enriched, fileSet, java.util.Map.of());
+        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, fileSet, java.util.Map.of());
         return externalSourceResolution(new ExternalSourceResolution(Map.of(path, resolvedSource)));
     }
 
@@ -502,6 +578,14 @@ public class TestAnalyzer {
      */
     public TestAnalyzer addInferenceResolution(String inferenceId, TaskType taskType) {
         this.inferenceResolution.withResolvedInference(new ResolvedInference(inferenceId, taskType));
+        return this;
+    }
+
+    /**
+     * Add an inference resolution with the similarity measure used by the endpoint.
+     */
+    public TestAnalyzer addInferenceResolution(String inferenceId, TaskType taskType, SimilarityMeasure similarity) {
+        this.inferenceResolution.withResolvedInference(new ResolvedInference(inferenceId, taskType, similarity));
         return this;
     }
 
@@ -559,7 +643,7 @@ public class TestAnalyzer {
      * {@code ViewResolver#replaceViews} followed by {@code InSubqueryResolver#verify} in {@code EsqlSession#execute}.
      * <p>
      * After resolution, {@link InSubqueryResolver#verify} rejects any IN subquery that survived (e.g. one in an unsupported position
-     * such as EVAL or SORT).
+     * such as SORT).
      */
     public LogicalPlan resolveViewsAndInSubqueries(LogicalPlan plan) {
         if (views.isEmpty()) {
@@ -586,6 +670,16 @@ public class TestAnalyzer {
                 // If an IN subquery was rewritten to a Semi/Anti/MarkJoin, recurse so views nested inside the now-exposed subquery
                 // plans (and any IN subqueries those views in turn contain) get resolved too.
                 return resolved == filter ? filter : resolveViews(resolved, viewDefinitions);
+            }
+            if (p instanceof Eval eval) {
+                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInEval(eval);
+                // EVAL IN subqueries become MarkJoins; recurse so views in their now-exposed subquery plans are resolved too.
+                return resolved == eval ? eval : resolveViews(resolved, viewDefinitions);
+            }
+            if (p instanceof Aggregate aggregate) {
+                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInAggregate(aggregate);
+                // Recurse into rewritten joins so views referenced by the newly exposed subquery plans are expanded too.
+                return resolved == aggregate ? aggregate : resolveViews(resolved, viewDefinitions);
             }
             if (p instanceof UnresolvedRelation ur) {
                 LogicalPlan resolved = resolveViewReference(ur, viewDefinitions);
@@ -628,13 +722,15 @@ public class TestAnalyzer {
             String indexPattern = unresolvedRelations.stream().map(u -> u.indexPattern().indexPattern()).collect(Collectors.joining(","));
             subplans.put(null, makeUnresolvedRelation(unresolvedRelations.get(0), indexPattern));
         }
+        Set<String> viewBranchKeys = new HashSet<>();
         for (NamedSubquery namedSubquery : namedSubqueries) {
             subplans.put(namedSubquery.name(), namedSubquery.child());
+            viewBranchKeys.add(namedSubquery.name());
         }
         if (subplans.size() == 1) {
-            return namedSubqueries.get(0).child();
+            return subplans.values().iterator().next();
         } else {
-            return new ViewUnionAll(ur.source(), subplans, List.of());
+            return new ViewUnionAll(ur.source(), subplans, viewBranchKeys, List.of());
         }
     }
 
@@ -860,9 +956,27 @@ public class TestAnalyzer {
     /**
      * Build an {@link Analyzer} for advanced usage.
      * Prefer {@link #query} or {@link #error} if possible.
+     * <p>
+     * The returned {@link Analyzer} resolves pending {@link #addEnrichPolicy}/{@link #addEnrichError} registrations against
+     * whatever plan it's asked to analyze, right before analyzing it - see {@link #resolveEnrichResolution}. This covers both
+     * {@link #query}/{@link #error} (which call this internally) and advanced usage where callers hold onto the returned
+     * {@link Analyzer} and call {@link Analyzer#analyze} directly, possibly against several different queries.
      */
     public Analyzer buildAnalyzer(Verifier verifier) {
-        return new Analyzer(buildContext(), verifier);
+        lastAnalyzer = new Analyzer(buildContext(), verifier) {
+            @Override
+            public LogicalPlan analyze(LogicalPlan plan) {
+                resolveEnrichResolution(plan);
+                return super.analyze(plan);
+            }
+        };
+        return lastAnalyzer;
+    }
+
+    private Analyzer lastAnalyzer;
+
+    public Analyzer lastAnalyzer() {
+        return lastAnalyzer;
     }
 
     /**
@@ -874,6 +988,7 @@ public class TestAnalyzer {
             configuration,
             functionRegistry,
             PromqlFunctionRegistry.INSTANCE,
+            analysisRegistry,
             null,
             indexResolutions,
             lookupResolution,
@@ -884,7 +999,8 @@ public class TestAnalyzer {
             minimumTransportVersion.get(),
             unmappedResolution,
             timestampBounds,
-            TEST_IP_LOCATION_RESOLUTION
+            TEST_IP_LOCATION_RESOLUTION,
+            false
         );
     }
 
@@ -892,8 +1008,16 @@ public class TestAnalyzer {
      * Load a mapping file.
      */
     public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
+        var grouped = Arrays.stream(indexName.split(","))
+            .collect(groupingBy(index -> RemoteClusterAware.splitIndexName(index).getClusterGroupingKey()));
         return IndexResolution.valid(
-            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of())
+            new EsIndex(
+                indexName,
+                EsqlTestUtils.loadMapping(resource),
+                Map.of(indexName, new IndexProperties(indexMode, 0)),
+                grouped,
+                grouped
+            )
         );
     }
 

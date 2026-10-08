@@ -9,6 +9,7 @@
 
 package org.elasticsearch.test.rest.yaml;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
@@ -101,8 +102,6 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.security.remote_cluster_client.ssl.enabled", "false")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
-        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
-        .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
         .user("test_admin", "x-pack-test-password");
 
     private static ElasticsearchCluster fulfillingCluster = ElasticsearchCluster.local()
@@ -275,7 +274,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         assertOK(response);
     }
 
-    public RcsCcsCommonYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) throws IOException {
+    public RcsCcsCommonYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) throws IOException {
         super(rewrite(testCandidate));
     }
 

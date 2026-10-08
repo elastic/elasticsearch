@@ -201,6 +201,8 @@ public final class ReservedFieldNames {
         Result.RESULT_TYPE.getPreferredName(),
         Result.TIMESTAMP.getPreferredName(),
         Result.IS_INTERIM.getPreferredName(),
+        Result.EVENT.getPreferredName(),
+        Result.INGESTED.getPreferredName(),
 
         TimingStats.BUCKET_COUNT.getPreferredName(),
         TimingStats.MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName(),

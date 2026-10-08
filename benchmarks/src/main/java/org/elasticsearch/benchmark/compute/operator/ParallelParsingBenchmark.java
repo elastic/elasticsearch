@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
@@ -25,9 +25,12 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -71,11 +74,11 @@ import java.util.concurrent.TimeUnit;
 public class ParallelParsingBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("bench"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     private static final List<Attribute> SCHEMA = List.of(
@@ -135,6 +138,10 @@ public class ParallelParsingBenchmark {
     }
 
     private static class BenchLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         @Override
         public RecordSplitter recordSplitter(int maxRecordBytes) {
@@ -303,6 +310,11 @@ public class ParallelParsingBenchmark {
     }
 
     private static class InMemoryStorageObject implements StorageObject {
+        /** One identity for all in-memory fixtures, so footer-cache entries stay keyed by URI alone as before. */
+        private record BenchIdentity() implements StorageIdentity {}
+
+        private static final BenchIdentity BENCH_IDENTITY = new BenchIdentity();
+
         private final byte[] data;
 
         InMemoryStorageObject(byte[] data) {
@@ -343,6 +355,11 @@ public class ParallelParsingBenchmark {
         @Override
         public boolean exists() {
             return true;
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return BENCH_IDENTITY;
         }
 
         @Override

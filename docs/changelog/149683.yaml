@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 149683
-summary: Fix `ValuesReader` assertion error
-type: bug

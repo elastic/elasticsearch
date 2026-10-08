@@ -13,7 +13,6 @@ import org.apache.http.HttpEntity;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -27,21 +26,20 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.CsvAssert;
+import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.CsvSpecReader.DatasetSource;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
 import org.elasticsearch.xpack.esql.telemetry.TookMetrics;
+import org.elasticsearch.xpack.esql.view.RestPutViewAction;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Rule;
 
@@ -59,7 +57,6 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertDataWithValueConverter;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertMetadata;
-import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeFalseLogging;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeTrueLogging;
@@ -68,23 +65,26 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.substituteTemplates;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoints;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoints;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteViews;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewsIntoEs;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.KNN_FUNCTION_V5;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.assertNotPartial;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
-// This test can run very long in serverless configurations
-@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
+// Each class covers one csv-spec file and should complete well within 20 minutes;
+// monolithic subclasses that run all spec files must add their own longer annotation.
+@TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Rule(order = Integer.MIN_VALUE)
@@ -113,7 +113,17 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
-        return SpecReader.readScriptSpec(urls, specParser());
+        return SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
+    }
+
+    /**
+     * Load test cases from a single named CSV spec file, e.g. {@code "/stats.csv-spec"}.
+     * Intended for use by generated per-spec-file test classes.
+     */
+    protected static List<Object[]> readScriptSpec(String specFile) throws Exception {
+        URL url = classpathResource(specFile);
+        assertNotNull("No resource found for " + specFile, url);
+        return SpecReader.readScriptSpec(List.of(url), CsvSpecReader::specParser);
     }
 
     protected EsqlSpecTestCase(
@@ -134,17 +144,24 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     private static class Protected {
+        private final String description;
         private volatile boolean completed = false;
         private volatile boolean started = false;
         private volatile Throwable failure = null;
 
+        Protected(String description) {
+            this.description = description;
+        }
+
         private void protectedBlock(Callable<Void> callable) {
             if (completed) {
+                LOGGER.debug("Skipping [{}]: already completed", description);
                 return;
             }
             // In case tests get run in parallel, we ensure only one setup is run, and other tests wait for this
             synchronized (this) {
                 if (completed) {
+                    LOGGER.debug("Skipping [{}]: already completed", description);
                     return;
                 }
                 if (started) {
@@ -155,9 +172,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                     fail("Previous test setup failed with unknown error");
                 }
                 started = true;
+                LOGGER.info("Starting [{}]", description);
                 try {
                     callable.call();
                     completed = true;
+                    LOGGER.info("Completed [{}]", description);
                 } catch (Throwable t) {
                     failure = t;
                     fail(failure, "Current test setup failed: " + failure.getMessage());
@@ -172,14 +191,15 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    private static final Protected INGEST = new Protected();
-    private static final Protected VIEWS = new Protected();
+    private static final Protected INGEST = new Protected("test data ingestion");
+    private static final Protected VIEWS = new Protected("view loading");
     protected static boolean testClustersOk = true;
 
     @Before
     public void setup() throws IOException {
         assumeTrue("test clusters were broken", testClustersOk);
         INGEST.protectedBlock(() -> {
+            ensureRemoteClustersConnected();
             // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
             // If multiple clusters are used, only create endpoints on the local cluster if it supports the inference test service.
             createInferenceEndpointsIfSupported();
@@ -192,10 +212,18 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 this::clusterHasCapability,
                 indicesToLoad()
             );
+            // wait until the newly created indices are ready to search
+            ensureHealth(client(), "", request -> {
+                request.addParameter("wait_for_status", "yellow");
+                request.addParameter("wait_for_no_initializing_shards", "true");
+                request.addParameter("wait_for_no_relocating_shards", "true");
+                request.addParameter("timeout", "60s");
+                request.addParameter("level", "shards");
+            });
             return null;
         });
-        // Views can be created before or after ingest, since index resolution is currently only done on the combined query
-        // Only load views for tests in the "views" group (from views.csv-spec) to avoid issues with wildcards like "FROM *"
+        // Views can be created before or after ingest, since index resolution is currently only done on the combined query.
+        // Only load views for groups that reference them (see shouldLoadViews) to avoid issues with wildcards like "FROM *".
         if (shouldLoadViews()) {
             VIEWS.protectedBlock(() -> {
                 if (supportsViews()) {
@@ -203,40 +231,25 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 }
                 return null;
             });
+            // Skip view-group tests entirely when the cluster cannot support views: views are not loaded,
+            // so running them would fail with "index not found" rather than giving a meaningful skip.
+            if (allTestsInGroupNeedViews()) {
+                assumeTrue(
+                    "Cluster does not support views (" + RestPutViewAction.VIEWS_PUT_SERVERLESS_SCOPE + " capability absent)",
+                    supportsViews()
+                );
+            }
         } else {
             deleteViews(adminClient());
             VIEWS.reset();
         }
     }
 
-    @AfterClass
-    public static void wipeTestData() throws IOException {
-        if (testClustersOk == false) {
-            return;
-        }
-        try {
-            adminClient().performRequest(new Request("DELETE", "/*"));
-        } catch (ResponseException e) {
-            // 404 here just means we had no indexes
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
-            }
-        }
-        for (CsvTestsDataLoader.EnrichConfig enrich : CsvTestsDataLoader.ENRICH_POLICIES.values()) {
-            try {
-                adminClient().performRequest(new Request("DELETE", "/_enrich/policy/" + enrich.policyName()));
-            } catch (ResponseException e) {
-                // 404 here just means we had no indexes
-                if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                    throw e;
-                }
-            }
-        }
-        INGEST.reset();
-        deleteViews(adminClient());
-        VIEWS.reset();
-        deleteInferenceEndpoints(adminClient());
-    }
+    /**
+     * Hook, run once per JVM at the start of data ingestion, for suites that need a remote cluster to be connected before
+     * any data load or query is issued.
+     */
+    protected void ensureRemoteClustersConnected() throws Exception {}
 
     public boolean logResults() {
         return false;
@@ -264,9 +277,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    // Only load views for tests in the "views" group (from views.csv-spec)
+    // Load views only for groups whose tests reference view fixtures
     protected boolean shouldLoadViews() {
-        return "views".equals(groupName) || "approximation".equals(groupName);
+        return "views".equals(groupName)
+            || "approximation".equals(groupName)
+            || "unmapped-load".equals(groupName)
+            || "metadata-views-and-subqueries".equals(groupName);
+    }
+
+    private boolean allTestsInGroupNeedViews() {
+        return "views".equals(groupName) || "metadata-views-and-subqueries".equals(groupName);
     }
 
     /**
@@ -287,6 +307,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             assumeTrueLogging("Inference test service needs to be supported", supportsInferenceTestServiceOnLocalCluster());
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
+        if (testCase.requiredCapabilities.contains(VIEWS_CRUD_AS_INDEX_ACTIONS.capabilityName())) {
+            assumeTrueLogging("Cluster does not support views", supportsViews());
+        }
         assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
         if (supportsSourceFieldMapping() == false) {
             assumeFalseLogging(
@@ -353,7 +376,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             COMPLETION.capabilityName(),
             KNN_FUNCTION_V5.capabilityName(),
             TEXT_EMBEDDING_FUNCTION.capabilityName(),
-            EMBEDDING_FUNCTION.capabilityName()
+            EMBEDDING_FUNCTION.capabilityName(),
+            DENSE_VECTOR_COMMAND.capabilityName()
         ).anyMatch(testCase.requiredCapabilities::contains);
     }
 
@@ -402,54 +426,23 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void doTest() throws Throwable {
-        doTest(rebuildExternalFromDatasets(testCase.query));
-    }
-
-    /**
-     * Rebuild the {@code EXTERNAL "<resource>" WITH {<json>}} query equivalent to a migrated
-     * {@code FROM <name>} spec from its {@code dataset:} directive(s). This is the universal fallback used
-     * by every EXTERNAL-capable test family; {@code AbstractExternalSourceSpecTestCase} overrides the
-     * execution path to register and run the {@code FROM} form directly on dataset-capable backends.
-     *
-     * <p>Specs without a {@code dataset:} directive are returned unchanged. EXTERNAL is single-source
-     * today, so a spec declaring more than one source has no EXTERNAL equivalent and fails fast (rather
-     * than silently mis-running); the guard is removed once EXTERNAL gains multi-source support.
-     */
-    protected final String rebuildExternalFromDatasets(String query) {
-        List<DatasetSource> sources = testCase.datasetSources;
-        if (sources.isEmpty()) {
-            return query;
-        }
-        if (sources.size() > 1) {
-            throw new AssertionError(
-                "Cannot rebuild a single EXTERNAL query for ["
-                    + sources.size()
-                    + "] dataset sources; multi-source FROM <dataset> has no EXTERNAL equivalent yet: "
-                    + query
-            );
-        }
-        DatasetSource source = sources.get(0);
-        int pipe = FixtureUtils.findFirstPipeAfterExternal(query);
-        String tail = pipe < 0 ? "" : " " + query.substring(pipe);
-        // source.resource() is decoded (quotes/escapes resolved by the parser); re-escape it back into the
-        // EXTERNAL string literal so a resource containing a backslash or quote round-trips correctly.
-        String literal = source.resource().replace("\\", "\\\\").replace("\"", "\\\"");
-        StringBuilder external = new StringBuilder("EXTERNAL \"").append(literal).append("\"");
-        if (source.withJson() != null) {
-            external.append(" WITH ").append(source.withJson());
-        }
-        external.append(tail);
-        return external.toString();
+        // Dataset-backed specs (FROM <dataset>) need a registered data_source/dataset, which only the
+        // external-source suites (AbstractExternalSourceSpecTestCase) provision. Plain spec subclasses
+        // (single/multi-node, mixed-cluster, multi-cluster) share these csv-spec files via the
+        // testFixtures classpath but have no fixture to back them, so skip rather than fail.
+        assumeFalse(
+            "dataset-backed spec; runs only on the external-source suites that register the dataset",
+            testCase.datasetSources.isEmpty() == false
+        );
+        doTest(testCase.query);
     }
 
     protected final void doTest(String query) throws Throwable {
         if (query.trim().toUpperCase(Locale.ROOT).contains("EXTERNAL \"{{")) {
             // Multi-file glob templates ({{x_multifile}}, {{x_multifile_split}}, {{x_multifile_ubn}},
-            // {{x_multifile_type_drift}}), hive-partitioned templates ({{x_hive}}), and ClickBench
-            // templates ({{clickbench}}) are resolved by specialised subclasses against their own
-            // fixtures. Plain EsqlSpecTestCase subclasses (mixed-cluster, multi-cluster,
-            // single/multi-node, flight) share the same csv-spec files via the testFixtures classpath
-            // but have no resolver for these templates, so skip such tests here.
+            // {{x_multifile_type_drift}}), and hive-partitioned templates ({{x_hive}}) are resolved by
+            // specialised subclasses against their own fixtures. Plain EsqlSpecTestCase subclasses
+            // have no resolver for these templates, so skip such tests here.
             assumeFalseLogging(
                 "specialised EXTERNAL templates require dedicated test subclass",
                 query.contains("_multifile}}")
@@ -457,18 +450,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                     || query.contains("_multifile_ubn}}")
                     || query.contains("_multifile_type_drift}}")
                     || query.contains("_hive}}")
-                    || query.contains("{{clickbench}}")
-            );
-            // external-multivalue.csv-spec exercises native multi-value reads for non-CSV/TSV format
-            // ITs (Parquet/ORC/NDJSON/multi-node) which decode arrays from their format's native
-            // representation. Its queries use {{employees}} without a multi_value_syntax opt-in
-            // (the non-CSV format readers reject the unknown key via ConfigKeyValidator). On the
-            // EsqlSpecTestCase cluster the local CSV reader defaults to multi_value_syntax: none
-            // and would misalign columns on the bracket-MV employees.csv. CSV-side bracket-syntax
-            // coverage lives in csv-multivalue.csv-spec with the explicit "brackets" opt-in.
-            assumeFalseLogging(
-                "external-multivalue requires AbstractExternalSourceSpecTestCase (native multi-value formats)",
-                fileName.equals("external-multivalue.csv-spec")
             );
             Path path = getCsvDataPath();
             if (path != null) {
@@ -519,7 +500,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         List<List<Object>> actualValues = (List<List<Object>>) values;
 
         assertResults(expectedColumnsWithValues, actualColumns, actualValues, logger);
-        CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, (int) answer.get("documents_found"));
+        if (testCase.expectedDocumentsFound != null) {
+            assertTrue(
+                "cluster is too old to assert returned document count",
+                clusterHasCapability(EsqlCapabilities.Cap.DOCUMENTS_FOUND_AND_VALUES_LOADED)
+            );
+            CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, (int) answer.get("documents_found"));
+        }
+        if (testCase.expectedApproximationApplied != null && clusterHasCapability(EsqlCapabilities.Cap.APPROXIMATION_APPLIED_RESPONSE)) {
+            CsvAssert.assertApproximationApplied(testCase.expectedApproximationApplied, (Boolean) answer.get("approximation_applied"));
+        }
 
         if (checkTook) {
             LOGGER.info("checking took incremented from {}", prevTooks);
@@ -557,6 +547,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             && hasCapabilities(client(), List.of("auto_partition_docs_threshold"))
             && randomBoolean()) {
             pragma.put(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey(), between(1, 1000));
+        }
+        if (randomBoolean() && hasCapabilities(client(), List.of(EsqlCapabilities.Cap.PARTITIONING_AGGREGATIONS.capabilityName()))) {
+            pragma.put(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey(), between(50_000, 100_000));
         }
     }
 
@@ -675,34 +668,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected boolean supportsViews() {
         if (supportsViews == null) {
             try {
-                // Step 1: check via /_capabilities that ALL nodes understand views (allMatch semantics).
-                boolean esqlViewsSupported = clusterHasCapability(
-                    adminClient(),
-                    "POST",
-                    "/_query",
-                    List.of(),
-                    List.of("views_crud_as_index_actions")
-                ).orElse(false);
-
-                if (esqlViewsSupported == false) {
-                    supportsViews = false;
-                } else {
-                    // Step 2: probe the REST endpoint directly. In non-serverless mode all nodes return
-                    // 200 regardless of @ServerlessScope. In serverless mode an old node without
-                    // @ServerlessScope(Scope.PUBLIC) returns 410. A single probe cannot cover every node
-                    // in a mixed-serverless cluster, but any 410 is a definitive signal that view loading
-                    // will fail on at least some nodes.
-                    try {
-                        adminClient().performRequest(new Request("GET", "/_query/view"));
-                        supportsViews = true;
-                    } catch (ResponseException e) {
-                        if (e.getResponse().getStatusLine().getStatusCode() == 410) {
-                            supportsViews = false;
-                        } else {
-                            throw e;
-                        }
-                    }
-                }
+                // Keep the views support probe identical to the data loader to avoid drift across test setup paths.
+                supportsViews = CsvTestsDataLoader.clusterSupportsViews(adminClient());
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

@@ -1,4 +1,8 @@
 ### Cast (`::`) [esql-cast-operator]
+```{applies_to}
+stack: ga
+serverless: ga
+```
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/operators/cast.svg
 :alt: Embedded

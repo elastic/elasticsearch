@@ -15,8 +15,9 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -28,19 +29,31 @@ public class StringBinaryIndexFieldData implements IndexFieldData<MultiValuedBin
 
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
-    protected final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+    protected final ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory;
     protected final IndexVersion indexVersion;
+    protected final BinaryDocValuesFormat binaryFormat;
 
     public StringBinaryIndexFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
-        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+        ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory,
         IndexVersion indexVersion
+    ) {
+        this(fieldName, valuesSourceType, toScriptFieldFactory, indexVersion, BinaryDocValuesFormat.SEPARATE_COUNT);
+    }
+
+    public StringBinaryIndexFieldData(
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory,
+        IndexVersion indexVersion,
+        BinaryDocValuesFormat binaryFormat
     ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
         this.indexVersion = indexVersion;
+        this.binaryFormat = binaryFormat;
     }
 
     @Override
@@ -61,7 +74,7 @@ public class StringBinaryIndexFieldData implements IndexFieldData<MultiValuedBin
 
     @Override
     public MultiValuedBinaryDVLeafFieldData load(LeafReaderContext context) {
-        return new MultiValuedBinaryDVLeafFieldData(fieldName, context.reader(), toScriptFieldFactory, indexVersion);
+        return new MultiValuedBinaryDVLeafFieldData(fieldName, context.reader(), toScriptFieldFactory, indexVersion, binaryFormat);
     }
 
     @Override

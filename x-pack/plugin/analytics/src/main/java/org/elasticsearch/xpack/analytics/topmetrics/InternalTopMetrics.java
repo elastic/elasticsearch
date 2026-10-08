@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.analytics.topmetrics;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,6 +18,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMultiValueAggregation;
+import org.elasticsearch.search.aggregations.metrics.MultiValueAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
@@ -26,6 +28,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -227,6 +230,39 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
     @Override
     public Iterable<String> valueNames() {
         return metricNames;
+    }
+
+    @Override
+    public int getRankedHitSize() {
+        return size;
+    }
+
+    @Override
+    public List<MultiValueAggregation.RankedHit> getRankedHits() {
+        List<MultiValueAggregation.RankedHit> hits = new ArrayList<>(topMetrics.size());
+        for (TopMetric top : topMetrics) {
+            Map<String, Object> metrics = new LinkedHashMap<>();
+            for (int i = 0; i < metricNames.size(); i++) {
+                MetricValue value = top.getMetricValues().get(i);
+                metrics.put(metricNames.get(i), value == null ? null : formatForDest(value.getValue(), value.getFormat()));
+            }
+            hits.add(new MultiValueAggregation.RankedHit(List.of(formatForDest(top.getSortValue(), top.getSortFormat())), metrics));
+        }
+        return hits;
+    }
+
+    /**
+     * Format a sort or metric value the same way {@code top_metrics} xcontent does, as a dest-indexable object.
+     */
+    static Object formatForDest(SortValue value, DocValueFormat format) {
+        if (format == DocValueFormat.RAW) {
+            Object key = value.getKey();
+            if (key instanceof BytesRef bytesRef) {
+                return bytesRef.utf8ToString();
+            }
+            return key;
+        }
+        return value.format(format);
     }
 
     @Override

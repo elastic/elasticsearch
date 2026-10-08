@@ -11,13 +11,19 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentSubParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Locale;
+import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class XContentUtilsTests extends ESTestCase {
 
@@ -336,5 +342,76 @@ public class XContentUtilsTests extends ESTestCase {
             XContentUtils.positionParserAtTokenAfterField(parser, "key", errorFormat);
             expectThrows(ParsingException.class, () -> XContentUtils.parseFloat(parser));
         }
+    }
+
+    public void testParseObjects_SingleObject() throws IOException {
+        var data = """
+            {"key":"value"}
+            """;
+        var results = XContentUtils.parseObjects(XContentParserConfiguration.EMPTY, data, p -> Stream.of(p.map().get("key"))).toList();
+        assertThat(results.size(), is(1));
+        assertThat(results.get(0), is("value"));
+    }
+
+    public void testParseObjects_TwoObjectsJoinedByNewline() throws IOException {
+        var data = """
+            {"key":"first"}
+            {"key":"second"}
+            {"key":"third",
+            "key2":"fourth"}
+            """;
+        var results = XContentUtils.parseObjects(
+            XContentParserConfiguration.EMPTY,
+            data,
+            p -> Stream.of(p.map().values()).flatMap(Collection::stream)
+        ).toList();
+        assertThat(results.size(), is(4));
+        assertThat(results, containsInAnyOrder("first", "second", "third", "fourth"));
+    }
+
+    public void testParseObjects_WithSubParser_EarlyStopBothObjectsConsumed() throws IOException {
+        // Verifies that when the objectParser wraps in XContentSubParser and stops early (does not
+        // read to END_OBJECT), XContentSubParser.close() drains the remainder so the outer loop
+        // correctly advances to the next root object.
+        var data = """
+            {"key":"first","other":"ignored"}
+            {"key":"second","other":"ignored"}
+            """;
+        var results = XContentUtils.parseObjects(XContentParserConfiguration.EMPTY, data, p -> {
+            try (var sub = new XContentSubParser(p)) {
+                XContentUtils.positionParserAtTokenAfterField(sub, "key", "Error: %s");
+                // Eagerly capture the text before the subparser closes and drains.
+                return Stream.of(sub.text());
+            }
+        }).toList();
+        assertThat(results.size(), is(2));
+        assertThat(results.get(0), is("first"));
+        assertThat(results.get(1), is("second"));
+    }
+
+    public void testParseObjects_EmptyData_ReturnsEmptyStream() throws IOException {
+        var results = XContentUtils.parseObjects(XContentParserConfiguration.EMPTY, "", p -> Stream.of("unreachable")).toList();
+        assertThat(results.size(), is(0));
+    }
+
+    public void testParseObjects_NonObjectRoot_Throws() {
+        expectThrows(
+            ParsingException.class,
+            () -> XContentUtils.parseObjects(XContentParserConfiguration.EMPTY, "[1,2,3]", p -> Stream.empty())
+        );
+    }
+
+    public void testParseObjects_FlatMapsAcrossObjects() throws IOException {
+        var data = """
+            {"emit":false}
+            {"emit":true}
+            {"emit":false}
+            """;
+        var results = XContentUtils.parseObjects(XContentParserConfiguration.EMPTY, data, p -> {
+            var map = p.map();
+            return Boolean.TRUE.equals(map.get("emit")) ? Stream.of("emitted") : Stream.empty();
+        }).toList();
+        assertThat(results.size(), is(1));
+        assertThat(results.get(0), is("emitted"));
     }
 }

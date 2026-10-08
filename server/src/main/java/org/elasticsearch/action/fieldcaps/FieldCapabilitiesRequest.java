@@ -12,14 +12,15 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.CancellableTask;
@@ -37,7 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class FieldCapabilitiesRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
+public final class FieldCapabilitiesRequest extends UntypedActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
     public static final String NAME = "field_caps_request";
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
@@ -421,5 +422,17 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
                 return FieldCapabilitiesRequest.this.getDescription();
             }
         };
+    }
+
+    boolean cacheable() {
+        return fields.length <= FieldCapsCache.MAX_FIELDS
+            && filters.length <= FieldCapsCache.MAX_FILTERS
+            && types.length == 0
+            && includeEmptyFields
+            && (indexFilter == null || indexFilter instanceof MatchAllQueryBuilder)
+            && runtimeFields.isEmpty()
+            // This cache targets low-latency local requests. Requests that are part of a cross-cluster request
+            // already pay a remote round trip, so the saving is negligible; keep the slots for local requests.
+            && Strings.isEmpty(clusterAlias);
     }
 }

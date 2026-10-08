@@ -27,7 +27,10 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEF
 /**
  * REST handler for the Prometheus {@code GET /_prometheus/api/v1/metadata} and
  * {@code GET /_prometheus/{index}/api/v1/metadata} endpoints.
- * Returns metric metadata (type, help, unit) for scraped metrics.
+ *
+ * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/#querying-metric-metadata">Prometheus Metric Metadata API</a>
+ *
+ * <p>Returns metric metadata (type, help, unit) for scraped metrics.
  * Uses the {@code METRICS_INFO} ES|QL command as data source.
  * When the path omits {@code {index}} and no {@code index} query parameter is set, the index
  * expression defaults to {@link PromqlCommand#DEFAULT_PROMQL_INDEX_PATTERN} (same as PromQL query APIs).
@@ -60,8 +63,18 @@ public class PrometheusMetadataRestAction extends BaseRestHandler {
         int limitPerMetric = request.paramAsInt(LIMIT_PER_METRIC_PARAM, DEFAULT_LIMIT);
 
         LogicalPlan plan = PrometheusMetadataPlanBuilder.buildPlan(index, metric, limit, limitPerMetric);
-        EsqlStatement statement = new EsqlStatement(plan, List.of());
-        PreparedEsqlQueryRequest esqlRequest = PreparedEsqlQueryRequest.sync(statement, "prometheus_metadata");
+        EsqlStatement statement = new EsqlStatement(plan, PrometheusPlanBuilderUtils.QUERY_SETTINGS);
+        PreparedEsqlQueryRequest esqlRequest = new PromqlQueryRequest(
+            index,
+            statement,
+            "prometheus_metadata",
+            LIMIT_PARAM,
+            limit == DEFAULT_LIMIT ? null : limit,
+            LIMIT_PER_METRIC_PARAM,
+            limitPerMetric == DEFAULT_LIMIT ? null : limitPerMetric,
+            METRIC_PARAM,
+            metric
+        );
 
         return channel -> client.execute(
             EsqlQueryAction.INSTANCE,

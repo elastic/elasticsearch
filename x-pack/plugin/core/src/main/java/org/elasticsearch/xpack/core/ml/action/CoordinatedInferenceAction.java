@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -22,6 +25,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class CoordinatedInferenceAction extends ActionType<InferModelAction.Response> {
 
@@ -32,7 +37,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
         super(NAME);
     }
 
-    public static class Request extends LegacyActionRequest {
+    public static class Request extends UntypedActionRequest {
 
         public enum RequestModelType {
             INFERENCE_SERVICE_MODEL,
@@ -192,6 +197,11 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
 
         public RequestModelType getRequestModelType() {
             return requestModelType;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("coordinated_inference[%s]", modelId), parentTaskId, headers);
         }
 
         @Override

@@ -47,13 +47,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 final class ColumnarSourceWriter {
 
-    private static final int DOC_ID = 0;
-    private static final int[] DOC_IDS = new int[] { DOC_ID };
+    static final int DOC_ID = 0;
+    static final int[] DOC_IDS = new int[] { DOC_ID };
 
     private final SourceFilter sourceFilter;
     private final ThreadLocal<PerThreadResources> cachedColumnarPerThread;
@@ -69,18 +71,27 @@ final class ColumnarSourceWriter {
         PerThreadResources perThread = cachedColumnarPerThread.get();
         if (perThread == null) {
             final Mapping mapping = context.mappingLookup().getMapping();
-            SourceLoader.SyntheticFieldLoader fieldLoader = mapping.syntheticFieldLoader(sourceFilter);
-            final SourceLoader.Synthetic sourceLoader = new SourceLoader.Synthetic(sourceFilter, () -> {
+            final SourceFilter blobFilter = blobSourceFilter(context.mappingLookup());
+            SourceLoader.SyntheticFieldLoader fieldLoader = mapping.syntheticFieldLoader(blobFilter);
+            final SourceLoader.Synthetic sourceLoader = new SourceLoader.Synthetic(blobFilter, () -> {
                 fieldLoader.reset();
                 return fieldLoader;
             }, SourceFieldMetrics.NOOP, mapping.ignoredSourceFormat());
 
             ReusableColumnarStoredLeafReader leafReader = new ReusableColumnarStoredLeafReader();
-            SourceLoader.Leaf leaf = sourceLoader.leaf(leafReader, DOC_IDS);
+            SourceLoader.Leaf leaf = sourceLoader.leaf(leafReader.getContext(), DOC_IDS);
             perThread = new PerThreadResources(sourceLoader, fieldLoader, leaf, leafReader);
             cachedColumnarPerThread.set(perThread);
         }
 
+        // Make the full in-memory document tree (root + nested children) available to the reconstruction so nested
+        // loaders can select their children. Shard-index order places each child before its parent, matching the order
+        // in which the synthetic source loader reads them from a real segment; this is what preserves array order across
+        // nested documents, including the deeper documents that subobjects:false creates for object sub-fields and
+        // arrays inside a nested field. For a document with no nested fields this is just the single root document and
+        // nothing downstream looks at it.
+        List<LuceneDocument> allDocs = context.luceneDocumentsInShardIndexOrder();
+        perThread.leafReader().setAllDocs(allDocs);
         perThread.leafReader().repopulate(context.doc());
         perThread.fieldLoader().reset();
         final SourceLoader.Synthetic sourceLoader = perThread.sourceLoader;
@@ -91,6 +102,25 @@ final class ColumnarSourceWriter {
         var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields()).getLoader(leafCtx, DOC_IDS);
         storedFieldLoader.advanceTo(DOC_ID);
         leaf.write(storedFieldLoader, DOC_ID, builder);
+    }
+
+    /**
+     * The filter to build the blob with: the mapping's own {@code _source} filter, plus every field patched back into
+     * {@code _source} on read ({@link MappingLookup#syntheticVectorFields()}). Those are held in the index already, so
+     * writing them into the blob would store them twice.
+     */
+    private SourceFilter blobSourceFilter(MappingLookup mappingLookup) {
+        Set<String> vectorFields = mappingLookup.syntheticVectorFields();
+        if (vectorFields.isEmpty()) {
+            return sourceFilter;
+        }
+        if (sourceFilter == null) {
+            return new SourceFilter(null, vectorFields.toArray(String[]::new));
+        }
+        // the mapping's own filter may already name a vector field, and duplicate excludes are rejected downstream
+        Set<String> excludes = new LinkedHashSet<>(Arrays.asList(sourceFilter.getExcludes()));
+        excludes.addAll(vectorFields);
+        return new SourceFilter(sourceFilter.getIncludes(), excludes.toArray(String[]::new));
     }
 
     private record PerThreadResources(
@@ -139,6 +169,30 @@ final class ColumnarSourceWriter {
         private final List<IndexableField> storedFields = new ArrayList<>();
 
         // -------------------------------------------------------------------------
+        // Nested reconstruction state
+        // -------------------------------------------------------------------------
+
+        // All in-memory documents for the root being reconstructed (root + nested children), in document order.
+        // Shared by reference across the reader instances of every nesting level so a nested loader can select its
+        // children by parent-pointer match. Empty when the index has no nested fields.
+        private List<LuceneDocument> allDocs = List.of();
+        // The document this reader currently holds (set by repopulate). A nested loader reads this to know whose
+        // children to reconstruct.
+        private LuceneDocument currentDoc;
+
+        void setAllDocs(List<LuceneDocument> allDocs) {
+            this.allDocs = allDocs;
+        }
+
+        List<LuceneDocument> allDocs() {
+            return allDocs;
+        }
+
+        LuceneDocument currentDoc() {
+            return currentDoc;
+        }
+
+        // -------------------------------------------------------------------------
         // Document repopulation
         // -------------------------------------------------------------------------
 
@@ -152,6 +206,7 @@ final class ColumnarSourceWriter {
          * build so that the slot map is fully initialized.
          */
         void repopulate(LuceneDocument doc) {
+            this.currentDoc = doc;
             // Clear all registered slots from the previous document.
             for (NumericSlot slot : numericSlots.values()) {
                 slot.present = false;
@@ -479,11 +534,11 @@ final class ColumnarSourceWriter {
 
         /**
          * A companion numeric slot for {@code "field.counts"} fields used by
-         * {@link org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues}.
+         * {@link org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues}.
          *
          * <p>When the counts field is absent from the document but the binary payload is present,
          * {@link #advanceExact} returns {@code true} and {@link #longValue} returns {@code 1},
-         * causing {@link org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues.SeparateCounts}
+         * causing {@link org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues.SeparateCounts}
          * to behave identically to {@code PlainBinary} for single-valued fields.
          */
         private static final class CountsCompanionSlot extends NumericDocValues {

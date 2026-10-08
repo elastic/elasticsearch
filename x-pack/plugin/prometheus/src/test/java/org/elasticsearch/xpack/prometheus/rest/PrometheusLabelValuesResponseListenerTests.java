@@ -157,45 +157,4 @@ public class PrometheusLabelValuesResponseListenerTests extends ESTestCase {
         assertThat(body, containsString("\"errorType\":\"execution\""));
     }
 
-    public void testIsUnknownColumnReturnsTrueForBadRequest() {
-        ElasticsearchStatusException ex = new ElasticsearchStatusException("Unknown column [my_label]", RestStatus.BAD_REQUEST);
-        assertThat(PrometheusLabelValuesResponseListener.isUnknownColumn(ex), is(true));
-    }
-
-    public void testIsUnknownColumnReturnsTrueForInternalError() {
-        // When no TS indices exist at all, @timestamp is also unresolved — the combined error
-        // arrives as a 500 but still contains "Unknown column [...]"
-        ElasticsearchStatusException ex = new ElasticsearchStatusException(
-            "Found 2 problems\nline -1:-1: [] requires the [@timestamp] field...\nline -1:-1: Unknown column [my_label]",
-            RestStatus.INTERNAL_SERVER_ERROR
-        );
-        assertThat(PrometheusLabelValuesResponseListener.isUnknownColumn(ex), is(true));
-    }
-
-    public void testIsUnknownColumnReturnsFalseForUnrelatedError() {
-        ElasticsearchStatusException ex = new ElasticsearchStatusException(
-            "match[] selector must be an instant vector selector",
-            RestStatus.BAD_REQUEST
-        );
-        assertThat(PrometheusLabelValuesResponseListener.isUnknownColumn(ex), is(false));
-    }
-
-    public void testIsUnknownColumnReturnsFalseForNull() {
-        assertThat(PrometheusLabelValuesResponseListener.isUnknownColumn(null), is(false));
-    }
-
-    public void testOnFailureUnknownColumnReturnsEmptyData() throws Exception {
-        FakeRestRequest fakeRequest = new FakeRestRequest();
-        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true);
-        ActionListener<EsqlQueryResponse> listener = PrometheusLabelValuesResponseListener.create(channel, 0);
-
-        ElasticsearchStatusException ex = new ElasticsearchStatusException("Unknown column [nonexistent_label]", RestStatus.BAD_REQUEST);
-        listener.onFailure(ex);
-
-        assertThat(channel.responses().get(), is(1));
-        assertThat(channel.capturedResponse().status(), equalTo(RestStatus.OK));
-        String body = channel.capturedResponse().content().utf8ToString();
-        assertThat(body, containsString("\"status\":\"success\""));
-        assertThat(body, containsString("\"data\":[]"));
-    }
 }

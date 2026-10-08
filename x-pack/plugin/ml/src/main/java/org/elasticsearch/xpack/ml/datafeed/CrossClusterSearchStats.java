@@ -224,6 +224,25 @@ public class CrossClusterSearchStats {
     }
 
     /**
+     * Whether the last processed search cycle saw at least one skipped or unavailable linked project.
+     * Returns {@code false} until the baseline search cycle has been processed.
+     */
+    public synchronized boolean hasUnavailableLinkedProjects() {
+        if (baselineEstablished == false) {
+            return false;
+        }
+        if (skippedClusters > 0) {
+            return true;
+        }
+        for (int consecutiveSkipCount : consecutiveUnavailable.values()) {
+            if (consecutiveSkipCount > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Returns an immutable snapshot of the current stats for serialization in the datafeed stats API.
      * Returns {@code null} if the baseline has not yet been established (no cycles processed).
      */

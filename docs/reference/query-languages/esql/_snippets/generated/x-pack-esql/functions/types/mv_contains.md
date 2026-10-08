@@ -10,6 +10,7 @@
 | date | date | boolean |
 | date_nanos | date_nanos | boolean |
 | double | double | boolean |
+| flattened {applies_to}`stack: preview 9.5.0` | flattened {applies_to}`stack: preview 9.5.0` | boolean |
 | geo_point | geo_point | boolean |
 | geo_shape | geo_shape | boolean |
 | geohash | geohash | boolean |

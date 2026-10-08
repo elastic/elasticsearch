@@ -22,8 +22,13 @@ package org.elasticsearch.index.mapper;
  *                    or {@code null} if the prefix does not declare an explicit dynamic value
  * @param passthrough the passthrough priority for this prefix (from a {@link PassThroughObjectMapper}),
  *                    or {@code null} if the prefix is not a passthrough object
+ * @param enabled     {@code false} if the object at this prefix is disabled ({@code enabled:false}),
+ *                    or {@code null} if the prefix does not declare an explicit enabled value.
+ *                    When {@code false}, {@link RootObjectMapper#resolveDynamic} returns
+ *                    {@link ObjectMapper.Dynamic#FALSE} for all fields under this prefix,
+ *                    and no children are flattened into the mapping at mapping time.
  */
-record PrefixProperties(ObjectMapper.Dynamic dynamic, Integer passthrough) {
+record PrefixProperties(ObjectMapper.Dynamic dynamic, Integer passthrough, Boolean enabled) {
 
     /**
      * Merges {@code incoming} into {@code existing}, preferring non-null incoming facets.
@@ -33,12 +38,13 @@ record PrefixProperties(ObjectMapper.Dynamic dynamic, Integer passthrough) {
     static PrefixProperties merge(PrefixProperties existing, PrefixProperties incoming) {
         return new PrefixProperties(
             incoming.dynamic != null ? incoming.dynamic : existing.dynamic,
-            incoming.passthrough != null ? incoming.passthrough : existing.passthrough
+            incoming.passthrough != null ? incoming.passthrough : existing.passthrough,
+            incoming.enabled != null ? incoming.enabled : existing.enabled
         );
     }
 
     /** Returns {@code true} if all facets are {@code null} (this entry carries no information). */
     boolean isEmpty() {
-        return dynamic == null && passthrough == null;
+        return dynamic == null && passthrough == null && enabled == null;
     }
 }

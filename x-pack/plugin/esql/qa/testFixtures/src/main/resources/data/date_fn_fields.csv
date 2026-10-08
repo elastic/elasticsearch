@@ -1,0 +1,4 @@
+date_format:keyword,date_pattern:keyword,date_string:keyword,to_unit:keyword,from_unit:keyword,date_val:date
+yyyy-MM-dd,yyyy-MM-dd,2024-02-15,day,month,2024-02-15T14:30:00.000Z
+yyyy,yyyy-MM-dd,2023-02-10,day,month,2023-02-10T00:00:00.000Z
+HH:mm,yyyy-MM-dd,2021-12-25,hour,day,2021-12-25T08:15:00.000Z

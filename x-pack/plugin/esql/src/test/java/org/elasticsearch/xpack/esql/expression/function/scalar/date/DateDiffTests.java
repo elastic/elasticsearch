@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
@@ -182,7 +183,7 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                                 ),
                                 "DateDiffMillisEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
                                     + "endTimestamp=Attribute[channel=2], zoneId="
-                                    + configuration.zoneId()
+                                    + QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())
                                     + "]",
                                 DataType.INTEGER,
                                 equalTo(expected)
@@ -213,7 +214,7 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                                 ),
                                 "DateDiffNanosEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
                                     + "endTimestamp=Attribute[channel=2], zoneId="
-                                    + configuration.zoneId()
+                                    + QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())
                                     + "]",
                                 DataType.INTEGER,
                                 equalTo(expected)
@@ -244,7 +245,7 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                                 ),
                                 "DateDiffNanosMillisEvaluator[unit=Attribute[channel=0], startTimestampNanos=Attribute[channel=1], "
                                     + "endTimestampMillis=Attribute[channel=2], zoneId="
-                                    + configuration.zoneId()
+                                    + QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())
                                     + "]",
                                 DataType.INTEGER,
                                 equalTo(expected)
@@ -275,7 +276,7 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                                 ),
                                 "DateDiffMillisNanosEvaluator[unit=Attribute[channel=0], startTimestampMillis=Attribute[channel=1], "
                                     + "endTimestampNanos=Attribute[channel=2], zoneId="
-                                    + configuration.zoneId()
+                                    + QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())
                                     + "]",
                                 DataType.INTEGER,
                                 equalTo(expected)

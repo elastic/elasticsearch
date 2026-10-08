@@ -76,4 +76,13 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
     public Analyzer get() {
         return this.customAnalyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        // {@link AnalysisRegistry#computeAnalyzerKey} special-cases CustomAnalyzerProvider and
+        // builds a chain-based key from the underlying factories instead of consulting this
+        // method, so the value returned here is never compared. Return identity as a safe
+        // placeholder — equality fallback that would never trigger sharing.
+        return this;
+    }
 }

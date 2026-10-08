@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 
 /**
  * Test-only {@link IvfQueryConfigResolver} that returns a fixed {@link IvfSegmentConfig} on every leaf.
@@ -20,9 +19,35 @@ public class TestIvfQueryConfigResolver extends IvfQueryConfigResolver {
 
     private final IvfSegmentConfig config;
 
-    public TestIvfQueryConfigResolver(ESNextDiskBBQVectorsFormat.QuantEncoding encoding, boolean usePrecondition, float rescoreOversample) {
-        super(false, false, 4, rescoreOversample, null);
-        this.config = new IvfSegmentConfig(encoding, usePrecondition, rescoreOversample);
+    public TestIvfQueryConfigResolver(
+        CentroidIndexFormat centroidIndexFormat,
+        QuantEncoding encoding,
+        boolean usePrecondition,
+        float rescoreOversample
+    ) {
+        this(centroidIndexFormat, encoding, usePrecondition, rescoreOversample, rescoreOversample, false);
+    }
+
+    /**
+     * Variant where what configuration declares and what a segment resolves to differ, as they do under
+     * auto-calibration: {@code declaredRescoreOversample()} reports {@code declaredOversample} while every leaf
+     * resolves to {@code segmentOversample}.
+     */
+    public TestIvfQueryConfigResolver(
+        CentroidIndexFormat centroidIndexFormat,
+        QuantEncoding encoding,
+        boolean usePrecondition,
+        float declaredOversample,
+        float segmentOversample,
+        boolean autoCalibrate
+    ) {
+        super(autoCalibrate, false, 4, declaredOversample, null);
+        this.config = IvfSegmentConfig.of(
+            centroidIndexFormat,
+            new IvfSegmentConfig.OsqConfig(encoding),
+            usePrecondition,
+            segmentOversample
+        );
     }
 
     @Override

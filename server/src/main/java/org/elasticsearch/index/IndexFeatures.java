@@ -20,6 +20,11 @@ public class IndexFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
+        // SLICE_INDEXING gates slice-routing support (e.g. reindex source/dest [_slice]) and must be advertised by real nodes, not only
+        // in the test framework, so it is published here when the feature flag is enabled.
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+            return Set.of(SLICE_INDEXING);
+        }
         return Set.of();
     }
 
@@ -29,6 +34,7 @@ public class IndexFeatures implements FeatureSpecification {
     public static final NodeFeature TIME_SERIES_SYNTHETIC_ID_DEFAULT = new NodeFeature("index.time_series_synthetic_id_default");
 
     public static final NodeFeature TIME_SERIES_NO_SEQNO = new NodeFeature("index.time_series_no_seqno");
+    public static final NodeFeature SLICE_INDEXING = new NodeFeature("index.slice_indexing");
 
     public static final NodeFeature TIME_SERIES_ES95_CODEC = new NodeFeature("index.time_series_es95_codec");
 
@@ -50,7 +56,16 @@ public class IndexFeatures implements FeatureSpecification {
         "constant_field_type.normalized_wildcard_query_support"
     );
 
-    public static final NodeFeature INDEX_SLICE_INDEXING = new NodeFeature("index.slice_indexing");
+    /**
+     * Inverted {@code max_thread_count}/{@code max_merge_count} pairs are clamped instead of rejected.
+     */
+    private static final NodeFeature MERGE_SCHEDULER_CLAMPS_MAX_THREAD_COUNT = new NodeFeature(
+        "index.merge_scheduler_clamps_max_thread_count"
+    );
+
+    private static final NodeFeature STATS_INCLUDE_AUTO_CALIBRATION = new NodeFeature("index.stats_include_auto_calibration");
+
+    private static final NodeFeature SEGMENTS_INCLUDE_AUTO_CALIBRATION = new NodeFeature("index.segments_include_auto_calibration");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -67,12 +82,12 @@ public class IndexFeatures implements FeatureSpecification {
                 SHADOWING_DIMENSIONS_AND_METRICS_IS_VALID_IN_NON_TSDB,
                 InferenceMetadataFieldsMapper.INFERENCE_FIELDS_GET_VIA_SOURCE_INCLUDES,
                 CONSTANT_FIELD_TYPE_NORMALIZED_WILDCARD_QUERY_SUPPORT,
-                InferenceMetadataFieldsMapper.INFERENCE_FIELDS_GET_VIA_SOURCE_EXCLUDE_VECTORS
+                InferenceMetadataFieldsMapper.INFERENCE_FIELDS_GET_VIA_SOURCE_EXCLUDE_VECTORS,
+                MERGE_SCHEDULER_CLAMPS_MAX_THREAD_COUNT,
+                STATS_INCLUDE_AUTO_CALIBRATION,
+                SEGMENTS_INCLUDE_AUTO_CALIBRATION
             )
         );
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
-            features.add(INDEX_SLICE_INDEXING);
-        }
         return Set.copyOf(features);
     }
 }

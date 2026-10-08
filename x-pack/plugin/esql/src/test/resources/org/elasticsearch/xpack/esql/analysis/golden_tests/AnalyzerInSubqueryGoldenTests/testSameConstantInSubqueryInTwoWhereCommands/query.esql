@@ -1,0 +1,3 @@
+FROM employees
+| WHERE 42 IN (FROM employees | KEEP emp_no)
+| WHERE 42 IN (FROM employees | KEEP emp_no)

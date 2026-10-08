@@ -17,7 +17,17 @@ $endif$
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-$if(long)$
+$if(DoubleRange)$
+import org.elasticsearch.compute.data.$Type$Block;
+import org.elasticsearch.compute.data.$Type$BlockBuilder;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
+$elseif(LongRange)$
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.$Type$Block;
+import org.elasticsearch.compute.data.$Type$BlockBuilder;
+$elseif(long)$
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.$Type$Block;
@@ -66,12 +76,14 @@ $endif$
         $Type$Block block = page.getBlock(channel);
 $if(BytesRef)$
         BytesRef scratch = new BytesRef();
+$elseif(Range)$
+        $Type$BlockBuilder.$Type$ scratch = new $Type$BlockBuilder.$Type$();
 $endif$
         for (int i = 0; i < positions.getPositionCount(); i++) {
-            int valueCount = block.getValueCount(i);
-            if (valueCount == 0) {
+            if (block.isNull(i)) {
                 continue;
             }
+            int valueCount = block.getValueCount(i);
             int cellPosition = positions.getInt(i);
             cells = blockFactory.bigArrays().grow(cells, cellPosition + 1);
             final var oldCell = cells.get(cellPosition);
@@ -87,6 +99,12 @@ $if(BytesRef)$
                 bytes.append(scratch);
                 newCell[dstIndex + v] = bytesOrd + v;
             }
+$elseif(Range)$
+            for (int v = 0; v < valueCount; v++) {
+                scratch = block.get$Type$(firstValueIndex + v, scratch);
+                newCell[dstIndex + v * 2] = scratch.from();
+                newCell[dstIndex + v * 2 + 1] = scratch.to();
+            }
 $else$
             for (int v = 0; v < valueCount; v++) {
                 newCell[dstIndex + v] = block.get$Type$(firstValueIndex + v);
@@ -97,9 +115,9 @@ $endif$
 
     private $if(BytesRef)$int$else$$type$$endif$[] extendCell($if(BytesRef)$int$else$$type$$endif$[] oldCell, int newValueCount) {
         if (oldCell == null) {
-            return new $if(BytesRef)$int$else$$type$$endif$[newValueCount];
+            return new $if(BytesRef)$int$else$$type$$endif$[$if(Range)$newValueCount * 2$else$newValueCount$endif$];
         } else {
-            return Arrays.copyOf(oldCell, oldCell.length + newValueCount);
+            return Arrays.copyOf(oldCell, oldCell.length + $if(Range)$newValueCount * 2$else$newValueCount$endif$);
         }
     }
 
@@ -119,6 +137,18 @@ $endif$
     private void appendGroupToBlockBuilder($Type$Block.Builder builder, $if(BytesRef)$int$else$$type$$endif$[] group) {
         if (group == null) {
             builder.appendNull();
+$if(Range)$
+        } else if (group.length == 2) {
+            builder.append$Type$(group[0], group[1]);
+        } else {
+            builder.beginPositionEntry();
+            // TODO: sort and dedup and set MvOrdering
+            for (int v = 0; v < group.length / 2; v++) {
+                builder.append$Type$(group[v * 2], group[v * 2 + 1]);
+            }
+            builder.endPositionEntry();
+        }
+$else$
         } else if (group.length == 1) {
 $if(BytesRef)$
             builder.appendBytesRef(bytes.get(group[0], scratch));
@@ -137,6 +167,7 @@ $endif$
             }
             builder.endPositionEntry();
         }
+$endif$
     }
 
     private $if(BytesRef)$int$else$$type$$endif$[] getCellOrNull(int position) {
@@ -146,9 +177,12 @@ $endif$
     private Block buildWithSelected(IntBlock selected) {
         try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
+                if (selected.isNull(i)) {
+                    builder.appendNull();
+                    continue;
+                }
                 int selectedCount = selected.getValueCount(i);
                 switch (selectedCount) {
-                    case 0 -> builder.appendNull();
                     case 1 -> {
                         int groupId = selected.getInt(selected.getFirstValueIndex(i));
                         appendGroupToBlockBuilder(builder, getCellOrNull(groupId));

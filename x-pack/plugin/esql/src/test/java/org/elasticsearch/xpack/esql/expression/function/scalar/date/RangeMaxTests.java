@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -24,8 +25,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Tests for RangeMax(date_range) -> date.
- * Validates that the maximum (end) value of a date_range is correctly extracted.
+ * Tests for extracting the maximum (end) value of a range.
  */
 public class RangeMaxTests extends AbstractScalarFunctionTestCase {
     public RangeMaxTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -79,7 +79,18 @@ public class RangeMaxTests extends AbstractScalarFunctionTestCase {
             }));
         }
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        suppliers.add(new TestCaseSupplier("double range", List.of(DataType.DOUBLE_RANGE), () -> {
+            double to = 42.25;
+            var range = new DoubleRangeBlockBuilder.DoubleRange(-12.5, to);
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(range, DataType.DOUBLE_RANGE, "field")),
+                "RangeMaxDoubleEvaluator[range=" + read + "]",
+                DataType.DOUBLE,
+                equalTo(to)
+            );
+        }));
+
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }
 
     @Override

@@ -30,12 +30,16 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DatafeedFieldConflictDiagnostics;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -63,6 +67,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
     private final TimeBasedExtractedFields extractedFields;
     private final NamedXContentRegistry xContentRegistry;
     private final DatafeedTimingStatsReporter timingStatsReporter;
+    private final DatafeedSearchTelemetry searchTelemetry;
 
     /**
      * Scroll IDs that could not be cleared during a previous network disruption.
@@ -71,6 +76,8 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
      */
     final Deque<OrphanedScroll> orphanedScrolls = new ArrayDeque<>();
 
+    private final Set<String> excludedProjects = new HashSet<>();
+
     ScrollDataExtractorFactory(
         Client client,
         DatafeedConfig datafeedConfig,
@@ -78,7 +85,8 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         Job job,
         TimeBasedExtractedFields extractedFields,
         NamedXContentRegistry xContentRegistry,
-        DatafeedTimingStatsReporter timingStatsReporter
+        DatafeedTimingStatsReporter timingStatsReporter,
+        DatafeedSearchTelemetry searchTelemetry
     ) {
         this.client = Objects.requireNonNull(client);
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
@@ -87,6 +95,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.xContentRegistry = xContentRegistry;
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
+        this.searchTelemetry = Objects.requireNonNull(searchTelemetry);
     }
 
     /**
@@ -168,6 +177,28 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
     }
 
     @Override
+    public void excludeProject(String projectAlias) {
+        excludedProjects.add(projectAlias);
+    }
+
+    @Override
+    public void includeProject(String projectAlias) {
+        excludedProjects.remove(projectAlias);
+    }
+
+    Set<String> excludedProjects() {
+        return Set.copyOf(excludedProjects);
+    }
+
+    public DatafeedConfig datafeedConfig() {
+        return datafeedConfig;
+    }
+
+    public Job job() {
+        return job;
+    }
+
+    @Override
     public DataExtractor newExtractor(long start, long end) {
         QueryBuilder queryBuilder = datafeedConfig.getParsedQuery(xContentRegistry);
         if (extraFilters != null) {
@@ -176,7 +207,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         ScrollDataExtractorContext dataExtractorContext = new ScrollDataExtractorContext(
             job.getId(),
             extractedFields,
-            datafeedConfig.getIndices(),
+            effectiveIndices(),
             queryBuilder,
             datafeedConfig.getScriptFields(),
             datafeedConfig.getScrollSize(),
@@ -187,7 +218,18 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
             datafeedConfig.getRuntimeMappings(),
             datafeedConfig.getProjectRouting()
         );
-        return new ScrollDataExtractor(client, dataExtractorContext, timingStatsReporter, this);
+        return new ScrollDataExtractor(client, dataExtractorContext, timingStatsReporter, searchTelemetry, this);
+    }
+
+    List<String> effectiveIndices() {
+        if (excludedProjects.isEmpty()) {
+            return datafeedConfig.getIndices();
+        }
+        List<String> indices = new ArrayList<>(datafeedConfig.getIndices());
+        for (String excludedProject : excludedProjects) {
+            indices.add("-" + excludedProject + ":*");
+        }
+        return indices;
     }
 
     public static void create(
@@ -197,6 +239,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         Job job,
         NamedXContentRegistry xContentRegistry,
         DatafeedTimingStatsReporter timingStatsReporter,
+        DatafeedSearchTelemetry searchTelemetry,
         ActionListener<DataExtractorFactory> listener
     ) {
 
@@ -223,9 +266,31 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                 );
                 return;
             }
+            String timeField = job.getDataDescription().getTimeField();
+            Optional<DatafeedFieldConflictDiagnostics.FieldTypeConflict> timeFieldConflict = findIncompatibleTimeFieldConflict(
+                fieldCapabilitiesResponse,
+                timeField
+            );
+            if (timeFieldConflict.isPresent()) {
+                listener.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        DatafeedFieldConflictDiagnostics.timeFieldConflictError(datafeed.getId(), timeField, timeFieldConflict.get())
+                    )
+                );
+                return;
+            }
             TimeBasedExtractedFields fields = TimeBasedExtractedFields.build(job, datafeed, fieldCapabilitiesResponse);
             listener.onResponse(
-                new ScrollDataExtractorFactory(client, datafeed, extraFilters, job, fields, xContentRegistry, timingStatsReporter)
+                new ScrollDataExtractorFactory(
+                    client,
+                    datafeed,
+                    extraFilters,
+                    job,
+                    fields,
+                    xContentRegistry,
+                    timingStatsReporter,
+                    searchTelemetry
+                )
             );
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
@@ -243,28 +308,54 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         });
 
         // Step 1. Get field capabilities necessary to build the information of how to extract fields
+        FieldCapabilitiesRequest fieldCapabilitiesRequest = buildFieldCapabilitiesRequest(datafeed, job);
+        ClientHelper.<FieldCapabilitiesResponse>executeWithHeaders(datafeed.getHeaders(), ClientHelper.ML_ORIGIN, client, () -> {
+            client.execute(TransportFieldCapabilitiesAction.TYPE, fieldCapabilitiesRequest, fieldCapabilitiesHandler);
+            // This response gets discarded - the listener handles the real response
+            return null;
+        });
+    }
+
+    static FieldCapabilitiesRequest buildFieldCapabilitiesRequest(DatafeedConfig datafeed, Job job) {
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
         fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
         if (datafeed.getIndicesOptions().resolveCrossProjectIndexExpression()) {
             fieldCapabilitiesRequest.includeResolvedTo(true);
         }
 
-        // Cannot get field caps on RT fields defined at search
         Set<String> runtimefields = datafeed.getRuntimeMappings().keySet();
-
-        // We need capabilities for all fields matching the requested fields' parents so that we can work around
-        // multi-fields that are not in source.
         String[] requestFields = job.allInputFields()
             .stream()
             .map(f -> MlStrings.getParentField(f) + "*")
             .filter(f -> runtimefields.contains(f) == false)
             .toArray(String[]::new);
         fieldCapabilitiesRequest.fields(requestFields);
-        ClientHelper.<FieldCapabilitiesResponse>executeWithHeaders(datafeed.getHeaders(), ClientHelper.ML_ORIGIN, client, () -> {
-            client.execute(TransportFieldCapabilitiesAction.TYPE, fieldCapabilitiesRequest, fieldCapabilitiesHandler);
-            // This response gets discarded - the listener handles the real response
-            return null;
-        });
+        return fieldCapabilitiesRequest;
+    }
+
+    public FieldCapabilitiesResponse fetchFieldCapabilities() {
+        FieldCapabilitiesRequest fieldCapabilitiesRequest = buildFieldCapabilitiesRequest(datafeedConfig, job);
+        return ClientHelper.executeWithHeaders(
+            datafeedConfig.getHeaders(),
+            ClientHelper.ML_ORIGIN,
+            client,
+            () -> client.execute(TransportFieldCapabilitiesAction.TYPE, fieldCapabilitiesRequest).actionGet()
+        );
+    }
+
+    private static Optional<DatafeedFieldConflictDiagnostics.FieldTypeConflict> findIncompatibleTimeFieldConflict(
+        FieldCapabilitiesResponse fieldCapabilitiesResponse,
+        String timeField
+    ) {
+        for (DatafeedFieldConflictDiagnostics.FieldTypeConflict conflict : DatafeedFieldConflictDiagnostics.detectIncompatible(
+            fieldCapabilitiesResponse,
+            List.of(timeField)
+        )) {
+            if (DatafeedFieldConflictDiagnostics.isIncompatibleTimeField(conflict)) {
+                return Optional.of(conflict);
+            }
+        }
+        return Optional.empty();
     }
 
     private static Optional<String> findFirstAggregatedMetricDoubleField(FieldCapabilitiesResponse fieldCapabilitiesResponse) {

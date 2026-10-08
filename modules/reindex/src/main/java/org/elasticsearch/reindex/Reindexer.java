@@ -49,12 +49,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
@@ -126,14 +126,6 @@ public class Reindexer {
 
     private static final Logger logger = LogManager.getLogger(Reindexer.class);
 
-    /// Allows setting the system property `es.reindex.disable_pit_search` as an escape hatch to disable the use of PIT-based search, and
-    /// force the use of the legacy scroll-based search.
-    // TODO(#2715): Remove this when we're confident the PIT version works
-    private static final boolean DISABLE_PIT_SEARCH = Booleans.parseBooleanLenient(
-        System.getProperty("es.reindex.disable_pit_search"),
-        false
-    );
-
     private final ClusterService clusterService;
     private final ReindexSettings reindexSettings;
     private final ProjectResolver projectResolver;
@@ -196,21 +188,22 @@ public class Reindexer {
     }
 
     public void execute(
-        BulkByPaginatedSearchTask task,
-        ReindexRequest request,
-        Client bulkClient,
-        ActionListener<BulkByPaginatedSearchResponse> listener
+        final BulkByPaginatedSearchTask task,
+        final ReindexRequest request,
+        final Client bulkClient,
+        final ActionListener<BulkByPaginatedSearchResponse> listener
     ) {
+        final var closeRemoteInfoListener = ActionListener.releaseAfter(listener, request.getRemoteInfo()); // null-safe
         final ResumeInfo resumeInfo = request.getResumeInfo().orElse(null);
         if (resumeInfo != null && resumeInfo.sourceTaskResult() != null) {
             // source task result should be present for top-level tasks only (e.g. leader or non-sliced worker)
             storeRelocationSourceTaskResult(
                 task,
                 resumeInfo,
-                ActionListener.wrap(v -> doExecute(task, request, bulkClient, listener), listener::onFailure)
+                ActionListener.wrap(v -> doExecute(task, request, bulkClient, closeRemoteInfoListener), closeRemoteInfoListener::onFailure)
             );
         } else {
-            doExecute(task, request, bulkClient, listener);
+            doExecute(task, request, bulkClient, closeRemoteInfoListener);
         }
     }
 
@@ -255,7 +248,7 @@ public class Reindexer {
         Consumer<Version> workerAction = createWorkerAction(task, request, bulkClient, responseListener);
 
         // Point-in-time searching is disabled, so default to scroll
-        if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) == false || DISABLE_PIT_SEARCH) {
+        if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) == false) {
             executePaginatedSearch(task, request, responseListener, workerAction, null);
         }
         /**
@@ -376,8 +369,10 @@ public class Reindexer {
         String[] indices = searchRequest.indices();
 
         // The routing and preference parameters can be set for a PIT request. However, scroll currently does not use these,
-        // so for parity we assert here in case that changes
-        assert searchRequest.routing() == null : "Routing is set in the search request, but is not being used when opening the PIT.";
+        // so for parity we assert here in case that changes. A source [_slice] is the exception: it sets routing to scope the read to a
+        // slice and is forwarded to the PIT so the point-in-time is opened over the correct shards.
+        assert searchRequest.routing() == null || searchRequest.isRoutingFromSlice()
+            : "Routing is set in the search request, but is not being used when opening the PIT.";
         assert searchRequest.preference() == null : "Preference is set in the search request, but is not being used when opening the PIT.";
         assert searchRequest.allowPartialSearchResults() == null || searchRequest.allowPartialSearchResults() == false
             : "allow_partial_search_results must be false when opening a PIT to match scroll search behavior";
@@ -385,6 +380,9 @@ public class Reindexer {
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(indices).indicesOptions(searchRequest.indicesOptions())
             .keepAlive(reindexSettings.pitKeepAlive())
             .allowPartialSearchResults(false);
+        if (searchRequest.isRoutingFromSlice()) {
+            pitRequest.searchSlice(searchRequest.searchSlice());
+        }
         if (searchRequest.getProjectRouting() != null) {
             pitRequest.projectRouting(searchRequest.getProjectRouting());
         }
@@ -967,7 +965,7 @@ public class Reindexer {
     }
 
     /**
-     * Simple implementation of reindex using scrolling and bulk. There are tons
+     * Simple implementation of reindex using paginated search and bulk. There are tons
      * of optimizations that can be done on certain types of reindex requests
      * but this makes no attempt to do any of them so it can be as simple
      * possible.
@@ -978,6 +976,12 @@ public class Reindexer {
          * normalize {@code _id}s landing in the index.
          */
         private final Function<String, String> destinationIndexIdMapper;
+
+        /**
+         * Whether the destination index (or the template that would create it) is slice-enabled. When {@code true} and no destination
+         * {@code slice} was provided, documents read in slice mode preserve the slice they were read from.
+         */
+        private final boolean destinationSliceEnabled;
 
         /**
          * List of threads created by this process. Usually actions don't create threads in Elasticsearch. Instead they use the builtin
@@ -1031,6 +1035,24 @@ public class Reindexer {
                 "reindex_bulk_batch"
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idTransformerForReindex();
+            this.destinationSliceEnabled = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && destinationSliceEnabled(state);
+        }
+
+        private boolean destinationSliceEnabled(ProjectState state) {
+            ProjectMetadata projectMetadata = state.metadata();
+            IndexMetadata destMeta = projectMetadata.index(mainRequest.getDestination().index());
+            if (destMeta != null) {
+                return IndexSettings.SLICE_ENABLED.get(destMeta.getSettings());
+            }
+            String template = MetadataIndexTemplateService.findV2Template(projectMetadata, mainRequest.getDestination().index(), false);
+            if (template != null) {
+                return IndexSettings.SLICE_ENABLED.get(MetadataIndexTemplateService.resolveSettings(projectMetadata, template));
+            }
+            var v1Templates = MetadataIndexTemplateService.findV1Templates(projectMetadata, mainRequest.getDestination().index(), null);
+            if (v1Templates.isEmpty()) {
+                return false;
+            }
+            return IndexSettings.SLICE_ENABLED.get(MetadataIndexTemplateService.resolveSettings(v1Templates));
         }
 
         private IndexMode destinationIndexMode(ProjectState state) {
@@ -1192,6 +1214,7 @@ public class Reindexer {
              * here on out operates on the index request rather than the template.
              */
             index.routing(mainRequest.getDestination().routing());
+            index.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
             index.setPipeline(mainRequest.getDestination().getPipeline());
             if (mainRequest.getDestination().opType() == DocWriteRequest.OpType.CREATE) {
                 index.opType(mainRequest.getDestination().opType());
@@ -1205,18 +1228,53 @@ public class Reindexer {
          */
         @Override
         protected void copyRouting(RequestWrapper<?> request, String routing) {
-            String routingSpec = mainRequest.getDestination().routing();
+            final IndexRequest dest = mainRequest.getDestination();
+            // A destination [_slice] routes every reindexed document to the given slice value.
+            if (dest.isRoutingFromSlice()) {
+                super.copyRouting(request, dest.routing());
+                request.setRoutingFromSlice(true);
+                return;
+            }
+            // When the source is read in slice mode and the user did not explicitly request a [routing] behavior, decide based on the
+            // destination: a slice-enabled destination preserves each document's source slice; a non-slice-enabled destination drops the
+            // slice value so it is not silently persisted as ordinary routing.
+            if (mainRequest.getSearchRequest().isRoutingFromSlice() && dest.routing() == null) {
+                if (destinationSliceEnabled) {
+                    super.copyRouting(request, routing);
+                    request.setRoutingFromSlice(true);
+                } else {
+                    // Dropping the slice value means documents that were kept distinct by their slice in the source (a slice-enabled
+                    // index prevents id collisions across slices) may now collide on _id in the non-slice-enabled destination and
+                    // overwrite each other. This is expected: reindexing several source slices into a single unsliced index cannot
+                    // preserve that separation, and it differs from the [routing: discard] case below where collisions only happen
+                    // when the colliding ids route to the same shard.
+                    super.copyRouting(request, null);
+                    request.setRoutingFromSlice(false);
+                }
+                return;
+            }
+            // Otherwise fall back to the standard [routing] handling. Slice provenance never applies on this path.
+            String routingSpec = dest.routing();
             if (routingSpec == null) {
                 super.copyRouting(request, routing);
+                // Prevent saying "routing from slice" on empty routing on write, as this is invalid
+                request.setRoutingFromSlice(false);
                 return;
             }
             if (routingSpec.startsWith("=")) {
-                super.copyRouting(request, mainRequest.getDestination().routing().substring(1));
+                super.copyRouting(request, routingSpec.substring(1));
+                request.setRoutingFromSlice(false);
                 return;
             }
             switch (routingSpec) {
-                case "keep" -> super.copyRouting(request, routing);
-                case "discard" -> super.copyRouting(request, null);
+                case "keep" -> {
+                    super.copyRouting(request, routing);
+                    request.setRoutingFromSlice(false);
+                }
+                case "discard" -> {
+                    super.copyRouting(request, null);
+                    request.setRoutingFromSlice(false);
+                }
                 default -> throw new IllegalArgumentException("Unsupported routing command");
             }
         }
@@ -1276,8 +1334,9 @@ public class Reindexer {
                  * Its important that routing comes after parent in case you want to
                  * change them both.
                  */
-                if (metadata.routingChanged()) {
+                if (metadata.routingChangedWithSlice(request.isRoutingFromSlice())) {
                     request.setRouting(metadata.getRouting());
+                    request.setRoutingFromSlice(metadata.isRoutingFromSlice());
                 }
             }
         }

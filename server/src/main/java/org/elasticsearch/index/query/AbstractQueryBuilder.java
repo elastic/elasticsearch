@@ -18,6 +18,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -119,10 +120,16 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     @Override
     public final Query toQuery(SearchExecutionContext context) throws IOException {
-        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), context.getCircuitBreaker());
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
+            IndexSearcher.getMaxClauseCount(),
+            context.getCircuitBreaker(),
+            context::isQueryMemoryPreCharged,
+            MaxClauseCountQueryVisitor.segmentCountOrDefault(context.getIndexReader()),
+            context.getIndexReader()
+        );
         Query query = toQuery(context, visitor);
         if (query != null) {
-            context.addCircuitBreakerMemory(visitor.getEstimatedBytes(), "query");
+            context.addCircuitBreakerMemory(visitor.getEstimatedBytes(), ChildMemoryCircuitBreaker.CATEGORY_QUERY);
         }
         assert query == null || assertBooleanClauses(query, visitor.getNumClauses()) : "inconsistent count of boolean clauses";
         return query;
@@ -276,16 +283,20 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     /**
      * Helper method to convert collection of {@link QueryBuilder} instances to lucene
      * {@link Query} instances. {@link QueryBuilder} that return {@code null} calling
-     * their {@link QueryBuilder#toQuery(SearchExecutionContext)} method are not added to the
-     * resulting collection.
+     * their {@link QueryBuilder#toQuery(SearchExecutionContext, MaxClauseCountQueryVisitor)} method are not added to
+     * the resulting collection. The caller's visitor is threaded through so that every sub-query is accounted for
+     * exactly once, against the top-level {@link #toQuery(SearchExecutionContext)} call that commits the estimate to
+     * the circuit breaker.
      */
-    static Collection<Query> toQueries(Collection<QueryBuilder> queryBuilders, SearchExecutionContext context, QueryVisitor queryVisitor)
-        throws QueryShardException, IOException {
+    static Collection<Query> toQueries(
+        Collection<QueryBuilder> queryBuilders,
+        SearchExecutionContext context,
+        MaxClauseCountQueryVisitor queryVisitor
+    ) throws QueryShardException, IOException {
         List<Query> queries = new ArrayList<>(queryBuilders.size());
         for (QueryBuilder queryBuilder : queryBuilders) {
-            Query query = queryBuilder.rewrite(context).toQuery(context);
+            Query query = queryBuilder.rewrite(context).toQuery(context, queryVisitor);
             if (query != null) {
-                query.visit(queryVisitor);
                 queries.add(query);
             }
         }

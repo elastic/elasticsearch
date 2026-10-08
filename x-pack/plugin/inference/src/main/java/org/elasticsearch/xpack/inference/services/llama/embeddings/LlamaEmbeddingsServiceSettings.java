@@ -13,13 +13,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.EnumParser;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.llama.LlamaServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveInteger;
+import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
@@ -54,12 +55,7 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
      * @return the parser
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
-            ignoreUnknownFields,
-            Builder::new
-        );
-        LlamaServiceSettings.declareCommonFields(parser);
+        var parser = LlamaServiceSettings.buildCommonParser(ignoreUnknownFields, Builder::new);
         parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
         parser.declareString(Builder::setSimilarity, EnumParser::parseSimilarity, new ParseField(SIMILARITY));
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
@@ -239,22 +235,22 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
      */
     private static class Update extends LlamaServiceSettings.CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+        private static final ObjectParser<Update, Void> PARSER = createUpdateParser();
 
-        static {
-            LlamaServiceSettings.declareCommonUpdatableFields(PARSER);
-            PARSER.declareInt(Update::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+        private static ObjectParser<Update, Void> createUpdateParser() {
+            var parser = LlamaServiceSettings.buildCommonUpdateParser(Update::new);
+            StatefulValue.declareNullable(parser, (update, value) -> update.maxInputTokens = value, p -> {
+                Integer value = p.intValue();
+                validatePositiveInteger(value, MAX_INPUT_TOKENS);
+                return value;
+            }, new ParseField(MAX_INPUT_TOKENS), ObjectParser.ValueType.INT_OR_NULL);
+            return parser;
         }
 
-        private Integer maxInputTokens;
-
-        private void setMaxInputTokens(Integer maxInputTokens) {
-            validatePositiveInteger(maxInputTokens, MAX_INPUT_TOKENS);
-            this.maxInputTokens = maxInputTokens;
-        }
+        private StatefulValue<Integer> maxInputTokens = StatefulValue.undefined();
 
         public LlamaEmbeddingsServiceSettings mergeInto(LlamaEmbeddingsServiceSettings existing) {
-            var updatedMaxInputTokens = this.maxInputTokens != null ? this.maxInputTokens : existing.maxInputTokens();
+            var updatedMaxInputTokens = applyUpdate(this.maxInputTokens, existing.maxInputTokens());
             return new LlamaEmbeddingsServiceSettings(
                 existing.modelId(),
                 existing.uri(),

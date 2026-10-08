@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class AuthenticateRequest extends LegacyActionRequest {
+public class AuthenticateRequest extends UntypedActionRequest {
 
     public static final AuthenticateRequest INSTANCE = new AuthenticateRequest();
 

@@ -39,7 +39,6 @@ import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 import static org.elasticsearch.compute.gen.Types.STRING;
-import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.WARNING_SOURCE_LOCATION;
 
 /**
@@ -161,7 +160,7 @@ public class AggregatorFunctionSupplierImplementer {
         builder.returns(aggregatorImplementer.implementation());
 
         if (hasWarnings) {
-            builder.addStatement("var warnings = $T.createWarnings(driverContext.warningsMode(), warningsSource)", WARNINGS);
+            builder.addStatement("var warnings = driverContext.createWarnings(warningsSource)");
         }
 
         builder.addStatement(
@@ -184,7 +183,7 @@ public class AggregatorFunctionSupplierImplementer {
         builder.returns(groupingAggregatorImplementer.implementation());
 
         if (hasWarnings) {
-            builder.addStatement("var warnings = $T.createWarnings(driverContext.warningsMode(), warningsSource)", WARNINGS);
+            builder.addStatement("var warnings = driverContext.createWarnings(warningsSource)");
         }
 
         builder.addStatement(

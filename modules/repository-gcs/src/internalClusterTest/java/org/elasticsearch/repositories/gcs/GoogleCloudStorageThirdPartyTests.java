@@ -41,16 +41,19 @@ import java.nio.file.NoSuchFileException;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.elasticsearch.common.io.Streams.readFully;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MEGABYTES_COPIED_PER_CHUNK_SETTING;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.google.fixture", "true"));
@@ -112,6 +115,35 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 
+    public void testMultipartUpload() {
+        final BlobStoreRepository repo = getRepository();
+        final int partSize = GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE;
+        final int blobSize = randomIntBetween(partSize + 1, partSize * 6);
+        final int nbParts = (blobSize + partSize - 1) / partSize;
+        final byte[] data = randomByteArrayOfLength(blobSize);
+        final String blobKey = randomIdentifier();
+
+        final ExecutorService executor = Executors.newFixedThreadPool(nbParts);
+        try {
+            executeOnBlobStore(repo, container -> {
+                container.writeBlobAtomic(
+                    randomPurpose(),
+                    blobKey,
+                    blobSize,
+                    (offset, length) -> new ByteArrayInputStream(data, Math.toIntExact(offset), Math.toIntExact(length)),
+                    false,
+                    executor
+                );
+                try (InputStream stream = container.readBlob(randomPurpose(), blobKey)) {
+                    assertArrayEquals(data, stream.readAllBytes());
+                }
+                return null;
+            });
+        } finally {
+            executor.shutdown();
+        }
+    }
+
     public void testReadFromPositionLargerThanBlobLength() {
         testReadFromPositionLargerThanBlobLength(
             e -> asInstanceOf(StorageException.class, e.getCause()).getCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()
@@ -169,7 +201,8 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
                 sourceBlobContainer,
                 sourceBlobName,
                 destinationBlobName,
-                blobBytes.length()
+                blobBytes.length(),
+                null
             );
             return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();
         });
@@ -181,12 +214,13 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
      * configure two distinct storage classes, write blobs with each {@link OperationPurpose} via the single-part, resumable and
      * server-side copy paths, and read the storage class back from the object metadata.
      * <p>
-     * One of the two configured classes is always {@code STANDARD} (the default class) and the other is a colder class
-     * ({@code NEARLINE} or {@code COLDLINE}), so the positive assertions cover both an explicit default and an explicit non-default class.
+     * One of the two configured classes is always {@code STANDARD} (the default class) or {@code REGIONAL} (the legacy default class
+     * used by the test bucket elasticsearch-ci-thirdparty) and the other is a colder class ({@code NEARLINE} or {@code COLDLINE}),
+     * so the positive assertions cover both an explicit default and an explicit non-default class.
      * <p>
      * Unlike Azure (which exposes an "inferred" flag), GCS always reports a concrete storage class for an object: the fixture reports no
-     * class when none was configured, while a real bucket falls back to its default class (test buckets default to {@code STANDARD}).
-     * The non-snapshot purpose therefore asserts only that no colder class leaked onto the upload.
+     * class when none was configured, while a real bucket falls back to its default class (test buckets default to {@code STANDARD} or
+     * {@code REGIONAL}). The non-snapshot purpose therefore asserts only that no colder class leaked onto the upload.
      */
     public void testStorageClassPerOperationPurpose() throws Exception {
         // always configure STANDARD plus one colder class so the positive assertions exercise both the default and a non-default class
@@ -252,7 +286,7 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
 
                     // server-side copy (source is the small single-part blob written above)
                     final String copyName = randomIdentifier();
-                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length());
+                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length(), null);
                     assertStorageClass(blobStore, bucket, keyPrefix + copyName, expectedStorageClass, "server-side copy", purpose);
                 }
             } finally {
@@ -280,8 +314,8 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
             // (test buckets default to STANDARD). Either way, no colder class should have been applied to the blob.
             assertThat(
                 message + " should not carry a colder storage class",
-                actualStorageClass == null || actualStorageClass.equals(StorageClass.STANDARD),
-                is(true)
+                actualStorageClass,
+                anyOf(nullValue(), equalTo(StorageClass.STANDARD), equalTo(StorageClass.REGIONAL))
             );
         }
     }

@@ -211,16 +211,6 @@ EXPORT void vec_cosi8_bulk_sparse(
     cosi8_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
 }
 
-EXPORT void vec_cosi8_bulk8(
-    const int8_t* a0, const int8_t* a1, const int8_t* a2, const int8_t* a3,
-    const int8_t* a4, const int8_t* a5, const int8_t* a6, const int8_t* a7,
-    const int8_t* b, const int32_t dims, f32_t* results
-) {
-    const int8_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
-    cosi8_inner_bulk<const int8_t*, sparse_mapper, 4>(
-        ptrs, b, dims, 0, NULL, 8, results);
-}
-
 // Accumulates acc += dot(pa, pb) for signed int8. Loads 16 bytes at compile-time offset,
 // sign-extends to 16-bit, then signed multiply-accumulate.
 template<int offsetRegs>
@@ -335,16 +325,6 @@ EXPORT void vec_doti8_bulk_sparse(
         count,
         results
     );
-}
-
-EXPORT void vec_doti8_bulk8(
-    const int8_t* a0, const int8_t* a1, const int8_t* a2, const int8_t* a3,
-    const int8_t* a4, const int8_t* a5, const int8_t* a6, const int8_t* a7,
-    const int8_t* b, const int32_t dims, f32_t* results
-) {
-    const int8_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
-    call_i8_bulk<const int8_t*, sparse_mapper, doti8_inner, 4>(
-        ptrs, b, dims, 0, NULL, 8, results);
 }
 
 // Accumulates acc += sqr_distance(pa, pb) for signed int8. Sign-extends to 16-bit,
@@ -462,14 +442,4 @@ EXPORT void vec_sqri8_bulk_sparse(
         count,
         results
     );
-}
-
-EXPORT void vec_sqri8_bulk8(
-    const int8_t* a0, const int8_t* a1, const int8_t* a2, const int8_t* a3,
-    const int8_t* a4, const int8_t* a5, const int8_t* a6, const int8_t* a7,
-    const int8_t* b, const int32_t dims, f32_t* results
-) {
-    const int8_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
-    call_i8_bulk<const int8_t*, sparse_mapper, sqri8_inner, 4>(
-        ptrs, b, dims, 0, NULL, 8, results);
 }

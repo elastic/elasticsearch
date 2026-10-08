@@ -1,5 +1,0 @@
-area: "Snapshot/Restore"
-issues: []
-pr: 150391
-summary: Add integration tests for S3 storage class settings
-type: enhancement

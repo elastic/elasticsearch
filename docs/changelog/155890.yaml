@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 155890
+summary: Grant apm event write privilege to fleet-server role
+type: enhancement

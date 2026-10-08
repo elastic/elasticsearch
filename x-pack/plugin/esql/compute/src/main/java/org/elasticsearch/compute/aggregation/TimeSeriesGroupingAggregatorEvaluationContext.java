@@ -7,28 +7,14 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.function.IntConsumer;
 
 public abstract class TimeSeriesGroupingAggregatorEvaluationContext extends GroupingAggregatorEvaluationContext {
-    private IntVector allGroupIds;
 
     public TimeSeriesGroupingAggregatorEvaluationContext(DriverContext driverContext) {
         super(driverContext);
-    }
-
-    /**
-     * Returns the full set of group IDs when output filtering is active.
-     * Window aggregations use this to build intermediate states for non-output buckets.
-     */
-    public IntVector allGroupIds() {
-        return allGroupIds;
-    }
-
-    public void setAllGroupIds(IntVector allGroupIds) {
-        this.allGroupIds = allGroupIds;
     }
 
     /**
@@ -47,8 +33,18 @@ public abstract class TimeSeriesGroupingAggregatorEvaluationContext extends Grou
      */
     public abstract void forEachGroupInRange(int startingGroupId, long rangeStartMillis, long rangeEndMillis, IntConsumer action);
 
+    /**
+     * Returns the group of the same time series whose time bucket is the closest <em>populated</em> bucket before the one of
+     * {@code currentGroupId}, skipping over empty buckets, or {@code -1} if there is none. Requires
+     * {@link #computeAdjacentGroupIds()} to have been called.
+     */
     public abstract int previousGroupId(int currentGroupId);
 
+    /**
+     * Returns the group of the same time series whose time bucket is the closest <em>populated</em> bucket after the one of
+     * {@code currentGroupId}, skipping over empty buckets, or {@code -1} if there is none. Requires
+     * {@link #computeAdjacentGroupIds()} to have been called.
+     */
     public abstract int nextGroupId(int currentGroupId);
 
     /**

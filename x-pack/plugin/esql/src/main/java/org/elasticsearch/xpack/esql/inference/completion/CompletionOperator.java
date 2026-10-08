@@ -11,6 +11,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 
@@ -45,7 +46,9 @@ public class CompletionOperator extends InferenceOperator {
             driverContext,
             inferenceService,
             new CompletionRequestIterator.Factory(inferenceId, promptEvaluator, taskSettings, timeout),
-            new CompletionOutputBuilder(driverContext.blockFactory())
+            new CompletionOutputBuilder(driverContext.blockFactory()),
+            Source.EMPTY,
+            false
         );
         this.taskSettings = taskSettings;
     }

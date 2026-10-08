@@ -18,7 +18,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -56,6 +55,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongConsumer;
 
 public class RankFeaturePhaseTests extends ESTestCase {
 
@@ -106,7 +106,9 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final ActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener,
+                        LongConsumer bytesConsumer,
+                        LongConsumer requestBytesConsumer
                     ) {
                         // make sure to match the context id generated above, otherwise we throw
                         if (request.contextId().getId() == 123 && Arrays.equals(request.getDocIds(), new int[] { 1, 2 })) {
@@ -213,7 +215,9 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final ActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener,
+                        LongConsumer bytesConsumer,
+                        LongConsumer requestBytesConsumer
                     ) {
                         // make sure to match the context id generated above, otherwise we throw
                         // first shard
@@ -332,7 +336,9 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final ActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener,
+                        LongConsumer bytesConsumer,
+                        LongConsumer requestBytesConsumer
                     ) {
                         // make sure to match the context id generated above, otherwise we throw
                         // first shard
@@ -425,7 +431,9 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final ActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener,
+                        LongConsumer bytesConsumer,
+                        LongConsumer requestBytesConsumer
                     ) {
                         // make sure to match the context id generated above, otherwise we throw
                         if (request.contextId().getId() == 123 && Arrays.equals(request.getDocIds(), new int[] { 1, 2 })) {
@@ -557,7 +565,9 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final ActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener,
+                        LongConsumer bytesConsumer,
+                        LongConsumer requestBytesConsumer
                     ) {
 
                         RankFeatureResult rankFeatureResult = new RankFeatureResult();
@@ -699,7 +709,9 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final ActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener,
+                        LongConsumer bytesConsumer,
+                        LongConsumer requestBytesConsumer
                     ) {
                         RankFeatureResult rankFeatureResult = new RankFeatureResult();
                         // make sure to match the context id generated above, otherwise we throw
@@ -943,7 +955,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
     ) {
         return controller.newSearchPhaseResults(
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             () -> false,
             SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(),

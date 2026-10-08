@@ -9,9 +9,11 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -87,7 +89,7 @@ public class InternalCardinality extends InternalNumericMetricsAggregation.Singl
                 final InternalCardinality cardinality = (InternalCardinality) aggregation;
                 if (cardinality.counts != null) {
                     if (reduced == null) {
-                        reduced = new HyperLogLogPlusPlus(cardinality.counts.precision(), BigArrays.NON_RECYCLING_INSTANCE, 1);
+                        reduced = new HyperLogLogPlusPlus(cardinality.counts.precision(), reduceContext.bigArrays(), 1);
                     }
                     reduced.merge(0, cardinality.counts, 0);
                 }
@@ -95,7 +97,33 @@ public class InternalCardinality extends InternalNumericMetricsAggregation.Singl
 
             @Override
             public InternalAggregation get() {
-                return new InternalCardinality(name, reduced, getMetadata());
+                if (reduced == null) {
+                    return new InternalCardinality(name, null, getMetadata());
+                }
+                long cloneBytes = reduced.ramBytesUsed();
+                CircuitBreaker breaker = reduceContext.bigArrays().breakerService() == null
+                    ? null
+                    : reduceContext.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
+                if (breaker != null) {
+                    breaker.addEstimateBytesAndMaybeBreak(cloneBytes, "cardinality reduce result clone");
+                }
+                try {
+                    AbstractHyperLogLogPlusPlus result = reduced.clone(0, BigArrays.NON_RECYCLING_INSTANCE);
+                    // Avoid closing again from close().
+                    HyperLogLogPlusPlus toRelease = reduced;
+                    reduced = null;
+                    Releasables.close(toRelease);
+                    return new InternalCardinality(name, result, getMetadata());
+                } finally {
+                    if (breaker != null) {
+                        breaker.addWithoutBreaking(-cloneBytes);
+                    }
+                }
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(reduced);
             }
         };
     }

@@ -31,7 +31,7 @@ public final class PromqlHistogramQuantileGroupingAggregatorFunction implements 
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("buckets", ElementType.DOUBLE)  );
 
-  private final PromqlHistogramQuantileStates.GroupingState state;
+  private final PromqlHistogramStates.Quantile.GroupingState state;
 
   private final Warnings warnings;
 

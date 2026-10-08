@@ -10,7 +10,7 @@
 package org.elasticsearch.gradle.internal
 
 import org.apache.commons.io.IOUtils
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.elasticsearch.gradle.fixtures.LocalRepositoryFixture
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.ClassRule
@@ -22,7 +22,10 @@ import java.util.zip.ZipFile
 
 import static org.elasticsearch.gradle.fixtures.TestClasspathUtils.setupJarHellJar
 
-class BuildPluginFuncTest extends AbstractGradleFuncTest {
+class BuildPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
+
+    Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.BuildPlugin
+
 
     @Shared
     @ClassRule
@@ -53,14 +56,11 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.""".stripIndent()
 
     def setup() {
-        configurationCacheCompatible = false
+        disableConfigurationCache("checkstyle task references LegacyConfiguration class; revisit after checkstyle update")
+        // elasticsearch.build (BuildPlugin) and elasticsearch.global-build-info are applied by
+        // AbstractGradleInternalPluginFuncTest; we only add the java plugin and project config here.
         buildFile << """
-        plugins {
-          id 'java'
-          id 'elasticsearch.global-build-info'
-        }
-
-        apply plugin:'elasticsearch.build'
+        apply plugin: 'java'
         group = 'org.acme'
         description = "some example project"
 
@@ -149,7 +149,7 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         file("licenses/junit-NOTICE.txt").text = "mock notice"
         buildFile << """
             dependencies {
-              api "junit:junit:4.12"
+              api "junit:junit:4.13"
               // missing classes in thirdparty audit
               api 'org.hamcrest:hamcrest-core:1.3'
             }
@@ -182,21 +182,21 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
 
     def "can generate dependency infos file"() {
         given:
-        repository.generateJar("junit", "junit", "4.12", 'org.acme.JunitMock')
+        repository.generateJar("junit", "junit", "4.13", 'org.acme.JunitMock')
         repository.configureBuild(buildFile)
-        file("licenses/junit-4.12.jar.sha1").text = "2973d150c0dc1fefe998f834810d68f278ea58ec"
+        file("licenses/junit-4.13.jar.sha1").text = "2973d150c0dc1fefe998f834810d68f278ea58ec"
         file("licenses/junit-LICENSE.txt").text = EXAMPLE_LICENSE
         file("licenses/junit-NOTICE.txt").text = "mock notice"
         buildFile << """
         dependencies {
-            api "junit:junit:4.12"
+            api "junit:junit:4.13"
         }
         """
         when:
         def result = gradleRunner("dependenciesInfo").build()
         then:
         result.task(":dependenciesInfo").outcome == TaskOutcome.SUCCESS
-        file("build/reports/dependencies/dependencies.csv").text == "junit:junit,4.12,https://repo1.maven.org/maven2/junit/junit/4.12,BSD-3-Clause,\n"
+        file("build/reports/dependencies/dependencies.csv").text == "junit:junit,4.13,https://repo1.maven.org/maven2/junit/junit/4.13,BSD-3-Clause,\n"
     }
 
     def assertValidJar(File jar) {

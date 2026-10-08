@@ -13,6 +13,7 @@ import org.apache.parquet.filter2.predicate.UserDefinedPredicate;
 import org.apache.parquet.internal.column.columnindex.ColumnIndex;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.elasticsearch.compute.data.UninitializedArrays;
@@ -20,6 +21,7 @@ import org.elasticsearch.compute.data.UninitializedArrays;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -34,6 +36,15 @@ import java.util.List;
  * conservatively returns all rows because complement of page-level ranges would drop rows
  * from mixed pages. Leaf {@code NotEq} is handled directly: pages with min == max == value
  * can be pruned because every row on such a page fails {@code != value}.
+ *
+ * <p>Comparisons never use {@link Comparable#compareTo} directly: for an unsigned physical
+ * column (e.g. a Parquet {@code uint32} widened to ESQL {@code LONG} — esql-planning#1030),
+ * {@code Integer}/{@code Long}'s natural ordering is signed and would misread a raw value
+ * above {@code Integer.MAX_VALUE}/{@code Long.MAX_VALUE} as negative, causing this
+ * conservative page-pruning visitor to actually drop matching pages instead of over-keeping
+ * them. {@link #comparatorFor} resolves an unsigned-aware {@link Comparator} from the
+ * column's {@link LogicalTypeAnnotation.IntLogicalTypeAnnotation} so ordered comparisons
+ * agree with how the ColumnIndex's own min/max were computed.
  *
  * <p>When a column has no ColumnIndex or OffsetIndex (e.g., columns with no statistics,
  * or very old Parquet writers), the visitor conservatively returns {@link RowRanges#all}.
@@ -88,7 +99,7 @@ final class ColumnIndexRowRangesComputer implements FilterPredicate.Visitor<RowR
         if (value == null) {
             return all();
         }
-        return evaluateLeaf(eq.getColumn(), (min, max) -> min.compareTo(value) <= 0 && value.compareTo(max) <= 0);
+        return evaluateLeaf(eq.getColumn(), (min, max, cmp) -> cmp.compare(min, value) <= 0 && cmp.compare(value, max) <= 0);
     }
 
     @Override
@@ -100,38 +111,38 @@ final class ColumnIndexRowRangesComputer implements FilterPredicate.Visitor<RowR
         // A page survives NotEq(value) unless every non-null value on the page equals `value`,
         // i.e. min == max == value. Null rows also fail NotEq (NULL != X is NULL/false), so
         // when min == max == value all rows on the page can be pruned safely.
-        return evaluateLeaf(notEq.getColumn(), (min, max) -> min.compareTo(value) != 0 || max.compareTo(value) != 0);
+        return evaluateLeaf(notEq.getColumn(), (min, max, cmp) -> cmp.compare(min, value) != 0 || cmp.compare(max, value) != 0);
     }
 
     @Override
     public <T extends Comparable<T>> RowRanges visit(Operators.Lt<T> lt) {
         T value = lt.getValue();
-        return evaluateLeaf(lt.getColumn(), (min, max) -> min.compareTo(value) < 0);
+        return evaluateLeaf(lt.getColumn(), (min, max, cmp) -> cmp.compare(min, value) < 0);
     }
 
     @Override
     public <T extends Comparable<T>> RowRanges visit(Operators.LtEq<T> ltEq) {
         T value = ltEq.getValue();
-        return evaluateLeaf(ltEq.getColumn(), (min, max) -> min.compareTo(value) <= 0);
+        return evaluateLeaf(ltEq.getColumn(), (min, max, cmp) -> cmp.compare(min, value) <= 0);
     }
 
     @Override
     public <T extends Comparable<T>> RowRanges visit(Operators.Gt<T> gt) {
         T value = gt.getValue();
-        return evaluateLeaf(gt.getColumn(), (min, max) -> max.compareTo(value) > 0);
+        return evaluateLeaf(gt.getColumn(), (min, max, cmp) -> cmp.compare(max, value) > 0);
     }
 
     @Override
     public <T extends Comparable<T>> RowRanges visit(Operators.GtEq<T> gtEq) {
         T value = gtEq.getValue();
-        return evaluateLeaf(gtEq.getColumn(), (min, max) -> max.compareTo(value) >= 0);
+        return evaluateLeaf(gtEq.getColumn(), (min, max, cmp) -> cmp.compare(max, value) >= 0);
     }
 
     @Override
     public <T extends Comparable<T>> RowRanges visit(Operators.In<T> in) {
-        return evaluateLeaf(in.getColumn(), (min, max) -> {
+        return evaluateLeaf(in.getColumn(), (min, max, cmp) -> {
             for (T val : in.getValues()) {
-                if (val != null && min.compareTo(val) <= 0 && val.compareTo(max) <= 0) {
+                if (val != null && cmp.compare(min, val) <= 0 && cmp.compare(val, max) <= 0) {
                     return true;
                 }
             }
@@ -187,7 +198,7 @@ final class ColumnIndexRowRangesComputer implements FilterPredicate.Visitor<RowR
 
     @FunctionalInterface
     private interface PagePredicate<T extends Comparable<T>> {
-        boolean test(T min, T max);
+        boolean test(T min, T max, Comparator<T> cmp);
     }
 
     /**
@@ -214,6 +225,7 @@ final class ColumnIndexRowRangesComputer implements FilterPredicate.Visitor<RowR
             return all();
         }
         PrimitiveType primitive = schema.getType(columnPath).asPrimitiveType();
+        Comparator<T> cmp = comparatorFor(column.getColumnType(), primitive);
 
         int pageCount = oi.getPageCount();
         List<ByteBuffer> minValues = ci.getMinValues();
@@ -239,7 +251,7 @@ final class ColumnIndexRowRangesComputer implements FilterPredicate.Visitor<RowR
                 continue;
             }
 
-            if (predicate.test(min, max)) {
+            if (predicate.test(min, max, cmp)) {
                 long pageStart = oi.getFirstRowIndex(p);
                 long pageEnd = (p + 1 < pageCount) ? oi.getFirstRowIndex(p + 1) : rowGroupRowCount;
                 surviving.add(new long[] { pageStart, pageEnd });
@@ -250,6 +262,28 @@ final class ColumnIndexRowRangesComputer implements FilterPredicate.Visitor<RowR
             return RowRanges.of(0, 0, rowGroupRowCount);
         }
         return RowRanges.fromUnsorted(surviving, rowGroupRowCount);
+    }
+
+    /**
+     * Resolves the comparator ordered comparisons must use for this column's min/max. Parquet's
+     * writer-side {@code ColumnIndexBuilder} computes min/max using the column's logical-type-aware
+     * ordering, so an unsigned {@code INT32}/{@code INT64} column's stored max can be a raw value
+     * that reads as negative under {@link Integer}/{@link Long}'s natural (signed) ordering (e.g. a
+     * {@code uint32} value above {@code Integer.MAX_VALUE}). Comparisons here must use the same
+     * unsigned ordering the writer used, or this visitor would misjudge such a page as not matching
+     * and prune it — silently dropping matching rows rather than conservatively over-keeping them.
+     */
+    @SuppressWarnings("unchecked")
+    private static <T extends Comparable<T>> Comparator<T> comparatorFor(Class<T> columnType, PrimitiveType primitive) {
+        boolean unsigned = primitive.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical
+            && intLogical.isSigned() == false;
+        if (unsigned && columnType == Integer.class) {
+            return (Comparator<T>) (Comparator<Integer>) Integer::compareUnsigned;
+        }
+        if (unsigned && columnType == Long.class) {
+            return (Comparator<T>) (Comparator<Long>) Long::compareUnsigned;
+        }
+        return Comparator.naturalOrder();
     }
 
     @SuppressWarnings("unchecked")

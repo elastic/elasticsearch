@@ -16,11 +16,15 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -40,7 +44,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
-public class Replace extends EsqlScalarFunction {
+public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Replace", Replace::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Replace.class).ternary(Replace::new).name("replace");
     private static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = TransportVersion.fromName(
@@ -52,6 +56,7 @@ public class Replace extends EsqlScalarFunction {
     private final Expression newStr;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "keyword",
         briefSummary = "Replaces regular expression matches in a string with a replacement string.",
         description = """
@@ -329,7 +334,7 @@ public class Replace extends EsqlScalarFunction {
         return prefix.toString().getBytes(StandardCharsets.UTF_8);
     }
 
-    private static boolean isEscapedLiteral(char c) {
+    static boolean isEscapedLiteral(char c) {
         // Characters that, when preceded by `\`, denote themselves as a literal in Java regex syntax.
         // We deliberately exclude letters/digits because those introduce special meaning
         // (\d, \w, \s, \b, \A, \z, \Z, \n, \t, \r, \1, etc.).
@@ -340,7 +345,7 @@ public class Replace extends EsqlScalarFunction {
         };
     }
 
-    private static boolean isRegexMeta(char c) {
+    static boolean isRegexMeta(char c) {
         return switch (c) {
             case '.', '(', ')', '[', ']', '{', '}', '|', '$', '^', '?', '*', '+', '\\' -> true;
             default -> false;
@@ -357,7 +362,7 @@ public class Replace extends EsqlScalarFunction {
      * Hex / unicode / control / octal escapes in Java regex always produce a literal character (never an
      * unescaped meta), so they cannot smuggle in a hidden alternation.
      */
-    private static boolean containsUnquotedAlternation(String regex, int from) {
+    static boolean containsUnquotedAlternation(String regex, int from) {
         int n = regex.length();
         for (int i = from; i < n; i++) {
             char c = regex.charAt(i);
@@ -383,7 +388,16 @@ public class Replace extends EsqlScalarFunction {
     /**
      * Executes a Replace without surpassing the memory limit.
      */
-    private static BytesRef safeReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
+    static BytesRef safeReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
+        try {
+            return doReplace(strBytesRef, regex, newStrBytesRef);
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
+            throw new IllegalArgumentException("Pattern nesting is too deep to evaluate", e);
+        }
+    }
+
+    private static BytesRef doReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
         String str = strBytesRef.utf8ToString();
         Matcher m = regex.matcher(str);
         if (false == m.find()) {
@@ -431,30 +445,47 @@ public class Replace extends EsqlScalarFunction {
     }
 
     @Override
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var strEval = toEvaluator.apply(str);
         var newStrEval = toEvaluator.apply(newStr);
 
         if (regex.foldable() && regex.dataType() == DataType.KEYWORD) {
-            Pattern regexPattern;
-            try {
-                regexPattern = Pattern.compile(BytesRefs.toString(regex.fold(toEvaluator.foldCtx())));
-            } catch (PatternSyntaxException pse) {
-                // TODO this is not right (inconsistent). See also https://github.com/elastic/elasticsearch/issues/100038
-                // this should generate a header warning and return null (as do the rest of this functionality in evaluators),
-                // but for the moment we let the exception through
-                throw pse;
-            }
-            byte[] literalPrefix = extractLiteralPrefix(regexPattern);
-            if (newStr.foldable() && newStr.dataType() == DataType.KEYWORD) {
-                // Both regex and newStr are constants: use the dictionary-aware evaluator that applies
-                // REPLACE once per dictionary entry on OrdinalBytesRefBlock inputs.
-                BytesRef constantNewStr = BytesRefs.toBytesRef(newStr.fold(toEvaluator.foldCtx()));
-                if (constantNewStr != null) {
-                    return new ReplaceConstantOrdinalEvaluator.Factory(source(), strEval, regexPattern, literalPrefix, constantNewStr);
+            String regexString = BytesRefs.toString(regex.fold(toEvaluator.foldCtx()));
+            if (regexString != null) {
+                Pattern regexPattern;
+                try {
+                    regexPattern = Pattern.compile(regexString);
+                } catch (PatternSyntaxException | StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
+                    // warnExceptions only wraps process(), so throwing here would fail the query.
+                    // Fall through to the per-row evaluator, which turns these into a warning and null.
+                    regexPattern = null;
+                }
+                if (regexPattern != null) {
+                    byte[] literalPrefix = extractLiteralPrefix(regexPattern);
+                    if (newStr.foldable() && newStr.dataType() == DataType.KEYWORD) {
+                        // Both regex and newStr are constants: use the dictionary-aware evaluator that applies
+                        // REPLACE once per dictionary entry on OrdinalBytesRefBlock inputs.
+                        BytesRef constantNewStr = BytesRefs.toBytesRef(newStr.fold(toEvaluator.foldCtx()));
+                        if (constantNewStr != null) {
+                            // Shape detected: the dictionary-aware evaluator replaces the regex engine with a
+                            // hand-written byte scan (no UTF-8 decode, no codepoint counting) for every entry it
+                            // processes -- see ReplaceCaptureUntilDelimiter. idiom is null when the shape doesn't
+                            // match, in which case the evaluator falls back to the real regex engine.
+                            var idiom = ReplaceCaptureUntilDelimiter.extract(regexPattern, constantNewStr);
+                            return new ReplaceConstantOrdinalEvaluator.Factory(
+                                source(),
+                                strEval,
+                                regexPattern,
+                                literalPrefix,
+                                constantNewStr,
+                                idiom
+                            );
+                        }
+                    }
+                    return new ReplaceConstantEvaluator.Factory(source(), strEval, regexPattern, literalPrefix, newStrEval);
                 }
             }
-            return new ReplaceConstantEvaluator.Factory(source(), strEval, regexPattern, literalPrefix, newStrEval);
         }
 
         var regexEval = toEvaluator.apply(regex);

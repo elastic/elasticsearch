@@ -16,11 +16,13 @@ import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable;
+import org.objectweb.asm.Type;
 
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.lang.reflect.Method;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
@@ -67,6 +69,10 @@ public final class Def {
     private static final MethodHandle LIST_INDEX_NORMALIZE;
     /** factory for arraylength MethodHandle (intrinsic) */
     private static final MethodHandle ARRAY_LENGTH;
+    /** pointer to {@link PainlessScript#$checkAllocBytes(long)}, used to charge def-dispatched allocations against the limit */
+    private static final MethodHandle SCRIPT_CHECK_ALLOC_BYTES;
+    /** pointer to {@link AllocationGuard#sanitizeEstimate(long)}, used to clamp {@code @allocates} estimator results */
+    private static final MethodHandle SANITIZE_ALLOC_ESTIMATE;
 
     public static final Map<Class<?>, MethodHandle> DEF_TO_BOXED_TYPE_IMPLICIT_CAST;
 
@@ -96,6 +102,16 @@ public final class Def {
                 MethodHandles.class,
                 "arrayLength",
                 MethodType.methodType(MethodHandle.class, Class.class)
+            );
+            SCRIPT_CHECK_ALLOC_BYTES = methodHandlesLookup.findVirtual(
+                PainlessScript.class,
+                "$checkAllocBytes",
+                MethodType.methodType(void.class, long.class)
+            );
+            SANITIZE_ALLOC_ESTIMATE = methodHandlesLookup.findStatic(
+                AllocationGuard.class,
+                "sanitizeEstimate",
+                MethodType.methodType(long.class, long.class)
             );
         } catch (ReflectiveOperationException roe) {
             throw new AssertionError(roe);
@@ -177,6 +193,56 @@ public final class Def {
             reorder[i] = i;
         }
         return MethodHandles.permuteArguments(handle, swapped, reorder);
+    }
+
+    /** Unreflects an estimator into a handle (this-module lookup for built-ins, {@code publicLookup} for plugins). */
+    private static MethodHandle unreflectAllocationEstimator(Method estimator) {
+        Class<?> declaringClass = estimator.getDeclaringClass();
+        MethodHandles.Lookup lookup = declaringClass.getModule() == Def.class.getModule()
+            ? MethodHandles.lookup()
+            : MethodHandles.publicLookup().in(declaringClass);
+        try {
+            return lookup.unreflect(estimator);
+        } catch (IllegalAccessException iae) {
+            throw new IllegalStateException("could not access allocation estimator [" + estimator + "]", iae);
+        }
+    }
+
+    /**
+     * Wraps {@code handle}, whose shape is {@code (receiver, scriptThis, userArgs...)}, so it runs {@code estimator} and
+     * {@link PainlessScript#$checkAllocBytes(long)} before the real call. Callers apply this before any lambda-argument
+     * filters are added, so the handle always has that plain shape here (see {@link #lookupMethod}).
+     */
+    private static MethodHandle chargeAllocationBeforeCall(
+        MethodHandle handle,
+        Method estimator,
+        Object[] injections,
+        boolean methodTakesScriptThis
+    ) {
+        // The estimator shares the raw handle's parameter shape, so apply the same injection binding + scriptThis adaptation.
+        MethodHandle estimate = MethodHandles.filterReturnValue(unreflectAllocationEstimator(estimator), SANITIZE_ALLOC_ESTIMATE);
+        if (injections.length > 0) {
+            estimate = MethodHandles.insertArguments(estimate, methodTakesScriptThis ? 2 : 1, injections);
+        }
+        estimate = methodTakesScriptThis ? swapFirstTwoArguments(estimate) : MethodHandles.dropArguments(estimate, 1, PainlessScript.class);
+
+        // Coerce to the handle's exact params (no-op normally; for a bridge, asType casts the Object-widened param back to the
+        // estimator's boxed type — safe since def boxed the value).
+        estimate = estimate.asType(handle.type().changeReturnType(long.class));
+
+        // Fold estimate into $checkAllocBytes' size arg; permute unifies its spare scriptThis slot with the estimator's so both
+        // read the one pushed receiver. Combiner consumes all handle args, returns void.
+        MethodHandle combiner = MethodHandles.collectArguments(SCRIPT_CHECK_ALLOC_BYTES, 1, estimate);
+        int parameterCount = handle.type().parameterCount();
+        int[] reorder = new int[parameterCount + 1];
+        reorder[0] = 1; // $checkAllocBytes receiver <- scriptThis
+        reorder[1] = 0; // estimator receiver <- receiver
+        reorder[2] = 1; // estimator scriptThis <- scriptThis
+        for (int i = 3; i <= parameterCount; i++) {
+            reorder[i] = i - 1; // estimator userArgs shift past the spare leading slot
+        }
+        combiner = MethodHandles.permuteArguments(combiner, MethodType.methodType(void.class, handle.type().parameterList()), reorder);
+        return MethodHandles.foldArguments(handle, combiner);
     }
 
     /**
@@ -262,10 +328,16 @@ public final class Def {
             // shadowing the augmentation name) drop the call site's extra scriptThis slot
             // instead so the call still proceeds.
             if (scriptThisPushed) {
-                if (painlessMethod.annotations().containsKey(ScriptAwareAnnotation.class)) {
+                boolean methodTakesScriptThis = painlessMethod.annotations().containsKey(ScriptAwareAnnotation.class);
+                if (methodTakesScriptThis) {
                     handle = swapFirstTwoArguments(handle);
                 } else {
                     handle = MethodHandles.dropArguments(handle, 1, PainlessScript.class);
+                }
+                // Charge via the inheritance-walked estimator (handles an unannotated subclass shadowing an annotated supertype).
+                Method estimator = painlessLookup.lookupRuntimeAllocationEstimator(receiverClass, name, numArguments - 1);
+                if (estimator != null) {
+                    handle = chargeAllocationBeforeCall(handle, estimator, injections, methodTakesScriptThis);
                 }
             }
 
@@ -322,13 +394,19 @@ public final class Def {
             handle = MethodHandles.insertArguments(handle, injectStart, injections);
         }
 
-        // Same script-first → receiver-first swap as the simple case above when the resolved
-        // method carries @script_aware; drop the extra slot when it doesn't.
+        // Same swap as the simple case: script-first becomes receiver-first, or the extra slot is dropped when the method is not
+        // @script_aware. Charge the allocation here, before the lambda filters are added below. At this point the handle still
+        // has the plain (receiver, scriptThis, userArgs...) shape the estimator expects. Because the filters wrap the charged
+        // handle, the estimator sees the real lambda object, not the recipe placeholder.
         if (scriptThisPushed) {
             if (methodTakesScriptThis) {
                 handle = swapFirstTwoArguments(handle);
             } else {
                 handle = MethodHandles.dropArguments(handle, 1, PainlessScript.class);
+            }
+            Method estimator = painlessLookup.lookupRuntimeAllocationEstimator(receiverClass, name, arity);
+            if (estimator != null) {
+                handle = chargeAllocationBeforeCall(handle, estimator, injections, methodTakesScriptThis);
             }
         }
 
@@ -347,6 +425,8 @@ public final class Def {
                 if (defEncoding.isStatic) {
                     // the implementation is strongly typed, now that we know the interface type,
                     // we have everything.
+                    // needsInstance captures the script; chargesAllocation says whether to charge it. Orthogonal:
+                    // this::userFunc captures without charging.
                     filter = lookupReferenceInternal(
                         painlessLookup,
                         functions,
@@ -356,7 +436,9 @@ public final class Def {
                         defEncoding.symbol,
                         defEncoding.methodName,
                         defEncoding.numCaptures,
-                        defEncoding.needsInstance
+                        defEncoding.needsInstance,
+                        false,
+                        defEncoding.chargesAllocation
                     );
                 } else {
                     // the interface type is now known, but we need to get the implementation.
@@ -366,6 +448,8 @@ public final class Def {
                     for (int capture = 0; capture < captures.length; capture++) {
                         captures[capture] = callSiteType.parameterType(i + 1 + capture + scriptThisOffset);
                     }
+                    // A def-receiver ref may capture the script after the receiver. The REFERENCE bootstrap sees that in the
+                    // type, and the flag says whether to charge.
                     MethodType nestedType = MethodType.methodType(interfaceType, captures);
                     CallSite nested = DefBootstrap.bootstrap(
                         painlessLookup,
@@ -376,7 +460,8 @@ public final class Def {
                         nestedType,
                         0,
                         DefBootstrap.REFERENCE,
-                        PainlessLookupUtility.typeToCanonicalTypeName(interfaceType)
+                        PainlessLookupUtility.typeToCanonicalTypeName(interfaceType),
+                        defEncoding.chargesAllocation ? 1 : 0
                     );
                     filter = nested.dynamicInvoker();
                 }
@@ -404,7 +489,9 @@ public final class Def {
         MethodHandles.Lookup methodHandlesLookup,
         String interfaceClass,
         Class<?> receiverClass,
-        String name
+        String name,
+        boolean scriptPushed,
+        boolean chargesAllocation
     ) throws Throwable {
 
         Class<?> interfaceType = painlessLookup.canonicalTypeNameToType(interfaceClass);
@@ -423,6 +510,7 @@ public final class Def {
             );
         }
 
+        // The script, if pushed, follows the receiver. What is done with it depends on the target the receiver resolved to.
         return lookupReferenceInternal(
             painlessLookup,
             functions,
@@ -432,11 +520,18 @@ public final class Def {
             PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass()),
             implMethod.javaMethod().getName(),
             1,
-            false
+            false,
+            scriptPushed,
+            chargesAllocation
         );
     }
 
-    /** Returns a method handle to an implementation of clazz, given method reference signature. */
+    /**
+     * Returns a method handle to an implementation of clazz, given method reference signature.
+     * <p>
+     * The call site may have pushed the script before the captures ({@code needsScriptInstance}) or after them
+     * ({@code scriptAppended}, a def receiver). What is done with it depends on the target.
+     */
     private static MethodHandle lookupReferenceInternal(
         PainlessLookup painlessLookup,
         FunctionTable functions,
@@ -446,7 +541,9 @@ public final class Def {
         String type,
         String call,
         int captures,
-        boolean needsScriptInstance
+        boolean needsScriptInstance,
+        boolean scriptAppended,
+        boolean chargesAllocation
     ) throws Throwable {
 
         final FunctionRef ref = FunctionRef.create(
@@ -460,22 +557,101 @@ public final class Def {
             constants,
             needsScriptInstance
         );
-        Class<?>[] parameters = ref.factoryMethodParameters(needsScriptInstance ? methodHandlesLookup.lookupClass() : null);
-        MethodType factoryMethodType = MethodType.methodType(clazz, parameters);
-        final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
-            methodHandlesLookup,
-            ref.interfaceMethodName,
-            factoryMethodType,
-            ref.interfaceMethodType,
-            ref.delegateClassName,
-            ref.delegateInvokeType,
-            ref.delegateMethodName,
-            ref.delegateMethodType,
-            ref.isDelegateInterface ? 1 : 0,
-            ref.isDelegateAugmented ? 1 : 0,
-            ref.delegateInjections
-        );
-        return callSite.dynamicInvoker().asType(MethodType.methodType(clazz, parameters));
+        Class<?> scriptClass = methodHandlesLookup.lookupClass();
+        // The captures, after a PainlessScript parameter when the target is @script_aware.
+        MethodType factoryMethodType = MethodType.methodType(clazz, ref.factoryMethodParameters(null));
+
+        if (needsScriptInstance && "this".equals(type)) {
+            // this::f. The script is the delegate's receiver. A static lambda is also this::lambda$N, but pushes nothing.
+            return linkReference(methodHandlesLookup, ref, factoryMethodType.insertParameterTypes(0, scriptClass), -1, null);
+        }
+        if (needsScriptInstance == false && scriptAppended == false) {
+            // Nothing pushed.
+            if (ref.isScriptAware) {
+                throw new IllegalArgumentException(
+                    "reference to script-aware method [" + type + ", " + call + "] needs the script instance"
+                );
+            }
+            return linkReference(methodHandlesLookup, ref, factoryMethodType, -1, null);
+        }
+        if (needsScriptInstance && ref.isScriptAware && chargesAllocation == false) {
+            // Pushed first for a @script_aware target. FunctionRef already put a PainlessScript parameter first for such a target,
+            // so the pushed script lands on it. No extra slot.
+            return linkReference(methodHandlesLookup, ref, factoryMethodType, -1, null);
+        }
+
+        // The pushed script is an extra slot, first or last. The charge bootstrap charges it when the target has an estimator
+        // and drops it. Under tracking the estimator may still be null: the capture went by name, across all arities.
+        int scriptIndex = needsScriptInstance ? 0 : factoryMethodType.parameterCount();
+        factoryMethodType = factoryMethodType.insertParameterTypes(scriptIndex, scriptClass);
+        Method estimator = chargesAllocation ? ref.allocationEstimator : null;
+        MethodHandle handle = linkReference(methodHandlesLookup, ref, factoryMethodType, scriptIndex, estimator);
+        if (ref.isScriptAware) {
+            // The same script also fills the target's PainlessScript parameter, which FunctionRef put first.
+            handle = feedScript(handle, scriptIndex == 0 ? 1 : 0, scriptIndex, scriptClass);
+        }
+        return handle;
+    }
+
+    /**
+     * Links the lambda class for a reference and returns its factory. With {@code dropIndex} set, the charge bootstrap strips
+     * that factory parameter before the delegate runs, charging {@code estimator} first when there is one.
+     */
+    private static MethodHandle linkReference(
+        MethodHandles.Lookup methodHandlesLookup,
+        FunctionRef ref,
+        MethodType factoryMethodType,
+        int dropIndex,
+        Method estimator
+    ) throws Throwable {
+        CallSite callSite;
+        if (dropIndex < 0) {
+            callSite = LambdaBootstrap.lambdaBootstrap(
+                methodHandlesLookup,
+                ref.interfaceMethodName,
+                factoryMethodType,
+                ref.interfaceMethodType,
+                ref.delegateClassName,
+                ref.delegateInvokeType,
+                ref.delegateMethodName,
+                ref.delegateMethodType,
+                ref.isDelegateInterface ? 1 : 0,
+                ref.isDelegateAugmented ? 1 : 0,
+                ref.delegateInjections
+            );
+        } else {
+            callSite = LambdaBootstrap.lambdaBootstrapWithAllocation(
+                methodHandlesLookup,
+                ref.interfaceMethodName,
+                factoryMethodType,
+                ref.interfaceMethodType,
+                ref.delegateClassName,
+                ref.delegateInvokeType,
+                ref.delegateMethodName,
+                ref.delegateMethodType,
+                ref.isDelegateInterface ? 1 : 0,
+                ref.isDelegateAugmented ? 1 : 0,
+                dropIndex,
+                estimator == null ? null : Type.getInternalName(estimator.getDeclaringClass()),
+                estimator == null ? null : estimator.getName(),
+                estimator == null ? null : Type.getMethodDescriptor(estimator),
+                ref.delegateInjections
+            );
+        }
+        return callSite.dynamicInvoker().asType(factoryMethodType);
+    }
+
+    /** Removes parameter {@code awareIndex} and feeds it from the script at {@code pushedIndex}. */
+    private static MethodHandle feedScript(MethodHandle handle, int awareIndex, int pushedIndex, Class<?> scriptClass) {
+        MethodType type = handle.type().changeParameterType(awareIndex, scriptClass);
+        handle = handle.asType(type);
+        MethodType newType = type.dropParameterTypes(awareIndex, awareIndex + 1);
+        int newPushed = pushedIndex > awareIndex ? pushedIndex - 1 : pushedIndex;
+        int[] reorder = new int[type.parameterCount()];
+        for (int i = 0; i < reorder.length; i++) {
+            reorder[i] = i == awareIndex ? newPushed : (i < awareIndex ? i : i - 1);
+        }
+        return MethodHandles.permuteArguments(handle, newType, reorder);
     }
 
     /**
@@ -1796,6 +1972,12 @@ public final class Def {
         public final String symbol;
         public final String methodName;
         public final int numCaptures;
+        /**
+         * Whether this reference's resolved target should be charged per invocation. Orthogonal to {@link #needsInstance}
+         * (which only captures the script). Encoded as a trailing {@code c} after {@code numCaptures}, so it is absent, and
+         * tracking-off encodings unchanged, when off.
+         */
+        public final boolean chargesAllocation;
 
         /**
          * Encoding is passed to invokedynamic to help DefBootstrap find the method.  invokedynamic can only take
@@ -1805,27 +1987,43 @@ public final class Def {
          * */
         public final String encoding;
 
-        private static final String FORMAT = "[SD][tf]symbol.methodName,numCaptures";
+        // Trailing [c] is optional, unlike the fixed-position [SD] and [tf] flags. It has to be absent rather than have a
+        // "no charge" spelling, because an extra character would change the encoding -- and so the generated bytecode -- of
+        // every reference in every script, including those compiled with allocation tracking off. Being optional in turn
+        // forces it to the end: symbol is variable-length and may itself begin with any letter, so a flag ahead of it could
+        // not be told apart from the symbol. Placed after numCaptures, its absence is unambiguous.
+        private static final String FORMAT = "[SD][tf]symbol.methodName,numCaptures[c]";
 
-        public Encoding(boolean isStatic, boolean needsInstance, String symbol, String methodName, int numCaptures) {
+        public Encoding(
+            boolean isStatic,
+            boolean needsInstance,
+            String symbol,
+            String methodName,
+            int numCaptures,
+            boolean chargesAllocation
+        ) {
             this.isStatic = isStatic;
             this.needsInstance = needsInstance;
             this.symbol = Objects.requireNonNull(symbol);
             this.methodName = Objects.requireNonNull(methodName);
             this.numCaptures = numCaptures;
-            this.encoding = (isStatic ? "S" : "D") + (needsInstance ? "t" : "f") + symbol + "." + methodName + "," + numCaptures;
+            this.chargesAllocation = chargesAllocation;
+            this.encoding = (isStatic ? "S" : "D")
+                + (needsInstance ? "t" : "f")
+                + symbol
+                + "."
+                + methodName
+                + ","
+                + numCaptures
+                + (chargesAllocation ? "c" : "");
 
             if ("this".equals(symbol)) {
                 if (isStatic == false) {
                     throw new IllegalArgumentException("Def.Encoding must be static if symbol is 'this', encoding [" + encoding + "]");
                 }
-            } else {
-                if (needsInstance) {
-                    throw new IllegalArgumentException(
-                        "Def.Encoding symbol must be 'this', not [" + symbol + "] if needsInstance," + " encoding [" + encoding + "]"
-                    );
-                }
             }
+            // needsInstance on a non-'this' symbol is allowed: it captures the script for a target that may be @script_aware,
+            // or that is charged under tracking (chargesAllocation says whether to charge).
 
             if (methodName.isEmpty()) {
                 throw new IllegalArgumentException("methodName must be non-empty, encoding [" + encoding + "]");
@@ -1903,7 +2101,15 @@ public final class Def {
                 );
             }
 
-            this.numCaptures = Integer.parseUnsignedInt(encoding.substring(commaIndex + 1));
+            // numCaptures is the leading digits after the comma; an optional trailing 'c' marks a charging dynamic reference.
+            String captureField = encoding.substring(commaIndex + 1);
+            if (captureField.charAt(captureField.length() - 1) == 'c') {
+                this.chargesAllocation = true;
+                captureField = captureField.substring(0, captureField.length() - 1);
+            } else {
+                this.chargesAllocation = false;
+            }
+            this.numCaptures = Integer.parseUnsignedInt(captureField);
         }
 
         @Override
@@ -1919,6 +2125,7 @@ public final class Def {
             return isStatic == encoding1.isStatic
                 && needsInstance == encoding1.needsInstance
                 && numCaptures == encoding1.numCaptures
+                && chargesAllocation == encoding1.chargesAllocation
                 && Objects.equals(symbol, encoding1.symbol)
                 && Objects.equals(methodName, encoding1.methodName)
                 && Objects.equals(encoding, encoding1.encoding);
@@ -1926,7 +2133,7 @@ public final class Def {
 
         @Override
         public int hashCode() {
-            return Objects.hash(isStatic, needsInstance, symbol, methodName, numCaptures, encoding);
+            return Objects.hash(isStatic, needsInstance, symbol, methodName, numCaptures, chargesAllocation, encoding);
         }
     }
 }

@@ -32,6 +32,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -91,6 +92,18 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
     @Before
     public void init() {
         startMasterOnlyNode();
+    }
+
+    @Override
+    protected Settings.Builder nodeSettings() {
+        // testStress generates large commits (3-5 MB). randomConcurrentMultiPartSettings can pick values as small as 1 KB threshold /
+        // 792 B part size, producing ~3000-4000 upload tasks for a shared 5-thread pool. With multiple shards uploading concurrently
+        // this overwhelms the pool, causing safeGet to exceed SAFE_AWAIT_TIMEOUT and triggering upload retries that outlive the 5-second
+        // shard lock check in assertAfterTest. Fixed values here keep the part count bounded (~20 parts for a 5 MB commit).
+        return super.nodeSettings().put(
+            ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_THRESHOLD_SIZE,
+            ByteSizeValue.of(128, ByteSizeUnit.KB)
+        ).put(ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_PART_SIZE, ByteSizeValue.of(256, ByteSizeUnit.KB));
     }
 
     public void testGet() {
@@ -285,7 +298,8 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
         var indexEngine = ((IndexEngine) indexShard.getEngineOrNull());
         var map = indexEngine.getLiveVersionMap();
-        if (randomBoolean()) {
+        final boolean forceUnsafe = randomBoolean();
+        if (forceUnsafe) {
             // Make sure the map is marked as unsafe
             indexDocs(indexName, randomIntBetween(1, 10));
             assertTrue(isUnsafe(map));
@@ -300,12 +314,18 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         assertNoFailures(bulkResponse);
         assertNotNull(get(map, "1"));
         assertTrue(getFromTranslog(indexShard, "1").getResult().isExists());
+        if (forceUnsafe) {
+            // The map was unsafe, so the get above forced a flush and the archive stays unsafe until the search shard acks that
+            // commit. A second get before the ack forces another flush, whose ack can prune "1" from the archive before the
+            // engine looks it up, making the get legitimately return null. Wait for the ack so the next get is deterministic.
+            assertBusy(() -> assertFalse(isUnsafe(map)));
+        }
         // A local refresh doesn't prune the LVM archive
         indexEngine.refresh("test");
         assertNotNull(get(map, "1"));
         assertTrue(getFromTranslog(indexShard, "1").getResult().isExists());
         final long lastUnsafeGenerationForGets = indexEngine.getLastUnsafeSegmentGenerationForGets();
-        // Create a new commit explicitly where once ack'ed by the unpronmotables we are sure the docs that were
+        // Create a new commit explicitly where once ack'ed by the unpromotables we are sure the docs that were
         // in the archive are visible on the unpromotable shards.
         indexDocs(indexName, randomIntBetween(1, 10));
         safeGet(client().admin().indices().refresh(new RefreshRequest(indexName)));
@@ -421,8 +441,6 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
             }
         } finally {
             assertThat(finalRefreshFuture.actionGet(), nullValue()); // ensure all refreshes completed with no exception
-            // TODO: Actively deleting the index until ES-8407 is resolved
-            assertAcked(client().admin().indices().prepareDelete(indexName).get(TimeValue.timeValueSeconds(10)));
         }
     }
 
@@ -538,8 +556,6 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         for (Thread thread : threads) {
             thread.join();
         }
-        // TODO: Actively deleting the index until ES-8407 is resolved
-        assertAcked(client().admin().indices().prepareDelete(indexName).get(TimeValue.timeValueSeconds(10)));
     }
 
     public void testLiveVersionMapMemoryBytesUsed() throws Exception {

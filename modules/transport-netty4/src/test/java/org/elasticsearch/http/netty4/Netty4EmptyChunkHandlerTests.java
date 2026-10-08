@@ -21,14 +21,14 @@ import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 public class Netty4EmptyChunkHandlerTests extends ESTestCase {
 
     private EmbeddedChannel channel;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initChannel() throws Exception {
         channel = new EmbeddedChannel(new Netty4EmptyChunkHandler());
         channel.config().setAutoRead(false);
     }

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157625
+summary: Stop unread Parquet row groups and pages under LIMIT. Sequential page-index preload honors the same column-path gate as coalesced preload.
+type: enhancement

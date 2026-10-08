@@ -19,6 +19,9 @@ public final class Messages {
 
     public static final String DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD =
         "A job configured with a datafeed with aggregations must set summary_count_field_name; use doc_count or suitable alternative";
+    public static final String DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD =
+        "A job configured with an ES|QL datafeed and delayed_data_check_config enabled must set "
+            + "summary_count_field_name; the field must be produced as a column by the esql_query";
     public static final String DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE = "Cannot delete datafeed [{0}] while its status is {1}";
     public static final String DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE = "Cannot update datafeed [{0}] while its status is {1}";
     public static final String DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS =
@@ -30,6 +33,41 @@ public final class Messages {
         "delayed_data_check_config: check_window [{0}] must be less than 10,000x the bucket_span [{1}]";
     public static final String DATAFEED_CONFIG_QUERY_BAD_FORMAT = "Datafeed query is not parsable";
     public static final String DATAFEED_CONFIG_AGG_BAD_FORMAT = "Datafeed aggregations are not parsable";
+    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD = "{0} cannot be used in combination with esql_query";
+    public static final String DATAFEED_CONFIG_FIELD_REQUIRES_ESQL_QUERY = "{0} can only be set when esql_query is configured";
+    public static final String DATAFEED_ESQL_REQUIRES_SOURCE_TIME_FIELD =
+        "ES|QL datafeeds require source_time_field; set the indexed timestamp field used for request range filters";
+    public static final String DATAFEED_ESQL_REQUIRES_GROUPING_INTERVAL =
+        "ES|QL datafeeds require grouping_interval; set a fixed interval equal to the job bucket_span";
+    public static final String DATAFEED_ESQL_GROUPING_INTERVAL_MUST_MATCH_BUCKET_SPAN =
+        "grouping_interval [{0}] must equal the job bucket_span [{1}]";
+    public static final String DATAFEED_ESQL_PREVIEW_UPGRADE_IN_PROGRESS =
+        "Cannot preview ES|QL datafeed [{0}] while a cluster upgrade is in progress; "
+            + "wait for every node to support ES|QL datafeeds before previewing it.";
+    public static final String DATAFEED_ESQL_PREVIEW_DISABLED =
+        "Cannot preview ES|QL datafeed [{0}] because ES|QL datafeeds are not enabled on this node.";
+    public static final String DATAFEED_ESQL_START_UPGRADE_IN_PROGRESS =
+        "Cannot start ES|QL datafeed [{0}] while a cluster upgrade is in progress; "
+            + "wait for every node to support ES|QL datafeeds before restoring or starting it.";
+    public static final String DATAFEED_ESQL_START_DISABLED =
+        "Cannot start ES|QL datafeed [{0}] because ES|QL datafeeds are not enabled on this node.";
+    public static final String DATAFEED_ESQL_CREATE_DISABLED =
+        "Cannot create ES|QL datafeed [{0}] because ES|QL datafeeds are not enabled on this node.";
+    public static final String DATAFEED_ESQL_CREATE_UPGRADE_IN_PROGRESS =
+        "Cannot create datafeed [{0}] while a cluster upgrade is in progress ({1}); "
+            + "wait for the cluster to finish upgrading and try again.";
+    public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
+        "Recreate ES|QL datafeed [{0}] to change esql_query, source_time_field, grouping_interval, indices, query, "
+            + "aggregations, scroll_size, indices_options, or runtime_mappings. The update API only supports operational "
+            + "settings: query delay, frequency, maximum empty searches, chunking, and delayed data checks.";
+    public static final String DATAFEED_ESQL_UPDATE_ADD_QUERY_NOT_ALLOWED =
+        "You cannot add [esql_query] to non-ES|QL datafeed [{0}] using the update API.";
+    public static final String DATAFEED_ESQL_UPDATE_UPGRADE_IN_PROGRESS =
+        "Cannot update datafeed [{0}] while a cluster upgrade is in progress ({1}); "
+            + "wait for the cluster to finish upgrading and try again.";
+    public static final String DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED =
+        "ES|QL datafeeds require chunking to remain enabled; grouping-interval alignment and truncation detection "
+            + "depend on it; do not set chunking_config.mode to off";
 
     public static final String DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY = "A job configured with datafeed cannot support latency";
     public static final String DATAFEED_NOT_FOUND = "No datafeed with id [{0}] exists";
@@ -96,6 +134,9 @@ public final class Messages {
         "Inconsistent {0}; ''{1}'' specified in the body differs from ''{2}'' specified as a URL argument";
     public static final String INVALID_ID = "Invalid {0}; ''{1}'' can contain lowercase alphanumeric (a-z and 0-9), hyphens or "
         + "underscores; must start and end with alphanumeric";
+    public static final String INVALID_PATH_SAFE_ID = "In a future release, {0} values that are not safe as a single filesystem path "
+        + "component will be rejected; ''{1}'' must not be empty, must not be ''.'' or ''..'', and must not contain a path separator or "
+        + "NUL character";
     public static final String INVALID_MODEL_PACKAGE_ID = "Invalid {0}; ''{1}'' is not a valid model package id";
     public static final String ID_TOO_LONG = "Invalid {0}; ''{1}'' cannot contain more than {2} characters.";
     public static final String INVALID_GROUP = "Invalid group id ''{0}''; must be non-empty string and may contain lowercase alphanumeric"
@@ -153,6 +194,13 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_CONTINUED_REALTIME = "Datafeed continued in real-time";
     public static final String JOB_AUDIT_DATAFEED_DATA_ANALYSIS_ERROR = "Datafeed is encountering errors submitting data for analysis: {0}";
     public static final String JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR = "Datafeed is encountering errors extracting data: {0}";
+    public static final String JOB_AUDIT_DATAFEED_PARENT_CIRCUIT_BREAKER =
+        "A node ran low on memory and rejected this search. This is usually transient (for example during catch-up) and needs no action. "
+            + "The failed interval was not advanced: a continuously running datafeed retries it automatically; "
+            + "a one-off lookback must be restarted. "
+            + "If this keeps recurring, narrow the datafeed''s indices or query, reduce chunking_config.time_span, "
+            + "use aggregations, or scale up the node. "
+            + "Details: {0}";
     public static final String JOB_AUDIT_DATAFEED_LOOKBACK_COMPLETED = "Datafeed lookback completed";
     public static final String JOB_AUDIT_DATAFEED_LOOKBACK_NO_DATA = "Datafeed lookback retrieved no data";
     public static final String JOB_AUDIT_DATAFEED_NO_DATA = "Datafeed has been retrieving no data for a while";
@@ -171,11 +219,31 @@ public final class Messages {
         "Skipping revocation of cloud API key [{0}] — revoke primitive not yet available";
     public static final String JOB_AUDIT_DATAFEED_CPS_KEY_REVOKED = "Internal cloud API key revoked for cross-project datafeed";
     public static final String JOB_AUDIT_DATAFEED_CPS_KEY_REVOCATION_FAILED = "Failed to revoke internal cloud API key [{0}]";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_RUNTIME_FAILURE =
+        "Internal cloud API key [{0}] failed authentication during datafeed search; it may have been revoked or expired."
+            + " Re-key by issuing a cloud-authenticated POST _ml/datafeeds/_update on this datafeed";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_RUNTIME_AUTHZ_FAILURE =
+        "Datafeed search was denied (forbidden) while using internal cloud API key [{0}];"
+            + " the key's privileges or the requesting user's cross-project access may be insufficient."
+            + " Verify the key and the datafeed owner's project privileges,"
+            + " then re-key with a cloud-authenticated update if the key is the cause";
     public static final String JOB_AUDIT_DATAFEED_CPS_KEY_CLEARED =
         "Internal cloud API key cleared on datafeed update with non-cloud credentials";
     public static final String JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED =
-        "CPS migration: project_routing defaulted to [_alias:_origin] to preserve local search scope. Use the update API to change"
-            + " the scope.";
+        "CPS migration: project_routing defaulted to [{0}] to preserve local search scope. Use the update API to change the scope.";
+    public static final String DATAFEED_SCOPE_CHANGE_REQUIRES_CLOSED_JOB =
+        "Cannot update project_routing for datafeed [{0}] while job [{1}] is {2}."
+            + " Close the job so a rollback model snapshot can be retained.";
+    public static final String DATAFEED_SCOPE_CHANGE_ROLLBACK_SNAPSHOT_DESCRIPTION =
+        "Automatic rollback snapshot retained before project_routing scope change [{0}] -> [{1}]";
+    public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGE_ROLLBACK_SNAPSHOT_RETAINED =
+        "Rollback model snapshot [{0}] retained before project_routing scope change: {1}";
+    public static final String JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED =
+        "Datafeed project_routing changed via API request: [{0}] -> [{1}]." + " Data distribution may change when the datafeed runs.";
+    public static final String JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED_SNAPSHOT_RETAINED =
+        " A rollback model snapshot was retained; review recent snapshots if detection quality degrades.";
+    public static final String JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED_NO_SNAPSHOT =
+        " Review recent model snapshots for potential rollback if detection quality degrades.";
     public static final String JOB_AUDIT_IDLE_JOB_CLOSED = "Job closed automatically during maintenance: datafeed was stopped"
         + " and no data was received for [{0}]. To change the idle timeout,"
         + " adjust the [xpack.ml.idle_job_auto_close_timeout] setting"
@@ -199,6 +267,16 @@ public final class Messages {
             + " ({1}). [{2}] buckets with anomaly score >= 75 observed since the scope change."
             + " This is likely caused by the data distribution shift."
             + " Consider reviewing model snapshots if the anomalies are not meaningful.";
+    public static final String JOB_AUDIT_DATAFEED_FIELD_TYPE_CONFLICT =
+        "Cross-project field conflict for datafeed [{0}]: field [{1}] has incompatible types across linked projects"
+            + ": {2}. Align index mappings across projects or narrow project_routing to projects with a consistent schema.";
+    public static final String DATAFEED_TIME_FIELD_TYPE_CONFLICT =
+        "Cannot run datafeed [{0}]: required time field [{1}] has conflicting types across projects in scope: {2}."
+            + " Fix mappings so [{1}] uses the same type in every project in scope, or exclude the conflicting project(s) via"
+            + " project_routing.";
+    public static final String JOB_AUDIT_DATAFEED_PROJECT_EXCLUDED_FIELD_CONFLICT =
+        "Datafeed [{0}] excluded project [{1}] from this run: required time field [{2}] has conflicting types: {3}."
+            + " Fix mappings in [{1}] to resume searching it, or remove it from project_routing.";
     public static final String JOB_AUDIT_DELETING = "Deleting job by task with id ''{0}''";
     public static final String JOB_AUDIT_DELETING_FAILED = "Error deleting job: {0}";
     public static final String JOB_AUDIT_DELETED = "Job deleted";

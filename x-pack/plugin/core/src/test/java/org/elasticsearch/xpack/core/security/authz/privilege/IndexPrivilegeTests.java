@@ -13,7 +13,6 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESTestCase;
@@ -86,20 +85,18 @@ public class IndexPrivilegeTests extends ESTestCase {
             findPrivilegesThatGrant(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME),
             equalTo(List.of("delete_view", "manage_view", "manage", "all"))
         );
-        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
-            assertThat(
-                findPrivilegesThatGrant(EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME),
-                equalTo(List.of("create_dataset", "manage_dataset", "manage", "all"))
-            );
-            assertThat(
-                findPrivilegesThatGrant(EsqlDatasetActionNames.ESQL_GET_DATASET_ACTION_NAME),
-                equalTo(List.of("read_dataset_metadata", "manage_dataset", "manage", "all"))
-            );
-            assertThat(
-                findPrivilegesThatGrant(EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME),
-                equalTo(List.of("delete_dataset", "manage_dataset", "manage", "all"))
-            );
-        }
+        assertThat(
+            findPrivilegesThatGrant(EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME),
+            equalTo(List.of("create_dataset", "manage_dataset", "manage", "all"))
+        );
+        assertThat(
+            findPrivilegesThatGrant(EsqlDatasetActionNames.ESQL_GET_DATASET_ACTION_NAME),
+            equalTo(List.of("read_dataset_metadata", "manage_dataset", "manage", "all"))
+        );
+        assertThat(
+            findPrivilegesThatGrant(EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME),
+            equalTo(List.of("delete_dataset", "manage_dataset", "manage", "all"))
+        );
 
         Predicate<IndexPrivilege> failuresOnly = p -> p.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES;
         assertThat(findPrivilegesThatGrant(TransportSearchAction.TYPE.name(), failuresOnly), equalTo(List.of("read_failure_store")));
@@ -163,27 +160,25 @@ public class IndexPrivilegeTests extends ESTestCase {
             assertThat(actual, equalTo(IndexPrivilege.MANAGE_VIEW));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
         }
-        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
-            {
-                IndexPrivilege actual = IndexPrivilege.get("create_dataset");
-                assertThat(actual, equalTo(IndexPrivilege.CREATE_DATASET));
-                assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
-            }
-            {
-                IndexPrivilege actual = IndexPrivilege.get("delete_dataset");
-                assertThat(actual, equalTo(IndexPrivilege.DELETE_DATASET));
-                assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
-            }
-            {
-                IndexPrivilege actual = IndexPrivilege.get("read_dataset_metadata");
-                assertThat(actual, equalTo(IndexPrivilege.READ_DATASET_METADATA));
-                assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
-            }
-            {
-                IndexPrivilege actual = IndexPrivilege.get("manage_dataset");
-                assertThat(actual, equalTo(IndexPrivilege.MANAGE_DATASET));
-                assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
-            }
+        {
+            IndexPrivilege actual = IndexPrivilege.get("create_dataset");
+            assertThat(actual, equalTo(IndexPrivilege.CREATE_DATASET));
+            assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
+        }
+        {
+            IndexPrivilege actual = IndexPrivilege.get("delete_dataset");
+            assertThat(actual, equalTo(IndexPrivilege.DELETE_DATASET));
+            assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
+        }
+        {
+            IndexPrivilege actual = IndexPrivilege.get("read_dataset_metadata");
+            assertThat(actual, equalTo(IndexPrivilege.READ_DATASET_METADATA));
+            assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
+        }
+        {
+            IndexPrivilege actual = IndexPrivilege.get("manage_dataset");
+            assertThat(actual, equalTo(IndexPrivilege.MANAGE_DATASET));
+            assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
         }
     }
 
@@ -504,10 +499,6 @@ public class IndexPrivilegeTests extends ESTestCase {
     }
 
     public void testDatasetPrivileges() {
-        assumeTrue(
-            "ESQL external datasources feature flag is disabled",
-            DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-        );
         final IndexPrivilege createDataset = resolvePrivilegeAndAssertSingleton(Set.of("create_dataset"));
         assertThat(createDataset.predicate.test(EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME), is(true));
         assertThat(

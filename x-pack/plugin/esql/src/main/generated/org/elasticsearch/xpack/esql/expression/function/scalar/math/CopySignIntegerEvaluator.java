@@ -73,10 +73,11 @@ public final class CopySignIntegerEvaluator implements ExpressionEvaluator {
   public IntBlock eval(int positionCount, IntBlock magnitudeBlock, DoubleBlock signBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (magnitudeBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (magnitudeBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -84,10 +85,11 @@ public final class CopySignIntegerEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (signBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (signBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -126,7 +128,7 @@ public final class CopySignIntegerEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

@@ -415,26 +415,31 @@ public class WellKnownText {
         StringReader reader = new StringReader(wkt);
         try {
             // setup the tokenizer; configured to read words w/o numbers
-            StreamTokenizer tokenizer = new StreamTokenizer(reader);
-            tokenizer.resetSyntax();
-            tokenizer.wordChars('a', 'z');
-            tokenizer.wordChars('A', 'Z');
-            tokenizer.wordChars(128 + 32, 255);
-            tokenizer.wordChars('0', '9');
-            tokenizer.wordChars('-', '-');
-            tokenizer.wordChars('+', '+');
-            tokenizer.wordChars('.', '.');
-            tokenizer.whitespaceChars(' ', ' ');
-            tokenizer.whitespaceChars('\t', '\t');
-            tokenizer.whitespaceChars('\r', '\r');
-            tokenizer.whitespaceChars('\n', '\n');
-            tokenizer.commentChar('#');
+            StreamTokenizer tokenizer = newTokenizer(reader);
             Geometry geometry = parseGeometry(tokenizer, coerce, 0);
             validator.validate(geometry);
             return geometry;
         } finally {
             reader.close();
         }
+    }
+
+    static StreamTokenizer newTokenizer(StringReader reader) {
+        StreamTokenizer tokenizer = new StreamTokenizer(reader);
+        tokenizer.resetSyntax();
+        tokenizer.wordChars('a', 'z');
+        tokenizer.wordChars('A', 'Z');
+        tokenizer.wordChars(128 + 32, 255);
+        tokenizer.wordChars('0', '9');
+        tokenizer.wordChars('-', '-');
+        tokenizer.wordChars('+', '+');
+        tokenizer.wordChars('.', '.');
+        tokenizer.whitespaceChars(' ', ' ');
+        tokenizer.whitespaceChars('\t', '\t');
+        tokenizer.whitespaceChars('\r', '\r');
+        tokenizer.whitespaceChars('\n', '\n');
+        tokenizer.commentChar('#');
+        return tokenizer;
     }
 
     /**
@@ -460,7 +465,7 @@ public class WellKnownText {
         return geometry;
     }
 
-    private static void checkZorMAttribute(boolean isExplicitlySpecifiesZorM, boolean hasZ) {
+    static void checkZorMAttribute(boolean isExplicitlySpecifiesZorM, boolean hasZ) {
         if (isExplicitlySpecifiesZorM && hasZ == false) {
             throw new IllegalArgumentException(
                 "When specifying 'Z' or 'M', coordinates must include three values. Only two coordinates were provided"
@@ -500,7 +505,7 @@ public class WellKnownText {
         return pt;
     }
 
-    private static void parseCoordinates(StreamTokenizer stream, ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts)
+    static void parseCoordinates(StreamTokenizer stream, ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts)
         throws IOException, ParseException {
         parseCoordinate(stream, lats, lons, alts);
         while (nextCloserOrComma(stream).equals(COMMA)) {
@@ -508,7 +513,7 @@ public class WellKnownText {
         }
     }
 
-    private static void parseCoordinate(StreamTokenizer stream, ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts)
+    static void parseCoordinate(StreamTokenizer stream, ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts)
         throws IOException, ParseException {
         lons.add(nextNumber(stream));
         lats.add(nextNumber(stream));
@@ -614,7 +619,7 @@ public class WellKnownText {
      * Treats supplied arrays as coordinates of a linear ring. If the ring is not closed and coerce is set to true,
      * the first set of coordinates (lat, lon and alt if available) are added to the end of the arrays.
      */
-    private static void closeLinearRingIfCoerced(ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts, boolean coerce) {
+    static void closeLinearRingIfCoerced(ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts, boolean coerce) {
         if (coerce && lats.isEmpty() == false && lons.isEmpty() == false) {
             int last = lats.size() - 1;
             if (lats.get(0).equals(lats.get(last)) == false
@@ -677,7 +682,7 @@ public class WellKnownText {
     /**
      * next word in the stream
      */
-    private static String nextWord(StreamTokenizer stream) throws ParseException, IOException {
+    static String nextWord(StreamTokenizer stream) throws ParseException, IOException {
         switch (stream.nextToken()) {
             case StreamTokenizer.TT_WORD:
                 final String word = stream.sval;
@@ -692,7 +697,7 @@ public class WellKnownText {
         throw new ParseException("expected word but found: " + tokenString(stream), stream.lineno());
     }
 
-    private static double nextNumber(StreamTokenizer stream) throws IOException, ParseException {
+    static double nextNumber(StreamTokenizer stream) throws IOException, ParseException {
         if (stream.nextToken() == StreamTokenizer.TT_WORD) {
             if (stream.sval.equalsIgnoreCase(NAN)) {
                 return Double.NaN;
@@ -707,7 +712,7 @@ public class WellKnownText {
         throw new ParseException("expected number but found: " + tokenString(stream), stream.lineno());
     }
 
-    private static String tokenString(StreamTokenizer stream) {
+    static String tokenString(StreamTokenizer stream) {
         return switch (stream.ttype) {
             case StreamTokenizer.TT_WORD -> stream.sval;
             case StreamTokenizer.TT_EOF -> EOF;
@@ -717,13 +722,13 @@ public class WellKnownText {
         };
     }
 
-    private static boolean isNumberNext(StreamTokenizer stream) throws IOException {
+    static boolean isNumberNext(StreamTokenizer stream) throws IOException {
         final int type = stream.nextToken();
         stream.pushBack();
         return type == StreamTokenizer.TT_WORD;
     }
 
-    private static boolean isZOrMNext(StreamTokenizer stream) {
+    static boolean isZOrMNext(StreamTokenizer stream) {
         String token;
         try {
             token = nextWord(stream);
@@ -738,7 +743,7 @@ public class WellKnownText {
 
     }
 
-    private static String nextEmptyOrOpen(StreamTokenizer stream) throws IOException, ParseException {
+    static String nextEmptyOrOpen(StreamTokenizer stream) throws IOException, ParseException {
         final String next = nextWord(stream);
         if (next.equals(EMPTY) || next.equals(LPAREN)) {
             return next;
@@ -746,28 +751,28 @@ public class WellKnownText {
         throw new ParseException("expected " + EMPTY + " or " + LPAREN + " but found: " + tokenString(stream), stream.lineno());
     }
 
-    private static String nextCloser(StreamTokenizer stream) throws IOException, ParseException {
+    static String nextCloser(StreamTokenizer stream) throws IOException, ParseException {
         if (nextWord(stream).equals(RPAREN)) {
             return RPAREN;
         }
         throw new ParseException("expected " + RPAREN + " but found: " + tokenString(stream), stream.lineno());
     }
 
-    private static String nextComma(StreamTokenizer stream) throws IOException, ParseException {
+    static String nextComma(StreamTokenizer stream) throws IOException, ParseException {
         if (nextWord(stream).equals(COMMA)) {
             return COMMA;
         }
         throw new ParseException("expected " + COMMA + " but found: " + tokenString(stream), stream.lineno());
     }
 
-    private static String nextOpener(StreamTokenizer stream) throws IOException, ParseException {
+    static String nextOpener(StreamTokenizer stream) throws IOException, ParseException {
         if (nextWord(stream).equals(LPAREN)) {
             return LPAREN;
         }
         throw new ParseException("expected " + LPAREN + " but found: " + tokenString(stream), stream.lineno());
     }
 
-    private static String nextCloserOrComma(StreamTokenizer stream) throws IOException, ParseException {
+    static String nextCloserOrComma(StreamTokenizer stream) throws IOException, ParseException {
         String token = nextWord(stream);
         if (token.equals(COMMA) || token.equals(RPAREN)) {
             return token;

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -31,7 +32,12 @@ import java.util.List;
 /**
  * Similar to {@link Percentile}, but it is used to calculate the percentile value over a time series of values from the given field.
  */
-public class PercentileOverTime extends TimeSeriesAggregateFunction implements SurrogateExpression, TimestampAware, ToAggregator {
+public class PercentileOverTime extends TimeSeriesAggregateFunction
+    implements
+        SurrogateExpression,
+        TimestampAware,
+        ToAggregator,
+        AnyNullIsNull {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(PercentileOverTime.class)
         .ternary(PercentileOverTime::new)
         .name("percentile_over_time");
@@ -48,6 +54,8 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements S
         )
         .description("Returns the φ-quantile (0 ≤ φ ≤ 1) of the values in the specified time range.")
         .example("quantile_over_time(0.5, http_requests_total[1h])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.QUANTILE_APPROXIMATION_NOTE)
         .name("quantile_over_time");
 
     private final Expression timestamp;
@@ -72,26 +80,27 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements S
         @Param(
             name = "percentile",
             type = { "double", "integer", "long" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "the percentile value to compute (between 0 and 100)"
         ) Expression percentile,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, percentile, timestamp);
+        this(source, field, timestamp, Literal.TRUE, NO_WINDOW, percentile);
     }
 
     public PercentileOverTime(Source source, Expression field, Expression percentile, Expression window, Expression timestamp) {
-        this(source, field, Literal.TRUE, window, percentile, timestamp);
+        this(source, field, timestamp, Literal.TRUE, window, percentile);
     }
 
     public PercentileOverTime(
         Source source,
         Expression field,
+        Expression timestamp,
         Expression filter,
         Expression window,
-        Expression percentile,
-        Expression timestamp
+        Expression percentile
     ) {
-        super(source, field, filter, window, List.of(percentile, timestamp));
+        super(source, List.of(field, timestamp), filter, window, List.of(percentile));
         this.timestamp = timestamp;
     }
 
@@ -104,7 +113,7 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements S
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return perTimeSeriesAggregation().resolveType();
+        return perTimeSeriesAggregation().typeResolved();
     }
 
     @Override
@@ -114,7 +123,7 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements S
 
     @Override
     protected NodeInfo<PercentileOverTime> info() {
-        return NodeInfo.create(this, PercentileOverTime::new, field(), filter(), window(), percentile(), timestamp);
+        return NodeInfo.create(this, PercentileOverTime::new, field(), timestamp, filter(), window(), percentile());
     }
 
     @Override
@@ -130,11 +139,6 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements S
     }
 
     @Override
-    public PercentileOverTime withFilter(Expression filter) {
-        return new PercentileOverTime(source(), field(), filter, window(), percentile(), timestamp);
-    }
-
-    @Override
     public AggregatorFunctionSupplier supplier() {
         return ((ToAggregator) perTimeSeriesAggregation()).supplier();
     }
@@ -142,7 +146,7 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements S
     @Override
     public Expression surrogate() {
         if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
-            var mergeOverTime = new HistogramMergeOverTime(source(), field(), filter(), window(), timestamp);
+            var mergeOverTime = new HistogramMergeOverTime(source(), field(), timestamp, filter(), window());
             return new HistogramPercentile(source(), mergeOverTime, percentile());
         }
         return null;

@@ -34,7 +34,7 @@ public final class ExternalSourceCacheSettings {
      */
     public static final Setting<ByteSizeValue> CACHE_SIZE_OLD = Setting.memorySizeSetting(
         "esql.source.cache.size",
-        "0.4%",
+        "0.5%",
         Setting.Property.DeprecatedWarning,
         Setting.Property.NodeScope
     );

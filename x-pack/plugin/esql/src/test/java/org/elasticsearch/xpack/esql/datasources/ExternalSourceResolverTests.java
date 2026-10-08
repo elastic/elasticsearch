@@ -6093,7 +6093,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // than trusted, so a reshare of the slices fails here with a figure instead of as an eviction.
         long schemaBudget = entryBytes * 2;
         Settings settings = Settings.builder()
-            .put("esql.external.cache.size", (entryBytes * 25) + "b")
+            .put("esql.external.cache.size", (entryBytes * 13) + "b")
             .put("esql.external.cache.enabled", true)
             .put("esql.external.cache.listing.ttl", "30s")
             .build();

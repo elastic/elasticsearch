@@ -262,9 +262,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 long schema = (long) stats.get("schema_budget_bytes");
                 long statistics = (long) stats.get("statistics_budget_bytes");
                 assertEquals(ByteSizeValue.ofMb(10).getBytes(), total);
-                // The two identity slices still total a fifth, which is what keeps this change from retuning
-                // how much the cache spends on identity overall.
-                assertEquals("the identity slices together are unchanged at a fifth", total / 5, schema + statistics);
+                // Each store keeps the absolute budget it had before the split and CACHE_SIZE grew by the new
+                // consumer, so the identity pair is deliberately MORE than the old fifth: the schema slice is
+                // the fifth that fan-out admission is sized against (SchemaFanOutAdmission#tryAdmit reads a
+                // COLD record, which never carried measurements), and statistics is funded on top of it.
+                assertEquals("the schema slice keeps its pre-split ABSOLUTE size", total * 4 / 25, schema);
+                assertEquals("statistics is funded on top, not carved out of schema", total * 17 / 100, statistics);
                 // Measurements get the larger share: for a text file with harvested extrema the _stats.* map
                 // outweighs the schema it was measured against, several stat keys per column against one name.
                 assertThat("measurements are the heavier half", statistics, greaterThan(schema));
@@ -3876,7 +3879,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * the schema slice is overrun and the seeded records are evicted.
      */
     public void testSchemaRecordsSurviveTheWeightOfTheirOwnMeasurements() throws Exception {
-        Settings settings = Settings.builder().put("esql.external.cache.size", "1mb").put("esql.external.cache.enabled", true).build();
+        Settings settings = Settings.builder().put("esql.external.cache.size", "512kb").put("esql.external.cache.enabled", true).build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
             int files = 40;
             int columns = 60;

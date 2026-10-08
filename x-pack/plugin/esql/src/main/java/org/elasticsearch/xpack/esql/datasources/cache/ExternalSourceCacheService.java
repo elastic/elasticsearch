@@ -185,19 +185,18 @@ public class ExternalSourceCacheService implements Closeable {
 
         TimeValue listingTtl = ExternalSourceCacheSettings.LISTING_TTL.get(settings);
 
-        // Per-file schema stays at its established 20%; the dataset-aggregate cache gets a small dedicated
-        // slice carved from listing (each dataset entry is a single row count — kilobytes suffice — so its
-        // exact size barely matters; what matters is that it is ITS OWN slice, immune to per-file churn).
-        // The identity caches take 20% between them, as before, now split by kind of fact. Statistics get the
-        // larger share: for a text file with harvested extrema the _stats.* map outweighs the schema it was
-        // measured against, several stat keys per column against one column name.
-        // The identity slices still total a fifth between them; statistics take the remainder so the two sum
-        // exactly, rather than each flooring its own percentage and losing a byte.
-        long identityBudget = maxTotalBytes / 5;             // 20%, as before the split
-        long schemaBudget = identityBudget * 2 / 5;          // 8% of the total
-        long statisticsBudget = identityBudget - schemaBudget; // 12% of the total, and the exact remainder
-        long datasetAggregateBudget = maxTotalBytes / 50;    // 2%
-        long listingBudget = maxTotalBytes - schemaBudget - statisticsBudget - datasetAggregateBudget; // ~78%
+        // The statistics store is a NEW consumer, not a share of an existing one. Before the split those
+        // bytes sat inside the schema record and were charged to the schema slice — but a COLD record never
+        // carried them, and the fan-out admission gate (SchemaFanOutAdmission#tryAdmit) sizes a glob against
+        // the schema budget using exactly that cold record. So funding statistics out of the schema slice
+        // halves how many files a dataset may have before NOTHING is cached for it, and the "entries are
+        // smaller now" argument buys nothing at admission time. Each store therefore keeps the absolute
+        // budget it had, and CACHE_SIZE grew by the new consumer instead: at every heap size the schema,
+        // statistics, dataset-aggregate and listing slices are all at least as large as before the split.
+        long schemaBudget = maxTotalBytes * 4 / 25;          // 16%: the same ABSOLUTE slice as before the split
+        long statisticsBudget = maxTotalBytes * 17 / 100;    // 17%: the heavier half, as the measurements are
+        long datasetAggregateBudget = maxTotalBytes / 50;    // 2%: one row count per dataset, its own slice
+        long listingBudget = maxTotalBytes - schemaBudget - statisticsBudget - datasetAggregateBudget; // 65%
         // Each store refuses a single entry heavier than its own per-entry ceiling, so one oversized harvest
         // cannot admit-then-flush that store's working set. See WeightedStore#perEntryCeiling.
 

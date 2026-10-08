@@ -171,8 +171,13 @@ public abstract class ConstantFieldType extends MappedFieldType {
         SearchExecutionContext context,
         String description
     ) {
+        var value = getConstantFieldValue(context);
+        if (value == null) {
+            return new MatchNoDocsQuery();
+        }
+
         CharacterRunAutomaton compiled = characterRunAutomatonSupplier.get();
-        boolean matches = compiled.run(getConstantFieldValue(context));
+        boolean matches = compiled.run(value);
         if (matches) {
             return new MatchAllDocsQuery();
         } else {
@@ -180,5 +185,9 @@ public abstract class ConstantFieldType extends MappedFieldType {
                 "The \"" + context.getFullyQualifiedIndex().getName() + "\" query was rewritten to a \"match_none\" query."
             );
         }
+    }
+
+    public ConstantFieldType applyFieldVisibility(boolean visible) {
+        return this;
     }
 }

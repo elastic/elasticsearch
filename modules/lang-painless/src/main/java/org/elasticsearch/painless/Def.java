@@ -681,6 +681,52 @@ public final class Def {
      * @throws IllegalArgumentException if no matching whitelisted field was found.
      */
     static MethodHandle lookupGetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
+        return lookupGetter(painlessLookup, receiverClass, name, false);
+    }
+
+    /**
+     * Looks up a getter for a def load. When {@code scriptPushed} the call site passes the script instance after the receiver:
+     * a {@code @script_aware} getter takes it first, any other getter drops it, and a getter with an {@code @allocates}
+     * estimator charges it before the read.
+     */
+    static MethodHandle lookupGetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name, boolean scriptPushed) {
+        MethodHandle getter = lookupGetterInternal(painlessLookup, receiverClass, name);
+        MethodType type = getter.type();
+        boolean takesScript = type.parameterCount() == 2 && type.parameterType(0) == PainlessScript.class;
+
+        if (takesScript) {
+            if (scriptPushed == false) {
+                throw new IllegalArgumentException(
+                    "dynamic getter [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "] needs the script instance"
+                );
+            }
+            MethodType swapped = MethodType.methodType(type.returnType(), type.parameterType(1), PainlessScript.class);
+            getter = MethodHandles.permuteArguments(getter, swapped, 1, 0);
+        } else if (scriptPushed) {
+            getter = MethodHandles.dropArguments(getter, 1, PainlessScript.class);
+        }
+
+        if (scriptPushed) {
+            Method estimator = lookupGetterAllocationEstimator(painlessLookup, receiverClass, name);
+            if (estimator != null) {
+                getter = chargeAllocationBeforeCall(getter, estimator, new Object[0], takesScript);
+            }
+        }
+
+        return getter;
+    }
+
+    /** The {@code @allocates} estimator of the getter behind the shortcut {@code name} on {@code receiverClass}, or null. */
+    private static Method lookupGetterAllocationEstimator(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
+        if (name.isEmpty()) {
+            return null;
+        }
+        String suffix = Character.toUpperCase(name.charAt(0)) + name.substring(1);
+        Method estimator = painlessLookup.lookupRuntimeAllocationEstimator(receiverClass, "get" + suffix, 0);
+        return estimator != null ? estimator : painlessLookup.lookupRuntimeAllocationEstimator(receiverClass, "is" + suffix, 0);
+    }
+
+    private static MethodHandle lookupGetterInternal(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
         MethodHandle getter = painlessLookup.lookupRuntimeGetterMethodHandle(receiverClass, name);
 
@@ -807,21 +853,42 @@ public final class Def {
     /**
      * Returns a method handle to do an array load.
      * @param receiverClass Class of the array to load the value from
+     * @param scriptPushed whether the call site passes the script instance after the index. A list whose {@code get(int)} carries
+     *   an {@code @allocates} estimator then charges it before the read; anything else drops the script.
      * @return a MethodHandle that accepts the receiver as first argument, the index as second argument.
      *   It returns the loaded value.
      */
-    static MethodHandle lookupArrayLoad(Class<?> receiverClass) {
+    static MethodHandle lookupArrayLoad(PainlessLookup painlessLookup, Class<?> receiverClass, boolean scriptPushed) {
+        MethodHandle load;
         if (receiverClass.isArray()) {
-            return MethodHandles.arrayElementGetter(receiverClass);
+            load = MethodHandles.arrayElementGetter(receiverClass);
         } else if (Map.class.isAssignableFrom(receiverClass)) {
             // maps allow access like mymap[key]
-            return MAP_GET;
+            load = MAP_GET;
         } else if (List.class.isAssignableFrom(receiverClass)) {
-            return LIST_GET;
+            load = LIST_GET;
+        } else {
+            throw new IllegalArgumentException(
+                "Attempting to address a non-array type " + "[" + receiverClass.getCanonicalName() + "] as an array."
+            );
         }
-        throw new IllegalArgumentException(
-            "Attempting to address a non-array type " + "[" + receiverClass.getCanonicalName() + "] as an array."
+
+        if (scriptPushed == false) {
+            return load;
+        }
+        Method estimator = load == LIST_GET ? painlessLookup.lookupRuntimeAllocationEstimator(receiverClass, "get", 1) : null;
+        if (estimator == null) {
+            return MethodHandles.dropArguments(load, 2, PainlessScript.class);
+        }
+        // Charge with the script between receiver and index, the shape chargeAllocationBeforeCall expects, then put it last.
+        MethodHandle charged = chargeAllocationBeforeCall(
+            MethodHandles.dropArguments(load, 1, PainlessScript.class),
+            estimator,
+            new Object[0],
+            false
         );
+        MethodType type = load.type().appendParameterTypes(PainlessScript.class);
+        return MethodHandles.permuteArguments(charged, type, 0, 2, 1);
     }
 
     private static ClassCastException castException(Class<?> sourceClass, Class<?> targetClass, Boolean implicit) {

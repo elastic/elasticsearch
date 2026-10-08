@@ -509,4 +509,26 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
         Object result = compile("def opt = Optional.empty(); return ((List) opt.orElseGet(ArrayList::new)).size();", "-1b").execute();
         assertEquals(0, result);
     }
+
+    public void testDefCallToAllocatingMethodInsideTypedLambdaCharged() {
+        // A def call gated only by @allocates inside a typed lambda: the lambda captures the script and the call is charged.
+        // Without the capture this failed to compile ("no 'this' pointer within static method") whenever tracking was on.
+        long withCall = allocatedBytes("def s = 'abcdef'; Optional.of(1).map(x -> s.substring(0, 3)); return 'x';");
+        long withoutCall = allocatedBytes("def s = 'abcdef'; Optional.of(1).map(x -> s.length()); return 'x';");
+        assertEquals(AllocationEstimators.substringBytes("abcdef", 0, 3), withCall - withoutCall);
+    }
+
+    public void testTypedStreamLambdaWithDefCallRunsUnderTracking() {
+        // Common ingest shape: a typed list streamed through a lambda whose def parameter calls an annotated method.
+        String source = "List l = ['a', 'b']; return l.stream().map(t -> t.toUpperCase()).collect(Collectors.toList());";
+        assertEquals(List.of("A", "B"), compile(source, MAX_ALLOCATION_BYTES_DISABLED).execute());
+        assertEquals(List.of("A", "B"), compile(source, "1mb").execute());
+    }
+
+    public void testUserFunctionWithDefCallRunsUnderTracking() {
+        // User functions get the script pointer their own way; this pins that a def call inside one still compiles and runs.
+        String source = "def f(def s) { return s.toUpperCase(); } return f('a');";
+        assertEquals("A", compile(source, MAX_ALLOCATION_BYTES_DISABLED).execute());
+        assertEquals("A", compile(source, "1mb").execute());
+    }
 }

@@ -71,15 +71,22 @@ public class DefOptimizationTests extends ScriptTestCase {
         assertEquals(1, exec(script));
     }
 
+    // get(Object) is the name of a @script_aware doc value read, so a def get call site also carries the script instance.
     public void testIntCall0Opti() {
         final String script = "int x; def y = new HashMap(); y['int'] = 1; x = y.get('int'); return x;";
-        assertBytecodeExists(script, "INVOKEDYNAMIC get(Ljava/lang/Object;Ljava/lang/String;)I");
+        assertBytecodeExists(
+            script,
+            "INVOKEDYNAMIC get(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;Ljava/lang/String;)I"
+        );
         assertEquals(1, exec(script));
     }
 
     public void testIntCall1Opti() {
         final String script = "int x; def y = new HashMap(); y['int'] = 1; x = y.get('int');";
-        assertBytecodeExists(script, "INVOKEDYNAMIC get(Ljava/lang/Object;Ljava/lang/String;)I");
+        assertBytecodeExists(
+            script,
+            "INVOKEDYNAMIC get(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;Ljava/lang/String;)I"
+        );
         assertEquals(1, exec(script));
     }
 
@@ -150,19 +157,28 @@ public class DefOptimizationTests extends ScriptTestCase {
 
     public void testDoubleCall0Opti() {
         final String script = "double x; def y = new HashMap(); y['double'] = 1.0; x = y.get('double'); return x;";
-        assertBytecodeExists(script, "INVOKEDYNAMIC get(Ljava/lang/Object;Ljava/lang/String;)D");
+        assertBytecodeExists(
+            script,
+            "INVOKEDYNAMIC get(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;Ljava/lang/String;)D"
+        );
         assertEquals(1.0, exec(script));
     }
 
     public void testDoubleCall1Opti() {
         final String script = "double x; def y = new HashMap(); y['double'] = 1.0; x = y.get('double');";
-        assertBytecodeExists(script, "INVOKEDYNAMIC get(Ljava/lang/Object;Ljava/lang/String;)D");
+        assertBytecodeExists(
+            script,
+            "INVOKEDYNAMIC get(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;Ljava/lang/String;)D"
+        );
         assertEquals(1.0, exec(script));
     }
 
     public void testIllegalCast() {
         final String script = "int x;\ndef y = new HashMap();\ny['double'] = 1.0;\nx = y.get('double');\n";
-        assertBytecodeExists(script, "INVOKEDYNAMIC get(Ljava/lang/Object;Ljava/lang/String;)I");
+        assertBytecodeExists(
+            script,
+            "INVOKEDYNAMIC get(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;Ljava/lang/String;)I"
+        );
 
         final Exception exception = expectScriptThrows(ClassCastException.class, () -> { exec(script); });
         assertTrue(exception.getMessage().contains("Cannot cast java.lang.Double to java.lang.Integer"));

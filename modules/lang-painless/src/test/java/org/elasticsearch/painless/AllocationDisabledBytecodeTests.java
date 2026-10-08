@@ -268,4 +268,27 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         assertThat(asm, not(containsString("AllocationEstimators")));
         assertThat(asm, not(containsString("sanitizeEstimate")));
     }
+
+    public void testDefGetterLoadPassesScriptOnlyWhenTracking() {
+        // getLats() carries an @allocates estimator, so a def load of .lats passes the script only when tracking is on.
+        String off = bytecode("def g = null; def a = g.lats; return 1;", -1L);
+        assertThat(off, containsString("lats(Ljava/lang/Object;)Ljava/lang/Object;"));
+        assertThat(off, not(containsString("$checkAllocBytes")));
+        String on = bytecode("def g = null; def a = g.lats; return 1;", 1024 * 1024L);
+        assertThat(on, containsString("lats(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;)Ljava/lang/Object;"));
+    }
+
+    public void testDefBracketLoadPassesScriptOnlyWhenTrackingAndNotForStringKeys() {
+        // A def bracket read may hit a list get(int) with an estimator, so it passes the script only when tracking is on. A String
+        // index can only be a map key and never passes it.
+        String off = bytecode("def l = params.l; def v = l[0]; return 1;", -1L);
+        assertThat(off, containsString("arrayLoad(Ljava/lang/Object;I)Ljava/lang/Object;"));
+        String on = bytecode("def l = params.l; def v = l[0]; return 1;", 1024 * 1024L);
+        assertThat(
+            on,
+            containsString("arrayLoad(Ljava/lang/Object;ILorg/elasticsearch/painless/PainlessScript$Script;)Ljava/lang/Object;")
+        );
+        String key = bytecode("def m = params; def v = m['k']; return 1;", 1024 * 1024L);
+        assertThat(key, containsString("arrayLoad(Ljava/lang/Object;Ljava/lang/String;)Ljava/lang/Object;"));
+    }
 }

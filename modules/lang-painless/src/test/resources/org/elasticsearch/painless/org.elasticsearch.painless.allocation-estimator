@@ -20,6 +20,7 @@ class org.elasticsearch.painless.AllocationEstimatorTestObject {
   int hugeAllocatingInstance() @allocates[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="hugeEstimateInstance"]
   int constantBoxed(Integer) @allocates[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="constantBoxedEstimate"]
   int dynamicBoxed(Integer) @allocates[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="boxedEstimate"]
+  int getEstimatedValue() @allocates[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="estimatedValueEstimate"]
 }
 
 # Annotations live on the interface; the implementation allowlists the same methods unannotated. A def call resolves to the

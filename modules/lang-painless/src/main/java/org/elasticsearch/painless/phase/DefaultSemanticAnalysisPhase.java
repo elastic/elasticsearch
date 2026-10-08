@@ -73,6 +73,7 @@ import org.elasticsearch.painless.node.SReturn;
 import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
+import org.elasticsearch.painless.spi.annotation.AllocatesAnnotation;
 import org.elasticsearch.painless.spi.annotation.DynamicTypeAnnotation;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
@@ -2683,6 +2684,50 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
      * getter/setter method on a type, or a getter/setter for a Map or List.
      * Checks: type validation, method resolution, field resolution
      */
+    /**
+     * Whether a def call to {@code methodName} with {@code argumentCount} arguments must pass the script instance: some
+     * allowlisted method of that shape is {@code @script_aware}, or, with tracking on, {@code @allocates}. The receiver is
+     * unknown here, so this goes by name and arity. The semantic phase uses it to make an enclosing lambda capture the
+     * script, and the IR phase to push it at the call site, so both must agree.
+     */
+    static boolean defCallNeedsScript(ScriptScope scriptScope, String methodName, int argumentCount) {
+        PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
+        return painlessLookup.hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName, argumentCount)
+            || (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
+                && painlessLookup.hasAnnotationAwareMethod(AllocatesAnnotation.class, methodName, argumentCount));
+    }
+
+    /**
+     * Whether a def load of the shortcut {@code name} must pass the script instance: some allowlisted class has a
+     * {@code @script_aware} getter for it, or tracking is on and some class has a getter for it with an {@code @allocates}
+     * estimator to charge.
+     */
+    static boolean defGetterNeedsScript(ScriptScope scriptScope, String name) {
+        PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
+        return hasAnnotatedGetter(painlessLookup, ScriptAwareAnnotation.class, name)
+            || (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
+                && hasAnnotatedGetter(painlessLookup, AllocatesAnnotation.class, name));
+    }
+
+    /**
+     * Whether a def bracket read with an index of {@code indexType} must pass the script instance: tracking is on and some
+     * allowlisted class has a {@code get(int)} with an {@code @allocates} estimator. A String index can only be a map key.
+     */
+    static boolean defBraceLoadNeedsScript(ScriptScope scriptScope, Class<?> indexType) {
+        return indexType != String.class
+            && scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
+            && scriptScope.getPainlessLookup().hasAnnotationAwareMethod(AllocatesAnnotation.class, "get", 1);
+    }
+
+    private static boolean hasAnnotatedGetter(PainlessLookup painlessLookup, Class<?> annotationType, String name) {
+        if (name.isEmpty()) {
+            return false;
+        }
+        String suffix = Character.toUpperCase(name.charAt(0)) + name.substring(1);
+        return painlessLookup.hasAnnotationAwareMethod(annotationType, "get" + suffix, 0)
+            || painlessLookup.hasAnnotationAwareMethod(annotationType, "is" + suffix, 0);
+    }
+
     @Override
     public void visitDot(EDot userDotNode, SemanticScope semanticScope) {
         boolean read = semanticScope.getCondition(userDotNode, Read.class);
@@ -2803,6 +2848,11 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     if (write) {
                         semanticScope.setCondition(userDotNode, DefOptimized.class);
                     }
+
+                    // A def load may resolve to a getter that needs the script instance: @script_aware, or @allocates under tracking.
+                    if (read && defGetterNeedsScript(scriptScope, index)) {
+                        semanticScope.setUsesInstanceMethod();
+                    }
                 } else {
                     Class<?> prefixType;
                     String prefixCanonicalTypeName;
@@ -2887,6 +2937,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
                             if (getter != null) {
                                 semanticScope.putDecoration(userDotNode, new GetterPainlessMethod(getter));
+
+                                if (getter.annotations().containsKey(ScriptAwareAnnotation.class)) {
+                                    semanticScope.setUsesInstanceMethod();
+                                }
                             }
 
                             if (setter != null) {
@@ -3079,6 +3133,12 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
             if (write) {
                 semanticScope.setCondition(userBraceNode, DefOptimized.class);
+            }
+
+            // A def bracket read may resolve to a list get(int) with an estimator, which needs the script instance.
+            Class<?> indexValueType = semanticScope.getDecoration(userIndexNode, ValueType.class).valueType();
+            if (defBraceLoadNeedsScript(semanticScope.getScriptScope(), indexValueType)) {
+                semanticScope.setUsesInstanceMethod();
             }
         } else if (Map.class.isAssignableFrom(prefixValueType)) {
             String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType);
@@ -3322,9 +3382,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
             semanticScope.setCondition(userCallNode, DynamicInvocation.class);
 
-            if (semanticScope.getScriptScope()
-                .getPainlessLookup()
-                .hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName, userArgumentsSize)) {
+            // The call site pushes the script under the same rule, so an enclosing lambda must capture it.
+            if (defCallNeedsScript(semanticScope.getScriptScope(), methodName, userArgumentsSize)) {
                 semanticScope.setUsesInstanceMethod();
             }
         } else {

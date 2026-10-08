@@ -89,18 +89,20 @@ public class ES93BFloat16FlatVectorsReaderMergeTests extends ESTestCase {
         }
     }
 
-    public void testOnlyOneMergeAtATime() throws IOException {
+    /** A merge takes a merge instance per field, so fields sharing a reader each open the file and close their own. */
+    public void testMergeInstancesOfOneMergeEachOpenTheirOwn() throws IOException {
         try (Directory base = newDirectory()) {
             TrackingDirectory dir = new TrackingDirectory(base);
-            writeSegment(base);
+            float[][] vectors = writeSegment(base);
             try (FlatVectorsReader reader = openReader(dir, randomAccess())) {
-                FlatVectorsReader merge = reader.getMergeInstance();
-                try {
-                    expectThrows(AssertionError.class, reader::getMergeInstance);
-                } finally {
-                    merge.finishMerge();
-                }
-                reader.getMergeInstance().finishMerge();
+                FlatVectorsReader first = reader.getMergeInstance();
+                FlatVectorsReader second = reader.getMergeInstance();
+                assertThat(dir.mergeOpens, hasSize(2));
+                first.finishMerge();
+                assertThat(dir.mergeCloses.get(), equalTo(1));
+                assertVectors(vectors, second);
+                second.finishMerge();
+                assertThat(dir.mergeCloses.get(), equalTo(2));
             }
         }
     }

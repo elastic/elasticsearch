@@ -371,9 +371,11 @@ public interface FormatReader extends Closeable {
      * <p>
      * The planner calls this when it must infer the schema of every file in a listing ({@code union_by_name},
      * {@code strict}). Without it, planning reads {@code files x sample} rows, which for a listing of many small files
-     * is the whole dataset. With it, planning reads about one sample's worth, at least
-     * {@link #MIN_SHARED_SCHEMA_SAMPLE_SIZE} rows per file. The cost is the one any sample has: a column or a value that
-     * only appears past a file's share is not seen at planning.
+     * is the whole dataset. With it, planning reads about one sample's worth, or {@link #MIN_SHARED_SCHEMA_SAMPLE_SIZE}
+     * rows from every file once there are more files than the sample has such shares (for the default CSV sample,
+     * from a few hundred files on). The total still grows with the file count, by a floor's worth per file rather than
+     * a sample's. The cost is the one any sample has: a column or a value that only appears past a file's share is not
+     * seen at planning.
      * <p>
      * The narrower sample decides only how much of a file planning reads, so it must not change
      * {@link Configured#identity()}: that string is also the fingerprint a data node stamps on the statistics it

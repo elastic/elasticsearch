@@ -2857,7 +2857,8 @@ public class ExternalSourceResolver {
     /**
      * How many files share one schema sample when every file of a {@code fileCount}-file listing must be inferred
      * (see {@link FormatReader#withSchemaSampleShare}): the smallest power of two not below {@code fileCount}, so the
-     * total sampled stays within one sample (plus each file's floor).
+     * total sampled stays within one sample until the share reaches the per-file floor, and is the floor times the
+     * file count past that.
      * <p>
      * Rounded up rather than exact because the effective sample size is part of each file's schema-cache key: the
      * file count moves with every file added and with how a query's filters prune the listing, and an exact share

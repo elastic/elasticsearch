@@ -108,6 +108,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -131,6 +132,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.hamcrest.Matchers.containsString;
@@ -141,6 +143,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
@@ -9830,6 +9833,112 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertThat(read, lessThan(files.size() * (long) payload.length / 2));
     }
 
+    /**
+     * The listing shape of esql-planning#2236: far more files than the sample has floor-sized shares, each file longer
+     * than the floor but shorter than the sample. Every file is sampled for the floor and no more, so planning reads
+     * {@code files x floor} rows: more than one sample, and a fraction of the dataset, where it used to read all of it.
+     */
+    public void testReconcilingManyFilesSamplesTheFloorFromEachAndNoMore() {
+        int floor = FormatReader.MIN_SHARED_SCHEMA_SAMPLE_SIZE;
+        int sampleSize = 40_000;
+        // Past this many files every share is the floor: the smallest power of two not below it leaves fewer than
+        // 100 rows per file (40,000 / 512 rounds up to 79), as the issue's 3,264 files did.
+        int fileCount = 512;
+        assertThat(Math.ceilDiv(sampleSize, ExternalSourceResolver.schemaSampleShare(fileCount)), lessThan(floor));
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        long rowsInDataset = 0;
+        for (int i = 0; i < fileCount; i++) {
+            int rows = randomIntBetween(floor + 1, 1_000);
+            rowsInDataset += rows;
+            files.put("s3://bucket/data/f" + i + ".csv", csvRows(rows, -1));
+        }
+        List<Integer> sampledRowsPerFile = Collections.synchronizedList(new ArrayList<>());
+        ExternalSourceResolver resolver = createMeteredCsvResolver(
+            files,
+            null,
+            reader -> new SampleRowsRecordingFormatReader(reader, sampledRowsPerFile)
+        );
+
+        resolveCsvGlob(resolver, "s3://bucket/data/*.csv", FormatReader.SchemaResolution.UNION_BY_NAME, sampleSize);
+
+        assertEquals("every file is sampled", fileCount, sampledRowsPerFile.size());
+        long sampledRows = sampledRowsPerFile.stream().mapToLong(Integer::longValue).sum();
+        assertThat(sampledRows, lessThanOrEqualTo((long) fileCount * floor));
+        assertThat("the floor, not the sample, is what bounds a wide listing", sampledRows, greaterThan((long) sampleSize));
+        assertThat(sampledRows, lessThan(rowsInDataset / 2));
+    }
+
+    /**
+     * Forwards to a text reader, recording how many rows each file's schema inference sampled. Only the planning-side
+     * surface the resolver reaches is forwarded: configuring, sharing the sample, and reading the metadata.
+     */
+    private static final class SampleRowsRecordingFormatReader implements FormatReader {
+        private final FormatReader inner;
+        private final List<Integer> sampledRowsPerFile;
+
+        SampleRowsRecordingFormatReader(FormatReader inner, List<Integer> sampledRowsPerFile) {
+            this.inner = inner;
+            this.sampledRowsPerFile = sampledRowsPerFile;
+        }
+
+        private FormatReader rewrap(FormatReader configured) {
+            return configured == inner ? this : new SampleRowsRecordingFormatReader(configured, sampledRowsPerFile);
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) throws IOException {
+            SourceMetadata metadata = inner.metadata(object);
+            sampledRowsPerFile.add(metadata.sampleRows());
+            return metadata;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            return inner.read(object, context);
+        }
+
+        @Override
+        public String formatName() {
+            return inner.formatName();
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return inner.fileExtensions();
+        }
+
+        @Override
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            Configured<FormatReader> configured = inner.withConfigTrackingConsumedKeys(config);
+            return new Configured<>(
+                rewrap(configured.value()),
+                configured.consumedKeys(),
+                configured.identity(),
+                configured.secretIdentity()
+            );
+        }
+
+        @Override
+        public FormatReader withSchemaSampleShare(int files) {
+            return rewrap(inner.withSchemaSampleShare(files));
+        }
+
+        @Override
+        public int schemaSampleSize() {
+            return inner.schemaSampleSize();
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return inner.rowPositionStrategy();
+        }
+
+        @Override
+        public void close() throws IOException {
+            inner.close();
+        }
+    }
+
     private static long planningBytesRead(
         ExternalSourceResolver resolver,
         String glob,
@@ -9896,6 +10005,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /** A resolver over in-memory {@code .csv} objects under {@code s3://bucket/data/}, read by the real CSV reader. */
     private ExternalSourceResolver createMeteredCsvResolver(Map<String, byte[]> files, @Nullable ExternalSourceCacheService cacheService) {
+        return createMeteredCsvResolver(files, cacheService, UnaryOperator.identity());
+    }
+
+    /** As above, with the registered CSV reader passed through {@code readerWrapper}, so a test can observe its calls. */
+    private ExternalSourceResolver createMeteredCsvResolver(
+        Map<String, byte[]> files,
+        @Nullable ExternalSourceCacheService cacheService,
+        UnaryOperator<FormatReader> readerWrapper
+    ) {
         List<StorageEntry> listing = new ArrayList<>();
         files.forEach((path, bytes) -> listing.add(new StorageEntry(StoragePath.of(path), bytes.length, Instant.EPOCH)));
         StorageProvider storageProvider = new MeteredBytesStorageProvider(
@@ -9922,7 +10040,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-                return Map.of("csv", (s, bf) -> new CsvFormatReader(bf, "csv", List.of(".csv")));
+                return Map.of("csv", (s, bf) -> readerWrapper.apply(new CsvFormatReader(bf, "csv", List.of(".csv"))));
             }
         };
         List<DataSourcePlugin> plugins = List.of(plugin);

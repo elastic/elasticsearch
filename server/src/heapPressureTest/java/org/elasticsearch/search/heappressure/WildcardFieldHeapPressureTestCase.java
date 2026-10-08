@@ -31,22 +31,19 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.equalTo;
-
 /**
  * Base class for tests that build large automatons on a {@code wildcard} field. Each subclass provides its own {@code @ClassRule}
  * cluster, because the heap size is fixed at node startup.
  *
  * <p>Request caching is disabled on every search so that each request builds its automaton on every shard rather than being
  * answered from the shard request cache.
- *
- * TODO: these tests need to be converted to be fully parallel and support PausedField, in order to check not only peak
- * but also retained automata OOM resiliency.
  */
 public abstract class WildcardFieldHeapPressureTestCase extends ESRestTestCase {
 
     private static final String INDEX = "wildcard-heap-pressure";
     private static final int SHARDS = 5;
+    // Set this to true to disable the circuit breaker and validate that the OOM actually happens instead of being caught by the breaker.
+    private static final boolean VALIDATE_OOM = false;
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -54,15 +51,20 @@ public abstract class WildcardFieldHeapPressureTestCase extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .module("test-pausable-field")
         .setting("xpack.security.enabled", "false")
+        // The ML native controller isn't needed, and fails to start on some machines
+        .setting("xpack.ml.enabled", "false")
         // Test nodes run with two processors, which gives a search pool of only four threads. Parked requests hold one thread each, so
         // the pool has to be large enough for their automatons to add up to more than the heap.
         .setting("thread_pool.search.size", "32")
         .jvmArg("-Xms256m")
         .jvmArg("-Xmx256m")
-        // Enable this to test OOM without circuit breakers being active
-        // .setting("indices.breaker.request.limit", "-1")
-        // .setting("indices.breaker.total.use_real_memory", "false")
-        // .setting("indices.breaker.total.limit", "100gb")
+        .apply(c -> {
+            if (VALIDATE_OOM) {
+                c.setting("indices.breaker.request.limit", "-1");
+                c.setting("indices.breaker.total.use_real_memory", "false");
+                c.setting("indices.breaker.total.limit", "100gb");
+            }
+        })
         .build();
 
     @Override
@@ -102,22 +104,33 @@ public abstract class WildcardFieldHeapPressureTestCase extends ESRestTestCase {
     }
 
     /**
-     * A wildcard search that also filters on the pausable field {@code p}. The automaton is built when the query's weight is created,
-     * and the script only runs later, when documents are scored, so while the field is blocked every such request keeps its automaton
-     * alive and parks a search thread.
+     * A wildcard search that also filters on the pausable field {@code p}. The automaton is built with the query, and the script only
+     * runs later, when documents are scored, so while the field is blocked every such request keeps its automaton alive and parks a
+     * search thread.
      */
     protected static Request pausableWildcardSearch(String pattern) {
+        return pausableSearch(Strings.format("""
+            {"wildcard": {"w": {"value": "%s"}}}""", pattern));
+    }
+
+    /** Like {@link #pausableWildcardSearch}, for a regexp query. */
+    protected static Request pausableRegexpSearch(String pattern, int maxDeterminizedStates) {
+        return pausableSearch(Strings.format("""
+            {"regexp": {"w": {"value": "%s", "max_determinized_states": %d}}}""", pattern, maxDeterminizedStates));
+    }
+
+    private static Request pausableSearch(String mustClause) {
         return search(Strings.format("""
             {
               "size": 0,
               "query": {
                 "bool": {
-                  "must": [{"wildcard": {"w": {"value": "%s"}}}],
+                  "must": [%s],
                   "filter": [{"term": {"p": 1}}]
                 }
               }
             }
-            """, pattern));
+            """, mustClause));
     }
 
     protected static void blockPauseField() throws IOException {
@@ -131,28 +144,39 @@ public abstract class WildcardFieldHeapPressureTestCase extends ESRestTestCase {
     }
 
     /**
-     * Waits until every thread of the search pool is busy, which with the field blocked means each is holding an automaton. Gives up
-     * after a while and carries on: when the circuit breaker rejects requests the pool may never fill, and that is what the callers
-     * then assert on.
+     * Waits until enough requests overlap: at least {@code minActive} search threads are busy, which with the field blocked
+     * means each is holding an automaton, or the request breaker has already rejected one. Either shows the requests overlapped, and
+     * which of the two happens depends on whether the automatons are charged to the breaker: without the charge the pool fills, with it
+     * the breaker rejects before the pool does. Fails if neither happens, rather than carrying on without any overlap.
      */
-    protected void waitForSearchPoolToFill() throws Exception {
-        try {
-            assertBusy(() -> {
-                Map<String, Object> pool = searchPoolStats();
-                assertThat(pool.get("active"), equalTo(pool.get("threads")));
-            }, 10, TimeUnit.SECONDS);
-        } catch (AssertionError e) {
-            logger.info("search pool did not fill, continuing with {}", searchPoolStats());
-        }
+    protected void waitForOverlappingRequests(int minActive) throws Exception {
+        assertBusy(() -> {
+            Map<String, Object> node = nodeStats();
+            Number active = (Number) XContentMapValues.extractValue("thread_pool.search.active", node);
+            Number tripped = (Number) XContentMapValues.extractValue("breakers.request.tripped", node);
+            assertTrue(
+                Strings.format("expected %d active search threads or a tripped request breaker, got %s and %s", minActive, active, tripped),
+                active.intValue() >= minActive || tripped.longValue() > 0
+            );
+            // Diagnostic for sizing the patterns: how much the breaker charged and the heap actually in use at the point of overlap.
+            logger.info(
+                "overlap reached: active={} tripped={} request breaker={}/{} parent breaker={} heap used={}",
+                active,
+                tripped,
+                XContentMapValues.extractValue("breakers.request.estimated_size_in_bytes", node),
+                XContentMapValues.extractValue("breakers.request.limit_size_in_bytes", node),
+                XContentMapValues.extractValue("breakers.parent.estimated_size_in_bytes", node),
+                XContentMapValues.extractValue("jvm.mem.heap_used_in_bytes", node)
+            );
+        }, 30, TimeUnit.SECONDS);
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> searchPoolStats() throws IOException {
+    private Map<String, Object> nodeStats() throws IOException {
         Map<String, Object> nodes = (Map<String, Object>) entityAsMap(
-            adminClient().performRequest(new Request("GET", "/_nodes/stats/thread_pool"))
+            adminClient().performRequest(new Request("GET", "/_nodes/stats/thread_pool,breaker,jvm"))
         ).get("nodes");
-        Map<String, Object> node = (Map<String, Object>) nodes.values().iterator().next();
-        return (Map<String, Object>) XContentMapValues.extractValue("thread_pool.search", node);
+        return (Map<String, Object>) nodes.values().iterator().next();
     }
 
     protected static Request wildcardSearch(String pattern) {

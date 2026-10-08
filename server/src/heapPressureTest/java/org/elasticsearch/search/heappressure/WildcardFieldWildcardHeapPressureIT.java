@@ -16,6 +16,8 @@ import java.util.Map;
 import java.util.concurrent.Future;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Wildcard queries on a {@code wildcard} field must be accounted by the request circuit breaker.
@@ -29,7 +31,7 @@ public class WildcardFieldWildcardHeapPressureIT extends WildcardFieldHeapPressu
 
     // More than the REST client's default of 10 connections per route, so no more than that many are parked at once and the rest wait
     // for one to be freed. Five shards each, even ten are enough to occupy the whole search pool.
-    private static final int THREAD_COUNT = 24;
+    private static final int THREAD_COUNT = 12;
     // '*a' followed by N '?' determinizes to 2^N states: 8192 for N=11, the most the default 10,000 work limit accepts.
     private static final String HEAVY_WILDCARD = "*a???????????*";
     private static final String SMALL_WILDCARD = "*a????*";
@@ -48,7 +50,7 @@ public class WildcardFieldWildcardHeapPressureIT extends WildcardFieldHeapPressu
         blockPauseField();
         try {
             futures = submit(THREAD_COUNT, () -> errorBodyOrNull(pausableWildcardSearch(HEAVY_WILDCARD)));
-            waitForSearchPoolToFill();
+            waitForOverlappingRequests(8);
         } finally {
             unblockPauseField();
         }
@@ -60,7 +62,9 @@ public class WildcardFieldWildcardHeapPressureIT extends WildcardFieldHeapPressu
                 rejected++;
             }
         }
-        assertThat("expected the request breaker to reject some of the overlapping requests", rejected > 0, equalTo(true));
+        assertThat("expected the request breaker to reject some of the overlapping requests", rejected, greaterThan(0));
+        // Otherwise no automaton is ever retained, and the test only covers the cost of building one.
+        assertThat("expected some of the requests to get past the breaker and hold their automaton", rejected, lessThan(THREAD_COUNT));
         // Check that the node didn't OOM and is still alive.
         assertThat(client().performRequest(new Request("GET", "/")).getStatusLine().getStatusCode(), equalTo(200));
     }

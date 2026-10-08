@@ -81,7 +81,11 @@ to embed its input. The endpoint must support the selected input type:
 - For text input, the endpoint must use the `text_embedding` or multimodal
   `embedding` task type. If you omit `inference_id`, `DENSE_VECTOR` uses
   `esql.command.dense_vector.default_inference_id` when configured. Otherwise,
-  it selects an available built-in text embedding endpoint.
+  it selects the first available built-in text embedding endpoint: the
+  `.jina-embeddings-v5-text-small` endpoint on the
+  [Elastic Inference Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md),
+  then the `.multilingual-e5-small-elasticsearch` endpoint, which runs on ML
+  nodes.
 - For image input, the endpoint must use the multimodal `embedding` task type.
   No default image endpoint is available, so you must specify `inference_id`.
 
@@ -109,7 +113,7 @@ usage and availability:
 | `esql.command.dense_vector.enabled` | `true` | Controls whether the command is available. |
 | `esql.command.dense_vector.limit` | `1000` | Sets the maximum number of input rows processed by the command. |
 | `esql.command.dense_vector.batch_size` | `20` | Sets the maximum number of inputs combined in one inference request. Accepts values from `1` to `1000`. |
-| `esql.command.dense_vector.default_inference_id` | Not set | Selects a default endpoint when a query omits `inference_id`. |
+| `esql.command.dense_vector.default_inference_id` | Not set | Selects a default endpoint when a query omits `inference_id`. When not set, the command selects a built-in endpoint as described in [Requirements](#requirements). |
 
 ## Limitations
 

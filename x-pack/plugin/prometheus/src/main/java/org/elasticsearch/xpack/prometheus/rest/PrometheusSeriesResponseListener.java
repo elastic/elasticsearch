@@ -55,14 +55,12 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
             List<Map<String, String>> seriesList = extractSeries(response);
             channel.sendResponse(buildSuccessResponse(seriesList, limit));
         } catch (Exception e) {
-            logger.debug("Failed to build series response", e);
             PrometheusErrorResponse.send(channel, e, logger);
         }
     }
 
     @Override
     public void onFailure(Exception e) {
-        logger.debug("Series query failed", e);
         PrometheusErrorResponse.send(channel, e, logger);
     }
 

@@ -51,13 +51,11 @@ public class PrometheusLabelValuesResponseListener {
     public static ActionListener<EsqlQueryResponse> create(RestChannel channel, int limit) {
         // Do NOT close/decRef the response here: the framework (via respondAndRelease) calls
         // decRef() after this method returns, which is the correct single release.
-        return ActionListener.<Void>wrap(ignored -> {}, e -> {
-            logger.debug("Label values query failed", e);
-            PrometheusErrorResponse.send(channel, e, logger);
-        }).delegateFailureAndWrap((l, response) -> {
-            List<String> values = collectValues(response.rows());
-            channel.sendResponse(buildSuccessResponse(values, limit));
-        });
+        return ActionListener.<Void>wrap(ignored -> {}, e -> { PrometheusErrorResponse.send(channel, e, logger); })
+            .delegateFailureAndWrap((l, response) -> {
+                List<String> values = collectValues(response.rows());
+                channel.sendResponse(buildSuccessResponse(values, limit));
+            });
     }
 
     /**

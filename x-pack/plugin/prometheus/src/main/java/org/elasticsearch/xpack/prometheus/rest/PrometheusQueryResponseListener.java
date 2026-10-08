@@ -129,7 +129,6 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     }
 
     private void sendErrorResponse(Exception e) {
-        logger.debug("PromQL {} request failed", mode == QueryMode.RANGE ? "query_range" : "query", e);
         PrometheusErrorResponse.send(channel, e, logger);
     }
 

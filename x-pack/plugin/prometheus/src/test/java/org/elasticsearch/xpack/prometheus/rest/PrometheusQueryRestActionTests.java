@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.prometheus.rest;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -21,17 +22,21 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +49,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertSame;
 
 public class PrometheusQueryRestActionTests extends ESTestCase {
@@ -64,13 +70,10 @@ public class PrometheusQueryRestActionTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testInstantQueryMissingQueryParamThrows() {
+    public void testInstantQueryMissingQueryParamReturnsBadData() throws Exception {
         var request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of()).build();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new PrometheusInstantQueryRestAction(() -> NO_TIMEOUT).prepareRequest(request, null)
-        );
-        assertThat(e.getMessage(), equalTo("required parameter \"query\" is missing"));
+        FakeRestChannel channel = handle(new PrometheusInstantQueryRestAction(() -> NO_TIMEOUT), request);
+        assertBadData(channel, "required parameter \"query\" is missing");
     }
 
     public void testInstantQueryDefaultsToMetricsIndexPattern() throws Exception {
@@ -115,6 +118,49 @@ public class PrometheusQueryRestActionTests extends ESTestCase {
         request.getHttpChannel().close();
     }
 
+    public void testQueryServerErrorIsLoggedAtWarn() throws Exception {
+        var request = instantQueryRequest(Map.of());
+        FakeRestChannel channel = handle(new PrometheusInstantQueryRestAction(() -> NO_TIMEOUT), request);
+
+        String logger = PrometheusQueryResponseListener.class.getCanonicalName();
+        MockLog.assertThatLogger(
+            () -> client.failQuery.accept(new IllegalStateException("boom")),
+            PrometheusQueryResponseListener.class,
+            new MockLog.SeenEventExpectation("server error", logger, Level.WARN, "*status: 500")
+        );
+        assertThat(channel.capturedResponse().status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        request.getHttpChannel().close();
+    }
+
+    public void testQueryClientErrorIsNotLoggedAtWarn() throws Exception {
+        var request = instantQueryRequest(Map.of());
+        FakeRestChannel channel = handle(new PrometheusInstantQueryRestAction(() -> NO_TIMEOUT), request);
+
+        String logger = PrometheusQueryResponseListener.class.getCanonicalName();
+        MockLog.assertThatLogger(
+            () -> client.failQuery.accept(new IllegalArgumentException("boom")),
+            PrometheusQueryResponseListener.class,
+            new MockLog.UnseenEventExpectation("client error", logger, Level.WARN, "*")
+        );
+        assertThat(channel.capturedResponse().status(), equalTo(RestStatus.BAD_REQUEST));
+        request.getHttpChannel().close();
+    }
+
+    public void testQueryTimeoutIsNotLoggedAtWarn() throws Exception {
+        var request = instantQueryRequest(Map.of("timeout", "10ms"));
+        String logger = PrometheusQueryResponseListener.class.getCanonicalName();
+        try (var mockLog = MockLog.capture(PrometheusQueryResponseListener.class)) {
+            mockLog.addExpectation(new MockLog.UnseenEventExpectation("timeout", logger, Level.WARN, "*"));
+            FakeRestChannel channel = handle(new PrometheusInstantQueryRestAction(() -> NO_TIMEOUT), request);
+            assertBusy(() -> assertThat(client.cancelRequests, hasSize(1)));
+            client.failQuery.accept(new TaskCancelledException("cancelled"));
+            assertThat(sentResponses(channel), equalTo(1));
+            assertThat(channel.capturedResponse().status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            mockLog.assertAllExpectationsMatched();
+        }
+        request.getHttpChannel().close();
+    }
+
     public void testClosingHttpChannelCancelsQuery() throws Exception {
         var request = rangeQueryRequest(Map.of());
         handle(new PrometheusQueryRangeRestAction(() -> NO_TIMEOUT), request);
@@ -126,13 +172,28 @@ public class PrometheusQueryRestActionTests extends ESTestCase {
         assertThat(client.cancelRequests.getFirst().getTargetTaskId(), equalTo(client.taskId()));
     }
 
-    public void testInvalidTimeoutParamThrows() {
+    public void testInstantQueryInvalidTimeoutParamReturnsBadData() throws Exception {
+        // the timeout is validated before the time parameter is read, which must not be reported as unrecognized instead
         var request = instantQueryRequest(Map.of("timeout", "soon"));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new PrometheusInstantQueryRestAction(() -> NO_TIMEOUT).prepareRequest(request, client)
-        );
-        assertThat(e.getMessage(), equalTo("invalid parameter \"timeout\": cannot parse \"soon\" to a valid duration"));
+        FakeRestChannel channel = handle(new PrometheusInstantQueryRestAction(() -> NO_TIMEOUT), request);
+        assertBadData(channel, "invalid parameter \"timeout\": cannot parse \"soon\" to a valid duration");
+        assertThat(client.capturedRequest, nullValue());
+    }
+
+    public void testQueryRangeInvalidTimeoutParamReturnsBadData() throws Exception {
+        var request = rangeQueryRequest(Map.of("timeout", "soon"));
+        FakeRestChannel channel = handle(new PrometheusQueryRangeRestAction(() -> NO_TIMEOUT), request);
+        assertBadData(channel, "invalid parameter \"timeout\": cannot parse \"soon\" to a valid duration");
+        assertThat(client.capturedRequest, nullValue());
+    }
+
+    private static void assertBadData(FakeRestChannel channel, String expectedError) throws IOException {
+        assertThat(sentResponses(channel), equalTo(1));
+        assertThat(channel.capturedResponse().status(), equalTo(RestStatus.BAD_REQUEST));
+        ObjectPath body = ObjectPath.createFromXContent(JsonXContent.jsonXContent, channel.capturedResponse().content());
+        assertThat(body.evaluate("status"), equalTo("error"));
+        assertThat(body.evaluate("errorType"), equalTo("bad_data"));
+        assertThat(body.evaluate("error"), equalTo(expectedError));
     }
 
     private void assertQueryTimesOut(BaseRestHandler action, RestRequest request) throws Exception {

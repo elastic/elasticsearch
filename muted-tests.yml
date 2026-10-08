@@ -691,3 +691,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.PartitionSpecProjectorTests
   method: testOverlapsExpressionsDatetimeLongIsNotScaledAsSeconds
   issue: https://github.com/elastic/elasticsearch/issues/161281
+- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/161304
+- class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
+  method: testRandomActivities
+  issue: https://github.com/elastic/elasticsearch/issues/161309
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  method: testRemoveAsyncIndex
+  issue: https://github.com/elastic/elasticsearch/issues/161316
+- class: org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapperTests
+  method: testPredicatesOverTheValuesItKeeps
+  issue: https://github.com/elastic/elasticsearch/issues/161317
+- class: org.elasticsearch.index.mapper.TextFieldValueQueriesTests
+  method: testColumnarTextAnswersOverItsValues
+  issue: https://github.com/elastic/elasticsearch/issues/161318

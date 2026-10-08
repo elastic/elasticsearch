@@ -64,13 +64,11 @@ public final class PlanningCpuTracker {
 
     private static final class Measurement {
         final PlanningCpuTracker owner;
-        final Measurement outer;
         /** Thread CPU at the latest (re)start, or {@code SETTLED} / {@code PAUSED}. Only touched by the owning thread. */
         long startCpuNanos;
 
-        Measurement(PlanningCpuTracker owner, Measurement outer, long startCpuNanos) {
+        Measurement(PlanningCpuTracker owner, long startCpuNanos) {
             this.owner = owner;
-            this.outer = outer;
             this.startCpuNanos = startCpuNanos;
         }
 
@@ -112,7 +110,7 @@ public final class PlanningCpuTracker {
         if (outer != null) {
             outer.pause(startCpuNanos);
         }
-        Measurement measurement = new Measurement(this, outer, startCpuNanos);
+        Measurement measurement = new Measurement(this, startCpuNanos);
         CURRENT.set(measurement);
         try {
             return work.get();

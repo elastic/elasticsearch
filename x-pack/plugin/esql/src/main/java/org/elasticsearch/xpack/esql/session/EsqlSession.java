@@ -236,7 +236,8 @@ public class EsqlSession {
     private final ExternalSourceResolver externalSourceResolver;
     /**
      * Thread CPU spent in this query's planning, on every thread that runs it. Sessions are one-shot, so one tracker
-     * covers exactly one query: started in {@link #execute}, folded into the profile in {@link #executeOptimizedPlan}.
+     * covers exactly one query: started in {@link #execute}, folded into the profile in {@link #executeOptimizedPlan}, or
+     * in the analysis {@code onFailure} when a CCS query ends with an empty result.
      */
     private final PlanningCpuTracker planningCpu = new PlanningCpuTracker();
 

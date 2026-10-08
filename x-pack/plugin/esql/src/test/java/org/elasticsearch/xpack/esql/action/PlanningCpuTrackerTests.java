@@ -113,7 +113,7 @@ public class PlanningCpuTrackerTests extends ESTestCase {
         }
     }
 
-    public void testCheckpointSurvivesFinishOnAnotherThread() throws Exception {
+    public void testCheckpointSurvivesFinishOnAnotherThread() {
         FakeCpuClock clock = new FakeCpuClock();
         PlanningCpuTracker tracker = new PlanningCpuTracker(clock);
         CountDownLatch checkpointed = new CountDownLatch(1);
@@ -122,23 +122,22 @@ public class PlanningCpuTrackerTests extends ESTestCase {
             clock.burn(50);
             tracker.checkpoint();
             checkpointed.countDown();
-            try {
-                finished.await();
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(finished);
             clock.burn(5); // after the signal: may be dropped
         }));
         worker.start();
-        checkpointed.await();
-        assertEquals(50L, tracker.finish());
-        finished.countDown();
-        worker.join();
+        try {
+            safeAwait(checkpointed);
+            assertEquals(50L, tracker.finish());
+        } finally {
+            finished.countDown();
+            safeJoin(worker);
+        }
         assertEquals(50L, tracker.cpuNanos());
     }
 
     /** Documents the loss that {@code checkpoint()} exists to bound: a measurement still open when another thread finishes is dropped. */
-    public void testMeasurementOpenAtFinishOnAnotherThreadIsDropped() throws Exception {
+    public void testMeasurementOpenAtFinishOnAnotherThreadIsDropped() {
         FakeCpuClock clock = new FakeCpuClock();
         PlanningCpuTracker tracker = new PlanningCpuTracker(clock);
         CountDownLatch burned = new CountDownLatch(1);
@@ -146,17 +145,16 @@ public class PlanningCpuTrackerTests extends ESTestCase {
         Thread worker = new Thread(() -> tracker.meteredCpu(() -> {
             clock.burn(50);
             burned.countDown();
-            try {
-                finished.await();
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(finished);
         }));
         worker.start();
-        burned.await();
-        assertEquals(0L, tracker.finish());
-        finished.countDown();
-        worker.join();
+        try {
+            safeAwait(burned);
+            assertEquals(0L, tracker.finish());
+        } finally {
+            finished.countDown();
+            safeJoin(worker);
+        }
         assertEquals(0L, tracker.cpuNanos());
     }
 
@@ -165,29 +163,28 @@ public class PlanningCpuTrackerTests extends ESTestCase {
      * on another thread and finishes planning while the handler's thread is still unwinding. The handler's work must
      * still be counted, because wrapping the listener commits it.
      */
-    public void testWrappingListenerCommitsWorkBeforeDispatch() throws Exception {
+    public void testWrappingListenerCommitsWorkBeforeDispatch() {
         FakeCpuClock clock = new FakeCpuClock();
         PlanningCpuTracker tracker = new PlanningCpuTracker(clock);
         long[] total = new long[1];
         CountDownLatch finished = new CountDownLatch(1);
         ActionListener<Void> nextStage = ActionListener.wrap(r -> {
-            clock.burn(10);
-            total[0] = tracker.finish();
-            finished.countDown();
+            try {
+                clock.burn(10);
+                total[0] = tracker.finish();
+            } finally {
+                finished.countDown();
+            }
         }, e -> fail("unexpected failure"));
         Thread handler = new Thread(() -> tracker.meteredCpu(() -> {
             clock.burn(1000);
             ActionListener<Void> dispatched = tracker.meteredCpu(nextStage);
             new Thread(() -> dispatched.onResponse(null)).start();
-            try {
-                finished.await();
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(finished);
             clock.burn(5); // the unwind after the dispatch is still dropped
         }));
         handler.start();
-        handler.join();
+        safeJoin(handler);
         assertEquals(1010L, total[0]);
         assertEquals(1010L, tracker.cpuNanos());
     }

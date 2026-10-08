@@ -66,6 +66,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
@@ -5257,6 +5258,69 @@ public class GlobExpanderTests extends ESTestCase {
             assertThat(tracker.finish(), greaterThanOrEqualTo(2 * burnNanos));
         } finally {
             finished.countDown();
+            terminate(pool);
+        }
+    }
+
+    /**
+     * A root-level file is matched inline on the calling thread after the slot listing is committed, and a drain can
+     * complete the listing and finish planning before that thread's measurement settles. The file's planning CPU must
+     * be committed before its permit is released, or it is dropped from the frozen total.
+     */
+    public void testFileSlotCommitsPlanningCpuBeforeReleasingItsPermit() {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(50);
+        PlanningCpuTracker tracker = new PlanningCpuTracker();
+        CountDownLatch finished = new CountDownLatch(1);
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(
+                entry("s3://bucket/data/c.parquet", 10),
+                entry("s3://bucket/data/d1/a.parquet", 10),
+                entry("s3://bucket/data/d2/b.parquet", 10)
+            )
+        );
+        AtomicReference<Thread> callerThread = new AtomicReference<>();
+        AtomicInteger callerReserves = new AtomicInteger();
+        AtomicLong committedBeforeBurn = new AtomicLong();
+        // Building the slots reserves nothing, so the calling thread's first reserve is the file slot's.
+        PlanningMemory memory = bytes -> {
+            if (Thread.currentThread() == callerThread.get() && callerReserves.getAndIncrement() == 0) {
+                committedBeforeBurn.set(tracker.cpuNanos());
+                burnCpu(burnNanos);
+            }
+        };
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        PlainActionFuture<FileList> future = new PlainActionFuture<>();
+        Thread caller = new Thread(() -> tracker.meteredCpu(() -> {
+            GlobExpander.expandAsync(
+                pattern,
+                provider,
+                null,
+                HIVE_ON,
+                MAX,
+                MAX,
+                MAX,
+                ListingExtents.UNBOUNDED,
+                memory,
+                16,
+                () -> false,
+                pool::execute,
+                future
+            );
+            // Holds the measurement open, as a slow unwind would, until planning has finished.
+            safeAwait(finished);
+        }));
+        callerThread.set(caller);
+        caller.start();
+        try {
+            assertEquals(3, future.actionGet(30, TimeUnit.SECONDS).fileCount());
+            assertThat("the file slot must be matched on the calling thread", callerReserves.get(), greaterThan(0));
+            assertThat(tracker.finish() - committedBeforeBurn.get(), greaterThanOrEqualTo(burnNanos));
+        } finally {
+            finished.countDown();
+            safeJoin(caller);
             terminate(pool);
         }
     }

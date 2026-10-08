@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.core.Tuple;
@@ -317,11 +318,13 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
                 assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
                 assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
                 assertThat(executionInfo.isPartial(), equalTo(true));
-                assertThat(
-                    "the empty result skips execution but still reports planning CPU",
-                    executionInfo.queryProfile().planningCpuNanos(),
-                    greaterThan(0L)
-                );
+                if (Constants.WINDOWS == false) { // thread CPU time advances in ~15.6 ms ticks on Windows
+                    assertThat(
+                        "the empty result skips execution but still reports planning CPU",
+                        executionInfo.queryProfile().planningCpuNanos(),
+                        greaterThan(0L)
+                    );
+                }
 
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1)));
 
@@ -358,11 +361,13 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
                 assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
                 assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
                 assertThat(executionInfo.isPartial(), equalTo(true));
-                assertThat(
-                    "the empty result skips execution but still reports planning CPU",
-                    executionInfo.queryProfile().planningCpuNanos(),
-                    greaterThan(0L)
-                );
+                if (Constants.WINDOWS == false) { // thread CPU time advances in ~15.6 ms ticks on Windows
+                    assertThat(
+                        "the empty result skips execution but still reports planning CPU",
+                        executionInfo.queryProfile().planningCpuNanos(),
+                        greaterThan(0L)
+                    );
+                }
 
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)));
 

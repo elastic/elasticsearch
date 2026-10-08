@@ -1891,6 +1891,9 @@ public final class GlobExpander {
                     } catch (Exception e) {
                         failure.compareAndSet(null, e);
                     } finally {
+                        // Releasing the permit can let a drain complete the listing and finish planning before this
+                        // thread's measurement settles, so commit the planning CPU spent on this file first.
+                        PlanningCpuTracker.checkpointCurrentThread();
                         releasable.close();
                     }
                 }

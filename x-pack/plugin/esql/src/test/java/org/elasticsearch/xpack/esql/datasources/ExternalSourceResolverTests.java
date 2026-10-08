@@ -8555,17 +8555,18 @@ public class ExternalSourceResolverTests extends ESTestCase {
     /**
      * Planning CPU, permit release: a release can complete the gather and let the rest of planning reach
      * {@code finish()} on another thread, which drops a measurement still open here, so each read's CPU must be
-     * committed before its permit is released. With more permits than files and one resolver thread, the last read's
-     * release completes the gather and the resolve listener inline, inside that read's still-open measurement, so the
-     * committed total the listener sees shows whether the CPU the read burned was committed first.
+     * committed before its permit is released. Every executor task holds its measurement open past the release, as a
+     * slow unwind would, until planning has finished. The reads start burning together, after every dispatch has
+     * committed its CPU, so the total committed from then on is what the reads committed before their releases.
      */
-    public void testPlanningCpuCommittedBeforePermitRelease() throws Exception {
+    public void testPlanningCpuCommittedBeforePermitRelease() {
         assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
         int fileCount = 4;
         long burnNanos = TimeUnit.MILLISECONDS.toNanos(5);
         PlanningCpuTracker tracker = new PlanningCpuTracker();
-        AtomicInteger calls = new AtomicInteger();
-        AtomicLong committedBeforeLastRead = new AtomicLong();
+        AtomicLong committedBeforeReads = new AtomicLong();
+        CyclicBarrier readsInFlight = new CyclicBarrier(fileCount, () -> committedBeforeReads.set(tracker.cpuNanos()));
+        CountDownLatch finished = new CountDownLatch(1);
 
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();
         List<StorageEntry> listing = new ArrayList<>();
@@ -8578,14 +8579,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
         FormatReader reader = new StubFormatReader(schemasByPath) {
             @Override
             public SourceMetadata metadata(StorageObject object) {
-                if (calls.incrementAndGet() == fileCount) {
-                    committedBeforeLastRead.set(tracker.cpuNanos());
-                    burnCpu(burnNanos);
-                }
+                safeAwait(readsInFlight);
+                burnCpu(burnNanos);
                 return super.metadata(object);
             }
         };
-        ExecutorService resolverExecutor = Executors.newSingleThreadExecutor();
+        // A held task keeps its thread, so the pool must grow past the tasks it holds.
+        ExecutorService resolverExecutor = Executors.newCachedThreadPool();
         try {
             String glob = "s3://bucket/data/*.parquet";
             Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
@@ -8594,21 +8594,21 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 schemasByPath,
                 listingsByPrefix,
                 reader,
-                resolverExecutor,
-                fileCount + 1
+                command -> resolverExecutor.execute(() -> tracker.meteredCpu(() -> {
+                    command.run();
+                    // Holds the measurement open past the permit release, as a slow unwind would, until planning has finished.
+                    safeAwait(finished);
+                })),
+                fileCount
             );
             resolver.planningCpu(tracker);
-            PlainActionFuture<Long> committedAtCompletion = new PlainActionFuture<>();
-            resolver.resolve(
-                List.of(glob),
-                Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))),
-                committedAtCompletion.map(resolution -> tracker.cpuNanos())
-            );
-            long committed = committedAtCompletion.actionGet(30, TimeUnit.SECONDS);
-            assertEquals(fileCount, calls.get());
-            assertThat(committed - committedBeforeLastRead.get(), greaterThanOrEqualTo(burnNanos));
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))), future);
+            assertNotNull(future.actionGet(30, TimeUnit.SECONDS).resolvedSource(glob));
+            assertThat(tracker.finish() - committedBeforeReads.get(), greaterThanOrEqualTo(fileCount * burnNanos));
         } finally {
-            resolverExecutor.shutdownNow();
+            finished.countDown();
+            terminate(resolverExecutor);
         }
     }
 

@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
@@ -166,7 +167,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -250,6 +251,26 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Exception e = ex;
         assertThat(e.getMessage(), containsString("cannot be read from the file's type [boolean]"));
         assertThat("the type check fires first, not the format check", e.getMessage(), not(containsString("[format] on column")));
+    }
+
+    /**
+     * Under {@code dynamic: true} a declared column a complete (columnar) schema lacks is kept at its declared type
+     * instead of rejecting the dataset, and resolution warns with the physical name, as the readers do, so a query
+     * that never reads the column still carries the warning.
+     */
+    public void testNonStrictOverlayKeepsDeclaredColumnAbsentFromCompleteSchemaAndWarns() throws Exception {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("dept", new DatasetFieldMapping("keyword", "department"));
+        ExternalSourceResolution resolution = resolveWithDeclaredMapping(
+            List.of(attr("id", DataType.LONG)),
+            props,
+            DatasetMapping.Dynamic.TRUE
+        );
+
+        List<Attribute> schema = resolution.resolvedSource(DECLARED_GLOB).metadata().schema();
+        assertEquals(List.of("id", "dept"), schema.stream().map(Attribute::name).toList());
+        assertEquals(DataType.KEYWORD, schema.get(1).dataType());
+        assertThat(resolution.warnings(), hasItem(SkipWarnings.absentDeclaredColumnMessage("department")));
     }
 
     private static final String DECLARED_GLOB = "s3://bucket/data/*.parquet";
@@ -1730,6 +1751,71 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * No row counts (the text shape) kills the fold on the first file, and a non-cacheable provider leaves
+     * nothing to warm, so the gather drains. {@link #testFirstFileWinsEagerlyReadsFootersWhenStatsRequired}
+     * is the footer control at 4 reads on the same listing. The direct executor makes this serial, so it pins
+     * the one-extra-read case; production dispatches up to DEFAULT_METADATA_READ_CONCURRENCY before the
+     * first result lands.
+     */
+    public void testStatsGatherStopsOnceTheFoldIsDeadAndNothingWillBeCached() throws Exception {
+        AtomicInteger metadataReads = new AtomicInteger();
+        ThreeFileStats withoutRowCounts = new ThreeFileStats(threeFileSchemas(), Map.of());
+        ExternalSourceResolution resolution = resolveFfwWithRequirement(withoutRowCounts, metadataReads, Set.of(GLOB), null);
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(GLOB);
+        assertNotNull(resolved);
+        assertEquals("anchor footer plus the single read that kills the fold", 2, metadataReads.get());
+        Map<String, Object> meta = resolved.metadata().sourceMetadata();
+        assertEquals("an unfinished fold leaves stats partial", Boolean.TRUE, meta.get(SourceStatisticsSerializer.STATS_PARTIAL));
+        assertEquals("file count still comes from the listing, not the gather", 3L, meta.get(SourceStatisticsSerializer.STATS_FILE_COUNT));
+    }
+
+    /**
+     * Same dead fold, but the entries will be kept, so the gather reads every file: warming the per-file
+     * rail is worth the reads on its own. Differs from
+     * {@link #testStatsGatherStopsOnceTheFoldIsDeadAndNothingWillBeCached} in being cacheable at all; the
+     * budget-only contrast is {@link #testStatsGatherStopsWhenTheSchemaBudgetRefusesTheFanOut}. A rule keyed
+     * on the format would stop here and be wrong.
+     */
+    public void testStatsGatherStillFansOutWhenTheCacheWillKeepTheEntries() throws Exception {
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            AtomicInteger metadataReads = new AtomicInteger();
+            StubStorageProvider provider = new StubStorageProvider(Map.of(PREFIX, threeFileListing()), threeFileSchemas());
+            ThreeFileStats withoutRowCounts = new ThreeFileStats(threeFileSchemas(), Map.of());
+            ExternalSourceResolver resolver = buildStatsResolver(provider, withoutRowCounts, metadataReads, cacheService);
+
+            ExternalSourceResolution resolution = resolveFfw(resolver, Set.of(GLOB));
+            assertNotNull(resolution.resolvedSource(GLOB));
+            // Anchor read (1) plus the two non-anchor files; the anchor itself is served from the schema
+            // cache inside the stats loop, as testFirstFileWinsEagerCacheableColdLoadsAllFiles pins. The
+            // number that matters is that it is not 2: the gather did not stop.
+            assertEquals("an admitted fan-out keeps reading: the entries it writes are the point", 3, metadataReads.get());
+        }
+    }
+
+    /**
+     * Cacheable, but the listing overruns the schema budget so admission refuses after sizing the first entry.
+     * With the fold dead too there is nothing left to buy — the partitioned-tree case.
+     */
+    public void testStatsGatherStopsWhenTheSchemaBudgetRefusesTheFanOut() throws Exception {
+        Settings tinyCache = Settings.builder()
+            .put("esql.external.cache.size", "1kb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(tinyCache)) {
+            AtomicInteger metadataReads = new AtomicInteger();
+            StubStorageProvider provider = new StubStorageProvider(Map.of(PREFIX, threeFileListing()), threeFileSchemas());
+            ThreeFileStats withoutRowCounts = new ThreeFileStats(threeFileSchemas(), Map.of());
+            ExternalSourceResolver resolver = buildStatsResolver(provider, withoutRowCounts, metadataReads, cacheService);
+
+            ExternalSourceResolution resolution = resolveFfw(resolver, Set.of(GLOB));
+            assertNotNull(resolution.resolvedSource(GLOB));
+            assertEquals("a refused fan-out stops at the sizing read", 2, metadataReads.get());
+        }
+    }
+
+    /**
      * Legacy {@code null} overload: a {@code null} {@code pathsRequiringStats} keeps the original
      * eager-for-every-path behavior, so all footers are read regardless of query shape.
      */
@@ -1943,6 +2029,74 @@ public class ExternalSourceResolverTests extends ESTestCase {
         SchemaReconciliation.FileSchemaInfo driftInfo = future.actionGet().resolvedSource(GLOB).schemaMap().get(StoragePath.of(driftPath));
         assertNotNull(driftInfo);
         assertNull(driftInfo.inferredTypes());
+    }
+
+    /**
+     * Under union_by_name a declared column one file stores under a type it cannot be read as (here integer for a
+     * declared boolean, while the unified keyword is readable) is rejected at resolution under fail_fast, with the
+     * message a data node reading that file reports. Under null_field or skip_row resolution leaves it to the readers,
+     * which apply the policy to that file.
+     */
+    public void testNonStrictOverlayPerFileDriftFollowsErrorMode() throws Exception {
+        String readablePath = "s3://bucket/data/a.parquet";
+        String driftPath = "s3://bucket/data/b.parquet";
+        for (String errorMode : List.of("fail_fast", "null_field", "skip_row")) {
+            Map<String, List<Attribute>> schemas = new HashMap<>();
+            schemas.put(readablePath, List.of(attr("x", DataType.BOOLEAN)));
+            schemas.put(driftPath, List.of(attr("x", DataType.INTEGER)));
+            ThreeFileStats stats = new ThreeFileStats(schemas, Map.of(readablePath, 2L, driftPath, 2L));
+            List<StorageEntry> listing = List.of(entry(readablePath, 100), entry(driftPath, 200));
+            CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
+            ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null);
+            DatasetMapping mapping = new DatasetMapping(
+                new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("x", new DatasetFieldMapping("boolean", null)))
+            );
+            Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
+            config.put("error_mode", errorMode);
+
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(GLOB), Map.of(GLOB, config), null, Map.of(GLOB, mapping), Set.of(), future);
+            if (errorMode.equals("fail_fast")) {
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+                assertEquals(
+                    DeclaredTypeCoercions.uncoercibleColumnFailure("x", "b.parquet", DataType.INTEGER, DataType.BOOLEAN),
+                    e.getMessage()
+                );
+            } else {
+                ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(GLOB);
+                assertEquals(DataType.BOOLEAN, resolved.metadata().schema().get(0).dataType());
+            }
+        }
+    }
+
+    /**
+     * Under first_file_wins a later file whose declared column drifts to an uncoercible type is left to the readers
+     * even under fail_fast, also when the eager stats gather has recorded that file's own types: a plan-time check on
+     * them would fail a query only for the shapes (or cache states) that gather, whether or not it reads the column.
+     */
+    public void testFirstFileWinsDriftOfDeclaredColumnIsLeftToTheReaders() throws Exception {
+        String anchorPath = "s3://bucket/data/a.parquet";
+        String driftPath = "s3://bucket/data/b.parquet";
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put(anchorPath, List.of(attr("x", DataType.BOOLEAN)));
+        schemas.put(driftPath, List.of(attr("x", DataType.INTEGER)));
+        ThreeFileStats stats = new ThreeFileStats(schemas, Map.of(anchorPath, 2L, driftPath, 2L));
+        List<StorageEntry> listing = List.of(entry(anchorPath, 100), entry(driftPath, 200));
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
+        ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null);
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("x", new DatasetFieldMapping("boolean", null)))
+        );
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        config.put("error_mode", "fail_fast");
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(GLOB), Map.of(GLOB, config), null, Map.of(GLOB, mapping), Set.of(GLOB), future);
+        ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(GLOB);
+
+        assertEquals(DataType.BOOLEAN, resolved.metadata().schema().get(0).dataType());
+        SchemaReconciliation.FileSchemaInfo driftInfo = resolved.schemaMap().get(StoragePath.of(driftPath));
+        assertEquals("the eager gather recorded the drifted file's own type", Map.of("x", DataType.INTEGER), driftInfo.inferredTypes());
     }
 
     public void testPartitionedNonStrictRenamePreservesMissingFirstFileWinsNativeTypes() throws Exception {
@@ -2916,6 +3070,256 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * The budget threshold itself, derived rather than hardcoded. Whether the stop fires at all is
+     * {@code fileCount * entry.estimatedBytes() > schemaBudget}, and {@code schemaBudget} is a fifth of
+     * {@code esql.external.cache.size} — so the firing condition is arithmetic on a number no API exposes.
+     * This computes the real entry size for the fixture's schema, then runs the identical resolve either side
+     * of the resulting boundary: below it admission refuses and the gather stops; above it admission admits
+     * and the fan-out completes.
+     * <p>
+     * Written because three attempts to observe this on a live node failed, each for a different arithmetic
+     * reason — a cache generous enough to admit, then one so small the dataset-aggregate slice could not hold
+     * a result either. Nothing counts metadata reads or admission refusals at runtime, so the threshold is
+     * only checkable here.
+     */
+    public void testTheStopFiresOnlyOnceTheSchemaBudgetIsExceeded() throws Exception {
+        List<Attribute> schema = threeFileSchemas().get("s3://bucket/data/a.parquet");
+        long entryBytes = SchemaCacheEntry.from(new SimpleSourceMetadata(schema, "ndjson", "s3://bucket/nd/a.ndjson")).estimatedBytes();
+        assertThat("a real entry must cost something, or the threshold below is meaningless", entryBytes, greaterThan(0L));
+
+        // schemaBudget is cacheSize/5 and three files are listed, so these straddle fileCount * entryBytes.
+        long refusingCacheBytes = Math.max(1024L, (3 * entryBytes - 1) * 5);
+        long admittingCacheBytes = (3 * entryBytes) * 5 * 64;
+
+        assertEquals(
+            "below the boundary admission refuses, so nothing is retained and the gather stops",
+            2,
+            gatherReadsWithCacheBytes(refusingCacheBytes)
+        );
+        // Three, not four: both resolves here are cacheable, so the anchor is served from the schema cache
+        // inside the stats loop and only the two non-anchor files are read. Four is the non-cacheable shape.
+        assertEquals(
+            "above the boundary admission admits, so the fan-out completes and warms the rail",
+            3,
+            gatherReadsWithCacheBytes(admittingCacheBytes)
+        );
+    }
+
+    /**
+     * The refusal is now counted, so the verdict that forks the read path is observable. Pinned alongside the
+     * threshold test because a counter nobody asserts is a counter that silently stops incrementing.
+     */
+    public void testAdmissionRefusalIsCounted() throws Exception {
+        Settings refusing = Settings.builder()
+            .put("esql.external.cache.size", "1kb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(refusing)) {
+            assertEquals(0L, cacheService.usageStats().get("schema_fan_out.refused"));
+            String glob = "s3://bucket/nd/*.ndjson";
+            String a = "s3://bucket/nd/a.ndjson", b = "s3://bucket/nd/b.ndjson", c = "s3://bucket/nd/c.ndjson";
+            List<Attribute> schema = List.of(attr("x", DataType.LONG));
+            Map<String, List<Attribute>> schemas = Map.of(a, schema, b, schema, c, schema);
+            StubStorageProvider provider = new StubStorageProvider(
+                Map.of("s3://bucket/nd/", List.of(entry(a, 100), entry(b, 200), entry(c, 300))),
+                schemas
+            );
+            ExternalSourceResolver resolver = ndjsonPromiseResolver(provider, schemas, Map.of(), cacheService, null);
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(
+                List.of(glob),
+                Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))),
+                null,
+                null,
+                Set.of(glob),
+                future
+            );
+            assertNotNull(future.actionGet().resolvedSource(glob));
+            assertEquals("the refused fan-out must be counted once", 1L, cacheService.usageStats().get("schema_fan_out.refused"));
+            assertNotNull("the budget it was compared against is reported too", cacheService.usageStats().get("schema_budget_bytes"));
+        }
+    }
+
+    /** Three ndjson files, no row counts (dead fold), strict policy, at the given total cache size. */
+    private int gatherReadsWithCacheBytes(long cacheBytes) throws Exception {
+        Settings settings = Settings.builder()
+            .put("esql.external.cache.size", cacheBytes + "b")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            String glob = "s3://bucket/nd/*.ndjson";
+            String a = "s3://bucket/nd/a.ndjson", b = "s3://bucket/nd/b.ndjson", c = "s3://bucket/nd/c.ndjson";
+            List<Attribute> schema = List.of(attr("x", DataType.LONG));
+            Map<String, List<Attribute>> schemas = Map.of(a, schema, b, schema, c, schema);
+            List<StorageEntry> listing = List.of(entry(a, 100), entry(b, 200), entry(c, 300));
+            StubStorageProvider provider = new StubStorageProvider(Map.of("s3://bucket/nd/", listing), schemas);
+            AtomicInteger reads = new AtomicInteger();
+            ExternalSourceResolver resolver = ndjsonPromiseResolver(provider, schemas, Map.of(), cacheService, reads);
+
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(
+                List.of(glob),
+                Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))),
+                null,
+                null,
+                Set.of(glob),
+                future
+            );
+            assertNotNull(future.actionGet().resolvedSource(glob));
+            return reads.get();
+        }
+    }
+
+    /**
+     * The stop decision across every schema resolution and every error policy — nine cells, because the two axes
+     * that broke this change are the two nobody varied. A refused budget and a dead fold hold throughout, so the
+     * only thing moving is the pair under test.
+     * <p>
+     * {@code UNION_BY_NAME} and {@code STRICT} resolve through the reconciliation rail, which needs every file's
+     * schema whatever the fold is doing, so no error policy can make them stop. On {@code FIRST_FILE_WINS} only
+     * {@code skip_row} forces a full read, because only it strips the unread files' row counts at commit and so
+     * would leave the dataset-aggregate promise unfulfillable.
+     * <p>
+     * Three files, because the three outcomes collide at two. The reconciliation rail reads the N files with no
+     * separate anchor read; first_file_wins reads an anchor and then fans out. So a full reconciliation read is 3,
+     * a full first_file_wins read is 1 + 3 = 4, and a stop is the anchor plus the one read that settles the fold
+     * and the budget = 2. At two files the first and last are both 2 and the assertion proves nothing.
+     */
+    public void testStopDecisionAcrossSchemaResolutionsAndErrorPolicies() throws Exception {
+        for (FormatReader.SchemaResolution resolution : FormatReader.SchemaResolution.values()) {
+            for (String errorMode : List.of("fail_fast", "skip_row", "null_field")) {
+                int reads = gatherReadsFor(resolution, errorMode);
+                String cell = resolution + "/" + errorMode;
+                if (resolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
+                    assertEquals(cell + ": the reconciliation rail reads every file and never stops", 3, reads);
+                } else if (errorMode.equals("skip_row")) {
+                    assertEquals(cell + ": skip_row strips the unread counts, so the fan-out must complete", 4, reads);
+                } else {
+                    assertEquals(cell + ": nothing left to buy, so stop after the anchor and one read", 2, reads);
+                }
+            }
+        }
+    }
+
+    /** One cell of the matrix: three ndjson files, no row counts (dead fold), 1 kb cache (refusing budget). */
+    private int gatherReadsFor(FormatReader.SchemaResolution resolution, String errorMode) throws Exception {
+        Settings tinyCache = Settings.builder()
+            .put("esql.external.cache.size", "1kb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(tinyCache)) {
+            String glob = "s3://bucket/nd/*.ndjson";
+            String pathA = "s3://bucket/nd/a.ndjson";
+            String pathB = "s3://bucket/nd/b.ndjson";
+            String pathC = "s3://bucket/nd/c.ndjson";
+            List<Attribute> schema = List.of(attr("x", DataType.LONG));
+            Map<String, List<Attribute>> schemas = Map.of(pathA, schema, pathB, schema, pathC, schema);
+            List<StorageEntry> listing = List.of(entry(pathA, 100), entry(pathB, 200), entry(pathC, 300));
+            StubStorageProvider provider = new StubStorageProvider(Map.of("s3://bucket/nd/", listing), schemas);
+            AtomicInteger metadataReads = new AtomicInteger();
+            ExternalSourceResolver resolver = ndjsonPromiseResolver(provider, schemas, Map.of(), cacheService, metadataReads);
+
+            Map<String, Object> config = new HashMap<>(configFor(resolution));
+            config.put(ErrorPolicy.CONFIG_ERROR_MODE, errorMode);
+
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), Map.of(glob, config), null, null, Set.of(glob), future);
+            assertNotNull(future.actionGet().resolvedSource(glob));
+            return metadataReads.get();
+        }
+    }
+
+    /**
+     * Under any non-strict error policy a committed row count is a survivor count, so the files a cut-short
+     * gather leaves the dataset-aggregate promise unfulfillable and every warm {@code COUNT(*)} re-scans — worse
+     * than the reads the stop saves. The gather must keep reading wherever a promise is at stake, even though the
+     * fold is dead and the budget refuses. Reported on the PR by a reviewer who reproduced it end to end.
+     */
+    public void testGatherKeepsReadingUnderNonStrictPoliciesWhenAPromiseIsAtStake() throws Exception {
+        // skip_row drops whole rows, so the unread files' counts are stripped and the gather must read them all.
+        assertGatherReadsUnder("skip_row", 3);
+        // null_field nulls the cell and keeps the row, so the count stays trustworthy and the stop is safe. This
+        // is the control: it keeps the guard scoped to the policy that actually strips, rather than to leniency.
+        assertGatherReadsUnder("null_field", 2);
+    }
+
+    private void assertGatherReadsUnder(String errorMode, int expectedReads) throws Exception {
+        Settings tinyCache = Settings.builder()
+            .put("esql.external.cache.size", "1kb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(tinyCache)) {
+            String glob = "s3://bucket/nd/*.ndjson";
+            String pathA = "s3://bucket/nd/a.ndjson";
+            String pathB = "s3://bucket/nd/b.ndjson";
+            List<Attribute> schema = List.of(attr("x", DataType.LONG));
+            Map<String, List<Attribute>> schemas = Map.of(pathA, schema, pathB, schema);
+            List<StorageEntry> listing = List.of(entry(pathA, 100), entry(pathB, 200));
+            StubStorageProvider provider = new StubStorageProvider(Map.of("s3://bucket/nd/", listing), schemas);
+            AtomicInteger metadataReads = new AtomicInteger();
+            // No row counts: the fold dies on the first file. The 1 kb budget refuses every entry. Without the
+            // promise guard both conditions hold and the gather would stop at the sizing read.
+            ExternalSourceResolver resolver = ndjsonPromiseResolver(provider, schemas, Map.of(), cacheService, metadataReads);
+
+            Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+            config.put(ErrorPolicy.CONFIG_ERROR_MODE, errorMode);
+
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), Map.of(glob, config), null, null, Set.of(glob), future);
+            assertNotNull(future.actionGet().resolvedSource(glob));
+
+            assertEquals(errorMode + ": wrong read count for this error policy", expectedReads, metadataReads.get());
+        }
+    }
+
+    /**
+     * A cut-short gather forwards read configs only for the files it reached, and the promise is registered on
+     * that partial map. The map is why: a cacheable text dataset whose schema budget refuses every entry has no
+     * per-file warm rail, so the memoized dataset aggregate is its only metadata-served COUNT(*). An unrecorded
+     * path falls back to the config-level check; suppressing the promise instead would cost every warm query a
+     * re-scan. Reinstating a completeness guard in front of the registration fails here.
+     */
+    public void testPromiseIsRegisteredOnAPartialPerPathMap() {
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = datasetGateResolver(cacheService);
+            String pathA = "s3://bucket/data/a.ndjson";
+            String pathB = "s3://bucket/data/b.ndjson";
+            SourceMetadata referenceMeta = new SimpleSourceMetadata(List.of(), "ndjson", pathA);
+            FileList listing = GlobExpander.fileListOf(List.of(entry(pathA, 100), entry(pathB, 200)), "s3://bucket/data/*.ndjson");
+            SchemaCacheKey key = resolver.datasetAggregateKey(listing, "", Map.of());
+            assertNotNull(key);
+            String promised = ReadConfigFingerprint.of(List.of(attr("x", DataType.LONG)), DeclaredReadSpec.NONE);
+
+            // Only pathA recorded: the shape a gather leaves when it stops after the file that killed the fold.
+            resolver.applyDatasetAggregate(
+                new HashMap<>(Map.of(pathA, promised)),
+                new ExternalSourceResolver.DatasetAggregatePrefetch(key, null),
+                null,
+                listing,
+                referenceMeta,
+                Map.of()
+            );
+
+            String fingerprint = resolver.formatConfigIdentity(listing.path(0).objectName(), Map.of());
+            cacheService.reconcileSourceStatsFromContributions(
+                Map.of(
+                    pathA,
+                    List.of(promiseContribution(fingerprint, promised, 40L)),
+                    pathB,
+                    List.of(promiseContribution(fingerprint, promised, 60L))
+                )
+            );
+            Map<String, Object> aggregate = cacheService.getDatasetAggregate(key);
+            assertNotNull("a partial per-path map must still register the promise", aggregate);
+            assertEquals(100L, ((Number) aggregate.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        }
+    }
+
+    /**
      * The wiring the per-path read-configuration gate stands on: a multi-file resolve must record each file's
      * stamped resolved read configuration and forward the per-path map into the dataset-aggregate promise. The
      * cache-side gate only checks what a promise CARRIES — a rail that forwards an empty map leaves the gate to
@@ -3028,7 +3432,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, Long> rowCountsByPath,
         ExternalSourceCacheService cacheService
     ) {
-        StubFormatReaderWithStats reader = new StubFormatReaderWithStats(schemasByPath, rowCountsByPath) {
+        return ndjsonPromiseResolver(storageProvider, schemasByPath, rowCountsByPath, cacheService, null);
+    }
+
+    private ExternalSourceResolver ndjsonPromiseResolver(
+        StorageProvider storageProvider,
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, Long> rowCountsByPath,
+        ExternalSourceCacheService cacheService,
+        AtomicInteger metadataReadCounter
+    ) {
+        StubFormatReaderWithStats reader = new StubFormatReaderWithStats(schemasByPath, rowCountsByPath, metadataReadCounter) {
             @Override
             public String formatName() {
                 return "ndjson";
@@ -3254,6 +3668,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * cancelled mid-flight, and must stop reading further per-file footers rather than scanning the whole
      * glob. The resolver runs on the DIRECT executor here, so footer reads happen sequentially and the
      * cancellation flag (flipped after a couple of reads) deterministically short-circuits the rest.
+     * <p>
+     * Also pins the drain's cancellation raise: the stub publishes no statistics, so the fold dies on the first
+     * file and the gather reaches the drain rather than the per-read check.
      */
     public void testMultiFileResolveCancellationStopsReadingFooters() {
         int fileCount = 5;
@@ -9179,7 +9596,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The resolver is built in {@code PlanExecutor} before {@code EsqlSession.execute} binds the
+     * The resolver is constructed before {@code PlanExecutor.esql} binds the
      * reservation. A ctor-time planning-I/O capture is null; the holder must be resolved when each
      * metadata-read task runs.
      */
@@ -9207,7 +9624,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolver resolver = createMeteredNdjsonResolver(path, payload, executor);
         assertNull("ctor must not see a reservation", ExternalPlanningIo.current());
 
-        ExternalPlanningReservation reservation = new ExternalPlanningReservation(new NoopCircuitBreaker("test"));
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(NoopCircuitBreaker.INSTANCE);
         resolver.planning(reservation);
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();

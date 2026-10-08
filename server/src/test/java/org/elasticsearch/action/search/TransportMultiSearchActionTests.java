@@ -147,7 +147,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 System::nanoTime,
                 client,
                 DefaultProjectResolver.INSTANCE,
-                new NoopCircuitBreaker("test")
+                NoopCircuitBreaker.INSTANCE
             );
 
             PlainActionFuture<MultiSearchResponse> future = new PlainActionFuture<>();
@@ -241,7 +241,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             System::nanoTime,
             client,
             DefaultProjectResolver.INSTANCE,
-            new NoopCircuitBreaker("test")
+            NoopCircuitBreaker.INSTANCE
         );
 
         // Execute the multi search api and fail if we find an error after executing:

@@ -1085,7 +1085,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         RawBinaryBlock rawSingleValueBlock(int minUncompressedLength) throws IOException {
             return null;
         }
-
     }
 
     abstract static class DenseBinaryDocValues extends TSDBBinaryDocValues {

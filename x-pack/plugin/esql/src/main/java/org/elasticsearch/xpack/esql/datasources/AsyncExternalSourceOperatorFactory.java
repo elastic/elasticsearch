@@ -1820,7 +1820,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      */
     private void drainCurrentUnit(ProducerState state, ActionListener<Void> completionListener) {
         try {
-            // Same StorageRetryCancellation scope as the open phase: the page pulls (tryAdvance/hasNext/next)
+            // Same StorageRetryCancellation scope as the open phase: the page pulls (tryAdvance)
             // drive the storage reads whose retry/throttle backoff must observe a hard cancel here.
             DrainResult result = StorageRetryCancellation.callWithCancellation(
                 state.buffer::readCancelled,
@@ -1911,21 +1911,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
             Holder<DrainResult> drainResultHolder = new Holder<>();
             Page page = buffer.readCounters().meteredCpu(() -> {
-                Page tryPage = pages.tryAdvance();
+                Holder<SubscribableListener<Void>> blockedOn = new Holder<>();
+                Page tryPage = ExternalSourceDrainUtils.tryAdvanceOrPark(pages, blockedOn);
+                if (blockedOn.get() != null) {
+                    drainResultHolder.set(parkUntilReady(blockedOn.get(), state, completionListener));
+                    return null;
+                }
                 if (tryPage == null) {
-                    // tryAdvance returned null: either EOF or the iterator is between chunks.
-                    // Recheck waitForReady: not-done = more data coming, yield. Done = hasNext
-                    // gives the definitive answer (won't block since isReadyNow was just true).
-                    SubscribableListener<Void> recheck = pages.waitForReady();
-                    if (recheck.isDone()) {
-                        if (pages.hasNext() == false) {
-                            drainResultHolder.set(DrainResult.EOF);
-                            return null;
-                        }
-                        tryPage = pages.next();
-                    } else {
-                        drainResultHolder.set(parkUntilReady(recheck, state, completionListener));
-                    }
+                    drainResultHolder.set(DrainResult.EOF);
+                    return null;
                 }
                 return tryPage;
             });

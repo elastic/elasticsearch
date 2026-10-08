@@ -22,10 +22,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.Arrays;
 
+import static java.lang.foreign.ValueLayout.ADDRESS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -323,6 +325,39 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
                 int start = sliceOffset + offset;
                 assertArrayEquals(Arrays.copyOfRange(data, start, start + length), read);
                 assertEquals(offset + length, in.getFilePointer());
+                assertEquals(length, metricHolder.instance().getBytesRead());
+            }
+        }
+    }
+
+    // Verifies that an mmap'd file wrapped for store metrics resolves native addresses for the bulk withSliceAddresses path,
+    // and that offsets are relative to a sliced input. Vector scorers normally unwrap the input first, but the wrapper
+    // should not report "unavailable" for an input that can serve the request.
+    public void testWithSliceAddressesOnMMapInputResolvesAddresses() throws IOException {
+        byte[] data = randomByteArrayOfLength(512);
+        try (Directory dir = new MMapDirectory(createTempDir())) {
+            writeFile(dir, "data", data);
+            PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+            try (
+                IndexInput file = StoreMetricsIndexInput.create("data", dir.openInput("data", IOContext.DEFAULT), metricHolder);
+                Arena arena = Arena.ofConfined()
+            ) {
+                int sliceOffset = randomIntBetween(0, 64);
+                IndexInput in = randomBoolean() ? file : file.slice("slice", sliceOffset, data.length - sliceOffset);
+                int base = in == file ? 0 : sliceOffset;
+                long[] offsets = { 0L, 100L, 200L };
+                int length = 32;
+                MemorySegment addrs = arena.allocate(3 * ADDRESS.byteSize(), ADDRESS.byteAlignment());
+
+                boolean resolved = ((DirectAccessInput) in).withSliceAddresses(offsets, length, 3, addrs, resolvedAddrs -> {
+                    for (int i = 0; i < offsets.length; i++) {
+                        MemorySegment range = resolvedAddrs.getAtIndex(ADDRESS, i).reinterpret(length);
+                        byte[] expected = Arrays.copyOfRange(data, base + (int) offsets[i], base + (int) offsets[i] + length);
+                        assertArrayEquals(expected, range.toArray(ValueLayout.JAVA_BYTE));
+                    }
+                });
+
+                assertTrue(resolved);
             }
         }
     }

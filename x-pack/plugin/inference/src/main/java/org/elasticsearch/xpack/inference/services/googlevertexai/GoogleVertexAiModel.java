@@ -31,8 +31,9 @@ public abstract class GoogleVertexAiModel extends RateLimitGroupingModel {
 
     /**
      * This field defines the behaviour used to apply authorization headers to a {@link HttpPost}. By default, this is
-     * {@link GoogleVertexAiRequestUtils#decorateWithBearerToken(HttpPost, GoogleVertexAiSecretSettings)}. Unit tests may provide different
-     * behaviour to allow requests to be created without needing to retrieve credentials.
+     * {@link GoogleVertexAiRequestUtils#decorateWithBearerToken(HttpPost, GoogleVertexAiSecretSettings)}, which falls back to
+     * Application Default Credentials when the model has no secret settings (no service account key was supplied). Unit tests
+     * may provide different behaviour to allow requests to be created without needing to retrieve credentials.
      */
     private final BiConsumer<HttpPost, GoogleVertexAiModel> authHeaderDecorator;
 

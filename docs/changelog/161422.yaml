@@ -1,4 +1,4 @@
-area: "Mapping, Search"
+area: "Mapping"
 issues: []
 pr: 161422
 summary: Expose autocalibration profiles in `dense_vector` field mappings

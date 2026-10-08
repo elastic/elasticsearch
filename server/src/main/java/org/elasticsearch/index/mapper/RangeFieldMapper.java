@@ -545,9 +545,8 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     /**
-     * Formats the binary encoded ranges of a document as one {@code {"gte": ..., "lte": ...}} map per range. The default
-     * {@link org.elasticsearch.index.fielddata.LeafFieldData#getFormattedValues} would hand the raw encoded blob to the
-     * {@link DocValueFormat}, which cannot make sense of it, so {@code docvalue_fields} on range fields failed or returned garbage.
+     * Formats the binary encoded ranges of a document as one {@code {"gte": ..., "lte": ...}} map per range, which is what
+     * {@code docvalue_fields} returns for range fields.
      */
     private static final class RangeFormattedDocValues implements FormattedDocValues {
         private final SortableBinaryDocValues values;

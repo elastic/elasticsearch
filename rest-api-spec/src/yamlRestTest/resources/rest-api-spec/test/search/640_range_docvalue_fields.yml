@@ -1,7 +1,7 @@
 setup:
   - requires:
       cluster_features: ["mapper.range.docvalue_fields_fix"]
-      reason: "docvalue_fields on range fields used to fail or return garbage before the fix"
+      reason: "docvalue_fields on range fields returns one gte/lte map per range"
       test_runner_features: [ contains ]
   - do:
       indices.create:

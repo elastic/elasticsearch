@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -287,7 +288,7 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
             } else {
                 if (expectedFilesScanned > 0) {
                     assertThat(
-                        "external scan must run on a data node via the distributed fragment path",
+                        "[" + query + "] external scan must run on a data node via the distributed fragment path",
                         externalScanNodeNames(response).size(),
                         greaterThanOrEqualTo(1)
                     );
@@ -322,10 +323,20 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
                 either(equalTo(0)).or(equalTo(expectedFilesScannedIfNotFolded))
             );
             if (filesScanned > 0) {
+                // LocalSourceOperator has no status, so pair its name with the same data driver's
+                // zero-I/O profile rather than accepting a local operator beside an external scan.
                 boolean dataNodeMetadataFold = response.profile()
                     .drivers()
                     .stream()
                     .filter(driver -> driver.description().equals("data"))
+                    .filter(
+                        driver -> driver.operators()
+                            .stream()
+                            .allMatch(
+                                operator -> operator.bytesRead() == 0
+                                    && (operator.status() instanceof AsyncExternalSourceOperator.Status) == false
+                            )
+                    )
                     .flatMap(driver -> driver.operators().stream())
                     .anyMatch(operator -> operator.operator().equals(LocalSourceOperator.class.getSimpleName()));
                 assertTrue(

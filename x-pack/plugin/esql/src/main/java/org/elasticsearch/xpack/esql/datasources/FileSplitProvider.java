@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.Strings;
@@ -20,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -27,15 +30,21 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.AbstractStringPattern;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -45,6 +54,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
@@ -62,6 +72,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGrea
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.AutomataMatch;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -104,6 +118,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntPredicate;
 
 /**
  * Default {@link SplitProvider} for file-based sources.
@@ -143,6 +158,14 @@ import java.util.function.BooleanSupplier;
 public class FileSplitProvider implements SplitProvider {
 
     private static final Logger LOGGER = LogManager.getLogger(FileSplitProvider.class);
+
+    /**
+     * A node before this version cannot bind a headered CSV/TSV split past the file's first byte by the file's header,
+     * so below it such files stay one whole-file split.
+     */
+    static final TransportVersion ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT = TransportVersion.fromName(
+        "esql_external_text_header_every_split"
+    );
 
     /**
      * In-flight {@link FileTask} shells for this provider. One discovery runs at a time.
@@ -373,6 +396,12 @@ public class FileSplitProvider implements SplitProvider {
      */
     private final NodeWarningThrottle warnings;
     private final AtomicLong splitDiscoveryCpuNanos = new AtomicLong();
+    private final AtomicInteger splitDiscoveryProbes = new AtomicInteger();
+    /**
+     * Strided files whose probe grid was cut short because of {@code rowLimit}. Shortfall accounting must not
+     * treat unprobed offsets as missing or warn that the file was read whole.
+     */
+    private final Set<DeferredNewlineSplits> demandTruncatedFiles = Collections.newSetFromMap(new IdentityHashMap<>());
     /**
      * What this discovery has to tell the query's author. Held per discovery, like
      * {@link #splitDiscoveryCpuNanos}: one discovery runs on a provider at a time, and the result is built after
@@ -451,7 +480,8 @@ public class FileSplitProvider implements SplitProvider {
         List<ExternalSplit> splits,
         boolean exhaustivelyPruned,
         long cpuNanos,
-        List<String> warnings
+        List<String> warnings,
+        int splitDiscoveryProbes
     ) {
         return new SplitDiscoveryResult(
             splits,
@@ -460,7 +490,8 @@ public class FileSplitProvider implements SplitProvider {
             cpuNanos,
             context.fileList(),
             context.schemaMap(),
-            warnings
+            warnings,
+            splitDiscoveryProbes
         );
     }
 
@@ -493,13 +524,19 @@ public class FileSplitProvider implements SplitProvider {
      * <p>
      * One place answers this so no caller has to ask whether the listing it was handed happens to be complete. A
      * complete one — {@code union_by_name}, {@code strict}, whose schemas span every file — is the query's file set
-     * already and is returned unchanged. A prefix — {@code first_file_wins}, whose schema needed one file — is not,
-     * so this lists the dataset with the query's own filters. Continuing from the prefix rather than listing again
-     * is the obvious refinement and is not done yet: the page the schema read is listed twice, one request against
-     * the full listing's many.
+     * already and is returned unchanged. An inference-anchor listing is a schema stash, not a scan set, so this
+     * swaps in empty rather than listing again. A prefix — {@code first_file_wins}, whose schema needed one file —
+     * is not complete, so this lists the dataset with the query's own filters. Continuing from the prefix rather
+     * than listing again is the obvious refinement and is not done yet: the page the schema read is listed twice,
+     * one request against the full listing's many.
      */
     private SplitDiscoveryContext overTheQuerysFileSet(SplitDiscoveryContext handed, ListingExtents extents) throws Exception {
         DatasetDiscovery discovery = DatasetDiscovery.shared(handed.fileList());
+        if (handed.fileList().isInferenceAnchor()) {
+            // The leftover file is a schema stash. A re-list with the same hints is another anchor (cache hit);
+            // skip it and scan nothing. Certified skip of that one file would also yield zero rows.
+            return handed.withScanFileSet(FileList.EMPTY);
+        }
         if (discovery.schemaListingIsComplete()) {
             // The listing is the query's file set, so there is nothing to swap and nothing derived from it to move.
             return handed;
@@ -697,8 +734,20 @@ public class FileSplitProvider implements SplitProvider {
         String pattern = context.metadata() == null ? null : context.metadata().location();
         Map<String, Object> config = context.config();
         StorageProvider provider = null;
+        // Take the identities the registry reports when it makes the provider, rather than letting the listing key
+        // default them: resolution's listing is cached under what its provider reported, and a scan that listed the
+        // same pattern under a different identity would cache a second copy and never be served the first.
+        String storageIdentity = "";
+        String secretIdentity = "";
         if (pattern != null && storageRegistry != null) {
-            provider = storageRegistry.createProvider(StoragePath.of(pattern).scheme(), settings, config);
+            Configured<StorageProvider> resolved = storageRegistry.createProviderTrackingConsumedKeys(
+                StoragePath.of(pattern).scheme(),
+                settings,
+                config
+            );
+            provider = resolved.value();
+            storageIdentity = resolved.identity();
+            secretIdentity = resolved.secretIdentity();
         }
         if (provider == null) {
             // Returning what we were handed would turn a prefix of the dataset into the query's file set, and the
@@ -713,9 +762,13 @@ public class FileSplitProvider implements SplitProvider {
         }
         StoragePath storagePath = StoragePath.of(pattern);
         try {
-            List<PartitionFilterHintExtractor.PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            PartitionMetadata partitionInfo = context.partitionInfo();
+            Set<String> partitionKeys = partitionInfo == null ? Set.of() : partitionInfo.partitionColumns().keySet();
+            List<PartitionFilterHintExtractor.PartitionFilterHint> hints = listingHintsForQuery(
                 context.filterHints(),
-                context.metadataColumnNames()
+                context.metadataColumnNames(),
+                partitionKeys,
+                PartitionSpec.fromConfig(config)
             );
             List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
             if (extents.boundsFileSet()) {
@@ -741,6 +794,8 @@ public class FileSplitProvider implements SplitProvider {
                     pattern,
                     storagePath,
                     provider,
+                    storageIdentity,
+                    secretIdentity,
                     narrowing,
                     config,
                     scanMemory(context),
@@ -759,6 +814,48 @@ public class FileSplitProvider implements SplitProvider {
         } finally {
             StorageProviderCache.closeLease(provider);
         }
+    }
+
+    /**
+     * Listing-cache hints: hive keys and requested {@code _file.*} from the LISTING
+     * extract, plus spec-projected {@code year IN} / identity remaps. Data columns
+     * such as {@code @timestamp} never join the listing cache identity.
+     */
+    static List<PartitionFilterHintExtractor.PartitionFilterHint> listingHintsForQuery(
+        List<Expression> filters,
+        Set<String> requestedMetadata,
+        Set<String> partitionKeys,
+        PartitionSpec spec
+    ) {
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            filters,
+            requestedMetadata,
+            partitionKeys
+        );
+        if (spec == null || spec.isEmpty()) {
+            return hints;
+        }
+        List<PartitionFilterHintExtractor.PartitionFilterHint> merged = new ArrayList<>(hints);
+        merged.addAll(
+            PartitionFilterHintExtractor.fromConjuncts(filters, Set.of(), spec.boundColumns(), PartitionFilterHintExtractor.TEMPORAL)
+        );
+        return dropNonListingKeys(spec.projectListingHints(merged), partitionKeys, requestedMetadata);
+    }
+
+    static List<PartitionFilterHintExtractor.PartitionFilterHint> dropNonListingKeys(
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Set<String> partitionKeys,
+        Set<String> requestedMetadata
+    ) {
+        List<PartitionFilterHintExtractor.PartitionFilterHint> kept = new ArrayList<>(hints.size());
+        for (PartitionFilterHintExtractor.PartitionFilterHint hint : hints) {
+            String column = hint.columnName();
+            if (partitionKeys.contains(column)
+                || (FileMetadataColumns.isFileMetadataColumn(column) && requestedMetadata.contains(column))) {
+                kept.add(hint);
+            }
+        }
+        return kept;
     }
 
     @Override
@@ -835,7 +932,7 @@ public class FileSplitProvider implements SplitProvider {
                 // No rows were planned, so a demand above zero was not covered. Over a prefix that sends the caller
                 // back for the whole dataset; over a complete listing the flag is never read.
                 return new Attempt(
-                    resultOver(context, List.of(), exhaustivelyPruned, 0L, discoveryWarnings.get()),
+                    resultOver(context, List.of(), exhaustivelyPruned, 0L, discoveryWarnings.get(), 0),
                     fileList.isTruncated(),
                     false
                 );
@@ -850,6 +947,8 @@ public class FileSplitProvider implements SplitProvider {
             warnIfStrideWidened(requestedStrideBytes, strideBytes, maxSplitProbes, probedFileBytes);
             // Only single split discovery is performed on each FileSplitProvider at a time
             splitDiscoveryCpuNanos.set(0L);
+            splitDiscoveryProbes.set(0);
+            demandTruncatedFiles.clear();
             List<PlanResult> planResults;
             int survivorCount = batch.size();
             // A file is planned only while the rows already covered fall short of what the query asked for; see
@@ -886,24 +985,30 @@ public class FileSplitProvider implements SplitProvider {
                 throw ExternalFailures.surface(e, "Failed to discover splits");
             }
 
-            // Phase 3: probe the deferred files' record boundaries. Every deferred file's stride offsets go into one
-            // flat batch under a single concurrency budget, so the number of in-flight probe reads is bounded by that
-            // budget no matter how many files are being probed. Probing per file instead would multiply the per-file
-            // budget by the number of files in flight.
+            // Phase 3: spend one demand-sized cut budget in listing order. Files past that budget stay
+            // whole-file. Unlimited quoted files already walked in Phase 2.
+            List<PlanResult> planned = new ArrayList<>(planResults);
+            int remainingCuts = remainingDemandCuts(context, planned);
+            try {
+                remainingCuts = walkDeferredQuoted(planned, remainingCuts, isCancelled);
+            } catch (Exception e) {
+                throw ExternalFailures.surface(e, "Failed to discover splits");
+            }
             Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> probedOutcomes = probeDeferredBoundaries(
-                planResults,
+                planned,
                 probeWindowBytes,
-                isCancelled
+                isCancelled,
+                remainingCuts
             );
 
             // Phase 4: turn the plan results into splits, now that every boundary either was known at planning time
             // or has been probed.
-            List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes);
+            List<ExternalSplit> splits = splitsFromPlanResults(planned, probedOutcomes);
 
             // Each surviving file produces at least one split, so the survivor count is the number of
             // distinct files that are actually scanned after coordinator-side pruning.
             return new Attempt(
-                resultOver(context, splits, false, splitDiscoveryCpuNanos.get(), discoveryWarnings.get()),
+                resultOver(context, splits, false, splitDiscoveryCpuNanos.get(), discoveryWarnings.get(), splitDiscoveryProbes.get()),
                 fileList.isTruncated(),
                 budget.satisfied()
             );
@@ -1022,7 +1127,7 @@ public class FileSplitProvider implements SplitProvider {
                 // No rows were planned, so a demand above zero was not covered; see the sync path's same exit.
                 listener.onResponse(
                     new Attempt(
-                        resultOver(context, List.of(), exhaustivelyPruned, 0L, discoveryWarnings.get()),
+                        resultOver(context, List.of(), exhaustivelyPruned, 0L, discoveryWarnings.get(), 0),
                         fileList.isTruncated(),
                         false
                     )
@@ -1035,6 +1140,8 @@ public class FileSplitProvider implements SplitProvider {
             final long strideBytes = strideBoundedByProbeBudget(requestedStrideBytes, batch.probedFileBytes(), maxSplitProbes);
             warnIfStrideWidened(requestedStrideBytes, strideBytes, maxSplitProbes, batch.probedFileBytes());
             splitDiscoveryCpuNanos.set(0L);
+            splitDiscoveryProbes.set(0);
+            demandTruncatedFiles.clear();
             Executor fanOut = recordingDiscoveryCpu(withStorageRetryCancellation(discoveryFanOutExecutor(requestedExecutor), isCancelled));
             ActionListener<Attempt> completion = ActionListener.runAfter(listener, () -> StorageProviderCache.closeLease(hoistedProvider));
             gatherSkippingCachedFooters(
@@ -1043,33 +1150,49 @@ public class FileSplitProvider implements SplitProvider {
                 strideBytes,
                 isCancelled,
                 fanOut,
-                ActionListener.<List<PlanResult>>wrap(
-                    planResults -> probeDeferredBoundariesAsync(
-                        planResults,
+                ActionListener.<List<PlanResult>>wrap(planResults -> {
+                    List<PlanResult> planned = new ArrayList<>(planResults);
+                    int remainingCuts;
+                    try {
+                        remainingCuts = remainingDemandCuts(context, planned);
+                        remainingCuts = walkDeferredQuoted(planned, remainingCuts, isCancelled);
+                    } catch (Exception e) {
+                        completion.onFailure(ExternalFailures.surface(e, "Failed to discover splits"));
+                        return;
+                    }
+                    probeDeferredBoundariesAsync(
+                        planned,
                         probeWindowBytes,
                         isCancelled,
                         fanOut,
+                        remainingCuts,
                         ActionListener.wrap(probedOutcomes -> {
                             try {
                                 if (isCancelled.getAsBoolean()) {
                                     completion.onFailure(new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE));
                                     return;
                                 }
-                                List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes);
+                                List<ExternalSplit> splits = splitsFromPlanResults(planned, probedOutcomes);
                                 completion.onResponse(
                                     new Attempt(
-                                        resultOver(context, splits, false, splitDiscoveryCpuNanos.get(), discoveryWarnings.get()),
+                                        resultOver(
+                                            context,
+                                            splits,
+                                            false,
+                                            splitDiscoveryCpuNanos.get(),
+                                            discoveryWarnings.get(),
+                                            splitDiscoveryProbes.get()
+                                        ),
                                         fileList.isTruncated(),
-                                        coversTheDemand(context, planResults)
+                                        coversTheDemand(context, planned)
                                     )
                                 );
                             } catch (Exception e) {
                                 completion.onFailure(ExternalFailures.surface(e, "Failed to discover splits"));
                             }
                         }, e -> completion.onFailure(ExternalFailures.surface(e, "Failed to discover splits")))
-                    ),
-                    e -> completion.onFailure(ExternalFailures.surface(e, "Failed to discover splits"))
-                )
+                    );
+                }, e -> completion.onFailure(ExternalFailures.surface(e, "Failed to discover splits")))
             );
             asyncStarted = true;
         } catch (Exception e) {
@@ -1125,7 +1248,8 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable Map<String, DataType> inferredFileTypes,
         @Nullable SourceStatistics statistics,
         @Nullable Map<String, Object> foldedSourceMetadata,
-        boolean unknownNativeTypes
+        boolean unknownNativeTypes,
+        TransportVersion minTransportVersion
     ) {
         private FileTask toTask() {
             return new FileTask(
@@ -1142,7 +1266,8 @@ public class FileSplitProvider implements SplitProvider {
                 inferredFileTypes,
                 statistics,
                 foldedSourceMetadata,
-                unknownNativeTypes
+                unknownNativeTypes,
+                minTransportVersion
             );
         }
     }
@@ -1171,6 +1296,7 @@ public class FileSplitProvider implements SplitProvider {
         );
         Set<String> metadataColumnNames = context.metadataColumnNames();
         Set<String> retainedPartitionKeys = context.retainedPartitionKeys();
+        PartitionSpec spec = PartitionSpec.fromConfig(config);
         PartitionValueLayout layout = PartitionValueLayout.of(retainedPartitionKeys, partitionInfo);
 
         int fileCount = fileList.fileCount();
@@ -1209,6 +1335,7 @@ public class FileSplitProvider implements SplitProvider {
         // filter, does not allocate the other location strings.
         Set<String> locationToWrite = referencedNames(filterHints, namesInBoth(metadataColumnNames, FileMetadataColumns.LOCATION_NAMES));
         Map<String, BytesRef> filterDirectoryIntern = locationToWrite.contains(FileMetadataColumns.DIRECTORY) ? new HashMap<>() : null;
+        IdentityHashMap<Expression, ByteRunAutomaton> regexAutomata = new IdentityHashMap<>();
         for (int i = 0; i < fileCount; i++) {
             StoragePath filePath = fileList.path(i);
             Map<String, Object> frozen;
@@ -1226,6 +1353,7 @@ public class FileSplitProvider implements SplitProvider {
                 long modifiedMillis = fileList.lastModifiedMillis(i);
                 Instant modified = modifiedMillis == 0L ? null : Instant.ofEpochMilli(modifiedMillis);
                 FileMetadataColumns.putValues(scratch, filePath, fileList.size(i), modified, filterDirectoryIntern, locationToWrite);
+                spec.aliasIdentityValues(scratch);
                 // Filter against the scratch. The survivor map is the shared tuple or the overlay view, never this map.
                 Map<String, Object> listingValues = Collections.unmodifiableMap(scratch);
                 SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
@@ -1234,7 +1362,11 @@ public class FileSplitProvider implements SplitProvider {
                     Map<String, Object> filterValues = copyFilterValues
                         ? discoveryFilterValues(listingValues, metadataColumnNames, overlayPerFileConstants, unboundFileMetadataNames)
                         : listingValues;
-                    if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
+                    if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints, regexAutomata) == false) {
+                        certifiedSkips++;
+                        continue;
+                    }
+                    if (spec.overlapsExpressions(scratch, filterHints) == false) {
                         certifiedSkips++;
                         continue;
                     }
@@ -1511,7 +1643,7 @@ public class FileSplitProvider implements SplitProvider {
             if (isCancelled.getAsBoolean()) {
                 throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
             }
-            return processFileForSplits(task, hoistedProvider, strideBytes, isCancelled);
+            return processFileForSplits(task, hoistedProvider, strideBytes, isCancelled, batch.context().rowLimit());
         } finally {
             releaseFileTask();
         }
@@ -1556,7 +1688,8 @@ public class FileSplitProvider implements SplitProvider {
             inferredFileTypes,
             fileStatistics,
             context.metadata() == null ? null : context.metadata().sourceMetadata(),
-            unknownNativeTypes
+            unknownNativeTypes,
+            context.minTransportVersion()
         );
     }
 
@@ -1595,7 +1728,12 @@ public class FileSplitProvider implements SplitProvider {
      * backoff the same way sync {@link #processFileForSplits} wraps {@link #computeFileSplits}.
      */
     private static Executor withStorageRetryCancellation(Executor executor, BooleanSupplier isCancelled) {
-        return command -> executor.execute(() -> StorageRetryCancellation.runWithCancellation(isCancelled, command::run));
+        ExternalPlanningIo planningIo = ExternalPlanningIo.current();
+        return ExternalIoExecutors.preserving(ExternalIoExecutors.restoring(executor, null, isCancelled), command -> {
+            try (Releasable ignored = ExternalPlanningIo.activate(planningIo)) {
+                command.run();
+            }
+        });
     }
 
     /**
@@ -1604,7 +1742,7 @@ public class FileSplitProvider implements SplitProvider {
      * Nested executes on the same thread share one interval so {@code DIRECT} does not double-count.
      */
     private Executor recordingDiscoveryCpu(Executor inner) {
-        return command -> inner.execute(() -> runRecordingDiscoveryCpu(command));
+        return ExternalIoExecutors.preserving(inner, this::runRecordingDiscoveryCpu);
     }
 
     private void runRecordingDiscoveryCpu(Runnable work) {
@@ -1783,7 +1921,17 @@ public class FileSplitProvider implements SplitProvider {
                         released.onFailure(new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE));
                         return;
                     }
-                    fanOut.execute(() -> processFileForSplitsAsync(task, hoistedProvider, strideBytes, isCancelled, fanOut, released));
+                    fanOut.execute(
+                        () -> processFileForSplitsAsync(
+                            task,
+                            hoistedProvider,
+                            strideBytes,
+                            isCancelled,
+                            fanOut,
+                            batch.context().rowLimit(),
+                            released
+                        )
+                    );
                 } catch (Exception e) {
                     released.onFailure(e);
                 }
@@ -1875,7 +2023,7 @@ public class FileSplitProvider implements SplitProvider {
      * Splits come out in file order: walking the plan results keeps a probed file's macro-splits in the position
      * its file occupied in the file list.
      */
-    private static List<ExternalSplit> splitsFromPlanResults(
+    private List<ExternalSplit> splitsFromPlanResults(
         List<PlanResult> planResults,
         Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> probedOutcomes
     ) {
@@ -1893,9 +2041,14 @@ public class FileSplitProvider implements SplitProvider {
                         throw new IllegalStateException("no probed boundaries for deferred file " + deferred.task().filePath());
                     }
                     List<Long> starts = RecordBoundaryProbe.reduce(outcomes);
-                    shortfall.recordProbed(deferred, outcomes, starts);
+                    if (demandTruncatedFiles.contains(deferred) == false) {
+                        shortfall.recordProbed(deferred, outcomes, starts);
+                    }
                     splits.addAll(buildNewlineMacroSplits(deferred, starts));
                 }
+                case PlanResult.NeedsWalk needsWalk -> throw new IllegalStateException(
+                    "quoted walk still pending for " + needsWalk.deferred().task().filePath()
+                );
                 case PlanResult.Walked walked -> {
                     shortfall.recordWalk(walked);
                     splits.addAll(buildNewlineMacroSplits(walked.deferred(), walked.starts()));
@@ -2032,88 +2185,48 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Probes the record boundaries of every deferred file, keyed by the descriptor they belong to.
+     * Probes the record boundaries of deferred files, keyed by the descriptor they belong to.
      * <p>
-     * With an executor, all files' stride offsets are gathered into one flat batch so a single concurrency budget
-     * ({@link #splitDiscoveryConcurrency()}) bounds the in-flight probe reads across the whole query, rather than
-     * one budget per file multiplied by the files in flight. Without one, each file is walked serially. Both
-     * produce the same per-offset outcomes; the caller reduces them to split starts.
+     * Under demand, only a leading prefix of offsets is probed, in listing order, from the leftover
+     * cut budget after quoted walks. Files past that budget become whole-file splits with no probes.
+     * If the wave finds no boundary for a file, the rest of that file's grid is probed so a run of
+     * NONE cannot collapse it.
      * <p>
-     * Keying on the descriptor's identity rather than on a file's position in {@code planResults} is what keeps
-     * the two phases from having to agree on an ordering: a probe task already carries the descriptor it
-     * contributes to, so filtering or reordering the plan results between planning and probing cannot hand one
-     * file another file's boundaries.
+     * With an executor, selected offsets share {@link #splitDiscoveryConcurrency()}. Without one, they run
+     * serially. Both produce the same per-offset outcomes; the caller reduces them to split starts.
      *
      * @param probeWindowBytes the bytes each of these probes may read, from {@link #CONFIG_SPLIT_PROBE_WINDOW}
      */
     private Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> probeDeferredBoundaries(
         List<PlanResult> planResults,
         long probeWindowBytes,
-        BooleanSupplier isCancelled
+        BooleanSupplier isCancelled,
+        int remainingCuts
     ) {
-        List<DeferredNewlineSplits> deferredFiles = new ArrayList<>();
-        int probeCount = 0;
-        for (PlanResult planResult : planResults) {
-            if (planResult instanceof PlanResult.NeedsProbing needsProbing) {
-                deferredFiles.add(needsProbing.deferred());
-                probeCount += needsProbing.deferred().positions().size();
-            }
-        }
-        if (probeCount == 0) {
+        Map<DeferredNewlineSplits, List<Long>> remainingPositions = new IdentityHashMap<>();
+        List<ProbeTask> wave = selectLeadingProbeTasks(planResults, remainingCuts, remainingPositions);
+        if (wave.isEmpty()) {
             return Map.of();
         }
-        // Every file's stride was widened to fit the query's probe budget, which MAX_SPLIT_PROBES_CEILING bounds,
-        // so the pooled count cannot approach the range of the int it is held in.
-        assert probeCount <= MAX_SPLIT_PROBES_CEILING : "pooled probe count [" + probeCount + "] above the ceiling";
-        // A cancel between planning and probing should be seen before any probe read is issued.
         if (isCancelled.getAsBoolean()) {
             throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
         }
         try {
-            Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> outcomesByFile = new IdentityHashMap<>(deferredFiles.size());
-            if (executor == null) {
-                for (DeferredNewlineSplits deferred : deferredFiles) {
-                    outcomesByFile.put(
-                        deferred,
-                        RecordBoundaryProbe.stridedOutcomes(
-                            deferred.splitter(),
-                            deferred.storageObject(),
-                            deferred.task().fileLength(),
-                            deferred.positions(),
-                            deferred.minSegment(),
-                            deferred.strideBytes(),
-                            deferred.task().maxRecordBytes(),
-                            probeWindowBytes,
-                            isCancelled
-                        )
-                    );
-                }
-            } else {
-                List<ProbeTask> probeTasks = new ArrayList<>(probeCount);
-                for (DeferredNewlineSplits deferred : deferredFiles) {
-                    for (long position : deferred.positions()) {
-                        probeTasks.add(new ProbeTask(deferred, position));
-                    }
-                }
-
-                List<RecordBoundaryProbe.Outcome> outcomes = runGather(
-                    probeTasks,
-                    probe -> runProbe(probe, probeWindowBytes, isCancelled),
-                    splitDiscoveryConcurrency(),
-                    executor
-                );
-
-                // Results come back in input order, and each file's offsets were added in ascending order, so
-                // grouping by file preserves the ascending order the reduction requires.
-                for (int i = 0; i < probeTasks.size(); i++) {
-                    outcomesByFile.computeIfAbsent(probeTasks.get(i).deferred(), k -> new ArrayList<>()).add(outcomes.get(i));
-                }
-            }
-            // A cancel landing after the last probe has read is seen by no probe, so check once more here rather
-            // than returning a split set the caller will discard.
+            List<RecordBoundaryProbe.Outcome> waveOutcomes = runProbeTasks(wave, probeWindowBytes, isCancelled);
+            List<ProbeTask> fallback = fallbackProbeTasks(wave, waveOutcomes, remainingPositions);
+            List<RecordBoundaryProbe.Outcome> fallbackOutcomes = fallback.isEmpty()
+                ? List.of()
+                : runProbeTasks(fallback, probeWindowBytes, isCancelled);
             if (isCancelled.getAsBoolean()) {
                 throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
             }
+            recordPooledProbeCount(wave.size() + fallback.size());
+            Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> outcomesByFile = groupProbeOutcomes(
+                wave,
+                waveOutcomes,
+                fallback,
+                fallbackOutcomes
+            );
             return outcomesByFile;
         } catch (Exception e) {
             throw ExternalFailures.surface(e, "Failed to discover splits");
@@ -2125,32 +2238,267 @@ public class FileSplitProvider implements SplitProvider {
         long probeWindowBytes,
         BooleanSupplier isCancelled,
         Executor fanOut,
+        int remainingCuts,
         ActionListener<Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>>> listener
     ) {
-        List<DeferredNewlineSplits> deferredFiles = new ArrayList<>();
-        int probeCount = 0;
-        for (PlanResult planResult : planResults) {
-            if (planResult instanceof PlanResult.NeedsProbing needsProbing) {
-                deferredFiles.add(needsProbing.deferred());
-                probeCount += needsProbing.deferred().positions().size();
-            }
-        }
-        if (probeCount == 0) {
+        Map<DeferredNewlineSplits, List<Long>> remainingPositions = new IdentityHashMap<>();
+        List<ProbeTask> wave = selectLeadingProbeTasks(planResults, remainingCuts, remainingPositions);
+        if (wave.isEmpty()) {
             listener.onResponse(Map.of());
             return;
         }
-        assert probeCount <= MAX_SPLIT_PROBES_CEILING : "pooled probe count [" + probeCount + "] above the ceiling";
         if (isCancelled.getAsBoolean()) {
             listener.onFailure(new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE));
             return;
         }
-        List<ProbeTask> probeTasks = new ArrayList<>(probeCount);
-        for (DeferredNewlineSplits deferred : deferredFiles) {
-            for (long position : deferred.positions()) {
-                probeTasks.add(new ProbeTask(deferred, position));
+        runProbeTasksAsync(wave, probeWindowBytes, isCancelled, fanOut, ActionListener.wrap(waveOutcomes -> {
+            List<ProbeTask> fallback = fallbackProbeTasks(wave, waveOutcomes, remainingPositions);
+            if (fallback.isEmpty()) {
+                finishProbeAsync(wave, waveOutcomes, List.of(), List.of(), isCancelled, listener);
+                return;
+            }
+            runProbeTasksAsync(
+                fallback,
+                probeWindowBytes,
+                isCancelled,
+                fanOut,
+                ActionListener.wrap(
+                    fallbackOutcomes -> finishProbeAsync(wave, waveOutcomes, fallback, fallbackOutcomes, isCancelled, listener),
+                    listener::onFailure
+                )
+            );
+        }, listener::onFailure));
+    }
+
+    private void finishProbeAsync(
+        List<ProbeTask> wave,
+        List<RecordBoundaryProbe.Outcome> waveOutcomes,
+        List<ProbeTask> fallback,
+        List<RecordBoundaryProbe.Outcome> fallbackOutcomes,
+        BooleanSupplier isCancelled,
+        ActionListener<Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>>> listener
+    ) {
+        if (isCancelled.getAsBoolean()) {
+            listener.onFailure(new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE));
+            return;
+        }
+        recordPooledProbeCount(wave.size() + fallback.size());
+        listener.onResponse(groupProbeOutcomes(wave, waveOutcomes, fallback, fallbackOutcomes));
+    }
+
+    /**
+     * Stride cuts a demand-limited scan may still issue, counting each planned file as a starting
+     * point. {@link FormatReader#NO_LIMIT} is unbounded. Zero means every file stays whole-file.
+     */
+    private int remainingDemandCuts(SplitDiscoveryContext context, List<PlanResult> planned) {
+        long stride = firstStride(planned);
+        return ExternalLimitSplits.demandCuts(
+            context.rowLimit(),
+            ExternalLimitSplits.DEFAULT_PAGE_SIZE_ROWS,
+            context.taskConcurrency(),
+            planned.size(),
+            stride > 0 ? stride : DEFAULT_TARGET_SPLIT_SIZE,
+            rowBytes(context)
+        );
+    }
+
+    private static long firstStride(List<PlanResult> planned) {
+        for (PlanResult planResult : planned) {
+            if (planResult instanceof PlanResult.NeedsProbing needsProbing) {
+                return needsProbing.deferred().strideBytes();
+            }
+            if (planResult instanceof PlanResult.NeedsWalk needsWalk) {
+                return needsWalk.deferred().strideBytes();
             }
         }
-        gatherAsync(probeTasks, (ProbeTask probe, ActionListener<RecordBoundaryProbe.Outcome> itemListener) -> {
+        return 0L;
+    }
+
+    /**
+     * Bytes per row used to size {@code ceil(rowLimit * rowBytes / stride)}. Declared mappings keep
+     * {@link ExternalLimitSplits#DEFAULT_ROW_BYTES}; inferred schemas use the sample width when present.
+     */
+    static long rowBytes(SplitDiscoveryContext context) {
+        if (context.declaredReadSpec() != null && context.declaredReadSpec().isEmpty() == false) {
+            return ExternalLimitSplits.DEFAULT_ROW_BYTES;
+        }
+        SourceMetadata metadata = context.metadata();
+        if (metadata != null) {
+            long sampleBytes = metadata.sampleBytes();
+            int sampleRows = metadata.sampleRows();
+            if (sampleBytes > 0 && sampleRows > 0) {
+                return Math.max(1L, Math.ceilDiv(sampleBytes, (long) sampleRows));
+            }
+        }
+        return ExternalLimitSplits.DEFAULT_ROW_BYTES;
+    }
+
+    /**
+     * How many leading strided probe offsets a demand-limited scan may issue for one file.
+     * Under demand this is {@link ExternalLimitSplits#demandCuts}, not a concurrency floor:
+     * a single-driver LIMIT issues zero cuts. Gated on {@code rowLimit !=} {@link FormatReader#NO_LIMIT}.
+     */
+    int probeWaveSize(int rowLimit, long strideBytes, int positionCount) {
+        return probeWaveSize(rowLimit, strideBytes, positionCount, ExternalLimitSplits.DEFAULT_TASK_CONCURRENCY, 1);
+    }
+
+    int probeWaveSize(int rowLimit, long strideBytes, int positionCount, int taskConcurrency, int fileCount) {
+        if (positionCount <= 0) {
+            return 0;
+        }
+        int cuts = ExternalLimitSplits.demandCuts(
+            rowLimit,
+            ExternalLimitSplits.DEFAULT_PAGE_SIZE_ROWS,
+            taskConcurrency,
+            fileCount,
+            strideBytes,
+            ExternalLimitSplits.DEFAULT_ROW_BYTES
+        );
+        if (cuts == Integer.MAX_VALUE) {
+            return positionCount;
+        }
+        return Math.min(positionCount, cuts);
+    }
+
+    /**
+     * Cap on proven-walk starts under demand, including the file start at 0.
+     * {@link #probeWaveSize} counts remaining cuts (0 is implicit in {@link RecordBoundaryProbe#reduce}).
+     * The walk's {@code maxBoundaries} includes 0, so the cap is cuts+1.
+     */
+    int provenBoundaryCap(int rowLimit, long strideBytes) {
+        return provenBoundaryCap(rowLimit, strideBytes, ExternalLimitSplits.DEFAULT_TASK_CONCURRENCY, 1);
+    }
+
+    int provenBoundaryCap(int rowLimit, long strideBytes, int taskConcurrency, int fileCount) {
+        int cuts = ExternalLimitSplits.demandCuts(
+            rowLimit,
+            ExternalLimitSplits.DEFAULT_PAGE_SIZE_ROWS,
+            taskConcurrency,
+            fileCount,
+            strideBytes,
+            ExternalLimitSplits.DEFAULT_ROW_BYTES
+        );
+        if (cuts == Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        return cuts + 1;
+    }
+
+    /**
+     * Takes a listing-order prefix of strided offsets totalling the leftover cut budget, and rewrites files
+     * past that budget to whole-file splits with no probes. Partial files keep their leftover positions for
+     * {@link #fallbackProbeTasks}. Files rewritten to whole-file never re-enter fallback: leftover offsets
+     * on a later file would spend GETs the demand already decided not to spend, and would cut a file the
+     * query will not read past the LIMIT (2174-safe).
+     */
+    private List<ProbeTask> selectLeadingProbeTasks(
+        List<PlanResult> planResults,
+        int remainingCuts,
+        Map<DeferredNewlineSplits, List<Long>> remainingPositions
+    ) {
+        int totalPositions = 0;
+        for (PlanResult planResult : planResults) {
+            if (planResult instanceof PlanResult.NeedsProbing needsProbing) {
+                totalPositions += needsProbing.deferred().positions().size();
+            }
+        }
+        int waveSize = remainingCuts == Integer.MAX_VALUE ? totalPositions : Math.min(totalPositions, Math.max(0, remainingCuts));
+        List<ProbeTask> wave = new ArrayList<>(waveSize);
+        int remainingBudget = waveSize;
+        for (int i = 0; i < planResults.size(); i++) {
+            if (planResults.get(i) instanceof PlanResult.NeedsProbing needsProbing) {
+                DeferredNewlineSplits deferred = needsProbing.deferred();
+                List<Long> positions = deferred.positions();
+                if (remainingBudget == 0) {
+                    planResults.set(i, new PlanResult.Splits(buildNewlineMacroSplits(deferred, List.of(0L))));
+                    continue;
+                }
+                int take = Math.min(remainingBudget, positions.size());
+                for (int p = 0; p < take; p++) {
+                    wave.add(new ProbeTask(deferred, positions.get(p)));
+                }
+                remainingBudget -= take;
+                if (take < positions.size()) {
+                    remainingPositions.put(deferred, positions.subList(take, positions.size()));
+                    demandTruncatedFiles.add(deferred);
+                }
+            }
+        }
+        return wave;
+    }
+
+    private void recordPooledProbeCount(int issued) {
+        assert issued <= MAX_SPLIT_PROBES_CEILING : "pooled probe count [" + issued + "] above the ceiling";
+        splitDiscoveryProbes.addAndGet(issued);
+    }
+
+    /**
+     * When a truncated file's wave found no boundary, probe the rest of that file's grid so a run of NONE
+     * cannot collapse it into a single whole-file split. Files past the listing-order budget are rewritten
+     * to whole-file splits before this runs, so they never appear in {@code remainingPositions}.
+     */
+    private List<ProbeTask> fallbackProbeTasks(
+        List<ProbeTask> wave,
+        List<RecordBoundaryProbe.Outcome> waveOutcomes,
+        Map<DeferredNewlineSplits, List<Long>> remainingPositions
+    ) {
+        if (remainingPositions.isEmpty()) {
+            return List.of();
+        }
+        Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> byFile = new IdentityHashMap<>();
+        for (int i = 0; i < wave.size(); i++) {
+            byFile.computeIfAbsent(wave.get(i).deferred(), k -> new ArrayList<>()).add(waveOutcomes.get(i));
+        }
+        List<ProbeTask> fallback = new ArrayList<>();
+        for (Map.Entry<DeferredNewlineSplits, List<Long>> entry : remainingPositions.entrySet()) {
+            DeferredNewlineSplits deferred = entry.getKey();
+            List<Long> starts = RecordBoundaryProbe.reduce(byFile.getOrDefault(deferred, List.of()));
+            if (starts.size() <= 1) {
+                demandTruncatedFiles.remove(deferred);
+                for (long position : entry.getValue()) {
+                    fallback.add(new ProbeTask(deferred, position));
+                }
+            }
+        }
+        return fallback;
+    }
+
+    private static Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> groupProbeOutcomes(
+        List<ProbeTask> wave,
+        List<RecordBoundaryProbe.Outcome> waveOutcomes,
+        List<ProbeTask> fallback,
+        List<RecordBoundaryProbe.Outcome> fallbackOutcomes
+    ) {
+        Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> outcomesByFile = new IdentityHashMap<>();
+        for (int i = 0; i < wave.size(); i++) {
+            outcomesByFile.computeIfAbsent(wave.get(i).deferred(), k -> new ArrayList<>()).add(waveOutcomes.get(i));
+        }
+        for (int i = 0; i < fallback.size(); i++) {
+            outcomesByFile.computeIfAbsent(fallback.get(i).deferred(), k -> new ArrayList<>()).add(fallbackOutcomes.get(i));
+        }
+        return outcomesByFile;
+    }
+
+    private List<RecordBoundaryProbe.Outcome> runProbeTasks(List<ProbeTask> tasks, long probeWindowBytes, BooleanSupplier isCancelled)
+        throws Exception {
+        if (executor == null) {
+            List<RecordBoundaryProbe.Outcome> outcomes = new ArrayList<>(tasks.size());
+            for (ProbeTask task : tasks) {
+                outcomes.add(runProbe(task, probeWindowBytes, isCancelled));
+            }
+            return outcomes;
+        }
+        return runGather(tasks, probe -> runProbe(probe, probeWindowBytes, isCancelled), splitDiscoveryConcurrency(), executor);
+    }
+
+    private void runProbeTasksAsync(
+        List<ProbeTask> tasks,
+        long probeWindowBytes,
+        BooleanSupplier isCancelled,
+        Executor fanOut,
+        ActionListener<List<RecordBoundaryProbe.Outcome>> listener
+    ) {
+        gatherAsync(tasks, (ProbeTask probe, ActionListener<RecordBoundaryProbe.Outcome> itemListener) -> {
             try {
                 fanOut.execute(() -> {
                     try {
@@ -2162,17 +2510,7 @@ public class FileSplitProvider implements SplitProvider {
             } catch (Exception e) {
                 itemListener.onFailure(e);
             }
-        }, splitDiscoveryConcurrency(), fanOut, ActionListener.<List<RecordBoundaryProbe.Outcome>>wrap(outcomes -> {
-            Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> outcomesByFile = new IdentityHashMap<>(deferredFiles.size());
-            for (int i = 0; i < probeTasks.size(); i++) {
-                outcomesByFile.computeIfAbsent(probeTasks.get(i).deferred(), k -> new ArrayList<>()).add(outcomes.get(i));
-            }
-            if (isCancelled.getAsBoolean()) {
-                listener.onFailure(new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE));
-                return;
-            }
-            listener.onResponse(outcomesByFile);
-        }, listener::onFailure));
+        }, splitDiscoveryConcurrency(), fanOut, listener);
     }
 
     private <T, R> List<R> runGather(List<T> items, CheckedFunction<T, R, Exception> task, int concurrency, Executor executor)
@@ -2326,7 +2664,9 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable Map<String, Object> foldedSourceMetadata,
         // True when this FIRST_FILE_WINS glob file has no native-type snapshot. Column statistics
         // must be withheld before alignment can interpret them against the pinned read schema.
-        boolean unknownNativeTypes
+        boolean unknownNativeTypes,
+        // The cluster's minimum transport version, for ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT.
+        TransportVersion minTransportVersion
     ) {}
 
     /**
@@ -2364,8 +2704,11 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * The outcome of planning one file: its final splits, a descriptor whose record boundaries still need
-     * probing, or a sequential walk that has already resolved them. Deferring the probing lets every strided file's
-     * probes share a single concurrency budget.
+     * probing, a quoted file waiting for the listing-order walk, or a sequential walk that has already
+     * resolved them. Deferring strided probing lets every strided file's probes share a single concurrency
+     * budget. Deferring quoted walks under demand lets every quoted file share one W of cuts in listing
+     * order; unlimited quoted files still walk in Phase 2 so the fan-out stays parallel. Mixed
+     * strided+quoted queries spend a separate W on each path.
      */
     private sealed interface PlanResult {
         /** A file whose splits are settled, because planning already did whatever reading they needed. */
@@ -2373,6 +2716,12 @@ public class FileSplitProvider implements SplitProvider {
 
         /** A file whose macro-splits can only be built once the probe phase has resolved its record boundaries. */
         record NeedsProbing(DeferredNewlineSplits deferred) implements PlanResult {}
+
+        /**
+         * A quoted or escaped file whose sequential walk is deferred until the listing-order budget pass.
+         * Unlimited scans never produce this: they walk in Phase 2.
+         */
+        record NeedsWalk(DeferredNewlineSplits deferred) implements PlanResult {}
 
         /**
          * A file the sequential walk has already resolved. It carries its starts rather than its splits so that
@@ -2497,7 +2846,8 @@ public class FileSplitProvider implements SplitProvider {
         FileTask task,
         @Nullable StorageProvider hoistedProvider,
         long strideBytes,
-        BooleanSupplier isCancelled
+        BooleanSupplier isCancelled,
+        int rowLimit
     ) throws IOException {
         if (isCancelled.getAsBoolean()) {
             throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
@@ -2506,7 +2856,7 @@ public class FileSplitProvider implements SplitProvider {
         // backoff inside the footer reads below can abort a parked sleep on cancel.
         return StorageRetryCancellation.callWithCancellation(
             isCancelled,
-            () -> computeFileSplits(task, hoistedProvider, strideBytes, isCancelled)
+            () -> computeFileSplits(task, hoistedProvider, strideBytes, isCancelled, rowLimit)
         );
     }
 
@@ -2516,6 +2866,7 @@ public class FileSplitProvider implements SplitProvider {
         long strideBytes,
         BooleanSupplier isCancelled,
         Executor fanOut,
+        int rowLimit,
         ActionListener<PlanResult> listener
     ) {
         try {
@@ -2527,7 +2878,7 @@ public class FileSplitProvider implements SplitProvider {
             if (configuredReader != null && task.declaredReadSpec().provenance() == SchemaProvenance.DECLARED) {
                 configuredReader = configuredReader.withDeclaredProvenanceBinding(true);
             }
-            if (requiresSequentialWholeFileRead(configuredReader)) {
+            if (requiresSequentialWholeFileRead(configuredReader, task.minTransportVersion())) {
                 listener.onResponse(
                     new PlanResult.Splits(
                         List.of(
@@ -2574,7 +2925,7 @@ public class FileSplitProvider implements SplitProvider {
                         listener.onResponse(
                             StorageRetryCancellation.callWithCancellation(
                                 isCancelled,
-                                () -> planTextOrWholeFile(task, hoistedProvider, strideBytes, isCancelled, readerForText)
+                                () -> planTextOrWholeFile(task, hoistedProvider, strideBytes, isCancelled, readerForText, rowLimit)
                             )
                         );
                     } catch (Exception e) {
@@ -2591,15 +2942,15 @@ public class FileSplitProvider implements SplitProvider {
         FileTask task,
         @Nullable StorageProvider hoistedProvider,
         long strideBytes,
-        BooleanSupplier isCancelled
+        BooleanSupplier isCancelled,
+        int rowLimit
     ) throws IOException {
         List<ExternalSplit> fileSplits = new ArrayList<>();
 
         // Resolve the config-aware reader once and reuse it for both the sequential-whole-file gate and the
         // newline-aligned macro-split attempt below, which would otherwise each resolve it independently. The
-        // declared-name binding bit rides the typed DeclaredReadSpec (NOT the config map), so it must be applied
-        // here too, or the split-side reader's declaredNameBindingNeedsFileStart() is silently false and the gate
-        // below never fires — the read-side reader would then hit a chunk with no header line to bind against.
+        // declared-name binding bit rides the typed DeclaredReadSpec (NOT the config map), so it is applied here too,
+        // keeping the split-side reader configured exactly as the read-side one is.
         FormatReader configuredReader = resolveConfiguredReader(task.filePath(), task.config());
         if (configuredReader != null && task.declaredReadSpec().provenance() == SchemaProvenance.DECLARED) {
             configuredReader = configuredReader.withDeclaredProvenanceBinding(true);
@@ -2610,7 +2961,7 @@ public class FileSplitProvider implements SplitProvider {
         // splitting is safe: not newline-aligned macro-splits, nor compressed block/frame-aligned splits.
         // Emit a single whole-file split (identical to the fallback below); the reader consumes it as one
         // sequential stream and finds boundaries quote/escape-aware.
-        if (requiresSequentialWholeFileRead(configuredReader)) {
+        if (requiresSequentialWholeFileRead(configuredReader, task.minTransportVersion())) {
             fileSplits.add(
                 wholeFileSplit(
                     task.filePath(),
@@ -2662,7 +3013,7 @@ public class FileSplitProvider implements SplitProvider {
             return new PlanResult.Splits(fileSplits);
         }
 
-        return planTextOrWholeFile(task, hoistedProvider, strideBytes, isCancelled, configuredReader);
+        return planTextOrWholeFile(task, hoistedProvider, strideBytes, isCancelled, configuredReader, rowLimit);
     }
 
     private PlanResult planTextOrWholeFile(
@@ -2670,7 +3021,8 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable StorageProvider hoistedProvider,
         long strideBytes,
         BooleanSupplier isCancelled,
-        @Nullable FormatReader configuredReader
+        @Nullable FormatReader configuredReader,
+        int rowLimit
     ) throws IOException {
         List<ExternalSplit> fileSplits = new ArrayList<>();
         DeferredNewlineSplits deferred = newlineMacroSplitCandidate(task, strideBytes, hoistedProvider, configuredReader);
@@ -2691,8 +3043,49 @@ public class FileSplitProvider implements SplitProvider {
         if (deferred.positions().isEmpty() == false) {
             return new PlanResult.NeedsProbing(deferred);
         }
-        RecordBoundaryProbe.ProvenWalk walk = provenMacroSplitStarts(deferred, isCancelled);
+        // Unlimited quoted files walk here so Phase 2's fan-out stays parallel. Under demand, defer so
+        // every quoted file in listing order spends one shared W of cuts.
+        if (rowLimit != FormatReader.NO_LIMIT) {
+            return new PlanResult.NeedsWalk(deferred);
+        }
+        RecordBoundaryProbe.ProvenWalk walk = provenMacroSplitStarts(deferred, isCancelled, Integer.MAX_VALUE);
         return new PlanResult.Walked(deferred, walk.boundaries(), walk.stoppedBeforeEndOfFile());
+    }
+
+    /**
+     * Spends the leftover demand-sized cut budget across quoted files in listing order. Files past
+     * the budget become whole-file splits and never walk, matching the strided path. Unlimited scans
+     * never reach here: they walk in Phase 2. Mixed strided+quoted queries share one remainingCuts
+     * across this walk then the strided wave.
+     */
+    private int walkDeferredQuoted(List<PlanResult> planResults, int remainingCuts, BooleanSupplier isCancelled) throws IOException {
+        boolean anyWalk = false;
+        for (PlanResult planResult : planResults) {
+            if (planResult instanceof PlanResult.NeedsWalk) {
+                anyWalk = true;
+                break;
+            }
+        }
+        if (anyWalk == false) {
+            return remainingCuts;
+        }
+        for (int i = 0; i < planResults.size(); i++) {
+            if (planResults.get(i) instanceof PlanResult.NeedsWalk needsWalk) {
+                DeferredNewlineSplits deferred = needsWalk.deferred();
+                if (remainingCuts <= 0) {
+                    planResults.set(i, new PlanResult.Splits(buildNewlineMacroSplits(deferred, List.of(0L))));
+                    continue;
+                }
+                if (isCancelled.getAsBoolean()) {
+                    throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
+                }
+                int cap = remainingCuts == Integer.MAX_VALUE ? Integer.MAX_VALUE : remainingCuts + 1;
+                RecordBoundaryProbe.ProvenWalk walk = provenMacroSplitStarts(deferred, isCancelled, cap);
+                remainingCuts -= Math.max(0, walk.boundaries().size() - 1);
+                planResults.set(i, new PlanResult.Walked(deferred, walk.boundaries(), walk.stoppedBeforeEndOfFile()));
+            }
+        }
+        return remainingCuts;
     }
 
     /**
@@ -2702,7 +3095,7 @@ public class FileSplitProvider implements SplitProvider {
      * to a whole-file split upstream; if one arrives here that gate failed, so fail loud rather than emit
      * mis-aligned macro-splits that silently mis-count rows.
      */
-    private static RecordBoundaryProbe.ProvenWalk provenMacroSplitStarts(DeferredNewlineSplits deferred, BooleanSupplier isCancelled)
+    private RecordBoundaryProbe.ProvenWalk provenMacroSplitStarts(DeferredNewlineSplits deferred, BooleanSupplier isCancelled, int cap)
         throws IOException {
         RecordSplitter splitter = deferred.splitter();
         if (splitter.supportsProvenProbing() == false) {
@@ -2712,14 +3105,17 @@ public class FileSplitProvider implements SplitProvider {
                     + "] supports neither strided nor proven probing and cannot be macro-split"
             );
         }
-        return RecordBoundaryProbe.provenBoundaries(
+        RecordBoundaryProbe.ProvenWalk walk = RecordBoundaryProbe.provenBoundaries(
             splitter,
             deferred.storageObject(),
             deferred.task().fileLength(),
             deferred.strideBytes(),
             deferred.minSegment(),
-            isCancelled
+            isCancelled,
+            cap
         );
+        splitDiscoveryProbes.addAndGet(walk.getsIssued());
+        return walk;
     }
 
     /**
@@ -2759,13 +3155,18 @@ public class FileSplitProvider implements SplitProvider {
      * is not a compression-delegating reader (a quoted {@code .csv.bz2} stays whole-file: the probe would run
      * against compressed bytes). Returns {@code false} (splitting allowed) when the reader could not be resolved,
      * so an unresolvable reader is treated as splittable.
+     * <p>
+     * A file with a header line ({@link FormatReader#readsHeaderLine()}) is also kept whole while
+     * {@code minTransportVersion} predates {@link #ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT}.
      */
-    private boolean requiresSequentialWholeFileRead(@Nullable FormatReader reader) {
+    private static boolean requiresSequentialWholeFileRead(@Nullable FormatReader reader, TransportVersion minTransportVersion) {
         if (reader == null) {
             return false;
         }
-        if (reader.declaredNameBindingNeedsFileStart()) {
-            // Binding is resolved against the header, which only a split starting at byte 0 can read.
+        // Old data nodes cannot bind a split by columns read elsewhere, so the file stays whole. Over the same window a new
+        // data node binds headered files as the old ones do (see FileSourceFactory#bindsHeaderByProvenance), whichever
+        // coordinator planned the query, so one result never mixes the two bindings.
+        if (reader.readsHeaderLine() && minTransportVersion.supports(ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT) == false) {
             return true;
         }
         SegmentableFormatReader seg = AsyncExternalSourceOperatorFactory.resolveSegmentableReader(reader);
@@ -3830,10 +4231,10 @@ public class FileSplitProvider implements SplitProvider {
      * partition map (hive partitions and {@code _file.*} listing values). Unbound {@code _file.*}
      * keys are dropped, because those names are ordinary data columns and must not prune the
      * listing by storage stat or block a missing-column skip. Bound per-file constants (the
-     * all-null standard names) are overlaid only when a hint names one of them, and only for
-     * names bound as metadata in the relation's output, matching the reader. Data columns retain
-     * their physical values or missing-column null-fill. The frozen map itself carries hive and
-     * {@code _file.*} only.
+     * standard names, all but {@code _score} null) are overlaid only when a hint names one of
+     * them, and only for names bound as metadata in the relation's output, matching the reader.
+     * Data columns retain their physical values or missing-column null-fill. The frozen map
+     * itself carries hive and {@code _file.*} only.
      */
     private static Map<String, Object> discoveryFilterValues(
         Map<String, Object> partitionValues,
@@ -3901,7 +4302,8 @@ public class FileSplitProvider implements SplitProvider {
      * column absent from the file and evaluates to UNKNOWN (which becomes FALSE in WHERE context).
      * <p>
      * Only simple leaf predicates are checked: comparisons ({@code =, !=, <, >, <=, >=}),
-     * {@link In}, and {@link IsNotNull}. These all evaluate to UNKNOWN/FALSE for a missing column.
+     * {@link In}, {@link IsNotNull}, {@link StartsWith}, {@link WildcardLike}, and {@link RLike}.
+     * These all evaluate to UNKNOWN/FALSE for a missing column.
      * {@link IsNull} on a missing column evaluates to TRUE (all rows match), so it does NOT
      * trigger a skip.
      * <p>
@@ -3979,12 +4381,29 @@ public class FileSplitProvider implements SplitProvider {
         if (expr instanceof MvCompare mvCompare) {
             return isNonNullLiteral(mvCompare.bound()) ? extractColumnName(mvCompare.field()) : null;
         }
+        if (expr instanceof StartsWith startsWith) {
+            return extractColumnName(startsWith.str());
+        }
+        if (expr instanceof WildcardLike like) {
+            return extractColumnName(like.field());
+        }
+        if (expr instanceof RLike rlike) {
+            return extractColumnName(rlike.field());
+        }
         return null;
     }
 
     static boolean matchesPartitionFilters(Map<String, Object> partitionValues, List<Expression> filters) {
+        return matchesPartitionFilters(partitionValues, filters, new IdentityHashMap<>());
+    }
+
+    static boolean matchesPartitionFilters(
+        Map<String, Object> partitionValues,
+        List<Expression> filters,
+        IdentityHashMap<Expression, ByteRunAutomaton> regexAutomata
+    ) {
         for (Expression filter : filters) {
-            Boolean result = evaluateFilter(filter, partitionValues);
+            Boolean result = evaluateFilter(filter, partitionValues, regexAutomata);
             if (result != null && result == false) {
                 return false;
             }
@@ -3993,36 +4412,34 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     static Boolean evaluateFilter(Expression filter, Map<String, Object> partitionValues) {
+        return evaluateFilter(filter, partitionValues, new IdentityHashMap<>());
+    }
+
+    private static Boolean evaluateFilter(
+        Expression filter,
+        Map<String, Object> partitionValues,
+        IdentityHashMap<Expression, ByteRunAutomaton> regexAutomata
+    ) {
         return switch (filter) {
-            case Equals eq -> evaluateComparison(eq.left(), eq.right(), partitionValues, PartitionValueMatcher::compareEquals);
+            case Equals eq -> evaluateComparison(eq.left(), eq.right(), partitionValues, PartitionValueMatcher::equalIfComparable);
             case NotEquals neq -> {
-                Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, PartitionValueMatcher::compareEquals);
+                Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, PartitionValueMatcher::equalIfComparable);
                 yield result != null ? result == false : null;
             }
             case GreaterThanOrEqual gte -> evaluateComparison(
                 gte.left(),
                 gte.right(),
                 partitionValues,
-                (a, b) -> PartitionValueMatcher.compareValues(a, b) >= 0
+                (a, b) -> ordered(a, b, cmp -> cmp >= 0)
             );
-            case GreaterThan gt -> evaluateComparison(
-                gt.left(),
-                gt.right(),
-                partitionValues,
-                (a, b) -> PartitionValueMatcher.compareValues(a, b) > 0
-            );
+            case GreaterThan gt -> evaluateComparison(gt.left(), gt.right(), partitionValues, (a, b) -> ordered(a, b, cmp -> cmp > 0));
             case LessThanOrEqual lte -> evaluateComparison(
                 lte.left(),
                 lte.right(),
                 partitionValues,
-                (a, b) -> PartitionValueMatcher.compareValues(a, b) <= 0
+                (a, b) -> ordered(a, b, cmp -> cmp <= 0)
             );
-            case LessThan lt -> evaluateComparison(
-                lt.left(),
-                lt.right(),
-                partitionValues,
-                (a, b) -> PartitionValueMatcher.compareValues(a, b) < 0
-            );
+            case LessThan lt -> evaluateComparison(lt.left(), lt.right(), partitionValues, (a, b) -> ordered(a, b, cmp -> cmp < 0));
             case In in -> {
                 String columnName = extractColumnName(in.value());
                 if (columnName == null || partitionValues.containsKey(columnName) == false) {
@@ -4037,9 +4454,14 @@ public class FileSplitProvider implements SplitProvider {
                     if (listItem instanceof Literal lit) {
                         if (zerosOfOppositeSign(partitionValue, lit.value())) {
                             found = null;
-                        } else if (PartitionValueMatcher.compareEquals(partitionValue, lit.value())) {
-                            found = true;
-                            break;
+                        } else {
+                            Boolean eq = PartitionValueMatcher.equalIfComparable(partitionValue, lit.value());
+                            if (eq == null) {
+                                found = null;
+                            } else if (eq) {
+                                found = true;
+                                break;
+                            }
                         }
                     } else {
                         yield null;
@@ -4068,7 +4490,7 @@ public class FileSplitProvider implements SplitProvider {
                 mvContains.left(),
                 mvContains.right(),
                 partitionValues,
-                PartitionValueMatcher::compareEquals
+                PartitionValueMatcher::equalIfComparable
             );
             case MvIntersects mvIntersects -> evaluateMvIntersects(mvIntersects, partitionValues);
             case MvInRange mvInRange -> {
@@ -4090,9 +4512,32 @@ public class FileSplitProvider implements SplitProvider {
                 partitionValues,
                 (v, b) -> below(v, b, onTheBound(mvLess.options(), false))
             );
-            case And and -> nullableAnd(evaluateFilter(and.left(), partitionValues), evaluateFilter(and.right(), partitionValues));
-            case Or or -> nullableOr(evaluateFilter(or.left(), partitionValues), evaluateFilter(or.right(), partitionValues));
-            case Not not -> nullableNot(evaluateFilter(not.field(), partitionValues));
+            case And and -> nullableAnd(
+                evaluateFilter(and.left(), partitionValues, regexAutomata),
+                evaluateFilter(and.right(), partitionValues, regexAutomata)
+            );
+            case Or or -> nullableOr(
+                evaluateFilter(or.left(), partitionValues, regexAutomata),
+                evaluateFilter(or.right(), partitionValues, regexAutomata)
+            );
+            case Not not -> nullableNot(evaluateFilter(not.field(), partitionValues, regexAutomata));
+            case StartsWith startsWith -> evaluateStartsWith(startsWith, partitionValues);
+            case WildcardLike like -> evaluateRegexMatch(
+                like,
+                like.field(),
+                like.pattern(),
+                like.caseInsensitive(),
+                partitionValues,
+                regexAutomata
+            );
+            case RLike rlike -> evaluateRegexMatch(
+                rlike,
+                rlike.field(),
+                rlike.pattern(),
+                rlike.caseInsensitive(),
+                partitionValues,
+                regexAutomata
+            );
             default -> null;
         };
     }
@@ -4210,15 +4655,22 @@ public class FileSplitProvider implements SplitProvider {
         }
         List<?> values = literalValue instanceof List<?> list ? list : List.of(literalValue);
         boolean sawValue = false;
+        boolean undecidable = false;
         for (Object value : values) {
             if (value != null) {
                 sawValue = true;
-                if (PartitionValueMatcher.compareEquals(partitionValue, value)) {
+                Boolean eq = PartitionValueMatcher.equalIfComparable(partitionValue, value);
+                if (eq == null) {
+                    undecidable = true;
+                } else if (eq) {
                     return true;
                 }
             }
         }
-        return sawValue ? false : null;
+        if (sawValue == false) {
+            return null;
+        }
+        return undecidable ? null : false;
     }
 
     /**
@@ -4237,21 +4689,35 @@ public class FileSplitProvider implements SplitProvider {
         return options == null ? defaultInclusive : null;
     }
 
-    /** TRUE strictly above {@code bound}, FALSE strictly below, {@code onBound} exactly on it. */
+    /** Ordered comparison that keeps the file when the values are not the same kind. */
+    private static Boolean ordered(Object a, Object b, IntPredicate pred) {
+        Integer cmp = PartitionValueMatcher.orderedCompare(a, b);
+        return cmp == null ? null : pred.test(cmp);
+    }
+
+    /** TRUE strictly above {@code bound}, FALSE strictly below, {@code onBound} exactly on it. Kind mismatch keeps. */
     private static Boolean above(Object value, Object bound, Boolean onBound) {
-        int cmp = PartitionValueMatcher.compareValues(value, bound);
+        Integer cmp = PartitionValueMatcher.orderedCompare(value, bound);
+        if (cmp == null) {
+            return null;
+        }
         return cmp > 0 ? Boolean.TRUE : cmp < 0 ? Boolean.FALSE : onBound;
     }
 
-    /** TRUE strictly below {@code bound}, FALSE strictly above, {@code onBound} exactly on it. */
+    /** TRUE strictly below {@code bound}, FALSE strictly above, {@code onBound} exactly on it. Kind mismatch keeps. */
     private static Boolean below(Object value, Object bound, Boolean onBound) {
-        int cmp = PartitionValueMatcher.compareValues(value, bound);
+        Integer cmp = PartitionValueMatcher.orderedCompare(value, bound);
+        if (cmp == null) {
+            return null;
+        }
         return cmp < 0 ? Boolean.TRUE : cmp > 0 ? Boolean.FALSE : onBound;
     }
 
     private static String extractColumnName(Expression expr) {
         return switch (expr) {
             case FieldAttribute fa -> fa.name();
+            // Metadata _score is per-row, not per-file; type-checked so a physical column named _score still prunes.
+            case NamedExpression ne when MetadataAttribute.isScoreAttribute(ne) -> null;
             case NamedExpression ne -> ne.name();
             default -> null;
         };
@@ -4262,6 +4728,74 @@ public class FileSplitProvider implements SplitProvider {
             case Literal lit -> lit.value();
             default -> null;
         };
+    }
+
+    /**
+     * Exact prefix match on a listing value. Missing key or a non-string value is unknown — the file
+     * is kept. Never rewritten to a GTE/LT range here; that conversion is a listing-hint superset only.
+     */
+    private static Boolean evaluateStartsWith(StartsWith startsWith, Map<String, Object> partitionValues) {
+        String columnName = extractColumnName(startsWith.str());
+        Object literalValue = extractLiteralValue(startsWith.prefix());
+        if (columnName == null || literalValue == null || partitionValues.containsKey(columnName) == false) {
+            return null;
+        }
+        BytesRef value = bytesOf(partitionValues.get(columnName));
+        BytesRef prefix = bytesOf(literalValue);
+        if (value == null || prefix == null) {
+            return null;
+        }
+        return ByteMatchers.startsWith(value, prefix);
+    }
+
+    /**
+     * Exact LIKE / RLIKE match on a listing value via {@link AutomataMatch}. Compiles the automaton
+     * once per expression identity in {@code regexAutomata} so a 10k-file listing does not
+     * determinize the same pattern 10k times. A missing key, a non-string value, or an automaton
+     * too complex to determinize is unknown.
+     */
+    private static Boolean evaluateRegexMatch(
+        Expression regexExpr,
+        Expression field,
+        AbstractStringPattern pattern,
+        boolean caseInsensitive,
+        Map<String, Object> partitionValues,
+        IdentityHashMap<Expression, ByteRunAutomaton> regexAutomata
+    ) {
+        String columnName = extractColumnName(field);
+        if (columnName == null || partitionValues.containsKey(columnName) == false) {
+            return null;
+        }
+        BytesRef value = bytesOf(partitionValues.get(columnName));
+        if (value == null) {
+            return null;
+        }
+        ByteRunAutomaton run;
+        if (regexAutomata.containsKey(regexExpr)) {
+            run = regexAutomata.get(regexExpr);
+        } else {
+            run = AutomataMatch.compile(pattern.createAutomaton(caseInsensitive));
+            regexAutomata.put(regexExpr, run);
+        }
+        if (run == null) {
+            return null;
+        }
+        return AutomataMatch.matches(value, run);
+    }
+
+    /**
+     * Listing values for {@code _file.name}/{@code path}/{@code directory} are {@link BytesRef};
+     * Hive string partitions are {@link String}. Anything else cannot be a string match.
+     */
+    @Nullable
+    private static BytesRef bytesOf(Object value) {
+        if (value instanceof BytesRef bytesRef) {
+            return bytesRef;
+        }
+        if (value instanceof String string) {
+            return new BytesRef(string);
+        }
+        return null;
     }
 
 }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.service.MasterService;
@@ -87,10 +88,15 @@ public final class ConfigChangeTelemetry {
         return REASON_OTHER;
     }
 
+    /**
+     * Records a rejected change tagged with its {@link #rejectedReason reason} and the HTTP status the refusal is
+     * reported with, unless the failure is a publish retry (see {@link #rejectedReason}).
+     */
     public static void recordRejected(ExternalSourceMetrics metrics, String kind, String type, Exception e) {
         String reason = rejectedReason(e);
         if (reason != null) {
-            metrics.recordConfigChange(kind, OP_REJECTED, typeToken(type), reason);
+            String status = String.valueOf(ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e)).getStatus());
+            metrics.recordConfigChange(kind, OP_REJECTED, typeToken(type), reason, status);
         }
     }
 }

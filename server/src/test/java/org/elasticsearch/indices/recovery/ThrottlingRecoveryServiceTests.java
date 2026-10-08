@@ -72,12 +72,12 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING;
+import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING;
 import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 import static org.elasticsearch.indices.recovery.RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING;
-import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING;
-import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -163,7 +163,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
                 assertThat(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId2.id()));
             }
         };
@@ -535,9 +535,12 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testHeapBasedLimitRejectsZero() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.get(
+            () -> DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.get(
                 Settings.builder()
-                    .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 0.0)
+                    .put(
+                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                        0.0
+                    )
                     .build()
             )
         );
@@ -549,7 +552,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var clusterService = newClusterService(
             Settings.builder()
                 .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
-                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 10.0)
+                .put(
+                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                    10.0
+                )
                 .build()
         );
         final var service = new ThrottlingRecoveryService(
@@ -593,7 +599,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var clusterService = newClusterService(
             Settings.builder()
                 .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), randomIntBetween(4, Integer.MAX_VALUE))
-                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 1.5)
+                .put(
+                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                    1.5
+                )
                 .build()
         );
         final var service = new ThrottlingRecoveryService(
@@ -638,7 +647,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             Settings.builder()
                 .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 3)
                 .put(
-                    ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
                     randomDoubleBetween(2.0, Double.MAX_VALUE, true)
                 )
                 .build()
@@ -684,7 +693,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var clusterService = newClusterService(
             Settings.builder()
                 .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 5)
-                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 0.5)
+                .put(
+                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                    0.5
+                )
                 .build()
         );
         final var service = new ThrottlingRecoveryService(
@@ -721,7 +733,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         clusterService.getClusterSettings()
             .applySettings(
                 Settings.builder()
-                    .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 3.0)
+                    .put(
+                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                        3.0
+                    )
                     .build()
             );
         taskQueue.runAllRunnableTasks();
@@ -739,7 +754,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var clusterService = newClusterService(
             Settings.builder()
                 .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
-                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 100.0)
+                .put(
+                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                    100.0
+                )
                 .build()
         );
         // Use a direct (inline) generic executor so fillSlots runs synchronously inside the settings-update consumer,
@@ -781,7 +799,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             .applySettings(
                 Settings.builder()
                     .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 100)
-                    .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 0.5)
+                    .put(
+                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                        0.5
+                    )
                     .build()
             );
 
@@ -806,7 +827,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var clusterService = newClusterService(
             Settings.builder()
                 .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
-                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 2.0)
+                .put(
+                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                    2.0
+                )
                 .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), 0.5)
                 .build()
         );
@@ -845,7 +869,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         clusterService.getClusterSettings()
             .applySettings(
                 Settings.builder()
-                    .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 4.0)
+                    .put(
+                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                        4.0
+                    )
                     .build()
             );
         taskQueue.runAllRunnableTasks();
@@ -862,7 +889,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var clusterService = newClusterService(
             Settings.builder()
                 .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
-                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 0.5)
+                .put(
+                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                    0.5
+                )
                 .build()
         );
         final var service = new ThrottlingRecoveryService(
@@ -899,7 +929,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         clusterService.getClusterSettings()
             .applySettings(
                 Settings.builder()
-                    .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 2.0)
+                    .put(
+                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                        2.0
+                    )
                     .build()
             );
         taskQueue.runAllRunnableTasks();
@@ -916,7 +949,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var clusterService = newClusterService(
             Settings.builder()
                 .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
-                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 1.5)
+                .put(
+                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                    1.5
+                )
                 .build()
         );
         final var service = new ThrottlingRecoveryService(
@@ -1190,7 +1226,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             listener1,
             mockIndexShard(recoveryState, UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            l -> l.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, null), ABORT)
+            l -> l.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, null), ABORT)
         );
         final var listener2 = new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED);
         service.enqueue(
@@ -1354,16 +1390,17 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var allocationId2 = UUIDs.randomBase64UUID();
 
         final var listener1 = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_STARTED);
+        final var recoveryState1 = newRecoveryState(shardId1);
         service.enqueue(
             ProjectId.DEFAULT,
             listener1,
-            mockIndexShard(newRecoveryState(shardId1), allocationId1, new RecoveryStats()),
+            mockIndexShard(recoveryState1, allocationId1, new RecoveryStats()),
             newIndexMetadata(),
             listener -> {
                 // simulates cancellation of started recovery
                 taskQueue.scheduleAt(
                     taskQueue.getCurrentTimeMillis() + 100,
-                    () -> listener.onRecoveryFailure(new RecoveryCancelledException(shardId1, null, null), FAIL_SEND)
+                    () -> listener.onRecoveryFailure(recoveryState1, new RecoveryCancelledException(shardId1, null, null), FAIL_SEND)
                 );
             }
         );
@@ -1449,17 +1486,22 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
 
         final var blockerShardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
+        final var blockerRecoveryState = newRecoveryState(blockerShardId);
         final var blockerListener = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_STARTED);
         service.enqueue(
             ProjectId.DEFAULT,
             blockerListener,
-            mockIndexShard(newRecoveryState(blockerShardId), UUIDs.randomBase64UUID(), stats),
+            mockIndexShard(blockerRecoveryState, UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
             listener -> {
                 // occupies the sole concurrency slot
                 taskQueue.scheduleAt(
                     taskQueue.getCurrentTimeMillis() + 100,
-                    () -> listener.onRecoveryFailure(new RecoveryCancelledException(blockerShardId, null, null), FAIL_SEND)
+                    () -> listener.onRecoveryFailure(
+                        blockerRecoveryState,
+                        new RecoveryCancelledException(blockerShardId, null, null),
+                        FAIL_SEND
+                    )
                 );
             }
         );
@@ -1562,7 +1604,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
                 completed.incrementAndGet();
             }
         };
@@ -1613,6 +1655,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                                     schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
                                 } else {
                                     schedulingListener.onRecoveryFailure(
+                                        recoveryState,
                                         new RecoveryFailedException(
                                             recoveryState,
                                             null,
@@ -1682,7 +1725,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
                 runningOrPending.decrementAndGet();
                 tasksCompleted.incrementAndGet();
                 refCounted.decRef();
@@ -1759,6 +1802,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
             } else {
                 schedulingListener.onRecoveryFailure(
+                    recoveryState,
                     new RecoveryFailedException(recoveryState, null, new RuntimeException("test recovery task injected failure")),
                     randomFrom(FailureStrategy.values())
                 );
@@ -1802,7 +1846,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
             assert super.isDone() == false;
             switch (expectedOutcome) {
                 case FAILED -> {
@@ -2362,7 +2406,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             Set.of(
                 INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
                 INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING,
-                ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING
             )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
@@ -2492,7 +2536,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
                 fail(e, "unexpected recovery failure");
             }
         };

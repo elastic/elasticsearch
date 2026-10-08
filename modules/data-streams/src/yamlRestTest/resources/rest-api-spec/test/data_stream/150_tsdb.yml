@@ -85,6 +85,18 @@ setup:
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
 
 ---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: tsdb-write-blocked
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
+        id: tsdb-write-blocked-pipeline
+        ignore: 404
+
+---
 created the data stream:
   - requires:
       cluster_features: ["gte_v8.1.0"]
@@ -286,6 +298,114 @@ TSDB failures go to failure store:
   - match: { items.4.create.status: 400 }
   - match: { items.4.create.error.type: timestamp_error }
   - match: { items.4.create.failure_store: not_enabled }
+
+---
+TSDB documents for write blocked backing index go to failure store:
+  - requires:
+      reason: "Data stream failure stores config in templates was added in 8.18+"
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'data_stream_options.failure_store' ]
+  - do:
+      allowed_warnings:
+        - "index template [tsdb-write-blocked-template] has index patterns [tsdb-write-blocked*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [tsdb-write-blocked-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: tsdb-write-blocked-template
+        body:
+          index_patterns: [ "tsdb-write-blocked*" ]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: time_series
+                number_of_replicas: 0
+                number_of_shards: 1
+                routing_path: [ metricset ]
+            data_stream_options:
+              failure_store:
+                enabled: true
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  time_series_dimension: true
+
+  - do:
+      ingest.put_pipeline:
+        id: tsdb-write-blocked-pipeline
+        body:
+          processors:
+            - set:
+                field: "@timestamp"
+                value: "{{{_ingest.timestamp}}}"
+
+  - do:
+      indices.create_data_stream:
+        name: tsdb-write-blocked
+  - is_true: acknowledged
+
+  - do:
+      indices.rollover:
+        alias: tsdb-write-blocked
+  - match: { rolled_over: true }
+
+  - do:
+      indices.get_data_stream:
+        name: tsdb-write-blocked
+  - set: { data_streams.0.indices.0.index_name: first_backing_index }
+
+  - do:
+      indices.add_block:
+        index: $first_backing_index
+        block: write
+  - is_true: acknowledged
+
+  # The timestamp is not covered by any backing index
+  - do:
+      index:
+        index: tsdb-write-blocked
+        body:
+          '@timestamp': '2000-04-28T01:00:00Z'
+          metricset: pod
+  - match: { failure_store: used }
+  - set: { _index: failure_store_index }
+
+  # The ingest timestamp is covered by the write blocked first backing index
+  - do:
+      index:
+        index: tsdb-write-blocked
+        pipeline: tsdb-write-blocked-pipeline
+        body:
+          metricset: pod
+  - match: { failure_store: used }
+  - match: { _index: $failure_store_index }
+
+  - do:
+      indices.refresh:
+        index: .fs-tsdb-write-blocked-*
+
+  - do:
+      search:
+        index: .fs-tsdb-write-blocked-*
+        body:
+          query:
+            term:
+              error.type: timestamp_error
+  - length: { hits.hits: 1 }
+
+  - do:
+      search:
+        index: .fs-tsdb-write-blocked-*
+        body:
+          query:
+            term:
+              error.type: cluster_block_exception
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.document.index: tsdb-write-blocked }
 
 ---
 index without timestamp with pipeline:
@@ -1370,3 +1490,53 @@ multi value dimensions:
   - match: { aggregations.dims.buckets.1.doc_count: 3 }
   - match: { aggregations.dims.buckets.2.key: c }
   - match: { aggregations.dims.buckets.2.doc_count: 1 }
+
+---
+"custom routing on one item only fails that item":
+  - do:
+      allowed_warnings:
+        - "index template [my-routing-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-routing-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-routing-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 2
+                mode: time_series
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+            mappings:
+              properties:
+                dim:
+                  type: keyword
+                  time_series_dimension: true
+                data:
+                  type: long
+                  time_series_metric: gauge
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "routing": "foo" } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 10, "dim": "a" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 20, "dim": "b" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 30, "dim": "c" }'
+  - match: { errors: true }
+  - match: { items.0.create.status: 400 }
+  - match: { items.0.create.error.type: illegal_argument_exception }
+  - match: { items.0.create.error.reason: "/specifies\\ a\\ custom\\ routing/" }
+  - match: { items.1.create.result: created }
+  - match: { items.2.create.result: created }
+
+  - do:
+      count:
+        index: k9s
+
+  - match: { count: 2 }

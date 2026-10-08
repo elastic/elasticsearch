@@ -313,13 +313,13 @@ public class EsqlDataTypeConverter {
                 return l -> EsqlDataTypeConverter.stringToSpatial(BytesRefs.toString(l));
             }
             if (to == DataType.GEOHASH) {
-                return l -> Geohash.longEncode(BytesRefs.toString(l));
+                return l -> EsqlDataTypeConverter.stringToGeohash(BytesRefs.toString(l));
             }
             if (to == DataType.GEOTILE) {
-                return l -> GeoTileUtils.longEncode(BytesRefs.toString(l));
+                return l -> EsqlDataTypeConverter.stringToGeotile(BytesRefs.toString(l));
             }
             if (to == DataType.GEOHEX) {
-                return l -> H3.stringToH3(BytesRefs.toString(l));
+                return l -> EsqlDataTypeConverter.stringToGeohex(BytesRefs.toString(l));
             }
             if (to == DataType.TIME_DURATION) {
                 return l -> EsqlDataTypeConverter.parseTemporalAmount(l, DataType.TIME_DURATION);
@@ -638,6 +638,91 @@ public class EsqlDataTypeConverter {
             case GEOHEX -> H3.h3ToString(field);
             default -> throw new IllegalArgumentException("Unsupported data type for geo grid: " + dataType);
         };
+    }
+
+    /*
+     * Validation of geo-grid values. Without these checks an invalid value would only fail (or produce garbage)
+     * much later, when rendered in the results. Error messages always show the input as the user provided it,
+     * so long inputs are reported as longs, and string inputs as strings.
+     */
+
+    public static long stringToGeohash(String field) {
+        if (field.isEmpty() || field.length() > Geohash.PRECISION) {
+            throw new IllegalArgumentException(
+                "Invalid geohash [" + field + "]: length must be between 1 and " + Geohash.PRECISION + " characters"
+            );
+        }
+        long geohash = Geohash.longEncode(field);
+        // Geohash.longEncode does not reject characters outside the geohash alphabet, but they do not survive a round trip
+        if (Geohash.stringEncode(geohash).equals(field) == false) {
+            throw new IllegalArgumentException("Invalid geohash [" + field + "]: contains characters outside the geohash alphabet");
+        }
+        return geohash;
+    }
+
+    /**
+     * A valid geohash long has the level (1 to 12) in the four least significant bits, and five bits per level above that,
+     * with all higher bits unset. At level 12 all 64 bits are used, so some valid geohash longs are negative.
+     */
+    public static long longToGeohash(long field) {
+        int level = (int) (field & 15);
+        if (level < 1 || level > Geohash.PRECISION) {
+            throw new IllegalArgumentException(
+                "Invalid geohash long [" + field + "]: level [" + level + "] must be between 1 and " + Geohash.PRECISION
+            );
+        }
+        if (((field >>> 4) >>> (5 * level)) != 0) {
+            throw new IllegalArgumentException("Invalid geohash long [" + field + "]: has bits set above level [" + level + "]");
+        }
+        return field;
+    }
+
+    /**
+     * A valid geotile has a zoom between 0 and 29, and x and y tiles between 0 and 2^zoom - 1.
+     */
+    public static long stringToGeotile(String field) {
+        // parseHash and checkPrecisionRange throw IllegalArgumentException with messages containing the original string
+        int[] zxy = GeoTileUtils.parseHash(field);
+        int tiles = 1 << GeoTileUtils.checkPrecisionRange(zxy[0]);
+        if (zxy[1] < 0 || zxy[2] < 0 || zxy[1] >= tiles || zxy[2] >= tiles) {
+            throw new IllegalArgumentException(
+                "Invalid geotile [" + field + "]: x and y must be between 0 and " + (tiles - 1) + " for zoom " + zxy[0]
+            );
+        }
+        return GeoTileUtils.longEncodeTiles(zxy[0], zxy[1], zxy[2]);
+    }
+
+    /**
+     * A valid geotile long has the zoom (0 to 29) in the high bits, followed by the x and y tiles,
+     * each between 0 and 2^zoom - 1. Since the highest bit is never used, all negative longs are invalid geotiles.
+     */
+    public static long longToGeotile(long field) {
+        try {
+            // stringEncode validates the zoom, x and y values, and throws an IllegalArgumentException if any are invalid
+            GeoTileUtils.stringEncode(field);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid geotile long [" + field + "]: " + e.getMessage(), e);
+        }
+        return field;
+    }
+
+    public static long stringToGeohex(String field) {
+        // stringToH3 throws a NumberFormatException (an IllegalArgumentException) containing the string if it is not hexadecimal
+        long geohex = H3.stringToH3(field);
+        if (H3.h3IsValid(geohex) == false) {
+            throw new IllegalArgumentException("Invalid geohex [" + field + "]: not a valid H3 cell address");
+        }
+        return geohex;
+    }
+
+    /**
+     * A valid geohex long is a valid H3 cell index. Since the highest bit is never used, all negative longs are invalid geohexes.
+     */
+    public static long longToGeohex(long field) {
+        if (H3.h3IsValid(field) == false) {
+            throw new IllegalArgumentException("Invalid geohex long [" + field + "]: not a valid H3 cell index");
+        }
+        return field;
     }
 
     public static BytesRef geoGridToShape(long field, DataType dataType) {

@@ -66,7 +66,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     // The CSV reader emits response warning headers (escaped-mode config + null-marker) via
@@ -642,7 +642,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of());
             service.getOrComputeSchema(
                 key,
                 k -> SchemaCacheEntry.from(schema, "csv", path, Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint), Map.of())
@@ -712,6 +712,11 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             .firstSplit(firstSplit)
             .lastSplit(true)
             .readSchema(readSchema)
+            // A later split of a headered file binds the schema by the header columns the planner hands it; the
+            // schema here names the file's columns in file order.
+            .fileHeaderColumns(
+                headerRow && firstSplit == false && readSchema != null ? readSchema.stream().map(Attribute::name).toList() : null
+            )
             .splitStartByte(baseOffset)
             .stats(baseOffset, stripeSize, fileFinal)
             .build();
@@ -1443,7 +1448,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of());
             List<Attribute> schema = List.of(
                 new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.KEYWORD, Nullability.TRUE, null, false)
             );

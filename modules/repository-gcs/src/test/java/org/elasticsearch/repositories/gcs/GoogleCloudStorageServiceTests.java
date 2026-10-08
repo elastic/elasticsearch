@@ -34,11 +34,14 @@ import org.hamcrest.Matchers;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.net.SocketException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.UUID;
+
+import javax.net.ssl.SSLException;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -112,6 +115,16 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             Matchers.is((int) readTimeValue.millis())
         );
         assertThat(proxy.get().toString(), equalTo("HTTP @ /192.168.52.15:8080"));
+    }
+
+    public void testRetryStrategyRetriesTlsHandshakeFailures() {
+        final var clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool());
+        final GoogleCloudStorageService service = new GoogleCloudStorageService(clusterService, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
+        final var handler = service.getRetryStrategy().getIdempotentHandler();
+        assertTrue(handler.shouldRetry(new SSLException("(internal_error) Unhandled exception"), null));
+        assertTrue(handler.shouldRetry(new RuntimeException(new SSLException("(internal_error) Unhandled exception")), null));
+        assertTrue(handler.shouldRetry(new SocketException("Connection reset"), null));
+        assertFalse(handler.shouldRetry(new IllegalArgumentException("not a transport failure"), null));
     }
 
     public void testReinitClientSettings() throws Exception {

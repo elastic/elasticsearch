@@ -587,7 +587,7 @@ public class MultivalueDedupeTests extends ESTestCase {
          */
         Block.Builder builder = elementType.newBlockBuilder(encoder.valueCount(offset), TestBlockFactory.getNonBreakingInstance());
         BytesRef[] toDecode = new BytesRef[encoder.valueCount(offset)];
-        CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         for (int i = 0; i < toDecode.length; i++) {
             BreakingBytesRefBuilder dest = new BreakingBytesRefBuilder(breaker, "test");
             encoder.read(valueOffset++, dest);

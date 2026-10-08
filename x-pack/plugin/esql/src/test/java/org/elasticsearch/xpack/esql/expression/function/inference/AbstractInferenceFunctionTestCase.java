@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.inference;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
@@ -65,5 +66,18 @@ public abstract class AbstractInferenceFunctionTestCase extends AbstractFunction
     public final void testResolvesWithLiteralArguments() {
         Expression expression = buildLiteralExpression(testCase);
         assertTrue(expression.typeResolved().message(), expression.typeResolved().resolved());
+    }
+
+    /**
+     * Confirms {@code writeTo}/{@code getWriteableName} actually throw, which is the reason {@link #canSerialize}
+     * returns {@code false} here. Without this, a future change that fixes serialization for some inference
+     * function would leave {@code canSerialize} stale, and {@code testSerializationOfSimple} would keep being
+     * skipped for no real reason.
+     */
+    public final void testWriteToThrows() {
+        assumeFalse("only applies when the function can't serialize", canSerialize());
+        Expression expression = buildLiteralExpression(testCase);
+        expectThrows(UnsupportedOperationException.class, () -> expression.writeTo(new BytesStreamOutput()));
+        expectThrows(UnsupportedOperationException.class, expression::getWriteableName);
     }
 }

@@ -2177,11 +2177,7 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
-    private void checkFieldBasedFunctionNotAllowedAfterCommands(
-        String functionName,
-        String functionType,
-        String functionInvocation
-    ) {
+    private void checkFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) {
         fullText().error(
             "from test | limit 10 | where " + functionInvocation,
             containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")

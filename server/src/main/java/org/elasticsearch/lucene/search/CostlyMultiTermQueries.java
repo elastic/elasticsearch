@@ -39,6 +39,6 @@ public final class CostlyMultiTermQueries {
         if (query instanceof MultiTermQuery) {
             return true;
         }
-        return CONSTANT_SCORE_WRAPPER_CLASS_NAMES.contains(query.getClass().getSimpleName());
+        return CONSTANT_SCORE_WRAPPER_CLASS_NAMES.contains(query.getClass(). getName());
     }
 }

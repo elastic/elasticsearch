@@ -320,6 +320,80 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
      * in one part and a number everywhere else, and {@code order_id} is absent from a run of parts, which is
      * NDJSON's analogue of CSV's blank cell — there is no empty cell, a key is simply not there.
      */
+    /**
+     * Rows per file for the segmented corpus, sized so every file passes {@code 2 * segment_size} at the 64 KiB
+     * minimum and is therefore split into byte-range segments rather than parsed whole. At ~45 bytes a row this is
+     * ~360 KiB a file, comfortably over the 128 KiB a split needs, without writing megabytes into a test.
+     */
+    private static final int SEGMENTED_ROWS_PER_FILE = 8_000;
+    private static final int SEGMENTED_FILE_COUNT = 3;
+
+    /** A corpus whose files are each big enough to be split, so the read publishes stripes instead of whole files. */
+    private static long writeSegmentableNdjsonCorpus(Path dir) throws IOException {
+        long total = 0;
+        for (int f = 0; f < SEGMENTED_FILE_COUNT; f++) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < SEGMENTED_ROWS_PER_FILE; i++) {
+                long v = total + i;
+                sb.append("{\"id\":").append(v);
+                sb.append(",\"color\":").append(v % 7);
+                sb.append(",\"order_id\":").append(v % 1000);
+                sb.append(",\"value\":").append(v).append("}\n");
+            }
+            Files.writeString(dir.resolve(String.format(Locale.ROOT, "part-%02d.ndjson", f)), sb.toString(), StandardCharsets.UTF_8);
+            total += SEGMENTED_ROWS_PER_FILE;
+        }
+        return total;
+    }
+
+    /** A declaration that RETYPES a column: {@code order_id} is inferred integer and declared keyword. */
+    private static LinkedHashMap<String, DatasetFieldMapping> retypedOrderId() {
+        LinkedHashMap<String, DatasetFieldMapping> columns = new LinkedHashMap<>();
+        columns.put("order_id", new DatasetFieldMapping("keyword", null));
+        return columns;
+    }
+
+    /**
+     * A retyping declaration over a corpus whose files are SPLIT, which is the ordinary shape: parse parallelism
+     * defaults to the allocated processors, so any file past the reader's minimum segment is read as byte ranges
+     * and publishes stripe fragments rather than one whole-file measurement.
+     * <p>
+     * The two publish through different commit paths, and only the whole-file one filed a foreign read's
+     * measurement. A retyping declaration resolves to a read whose stamp never equals the schema record's, so a
+     * segmented read of such a dataset filed nothing at any address and re-read every byte forever
+     * (esql-planning#2246). Every other arm in this class writes files under the 1 MiB default minimum segment, so
+     * none of them reaches that path.
+     * <p>
+     * {@code segment_size} is 64 KiB (the minimum) so the files need only be ~360 KiB rather than megabytes. It is
+     * identity-inert, so it does not move the cache address this test is about.
+     * <p>
+     * That the corpus really is split is not asserted directly - no response field reports it. It is established by
+     * the mutation: restoring the stripe path's refusal to file a foreign read turns this arm red, which it can only
+     * do if the read published stripes.
+     */
+    public void testRetypingMappingWarmsASegmentedRead() throws Exception {
+        Path dir = createTempDir();
+        long total = writeSegmentableNdjsonCorpus(dir);
+        String dataset = registerNonStrictDataset(
+            "segmented_retyped_ndjson",
+            globUri(dir, "*.ndjson"),
+            retypedOrderId(),
+            Map.of(
+                "format",
+                "ndjson",
+                "error_mode",
+                "null_field",
+                "schema_resolution",
+                "first_file_wins",
+                "file_sort_by",
+                "name",
+                "segment_size",
+                "64kb"
+            )
+        );
+        assertWarmCountShortCircuits(dataset, total);
+    }
+
     private static long writeNdjsonCorpus(Path dir) throws IOException {
         long total = 0;
         for (int f = 0; f < NDJSON_FILE_COUNT; f++) {

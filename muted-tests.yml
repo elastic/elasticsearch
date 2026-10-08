@@ -494,3 +494,5 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogIsolatedNodeOnlyStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/161325
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/161399

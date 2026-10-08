@@ -529,12 +529,6 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         @Override
-        public long maxDecodeBytes() {
-            // the decoder that holds the decompressed blocks sits behind this wrapper; the filtered copies are not counted
-            return multiValues.maxDecodeBytes();
-        }
-
-        @Override
         public BytesRef nextValue() {
             return filteredValues.get(nextValueIndex++);
         }

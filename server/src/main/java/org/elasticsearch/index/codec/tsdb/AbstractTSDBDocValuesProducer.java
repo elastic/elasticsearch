@@ -273,7 +273,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             if (entry.minLength == entry.maxLength) {
                 // fixed length
                 final int length = entry.maxLength;
-                return new DenseBinaryDocValues(maxDoc, entry) {
+                return new DenseBinaryDocValues(maxDoc) {
                     final BytesRef bytes = new BytesRef(new byte[length], 0, length);
 
                     @Override
@@ -340,7 +340,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 // variable length
                 final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
                 final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData, merging);
-                return new DenseBinaryDocValues(maxDoc, entry) {
+                return new DenseBinaryDocValues(maxDoc) {
                     final BytesRef bytes = new BytesRef(new byte[entry.maxLength], 0, entry.maxLength);
 
                     @Override
@@ -431,7 +431,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             if (entry.minLength == entry.maxLength) {
                 // fixed length
                 final int length = entry.maxLength;
-                return new SparseBinaryDocValues(disi, entry) {
+                return new SparseBinaryDocValues(disi) {
                     final BytesRef bytes = new BytesRef(new byte[length], 0, length);
 
                     @Override
@@ -449,7 +449,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 // variable length
                 final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
                 final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData, merging);
-                return new SparseBinaryDocValues(disi, entry) {
+                return new SparseBinaryDocValues(disi) {
                     final BytesRef bytes = new BytesRef(new byte[entry.maxLength], 0, entry.maxLength);
 
                     @Override
@@ -480,7 +480,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
             final RandomAccessInput docOffsetsData = this.data.randomAccessSlice(entry.docOffsetsOffset, entry.docOffsetLength);
             final DirectMonotonicReader docOffsets = DirectMonotonicReader.getInstance(entry.docOffsetMeta, docOffsetsData);
-            return new DenseBinaryDocValues(maxDoc, entry) {
+            return new DenseBinaryDocValues(maxDoc) {
                 final BinaryDecoder decoder = new BinaryDecoder(
                     entry.compression.compressionMode().newDecompressor(),
                     addresses,
@@ -584,7 +584,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
             final RandomAccessInput docOffsetsData = this.data.randomAccessSlice(entry.docOffsetsOffset, entry.docOffsetLength);
             final DirectMonotonicReader docOffsets = DirectMonotonicReader.getInstance(entry.docOffsetMeta, docOffsetsData);
-            return new SparseBinaryDocValues(disi, entry) {
+            return new SparseBinaryDocValues(disi) {
                 final BinaryDecoder decoder = new BinaryDecoder(
                     entry.compression.compressionMode().newDecompressor(),
                     addresses,
@@ -1086,20 +1086,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             return null;
         }
 
-        private final long maxDecodeBytes;
-
-        TSDBBinaryDocValues(BinaryEntry entry) {
-            // Chunked storage decodes a whole block into a buffer that is allocated lazily and capped at the segment's largest block,
-            // and keeps the doc offsets of the block with the most docs. Uncompressed storage never buffers more than one value.
-            this.maxDecodeBytes = entry.compression == BinaryDVCompressionMode.NO_COMPRESS
-                ? 0
-                : entry.maxUncompressedChunkSize + (long) Integer.BYTES * (entry.maxNumDocsInAnyBlock + 1);
-        }
-
-        @Override
-        public long maxDecodeBytes() {
-            return maxDecodeBytes;
-        }
     }
 
     abstract static class DenseBinaryDocValues extends TSDBBinaryDocValues {
@@ -1107,8 +1093,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         final int maxDoc;
         int doc = -1;
 
-        DenseBinaryDocValues(int maxDoc, BinaryEntry entry) {
-            super(entry);
+        DenseBinaryDocValues(int maxDoc) {
             this.maxDoc = maxDoc;
         }
 
@@ -1242,8 +1227,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         final IndexedDISI disi;
 
-        SparseBinaryDocValues(IndexedDISI disi, BinaryEntry entry) {
-            super(entry);
+        SparseBinaryDocValues(IndexedDISI disi) {
             this.disi = disi;
         }
 

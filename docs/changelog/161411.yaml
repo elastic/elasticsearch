@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 160849
-pr: 161411
-summary: Wait for Parquet test admission
-type: enhancement

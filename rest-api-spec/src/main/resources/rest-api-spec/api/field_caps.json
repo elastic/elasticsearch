@@ -72,7 +72,7 @@
       },
       "filters": {
         "type": "list",
-        "description": "An optional set of filters: can include +metadata,-metadata,-nested,-multifield,-parent"
+        "description": "An optional set of filters: can include +metadata,-metadata,+nested,-nested,+flattened,-multifield,-parent"
       },
       "types": {
         "type": "list",

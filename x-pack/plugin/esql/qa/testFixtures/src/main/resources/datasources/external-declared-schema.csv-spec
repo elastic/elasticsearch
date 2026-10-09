@@ -27,7 +27,7 @@
 // pinned id:long/pay:long will not match the inferred integer.
 sharedStrictDeclaredSchemaRenamesAndRetypes
 required_capability: dataset_in_from_command
-dataset: shared_declared_strict: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "name": {"type": "keyword", "path": "first_name"}, "pay": {"type": "long", "path": "salary"}}}}
+dataset: shared_declared_strict: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "rename_from": "emp_no"}, "name": {"type": "keyword", "rename_from": "first_name"}, "pay": {"type": "long", "rename_from": "salary"}}}}
 
 FROM shared_declared_strict
 | SORT id
@@ -66,7 +66,7 @@ first_name:keyword | emp_no:long
 sharedStrictDeclaredSchemaBindsDottedColumnName
 required_capability: dataset_in_from_command
 required_capability: external_ndjson_dotted_field_resolution
-dataset: shared_declared_dotted: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "langs": {"type": "long", "path": "languages.long"}, "change": {"type": "keyword", "path": "salary_change.keyword"}}}}
+dataset: shared_declared_dotted: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "rename_from": "emp_no"}, "langs": {"type": "long", "rename_from": "languages.long"}, "change": {"type": "keyword", "rename_from": "salary_change.keyword"}}}}
 
 FROM shared_declared_dotted
 | SORT id
@@ -83,7 +83,7 @@ id:long | langs:long | change:keyword
 // identity. Two logical columns may not share one physical column, so each reads its own.
 sharedStrictDeclaredCoercionToDoubleAndKeyword
 required_capability: dataset_in_from_command
-dataset: shared_declared_coerce: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "pay_double": {"type": "double", "path": "salary"}, "hired_text": {"type": "keyword", "path": "still_hired"}}}}
+dataset: shared_declared_coerce: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "rename_from": "emp_no"}, "pay_double": {"type": "double", "rename_from": "salary"}, "hired_text": {"type": "keyword", "rename_from": "still_hired"}}}}
 
 FROM shared_declared_coerce
 | SORT id
@@ -100,7 +100,7 @@ id:long | pay_double:double | hired_text:keyword
 // integer-to-keyword path is exercised uniformly.
 sharedStrictDeclaredCoercionIntegerToKeyword
 required_capability: dataset_in_from_command
-dataset: shared_declared_i2k: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "lang_text": {"type": "keyword", "path": "languages"}}}}
+dataset: shared_declared_i2k: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "rename_from": "emp_no"}, "lang_text": {"type": "keyword", "rename_from": "languages"}}}}
 
 FROM shared_declared_i2k
 | SORT id
@@ -117,7 +117,7 @@ id:long | lang_text:keyword
 // the shortest round-trip decimal, so 2.03 → "2.03" uniformly across all formats.
 sharedStrictDeclaredCoercionDoubleToKeyword
 required_capability: dataset_in_from_command
-dataset: shared_declared_d2k: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "height_text": {"type": "keyword", "path": "height"}}}}
+dataset: shared_declared_d2k: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "rename_from": "emp_no"}, "height_text": {"type": "keyword", "rename_from": "height"}}}}
 
 FROM shared_declared_d2k
 | SORT id
@@ -136,7 +136,7 @@ id:long | height_text:keyword
 // readers emit none -- so the null values, not the warning, are what this pins.
 sharedStrictDeclaredSchemaAbsentColumnReadsNull
 required_capability: dataset_in_from_command
-dataset: shared_declared_absent: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "dept": {"type": "keyword", "path": "department"}}}}
+dataset: shared_declared_absent: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "rename_from": "emp_no"}, "dept": {"type": "keyword", "rename_from": "department"}}}}
 
 FROM shared_declared_absent
 | SORT id
@@ -155,7 +155,7 @@ id:long | dept:keyword
 sharedOverlayDeclaredSchemaAbsentColumnReadsNull
 required_capability: dataset_in_from_command
 required_capability: fix_non_strict_overlay_absent_cols
-dataset: shared_overlay_absent: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "true", "properties": {"id": {"type": "long", "path": "emp_no"}, "dept": {"type": "keyword", "path": "department"}}}}
+dataset: shared_overlay_absent: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "true", "properties": {"id": {"type": "long", "rename_from": "emp_no"}, "dept": {"type": "keyword", "rename_from": "department"}}}}
 
 FROM shared_overlay_absent
 | KEEP id, dept

@@ -131,7 +131,7 @@ required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
-dataset: employees_declared_multifile_renamed: "{{employees_multifile_ubn}}" WITH {"header_row": true, "mappings": {"dynamic": "false", "properties": {"who": {"type": "keyword", "path": "name"}, "years": {"type": "long", "path": "age"}}}}
+dataset: employees_declared_multifile_renamed: "{{employees_multifile_ubn}}" WITH {"header_row": true, "mappings": {"dynamic": "false", "properties": {"who": {"type": "keyword", "rename_from": "name"}, "years": {"type": "long", "rename_from": "age"}}}}
 
 FROM employees_declared_multifile_renamed
 | STATS rows = COUNT(*), youngest = MIN(years), oldest = MAX(years);

@@ -4983,7 +4983,7 @@ public class ExternalSourceResolver {
         Map<String, DataType> partitionColumns = partitionMetadata.partitionColumns();
         for (Map.Entry<String, DatasetFieldMapping> e : declaredMapping.mappings().properties().entrySet()) {
             String logical = e.getKey();
-            String physical = e.getValue().path() != null ? e.getValue().path() : logical;
+            String physical = e.getValue().renameFrom() != null ? e.getValue().renameFrom() : logical;
             if (partitionColumns.containsKey(logical) || partitionColumns.containsKey(physical)) {
                 throw new IllegalArgumentException(
                     "declared column ["
@@ -5114,7 +5114,7 @@ public class ExternalSourceResolver {
     ) {
         boolean coercing = COERCING_FILE_TYPED_FORMATS.contains(sourceType);
         for (Map.Entry<String, DatasetFieldMapping> e : declaredMapping.mappings().properties().entrySet()) {
-            String physical = e.getValue().path() != null ? e.getValue().path() : e.getKey();
+            String physical = e.getValue().renameFrom() != null ? e.getValue().renameFrom() : e.getKey();
             DataType inferredType = inferredTypes.get(physical);
             if (inferredType == null) {
                 continue; // an absent declared column reads null with a warning; there is no type to check
@@ -5243,7 +5243,7 @@ public class ExternalSourceResolver {
             // so only the readers decide there.
             for (Attribute a : unified.absent()) {
                 DatasetFieldMapping field = declaredMapping.mappings().properties().get(a.name());
-                String physical = field != null && field.path() != null ? field.path() : a.name();
+                String physical = field != null && field.renameFrom() != null ? field.renameFrom() : a.name();
                 pendingSchemaWarnings.add(SkipWarnings.absentColumnMessage(physical));
             }
         }
@@ -5270,10 +5270,10 @@ public class ExternalSourceResolver {
         if (declaredMapping.mappings() != null) {
             // Renames are re-derived here (rather than via DeclaredSchemaResolver.renameMap) because the same loop also
             // needs each property's declared type/format for the poison decision; keep the physical-name rule in sync
-            // with renameMap (path() != null ? path() : logical).
+            // with renameMap (renameFrom() != null ? renameFrom() : logical).
             for (Map.Entry<String, DatasetFieldMapping> me : declaredMapping.mappings().properties().entrySet()) {
                 String logical = me.getKey();
-                String physical = me.getValue().path() != null ? me.getValue().path() : logical;
+                String physical = me.getValue().renameFrom() != null ? me.getValue().renameFrom() : logical;
                 if (physical.equals(logical) == false) {
                     physicalToLogical.put(physical, logical);
                 }

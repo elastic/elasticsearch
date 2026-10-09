@@ -31,7 +31,7 @@ emp_no:integer | first_name:keyword | salary:double
 // Nothing about one column's declaration changes how the other resolves.
 strictDeclaredSchemaBindsDottedKeyAlongsideItsPrefixOnNdjson
 required_capability: dataset_in_from_command
-dataset: employees_declared_dotted_nd: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "languages": {"type": "long"}, "langs": {"type": "long", "path": "languages.long"}}}}
+dataset: employees_declared_dotted_nd: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "rename_from": "emp_no"}, "languages": {"type": "long"}, "langs": {"type": "long", "rename_from": "languages.long"}}}}
 
 FROM employees_declared_dotted_nd
 | SORT id
@@ -68,7 +68,7 @@ rows:long | present:long
 // NDJSON-specific: CSV and columnar formats do not infer DATETIME from a string-shaped physical value.
 strictDeclaredSchemaCoercesNdjsonDatetimeStringToKeyword
 required_capability: dataset_in_from_command
-dataset: ndjson_declared_dt2k: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"emp_no": {"type": "long"}, "birth_date_text": {"type": "keyword", "path": "birth_date"}}}}
+dataset: ndjson_declared_dt2k: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"emp_no": {"type": "long"}, "birth_date_text": {"type": "keyword", "rename_from": "birth_date"}}}}
 
 FROM ndjson_declared_dt2k
 | SORT emp_no

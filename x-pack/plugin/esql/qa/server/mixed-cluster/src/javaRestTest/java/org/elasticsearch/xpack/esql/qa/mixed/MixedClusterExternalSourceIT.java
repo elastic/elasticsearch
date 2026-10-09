@@ -334,12 +334,15 @@ public class MixedClusterExternalSourceIT extends ESRestTestCase {
             "s3://" + BUCKET + "/" + CACHE_AGGREGATE_PREFIX + "/part-1.csv",
             null
         );
+        // One column per spelling of the rename setting, deliberately: `rename_from` is the current name and `path`
+        // the older one, both accepted, and a mixed-version run has to read both the same way whichever node version
+        // coordinates the query.
         DatasetRegistry.ensureDataset(client(), DECLARED_DATASET, DATA_SOURCE, s3Glob(DECLARED_PREFIX), """
             {
               "mappings": {
                 "dynamic": "false",
                 "properties": {
-                  "identifier": {"type": "integer", "path": "id"},
+                  "identifier": {"type": "integer", "rename_from": "id"},
                   "label": {"type": "keyword", "path": "name"}
                 }
               }

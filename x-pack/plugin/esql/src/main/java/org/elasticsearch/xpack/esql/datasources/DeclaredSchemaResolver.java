@@ -51,7 +51,7 @@ public final class DeclaredSchemaResolver {
         for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
             String logical = e.getKey();
             DatasetFieldMapping f = e.getValue();
-            String physical = f.path() != null ? f.path() : logical;
+            String physical = f.renameFrom() != null ? f.renameFrom() : logical;
             cols.put(logical, new ColSpec(physical, resolveType(logical, f.type())));
         }
         return cols;

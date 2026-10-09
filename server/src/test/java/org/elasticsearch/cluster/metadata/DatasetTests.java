@@ -294,7 +294,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
         Dataset deserialized = new Dataset(out.bytes().streamInput());
         assertEquals(dataset, deserialized);
         assertEquals(DatasetMapping.Dynamic.FALSE, deserialized.mapping().mappings().dynamic());
-        assertEquals("ts", deserialized.mapping().mappings().properties().get("when").path());
+        assertEquals("ts", deserialized.mapping().mappings().properties().get("when").renameFrom());
     }
 
     private void assertExplicitXContentRoundTrip(Dataset dataset) throws IOException {

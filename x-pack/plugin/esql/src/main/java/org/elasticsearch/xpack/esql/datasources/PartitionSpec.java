@@ -350,9 +350,9 @@ public final class PartitionSpec {
         }
         Map<String, String> out = new LinkedHashMap<>();
         for (Map.Entry<String, DatasetFieldMapping> entry : properties.entrySet()) {
-            String path = entry.getValue().path();
-            if (path != null && path.equals(entry.getKey()) == false) {
-                out.put(path, entry.getKey());
+            String renameFrom = entry.getValue().renameFrom();
+            if (renameFrom != null && renameFrom.equals(entry.getKey()) == false) {
+                out.put(renameFrom, entry.getKey());
             }
         }
         return out;

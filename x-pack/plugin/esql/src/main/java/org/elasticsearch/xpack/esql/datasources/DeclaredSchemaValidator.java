@@ -94,11 +94,11 @@ public final class DeclaredSchemaValidator {
             Map<String, String> physicalToLogical = new HashMap<>();
             for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
                 requireNonBlank(e.getKey(), "column name");
-                requireNonBlank(e.getValue().path(), "path of column [" + e.getKey() + "]");
+                requireNonBlank(e.getValue().renameFrom(), "rename_from of column [" + e.getKey() + "]");
                 validateType(e.getKey(), e.getValue().type());
                 validateFormat(e.getKey(), e.getValue().type(), e.getValue().format());
                 String logical = e.getKey();
-                String physical = e.getValue().path() != null ? e.getValue().path() : logical;
+                String physical = e.getValue().renameFrom() != null ? e.getValue().renameFrom() : logical;
                 String clash = physicalToLogical.putIfAbsent(physical, logical);
                 if (clash != null) {
                     throw new IllegalArgumentException(

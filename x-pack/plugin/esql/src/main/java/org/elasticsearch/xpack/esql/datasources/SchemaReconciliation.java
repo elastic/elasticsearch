@@ -13,12 +13,14 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
+import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -301,6 +303,7 @@ public final class SchemaReconciliation {
             SourceStatistics stats = SourceStatisticsSerializer.fromSource(meta);
 
             validateNoDuplicateColumns(filePath, fileSchema, label);
+            validateNoWithinFileWidening(filePath, meta.widenedColumns(), label);
 
             if (filePath.equals(referenceFile) == false) {
                 validateStrictMatch(referenceFile, refSchema, filePath, fileSchema, compareByName, label);
@@ -401,6 +404,44 @@ public final class SchemaReconciliation {
         }
     }
 
+    /**
+     * {@code strict} refuses a within-file schema-inference widen the same way it refuses a cross-file
+     * disagreement — even on a single-file dataset, where {@link #validateStrictMatch} skips the only
+     * file (it equals {@code referenceFile}) and so would otherwise see nothing to compare.
+     * {@code widenedColumns} is populated by the CSV/TSV/NDJSON readers whenever a column's inferred
+     * type moved partway through the schema sample (a fold to {@code keyword}, or a {@code long}/
+     * {@code double} merge — see {@code CsvSchemaInferrer.Widening} / {@code NdJsonSchemaInferrer.Widening}).
+     * Names every widened column in one message rather than just the first, so a file with several
+     * doesn't force a fix-one-rerun-see-the-next cycle.
+     */
+    private static void validateNoWithinFileWidening(
+        StoragePath filePath,
+        List<WidenedColumn> widenedColumns,
+        Function<StoragePath, String> label
+    ) {
+        if (widenedColumns.isEmpty()) {
+            return;
+        }
+        StringBuilder message = new StringBuilder().append('[').append(label.apply(filePath)).append(']');
+        for (WidenedColumn widened : widenedColumns) {
+            message.append(": column [")
+                .append(widened.columnName())
+                .append("] widened to [")
+                .append(widened.toType().typeName())
+                .append("] from [")
+                .append(widened.fromType().typeName())
+                .append("] at sample row [")
+                .append(widened.sampleRow())
+                .append("] (value [")
+                .append(widened.value())
+                .append("])");
+        }
+        throw new IllegalArgumentException(message.append(WITHIN_FILE_WIDENING_FIX).toString());
+    }
+
+    private static final String WITHIN_FILE_WIDENING_FIX =
+        "; declare the column's type to avoid inference, or set [schema_resolution] to a value other than [strict] to allow it";
+
     private static void validateStrictTypeMatch(
         StoragePath refPath,
         Attribute refAttr,
@@ -462,6 +503,25 @@ public final class SchemaReconciliation {
         Consumer<String> warningSink,
         SchemaInterner interner
     ) {
+        return reconcileUnionByName(fileMetadata, warningSink, interner, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Same as {@link #reconcileUnionByName(Map, Consumer, SchemaInterner)}, refusing once the merged schema has more
+     * than {@code maxFields} columns. Each file is already held to the schema cap by its reader, but files whose
+     * columns diverge merge into a schema that is the sum of their distinct names, so the per-file cap does not bound
+     * it. The check runs as columns are added, so a merge that is too wide stops before the rest of it is built. It
+     * also bounds the merge scratch below, which has one entry per merged column.
+     *
+     * @param maxFields the most columns the merged schema may have
+     * @throws ExternalClientException (400) when the merged schema exceeds {@code maxFields}
+     */
+    public static Result reconcileUnionByName(
+        Map<StoragePath, SourceMetadata> fileMetadata,
+        Consumer<String> warningSink,
+        SchemaInterner interner,
+        int maxFields
+    ) {
         Objects.requireNonNull(interner, "interner");
         Objects.requireNonNull(warningSink, "warningSink: a null sink would fall back to HeaderWarning off the request thread");
         LinkedHashMap<String, MergeEntry> unified = new LinkedHashMap<>();
@@ -472,7 +532,8 @@ public final class SchemaReconciliation {
         // returns. The scratch is O(columns) and dead before return, so it is not charged on
         // ExternalPlanningReservation. chargeQuery holds until query close; reserving this scratch would
         // sit on the breaker after the objects are gone. The 760 × files credit is for the retained
-        // schema map, not this.
+        // schema map, not this. The scratch has one entry per merged column, so the maxFields check below bounds
+        // it and a charge would add nothing.
         LinkedHashMap<String, ColumnContributions> contributions = new LinkedHashMap<>();
         FileLabels label = new FileLabels(fileMetadata.keySet());
 
@@ -489,6 +550,16 @@ public final class SchemaReconciliation {
                 if (existing == null) {
                     boolean attrNullable = attr.nullable() == Nullability.TRUE || attr.nullable() == Nullability.UNKNOWN;
                     unified.put(name, new MergeEntry(attr.dataType(), attrNullable, filePath));
+                    if (unified.size() > maxFields) {
+                        throw ExternalClientException.schemaTooWide(
+                            "the union of the files' columns has more than [" + maxFields + "] columns; "
+                            // At the ceiling raising the cap is rejected too, so point at declaring the columns.
+                                + (maxFields >= ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS
+                                    ? "declare the dataset's columns with [dynamic: false] to skip inference"
+                                    : "raise [esql.external.schema_max_fields] or the dataset's [schema_max_fields] "
+                                        + "to merge a wider schema")
+                        );
+                    }
                 } else {
                     if (existing.type != attr.dataType()) {
                         existing.type = widenToCommonOrKeyword(existing.type, attr.dataType());
@@ -661,11 +732,12 @@ public final class SchemaReconciliation {
      *       above {@code Integer.MAX_VALUE} in an INTEGER-sampled column reconciled to LONG) still
      *       parses instead of failing.</li>
      * </ul>
-     * DATE_NANOS is deliberately excluded: a text reader parsing an epoch number at DATE_NANOS reads
-     * it as epoch-nanos, not the epoch-millis a DATETIME column holds, so a DATETIME to DATE_NANOS
-     * widening stays on the post-read cast that rescales the unit rather than a raw parse. That holds
-     * whatever the reconciled type's origin — a declared schema, or, since text inference learned to
-     * produce DATE_NANOS for sub-millisecond timestamps, an inferred one.
+     * DATE_NANOS is deliberately excluded: a DATETIME to DATE_NANOS widening stays on the post-read
+     * millis-to-nanos cast rather than a raw parse at DATE_NANOS. Both read a bare number as epoch
+     * millis, but the cast keeps the DATETIME file's own parse and judges only the date_nanos range
+     * (before 1970, after 2262) afterwards, the path every non-text source takes. That holds whatever
+     * the reconciled type's origin — a declared schema, or,
+     * since text inference learned to produce DATE_NANOS for sub-millisecond timestamps, an inferred one.
      */
     private static boolean shouldPinAtReconciledType(DataType inferred, DataType reconciled) {
         if (inferred == reconciled) {

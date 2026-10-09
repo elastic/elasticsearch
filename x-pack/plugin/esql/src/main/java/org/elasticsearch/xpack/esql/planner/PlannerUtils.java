@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -89,6 +90,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -119,7 +121,7 @@ public class PlannerUtils {
     // TODO: Move analyzer verification into a shared helper that HIGHLIGHT, TOP_SNIPPETS, MATCH, and MATCH_PHRASE can use.
     // FullTextFunction may be the right place for it.
     @Nullable
-    public static Analyzer resolveAnalyzer(@Nullable String analyzerName, @Nullable AnalysisRegistry analysisRegistry) {
+    public static NamedAnalyzer resolveAnalyzer(@Nullable String analyzerName, @Nullable AnalysisRegistry analysisRegistry) {
         if (analyzerName == null) {
             return null;
         }
@@ -135,13 +137,13 @@ public class PlannerUtils {
         if (analyzer == null) {
             throw new InvalidArgumentException("[{}] is not a registered analyzer", analyzerName);
         }
-        if (analyzer instanceof NamedAnalyzer == false) {
-            // Node-level plugin analyzers (AnalysisPlugin#getAnalyzers) resolve to bare Lucene analyzers: the registry
-            // bakes the text-field position increment gap only into prebuilt analyzers. Wrap them the way index
-            // mappings do, so multi-value analysis keeps the gap the same analyzer would have on a mapped field.
-            analyzer = new NamedAnalyzer(analyzerName, AnalyzerScope.GLOBAL, analyzer, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
+        if (analyzer instanceof NamedAnalyzer named) {
+            return named;
         }
-        return analyzer;
+        // Node-level plugin analyzers (AnalysisPlugin#getAnalyzers) resolve to bare Lucene analyzers: the registry
+        // bakes the text-field position increment gap only into prebuilt analyzers. Wrap them the way index
+        // mappings do, so multi-value analysis keeps the gap the same analyzer would have on a mapped field.
+        return new NamedAnalyzer(analyzerName, AnalyzerScope.GLOBAL, analyzer, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
     }
 
     /**
@@ -356,6 +358,16 @@ public class PlannerUtils {
                 action.accept(r);
             }
         }));
+    }
+
+    /**
+     * The slices the data-node plan reads from its indices, or none when its relations do not agree on them: the shards of
+     * a plan are resolved together. Subqueries are not concerned: each one runs as a plan of its own, with its own slices.
+     */
+    public static SliceSelection sliceSelection(PhysicalPlan plan) {
+        Set<SliceSelection> slices = new HashSet<>();
+        forEachRelation(plan, relation -> slices.add(relation.slices()));
+        return slices.size() == 1 ? slices.iterator().next() : SliceSelection.UNSPECIFIED;
     }
 
     /**

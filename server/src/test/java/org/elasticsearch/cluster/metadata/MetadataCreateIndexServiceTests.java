@@ -1132,6 +1132,62 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(aggregatedIndexSettings.get("other_setting"), equalTo("other_value"));
     }
 
+    /**
+     * A {@code null} in the request cancels the value of a non-overruling provider and also takes precedence over a value from the
+     * template, so the setting is resolved to its default value.
+     */
+    public void testAggregateSettingsRequestNullCancelsProviderAndTemplateValue() {
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
+            builder.settings(Settings.builder().put("nullified_setting", "template_value").put("other_template_setting", "value"));
+        });
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).templates(Map.of("template_1", templateMetadata)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata).build();
+        request.settings(Settings.builder().putNull("nullified_setting").build());
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            templateMetadata.settings(),
+            null,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            IndexSettingProviders.of(
+                additionalSettings -> additionalSettings.put("nullified_setting", "provided_value").put("other_provided_setting", "value")
+            ).getIndexSettingProviders()
+        );
+
+        assertThat(aggregatedIndexSettings.get("nullified_setting"), nullValue());
+        assertThat(aggregatedIndexSettings.get("other_template_setting"), equalTo("value"));
+        assertThat(aggregatedIndexSettings.get("other_provided_setting"), equalTo("value"));
+    }
+
+    public void testAggregateSettingsTemplateNullCancelsProviderValue() {
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
+            builder.settings(Settings.builder().putNull("nullified_setting"));
+        });
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).templates(Map.of("template_1", templateMetadata)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata).build();
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            templateMetadata.settings(),
+            null,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            IndexSettingProviders.of(
+                additionalSettings -> additionalSettings.put("nullified_setting", "provided_value").put("other_provided_setting", "value")
+            ).getIndexSettingProviders()
+        );
+
+        assertThat(aggregatedIndexSettings.get("nullified_setting"), nullValue());
+        assertThat(aggregatedIndexSettings.get("other_provided_setting"), equalTo("value"));
+    }
+
     public void testInvalidAliasName() {
         final String[] invalidAliasNames = new String[] { "-alias1", "+alias2", "_alias3", "a#lias", "al:ias", ".", ".." };
         String aliasName = randomFrom(invalidAliasNames);
@@ -2298,7 +2354,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 clusterService,
                 indicesService,
                 null,
-                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                createTestShardLimitService(randomIntBetween(2, 1000), clusterService),
                 newEnvironment(),
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
                 threadPool,
@@ -2356,7 +2412,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 clusterService,
                 indicesService,
                 null,
-                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                createTestShardLimitService(randomIntBetween(2, 1000), clusterService),
                 newEnvironment(),
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
                 threadPool,

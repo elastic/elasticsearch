@@ -109,9 +109,10 @@ public class ExternalCountStarUsesShippedSchemaIT extends AbstractExternalDataSo
     public void testCountStarEqualsFilteredCountOnFirstFileWinsGlob() throws Exception {
         Path dir = createTempDir();
         int firstRows = writeHeaderedCsv(dir.resolve("a.csv"), CSV_MIN_BYTES);
-        // 4-field data vs a 3-col FFW pin: extra-column rows are structural drops. Empty-projection
-        // COUNT(*) without the pin would re-infer b.csv as 4-col and keep those rows; WHERE a IS NOT
-        // NULL still uses the pin. skip_row so fail_fast does not abort the query.
+        // b.csv has a 4-column header against a 3-col FFW pin. Every file binds by its own header, so b.csv's rows are
+        // bounded by its own width: all of them read (the pin's columns by name, the extra column ignored) and none is a
+        // structural drop. Empty-projection COUNT(*) must agree with the filtered count, which binds the same way, on
+        // every split of the multi-split file.
         int secondRows = writeWiderCsv(dir.resolve("b.csv"), CSV_MIN_BYTES);
         assertThat(secondRows, greaterThan(0));
         String dataset = registerDataset(
@@ -119,9 +120,10 @@ public class ExternalCountStarUsesShippedSchemaIT extends AbstractExternalDataSo
             globUri(dir, "*.csv"),
             Map.of("schema_resolution", "first_file_wins", "file_sort_by", "name", "error_mode", "skip_row", "target_split_size", "1kb")
         );
-        assertCountStar("ffw count(*) drops later-file extra-column rows", dataset, firstRows);
+        long allRows = (long) firstRows + secondRows;
+        assertCountStar("ffw count(*) reads every row of the wider later file", dataset, allRows);
         try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE a IS NOT NULL | STATS c = COUNT(*)"), COUNT_TIMEOUT)) {
-            assertThat("ffw WHERE a IS NOT NULL", countValue(response), equalTo((long) firstRows));
+            assertThat("ffw WHERE a IS NOT NULL", countValue(response), equalTo(allRows));
         }
     }
 

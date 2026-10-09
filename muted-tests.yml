@@ -222,17 +222,17 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
   method: testRandomQueries
   issue: https://github.com/elastic/elasticsearch/issues/161094
-- class: org.elasticsearch.xpack.security.authz.microsoft.MicrosoftGraphAuthzPluginIT
-  method: testConcurrentAuthentication
-  issue: https://github.com/elastic/elasticsearch/issues/161197
-- class: org.elasticsearch.test.apmintegration.OtelMetricsIT
-  method: testJvmMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/161198
 - class: org.elasticsearch.common.io.stream.RecyclerBytesStreamOutputTests
   method: testCircuitBreakerReleaseOnRecyclerFailure
   issue: https://github.com/elastic/elasticsearch/issues/161203
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvgTests
   issue: https://github.com/elastic/elasticsearch/issues/161319
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=search/160_exists_query/Test exists query on mapped short field with no doc values}
+  issue: https://github.com/elastic/elasticsearch/issues/161489
+- class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
+  method: testForceMergeIsBlockedThenUnblocked
+  issue: https://github.com/elastic/elasticsearch/issues/161490
 
 # Examples:
 #

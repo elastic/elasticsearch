@@ -39,6 +39,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntPredicate;
 
@@ -56,7 +57,12 @@ public class ColumnarNegatedQueryTests extends ESTestCase {
         assertEquals(new ColumnarNegatedQuery(term), ColumnarNegatedQuery.asFilter(term));
         assertNotNull(ColumnarNegatedQuery.asFilter(ColumnarStringTermQuery.contains("f", new BytesRef("x"), NO_BUDGET)));
         assertNotNull(ColumnarNegatedQuery.asFilter(ColumnarStringTermQuery.prefix("f", new BytesRef("x"), NO_BUDGET)));
-        assertNotNull(ColumnarNegatedQuery.asFilter(new ColumnarStringMatchQuery("f", v -> true, "all", NO_BUDGET)));
+        assertNotNull(
+            ColumnarNegatedQuery.asFilter(new ColumnarStringRangeQuery("f", new BytesRef("a"), true, new BytesRef("z"), true, NO_BUDGET))
+        );
+        assertNotNull(
+            ColumnarNegatedQuery.asFilter(new ColumnarStringAnyOfQuery("f", List.of(new BytesRef("a"), new BytesRef("b")), NO_BUDGET))
+        );
     }
 
     public void testAsFilterSeesThroughWrappers() {

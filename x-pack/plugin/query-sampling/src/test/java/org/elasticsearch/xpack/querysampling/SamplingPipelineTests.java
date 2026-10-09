@@ -124,15 +124,17 @@ public class SamplingPipelineTests extends ESTestCase {
     }
 
     public void testAQueryIsPutInTheVectorSpaceWhenItIsSeenForTheFirstTimeOnly() {
-        SpatialStrata spatial = new SpatialStrata(2);
+        SpatialStrata spatial = new SpatialStrata(2, 2, () -> new Random(3L));
         QuerySampler sampler = new QuerySampler(1.0, 100, new Random(0L), new PickBudget(System::nanoTime), spatial);
         SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of(sampled::add));
 
         pipeline.accept(search(new float[] { 0f, 0f }));
         pipeline.accept(search(new float[] { 0f, 0f }));
+        assertThat("the clusters are not fitted yet, and the repeat does not count", spatial.counts("vec/2").length, equalTo(0));
+
         pipeline.accept(search(new float[] { 9f, 9f }));
 
-        assertThat("the repeat is not counted again", spatial.counts("vec/2"), equalTo(new long[] { 1, 1 }));
+        assertThat(spatial.counts("vec/2"), equalTo(new long[] { 1, 1 }));
     }
 
     public void testAQueryIsToldHowHardItIsWhenItIsSeenForTheFirstTimeOnly() {

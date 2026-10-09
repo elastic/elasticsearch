@@ -25,6 +25,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 public class QuerySamplerTests extends ESTestCase {
 
@@ -228,20 +229,27 @@ public class QuerySamplerTests extends ESTestCase {
                 QuerySamplingSettings.HARDNESS_TILT
             )
         );
-        QuerySampler sampler = new QuerySampler(0.1, 1000, alwaysDrawing(0.999999), new PickBudget(System::nanoTime), new SpatialStrata(2));
+        QuerySampler sampler = new QuerySampler(
+            0.1,
+            1000,
+            alwaysDrawing(0.999999),
+            new PickBudget(System::nanoTime),
+            new SpatialStrata(2, 2, () -> new Random(3L))
+        );
         sampler.watch(clusterSettings);
         MultiplicityTracker tracker = new MultiplicityTracker(1000);
         // a dense cluster of 9 queries and a sparse one of 1
-        TrackedQuery dense = tracker.record(new QueryFingerprint(0, 0));
-        sampler.assignStratum(dense, "vector", new float[] { 0, 0 }); // the first query of a space is a centroid
+        TrackedQuery first = tracker.record(new QueryFingerprint(0, 0));
+        TrackedQuery dense = first;
+        sampler.assignStratum(first, "vector", new float[] { 0, 0 }); // there are two queries to fit the two clusters on
         TrackedQuery sparse = tracker.record(new QueryFingerprint(100, 100));
         sampler.assignStratum(sparse, "vector", new float[] { 10, 10 });
         for (int i = 1; i < 9; i++) {
             dense = tracker.record(new QueryFingerprint(i, i));
             sampler.assignStratum(dense, "vector", new float[] { 0.01f * i, 0 });
         }
-        assertThat("the others join the first", dense.stratum().cluster(), equalTo(0));
-        assertThat(sparse.stratum().cluster(), equalTo(1));
+        assertThat("the others join the first", dense.stratum(), equalTo(first.stratum()));
+        assertThat(sparse.stratum(), not(equalTo(dense.stratum())));
 
         sampler.offer(dense);
         sampler.offer(sparse);
@@ -306,7 +314,13 @@ public class QuerySamplerTests extends ESTestCase {
                 QuerySamplingSettings.HARDNESS_TILT
             )
         );
-        QuerySampler sampler = new QuerySampler(1.0, 1000, alwaysDrawing(0.999999), new PickBudget(System::nanoTime), new SpatialStrata(2));
+        QuerySampler sampler = new QuerySampler(
+            1.0,
+            1000,
+            alwaysDrawing(0.999999),
+            new PickBudget(System::nanoTime),
+            new SpatialStrata(2, 2, () -> new Random(3L))
+        );
         sampler.watch(clusterSettings);
         MultiplicityTracker tracker = new MultiplicityTracker(1000);
         TrackedQuery dense = tracker.record(new QueryFingerprint(0, 0));

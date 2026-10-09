@@ -68,7 +68,7 @@ public class QuerySamplingSettingsTests extends ESTestCase {
         expectInvalid(QuerySamplingSettings.MAX_PICKS_PER_HOUR, "-1");
         expectInvalid(QuerySamplingSettings.TARGET_PICKS_PER_HOUR, "-1");
         expectInvalid(QuerySamplingSettings.SPATIAL_CLUSTERS, "-1");
-        expectInvalid(QuerySamplingSettings.SPATIAL_CLUSTERS, "1025");
+        expectInvalid(QuerySamplingSettings.SPATIAL_CLUSTERS, "257");
         expectInvalid(QuerySamplingSettings.SPATIAL_BALANCE, "1.5");
         expectInvalid(QuerySamplingSettings.HARDNESS_TILT, "-0.5");
         expectInvalid(QuerySamplingSettings.HARDNESS_TILT, "11");

@@ -170,7 +170,7 @@ public final class QuerySampler {
      * the sampler needs to balance the picks over the space.
      */
     public void assignStratum(TrackedQuery query, String field, float[] vector) {
-        query.stratum(spatial.assign(field, vector));
+        spatial.assign(field, vector, stratum -> query.stratum(stratum));
     }
 
     /**

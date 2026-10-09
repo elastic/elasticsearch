@@ -118,13 +118,14 @@ public final class QuerySamplingSettings {
     /**
      * The number of clusters that the query vectors of a field are grouped in, to balance the sample over the vector
      * space, see {@link #SPATIAL_BALANCE}. 0 does not group them. The clusters are made on every node, from the
-     * queries that it captures, and are lost when the node stops.
+     * queries that it captures, once it has seen enough different ones of a field (at least 200, and ten for each cluster),
+     * and are lost when the node stops.
      */
     public static final Setting<Integer> SPATIAL_CLUSTERS = Setting.intSetting(
         "xpack.query_sampling.spatial_clusters",
         0,
         0,
-        1024,
+        256,
         Setting.Property.NodeScope
     );
 

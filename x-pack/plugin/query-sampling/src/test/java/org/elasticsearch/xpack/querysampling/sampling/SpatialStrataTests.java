@@ -13,18 +13,26 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SpatialStrataTests extends ESTestCase {
 
-    private static SpatialStrata balancing(int clusters, double balance) {
-        SpatialStrata strata = new SpatialStrata(clusters);
+    private static SpatialStrata balancing(int clusters, int warmup, double balance) {
+        SpatialStrata strata = new SpatialStrata(clusters, warmup, () -> new Random(7L));
         strata.watch(
             new ClusterSettings(
                 Settings.builder().put(QuerySamplingSettings.SPATIAL_BALANCE.getKey(), balance).build(),
@@ -35,52 +43,102 @@ public class SpatialStrataTests extends ESTestCase {
     }
 
     /**
-     * Two clusters, the first made of {@code dense} queries and the second of one.
+     * What a query is told about its cluster, which can be nothing yet. Read it after the clusters are fitted.
      */
-    private static Stratum[] denseAndSparse(SpatialStrata strata, int dense) {
-        Stratum first = strata.assign("vector", new float[] { 0, 0 }); // the first queries of a space are its centroids
-        Stratum sparse = strata.assign("vector", new float[] { 50, 50 });
-        Stratum last = first;
-        for (int i = 1; i < dense; i++) {
-            last = strata.assign("vector", new float[] { 0, 0.1f });
-        }
-        return new Stratum[] { last, sparse };
+    private static AtomicReference<Stratum> assign(SpatialStrata strata, String field, float... vector) {
+        AtomicReference<Stratum> told = new AtomicReference<>();
+        strata.assign(field, vector, told::set);
+        return told;
     }
 
-    public void testWithoutClustersNothingIsAssigned() {
-        SpatialStrata strata = balancing(0, 1.0);
+    /**
+     * Queries of two groups that are far from each other, of {@code dense} and one queries. The first query of each is
+     * the first two of the warm-up of 2, so the clusters are fitted when the second is in.
+     *
+     * @return what the last query of the large group was told, and what the other was
+     */
+    private static Stratum[] denseAndSparse(SpatialStrata strata, int dense) {
+        AtomicReference<Stratum> first = assign(strata, "vector", 0, 0);
+        AtomicReference<Stratum> sparse = assign(strata, "vector", 50, 50);
+        AtomicReference<Stratum> last = first;
+        for (int i = 1; i < dense; i++) {
+            last = assign(strata, "vector", 0, 0.1f);
+        }
+        return new Stratum[] { last.get(), sparse.get() };
+    }
 
-        assertThat(strata.assign("vector", new float[] { 1, 2 }), nullValue());
+    public void testWithoutClustersNothingIsAssignedAndNoRandomnessIsNeeded() {
+        SpatialStrata strata = new SpatialStrata(0, 200, () -> { throw new AssertionError("nothing to fit"); });
+
+        assertThat(assign(strata, "vector", 1, 2).get(), nullValue());
         assertThat(strata.factor(null), equalTo(1.0));
     }
 
-    public void testTheFirstQueriesAreTheCentroidsAndTheOthersJoinTheNearest() {
-        SpatialStrata strata = balancing(2, 0.5);
+    public void testQueriesWaitForTheClustersAndAreToldAllAtOnce() {
+        SpatialStrata strata = balancing(2, 4, 0.5);
 
-        Stratum a = strata.assign("vector", new float[] { 0, 0 });
-        Stratum b = strata.assign("vector", new float[] { 10, 10 });
-        Stratum nearA = strata.assign("vector", new float[] { 1, 0 });
-        Stratum nearB = strata.assign("vector", new float[] { 9, 11 });
+        AtomicReference<Stratum> first = assign(strata, "vector", 0, 0);
+        AtomicReference<Stratum> second = assign(strata, "vector", 100, 100);
+        AtomicReference<Stratum> third = assign(strata, "vector", 0, 1);
+        assertThat("not told yet", first.get(), nullValue());
+        assertThat(second.get(), nullValue());
+        assertThat(strata.counts("vector/2").length, equalTo(0));
 
-        assertThat(a.cluster(), equalTo(0));
-        assertThat(b.cluster(), equalTo(1));
-        assertThat(nearA.cluster(), equalTo(0));
-        assertThat(nearB.cluster(), equalTo(1));
-        assertThat(strata.counts(a.space()), equalTo(new long[] { 2, 2 }));
+        AtomicReference<Stratum> fourth = assign(strata, "vector", 101, 100);
+
+        assertThat(first.get(), equalTo(third.get()));
+        assertThat(second.get(), equalTo(fourth.get()));
+        assertThat(first.get(), not(equalTo(second.get())));
+        assertThat(strata.counts("vector/2"), equalTo(new long[] { 2, 2 }));
     }
 
-    public void testCentroidsMoveTowardsTheQueriesThatJoinThem() {
-        SpatialStrata strata = balancing(2, 1.0);
-        strata.assign("vector", new float[] { 0, 0 });
-        strata.assign("vector", new float[] { 100, 0 });
-        // joins the first cluster, which then has its centroid at (4, 0)
-        strata.assign("vector", new float[] { 8, 0 });
+    /**
+     * The queries of a space can be very much alike, as embeddings are. The clusters have to tell the groups that there
+     * are apart even then, whichever queries come first, and not have all the queries nearest to one of them.
+     */
+    public void testGroupsThatAreFarApartAreInClustersOfTheirOwn() {
+        int[] sizes = { 100, 50, 40, 10 };
+        SpatialStrata strata = balancing(4, 200, 0.5);
+        Random random = new Random(randomLong());
+        List<List<AtomicReference<Stratum>>> told = new ArrayList<>();
+        List<Integer> arrivals = new ArrayList<>();
+        for (int group = 0; group < sizes.length; group++) {
+            told.add(new ArrayList<>());
+            for (int i = 0; i < sizes[group]; i++) {
+                arrivals.add(group);
+            }
+        }
+        Collections.shuffle(arrivals, random);
+        for (int group : arrivals) {
+            // groups are 100 apart on one axis, and the queries of a group are within 1 of each other on the others
+            told.get(group).add(assign(strata, "vector", 100f * group + random.nextFloat(), random.nextFloat(), random.nextFloat()));
+        }
 
-        assertThat("47 from (4, 0), where it is 51 from (0, 0)", strata.assign("vector", new float[] { 51, 0 }).cluster(), equalTo(0));
+        long[] counts = strata.counts("vector/3");
+        Arrays.sort(counts);
+        assertThat(counts, equalTo(new long[] { 10, 40, 50, 100 }));
+        for (int group = 0; group < sizes.length; group++) {
+            Set<Stratum> clusters = new HashSet<>();
+            told.get(group).forEach(reference -> clusters.add(reference.get()));
+            assertThat("group " + group + " is in one cluster", clusters.size(), equalTo(1));
+        }
+    }
+
+    public void testNewQueriesJoinTheNearestClusterAndMoveItsCentroid() {
+        SpatialStrata strata = balancing(2, 2, 1.0);
+        AtomicReference<Stratum> a = assign(strata, "vector", 0, 0);
+        AtomicReference<Stratum> b = assign(strata, "vector", 100, 0);
+
+        // joins the first cluster, whose centroid then moves to (4, 0)
+        assertThat(assign(strata, "vector", 8, 0).get(), equalTo(a.get()));
+
+        assertThat("47 from (4, 0), where it is 51 from (0, 0)", assign(strata, "vector", 51, 0).get(), equalTo(a.get()));
+        assertThat(assign(strata, "vector", 99, 1).get(), equalTo(b.get()));
+        assertThat(Arrays.stream(strata.counts("vector/2")).sum(), equalTo(5L));
     }
 
     public void testNoBalanceMeansNoEffect() {
-        SpatialStrata strata = balancing(2, 0.0);
+        SpatialStrata strata = balancing(2, 2, 0.0);
         Stratum[] found = denseAndSparse(strata, 9);
 
         assertThat(strata.factor(found[0]), equalTo(1.0));
@@ -88,7 +146,7 @@ public class SpatialStrataTests extends ESTestCase {
     }
 
     public void testSparseClustersAreFavouredAndDenseOnesAreNot() {
-        SpatialStrata strata = balancing(2, 1.0);
+        SpatialStrata strata = balancing(2, 2, 1.0);
         Stratum[] found = denseAndSparse(strata, 9);
 
         // 10 queries over 2 clusters is an average of 5
@@ -97,21 +155,19 @@ public class SpatialStrataTests extends ESTestCase {
     }
 
     public void testBalanceOfOneHalfIsAMiddleWay() {
-        SpatialStrata strata = balancing(2, 0.5);
-        Stratum sparse = denseAndSparse(strata, 9)[1];
+        SpatialStrata strata = balancing(2, 2, 0.5);
 
-        assertThat(strata.factor(sparse), closeTo(Math.sqrt(5.0), 1e-9));
+        assertThat(strata.factor(denseAndSparse(strata, 9)[1]), closeTo(Math.sqrt(5.0), 1e-9));
     }
 
     public void testFactorIsBounded() {
-        SpatialStrata strata = balancing(2, 1.0);
-        Stratum sparse = denseAndSparse(strata, 999)[1];
+        SpatialStrata strata = balancing(2, 2, 1.0);
 
-        assertThat(strata.factor(sparse), equalTo(SpatialStrata.MAX_FACTOR));
+        assertThat(strata.factor(denseAndSparse(strata, 999)[1]), equalTo(SpatialStrata.MAX_FACTOR));
     }
 
     public void testBalanceFollowsTheSettingWhenItChanges() {
-        SpatialStrata strata = new SpatialStrata(2);
+        SpatialStrata strata = new SpatialStrata(2, 2, () -> new Random(7L));
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(QuerySamplingSettings.SPATIAL_BALANCE));
         strata.watch(clusterSettings);
         Stratum sparse = denseAndSparse(strata, 9)[1];
@@ -123,11 +179,11 @@ public class SpatialStrataTests extends ESTestCase {
     }
 
     public void testFieldsAndDimensionsAreSeparateSpaces() {
-        SpatialStrata strata = balancing(1, 1.0);
+        SpatialStrata strata = balancing(1, 1, 1.0);
 
-        Stratum a = strata.assign("a", new float[] { 1, 2 });
-        Stratum b = strata.assign("b", new float[] { 1, 2 });
-        Stratum longer = strata.assign("a", new float[] { 1, 2, 3 });
+        Stratum a = assign(strata, "a", 1, 2).get();
+        Stratum b = assign(strata, "b", 1, 2).get();
+        Stratum longer = assign(strata, "a", 1, 2, 3).get();
 
         assertThat(a.space(), equalTo("a/2"));
         assertThat(b.space(), equalTo("b/2"));
@@ -136,22 +192,36 @@ public class SpatialStrataTests extends ESTestCase {
     }
 
     public void testVectorsThatAreNotFiniteAreLeftOut() {
-        SpatialStrata strata = balancing(2, 1.0);
-        strata.assign("vector", new float[] { 1, 1 });
+        SpatialStrata strata = balancing(2, 2, 1.0);
+        assign(strata, "vector", 1, 1);
 
-        assertThat(strata.assign("vector", new float[] { Float.NaN, 1 }), nullValue());
-        assertThat(strata.assign("vector", new float[] { 1, Float.POSITIVE_INFINITY }), nullValue());
-        assertThat(strata.counts("vector/2"), equalTo(new long[] { 1 }));
+        assertThat(assign(strata, "vector", Float.NaN, 1).get(), nullValue());
+        assertThat(assign(strata, "vector", 1, Float.POSITIVE_INFINITY).get(), nullValue());
+        assertThat("they do not count towards the clusters either", strata.counts("vector/2").length, equalTo(0));
+        assertNotNull(assign(strata, "vector", 3, 3).get());
+        assertThat(strata.counts("vector/2"), equalTo(new long[] { 1, 1 }));
+    }
+
+    public void testQueriesThatAreAllTheSameAreStillTold() {
+        SpatialStrata strata = balancing(2, 4, 1.0);
+        List<AtomicReference<Stratum>> told = new ArrayList<>();
+
+        for (int i = 0; i < 4; i++) {
+            told.add(assign(strata, "vector", 1, 1));
+        }
+
+        told.forEach(reference -> assertNotNull(reference.get()));
+        assertThat(Arrays.stream(strata.counts("vector/2")).sum(), equalTo(4L));
     }
 
     public void testStopsGivingNewSpacesAtALimit() {
-        SpatialStrata strata = balancing(1, 1.0);
+        SpatialStrata strata = balancing(1, 1, 1.0);
         for (int i = 0; i < SpatialStrata.MAX_SPACES; i++) {
-            assertNotNull(strata.assign("field" + i, new float[] { 1 }));
+            assertNotNull(assign(strata, "field" + i, 1).get());
         }
 
-        assertThat(strata.assign("one-too-many", new float[] { 1 }), nullValue());
-        assertNotNull("a space that is known keeps working", strata.assign("field0", new float[] { 1 }));
+        assertThat(assign(strata, "one-too-many", 1).get(), nullValue());
+        assertNotNull("a space that is known keeps working", assign(strata, "field0", 1).get());
         assertThat(strata.factor(new Stratum("unknown/1", 0)), lessThan(Double.MAX_VALUE));
     }
 }

@@ -2239,14 +2239,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             deliverProducerFailure(state, listener);
             return;
         }
+        if (state.producerFailure.get() != null) {
+            deliverProducerFailure(state, listener);
+            return;
+        }
         listener.onResponse(null);
     }
 
     /** Record a terminal failure without notifying. The resource owner delivers after close. */
     private static void markProducerFailed(ProducerState state, Exception e) {
-        if (state.producerFinished.compareAndSet(false, true)) {
-            state.producerFailure.set(e);
-        }
+        // Exception first so a volatile read of producerFinished happens-after producerFailure.
+        state.producerFailure.compareAndSet(null, e);
+        state.producerFinished.set(true);
     }
 
     /** {@code onFailure} once, after this thread has closed the iterator (or there is none). */

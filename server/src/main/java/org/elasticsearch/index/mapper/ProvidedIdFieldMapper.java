@@ -83,7 +83,6 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             mode = Parameter.enumParam(
                 "mode",
                 false,
-                m -> ((ProvidedIdFieldMapper) m).mode,
                 (Supplier<Mode>) () -> columnarIdByDefault ? Mode.COLUMNAR : Mode.DOCUMENT,
                 Mode.class
             );

@@ -91,10 +91,6 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "aggregate_metric_double";
     public static final String SUBFIELD_SEPARATOR = ".";
 
-    private static AggregateMetricDoubleFieldMapper toType(FieldMapper in) {
-        return (AggregateMetricDoubleFieldMapper) in;
-    }
-
     /**
      * Return the name of a subfield of an aggregate metric field
      *
@@ -148,7 +144,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                 }
             }
             return parsedMetrics;
-        }, m -> toType(m).metrics, XContentBuilder::enumSet, Objects::toString).addValidator(v -> {
+        }, XContentBuilder::enumSet, Objects::toString).addValidator(v -> {
             if (v == null || v.isEmpty()) {
                 throw new IllegalArgumentException("Property [" + Names.METRICS + "] is required for field [" + leafName() + "].");
             }
@@ -175,7 +171,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Metric [" + o + "] is not supported.", e);
             }
-        }, m -> toType(m).defaultMetric, XContentBuilder::field, Objects::toString).deprecated().acceptsNull();
+        }, XContentBuilder::field, Objects::toString).deprecated().acceptsNull();
 
         private final IndexSettings indexSettings;
 
@@ -184,11 +180,10 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             this.ignoreMalformed = Parameter.boolParam(
                 Names.IGNORE_MALFORMED,
                 true,
-                m -> toType(m).ignoreMalformed,
                 IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
             );
 
-            this.timeSeriesMetric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.GAUGE);
+            this.timeSeriesMetric = TimeSeriesParams.metricParam(MetricType.GAUGE);
             this.indexSettings = indexSettings;
         }
 

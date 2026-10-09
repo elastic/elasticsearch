@@ -176,14 +176,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         private Builder(String name, IndexAnalyzers indexAnalyzers, boolean isWithinMultiField, IndexSettings indexSettings) {
             super(name, indexSettings.getIndexVersionCreated(), isWithinMultiField);
 
-            this.indexed = Parameter.indexParam(m -> ((MatchOnlyTextFieldMapper) m).indexed(), true);
+            this.indexed = Parameter.indexParam(true);
 
-            this.analyzers = new TextParams.Analyzers(
-                indexAnalyzers,
-                m -> ((MatchOnlyTextFieldMapper) m).indexAnalyzer,
-                m -> ((MatchOnlyTextFieldMapper) m).positionIncrementGap,
-                indexSettings.getIndexVersionCreated()
-            );
+            this.analyzers = new TextParams.Analyzers(indexAnalyzers, indexSettings.getIndexVersionCreated());
             this.storedFieldInBinaryFormat = isSyntheticSourceStoredFieldInBinaryFormat(indexSettings.getIndexVersionCreated());
             this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields(indexSettings);
             this.indexSettings = indexSettings;
@@ -195,7 +190,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
                     IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
                 ),
-                m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters,
                 indexSettings
             );
         }

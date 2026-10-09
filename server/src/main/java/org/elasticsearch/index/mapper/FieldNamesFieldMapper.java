@@ -46,21 +46,13 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     }
 
-    private static FieldNamesFieldMapper toType(FieldMapper in) {
-        return (FieldNamesFieldMapper) in;
-    }
-
     public static final String ENABLED_DEPRECATION_MESSAGE =
         "Disabling _field_names is not necessary because it no longer carries a large index overhead. Support for the `enabled` "
             + "setting will be removed in a future major version. Please remove it from your mappings and templates.";
 
     static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<Explicit<Boolean>> enabled = updateableBoolParam(
-            "enabled",
-            m -> toType(m).enabled,
-            Defaults.ENABLED.value()
-        );
+        private final Parameter<Explicit<Boolean>> enabled = updateableBoolParam("enabled", Defaults.ENABLED.value());
 
         private final boolean createdOnOrAfterV8;
 

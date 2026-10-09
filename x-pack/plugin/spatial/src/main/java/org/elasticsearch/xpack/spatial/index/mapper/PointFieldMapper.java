@@ -64,26 +64,21 @@ import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPrefere
 public class PointFieldMapper extends AbstractPointGeometryFieldMapper<CartesianPoint> {
     public static final String CONTENT_TYPE = "point";
 
-    private static Builder builder(FieldMapper in) {
-        return ((PointFieldMapper) in).builder;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
-        final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
-        final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
-        final Parameter<Boolean> stored = Parameter.storeParam(m -> builder(m).stored.get(), false);
+        final Parameter<Boolean> indexed = Parameter.indexParam(true);
+        final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(true);
+        final Parameter<Boolean> stored = Parameter.storeParam(false);
 
         final Parameter<Explicit<Boolean>> ignoreMalformed;
-        final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam(m -> builder(m).ignoreZValue.get());
+        final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam();
         final Parameter<CartesianPoint> nullValue;
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name, boolean ignoreMalformedByDefault) {
             super(name);
-            this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
+            this.ignoreMalformed = ignoreMalformedParam(ignoreMalformedByDefault);
             this.nullValue = nullValueParam(
-                m -> builder(m).nullValue.get(),
                 (n, c, o) -> o == null ? null : parseNullValue(o, ignoreZValue.get().value(), ignoreMalformed.get().value()),
                 () -> null,
                 XContentBuilder::field

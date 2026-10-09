@@ -74,10 +74,6 @@ public class HistogramFieldMapper extends FieldMapper {
     // use the same default as numbers
     private static final Setting<Boolean> COERCE_SETTING = NumberFieldMapper.COERCE_SETTING;
 
-    private static HistogramFieldMapper toType(FieldMapper in) {
-        return (HistogramFieldMapper) in;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -93,14 +89,9 @@ public class HistogramFieldMapper extends FieldMapper {
         public Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault, IndexSettings indexSettings) {
             super(name);
             this.indexSettings = indexSettings;
-            this.ignoreMalformed = Parameter.explicitBoolParam(
-                "ignore_malformed",
-                true,
-                m -> toType(m).ignoreMalformed,
-                ignoreMalformedByDefault
-            );
-            this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
-            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, TimeSeriesParams.MetricType.HISTOGRAM);
+            this.ignoreMalformed = Parameter.explicitBoolParam("ignore_malformed", true, ignoreMalformedByDefault);
+            this.coerce = Parameter.explicitBoolParam("coerce", true, coerceByDefault);
+            this.metric = TimeSeriesParams.metricParam(TimeSeriesParams.MetricType.HISTOGRAM);
         }
 
         public Builder metric(TimeSeriesParams.MetricType metric) {

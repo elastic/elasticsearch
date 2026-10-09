@@ -101,10 +101,6 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     // use the same default as numbers
     private static final Setting<Boolean> COERCE_SETTING = NumberFieldMapper.COERCE_SETTING;
 
-    private static ExponentialHistogramFieldMapper toType(FieldMapper in) {
-        return (ExponentialHistogramFieldMapper) in;
-    }
-
     /**
      * We store the zero-threshold as a separate doc value with this lucene field name.
      * We don't expect the zero threshold to be accessed independently of the other histogram data,
@@ -160,14 +156,9 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault, IndexSettings indexSettings) {
             super(name);
             this.indexSettings = indexSettings;
-            this.ignoreMalformed = FieldMapper.Parameter.explicitBoolParam(
-                "ignore_malformed",
-                true,
-                m -> toType(m).ignoreMalformed,
-                ignoreMalformedByDefault
-            );
-            this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
-            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, TimeSeriesParams.MetricType.HISTOGRAM);
+            this.ignoreMalformed = FieldMapper.Parameter.explicitBoolParam("ignore_malformed", true, ignoreMalformedByDefault);
+            this.coerce = Parameter.explicitBoolParam("coerce", true, coerceByDefault);
+            this.metric = TimeSeriesParams.metricParam(TimeSeriesParams.MetricType.HISTOGRAM);
         }
 
         public Builder metric(TimeSeriesParams.MetricType metric) {

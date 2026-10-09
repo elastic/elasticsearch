@@ -224,15 +224,11 @@ public class WildcardFieldMapper extends FieldMapper {
         );
     }
 
-    private static WildcardFieldMapper toType(FieldMapper in) {
-        return (WildcardFieldMapper) in;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
         final int ignoreAboveDefault;
         final Parameter<Integer> ignoreAbove;
-        final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
+        final Parameter<String> nullValue = Parameter.stringParam("null_value", false, null).acceptsNull();
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -269,7 +265,7 @@ public class WildcardFieldMapper extends FieldMapper {
             this.indexMode = indexMode;
             this.indexCreatedVersion = indexCreatedVersion;
             this.storeIgnoredFieldsInBinaryDocValues = storeIgnoredFieldsInBinaryDocValues;
-            this.ignoreAbove = Parameter.ignoreAboveParam(m -> toType(m).ignoreAbove.get(), ignoreAboveDefault);
+            this.ignoreAbove = Parameter.ignoreAboveParam(ignoreAboveDefault);
         }
 
         @Override

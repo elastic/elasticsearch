@@ -235,12 +235,9 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         static class TypeBuilder extends FieldMapper.Builder {
 
-            private final Parameter<String> deprecatedParam = Parameter.stringParam(
-                "deprecated_field",
-                true,
-                m -> ((DeprecatedParameterFieldType) m.fieldType()).deprecatedField,
-                null
-            ).acceptsNull().deprecated();
+            private final Parameter<String> deprecatedParam = Parameter.stringParam("deprecated_field", true, null)
+                .acceptsNull()
+                .deprecated();
 
             TypeBuilder(String name) {
                 super(name);

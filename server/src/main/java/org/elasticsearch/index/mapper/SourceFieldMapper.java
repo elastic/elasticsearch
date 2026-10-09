@@ -57,7 +57,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -137,13 +136,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private static SourceFieldMapper toType(FieldMapper in) {
-        return (SourceFieldMapper) in;
-    }
-
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<Explicit<Boolean>> enabled = Parameter.explicitBoolParam("enabled", false, m -> toType(m).enabled, true)
+        private final Parameter<Explicit<Boolean>> enabled = Parameter.explicitBoolParam("enabled", false, true)
             .setSerializerCheck((includeDefaults, isConfigured, value) -> value.explicit())
             // this field mapper may be enabled but once enabled, may not be disabled
             .setMergeValidator(
@@ -155,16 +150,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
          * source mode.
          */
         private final Parameter<Mode> mode;
-        private final Parameter<List<String>> includes = Parameter.stringArrayParam(
-            "includes",
-            false,
-            m -> Arrays.asList(toType(m).includes)
-        );
-        private final Parameter<List<String>> excludes = Parameter.stringArrayParam(
-            "excludes",
-            false,
-            m -> Arrays.asList(toType(m).excludes)
-        );
+        private final Parameter<List<String>> includes = Parameter.stringArrayParam("includes", false);
+        private final Parameter<List<String>> excludes = Parameter.stringArrayParam("excludes", false);
 
         private final Settings settings;
 
@@ -189,17 +176,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 || settings.getAsBoolean(LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, true);
             this.sourceModeIsNoop = sourceModeIsNoop;
             this.serializeMode = serializeMode;
-            this.mode = new Parameter<>("mode", true, () -> null, (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)), m -> {
-                var sfm = toType(m);
-                if (sfm.enabled.explicit()) {
-                    return null;
-                } else if (sfm.serializeMode) {
-                    return sfm.mode;
-                } else {
-                    return null;
-                }
-            }, (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)), v -> v.toString().toLowerCase(Locale.ROOT))
-                .setMergeValidator((previous, current, conflicts) -> (previous == current) || current != Mode.STORED)
+            this.mode = new Parameter<>(
+                "mode",
+                true,
+                () -> null,
+                (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
+                (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
+                v -> v.toString().toLowerCase(Locale.ROOT)
+            ).setMergeValidator((previous, current, conflicts) -> (previous == current) || current != Mode.STORED)
                 // don't emit if `enabled` is configured
                 // the field, not the constructor argument of the same name: build() decides that the mode is serialized
                 .setSerializerCheck((includeDefaults, isConfigured, value) -> this.serializeMode && value != null);

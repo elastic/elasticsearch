@@ -88,10 +88,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
     static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X =
         IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X;
 
-    private static SparseVectorFieldMapper toType(FieldMapper in) {
-        return (SparseVectorFieldMapper) in;
-    }
-
     public static class Builder extends FieldMapper.Builder {
         private final IndexVersion indexVersionCreated;
         private final Parameter<Boolean> stored;
@@ -102,15 +98,14 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         public Builder(String name, IndexVersion indexVersionCreated, boolean isExcludeSourceVectors) {
             super(name);
-            this.stored = Parameter.boolParam("store", false, m -> toType(m).fieldType().isStored(), () -> isExcludeSourceVectors);
+            this.stored = Parameter.boolParam("store", false, () -> isExcludeSourceVectors);
             this.indexVersionCreated = indexVersionCreated;
             this.isExcludeSourceVectors = isExcludeSourceVectors;
             SparseVectorIndexOptions defaultIndexOptions = SparseVectorIndexOptions.getDefaultIndexOptions(indexVersionCreated);
             this.indexOptions = new Parameter<>(SPARSE_VECTOR_INDEX_OPTIONS, true, () -> defaultIndexOptions, (n, c, o) -> {
                 SparseVectorIndexOptions parsed = parseIndexOptions(c, o);
                 return parsed == null ? defaultIndexOptions : parsed;
-            }, m -> toType(m).fieldType().indexOptions, XContentBuilder::field, Objects::toString).acceptsNull()
-                .setSerializerCheck(this::indexOptionsSerializerCheck);
+            }, XContentBuilder::field, Objects::toString).acceptsNull().setSerializerCheck(this::indexOptionsSerializerCheck);
         }
 
         public Builder setStored(boolean value) {

@@ -283,7 +283,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> index;
         private final DocValuesParameter docValuesParameters;
-        private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).stored, false);
+        private final Parameter<Boolean> store = Parameter.storeParam(false);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -293,20 +293,15 @@ public final class DateFieldMapper extends FieldMapper {
             false,
             () -> DEFAULT_LOCALE,
             (n, c, o) -> LocaleUtils.parse(o.toString()),
-            m -> toType(m).locale,
             (xContentBuilder, n, v) -> xContentBuilder.field(n, v.toString()),
             Objects::toString
         );
 
-        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null)
-            .acceptsNull();
+        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, null).acceptsNull();
         private final Parameter<Boolean> ignoreMalformed;
 
-        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(
-            m -> toType(m).builderParams.onScriptError(),
-            script
-        );
+        private final Parameter<Script> script = Parameter.scriptParam();
+        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(script);
 
         private final Resolution resolution;
         private final IndexVersion indexCreatedVersion;
@@ -321,7 +316,7 @@ public final class DateFieldMapper extends FieldMapper {
             IndexSettings indexSettings
         ) {
             super(name);
-            this.index = Parameter.indexParam(m -> toType(m).indexed, () -> {
+            this.index = Parameter.indexParam(() -> {
                 if (DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(name)) {
                     // The timestamp field needs to be indexed or configured with a skipper, as it's heavily used in range filters.
                     // Strict columnar modes uses index for timestamp only when skippers are disabled.
@@ -339,13 +334,11 @@ public final class DateFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
                     DocValuesParameter.Values.Cardinality.LOW
                 ),
-                m -> toType(m).docValuesParameters(),
                 indexSettings
             );
             this.ignoreMalformed = Parameter.boolParam(
                 "ignore_malformed",
                 true,
-                m -> toType(m).ignoreMalformed,
                 FieldMapper.IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
             );
 
@@ -355,12 +348,7 @@ public final class DateFieldMapper extends FieldMapper {
             DateFormatter defaultFormat = resolution == Resolution.MILLISECONDS
                 ? DEFAULT_DATE_TIME_FORMATTER
                 : DEFAULT_DATE_TIME_NANOS_FORMATTER;
-            this.format = Parameter.stringParam(
-                "format",
-                indexCreatedVersion.isLegacyIndexVersion(),
-                m -> toType(m).format,
-                defaultFormat.pattern()
-            );
+            this.format = Parameter.stringParam("format", indexCreatedVersion.isLegacyIndexVersion(), defaultFormat.pattern());
             if (dateFormatter != null) {
                 this.format.setValue(dateFormatter.pattern());
                 this.locale.setValue(dateFormatter.locale());

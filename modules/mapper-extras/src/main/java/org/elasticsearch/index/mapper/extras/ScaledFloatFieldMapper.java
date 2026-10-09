@@ -94,7 +94,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> indexed;
         private final FieldMapper.DocValuesParameter docValuesParameters;
-        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
+        private final Parameter<Boolean> stored = Parameter.storeParam(false);
 
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final Parameter<Explicit<Boolean>> coerce;
@@ -104,7 +104,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             false,
             () -> null,
             (n, c, o) -> XContentMapValues.nodeDoubleValue(o),
-            m -> toType(m).scalingFactor,
             XContentBuilder::field,
             Objects::toString
         ).addValidator(v -> {
@@ -120,7 +119,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             false,
             () -> null,
             (n, c, o) -> o == null ? null : XContentMapValues.nodeDoubleValue(o),
-            m -> toType(m).nullValue,
             XContentBuilder::field,
             Objects::toString
         ).acceptsNull();
@@ -145,22 +143,15 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
                     IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
                 ),
-                m -> toType(m).docValuesParameters(),
                 indexSettings
             );
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
-                m -> toType(m).ignoreMalformed,
                 IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
             );
-            this.coerce = Parameter.explicitBoolParam(
-                "coerce",
-                true,
-                m -> toType(m).coerce,
-                COERCE_SETTING.get(indexSettings.getSettings())
-            );
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
+            this.coerce = Parameter.explicitBoolParam("coerce", true, COERCE_SETTING.get(indexSettings.getSettings()));
+            this.indexed = Parameter.indexParam(() -> {
                 if (indexSettings.isIndexDisabledByDefault()) {
                     return false;
                 }
@@ -172,17 +163,18 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     return true;
                 }
             });
-            this.metric = TimeSeriesParams.metricParam(
-                m -> toType(m).metricType,
-                TimeSeriesParams.MetricType.GAUGE,
-                TimeSeriesParams.MetricType.COUNTER
-            ).addValidator(v -> {
-                if (v != null && docValuesParameters.getValue().enabled() == false) {
-                    throw new IllegalArgumentException(
-                        "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + docValuesParameters.name + "] is true"
-                    );
-                }
-            });
+            this.metric = TimeSeriesParams.metricParam(TimeSeriesParams.MetricType.GAUGE, TimeSeriesParams.MetricType.COUNTER)
+                .addValidator(v -> {
+                    if (v != null && docValuesParameters.getValue().enabled() == false) {
+                        throw new IllegalArgumentException(
+                            "Field ["
+                                + TimeSeriesParams.TIME_SERIES_METRIC_PARAM
+                                + "] requires that ["
+                                + docValuesParameters.name
+                                + "] is true"
+                        );
+                    }
+                });
             this.indexSettings = indexSettings;
         }
 

@@ -83,10 +83,10 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     public static class Builder extends TextFamilyBuilder {
 
-        final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.getValue());
-        final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.getValue(), () -> "positions");
-        final Parameter<Boolean> norms = Parameter.normsParam(m -> builder(m).norms.getValue(), true);
-        final Parameter<String> termVectors = TextParams.termVectors(m -> builder(m).termVectors.getValue());
+        final Parameter<SimilarityProvider> similarity = TextParams.similarity();
+        final Parameter<String> indexOptions = TextParams.textIndexOptions(() -> "positions");
+        final Parameter<Boolean> norms = Parameter.normsParam(true);
+        final Parameter<String> termVectors = TextParams.termVectors();
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -101,13 +101,8 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             boolean isWithinMultiField
         ) {
             super(name, indexCreatedVersion, isWithinMultiField);
-            this.analyzers = new TextParams.Analyzers(
-                indexAnalyzers,
-                m -> builder(m).analyzers.getIndexAnalyzer(),
-                m -> builder(m).analyzers.positionIncrementGap.getValue(),
-                indexCreatedVersion
-            );
-            this.store = Parameter.storeParam(m -> builder(m).store.getValue(), () -> {
+            this.analyzers = new TextParams.Analyzers(indexAnalyzers, indexCreatedVersion);
+            this.store = Parameter.storeParam(() -> {
                 if (TextFieldMapper.keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexCreatedVersion())) {
                     return false;
                 }

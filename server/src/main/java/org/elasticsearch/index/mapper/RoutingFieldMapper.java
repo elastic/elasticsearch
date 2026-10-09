@@ -63,10 +63,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_routing";
     public static final String CONTENT_TYPE = "_routing";
 
-    private static RoutingFieldMapper toType(FieldMapper in) {
-        return (RoutingFieldMapper) in;
-    }
-
     public static class Builder extends MetadataFieldMapper.Builder {
 
         final Parameter<Boolean> required;
@@ -79,8 +75,8 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             super(NAME);
             this.requiredByDefault = requiredByDefault;
             this.docValuesEnabledByDefault = docValuesEnabledByDefault;
-            this.required = Parameter.boolParam("required", false, m -> toType(m).required, requiredByDefault);
-            this.docValues = Parameter.boolParam("doc_values", false, m -> toType(m).docValues, docValuesEnabledByDefault);
+            this.required = Parameter.boolParam("required", false, requiredByDefault);
+            this.docValues = Parameter.boolParam("doc_values", false, docValuesEnabledByDefault);
         }
 
         @Override

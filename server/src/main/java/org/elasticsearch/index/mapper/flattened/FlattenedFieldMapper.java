@@ -145,7 +145,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType.toSubFieldLoaders;
@@ -213,42 +212,26 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
     public static class Builder extends FieldMapper.Builder {
 
-        final Parameter<Integer> depthLimit = Parameter.intParam(
-            "depth_limit",
-            true,
-            m -> builder(m).depthLimit.get(),
-            Defaults.DEPTH_LIMIT
-        ).addValidator(v -> {
+        final Parameter<Integer> depthLimit = Parameter.intParam("depth_limit", true, Defaults.DEPTH_LIMIT).addValidator(v -> {
             if (v < 0) {
                 throw new IllegalArgumentException("[depth_limit] must be positive, got [" + v + "]");
             }
         });
 
         private final Parameter<Boolean> indexed;
-        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
+        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(true);
 
-        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> builder(m).nullValue.get(), null)
-            .acceptsNull();
+        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, null).acceptsNull();
 
-        private final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam(
-            "eager_global_ordinals",
-            true,
-            m -> builder(m).eagerGlobalOrdinals.get(),
-            false
-        );
+        private final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam("eager_global_ordinals", true, false);
         private final int ignoreAboveDefault;
         private final Parameter<Integer> ignoreAbove;
         private final boolean indexDisabledByDefault;
 
-        private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> builder(m).indexOptions.get());
-        private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
+        private final Parameter<String> indexOptions = TextParams.keywordIndexOptions();
+        private final Parameter<SimilarityProvider> similarity = TextParams.similarity();
 
-        private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam(
-            "split_queries_on_whitespace",
-            true,
-            m -> builder(m).splitQueriesOnWhitespace.get(),
-            false
-        );
+        private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam("split_queries_on_whitespace", true, false);
 
         private final Parameter<List<String>> dimensions;
 
@@ -269,16 +252,14 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 throw new MapperParsingException("[passthrough] requires a [priority] field");
             }
             return map;
-        }, m -> builder(m).passthrough.get(), (b, n, v) -> { if (v != null) b.field(n, v); }, Objects::toString).acceptsNull()
-            .addValidator(v -> {
-                if (v != null) {
-                    int priority = XContentMapValues.nodeIntegerValue(v.get("priority"));
-                    if (priority < 0) {
-                        throw new IllegalArgumentException("[passthrough.priority] must be non-negative, got [" + priority + "]");
-                    }
+        }, (b, n, v) -> { if (v != null) b.field(n, v); }, Objects::toString).acceptsNull().addValidator(v -> {
+            if (v != null) {
+                int priority = XContentMapValues.nodeIntegerValue(v.get("priority"));
+                if (priority < 0) {
+                    throw new IllegalArgumentException("[passthrough.priority] must be non-negative, got [" + priority + "]");
                 }
-            })
-            .setSerializerCheck((includeDefaults, isConfigured, v) -> v != null);
+            }
+        }).setSerializerCheck((includeDefaults, isConfigured, v) -> v != null);
 
         private final IndexSettings indexSettings;
         private final boolean usesBinaryDocValues;
@@ -286,19 +267,16 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         private final boolean forceStoreRootDocValues;
         private final boolean storeIgnoredFieldsInBinaryDocValues;
 
-        public static FieldMapper.Parameter<List<String>> dimensionsParam(Function<FieldMapper, List<String>> initializer) {
-            return FieldMapper.Parameter.stringArrayParam(TIME_SERIES_DIMENSIONS_ARRAY_PARAM, false, initializer);
+        public static FieldMapper.Parameter<List<String>> dimensionsParam() {
+            return FieldMapper.Parameter.stringArrayParam(TIME_SERIES_DIMENSIONS_ARRAY_PARAM, false);
         }
 
-        private static Parameter<Map<String, FieldMapper.Builder>> propertiesParam(
-            Function<FieldMapper, Map<String, FieldMapper.Builder>> initializer
-        ) {
-            var parameter = new Parameter<>(
+        private static Parameter<Map<String, FieldMapper.Builder>> propertiesParam() {
+            Parameter<Map<String, FieldMapper.Builder>> parameter = new Parameter<>(
                 "properties",
                 true,
                 TreeMap::new,
                 FlattenedFieldMapper.Builder::parseProperties,
-                initializer,
                 (b, n, v) -> {},
                 Objects::toString
             );
@@ -364,8 +342,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             boolean indexDisabledByDefault
         ) {
             super(name);
-            this.indexed = Parameter.indexParam(m -> builder(m).indexed.get(), indexDisabledByDefault == false);
-            this.dimensions = dimensionsParam(m -> builder(m).dimensions.get()).addValidator(v -> {
+            this.indexed = Parameter.indexParam(indexDisabledByDefault == false);
+            this.dimensions = dimensionsParam().addValidator(v -> {
                 if (v.isEmpty() == false && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
                     throw new IllegalArgumentException(
                         "Field ["
@@ -380,18 +358,17 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             });
             this.ignoreAboveDefault = ignoreAboveDefault;
             this.indexSettings = indexSettings;
-            this.ignoreAbove = Parameter.ignoreAboveParam(m -> builder(m).ignoreAbove.get(), ignoreAboveDefault);
+            this.ignoreAbove = Parameter.ignoreAboveParam(ignoreAboveDefault);
             this.dimensions.precludesParameters(ignoreAbove);
             this.usesBinaryDocValues = usesBinaryDocValues;
             this.isLegacyIndexWithRootValues = isLegacyIndexWithRootValues;
             this.forceStoreRootDocValues = forceStoreRootDocValues;
-            this.properties = propertiesParam(m -> builder(m).properties.getValue());
+            this.properties = propertiesParam();
             this.storeIgnoredFieldsInBinaryDocValues = storeIgnoredFieldsInBinaryDocValues;
 
             preserveLeafArrays = Parameter.enumParam(
                 "preserve_leaf_arrays",
                 false,
-                m -> builder(m).preserveLeafArrays.get(),
                 indexSettings.getValue(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING) == SourceKeepMode.NONE
                     && indexSettings.getMode().isStrictColumnar() == false ? PreserveLeafArrays.LOSSY : PreserveLeafArrays.EXACT,
                 PreserveLeafArrays.class

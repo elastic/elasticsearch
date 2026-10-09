@@ -60,7 +60,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
+        private final Parameter<Boolean> stored = Parameter.storeParam(false);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final boolean isSyntheticSourceEnabled;
@@ -93,7 +93,6 @@ public class BinaryFieldMapper extends FieldMapper {
                 indexSettings == null
                     ? nonColumnarDefault
                     : DocValuesParameter.defaultValues(indexSettings, nonColumnarDefault, DocValuesParameter.Values.Cardinality.HIGH),
-                m -> toType(m).docValues,
                 indexSettings
             );
         }

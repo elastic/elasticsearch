@@ -1108,7 +1108,6 @@ public abstract class FieldMapper extends Mapper {
         private List<String> deprecatedNames = List.of();
         private final Supplier<T> defaultValue;
         private final TriFunction<String, MappingParserContext, Object, T> parser;
-        private final Function<FieldMapper, T> initializer;
         private boolean acceptsNull = false;
         private Consumer<T> validator;
         private final Serializer<T> serializer;
@@ -1128,7 +1127,6 @@ public abstract class FieldMapper extends Mapper {
          * @param updateable    whether the parameter can be updated with a new value during a mapping update
          * @param defaultValue  the default value for the parameter, used if unspecified in mappings
          * @param parser        a function that converts an object to a parameter value
-         * @param initializer   a function that reads a parameter value from an existing mapper
          * @param serializer    a function that serializes a parameter value, prefer type specific x-content generation methods here for
          *                      good performance as this is used on the hot-path during cluster state updates.
          *                      This should explicitly not be linked with {@link XContentBuilder#field(String, Object)} by callers through
@@ -1140,7 +1138,6 @@ public abstract class FieldMapper extends Mapper {
             boolean updateable,
             Supplier<T> defaultValue,
             TriFunction<String, MappingParserContext, Object, T> parser,
-            Function<FieldMapper, T> initializer,
             Serializer<T> serializer,
             Function<T, String> conflictSerializer
         ) {
@@ -1148,7 +1145,6 @@ public abstract class FieldMapper extends Mapper {
             this.defaultValue = Objects.requireNonNull(defaultValue);
             this.value = null;
             this.parser = parser;
-            this.initializer = initializer;
             this.mergeValidator = updateable
                 ? (previous, toMerge, conflicts) -> true
                 : (previous, toMerge, conflicts) -> Objects.equals(previous, toMerge);
@@ -1347,38 +1343,25 @@ public abstract class FieldMapper extends Mapper {
          * Defines a parameter that takes the values {@code true} or {@code false}
          * @param name          the parameter name
          * @param updateable    whether the parameter can be changed by a mapping update
-         * @param initializer   a function that reads the parameter value from an existing mapper
          * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
          */
-        public static Parameter<Boolean> boolParam(
-            String name,
-            boolean updateable,
-            Function<FieldMapper, Boolean> initializer,
-            boolean defaultValue
-        ) {
+        public static Parameter<Boolean> boolParam(String name, boolean updateable, boolean defaultValue) {
             return new Parameter<>(
                 name,
                 updateable,
                 defaultValue ? () -> true : () -> false,
                 (n, c, o) -> XContentMapValues.nodeBooleanValue(o),
-                initializer,
                 XContentBuilder::field,
                 Objects::toString
             );
         }
 
-        public static Parameter<Boolean> boolParam(
-            String name,
-            boolean updateable,
-            Function<FieldMapper, Boolean> initializer,
-            Supplier<Boolean> defaultValue
-        ) {
+        public static Parameter<Boolean> boolParam(String name, boolean updateable, Supplier<Boolean> defaultValue) {
             return new Parameter<>(
                 name,
                 updateable,
                 defaultValue,
                 (n, c, o) -> XContentMapValues.nodeBooleanValue(o),
-                initializer,
                 XContentBuilder::field,
                 Objects::toString
             );
@@ -1389,21 +1372,14 @@ public abstract class FieldMapper extends Mapper {
          * its value if configured.
          * @param name          the parameter name
          * @param updateable    whether the parameter can be changed by a mapping update
-         * @param initializer   a function that reads the parameter value from an existing mapper
          * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
          */
-        public static Parameter<Explicit<Boolean>> explicitBoolParam(
-            String name,
-            boolean updateable,
-            Function<FieldMapper, Explicit<Boolean>> initializer,
-            boolean defaultValue
-        ) {
+        public static Parameter<Explicit<Boolean>> explicitBoolParam(String name, boolean updateable, boolean defaultValue) {
             return new Parameter<>(
                 name,
                 updateable,
                 defaultValue ? () -> Explicit.IMPLICIT_TRUE : () -> Explicit.IMPLICIT_FALSE,
                 (n, c, o) -> Explicit.explicitBoolean(XContentMapValues.nodeBooleanValue(o)),
-                initializer,
                 (b, n, v) -> b.field(n, v.value()),
                 v -> Boolean.toString(v.value())
             );
@@ -1413,21 +1389,14 @@ public abstract class FieldMapper extends Mapper {
          * Defines a parameter that takes an integer value
          * @param name          the parameter name
          * @param updateable    whether the parameter can be changed by a mapping update
-         * @param initializer   a function that reads the parameter value from an existing mapper
          * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
          */
-        public static Parameter<Integer> intParam(
-            String name,
-            boolean updateable,
-            Function<FieldMapper, Integer> initializer,
-            int defaultValue
-        ) {
+        public static Parameter<Integer> intParam(String name, boolean updateable, int defaultValue) {
             return new Parameter<>(
                 name,
                 updateable,
                 () -> defaultValue,
                 (n, c, o) -> XContentMapValues.nodeIntegerValue(o),
-                initializer,
                 XContentBuilder::field,
                 Objects::toString
             );
@@ -1437,42 +1406,25 @@ public abstract class FieldMapper extends Mapper {
          * Defines a parameter that takes a string value
          * @param name          the parameter name
          * @param updateable    whether the parameter can be changed by a mapping update
-         * @param initializer   a function that reads the parameter value from an existing mapper
          * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
          */
-        public static Parameter<String> stringParam(
-            String name,
-            boolean updateable,
-            Function<FieldMapper, String> initializer,
-            String defaultValue
-        ) {
-            return stringParam(name, updateable, initializer, defaultValue, XContentBuilder::field);
+        public static Parameter<String> stringParam(String name, boolean updateable, String defaultValue) {
+            return stringParam(name, updateable, defaultValue, XContentBuilder::field);
         }
 
-        public static Parameter<String> stringParam(
-            String name,
-            boolean updateable,
-            Function<FieldMapper, String> initializer,
-            String defaultValue,
-            Serializer<String> serializer
-        ) {
+        public static Parameter<String> stringParam(String name, boolean updateable, String defaultValue, Serializer<String> serializer) {
             return new Parameter<>(
                 name,
                 updateable,
                 defaultValue == null ? () -> null : () -> defaultValue,
                 (n, c, o) -> XContentMapValues.nodeStringValue(o),
-                initializer,
                 serializer,
                 Function.identity()
             );
         }
 
         @SuppressWarnings("unchecked")
-        public static Parameter<List<String>> stringArrayParam(
-            String name,
-            boolean updateable,
-            Function<FieldMapper, List<String>> initializer
-        ) {
+        public static Parameter<List<String>> stringArrayParam(String name, boolean updateable) {
             return new Parameter<>(name, updateable, List::of, (n, c, o) -> {
                 List<Object> values = (List<Object>) o;
                 List<String> strValues = new ArrayList<>();
@@ -1480,7 +1432,7 @@ public abstract class FieldMapper extends Mapper {
                     strValues.add(item.toString());
                 }
                 return strValues;
-            }, initializer, XContentBuilder::stringListField, Objects::toString);
+            }, XContentBuilder::stringListField, Objects::toString);
         }
 
         /**
@@ -1488,18 +1440,11 @@ public abstract class FieldMapper extends Mapper {
          *
          * @param name          the parameter name
          * @param updateable    whether the parameter can be changed by a mapping update
-         * @param initializer   a function that reads the parameter value from an existing mapper
          * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
          * @param enumClass     the enumeration class the parameter takes values from
          */
-        public static <T extends Enum<T>> Parameter<T> enumParam(
-            String name,
-            boolean updateable,
-            Function<FieldMapper, T> initializer,
-            T defaultValue,
-            Class<T> enumClass
-        ) {
-            return enumParam(name, updateable, initializer, (Supplier<T>) () -> defaultValue, enumClass);
+        public static <T extends Enum<T>> Parameter<T> enumParam(String name, boolean updateable, T defaultValue, Class<T> enumClass) {
+            return enumParam(name, updateable, (Supplier<T>) () -> defaultValue, enumClass);
         }
 
         /**
@@ -1507,19 +1452,17 @@ public abstract class FieldMapper extends Mapper {
          *
          * @param name          the parameter name
          * @param updateable    whether the parameter can be changed by a mapping update
-         * @param initializer   a function that reads the parameter value from an existing mapper
          * @param defaultValue  a supplier for the default value, to be used if the parameter is undefined in a mapping
          * @param enumClass     the enumeration class the parameter takes values from
          */
         public static <T extends Enum<T>> Parameter<T> enumParam(
             String name,
             boolean updateable,
-            Function<FieldMapper, T> initializer,
             Supplier<T> defaultValue,
             Class<T> enumClass
         ) {
             Set<T> acceptedValues = EnumSet.allOf(enumClass);
-            return restrictedEnumParam(name, updateable, initializer, defaultValue, enumClass, acceptedValues);
+            return restrictedEnumParam(name, updateable, defaultValue, enumClass, acceptedValues);
         }
 
         /**
@@ -1527,7 +1470,6 @@ public abstract class FieldMapper extends Mapper {
          *
          * @param name            the parameter name
          * @param updateable      whether the parameter can be changed by a mapping update
-         * @param initializer     a function that reads the parameter value from an existing mapper
          * @param defaultValue    the default value, to be used if the parameter is undefined in a mapping
          * @param enumClass       the enumeration class the parameter takes values from
          * @param acceptedValues  the set of values that the parameter can take
@@ -1535,12 +1477,11 @@ public abstract class FieldMapper extends Mapper {
         public static <T extends Enum<T>> Parameter<T> restrictedEnumParam(
             String name,
             boolean updateable,
-            Function<FieldMapper, T> initializer,
             T defaultValue,
             Class<T> enumClass,
             Set<T> acceptedValues
         ) {
-            return restrictedEnumParam(name, updateable, initializer, (Supplier<T>) () -> defaultValue, enumClass, acceptedValues);
+            return restrictedEnumParam(name, updateable, (Supplier<T>) () -> defaultValue, enumClass, acceptedValues);
         }
 
         /**
@@ -1548,7 +1489,6 @@ public abstract class FieldMapper extends Mapper {
          *
          * @param name            the parameter name
          * @param updateable      whether the parameter can be changed by a mapping update
-         * @param initializer     a function that reads the parameter value from an existing mapper
          * @param defaultValue    a supplier for the default value, to be used if the parameter is undefined in a mapping
          * @param enumClass       the enumeration class the parameter takes values from
          * @param acceptedValues  the set of values that the parameter can take
@@ -1556,7 +1496,6 @@ public abstract class FieldMapper extends Mapper {
         public static <T extends Enum<T>> Parameter<T> restrictedEnumParam(
             String name,
             boolean updateable,
-            Function<FieldMapper, T> initializer,
             Supplier<T> defaultValue,
             Class<T> enumClass,
             Set<T> acceptedValues
@@ -1582,7 +1521,7 @@ public abstract class FieldMapper extends Mapper {
                 throw new MapperParsingException(
                     "Unknown value [" + o + "] for field [" + name + "] - accepted values are " + acceptedValues
                 );
-            }, initializer, XContentBuilder::field, Objects::toString).addValidator(v -> {
+            }, XContentBuilder::field, Objects::toString).addValidator(v -> {
                 if (v != null && acceptedValues.contains(v) == false) {
                     throw new MapperParsingException(
                         "Unknown value [" + v + "] for field [" + name + "] - accepted values are " + acceptedValues
@@ -1595,14 +1534,12 @@ public abstract class FieldMapper extends Mapper {
          * Defines a parameter that takes an analyzer name
          * @param name              the parameter name
          * @param updateable        whether the parameter can be changed by a mapping update
-         * @param initializer       a function that reads the parameter value from an existing mapper
          * @param defaultAnalyzer   the default value, to be used if the parameter is undefined in a mapping
          * @param indexCreatedVersion the version on which this index was created
          */
         public static Parameter<NamedAnalyzer> analyzerParam(
             String name,
             boolean updateable,
-            Function<FieldMapper, NamedAnalyzer> initializer,
             Supplier<NamedAnalyzer> defaultAnalyzer,
             IndexVersion indexCreatedVersion
         ) {
@@ -1618,23 +1555,17 @@ public abstract class FieldMapper extends Mapper {
                     }
                 }
                 return a;
-            }, initializer, (b, n, v) -> b.field(n, v.name()), NamedAnalyzer::name);
+            }, (b, n, v) -> b.field(n, v.name()), NamedAnalyzer::name);
         }
 
         /**
          * Defines a parameter that takes an analyzer name
          * @param name              the parameter name
          * @param updateable        whether the parameter can be changed by a mapping update
-         * @param initializer       a function that reads the parameter value from an existing mapper
          * @param defaultAnalyzer   the default value, to be used if the parameter is undefined in a mapping
          */
-        public static Parameter<NamedAnalyzer> analyzerParam(
-            String name,
-            boolean updateable,
-            Function<FieldMapper, NamedAnalyzer> initializer,
-            Supplier<NamedAnalyzer> defaultAnalyzer
-        ) {
-            return analyzerParam(name, updateable, initializer, defaultAnalyzer, IndexVersion.current());
+        public static Parameter<NamedAnalyzer> analyzerParam(String name, boolean updateable, Supplier<NamedAnalyzer> defaultAnalyzer) {
+            return analyzerParam(name, updateable, defaultAnalyzer, IndexVersion.current());
         }
 
         /**
@@ -1646,26 +1577,21 @@ public abstract class FieldMapper extends Mapper {
                 true,
                 Map::of,
                 (n, c, o) -> TypeParsers.parseMeta(n, o),
-                m -> m.fieldType().meta(),
                 XContentBuilder::stringStringMap,
                 Objects::toString
             );
         }
 
-        public static Parameter<Boolean> indexParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
-            return Parameter.boolParam("index", false, initializer, defaultValue);
+        public static Parameter<Boolean> indexParam(boolean defaultValue) {
+            return Parameter.boolParam("index", false, defaultValue);
         }
 
-        public static Parameter<Boolean> indexParam(Function<FieldMapper, Boolean> initializer, Supplier<Boolean> defaultValue) {
-            return Parameter.boolParam("index", false, initializer, defaultValue);
+        public static Parameter<Boolean> indexParam(Supplier<Boolean> defaultValue) {
+            return Parameter.boolParam("index", false, defaultValue);
         }
 
-        public static Parameter<Boolean> indexParam(
-            Function<FieldMapper, Boolean> initializer,
-            IndexSettings indexSettings,
-            Supplier<Boolean> isDimension
-        ) {
-            return Parameter.boolParam("index", false, initializer, () -> defaultIndexed(indexSettings, isDimension.get()));
+        public static Parameter<Boolean> indexParam(IndexSettings indexSettings, Supplier<Boolean> isDimension) {
+            return Parameter.boolParam("index", false, () -> defaultIndexed(indexSettings, isDimension.get()));
         }
 
         public static boolean defaultIndexed(IndexSettings indexSettings, boolean isDimension) {
@@ -1688,7 +1614,7 @@ public abstract class FieldMapper extends Mapper {
             return false;
         }
 
-        public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
+        public static Parameter<Boolean> storeParam(boolean defaultValue) {
             return new Parameter<>("store", false, defaultValue ? () -> true : () -> false, (n, c, o) -> {
                 boolean store = XContentMapValues.nodeBooleanValue(o);
                 if (store && c.getIndexSettings().getMode().isStrictColumnar()) {
@@ -1697,10 +1623,10 @@ public abstract class FieldMapper extends Mapper {
                     );
                 }
                 return store;
-            }, initializer, XContentBuilder::field, Objects::toString);
+            }, XContentBuilder::field, Objects::toString);
         }
 
-        public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, Supplier<Boolean> defaultValue) {
+        public static Parameter<Boolean> storeParam(Supplier<Boolean> defaultValue) {
             return new Parameter<>("store", false, defaultValue, (n, c, o) -> {
                 boolean store = XContentMapValues.nodeBooleanValue(o);
                 if (store && c.getIndexSettings().getMode().isStrictColumnar()) {
@@ -1709,23 +1635,23 @@ public abstract class FieldMapper extends Mapper {
                     );
                 }
                 return store;
-            }, initializer, XContentBuilder::field, Objects::toString);
+            }, XContentBuilder::field, Objects::toString);
         }
 
-        public static Parameter<Boolean> docValuesParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
-            return Parameter.boolParam("doc_values", false, initializer, defaultValue);
+        public static Parameter<Boolean> docValuesParam(boolean defaultValue) {
+            return Parameter.boolParam("doc_values", false, defaultValue);
         }
 
-        public static Parameter<Boolean> normsParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
-            return Parameter.boolParam("norms", false, initializer, defaultValue);
+        public static Parameter<Boolean> normsParam(boolean defaultValue) {
+            return Parameter.boolParam("norms", false, defaultValue);
         }
 
-        public static Parameter<Boolean> normsParam(Function<FieldMapper, Boolean> initializer, Supplier<Boolean> defaultValueSupplier) {
-            return Parameter.boolParam("norms", false, initializer, defaultValueSupplier);
+        public static Parameter<Boolean> normsParam(Supplier<Boolean> defaultValueSupplier) {
+            return Parameter.boolParam("norms", false, defaultValueSupplier);
         }
 
-        public static Parameter<Integer> ignoreAboveParam(Function<FieldMapper, Integer> initializer, int defaultValue) {
-            return Parameter.intParam("ignore_above", true, initializer, defaultValue).addValidator(v -> {
+        public static Parameter<Integer> ignoreAboveParam(int defaultValue) {
+            return Parameter.intParam("ignore_above", true, defaultValue).addValidator(v -> {
                 if (v < 0) {
                     throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
                 }
@@ -1734,10 +1660,9 @@ public abstract class FieldMapper extends Mapper {
 
         /**
          * Defines a script parameter
-         * @param initializer   retrieves the equivalent parameter from an existing FieldMapper for use in merges
          * @return a script parameter
          */
-        public static Parameter<Script> scriptParam(Function<FieldMapper, Script> initializer) {
+        public static Parameter<Script> scriptParam() {
             return new FieldMapper.Parameter<>("script", false, () -> null, (n, c, o) -> {
                 if (o == null) {
                     return null;
@@ -1747,20 +1672,16 @@ public abstract class FieldMapper extends Mapper {
                     throw new IllegalArgumentException("stored scripts are not supported on field [" + n + "]");
                 }
                 return script;
-            }, initializer, XContentBuilder::field, Objects::toString).acceptsNull();
+            }, XContentBuilder::field, Objects::toString).acceptsNull();
         }
 
         /**
          * Defines an on_script_error parameter
-         * @param initializer   retrieves the equivalent parameter from an existing FieldMapper for use in merges
          * @param dependentScriptParam the corresponding required script parameter
          * @return a new on_error_script parameter
          */
-        public static Parameter<OnScriptError> onScriptErrorParam(
-            Function<FieldMapper, OnScriptError> initializer,
-            Parameter<Script> dependentScriptParam
-        ) {
-            return Parameter.enumParam("on_script_error", true, initializer, OnScriptError.FAIL, OnScriptError.class)
+        public static Parameter<OnScriptError> onScriptErrorParam(Parameter<Script> dependentScriptParam) {
+            return Parameter.enumParam("on_script_error", true, OnScriptError.FAIL, OnScriptError.class)
                 .requiresParameter(dependentScriptParam);
         }
     }
@@ -1827,8 +1748,8 @@ public abstract class FieldMapper extends Mapper {
          * Factory for field types whose default doc_values configuration is known eagerly at construction time (numerics, dates, booleans,
          * IP, keyword family, etc.).
          */
-        public static DocValuesParameter of(Values defaultValue, Function<FieldMapper, Values> initializer, IndexSettings indexSettings) {
-            return new DocValuesParameter(defaultValue, initializer, indexSettings);
+        public static DocValuesParameter of(Values defaultValue, IndexSettings indexSettings) {
+            return new DocValuesParameter(defaultValue, indexSettings);
         }
 
         /**
@@ -1872,17 +1793,12 @@ public abstract class FieldMapper extends Mapper {
             return new Values(true, columnarCardinality, true, true, Values.OnFailure.FAIL);
         }
 
-        private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer, IndexSettings indexSettings) {
-            this(() -> defaultValue, defaultValue, initializer, indexSettings);
+        private DocValuesParameter(Values defaultValue, IndexSettings indexSettings) {
+            this(() -> defaultValue, defaultValue, indexSettings);
         }
 
-        private DocValuesParameter(
-            Supplier<Values> defaultValueSupplier,
-            Values subParameterDefaults,
-            Function<FieldMapper, Values> initializer,
-            IndexSettings indexSettings
-        ) {
-            super(PARAMETER_NAME, false, defaultValueSupplier, null, initializer, null, Values::toString);
+        private DocValuesParameter(Supplier<Values> defaultValueSupplier, Values subParameterDefaults, IndexSettings indexSettings) {
+            super(PARAMETER_NAME, false, defaultValueSupplier, null, null, Values::toString);
             this.supportsExtendedDocValues = indexSettings != null && indexSettings.getMode().isStrictColumnar();
             this.supportsTopLevelAttributes = supportsExtendedDocValues
                 && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES);
@@ -1895,7 +1811,6 @@ public abstract class FieldMapper extends Mapper {
                     checkTopLevelParse("multi_value");
                     return XContentMapValues.nodeBooleanValue(o);
                 },
-                m -> initializer.apply(m).multiValue,
                 XContentBuilder::field,
                 Objects::toString
             );
@@ -1908,14 +1823,13 @@ public abstract class FieldMapper extends Mapper {
                     checkTopLevelParse("nullability");
                     return XContentMapValues.nodeBooleanValue(o);
                 },
-                m -> initializer.apply(m).nullability,
                 XContentBuilder::field,
                 Objects::toString
             );
             onFailureParameter = new Parameter<>("on_failure", false, () -> subParameterDefaults.onFailure, (field, context, o) -> {
                 checkTopLevelParse("on_failure");
                 return parseOnFailure(o, subParameterDefaults.onFailure);
-            }, m -> initializer.apply(m).onFailure, XContentBuilder::field, Objects::toString);
+            }, XContentBuilder::field, Objects::toString);
 
             multiValueParameter.setSerializerCheck((incl, conf, v) -> supportsTopLevelAttributes && getValue().enabled && (incl || conf));
             nullabilityParameter.setSerializerCheck((incl, conf, v) -> supportsTopLevelAttributes && getValue().enabled && (incl || conf));
@@ -2165,9 +2079,6 @@ public abstract class FieldMapper extends Mapper {
             return 1 + multiFieldsBuilder.size();
         }
 
-        /**
-         * Initialises all parameters from an existing mapper
-         */
         public Builder addMultiField(FieldMapper.Builder builder) {
             this.multiFieldsBuilder.add(builder);
             return this;

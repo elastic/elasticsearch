@@ -31,15 +31,9 @@ public class FeatureProbeFieldMapper extends FieldMapper {
     }
 
     public static class Builder extends FieldMapper.Builder {
-        private final Parameter<String> featureSeen = Parameter.stringParam(
-            "feature_seen",
-            true,
-            m -> ((FeatureProbeFieldMapper) m).featureSeen,
-            null
-        );
+        private final Parameter<String> featureSeen = Parameter.stringParam("feature_seen", true, null);
 
-        private final Parameter<Boolean> gated = Parameter.boolParam("gated", true, m -> ((FeatureProbeFieldMapper) m).gated, false)
-            .requiresFeatures(PROBE_FEATURE);
+        private final Parameter<Boolean> gated = Parameter.boolParam("gated", true, false).requiresFeatures(PROBE_FEATURE);
 
         public Builder(String name) {
             super(name);

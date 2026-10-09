@@ -104,10 +104,6 @@ public class CompletionFieldMapper extends FieldMapper {
         public static final String CONTENT_FIELD_NAME_CONTEXTS = "contexts";
     }
 
-    private static Builder builder(FieldMapper in) {
-        return ((CompletionFieldMapper) in).builder;
-    }
-
     /**
      * Builder for {@link CompletionFieldMapper}
      */
@@ -118,13 +114,11 @@ public class CompletionFieldMapper extends FieldMapper {
         private final Parameter<Boolean> preserveSeparators = Parameter.boolParam(
             "preserve_separators",
             false,
-            m -> builder(m).preserveSeparators.get(),
             Defaults.DEFAULT_PRESERVE_SEPARATORS
         ).alwaysSerialize();
         private final Parameter<Boolean> preservePosInc = Parameter.boolParam(
             "preserve_position_increments",
             false,
-            m -> builder(m).preservePosInc.get(),
             Defaults.DEFAULT_POSITION_INCREMENTS
         ).alwaysSerialize();
         private final Parameter<ContextMappings> contexts = new Parameter<>(
@@ -132,7 +126,6 @@ public class CompletionFieldMapper extends FieldMapper {
             false,
             () -> null,
             (n, c, o) -> ContextMappings.load(o),
-            m -> builder(m).contexts.get(),
             (b, n, c) -> {
                 if (c == null) {
                     return;
@@ -143,12 +136,10 @@ public class CompletionFieldMapper extends FieldMapper {
             },
             Objects::toString
         );
-        private final Parameter<Integer> maxInputLength = Parameter.intParam(
-            "max_input_length",
-            true,
-            m -> builder(m).maxInputLength.get(),
-            Defaults.DEFAULT_MAX_INPUT_LENGTH
-        ).addDeprecatedName("max_input_len").addValidator(Builder::validateInputLength).alwaysSerialize();
+        private final Parameter<Integer> maxInputLength = Parameter.intParam("max_input_length", true, Defaults.DEFAULT_MAX_INPUT_LENGTH)
+            .addDeprecatedName("max_input_len")
+            .addValidator(Builder::validateInputLength)
+            .alwaysSerialize();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final NamedAnalyzer defaultAnalyzer;
@@ -161,14 +152,8 @@ public class CompletionFieldMapper extends FieldMapper {
             super(name);
             this.defaultAnalyzer = defaultAnalyzer;
             this.indexVersionCreated = indexVersionCreated;
-            this.analyzer = Parameter.analyzerParam("analyzer", false, m -> builder(m).analyzer.get(), () -> defaultAnalyzer)
-                .alwaysSerialize();
-            this.searchAnalyzer = Parameter.analyzerParam(
-                "search_analyzer",
-                true,
-                m -> builder(m).searchAnalyzer.get(),
-                analyzer::getValue
-            );
+            this.analyzer = Parameter.analyzerParam("analyzer", false, () -> defaultAnalyzer).alwaysSerialize();
+            this.searchAnalyzer = Parameter.analyzerParam("search_analyzer", true, analyzer::getValue);
         }
 
         private static void validateInputLength(int maxInputLength) {

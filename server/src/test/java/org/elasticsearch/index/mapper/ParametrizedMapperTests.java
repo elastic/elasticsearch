@@ -98,21 +98,16 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
     }
 
-    private static TestMapper toType(Mapper in) {
-        return (TestMapper) in;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
-        final Parameter<Boolean> fixed = Parameter.boolParam("fixed", false, m -> toType(m).fixed, true);
-        final Parameter<Boolean> fixed2 = Parameter.boolParam("fixed2", false, m -> toType(m).fixed2, false)
-            .addDeprecatedName("fixed2_old");
-        final Parameter<String> variable = Parameter.stringParam("variable", true, m -> toType(m).variable, "default").acceptsNull();
+        final Parameter<Boolean> fixed = Parameter.boolParam("fixed", false, true);
+        final Parameter<Boolean> fixed2 = Parameter.boolParam("fixed2", false, false).addDeprecatedName("fixed2_old");
+        final Parameter<String> variable = Parameter.stringParam("variable", true, "default").acceptsNull();
         final Parameter<StringWrapper> wrapper = new Parameter<>("wrapper", false, () -> new StringWrapper("default"), (n, c, o) -> {
             if (o == null) return null;
             return new StringWrapper(o.toString());
-        }, m -> toType(m).wrapper, (b, n, v) -> b.field(n, v.name), v -> "wrapper_" + v.name);
-        final Parameter<Integer> intValue = Parameter.intParam("int_value", true, m -> toType(m).intValue, 5).addValidator(n -> {
+        }, (b, n, v) -> b.field(n, v.name), v -> "wrapper_" + v.name);
+        final Parameter<Integer> intValue = Parameter.intParam("int_value", true, 5).addValidator(n -> {
             if (n > 50) {
                 throw new IllegalArgumentException("Value of [n] cannot be greater than 50");
             }
@@ -121,36 +116,19 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 throw new IllegalArgumentException("Value of [n] cannot be less than 0");
             }
         }).setMergeValidator((o, n, c) -> n >= o);
-        final Parameter<NamedAnalyzer> analyzer = Parameter.analyzerParam(
-            "analyzer",
-            false,
-            m -> toType(m).analyzer,
-            () -> Lucene.KEYWORD_ANALYZER
-        );
-        final Parameter<NamedAnalyzer> searchAnalyzer = Parameter.analyzerParam(
-            "search_analyzer",
-            true,
-            m -> toType(m).searchAnalyzer,
-            analyzer::getValue
-        );
-        final Parameter<Boolean> index = Parameter.boolParam("index", false, m -> toType(m).index, true);
-        final Parameter<String> required = Parameter.stringParam("required", true, m -> toType(m).required, null).addValidator(value -> {
+        final Parameter<NamedAnalyzer> analyzer = Parameter.analyzerParam("analyzer", false, () -> Lucene.KEYWORD_ANALYZER);
+        final Parameter<NamedAnalyzer> searchAnalyzer = Parameter.analyzerParam("search_analyzer", true, analyzer::getValue);
+        final Parameter<Boolean> index = Parameter.boolParam("index", false, true);
+        final Parameter<String> required = Parameter.stringParam("required", true, null).addValidator(value -> {
             if (value == null) {
                 throw new IllegalArgumentException("field [required] must be specified");
             }
         });
-        final Parameter<DummyEnumType> enumField = Parameter.enumParam(
-            "enum_field",
-            true,
-            m -> toType(m).enumField,
-            DummyEnumType.NAME1,
-            DummyEnumType.class
-        );
+        final Parameter<DummyEnumType> enumField = Parameter.enumParam("enum_field", true, DummyEnumType.NAME1, DummyEnumType.class);
 
         final Parameter<DummyEnumType> restrictedEnumField = Parameter.restrictedEnumParam(
             "restricted_enum_field",
             true,
-            m -> toType(m).restrictedEnumField,
             DummyEnumType.NAME1,
             DummyEnumType.class,
             EnumSet.of(DummyEnumType.NAME1, DummyEnumType.NAME2)
@@ -164,10 +142,9 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 );
             }
             return value;
-        }, m -> toType(m).gated, XContentBuilder::field, Function.identity()).requiresFeatures(FEATURE_A);
+        }, XContentBuilder::field, Function.identity()).requiresFeatures(FEATURE_A);
 
-        final Parameter<Boolean> doubleGated = Parameter.boolParam("double_gated", true, m -> toType(m).doubleGated, false)
-            .requiresFeatures(FEATURE_A, FEATURE_B);
+        final Parameter<Boolean> doubleGated = Parameter.boolParam("double_gated", true, false).requiresFeatures(FEATURE_A, FEATURE_B);
 
         protected Builder(String name) {
             super(name);

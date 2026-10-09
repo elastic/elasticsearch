@@ -267,10 +267,6 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         }
     }
 
-    private static CountedKeywordFieldMapper toType(FieldMapper in) {
-        return (CountedKeywordFieldMapper) in;
-    }
-
     public static class Builder extends FieldMapper.Builder {
         private final Parameter<Boolean> indexed;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -279,7 +275,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
         protected Builder(String name, SourceKeepMode indexSourceKeepMode, boolean indexDisabledByDefault) {
             super(name);
-            this.indexed = Parameter.indexParam(m -> toType(m).fieldType == FIELD_TYPE_INDEXED, indexDisabledByDefault == false);
+            this.indexed = Parameter.indexParam(indexDisabledByDefault == false);
             this.indexSourceKeepMode = indexSourceKeepMode;
             this.indexDisabledByDefault = indexDisabledByDefault;
         }

@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
 
@@ -247,5 +248,14 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         Aggregate outer = as(topNBy.child().collect(Aggregate.class).get(0), Aggregate.class);
         NamedExpression valueAgg = outer.aggregates().get(0);
         assertThat(Alias.unwrap(valueAgg), instanceOf(Values.class));
+    }
+
+    /**
+     * Ranking keeps the child at series grain over the labels the relation stores: an enclosing {@code by} on a
+     * non-dimension field ({@code event} on k8s) does not reach the per-series aggregate, it null-fills above it.
+     */
+    public void testTopkUnderByOnNonDimensionGroupsOnlyByDimensions() {
+        var plan = planPromql("PROMQL index=k8s step=1h result=(max by (event) (topk(1, network.cost)))", false);
+        assertThat(seriesColumns(plan), not(hasItem("event")));
     }
 }

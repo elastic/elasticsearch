@@ -77,6 +77,24 @@ public class StoredGroundTruthTests extends ESTestCase {
         assertThat(update.contains("\"neighbors\""), equalTo(true));
     }
 
+    public void testOnlyTheQueriesThatMatchTheFilterAreLookedAt() throws IOException {
+        StoredGroundTruth service = service(pending(1), failingEveryExactSearchOf(-1), acknowledgingAll());
+        AtomicReference<GroundTruthRunner.Result> result = new AtomicReference<>();
+
+        service.compute(5, QueryBuilders.termQuery("sampler_id", "sampler"), ActionListener.wrap(result::set, e -> fail(e)));
+
+        assertThat(result.get(), equalTo(new GroundTruthRunner.Result(1, 0)));
+        assertThat(
+            "pending, and of that sampler",
+            sampleSearches.get(0).source().query(),
+            equalTo(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("has_ground_truth", false))
+                    .filter(QueryBuilders.termQuery("sampler_id", "sampler"))
+            )
+        );
+    }
+
     public void testAFailedSearchLeavesTheQueryPendingButMovesItBack() throws IOException {
         StoredGroundTruth service = service(pending(1, 2), failingEveryExactSearchOf(1), acknowledgingAll());
 

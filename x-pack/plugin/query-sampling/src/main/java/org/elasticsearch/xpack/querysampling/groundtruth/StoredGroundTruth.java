@@ -14,6 +14,8 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -76,8 +78,19 @@ public final class StoredGroundTruth {
      * does not keep the others from being served.
      */
     public void compute(int max, ActionListener<GroundTruthRunner.Result> listener) {
+        compute(max, null, listener);
+    }
+
+    /**
+     * Like {@link #compute(int, ActionListener)}, but only for the stored queries that also match the filter, which is
+     * how a node picks the ones it is responsible for.
+     *
+     * @param filter on the fields of the stored documents, or {@code null} for all that are pending
+     */
+    public void compute(int max, @Nullable QueryBuilder filter, ActionListener<GroundTruthRunner.Result> listener) {
+        QueryBuilder pending = QueryBuilders.termQuery("has_ground_truth", false);
         samples.read(
-            QueryBuilders.termQuery("has_ground_truth", false),
+            filter == null ? pending : QueryBuilders.boolQuery().filter(pending).filter(filter),
             "updated_at",
             SortOrder.ASC,
             max,

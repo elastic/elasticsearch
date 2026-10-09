@@ -28,6 +28,8 @@ import java.util.List;
  * @param byCluster                 the same estimates for the queries of each cluster of the vector space, those that
  *                                  have one. A region where the recall is low is not seen in the averages of all the
  *                                  queries when most of them are somewhere else
+ * @param events                    what the uniform sample of arrivals says: the recall of the traffic, estimated without
+ *                                  the weights of the sampler
  */
 public record RecallEstimate(
     int records,
@@ -37,8 +39,20 @@ public record RecallEstimate(
     @Nullable Double uniqueQueryRecall,
     double uniqueQueryEffectiveSize,
     List<GroupEstimate> byHardness,
-    List<GroupEstimate> byCluster
+    List<GroupEstimate> byCluster,
+    EventEstimate events
 ) {
+
+    /**
+     * The estimate from the arrivals that were kept as events. Each is a search, so the average is that of the traffic,
+     * and it is weighted only by the probability of having been kept.
+     *
+     * @param records                 events that were looked at
+     * @param recordsWithGroundTruth  of those, events that could be used because their ground truth is known
+     * @param recall                  recall of the search as users experience it, {@code null} if no event could be used
+     * @param effectiveSize           how many equally weighted events the estimate is worth
+     */
+    public record EventEstimate(int records, int recordsWithGroundTruth, @Nullable Double recall, double effectiveSize) {}
 
     /**
      * The estimates for the queries of one stratum, in the same terms as those of all the queries.

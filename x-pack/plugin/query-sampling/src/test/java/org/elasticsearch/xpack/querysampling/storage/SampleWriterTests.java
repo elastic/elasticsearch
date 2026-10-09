@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
+import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -105,6 +106,29 @@ public class SampleWriterTests extends ESTestCase {
         assertThat("only what was written", writtenQueries, equalTo(List.of(fp(1))));
     }
 
+    public void testEventsOfTheSameQueryAreDifferentDocumentsAndNeedNoRefreshing() {
+        SampleWriter writer = writer(3, 10);
+        writer.onSampled(event(1, "e1"));
+        writer.onSampled(event(1, "e2"));
+        writer.onSampled(sampled(1));
+        taskQueue.runAllRunnableTasks();
+
+        BulkRequest request = requests.get(0);
+        assertThat(request.requests().get(0).id(), equalTo(SampleRecord.documentId("sampler", fp(1)) + "_e1"));
+        assertThat(request.requests().get(1).id(), equalTo(SampleRecord.documentId("sampler", fp(1)) + "_e2"));
+        assertThat(request.requests().get(2).id(), equalTo(SampleRecord.documentId("sampler", fp(1))));
+
+        BulkItemResponse ok = BulkItemResponse.success(
+            0,
+            DocWriteRequest.OpType.INDEX,
+            new IndexResponse(new ShardId(QuerySamplingIndex.NAME, "_na_", 0), "id", 0, 1, 1, true)
+        );
+        listeners.get(0).onResponse(new BulkResponse(new BulkItemResponse[] { ok, ok, ok }, 1));
+
+        assertThat("the weights of an event are final, only the picked query is refreshed", writtenQueries, equalTo(List.of(fp(1))));
+        assertThat(writer.written(), equalTo(3L));
+    }
+
     public void testQueriesBeyondWhatCanWaitAreDropped() {
         SampleWriter writer = writer(1, 2);
         writer.onSampled(sampled(1));
@@ -178,6 +202,12 @@ public class SampleWriterTests extends ESTestCase {
 
     private static QueryFingerprint fp(long id) {
         return new QueryFingerprint(id, id);
+    }
+
+    private static SampledQuery event(long id, String eventId) {
+        QueryFingerprint fingerprint = new QueryFingerprint(id, id);
+        CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", new float[] { id }, 10, 100, null, null, List.of(), null);
+        return SampledQuery.event(fingerprint, new CapturedSearch(query, List.of(), 1, 1.0), TrackedQuery.event(1.0, 0.5), eventId);
     }
 
     private static SampledQuery sampled(long id) {

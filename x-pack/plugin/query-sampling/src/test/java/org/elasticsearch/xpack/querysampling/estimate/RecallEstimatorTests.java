@@ -199,6 +199,39 @@ public class RecallEstimatorTests extends ESTestCase {
         assertThat(estimate.byHardness().get(0).recordsWithGroundTruth(), equalTo(1));
     }
 
+    public void testEventsMakeAnEstimateOfTheirOwnAndAreNotPartOfTheOthers() {
+        List<StoredSample> samples = List.of(
+            sample(2, List.of("a", "b"), List.of("a", "b"), 1, 1, 1), // a picked query, recall 1
+            asEvent(sample(2, List.of("a", "b"), List.of("a", "b"), 1, 1, 1), "e1", 0.5), // recall 1, kept with a chance of one half
+            asEvent(sample(2, List.of("x", "y"), List.of("a", "b"), 1, 1, 1), "e2", 0.5), // recall 0
+            asEvent(sample(2, List.of("a", "y"), List.of("a", "b"), 1, 1, 1), "e3", 0.5), // recall 0.5
+            asEvent(sample(2, List.of("x", "y"), List.of("a", "b"), 1, 1, 1), "e4", 0.1) // recall 0, kept with a chance of a tenth
+        );
+
+        RecallEstimate estimate = RecallEstimator.estimate(samples);
+
+        assertThat("only the picked query", estimate.records(), equalTo(1));
+        assertThat(estimate.trafficWeightedRecall(), closeTo(1.0, 1e-12));
+        assertThat(estimate.events().records(), equalTo(4));
+        assertThat(estimate.events().recordsWithGroundTruth(), equalTo(4));
+        // weights of 2, 2, 2 and 10: (1 * 2 + 0 * 2 + 0.5 * 2 + 0 * 10) / 16
+        assertThat(estimate.events().recall(), closeTo(3.0 / 16, 1e-12));
+        assertThat(estimate.events().effectiveSize(), closeTo(16.0 * 16.0 / (4 + 4 + 4 + 100), 1e-12));
+    }
+
+    public void testEventsThatCannotBeUsedAreLeftOutAndCounted() {
+        List<StoredSample> samples = List.of(
+            asEvent(sample(2, List.of("a", "b"), List.of("a", "b"), 1, 1, 1), "e1", 0.5),
+            asEvent(stored(new CapturedSearch(query(2), List.of(), 1, 1.0), null, 1, 1, 1), "e2", 0.5) // no ground truth yet
+        );
+
+        RecallEstimate estimate = RecallEstimator.estimate(samples);
+
+        assertThat(estimate.events().records(), equalTo(2));
+        assertThat(estimate.events().recordsWithGroundTruth(), equalTo(1));
+        assertThat(estimate.events().recall(), closeTo(1.0, 1e-12));
+    }
+
     public void testNothingToEstimateFrom() {
         RecallEstimate estimate = RecallEstimator.estimate(List.of());
 
@@ -207,6 +240,8 @@ public class RecallEstimatorTests extends ESTestCase {
         assertThat(estimate.trafficEffectiveSize(), equalTo(0.0));
         assertThat(estimate.byHardness(), equalTo(List.of()));
         assertThat(estimate.byCluster(), equalTo(List.of()));
+        assertThat(estimate.events().recall(), nullValue());
+        assertThat(estimate.events().records(), equalTo(0));
     }
 
     /**
@@ -293,7 +328,7 @@ public class RecallEstimatorTests extends ESTestCase {
         double seenProbability
     ) {
         TrackedQuery.Weights weights = new TrackedQuery.Weights(1, multiplicity, inclusionProbability, seenProbability, 1.0);
-        return new StoredSample("sampler", "fingerprint", search, weights, 0, 0, groundTruth, null, null);
+        return new StoredSample("sampler", "fingerprint", search, weights, 0, 0, groundTruth, null, null, null);
     }
 
     private static StoredSample inStratum(StoredSample sample, Stratum stratum, Hardness hardness) {
@@ -306,7 +341,24 @@ public class RecallEstimatorTests extends ESTestCase {
             sample.updatedAt(),
             sample.groundTruth(),
             stratum,
-            hardness
+            hardness,
+            sample.eventId()
+        );
+    }
+
+    private static StoredSample asEvent(StoredSample sample, String eventId, double inclusionProbability) {
+        TrackedQuery.Weights weights = new TrackedQuery.Weights(1, 1.0 / inclusionProbability, inclusionProbability, 1.0, 1.0);
+        return new StoredSample(
+            sample.samplerId(),
+            sample.fingerprint(),
+            sample.search(),
+            weights,
+            sample.pickedAt(),
+            sample.updatedAt(),
+            sample.groundTruth(),
+            null,
+            null,
+            eventId
         );
     }
 

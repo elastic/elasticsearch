@@ -160,7 +160,7 @@ public final class SampleWriter implements SampleListener {
                 // read before the document is built, so that if they change in between it shows as a change later
                 TrackedQuery.Weights written = query.tracked().weights();
                 request.add(
-                    new IndexRequest(QuerySamplingIndex.NAME).id(SampleRecord.documentId(samplerId, query.fingerprint()))
+                    new IndexRequest(QuerySamplingIndex.NAME).id(SampleRecord.documentId(samplerId, query.fingerprint(), query.eventId()))
                         .source(SampleRecord.document(builder, samplerId, query, now))
                 );
                 sent.add(query);
@@ -180,7 +180,7 @@ public final class SampleWriter implements SampleListener {
             for (int i = 0; i < items.length; i++) {
                 if (items[i].isFailed()) {
                     failures++;
-                } else if (i < sent.size()) {
+                } else if (i < sent.size() && sent.get(i).eventId() == null) { // an event is final, there is nothing to refresh
                     SampledQuery query = sent.get(i);
                     onWritten.written(query.fingerprint(), query.tracked(), weights.get(i));
                 }

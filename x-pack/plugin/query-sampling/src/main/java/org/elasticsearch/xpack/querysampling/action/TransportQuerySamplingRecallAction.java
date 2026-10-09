@@ -64,6 +64,7 @@ public final class TransportQuerySamplingRecallAction extends TransportAction<Qu
             OptionalDouble recall = RecallEstimator.recall(sample);
             return new QuerySamplingRecallResponse.Sample(
                 sample.search().query().opaqueId(),
+                sample.isEvent(),
                 sample.weights().multiplicity(),
                 sample.weights().weightedMultiplicity(),
                 sample.weights().inclusionProbability(),

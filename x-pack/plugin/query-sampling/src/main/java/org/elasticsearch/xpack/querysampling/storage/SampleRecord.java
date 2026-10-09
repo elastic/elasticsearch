@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.querysampling.storage;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -56,6 +57,20 @@ public final class SampleRecord {
     }
 
     /**
+     * The id of an event, which is one of many of its query, or of a picked query if there is no event id.
+     */
+    public static String documentId(String samplerId, QueryFingerprint fingerprint, @Nullable String eventId) {
+        return eventId == null ? documentId(samplerId, fingerprint) : documentId(samplerId, fingerprint) + "_" + eventId;
+    }
+
+    /**
+     * The id of the document of a stored sample.
+     */
+    static String documentId(String samplerId, String fingerprintHex, @Nullable String eventId) {
+        return eventId == null ? documentId(samplerId, fingerprintHex) : documentId(samplerId, fingerprintHex) + "_" + eventId;
+    }
+
+    /**
      * The whole document, for a query that was just picked.
      */
     public static XContentBuilder document(XContentBuilder builder, String samplerId, SampledQuery sampled, long nowMillis)
@@ -67,6 +82,9 @@ public final class SampleRecord {
         builder.startObject();
         builder.field("sampler_id", samplerId);
         builder.field("fingerprint", sampled.fingerprint().hex());
+        if (sampled.eventId() != null) {
+            builder.field("event_id", sampled.eventId());
+        }
         builder.array("indices", query.indices());
         builder.field("field", query.field());
         builder.field("k", query.k());
@@ -209,7 +227,8 @@ public final class SampleRecord {
             ((Number) source.get("updated_at")).longValue(),
             groundTruth,
             stratum,
-            hardness
+            hardness,
+            (String) source.get("event_id")
         );
     }
 

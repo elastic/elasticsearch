@@ -160,6 +160,21 @@ public final class QuerySamplingSettings {
     );
 
     /**
+     * The share of the captured searches that are also kept as events: a uniform sample of the arrivals themselves, which
+     * gives the recall that users get its own estimate. Where a picked query is in the sample once, whatever the number of
+     * times it was searched, an event is as likely to be of a query as often as it was searched, and appears again for every
+     * time it is kept. 0 keeps none.
+     */
+    public static final Setting<Double> EVENT_SLICE_RATE = Setting.doubleSetting(
+        "xpack.query_sampling.event_slice_rate",
+        0.0,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * γ, the scale of the probability with which a query is picked: how likely a query seen for the first time is
      * picked (about 0.69·γ), and how fast that falls as the query is searched more. A bigger value samples more
      * queries, and more of the popular ones.
@@ -211,6 +226,7 @@ public final class QuerySamplingSettings {
             SPATIAL_CLUSTERS,
             SPATIAL_BALANCE,
             HARDNESS_TILT,
+            EVENT_SLICE_RATE,
             ACCEPTANCE_SCALE,
             HEAD_THRESHOLD,
             MULTIPLICITY_WINDOW,

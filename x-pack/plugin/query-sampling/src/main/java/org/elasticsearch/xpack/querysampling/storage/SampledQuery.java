@@ -27,6 +27,7 @@ public final class SampledQuery {
     private final QueryFingerprint fingerprint;
     private final CapturedSearch search;
     private final TrackedQuery tracked;
+    private final String eventId;
     private final Map<AttachmentKey<?>, Object> attachments = new ConcurrentHashMap<>();
 
     /**
@@ -36,9 +37,36 @@ public final class SampledQuery {
      *                    as the query is seen again, so they are read when needed and not copied
      */
     public SampledQuery(QueryFingerprint fingerprint, CapturedSearch search, TrackedQuery tracked) {
+        this(fingerprint, search, tracked, null);
+    }
+
+    private SampledQuery(QueryFingerprint fingerprint, CapturedSearch search, TrackedQuery tracked, @Nullable String eventId) {
         this.fingerprint = fingerprint;
         this.search = search;
         this.tracked = tracked;
+        this.eventId = eventId;
+    }
+
+    /**
+     * An arrival that was kept as an event, see {@link org.elasticsearch.xpack.querysampling.sampling.EventSlice}. Unlike a
+     * picked query it is just that arrival, and its weights are final.
+     *
+     * @param eventId tells it from the other events of the same query
+     */
+    public static SampledQuery event(QueryFingerprint fingerprint, CapturedSearch search, TrackedQuery tracked, String eventId) {
+        return new SampledQuery(fingerprint, search, tracked, eventId);
+    }
+
+    /**
+     * The id of the event, or {@code null} for a query that was picked by the sampler.
+     */
+    @Nullable
+    public String eventId() {
+        return eventId;
+    }
+
+    public boolean isEvent() {
+        return eventId != null;
     }
 
     public QueryFingerprint fingerprint() {

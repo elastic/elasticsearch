@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
+import org.elasticsearch.xpack.querysampling.sampling.EventSlice;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.sampling.SampleListener;
 import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
@@ -24,7 +25,8 @@ import java.util.function.Consumer;
 
 /**
  * Everything that happens to a captured search after it left the search thread: it is recognised if it was
- * seen before, the sampler decides whether it joins the sample, and if so the listeners are told. Must
+ * seen before, the sampler decides whether it joins the sample, and if so the listeners are told. It may also be kept as
+ * an event. Must
  * only be driven from one thread at a time.
  */
 public final class SamplingPipeline implements Consumer<CapturedSearch> {
@@ -35,7 +37,9 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
     private final QuerySampler sampler;
     private final List<SampleListener> listeners;
     private final CostBudget budget;
+    private final EventSlice events;
     private final LongAdder picked = new LongAdder();
+    private final LongAdder eventsKept = new LongAdder();
 
     public SamplingPipeline(MultiplicityTracker tracker, QuerySampler sampler, List<SampleListener> listeners) {
         this(tracker, sampler, listeners, new CostBudget(0.0, 0.0));
@@ -45,6 +49,20 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
      * @param budget earns from what the captured searches cost, which is how much exact searching can be afforded
      */
     public SamplingPipeline(MultiplicityTracker tracker, QuerySampler sampler, List<SampleListener> listeners, CostBudget budget) {
+        this(tracker, sampler, listeners, budget, new EventSlice());
+    }
+
+    /**
+     * @param events decides which captured searches are also kept as events, besides the queries that the sampler picks
+     */
+    public SamplingPipeline(
+        MultiplicityTracker tracker,
+        QuerySampler sampler,
+        List<SampleListener> listeners,
+        CostBudget budget,
+        EventSlice events
+    ) {
+        this.events = events;
         this.tracker = tracker;
         this.sampler = sampler;
         this.listeners = List.copyOf(listeners);
@@ -56,6 +74,13 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
      */
     public long picked() {
         return picked.sum();
+    }
+
+    /**
+     * Arrivals that were kept as events.
+     */
+    public long eventsKept() {
+        return eventsKept.sum();
     }
 
     /**
@@ -86,13 +111,22 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
         }
         if (tracked != null && sampler.offer(tracked)) {
             picked.increment();
-            SampledQuery sampled = new SampledQuery(fingerprint, captured, tracked);
-            for (SampleListener listener : listeners) {
-                try {
-                    listener.onSampled(sampled);
-                } catch (Exception e) {
-                    logger.debug("a sample listener failed", e);
-                }
+            tell(new SampledQuery(fingerprint, captured, tracked));
+        }
+        // whether an arrival is kept as an event has nothing to do with the rest, not even with the query being tracked
+        double sliceRate = events.draw();
+        if (sliceRate > 0) {
+            eventsKept.increment();
+            tell(SampledQuery.event(fingerprint, captured, TrackedQuery.event(captured.captureRate(), sliceRate), events.newId()));
+        }
+    }
+
+    private void tell(SampledQuery sampled) {
+        for (SampleListener listener : listeners) {
+            try {
+                listener.onSampled(sampled);
+            } catch (Exception e) {
+                logger.debug("a sample listener failed", e);
             }
         }
     }

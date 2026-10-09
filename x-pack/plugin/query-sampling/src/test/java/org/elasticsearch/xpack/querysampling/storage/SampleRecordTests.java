@@ -96,6 +96,32 @@ public class SampleRecordTests extends ESTestCase {
         assertThat("a query that was not put anywhere says nothing of it", document, not(hasKey("spatial_cluster")));
         assertThat(document, not(hasKey("spatial_space")));
         assertThat(document, not(hasKey("hardness")));
+        assertThat("a picked query is not an event", document, not(hasKey("event_id")));
+    }
+
+    public void testAnEventIsStoredAsADocumentOfItsOwnAndReadBack() throws IOException {
+        CapturedQuery query = new CapturedQuery(new String[] { "a" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
+        SampledQuery event = SampledQuery.event(
+            FINGERPRINT,
+            new CapturedSearch(query, List.of(), 1, 0.25),
+            TrackedQuery.event(0.25, 0.5),
+            "e7"
+        );
+
+        Map<String, Object> document = toMap(SampleRecord.document(JsonXContent.contentBuilder(), "s1", event, 5L));
+        StoredSample stored = SampleRecord.parse(document, xContentRegistry());
+
+        assertThat(document.get("event_id"), equalTo("e7"));
+        assertThat("each of its arrivals is one search, standing for four", document.get("weighted_multiplicity"), equalTo(4.0));
+        assertThat("captured with 0.25 and kept with 0.5", (Double) document.get("inclusion_probability"), closeTo(0.125, 1e-12));
+        assertTrue(stored.isEvent());
+        assertThat(stored.eventId(), equalTo("e7"));
+        assertThat(stored.id(), equalTo(SampleRecord.documentId("s1", FINGERPRINT) + "_e7"));
+        assertThat(
+            "the other events of the query are other documents",
+            stored.id(),
+            not(equalTo(SampleRecord.documentId("s1", FINGERPRINT)))
+        );
     }
 
     public void testTheStrataOfAQueryAreStoredAndReadBack() throws IOException {
@@ -149,7 +175,8 @@ public class SampleRecordTests extends ESTestCase {
         TrackedQuery tracked = tracked(1.0);
         tracked.stratum(new Stratum("vec/1", 3));
         tracked.hardness(Hardness.HARD);
-        SampledQuery sampled = new SampledQuery(FINGERPRINT, new CapturedSearch(query, List.of(), 1, 1.0), tracked);
+        // an event has an id as well, which makes every field there is
+        SampledQuery sampled = SampledQuery.event(FINGERPRINT, new CapturedSearch(query, List.of(), 1, 1.0), tracked, "e1");
         sampled.attach(GroundTruth.KEY, new GroundTruth(List.of()));
 
         Map<String, Object> document = toMap(SampleRecord.document(JsonXContent.contentBuilder(), "s1", sampled, 5L));

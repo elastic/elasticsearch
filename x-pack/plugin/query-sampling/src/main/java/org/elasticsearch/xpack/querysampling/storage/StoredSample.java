@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
  * @param groundTruth  the exact answer, or {@code null} while it has not been computed
  * @param stratum      the part of the vector space the query is in, or {@code null} if it was not put anywhere
  * @param hardness     how hard the query is for the index to answer, or {@code null} if that was not told
+ * @param eventId      the id of the event if the sample is one of the arrivals kept as events, {@code null} if it is a query
+ *                     picked by the sampler
  */
 public record StoredSample(
     String samplerId,
@@ -37,13 +39,18 @@ public record StoredSample(
     long updatedAt,
     @Nullable GroundTruth groundTruth,
     @Nullable Stratum stratum,
-    @Nullable Hardness hardness
+    @Nullable Hardness hardness,
+    @Nullable String eventId
 ) {
 
     /**
      * The id of the document, which is how it is updated.
      */
     public String id() {
-        return SampleRecord.documentId(samplerId, fingerprint);
+        return SampleRecord.documentId(samplerId, fingerprint, eventId);
+    }
+
+    public boolean isEvent() {
+        return eventId != null;
     }
 }

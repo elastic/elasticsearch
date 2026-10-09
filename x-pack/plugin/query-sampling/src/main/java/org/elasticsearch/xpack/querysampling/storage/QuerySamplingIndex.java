@@ -33,7 +33,7 @@ public final class QuerySamplingIndex {
 
     public static final String NAME = ".query_sampling";
 
-    static final int MAPPINGS_VERSION = 2;
+    static final int MAPPINGS_VERSION = 3;
 
     private QuerySamplingIndex() {}
 
@@ -71,6 +71,7 @@ public final class QuerySamplingIndex {
             builder.startObject("properties");
             keyword(builder, "sampler_id");
             keyword(builder, "fingerprint");
+            keyword(builder, "event_id");
             keyword(builder, "indices");
             keyword(builder, "field");
             field(builder, "k", "integer");

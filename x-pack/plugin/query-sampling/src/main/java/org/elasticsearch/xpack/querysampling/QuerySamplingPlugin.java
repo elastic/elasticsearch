@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruthWorker;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGroundTruthAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingRecallAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingStatsAction;
+import org.elasticsearch.xpack.querysampling.sampling.EventSlice;
 import org.elasticsearch.xpack.querysampling.sampling.PickBudget;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.sampling.SpatialStrata;
@@ -149,7 +150,9 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         sampler.watch(clusterSettings);
         CostBudget budget = new CostBudget(0.0, MAX_EXACT_SEARCH_CREDIT_MILLIS);
         budget.watch(clusterSettings);
-        SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of(writer), budget);
+        EventSlice eventSlice = new EventSlice();
+        eventSlice.watch(clusterSettings);
+        SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of(writer), budget, eventSlice);
         // the exact searches are done as the plugin: nobody is asking for them
         GroundTruthWorker groundTruthWorker = new GroundTruthWorker(
             client::search,

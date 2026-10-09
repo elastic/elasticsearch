@@ -28,6 +28,7 @@ public final class QuerySamplingRecallResponse extends ActionResponse implements
      * What one stored query contributed.
      *
      * @param label                the {@code X-Opaque-Id} of the search that was picked, which is only a label
+     * @param event                whether it is an arrival that was kept as an event and not a query that was picked
      * @param multiplicity         how many times the query was captured
      * @param weightedMultiplicity the estimated number of times it was searched
      * @param inclusionProbability chance of the query to be picked
@@ -36,6 +37,7 @@ public final class QuerySamplingRecallResponse extends ActionResponse implements
      */
     public record Sample(
         @Nullable String label,
+        boolean event,
         long multiplicity,
         double weightedMultiplicity,
         double inclusionProbability,
@@ -95,11 +97,18 @@ public final class QuerySamplingRecallResponse extends ActionResponse implements
         builder.field("unique_query_effective_size", estimate.uniqueQueryEffectiveSize());
         groups(builder, "by_hardness", "hardness", estimate.byHardness());
         groups(builder, "by_cluster", "cluster", estimate.byCluster());
+        builder.startObject("event_slice");
+        builder.field("records", estimate.events().records());
+        builder.field("records_with_ground_truth", estimate.events().recordsWithGroundTruth());
+        builder.field("recall", estimate.events().recall());
+        builder.field("effective_size", estimate.events().effectiveSize());
+        builder.endObject();
         if (samples != null) {
             builder.startArray("samples");
             for (Sample sample : samples) {
                 builder.startObject();
                 builder.field("label", sample.label());
+                builder.field("event", sample.event());
                 builder.field("multiplicity", sample.multiplicity());
                 builder.field("weighted_multiplicity", sample.weightedMultiplicity());
                 builder.field("inclusion_probability", sample.inclusionProbability());

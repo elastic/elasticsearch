@@ -43,6 +43,11 @@ import java.util.TreeMap;
  * sample. For each the effective sample size of Kish is given, {@code (Σw)² / Σw²}: how many equally weighted
  * queries the estimate is worth.
  * <p>
+ * The arrivals that were kept as events are a sample of the searches themselves, with the same chance for each but
+ * for the capture rate it had. They are not part of the estimates above, which are those of the picked queries, and
+ * make one of their own: the weighted average of their recalls, with weights of {@code 1 / π}. Where that is
+ * available it needs no correction for how often a query is searched.
+ * <p>
  * The same is done for the queries of each hardness and of each cluster of the vector space. Their weights are the
  * ones they have among all the queries, so each is an estimate for a part of the population, and the parts show what
  * the average of all of them hides.
@@ -81,12 +86,25 @@ public final class RecallEstimator {
      */
     public static RecallEstimate estimate(List<StoredSample> samples) {
         Estimates all = new Estimates();
+        Accumulator events = new Accumulator();
+        int eventRecords = 0;
+        int eventsUsed = 0;
+        int queryRecords = 0;
         Map<Hardness, Estimates> byHardness = new EnumMap<>(Hardness.class);
         Map<Stratum, Estimates> byCluster = new TreeMap<>(Comparator.comparing(Stratum::space).thenComparingInt(Stratum::cluster));
         int used = 0;
         for (StoredSample sample : samples) {
             OptionalDouble recall = recall(sample);
             TrackedQuery.Weights weights = sample.weights();
+            if (sample.isEvent()) {
+                eventRecords++;
+                if (recall.isPresent() && weights.inclusionProbability() > 0) {
+                    eventsUsed++;
+                    events.add(1.0 / weights.inclusionProbability(), recall.getAsDouble());
+                }
+                continue;
+            }
+            queryRecords++;
             if (recall.isEmpty() || weights.inclusionProbability() <= 0 || weights.seenProbability() <= 0) {
                 continue;
             }
@@ -109,14 +127,15 @@ public final class RecallEstimator {
         List<RecallEstimate.GroupEstimate> clusters = new ArrayList<>();
         byCluster.forEach((stratum, estimates) -> clusters.add(estimates.group(stratum.space() + "#" + stratum.cluster())));
         return new RecallEstimate(
-            samples.size(),
+            queryRecords,
             used,
             all.traffic.mean(),
             all.traffic.effectiveSize(),
             all.unique.mean(),
             all.unique.effectiveSize(),
             hardnesses,
-            clusters
+            clusters,
+            new RecallEstimate.EventEstimate(eventRecords, eventsUsed, events.mean(), events.effectiveSize())
         );
     }
 

@@ -41,6 +41,20 @@ public final class TrackedQuery {
     }
 
     /**
+     * What is known about one arrival that was kept as an event: it counts once, however often the query was searched
+     * otherwise, and the chance it had of being kept is the one of being captured and then drawn.
+     *
+     * @param captureRate the probability the search had of being captured
+     * @param sliceRate   the probability a captured search had of being kept as an event
+     */
+    public static TrackedQuery event(double captureRate, double sliceRate) {
+        TrackedQuery event = new TrackedQuery();
+        event.recordArrival(1.0 / captureRate);
+        event.recordDraw(captureRate * sliceRate);
+        return event;
+    }
+
+    /**
      * Estimate of the probability that the query was captured at least once, given how often it arrived.
      * Queries that were never captured are not known to the tracker, so this is what tells how much of the
      * population the known ones stand for: a query whose arrivals were captured at 1% is seen with a

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.querysampling;
 
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
@@ -15,6 +17,7 @@ import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
+import org.elasticsearch.xpack.querysampling.sampling.EventSlice;
 import org.elasticsearch.xpack.querysampling.sampling.PickBudget;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.sampling.SpatialStrata;
@@ -23,6 +26,7 @@ import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -154,6 +158,51 @@ public class SamplingPipelineTests extends ESTestCase {
 
         pipeline.accept(search(new float[] { 5f, 5f })); // no hits, so nothing to tell it by
         assertThat(tracker.record(QueryFingerprint.of(search(new float[] { 5f, 5f }).query())).hardness(), nullValue());
+    }
+
+    public void testSomeCapturedSearchesAreAlsoKeptAsEventsWhateverHappensToTheQuery() {
+        EventSlice events = new EventSlice(() -> new Random(0L) {
+            @Override
+            public double nextDouble() {
+                return 0.0; // every search is kept
+            }
+        });
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put(QuerySamplingSettings.EVENT_SLICE_RATE.getKey(), 0.25).build(),
+            Set.of(QuerySamplingSettings.EVENT_SLICE_RATE)
+        );
+        events.watch(clusterSettings);
+        // the sampler picks nothing, and the tracker is too small to hold the queries
+        MultiplicityTracker tiny = new MultiplicityTracker(1);
+        SamplingPipeline pipeline = new SamplingPipeline(tiny, new QuerySampler(0.1, 100, new Random(0L) {
+            @Override
+            public double nextDouble() {
+                return 0.999999; // above any probability the small scale gives
+            }
+        }), List.of(sampled::add), new CostBudget(0.0, 0.0), events);
+        CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
+
+        pipeline.accept(new CapturedSearch(query, List.of(), 1, 0.5));
+        pipeline.accept(new CapturedSearch(query, List.of(), 1, 0.5));
+        pipeline.accept(search(new float[] { 2f })); // not tracked, as there is no room
+
+        assertThat(pipeline.picked(), equalTo(0L));
+        assertThat(pipeline.eventsKept(), equalTo(3L));
+        assertThat(sampled.size(), equalTo(3));
+        assertTrue(sampled.stream().allMatch(SampledQuery::isEvent));
+        assertThat("two events of the same query", sampled.get(0).eventId().equals(sampled.get(1).eventId()), equalTo(false));
+        assertThat("captured with 0.5 and kept with 0.25", sampled.get(0).tracked().inclusionProbability(), closeTo(0.125, 1e-12));
+        assertThat("each is one search, standing for two", sampled.get(0).tracked().weightedMultiplicity(), closeTo(2.0, 1e-12));
+    }
+
+    public void testNoEventsAreKeptWithoutARate() {
+        SamplingPipeline pipeline = pipeline(new Random(0L));
+
+        pipeline.accept(search(new float[] { 1f }));
+        pipeline.accept(search(new float[] { 1f }));
+
+        assertThat(pipeline.eventsKept(), equalTo(0L));
+        assertTrue(sampled.stream().noneMatch(query -> query.eventId() != null));
     }
 
     private SamplingPipeline pipeline(Random random) {

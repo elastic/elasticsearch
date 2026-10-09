@@ -176,7 +176,7 @@ import java.util.regex.Pattern;
  *   <tr><td>{@code multi_value_syntax}</td><td>{@code none}</td>
  *       <td>Multi-value field syntax; see "Bracket multi-value syntax" below for the
  *           {@code brackets} opt-in and the element-splitter rules (always comma, even for TSV).</td></tr>
- *   <tr><td>{@code schema_sample_size}</td><td>20,000</td><td>Number of rows to sample for type inference</td></tr>
+ *   <tr><td>{@code schema_sample_size}</td><td>40,000</td><td>Number of rows to sample for type inference</td></tr>
  *   <tr><td>{@code header_row}</td><td>{@code true}</td>
  *       <td>When {@code true} (default), the first non-comment, non-blank record after
  *           {@code skip_rows} names the columns. When {@code false}, no header row is read;
@@ -1307,6 +1307,37 @@ public class CsvFormatReader implements SegmentableFormatReader {
             headerBindingByProvenance,
             configWarnings
         );
+    }
+
+    @Override
+    public CsvFormatReader withSchemaSampleShare(int files) {
+        int shared = FormatReader.sharedSchemaSampleSize(schemaSampleSize, files);
+        if (shared == schemaSampleSize) {
+            return this;
+        }
+        // canonicalConfig is kept: it is the harvest fingerprint, and the data node reads with the unshared sample.
+        return new CsvFormatReader(
+            blockFactory,
+            options,
+            format,
+            extensions,
+            resolvedSchema,
+            shared,
+            schemaMaxFields,
+            effectivePolicy,
+            canonicalConfig,
+            readConfig,
+            directBlockEnabled,
+            declaredDateFormats,
+            declaredProvenanceBinding,
+            headerBindingByProvenance,
+            configWarnings
+        );
+    }
+
+    @Override
+    public int schemaSampleSize() {
+        return schemaSampleSize;
     }
 
     @Override

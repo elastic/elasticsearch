@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -582,6 +583,38 @@ public class NdJsonFormatReaderTests extends ESTestCase {
             "a within-file widen discovered on the no-pre-resolved-schema read path must still warn, got: " + warnings,
             warnings.stream().anyMatch(w -> w.contains("column [a]") && w.contains("[keyword]"))
         );
+    }
+
+    /**
+     * A sample shared by several files takes an even share of the configured lines from each, never fewer than the
+     * floor, and keeps the harvest fingerprint: the data node reads with the unshared configuration, so its statistics
+     * must still match the entry planning seeds from this read.
+     */
+    public void testSchemaSampleShareNarrowsTheSampleButNotTheFingerprint() throws IOException {
+        byte[] bytes = "{\"a\":1}\n".repeat(1_000).getBytes(StandardCharsets.UTF_8);
+        FormatReader configured = new NdJsonFormatReader(null, blockFactory).withConfig(Map.of("schema_sample_size", 800));
+
+        SourceMetadata whole = configured.metadata(new BytesObject(bytes));
+        FormatReader quarterReader = configured.withSchemaSampleShare(4);
+        SourceMetadata quarter = quarterReader.metadata(new BytesObject(bytes));
+        SourceMetadata floored = configured.withSchemaSampleShare(64).metadata(new BytesObject(bytes));
+
+        assertEquals(800, configured.schemaSampleSize());
+        assertEquals(200, quarterReader.schemaSampleSize());
+        assertEquals(800, whole.sampleRows());
+        assertEquals(200, quarter.sampleRows());
+        assertEquals(FormatReader.MIN_SHARED_SCHEMA_SAMPLE_SIZE, floored.sampleRows());
+        Object fingerprint = whole.sourceMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY);
+        assertNotNull(fingerprint);
+        assertEquals(fingerprint, quarter.sourceMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY));
+    }
+
+    /** Sharing that would not narrow the sample returns the reader itself, which is how the planner tells it does not apply. */
+    public void testSchemaSampleShareWithinTheSampleReturnsTheSameReader() {
+        FormatReader small = new NdJsonFormatReader(null, blockFactory).withConfig(Map.of("schema_sample_size", 50));
+        assertSame(small, small.withSchemaSampleShare(8));
+        FormatReader unshared = new NdJsonFormatReader(null, blockFactory);
+        assertSame(unshared, unshared.withSchemaSampleShare(1));
     }
 
     // -- helpers --

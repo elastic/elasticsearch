@@ -1406,7 +1406,7 @@ public class ExternalSourceResolver {
                 if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
                     result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
                 } else {
-                    result = SchemaReconciliation.reconcileUnionByName(allMetadata);
+                    result = SchemaReconciliation.reconcileUnionByName(allMetadata, schemaMaxFields(config));
                 }
 
                 // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
@@ -1484,6 +1484,19 @@ public class ExternalSourceResolver {
                 listener.onFailure(e);
             }
         }, listener::onFailure));
+    }
+
+    /**
+     * The most columns a dataset's schema may have: its {@code schema_max_fields} key when set, otherwise the
+     * {@code esql.external.schema_max_fields} node setting. Held to the declared mapping and to the merged
+     * {@code union_by_name} schema, as the format readers hold each file's own schema to it.
+     */
+    private int schemaMaxFields(Map<String, Object> config) {
+        return ExternalSourceSettings.parseDatasetSchemaMaxFields(
+            config == null ? null : config.get("schema_max_fields"),
+            "schema_max_fields",
+            ExternalSourceSettings.SCHEMA_MAX_FIELDS.get(settings)
+        );
     }
 
     /**
@@ -2393,6 +2406,7 @@ public class ExternalSourceResolver {
         FileMetadata meta = fileMetadataOf(storagePath, provider, config);
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
         // operator (and file schema) work purely in logical names.
+        DeclaredSchemaResolver.checkDeclaredWidth(declaredMapping, schemaMaxFields(config));
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
         // sourceType drives operator-factory dispatch (OperatorFactoryRegistry keys on it), so it must equal the
         // reader's formatName() the inferred path would have produced — derive it without reading the file via
@@ -2595,6 +2609,7 @@ public class ExternalSourceResolver {
 
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
         // operator (and file schema) work purely in logical names.
+        DeclaredSchemaResolver.checkDeclaredWidth(declaredMapping, schemaMaxFields(config));
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
         // Same compound-extension-aware dispatch as the single-file strict path above. Derive from a CONCRETE listed
         // object name (listing.path(0)), not the raw glob string: a pattern like `*.csv.gz` and a comma-separated path
@@ -2737,10 +2752,27 @@ public class ExternalSourceResolver {
         if (sourceType == null || FILE_TYPED_FORMATS.contains(sourceType) == false || declaredMapping.mappings() == null) {
             return;
         }
+        Map<String, Object> probeConfig = declaredProbeConfig(sourceType, config);
         List<Attribute> physicalSchema = (isCacheable(provider)
-            ? cachedResolveSingleSource(anchor, anchorMtime, config)
-            : resolveSingleSource(anchor.toString(), config)).schema();
+            ? cachedResolveSingleSource(anchor, anchorMtime, probeConfig)
+            : resolveSingleSource(anchor.toString(), probeConfig)).schema();
         rejectUncoercibleFileTypedRetypes(physicalSchema, sourceType, declaredMapping);
+    }
+
+    /**
+     * The config the strict declared probe reads the anchor's footer with. A declared dataset is not capped by how many
+     * columns its files have, so for Parquet, the only file-typed reader that enforces {@code schema_max_fields}, the
+     * probe raises the cap to its ceiling; the reader charges the schema it flattens to the breaker instead. The key is
+     * part of the reader's config identity, so the probe's schema cache entry is kept apart from the inferred one, which
+     * stays capped.
+     */
+    private static Map<String, Object> declaredProbeConfig(String sourceType, Map<String, Object> config) {
+        if ("parquet".equals(sourceType) == false) {
+            return config;
+        }
+        Map<String, Object> probeConfig = config == null ? new HashMap<>() : new HashMap<>(config);
+        probeConfig.put("schema_max_fields", ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS);
+        return probeConfig;
     }
 
     /**
@@ -2840,6 +2872,7 @@ public class ExternalSourceResolver {
         if (fileTyped) {
             rejectUncoercibleFileTypedRetypes(inferred.schema(), inferred.sourceType(), declaredMapping);
         }
+        DeclaredSchemaResolver.checkDeclaredWidth(declaredMapping, schemaMaxFields(inferred.config()));
         DeclaredSchemaResolver.Overlaid unified = DeclaredSchemaResolver.overlayNonStrict(inferred.schema(), declaredMapping, false);
         // S1 boundary: the warm-aggregate _stats.* map on sourceMetadata is keyed PHYSICAL and holds INFERRED-type values;
         // the declared overlay renames/retypes the plan afterwards. Rekey renames (a pure `path` move changes no value, so

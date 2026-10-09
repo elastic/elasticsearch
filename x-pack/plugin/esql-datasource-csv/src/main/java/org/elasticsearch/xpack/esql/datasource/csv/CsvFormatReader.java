@@ -38,6 +38,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport;
@@ -68,6 +70,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -405,6 +408,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     static final String CONFIG_COLUMN_PREFIX = "column_prefix";
     static final String CONFIG_TRIM_SPACES = "trim_spaces";
     static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
+    static final String CONFIG_SCHEMA_MAX_FIELDS = "schema_max_fields";
 
     /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
     static final Set<String> RECOGNIZED_KEYS = Set.of(
@@ -421,7 +425,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         CONFIG_HEADER_ROW,
         CONFIG_COLUMN_PREFIX,
         CONFIG_TRIM_SPACES,
-        CONFIG_SCHEMA_SAMPLE_SIZE
+        CONFIG_SCHEMA_SAMPLE_SIZE,
+        CONFIG_SCHEMA_MAX_FIELDS
     );
 
     private final BlockFactory blockFactory;
@@ -431,6 +436,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final List<String> extensions;
     private final List<Attribute> resolvedSchema;
     private final int schemaSampleSize;
+    private final int schemaMaxFields;
     // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
     // shared across the parallel {@link CsvBatchIterator} segments spawned by {@link #read}.
     private final CsvReaderCounters counters;
@@ -485,6 +491,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List.of(".csv", ".tsv"),
             null,
             CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE,
+            ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS,
             ErrorPolicy.STRICT,
             "",
             true,
@@ -501,6 +508,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             extensions,
             null,
             CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE,
+            ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS,
             ErrorPolicy.STRICT,
             "",
             true,
@@ -517,6 +525,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             extensions,
             null,
             CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE,
+            ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS,
             ErrorPolicy.STRICT,
             "",
             true,
@@ -532,6 +541,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         List<String> extensions,
         List<Attribute> resolvedSchema,
         int schemaSampleSize,
+        int schemaMaxFields,
         ErrorPolicy effectivePolicy,
         String canonicalConfig,
         boolean directBlockEnabled,
@@ -544,6 +554,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.extensions = extensions;
         this.resolvedSchema = resolvedSchema;
         this.schemaSampleSize = schemaSampleSize;
+        this.schemaMaxFields = schemaMaxFields;
         this.effectivePolicy = effectivePolicy;
         this.canonicalConfig = canonicalConfig;
         this.directBlockEnabled = directBlockEnabled;
@@ -568,6 +579,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             extensions,
             resolvedSchema,
             schemaSampleSize,
+            schemaMaxFields,
             effectivePolicy,
             canonicalConfig,
             enabled,
@@ -855,6 +867,34 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
+    /**
+     * Returns a copy of this reader whose schema inference refuses a file with more than {@code maxFields} columns.
+     * Threaded from the {@code esql.external.schema_max_fields} node setting at reader-construction time; a dataset's
+     * {@code schema_max_fields} then overrides it in {@link #withConfigTrackingConsumedKeys}.
+     */
+    public CsvFormatReader withSchemaMaxFields(int maxFields) {
+        if (maxFields == schemaMaxFields) {
+            return this;
+        }
+        return new CsvFormatReader(
+            blockFactory,
+            options,
+            format,
+            extensions,
+            resolvedSchema,
+            schemaSampleSize,
+            maxFields,
+            effectivePolicy,
+            canonicalConfig,
+            readConfig,
+            directBlockEnabled,
+            declaredDateFormats,
+            declaredProvenanceBinding,
+            headerBindingByProvenance,
+            configWarnings
+        );
+    }
+
     public CsvFormatReader withOptions(CsvFormatOptions newOptions) {
         return new CsvFormatReader(
             blockFactory,
@@ -863,6 +903,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             extensions,
             resolvedSchema,
             schemaSampleSize,
+            schemaMaxFields,
             effectivePolicy,
             canonicalConfig,
             directBlockEnabled,
@@ -880,6 +921,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             extensions,
             schema,
             schemaSampleSize,
+            schemaMaxFields,
             effectivePolicy,
             canonicalConfig,
             directBlockEnabled,
@@ -900,6 +942,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             extensions,
             resolvedSchema,
             schemaSampleSize,
+            schemaMaxFields,
             effectivePolicy,
             canonicalConfig,
             directBlockEnabled,
@@ -1033,6 +1076,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             extensions,
             resolvedSchema,
             schemaSampleSize,
+            schemaMaxFields,
             effectivePolicy,
             canonicalConfig,
             directBlockEnabled,
@@ -1049,6 +1093,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         CsvFormatOptions parsed = parseOptionsFromConfig(config, options);
         int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
         Check.isTrue(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
+        int newMaxFields = ExternalSourceSettings.parseDatasetSchemaMaxFields(
+            config.get(CONFIG_SCHEMA_MAX_FIELDS),
+            CONFIG_SCHEMA_MAX_FIELDS,
+            schemaMaxFields
+        );
         ErrorPolicy resolvedPolicy = ErrorPolicy.fromConfig(config, effectivePolicy);
         CsvFormatReader result = parsed != null ? withOptions(parsed) : this;
         // Pin the node-stable config identity from THIS query's WITH config. buildFormatConfig filters
@@ -1062,6 +1111,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             result.extensions,
             result.resolvedSchema,
             newSampleSize,
+            newMaxFields,
             resolvedPolicy,
             canon,
             result.directBlockEnabled,
@@ -1164,7 +1214,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     private List<Attribute> inferSchemaFromSample(String headerLine, CsvLogicalRecordReader recordReader, String sourceLocation)
         throws IOException {
-        String[] columnNames = splitFieldsForOptions(headerLine, options);
+        // The names (and the attributes built from them, which columnBytes also covers) are charged while the header is
+        // split and held until the schema is built.
+        try (HeaderBudget budget = newHeaderBudget()) {
+            return inferSchemaFromSample(headerLine, recordReader, sourceLocation, budget);
+        }
+    }
+
+    private List<Attribute> inferSchemaFromSample(
+        String headerLine,
+        CsvLogicalRecordReader recordReader,
+        String sourceLocation,
+        HeaderBudget budget
+    ) throws IOException {
+        String[] columnNames = splitFieldsForOptions(headerLine, options, effectiveMaxFields(), budget);
         if (options.quoting()) {
             // No type annotations on this path, so the fields are bare names — unwrap RFC 4180 quoting.
             unquoteHeaderNames(columnNames, options.quoteChar());
@@ -1189,7 +1252,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 throw new IOException("CSV file has no data rows");
             }
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-            return inferSyntheticSchema(sample.rows(), options.columnPrefix(), options.datetimeFormatter());
+            int columns = syntheticColumnCount(sample.rows());
+            checkColumnCap(columns, effectiveMaxFields());
+            try (Releasable charge = chargeSyntheticColumns(columns)) {
+                return inferSyntheticSchema(sample.rows(), options.columnPrefix(), options.datetimeFormatter());
+            }
         } finally {
             breaker.addWithoutBreaking(-sample.reservedBytes());
         }
@@ -2004,11 +2071,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     private List<Attribute> parseSchema(String schemaLine) {
-        String[] columns = splitFieldsForOptions(schemaLine, options);
-        if (hasTypeAnnotations(columns)) {
-            return parseTypedSchema(columns);
+        try (HeaderBudget budget = newHeaderBudget()) {
+            String[] columns = splitFieldsForOptions(schemaLine, options, effectiveMaxFields(), budget);
+            if (hasTypeAnnotations(columns)) {
+                return parseTypedSchema(columns);
+            }
+            return null;
         }
-        return null;
     }
 
     private boolean hasTypeAnnotations(String[] columns) {
@@ -2230,7 +2299,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * name is unquoted later, once that decision has been made). A non-quoting dialect ({@code mode: plain} /
      * {@code escaped}) treats a quote as literal data, so the raw delimiter split is correct there.
      */
-    private static String[] splitFieldsForOptions(String line, CsvFormatOptions options) {
+    private static String[] splitFieldsForOptions(String line, CsvFormatOptions options, int maxFields, @Nullable HeaderBudget budget) {
         // The header is the file's first line, so a UTF-8 BOM (Excel/Windows) lands on its first field.
         line = stripLeadingBom(line);
         if (options.quoting()) {
@@ -2239,7 +2308,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 options.delimiter(),
                 options.quoteChar(),
                 options.escapeChar(),
-                options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS
+                options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS,
+                maxFields,
+                budget
             );
         }
         // A quote/escape-aware split, not a naive line.split(delimiter): a quoted field may embed the
@@ -2247,7 +2318,136 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // quoting — so a naive split mis-counts the header width and (Julian's report) the declared-schema
         // width tripwire wrongly rejects or admits a file. Mirrors splitHeaderQuoteAware for the non-quoting
         // delimiters (comma, tab).
-        return splitFieldsQuoteAware(line, options.delimiter(), options.quoteChar(), options.escapeChar());
+        return splitFieldsQuoteAware(line, options.delimiter(), options.quoteChar(), options.escapeChar(), maxFields, budget);
+    }
+
+    private static void addHeaderField(List<String> entries, String field, int maxFields, @Nullable HeaderBudget budget) {
+        // Trailing empty fields are dropped by the callers, so only a non-empty one can push the width over the cap.
+        if (field.isEmpty() == false) {
+            checkColumnCap(entries.size() + 1, maxFields);
+        }
+        if (budget != null) {
+            budget.add(field);
+        }
+        entries.add(field);
+    }
+
+    /**
+     * The cap on a file's columns for this reader. A declared schema names the columns it reads, so it is not capped
+     * by how many the file has; its header is bounded by the breaker through {@link HeaderBudget} instead.
+     */
+    private int effectiveMaxFields() {
+        return declaredPathBinding ? Integer.MAX_VALUE : schemaMaxFields;
+    }
+
+    /**
+     * Charges the circuit breaker for the names and attributes a headerless file's schema synthesizes, one per column of
+     * the widest sampled row. The callers cap them at {@link #effectiveMaxFields}, so a declared dataset, which is not
+     * capped by the file's width, is bounded by this charge alone. Release the result once the schema is built.
+     */
+    private Releasable chargeSyntheticColumns(int columns) {
+        long bytes = (long) columns * HeapEstimates.columnBytes(options.columnPrefix().length() + SYNTHETIC_INDEX_DIGITS);
+        CircuitBreaker breaker = blockFactory.breaker();
+        breaker.addEstimateBytesAndMaybeBreak(bytes, HeaderBudget.LABEL);
+        return () -> breaker.addWithoutBreaking(-bytes);
+    }
+
+    /**
+     * Charges the circuit breaker for the scratch a split builds to bind a pinned schema against the {@code columns} header
+     * names, read from the file's start or passed down from chunk 0: two arrays of the names and the duplicate-name set.
+     * The names themselves are charged by whoever holds them. A declared read is not capped by the file's width, so this
+     * is all that bounds the binding. Release the result once the binding is built.
+     */
+    private Releasable chargeHeaderBinding(int columns) {
+        long bytes = (long) columns * (2 * Long.BYTES + HeaderBudget.SET_ENTRY_BYTES);
+        CircuitBreaker breaker = blockFactory.breaker();
+        breaker.addEstimateBytesAndMaybeBreak(bytes, HeaderBudget.LABEL);
+        return () -> breaker.addWithoutBreaking(-bytes);
+    }
+
+    /** Allowance for the digits of a synthesized column name, such as the {@code 12345} in {@code column_12345}. */
+    private static final int SYNTHETIC_INDEX_DIGITS = 6;
+
+    private HeaderBudget newHeaderBudget() {
+        return new HeaderBudget(blockFactory.breaker());
+    }
+
+    /**
+     * Charges the circuit breaker for a header's column names as they are split, in batches, so a header with millions
+     * of columns trips the breaker part-way through the split rather than after it has been allocated. Each name is
+     * charged {@link HeapEstimates#columnBytes} (an attribute shell plus the name, which also covers the attribute list
+     * inference builds from it) and a further {@link #SET_ENTRY_BYTES} for the duplicate-name set a declared binding
+     * keeps. Closing releases everything charged. An allowance, not a measured size.
+     */
+    static final class HeaderBudget implements Releasable {
+        static final String LABEL = "csv_header_columns";
+        /** Allowance for one entry of the {@code HashSet} that rejects duplicate header names. */
+        static final long SET_ENTRY_BYTES = 64L;
+        private static final long BATCH_BYTES = 64 * 1024;
+
+        private final CircuitBreaker breaker;
+        private long reserved;
+        private long pending;
+
+        HeaderBudget(CircuitBreaker breaker) {
+            this.breaker = breaker;
+        }
+
+        void add(String name) {
+            pending += HeapEstimates.columnBytes(name.length()) + SET_ENTRY_BYTES;
+            if (pending >= BATCH_BYTES) {
+                flush();
+            }
+        }
+
+        private void flush() {
+            long bytes = pending;
+            pending = 0;
+            breaker.addEstimateBytesAndMaybeBreak(bytes, LABEL);
+            reserved += bytes;
+        }
+
+        @Override
+        public void close() {
+            if (reserved > 0) {
+                breaker.addWithoutBreaking(-reserved);
+                reserved = 0;
+            }
+            pending = 0;
+        }
+    }
+
+    /**
+     * Refuses a schema wider than {@code maxFields} columns. A small file can name far more columns than it has
+     * bytes, and the resolved schema is built on the coordinating node during planning, so the width is bounded
+     * while the header is split, before any per-column allocation. A 400, since retrying cannot help, but an
+     * {@link ExternalClientException} rather than an {@link IllegalArgumentException}: the file is not malformed, and
+     * {@code error_mode}, which treats an {@code IllegalArgumentException} as a bad row, must not suppress it.
+     * {@code columns} counts the columns seen so far, so this trips at the first column over the cap.
+     */
+    static void checkColumnCap(int columns, int maxFields) {
+        if (columns > maxFields) {
+            throw ExternalClientException.schemaTooWide(columnCapMessage(maxFields));
+        }
+    }
+
+    /**
+     * The refusal for a schema over {@code maxFields}. Below the ceiling the user can raise the cap. At the ceiling
+     * raising it is rejected too, so suggest declaring the columns, which lifts the cap.
+     */
+    static String columnCapMessage(int maxFields) {
+        if (maxFields >= ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS) {
+            return "schema inference found more than ["
+                + maxFields
+                + "] columns, the most ["
+                + CONFIG_SCHEMA_MAX_FIELDS
+                + "] allows; declare the dataset's columns with [dynamic: false] to skip inference";
+        }
+        return "schema inference found more than ["
+            + maxFields
+            + "] columns; raise [esql.external.schema_max_fields] or the dataset's ["
+            + CONFIG_SCHEMA_MAX_FIELDS
+            + "] to infer a wider schema";
     }
 
     /**
@@ -2258,7 +2458,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@link #splitHeaderQuoteAware}; quotes are retained in the token exactly as that quote-aware
      * sibling retains them, so the two paths agree on width and shape.
      */
-    private static String[] splitFieldsQuoteAware(String line, char delim, char quote, char esc) {
+    private static String[] splitFieldsQuoteAware(
+        String line,
+        char delim,
+        char quote,
+        char esc,
+        int maxFields,
+        @Nullable HeaderBudget budget
+    ) {
         List<String> entries = new ArrayList<>();
         int start = 0;
         boolean inQuotes = false;
@@ -2278,7 +2485,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 continue;
             }
             if (c == delim) {
-                entries.add(line.substring(start, i).trim());
+                addHeaderField(entries, line.substring(start, i).trim(), maxFields, budget);
                 start = i + 1;
                 fieldHasNonWhitespace = false;
                 continue;
@@ -2291,7 +2498,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 fieldHasNonWhitespace = true;
             }
         }
-        entries.add(line.substring(start).trim());
+        addHeaderField(entries, line.substring(start).trim(), maxFields, budget);
         return entries.toArray(String[]::new);
     }
 
@@ -2302,7 +2509,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * resolved names after {@link #hasTypeAnnotations} has run. Used by schema discovery / inference for any
      * delimiter (comma for CSV, tab for TSV).
      */
-    private static String[] splitHeaderQuoteAware(String line, char delim, char quote, char esc, boolean bracketsMode) {
+    private static String[] splitHeaderQuoteAware(
+        String line,
+        char delim,
+        char quote,
+        char esc,
+        boolean bracketsMode,
+        int maxFields,
+        @Nullable HeaderBudget budget
+    ) {
         List<String> entries = new ArrayList<>();
         int start = 0;
         boolean inQuotes = false;
@@ -2335,7 +2550,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // header shape whose full header/data parity belongs to the shared-tokenizer follow-up. Quoting
             // ("a,b") is the RFC 4180 way to carry a delimiter in a header name and is handled above.
             if (c == delim) {
-                entries.add(line.substring(start, i).trim());
+                addHeaderField(entries, line.substring(start, i).trim(), maxFields, budget);
                 start = i + 1;
                 fieldHasNonWhitespace = false;
                 continue;
@@ -2352,7 +2567,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 fieldHasNonWhitespace = true;
             }
         }
-        entries.add(line.substring(start).trim());
+        addHeaderField(entries, line.substring(start).trim(), maxFields, budget);
         // Match String.split's default (limit 0), which the plain/escaped header path still uses: drop
         // trailing empty fields so a trailing delimiter ("a,b,") yields the same column count everywhere,
         // not a spurious empty-named last column.
@@ -3907,7 +4122,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         private List<Attribute> inferSchemaFromBatchReader(String headerLine) throws IOException {
-            String[] columnNames = splitFieldsForOptions(headerLine, options);
+            try (HeaderBudget budget = newHeaderBudget()) {
+                return inferSchemaFromBatchReader(headerLine, budget);
+            }
+        }
+
+        private List<Attribute> inferSchemaFromBatchReader(String headerLine, HeaderBudget budget) throws IOException {
+            String[] columnNames = splitFieldsForOptions(headerLine, options, effectiveMaxFields(), budget);
             if (options.quoting()) {
                 // No type annotations on this path, so the fields are bare names — unwrap RFC 4180 quoting.
                 unquoteHeaderNames(columnNames, options.quoteChar());
@@ -3963,7 +4184,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 recordCapDropped = true; // cap-determined survivor loss during sampling — publish must safe-miss
             }
             maybeHintUndecodedNullMarker(sample.rows(), messageLocation);
-            return inferSyntheticSchema(sample.rows(), options.columnPrefix(), options.datetimeFormatter());
+            int columns = syntheticColumnCount(sample.rows());
+            checkColumnCap(columns, effectiveMaxFields());
+            try (Releasable charge = chargeSyntheticColumns(columns)) {
+                return inferSyntheticSchema(sample.rows(), options.columnPrefix(), options.datetimeFormatter());
+            }
         }
 
         /** The raw field index a pinned-schema position reads; the identity under positional binding. */

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 
 import java.io.IOException;
@@ -99,7 +100,7 @@ public class NdJsonSchemaInferrer {
      * produced it. A {@code CircuitBreakingException} propagates unchanged and stops inference. It is not a malformed
      * line, so it must never be caught as one.
      * <p>
-     * More than {@code maxFields} fields, objects and leaves alike, fails inference with a client error naming
+     * More than {@code maxFields} fields, objects and leaves alike, fails inference with an {@code ExternalClientException} (400) naming
      * {@code schema_max_fields}. Like the breaker, that is not a malformed line: it stops inference at once. Fields are
      * counted as a line is parsed, so the line that crosses the cap is read to its end first, and if it turns out to be
      * malformed it is skipped like any other and its fields are discarded.
@@ -160,7 +161,9 @@ public class NdJsonSchemaInferrer {
                     // yet turn out to be malformed. Only a well-formed line fails inference; a malformed one is
                     // skipped like any other, without its fields counting toward the cap.
                     if (restOfRecordParses(parser)) {
-                        throw new IllegalArgumentException(fieldCapMessage(maxFields));
+                        // A deterministic limit, so a 400; typed rather than an IllegalArgumentException so that every
+                        // rail keeps the message, and the same refusal CSV, TSV and Parquet give.
+                        throw ExternalClientException.schemaTooWide(fieldCapMessage(maxFields));
                     }
                     logger.debug("Malformed NDJSON at line {} past the field cap", lineCount);
                     discardFieldsFrom(lineStart);
@@ -236,8 +239,8 @@ public class NdJsonSchemaInferrer {
             );
         }
         return LoggerMessageFormat.format(
-            "NDJSON schema inference found more than [{}] fields; raise [{}] in the dataset settings or the "
-                + "WITH clause to infer a wider schema",
+            "NDJSON schema inference found more than [{}] fields; raise [esql.external.schema_max_fields] or the dataset's [{}] "
+                + "to infer a wider schema",
             maxFields,
             NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS
         );

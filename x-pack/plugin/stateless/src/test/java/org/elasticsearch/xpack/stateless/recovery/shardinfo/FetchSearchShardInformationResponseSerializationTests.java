@@ -42,7 +42,12 @@ public class FetchSearchShardInformationResponseSerializationTests extends Abstr
         if (instance.volumesCollected() == false) {
             return switch (randomIntBetween(0, 1)) {
                 case 0 -> new Response(randomValueOtherThan(instance.getLastSearcherAcquiredTime(), () -> randomLong()));
-                case 1 -> new Response(instance.getLastSearcherAcquiredTime(), randomIdentifier(), randomNonNegativeLong(), randomVolumes());
+                case 1 -> new Response(
+                    instance.getLastSearcherAcquiredTime(),
+                    randomIdentifier(),
+                    randomNonNegativeLong(),
+                    randomVolumes()
+                );
                 default -> throw new AssertionError("unreachable");
             };
         }

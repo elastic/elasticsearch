@@ -7,6 +7,14 @@
 
 package org.elasticsearch.xpack.stateless.snapshots;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -18,6 +26,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.ShardGeneration;
@@ -28,17 +37,18 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotBacklogTracker.LocalShard;
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotBacklogTracker.RepositoryBacklog;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.stateless.snapshots.SnapshotBacklogTestUtils.commitFiles;
 import static org.elasticsearch.xpack.stateless.snapshots.SnapshotBacklogTestUtils.shardSnapshots;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -167,7 +177,6 @@ public class SnapshotBacklogTrackerTests extends ESTestCase {
                 clusterService,
                 client,
                 indicesService,
-                mock(StatelessCommitService.class),
                 repositoriesService,
                 threadPool,
                 MeterRegistry.NOOP
@@ -194,6 +203,33 @@ public class SnapshotBacklogTrackerTests extends ESTestCase {
         } finally {
             clusterService.close();
             terminate(threadPool);
+        }
+    }
+
+    public void testTheFilesOfACommitAreCountedWithTheirLengthsFromTheDirectoryWithoutBlobLocations() throws Exception {
+        // a commit that is only in the directory of the shard, as one that is not uploaded yet: no blob location exists for its files
+        try (Directory directory = new ByteBuffersDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
+                writer.addDocument(List.of(new StringField("field", randomAlphaOfLength(20), Field.Store.YES)));
+                writer.commit();
+            }
+            final IndexCommit commit = DirectoryReader.listCommits(directory).get(0);
+
+            final Map<String, Long> commitFiles = SnapshotBacklogTracker.getCommitFiles(commit);
+            assertThat(commitFiles.keySet(), equalTo(Set.copyOf(commit.getFileNames())));
+            long expectedBytes = 0;
+            for (String fileName : commit.getFileNames()) {
+                assertThat(commitFiles.get(fileName), equalTo(directory.fileLength(fileName)));
+                if (Store.MetadataSnapshot.isReadAsHash(fileName) == false) {
+                    expectedBytes += directory.fileLength(fileName);
+                }
+            }
+            assertThat(expectedBytes, greaterThan(0L));
+
+            // the repository holds nothing, so the shard counts, rather than being unknown
+            cache.known.put(shardId(0), RepositoryShardFiles.NONE);
+            final var backlog = compute(cache, List.of(new LocalShard(shardId(0), projectId, commitFiles)), Map.of());
+            assertThat(backlog, equalTo(new RepositoryBacklog(expectedBytes, 1, 0, expectedBytes)));
         }
     }
 }

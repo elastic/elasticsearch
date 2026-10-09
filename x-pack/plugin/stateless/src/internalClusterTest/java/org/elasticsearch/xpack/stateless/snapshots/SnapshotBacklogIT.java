@@ -13,6 +13,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.shard.ShardId;
@@ -28,6 +29,9 @@ import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepository;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotBacklogTracker.RepositoryBacklog;
 
@@ -42,9 +46,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -319,6 +325,56 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
         final var repository = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class)
             .repository(projectRepo.projectId(), projectRepo.name());
         return safeAwait(listener -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, listener));
+    }
+
+    public void testTheFileLengthsOfACommitAreTheSameInTheDirectoryAndInTheUploadedBlob() throws Exception {
+        final var node = startMasterAndIndexNode(snapshotNodeSettings().build());
+        final var indexName = randomIdentifier();
+        createIndexWithOneShard(indexName, Settings.builder());
+        indexAndFlush(indexName);
+        indexAndFlush(indexName);
+
+        // The backlog compares files by name and length against what the repository holds, which is what a snapshot of the blob
+        // locations recorded, so the lengths in the directory have to be the same as the ones of the uploaded files
+        final var shard = findIndexShard(resolveIndex(indexName), 0);
+        final var commitService = internalCluster().getInstance(StatelessCommitService.class, node);
+        assertBusy(() -> {
+            try (var commitRef = shard.acquireLastIndexCommit(false)) {
+                final var commit = commitRef.getIndexCommit();
+                assertThat(commit.getFileNames(), not(empty()));
+                for (String fileName : commit.getFileNames()) {
+                    final var blobLocation = commitService.getBlobLocation(shard.shardId(), fileName);
+                    assertThat(fileName, blobLocation, notNullValue());
+                    assertThat(fileName, blobLocation.fileLength(), equalTo(commit.getDirectory().fileLength(fileName)));
+                }
+            }
+        });
+    }
+
+    public void testBacklogOfAHollowShardIsKnown() throws Exception {
+        startMasterOnlyNode(snapshotNodeSettings().build());
+        final var hollowSettings = snapshotNodeSettings().put(HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
+            .put(HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), TimeValue.ZERO)
+            .put(HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO)
+            .build();
+        final var nodeA = startIndexNode(hollowSettings);
+        final var nodeB = startIndexNode(hollowSettings);
+        ensureStableCluster(3);
+
+        final var indexName = randomIdentifier();
+        createIndexWithOneShard(indexName, Settings.builder().put("index.routing.allocation.exclude._name", nodeB));
+        indexAndFlush(indexName);
+        final var repoName = randomIdentifier();
+        createRepository(repoName, "fs");
+        final var repo = new ProjectRepo(ProjectId.DEFAULT, repoName);
+
+        // the shard moves to the other node, where it is hollow
+        hollowShards(indexName, 1, nodeA, nodeB);
+        assertThat(findIndexShard(resolveIndex(indexName), 0).getEngineOrNull(), instanceOf(HollowIndexEngine.class));
+
+        // it has a backlog like any other shard, and is not unknown
+        awaitPositiveKnownBacklog(nodeB, repo);
+        assertThat(getBacklog(nodeB, repo).countedShards(), equalTo(1));
     }
 
     private static class BlockMetadataReads extends StatelessMockRepositoryStrategy {

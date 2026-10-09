@@ -9,14 +9,13 @@ package org.elasticsearch.xpack.stateless.snapshots;
 
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
 /**
- * The bytes of one shard's current commit that a snapshot into a repository still has to upload as data blobs.
+ * The bytes of one shard's latest local commit that a snapshot into a repository still has to upload as data blobs.
  *
  * @param bytes         the total length of the commit files the repository does not hold yet, without the files in {@code inlinedBytes}
  * @param inlinedBytes  the total length of the commit files the repository does not hold yet but which a snapshot stores inside the
@@ -25,15 +24,15 @@ import java.util.Objects;
 record ShardBacklog(long bytes, long inlinedBytes) {
 
     /**
-     * @param commitFiles     the files of the shard's current commit with their locations, which give the file lengths
+     * @param commitFiles     the names and lengths of the files of the shard's latest commit
      * @param repositoryFiles the files the repository already holds for the shard
      */
-    static ShardBacklog of(Map<String, BlobLocation> commitFiles, RepositoryShardFiles repositoryFiles) {
+    static ShardBacklog of(Map<String, Long> commitFiles, RepositoryShardFiles repositoryFiles) {
         long bytes = 0;
         long inlinedBytes = 0;
-        for (Map.Entry<String, BlobLocation> commitFile : commitFiles.entrySet()) {
+        for (Map.Entry<String, Long> commitFile : commitFiles.entrySet()) {
             final String fileName = commitFile.getKey();
-            final long length = commitFile.getValue().fileLength();
+            final long length = commitFile.getValue();
             if (repositoryFiles.contains(fileName, length)) {
                 continue;
             }

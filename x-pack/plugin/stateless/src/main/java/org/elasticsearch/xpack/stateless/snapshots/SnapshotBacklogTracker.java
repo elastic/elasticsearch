@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.snapshots;
 
+import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -36,10 +37,9 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.commits.BlobLocation;
-import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.snapshots.ShardGenerationsRefresher.Trigger;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -59,8 +59,9 @@ import java.util.stream.Collectors;
  * i.e. what the next snapshot into the repository will have to upload. Unlike the counters of a running snapshot, this is known before
  * the snapshot starts, so there is time to act on it.
  * <p>
- * For one shard the backlog is the total length of the files of its current commit that the repository does not hold, see
- * {@link ShardBacklog}, minus what a running snapshot of the shard has already uploaded. What the repository holds comes from the
+ * For one shard the backlog is the total length of the files of its latest local commit that the repository does not hold, see
+ * {@link ShardBacklog}, minus what a running snapshot of the shard has already uploaded. It is a lower bound of what a snapshot started
+ * now would upload, because a snapshot flushes the shard first and so captures a commit that is newer than the latest one. What the repository holds comes from the
  * shard's latest shard-level metadata, which {@link RepositoryFilesCache} keeps current. The generation of that metadata comes from the
  * master, which this node asks whenever the repository generation in the cluster state changes or a shard starts on the node (see
  * {@link ShardGenerationsRefresher}), so this node never reads the root blob of the repository. A shard whose repository files are not
@@ -116,9 +117,10 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
     }
 
     /**
-     * A primary shard on this node, with the files of its current commit, or {@code null} if they cannot be determined at the moment.
+     * A primary shard on this node, with the names and lengths of the files of its latest commit, or {@code null} if they cannot be
+     * determined at the moment.
      */
-    record LocalShard(ShardId shardId, ProjectId projectId, @Nullable Map<String, BlobLocation> commitFiles) {}
+    record LocalShard(ShardId shardId, ProjectId projectId, @Nullable Map<String, Long> commitFiles) {}
 
     private record TrackedRepository(BlobStoreRepository repository, RepositoryFilesCache cache, ShardGenerationsRefresher refresher) {
 
@@ -131,7 +133,6 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
     private final ClusterService clusterService;
     private final Client client;
     private final IndicesService indicesService;
-    private final StatelessCommitService commitService;
     private final RepositoriesService repositoriesService;
     private final ThreadPool threadPool;
     private final Executor repositoryReadExecutor;
@@ -149,7 +150,6 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
         ClusterService clusterService,
         Client client,
         IndicesService indicesService,
-        StatelessCommitService commitService,
         RepositoriesService repositoriesService,
         ThreadPool threadPool,
         MeterRegistry meterRegistry
@@ -157,7 +157,6 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
         this.clusterService = clusterService;
         this.client = client;
         this.indicesService = indicesService;
-        this.commitService = commitService;
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
         // Shard-level metadata is read on the snapshot_meta pool, which is meant for that and is allowed to do repository I/O.
@@ -390,26 +389,31 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
     }
 
     /**
-     * @return the files of the latest commit of the shard with their locations (the lengths of the files), without flushing the shard
-     *         as a snapshot would, or {@code null} if they are not available at the moment.
+     * @return the names and lengths of the files of the latest commit of the shard, without flushing the shard as a snapshot would, or
+     *         {@code null} if they are not available at the moment.
      */
     @Nullable
-    private Map<String, BlobLocation> getCommitFiles(IndexShard shard) {
+    private Map<String, Long> getCommitFiles(IndexShard shard) {
         try (var commitRef = shard.acquireLastIndexCommit(false)) {
-            final Map<String, BlobLocation> commitFiles = new HashMap<>();
-            for (String fileName : commitRef.getIndexCommit().getFileNames()) {
-                final BlobLocation blobLocation = commitService.getBlobLocation(shard.shardId(), fileName);
-                if (blobLocation == null) {
-                    return null;
-                }
-                commitFiles.put(fileName, blobLocation);
-            }
-            return commitFiles;
+            return getCommitFiles(commitRef.getIndexCommit());
         } catch (Exception e) {
             // e.g. the shard is closing
             logger.debug(() -> "cannot get the commit files of " + shard.shardId(), e);
             return null;
         }
+    }
+
+    /**
+     * The files of a commit with their lengths, which the shard knows locally. That includes the files of a commit that is not uploaded
+     * yet, which is normal for a shard that is being indexed into, and exactly what makes up the backlog. The length of a file comes from
+     * the directory of the commit, which does not read the file's contents.
+     */
+    static Map<String, Long> getCommitFiles(IndexCommit commit) throws IOException {
+        final Map<String, Long> commitFiles = new HashMap<>();
+        for (String fileName : commit.getFileNames()) {
+            commitFiles.put(fileName, commit.getDirectory().fileLength(fileName));
+        }
+        return commitFiles;
     }
 
     @Override

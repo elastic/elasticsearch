@@ -69,8 +69,10 @@ public final class SliceIndexing {
     public static final String SLICE_KEY_FIELD_NAME = "_slice_key";
 
     /**
-     * Numeric doc-values field holding {@link #sliceHash(String)} per document, with a skip index. Not a sort field: it
-     * exists so a segment's hash range can be read from doc-values metadata without touching the {@code _slice_key} terms.
+     * Reserved field name; nothing writes it. The slice hash needs no column of its own because it is the
+     * {@link #SLICE_KEY_FIELD_NAME} prefix ({@link #sliceHashFromKey}), readable per document, per term, or per segment
+     * from the key. The name stays reserved so a future hash-derived structure (for example a per-segment distinct-hash
+     * summary for leaf pruning or merge partitioning) can claim it without colliding with user mappings.
      */
     public static final String SLICE_HASH_FIELD_NAME = "_slice_hash";
 
@@ -105,8 +107,8 @@ public final class SliceIndexing {
     }
 
     /**
-     * Field names a slice-enabled index reserves: the user-facing {@link #FIELD_NAME} alias and the internal
-     * {@link #SLICE_KEY_FIELD_NAME} and {@link #SLICE_HASH_FIELD_NAME} doc-values fields.
+     * Field names a slice-enabled index reserves: the user-facing {@link #FIELD_NAME} alias, the internal
+     * {@link #SLICE_KEY_FIELD_NAME} doc-values field, and the reserved {@link #SLICE_HASH_FIELD_NAME}.
      */
     public static boolean isReservedFieldName(String name) {
         return FIELD_NAME.equals(name) || SLICE_KEY_FIELD_NAME.equals(name) || SLICE_HASH_FIELD_NAME.equals(name);

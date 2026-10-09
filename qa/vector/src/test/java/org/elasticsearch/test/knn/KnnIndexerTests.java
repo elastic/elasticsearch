@@ -12,14 +12,12 @@ package org.elasticsearch.test.knn;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 /** Verifies the Lucene document layouts emitted by the vector QA indexer. */
 public class KnnIndexerTests extends ESTestCase {
@@ -37,18 +35,8 @@ public class KnnIndexerTests extends ESTestCase {
         assertThat(document.getField(KnnIndexer.PARTITION_ID_FIELD).binaryValue(), equalTo(new BytesRef(partition)));
         assertThat(document.getField(SliceIndexing.SLICE_KEY_FIELD_NAME).binaryValue(), equalTo(SliceIndexing.encodeSliceKey(partition)));
         assertThat(document.getField(SliceIndexing.SLICE_KEY_FIELD_NAME).fieldType().docValuesType(), equalTo(DocValuesType.SORTED));
-        assertThat(
-            document.getField(SliceIndexing.SLICE_HASH_FIELD_NAME).numericValue().longValue(),
-            equalTo(SliceIndexing.sliceHash(partition))
-        );
-        assertThat(
-            document.getField(SliceIndexing.SLICE_HASH_FIELD_NAME).fieldType().docValuesType(),
-            equalTo(DocValuesType.SORTED_NUMERIC)
-        );
-        assertThat(
-            document.getField(SliceIndexing.SLICE_HASH_FIELD_NAME).fieldType().docValuesSkipIndexType(),
-            not(equalTo(DocValuesSkipIndexType.NONE))
-        );
+        // The reserved hash name is never written; the hash is the key's prefix.
+        assertNull(document.getField(SliceIndexing.SLICE_HASH_FIELD_NAME));
     }
 
     public void testUnslicedPartitionDocumentDoesNotAddSliceFields() {

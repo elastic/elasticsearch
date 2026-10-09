@@ -636,8 +636,8 @@ public class QueryRewriteContext {
     }
 
     /**
-     * {@code _slice_key} and {@code _slice_hash} exist only for the slice layout (index sort and segment pruning). Their
-     * encoded values mean nothing to users, so they are never resolvable by name on a slice-enabled index.
+     * {@code _slice_key} exists only for the slice layout (the index sort) and {@code _slice_hash} is a reserved name.
+     * Their encoded values mean nothing to users, so they are never resolvable by name on a slice-enabled index.
      */
     protected final boolean isInternalSliceField(String fieldName) {
         return isSliceFieldAliasEnabled()

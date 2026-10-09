@@ -12,7 +12,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
@@ -30,8 +29,10 @@ import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -80,13 +81,9 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
         format = new ESNextDiskBBQVectorsFormat(128, 4, SLICE_FIELD);
     }
 
-    /**
-     * Adds the two doc-values fields a sliced document carries: the slice field holding the encoded slice key (the
-     * index sort), and the numeric slice hash with a skip index that sliced search uses to prune whole leaves.
-     */
+    /** Adds the doc-values field a sliced document carries: the slice field holding the encoded slice key (the index sort). */
     protected static void addSliceFields(Document doc, String sliceField, String sliceValue) {
         doc.add(SortedDocValuesField.indexedField(sliceField, SliceIndexing.encodeSliceKey(sliceValue)));
-        doc.add(SortedNumericDocValuesField.indexedField(SliceIndexing.SLICE_HASH_FIELD_NAME, SliceIndexing.sliceHash(sliceValue)));
     }
 
     /** The index sort every sliced index must use: slice field first, STRING, ascending, missing values last. */
@@ -434,20 +431,13 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
     }
 
     /**
-     * Draws random slice values until two share a hash. A 32-bit birthday collision is expected after ~2^16 draws, so
-     * the budget below is generous; returns {@code null} if it is exhausted.
+     * A slice absent from a leaf resolves to no ordinal in the slice field's terms, so the leaf contributes no
+     * results. This checks the one-slice-per-leaf layout and that a query for one slice returns exactly that
+     * slice's documents. The strict proof that the absent leaf never runs a vector search is a separate test.
      */
-    /**
-     * Each leaf's slice-hash range comes from skipper metadata; a leaf whose range excludes the queried slice is not
-     * searched. This checks the layout that makes that possible and that results are unaffected. The strict proof that
-     * the excluded leaf's slice field is never opened is a separate test.
-     */
-    public void testExcludedLeavesAreSkipped() throws IOException {
+    public void testAbsentSliceLeavesYieldNoResults() throws IOException {
         final String sliceA = "a-" + TestUtil.randomSimpleString(random(), 3, 8);
-        String sliceB;
-        do {
-            sliceB = "b-" + TestUtil.randomSimpleString(random(), 3, 8);
-        } while (SliceIndexing.sliceHash(sliceB) == SliceIndexing.sliceHash(sliceA));
+        final String sliceB = "b-" + TestUtil.randomSimpleString(random(), 3, 8);
         final int dimensions = random().nextInt(12, 128);
         final int docsPerSlice = random().nextInt(3, 20);
         final IndexWriterConfig iwc = newIndexWriterConfig();
@@ -471,17 +461,17 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
             }
             try (IndexReader reader = DirectoryReader.open(w)) {
                 assertEquals(2, reader.leaves().size());
-                final long hashA = SliceIndexing.sliceHash(sliceA);
+                final BytesRef keyA = SliceIndexing.encodeSliceKey(sliceA);
                 int leavesContainingA = 0;
                 for (LeafReaderContext ctx : reader.leaves()) {
-                    final DocValuesSkipper skipper = ctx.reader().getDocValuesSkipper(SliceIndexing.SLICE_HASH_FIELD_NAME);
-                    assertNotNull(skipper);
-                    assertEquals("each leaf holds a single slice", skipper.minValue(), skipper.maxValue());
-                    if (skipper.minValue() <= hashA && hashA <= skipper.maxValue()) {
+                    final SortedDocValues keys = ctx.reader().getSortedDocValues(SLICE_FIELD);
+                    assertNotNull(keys);
+                    assertEquals("each leaf holds a single slice", 1, keys.getValueCount());
+                    if (keys.lookupTerm(keyA) >= 0) {
                         leavesContainingA++;
                     }
                 }
-                assertEquals("exactly one leaf's hash range contains the queried slice", 1, leavesContainingA);
+                assertEquals("exactly one leaf contains the queried slice", 1, leavesContainingA);
 
                 final IndexSearcher searcher = new IndexSearcher(reader);
                 final int k = 2 * docsPerSlice;
@@ -497,54 +487,13 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
     }
 
     /**
-     * The mapper always writes the slice hash alongside the slice key, so a slice-sorted leaf without a hash skipper is
-     * malformed. Searching it must fail rather than silently search or estimate unpruned, with or without a filter (the
-     * filter path reaches the leaf through the slice-selectivity estimate first).
+     * Strict read-proof counterpart of {@link #testAbsentSliceLeavesYieldNoResults}: the absent-slice leaf resolves
+     * membership through the slice field's sorted doc values, but never opens the slice field's skipper and never
+     * runs a vector search.
      */
-    public void testLeafWithoutHashSkipperIsRejected() throws IOException {
-        final String slice = TestUtil.randomSimpleString(random(), 3, 8);
-        final int dimensions = random().nextInt(12, 128);
-        final int docs = random().nextInt(3, 20);
-        final IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(sliceIndexSort());
-        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
-
-        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
-            for (int i = 0; i < docs; i++) {
-                final Document doc = new Document();
-                // Sort field only: deliberately no SLICE_HASH_FIELD_NAME.
-                doc.add(SortedDocValuesField.indexedField(SLICE_FIELD, SliceIndexing.encodeSliceKey(slice)));
-                doc.add(new StringField("id", "id-" + i, Field.Store.NO));
-                doc.add(createVectorField("vector", dimensions));
-                w.addDocument(doc);
-            }
-            w.commit();
-            try (IndexReader reader = DirectoryReader.open(w)) {
-                for (LeafReaderContext ctx : reader.leaves()) {
-                    assertNull(ctx.reader().getDocValuesSkipper(SliceIndexing.SLICE_HASH_FIELD_NAME));
-                }
-                final IndexSearcher searcher = new IndexSearcher(reader);
-                final Query filter = random().nextBoolean() ? null : new TermQuery(new Term("id", "id-0"));
-                final Query query = createSlicedQuery("vector", dimensions, docs, docs, filter, 1.0f, new BytesRef(slice));
-                final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> searcher.search(query, docs));
-                assertThat(
-                    e.getMessage(),
-                    equalTo("slice hash field [" + SliceIndexing.SLICE_HASH_FIELD_NAME + "] must be indexed as a DocValuesSkipper field")
-                );
-            }
-        }
-    }
-
-    /**
-     * Strict read-proof counterpart of {@link #testExcludedLeavesAreSkipped}: proves that the excluded leaf's
-     * slice field is never opened via {@code getSortedDocValues} or {@code getDocValuesSkipper}.
-     */
-    public void testExcludedLeafNeverOpensSliceField() throws IOException {
+    public void testAbsentSliceLeafNeverSearchesVectors() throws IOException {
         final String sliceA = "a-" + TestUtil.randomSimpleString(random(), 3, 8);
-        String sliceB;
-        do {
-            sliceB = "b-" + TestUtil.randomSimpleString(random(), 3, 8);
-        } while (SliceIndexing.sliceHash(sliceB) == SliceIndexing.sliceHash(sliceA));
+        final String sliceB = "b-" + TestUtil.randomSimpleString(random(), 3, 8);
         final int dimensions = random().nextInt(12, 128);
         final int docsPerSlice = random().nextInt(3, 20);
         final IndexWriterConfig iwc = newIndexWriterConfig();
@@ -596,29 +545,31 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
                     assertThat(document.getField(SLICE_FIELD).binaryValue().utf8ToString(), equalTo(sliceA));
                 }
                 assertEquals(2, wrappedReader.leaves().size());
-                final long hashA = SliceIndexing.sliceHash(sliceA);
+                final BytesRef keyA = SliceIndexing.encodeSliceKey(sliceA);
                 int includedLeaves = 0;
                 for (LeafReaderContext ctx : wrappedReader.leaves()) {
                     final RecordingLeafReader rlr = (RecordingLeafReader) ctx.reader();
-                    // Read the hash skipper through the unwrapped inner reader to avoid polluting the recording.
-                    final DocValuesSkipper skipper = rlr.getInner().getDocValuesSkipper(SliceIndexing.SLICE_HASH_FIELD_NAME);
-                    assertNotNull(skipper);
-                    final boolean included = skipper.minValue() <= hashA && hashA <= skipper.maxValue();
+                    // Resolve membership through the unwrapped inner reader to avoid polluting the recording.
+                    final SortedDocValues keys = rlr.getInner().getSortedDocValues(SLICE_FIELD);
+                    assertNotNull(keys);
+                    final boolean included = keys.lookupTerm(keyA) >= 0;
                     final Set<String> sdvOpened = new HashSet<>(rlr.sortedDocValuesOpened);
                     final Set<String> dvskOpened = new HashSet<>(rlr.docValuesSkipperOpened);
+                    final Set<String> vectorsSearched = new HashSet<>(rlr.vectorSearchFields);
                     if (included) {
                         includedLeaves++;
                         assertTrue("included leaf must open the slice field's sorted doc values", sdvOpened.contains(SLICE_FIELD));
+                        assertTrue("included leaf must search the vector field", vectorsSearched.contains("vector"));
                     } else {
                         assertTrue(
-                            "excluded leaf must open the slice hash field's skipper",
-                            dvskOpened.contains(SliceIndexing.SLICE_HASH_FIELD_NAME)
+                            "absent-slice leaf must resolve membership via the slice field's sorted doc values",
+                            sdvOpened.contains(SLICE_FIELD)
                         );
-                        assertFalse("excluded leaf must not open sorted doc values for slice field", sdvOpened.contains(SLICE_FIELD));
-                        assertFalse("excluded leaf must not open doc values skipper for slice field", dvskOpened.contains(SLICE_FIELD));
+                        assertFalse("absent-slice leaf must not open doc values skipper for slice field", dvskOpened.contains(SLICE_FIELD));
+                        assertTrue("absent-slice leaf must not run a vector search", vectorsSearched.isEmpty());
                     }
                 }
-                assertEquals("exactly one leaf's hash range contains the queried slice", 1, includedLeaves);
+                assertEquals("exactly one leaf contains the queried slice", 1, includedLeaves);
             }
         }
     }
@@ -761,6 +712,7 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
     private static final class RecordingLeafReader extends FilterLeafReader {
         final Set<String> sortedDocValuesOpened = new HashSet<>();
         final Set<String> docValuesSkipperOpened = new HashSet<>();
+        final Set<String> vectorSearchFields = new HashSet<>();
 
         RecordingLeafReader(LeafReader in) {
             super(in);
@@ -780,6 +732,18 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
         public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
             docValuesSkipperOpened.add(field);
             return super.getDocValuesSkipper(field);
+        }
+
+        @Override
+        public void searchNearestVectors(String field, float[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
+            vectorSearchFields.add(field);
+            super.searchNearestVectors(field, target, collector, acceptDocs);
+        }
+
+        @Override
+        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
+            vectorSearchFields.add(field);
+            super.searchNearestVectors(field, target, collector, acceptDocs);
         }
 
         @Override

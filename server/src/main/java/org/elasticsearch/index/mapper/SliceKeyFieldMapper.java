@@ -10,12 +10,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.SortedDocValuesField;
-import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -37,9 +34,9 @@ import java.util.Collections;
  * partition boundaries and balanced buckets. Keeping the slice bytes behind the hash keeps slices with colliding hashes
  * as distinct, adjacent terms, and keeps term order equal to document order, which the sliced vector formats rely on.
  * <p>
- * {@link SliceIndexing#SLICE_HASH_FIELD_NAME} holds the same hash as numeric doc values with a skip index. It is not a
- * sort field: its skip-index metadata exposes a segment's hash range without reading the {@code _slice_key} terms, so a
- * search can skip segments that cannot contain a slice and a merge policy can partition on hash prefixes cheaply.
+ * The hash has no field of its own: as the key's prefix it is readable per document, per term, or per segment
+ * (first/last ordinal) from the key itself. {@link SliceIndexing#SLICE_HASH_FIELD_NAME} is reserved for a future
+ * hash-derived structure.
  */
 public class SliceKeyFieldMapper extends MetadataFieldMapper {
 
@@ -106,23 +103,16 @@ public class SliceKeyFieldMapper extends MetadataFieldMapper {
             throw new IllegalArgumentException("unable to create [" + NAME + "] as slice is enabled but slice is null");
         }
         final BytesRef key = SliceIndexing.encodeSliceKey(slice);
-        final long hash = SliceIndexing.sliceHashFromKey(key);
-        addFields(context.doc(), key, hash);
+        context.doc().add(SortedDocValuesField.indexedField(NAME, key));
         // Sliced vector search runs over child documents too (diversifying-children queries), so children carry the key
-        // and hash as well. Done here, after parsing, so the nested-to-root field copy never sees these fields.
+        // as well. Done here, after parsing, so the nested-to-root field copy never sees this field.
         for (LuceneDocument child : context.nonRootDocuments()) {
-            addFields(child, key, hash);
+            child.add(SortedDocValuesField.indexedField(NAME, key));
         }
     }
 
-    private static void addFields(LuceneDocument doc, BytesRef key, long hash) {
-        doc.add(SortedDocValuesField.indexedField(NAME, key));
-        doc.add(SortedNumericDocValuesField.indexedField(SliceIndexing.SLICE_HASH_FIELD_NAME, hash));
-    }
-
-    // Mirror the field types written by addFields so the columnar and row paths produce identical schemas.
+    // Mirror the field type written by postParse so the columnar and row paths produce identical schemas.
     private static final IndexableFieldType SLICE_KEY_DV_TYPE = SortedDocValuesField.indexedField("", new BytesRef()).fieldType();
-    private static final IndexableFieldType SLICE_HASH_DV_TYPE = SortedNumericDocValuesField.indexedField("", 0L).fieldType();
 
     @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
@@ -138,24 +128,14 @@ public class SliceKeyFieldMapper extends MetadataFieldMapper {
         final int docCount = routings.length;
         assert docCount == context.docCount() : "routings length [" + docCount + "] != docCount [" + context.docCount() + "]";
         final BytesRef[] keys = new BytesRef[docCount];
-        final byte[] hashes = new byte[docCount * Long.BYTES];
         for (int d = 0; d < docCount; d++) {
             final BytesRef routing = routings[d];
             if (routing == null) {
                 throw new IllegalArgumentException("unable to create [" + NAME + "] as slice is enabled but slice is null");
             }
             keys[d] = SliceIndexing.encodeSliceKey(routing);
-            ByteUtils.writeLongLE(SliceIndexing.sliceHashFromKey(keys[d]), hashes, d * Long.BYTES);
         }
         context.addColumn(MappedColumns.binaryColumn(keys, NAME, SLICE_KEY_DV_TYPE));
-        context.addColumn(
-            MappedColumns.longColumn(
-                new BytesRef(hashes),
-                SliceIndexing.SLICE_HASH_FIELD_NAME,
-                SLICE_HASH_DV_TYPE,
-                LongColumn.NumericKind.LONG
-            )
-        );
     }
 
     @Override

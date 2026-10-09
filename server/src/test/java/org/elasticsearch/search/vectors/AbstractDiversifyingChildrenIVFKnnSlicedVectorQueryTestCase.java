@@ -12,7 +12,6 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
@@ -78,7 +77,6 @@ public abstract class AbstractDiversifyingChildrenIVFKnnSlicedVectorQueryTestCas
     /** Adds the encoded slice key (the index sort field) and the numeric slice hash that sliced search prunes on. */
     protected static void addRoutingSlice(Document doc, BytesRef sliceId) {
         doc.add(SortedDocValuesField.indexedField(RoutingFieldMapper.NAME, SliceIndexing.encodeSliceKey(sliceId)));
-        doc.add(SortedNumericDocValuesField.indexedField(SliceIndexing.SLICE_HASH_FIELD_NAME, SliceIndexing.sliceHash(sliceId)));
     }
 
     protected static SortField routingSliceSortField() {

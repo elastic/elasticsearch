@@ -34,10 +34,10 @@ import java.util.function.LongSupplier;
  * Package-private helper that contains the encoding-agnostic sliced search logic shared by
  * {@link IVFKnnFloatSlicedVectorQuery} and {@link IVFKnnByteSlicedVectorQuery}.
  * <p>
- * The slice field holds {@link SliceIndexing#encodeSliceKey(BytesRef) encoded slice keys}. Callers encode and hash the
- * requested slices once per query into a {@link SliceKeys}; nothing is hashed or encoded per leaf. Each leaf is first
- * checked against the segment-level hash range of {@link SliceIndexing#SLICE_HASH_FIELD_NAME}, which comes from
- * doc-values metadata, so a leaf that cannot contain any requested slice is skipped without opening the slice field.
+ * The slice field holds {@link SliceIndexing#encodeSliceKey(BytesRef) encoded slice keys}. Callers encode the
+ * requested slices once per query into a {@link SliceKeys}; nothing is encoded per leaf. Per leaf, membership is a
+ * {@code lookupTerm} against the slice field's sorted doc values: a slice absent from the leaf resolves to no
+ * ordinal, so a leaf containing none of the requested slices is skipped before any vector work.
  */
 final class IVFSlicedSearchHelper {
 
@@ -54,64 +54,32 @@ final class IVFSlicedSearchHelper {
     }
 
     /**
-     * The requested slices, encoded once per query: {@code keys[i]} is the slice-key term and {@code hashes[i]} its hash
-     * prefix. {@link #ALL} means every slice is searched; see {@link #isAll()}.
+     * The requested slices, encoded once per query: {@code keys[i]} is the slice-key term. {@link #ALL} means every
+     * slice is searched; see {@link #isAll()}.
      */
-    record SliceKeys(BytesRef[] keys, long[] hashes) {
-        static final SliceKeys ALL = new SliceKeys(new BytesRef[0], new long[0]);
+    record SliceKeys(BytesRef[] keys) {
+        static final SliceKeys ALL = new SliceKeys(new BytesRef[0]);
 
         static SliceKeys of(BytesRef[] sliceIds) {
             if (sliceIds.length == 0) {
                 return ALL;
             }
             final BytesRef[] keys = new BytesRef[sliceIds.length];
-            final long[] hashes = new long[sliceIds.length];
             for (int i = 0; i < sliceIds.length; i++) {
                 keys[i] = SliceIndexing.encodeSliceKey(sliceIds[i]);
-                hashes[i] = SliceIndexing.sliceHashFromKey(keys[i]);
             }
-            return new SliceKeys(keys, hashes);
+            return new SliceKeys(keys);
         }
 
-        int size() {
-            return keys.length;
-        }
-
-        /**
-         * Whether the query searches every slice. Identity against {@link #ALL} rather than a size check: pruning a
-         * non-empty request down to nothing also yields an empty instance, and that means "no slices", not "all".
-         */
+        /** Whether the query searches every slice. */
         boolean isAll() {
             return this == ALL;
-        }
-
-        /** The subset whose hash lies within {@code [minHash, maxHash]}; {@code this} when every slice does. */
-        SliceKeys withinHashRange(long minHash, long maxHash) {
-            int kept = 0;
-            for (long hash : hashes) {
-                if (hash >= minHash && hash <= maxHash) {
-                    kept++;
-                }
-            }
-            if (kept == hashes.length) {
-                return this;
-            }
-            final BytesRef[] keptKeys = new BytesRef[kept];
-            final long[] keptHashes = new long[kept];
-            int j = 0;
-            for (int i = 0; i < hashes.length; i++) {
-                if (hashes[i] >= minHash && hashes[i] <= maxHash) {
-                    keptKeys[j] = keys[i];
-                    keptHashes[j++] = hashes[i];
-                }
-            }
-            return new SliceKeys(keptKeys, keptHashes);
         }
     }
 
     /**
-     * Executes the sliced IVF search: prunes the leaf by slice hash range, resolves slice ordinals, iterates slices,
-     * and collects results. The actual per-slice vector search is delegated to {@code sliceSearcher}.
+     * Executes the sliced IVF search: resolves slice ordinals, iterates slices, and collects results. The actual
+     * per-slice vector search is delegated to {@code sliceSearcher}.
      */
     static TopDocs getLeafResults(
         LeafReaderContext ctx,
@@ -129,9 +97,22 @@ final class IVFSlicedSearchHelper {
         if (reader.numDocs() == 0) {
             return TopDocsCollector.EMPTY_TOPDOCS;
         }
-        final SliceKeys leafSliceKeys = slicesWithinHashRange(reader, sliceKeys);
-        if (leafSliceKeys.isAll() == false && leafSliceKeys.size() == 0) {
-            return AbstractIVFKnnVectorQuery.NO_RESULTS;
+        final SortedDocValues sortedDocValues = reader.getSortedDocValues(sliceField);
+        if (sortedDocValues == null) {
+            throw new IllegalArgumentException("sliceField [" + sliceField + "] must be indexed as a SortedDocValues field");
+        }
+        // Resolve membership first: a slice absent from the leaf resolves to no ordinal, so a leaf containing none of
+        // the requested slices bails out before any collector is created or the vector index is touched. Ordinals are
+        // sorted so we can share the iterator of the filter if it exists. Note that it means that in case of filters,
+        // we cannot process slices in parallel as the iterator needs to be consumed in order.
+        final int[] ords;
+        if (sliceKeys.isAll() == false) {
+            ords = sliceToSortedOrds(sortedDocValues, sliceKeys.keys());
+            if (ords.length == 0) {
+                return AbstractIVFKnnVectorQuery.NO_RESULTS;
+            }
+        } else {
+            ords = null;
         }
         final Bits liveDocs = reader.getLiveDocs();
         final int maxDoc = reader.maxDoc();
@@ -142,22 +123,7 @@ final class IVFSlicedSearchHelper {
         }
         strategy.setCollector(knnCollector);
 
-        final SortedDocValues sortedDocValues = ctx.reader().getSortedDocValues(sliceField);
-        if (sortedDocValues == null) {
-            throw new IllegalArgumentException("sliceField [" + sliceField + "] must be indexed as a SortedDocValues field");
-        }
-        // Get ordinals sorted so we can share the iterator of the filter if it exists. Note that it means that in case
-        // of filters, we cannot process slices in parallel as the iterator needs to be consumed in order.
-        final int[] ords;
-        if (leafSliceKeys.isAll() == false) {
-            ords = sliceToSortedOrds(sortedDocValues, leafSliceKeys.keys());
-            if (ords.length == 0) {
-                return AbstractIVFKnnVectorQuery.NO_RESULTS;
-            }
-        } else {
-            ords = null;
-        }
-        final DocValuesSkipper skipper = ctx.reader().getDocValuesSkipper(sliceField);
+        final DocValuesSkipper skipper = reader.getDocValuesSkipper(sliceField);
         if (skipper == null) {
             throw new IllegalArgumentException("sliceField [" + sliceField + "] must be indexed as a DocValuesSkipper field");
         }
@@ -270,24 +236,20 @@ final class IVFSlicedSearchHelper {
 
     /**
      * Number of docs in {@code ctx} that belong to the requested slices, or {@code maxDoc} when no slice ids
-     * were given (the query searches every slice). Leaves whose hash range excludes every requested slice
-     * count zero without opening the slice field; otherwise this uses the {@code sliceField} skipper, so it is
-     * O(number of requested slices) rather than a doc walk.
+     * were given (the query searches every slice). Slices absent from the leaf resolve to no ordinal and count
+     * zero; present slices use the {@code sliceField} skipper, so this is O(number of requested slices) rather
+     * than a doc walk.
      */
     private static long sliceDocCount(LeafReaderContext ctx, String sliceField, SliceKeys sliceKeys) throws IOException {
         int maxDoc = ctx.reader().maxDoc();
         if (sliceKeys.isAll()) {
             return maxDoc;
         }
-        SliceKeys leafSliceKeys = slicesWithinHashRange(ctx.reader(), sliceKeys);
-        if (leafSliceKeys.size() == 0) {
-            return 0;
-        }
         SortedDocValues sortedDocValues = ctx.reader().getSortedDocValues(sliceField);
         if (sortedDocValues == null) {
             throw new IllegalArgumentException("sliceField [" + sliceField + "] must be indexed as a SortedDocValues field");
         }
-        int[] ords = sliceToSortedOrds(sortedDocValues, leafSliceKeys.keys());
+        int[] ords = sliceToSortedOrds(sortedDocValues, sliceKeys.keys());
         if (ords.length == 0) {
             return 0;
         }
@@ -341,25 +303,6 @@ final class IVFSlicedSearchHelper {
             );
         }
         sliceSearcher.search(context, field, knnCollector, acceptDocs);
-    }
-
-    /**
-     * The slices whose hash lies within the leaf's {@link SliceIndexing#SLICE_HASH_FIELD_NAME} range. The range comes
-     * from the skipper's segment-level metadata, so this reads no doc values. The mapper always writes the hash field
-     * alongside the slice key, so a slice-sorted leaf without a hash skipper is malformed and an error, not a leaf to
-     * search unpruned.
-     */
-    private static SliceKeys slicesWithinHashRange(LeafReader reader, SliceKeys sliceKeys) throws IOException {
-        if (sliceKeys.isAll()) {
-            return sliceKeys;
-        }
-        final DocValuesSkipper hashSkipper = reader.getDocValuesSkipper(SliceIndexing.SLICE_HASH_FIELD_NAME);
-        if (hashSkipper == null) {
-            throw new IllegalArgumentException(
-                "slice hash field [" + SliceIndexing.SLICE_HASH_FIELD_NAME + "] must be indexed as a DocValuesSkipper field"
-            );
-        }
-        return sliceKeys.withinHashRange(hashSkipper.minValue(), hashSkipper.maxValue());
     }
 
     /**

@@ -27,7 +27,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.SortedDocValuesField;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriter;
@@ -443,9 +442,6 @@ public class KnnIndexer {
             doc.add(SortedDocValuesField.indexedField(PARTITION_ID_FIELD, new BytesRef(partitionId)));
             if (sliced) {
                 doc.add(SortedDocValuesField.indexedField(SliceIndexing.SLICE_KEY_FIELD_NAME, SliceIndexing.encodeSliceKey(partitionId)));
-                doc.add(
-                    SortedNumericDocValuesField.indexedField(SliceIndexing.SLICE_HASH_FIELD_NAME, SliceIndexing.sliceHash(partitionId))
-                );
             }
             return doc;
         }

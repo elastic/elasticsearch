@@ -12,7 +12,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.SortedDocValuesField;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
@@ -117,7 +116,6 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
     /** Encoded slice key (the index sort field) plus the numeric slice hash that sliced search prunes on. */
     private static void addSliceFields(Document doc, String sliceValue) {
         doc.add(SortedDocValuesField.indexedField(SLICE_FIELD, SliceIndexing.encodeSliceKey(sliceValue)));
-        doc.add(SortedNumericDocValuesField.indexedField(SliceIndexing.SLICE_HASH_FIELD_NAME, SliceIndexing.sliceHash(sliceValue)));
     }
 
     @Override

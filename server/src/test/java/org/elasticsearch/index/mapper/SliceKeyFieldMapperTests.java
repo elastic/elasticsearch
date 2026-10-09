@@ -158,13 +158,8 @@ public class SliceKeyFieldMapperTests extends MapperServiceTestCase {
         assertThat(key, equalTo(SliceIndexing.encodeSliceKey(slice)));
         assertThat(SliceIndexing.sliceFromKey(key), equalTo(slice));
 
-        List<IndexableField> hashFields = doc.getFields(SliceIndexing.SLICE_HASH_FIELD_NAME);
-        assertThat(hashFields, hasSize(1));
-        IndexableField hashField = hashFields.get(0);
-        assertThat(hashField.fieldType().docValuesType(), equalTo(DocValuesType.SORTED_NUMERIC));
-        assertThat(hashField.fieldType().docValuesSkipIndexType(), not(equalTo(DocValuesSkipIndexType.NONE)));
-        long hash = hashField.numericValue().longValue();
-        assertThat(hash, equalTo(SliceIndexing.sliceHash(slice)));
-        assertThat(hash, equalTo(SliceIndexing.sliceHashFromKey(key)));
+        // The reserved hash name is never written; the hash is the key's prefix.
+        assertThat(doc.getFields(SliceIndexing.SLICE_HASH_FIELD_NAME), empty());
+        assertThat(SliceIndexing.sliceHashFromKey(key), equalTo(SliceIndexing.sliceHash(slice)));
     }
 }

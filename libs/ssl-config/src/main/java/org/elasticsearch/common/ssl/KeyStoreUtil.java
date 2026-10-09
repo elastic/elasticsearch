@@ -151,6 +151,7 @@ public final class KeyStoreUtil {
     public static X509ExtendedKeyManager createKeyManager(KeyStore keyStore, char[] password, String algorithm)
         throws GeneralSecurityException {
         // JDK-8393730: X500Name caches its X500Principal lazily without safe publication. Fill the cache here.
+        // TODO: remove once the bug fix is included in all supported JDK versions.
         populateX500PrincipalCaches(keyStore);
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(algorithm);
         kmf.init(keyStore, password);

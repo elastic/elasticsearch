@@ -786,7 +786,9 @@ final class PreloadedRowGroupMetadata implements Releasable {
     }
 
     static <T> T awaitCoalesced(PlainActionFuture<T> future, long timeoutMs) {
-        assert InlineCompletionDrain.draining() == false : "awaitCoalesced from a grant continuation; the nested ticket is not done yet";
+        if (InlineCompletionDrain.draining()) {
+            throw new ElasticsearchTimeoutException("awaitCoalesced from a grant continuation; the nested ticket is not done yet");
+        }
         try {
             return future.actionGet(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (ElasticsearchTimeoutException e) {

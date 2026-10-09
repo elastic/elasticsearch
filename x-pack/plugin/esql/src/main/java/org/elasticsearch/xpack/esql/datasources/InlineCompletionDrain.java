@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+
 import java.util.ArrayDeque;
 import java.util.List;
 
@@ -14,8 +18,14 @@ import java.util.List;
  * Runs grant completions on the calling thread. A completion that {@code release()}s and
  * grants the next waiter enqueues that delivery on this thread's drain instead of
  * recursing, so a chain of cancelled heads cannot blow the stack.
+ * <p>
+ * Each completion is isolated: a throw does not skip later grants and does not propagate
+ * out of {@link #run}, so a GET {@code onResponse} that {@code release()}s still delivers
+ * the buffer. Fatal {@link Error}s are rethrown on another thread.
  */
 public final class InlineCompletionDrain {
+
+    private static final Logger logger = LogManager.getLogger(InlineCompletionDrain.class);
 
     private static final ThreadLocal<ArrayDeque<Runnable>> QUEUE = ThreadLocal.withInitial(ArrayDeque::new);
     private static final ThreadLocal<Boolean> RUNNING = ThreadLocal.withInitial(() -> Boolean.FALSE);
@@ -37,27 +47,22 @@ public final class InlineCompletionDrain {
             return;
         }
         RUNNING.set(Boolean.TRUE);
-        RuntimeException firstException = null;
         try {
             Runnable next;
             while ((next = queue.pollFirst()) != null) {
                 try {
                     next.run();
-                } catch (RuntimeException e) {
-                    if (firstException == null) {
-                        firstException = e;
-                    } else {
-                        firstException.addSuppressed(e);
-                    }
+                } catch (Exception e) {
+                    logger.warn("grant completion failed", e);
+                } catch (Error e) {
+                    logger.error("grant completion error", e);
+                    ExceptionsHelper.maybeDieOnAnotherThread(e);
                 }
             }
         } finally {
             RUNNING.set(Boolean.FALSE);
             QUEUE.remove();
             RUNNING.remove();
-        }
-        if (firstException != null) {
-            throw firstException;
         }
     }
 }

@@ -151,7 +151,9 @@ class ConcurrencyLimiter implements AdmissionGate {
         if (semaphore.tryAcquire(0, TimeUnit.NANOSECONDS)) {
             return;
         }
-        assert InlineCompletionDrain.draining() == false : "sync acquire from a grant continuation; wait on the ticket instead";
+        if (InlineCompletionDrain.draining()) {
+            throw new TimeoutException("sync acquire from a grant continuation; wait on the ticket instead");
+        }
         long startNanos = System.nanoTime();
         AdmissionTracker.Wait wait = tracker.waitStarted(name(), Thread.currentThread().getName());
         boolean acquired;
@@ -251,10 +253,11 @@ class ConcurrencyLimiter implements AdmissionGate {
     }
 
     /**
-     * Async permit ticket. Completes on grant; fails on cancel. Grants complete inline on
-     * the releaser so delivery cannot queue behind synchronous {@link #acquire} waiters on
-     * {@code esql_external_io}. Fair FIFO among ticket waiters. Leftover sync
-     * {@link #acquire} can time out while tickets are queued.
+     * Async permit ticket. Completes on grant; fails on cancel. Grants and failures complete
+     * inline on the releaser so delivery cannot queue behind synchronous {@link #acquire}
+     * waiters on {@code esql_external_io}. {@code executor} is required by callers that start
+     * a GET after the grant; it is not used to deliver the ticket. Fair FIFO among ticket
+     * waiters. Leftover sync {@link #acquire} can time out while tickets are queued.
      * <p>
      * When called from a grant continuation, an uncontended grant may complete after this
      * method returns ({@link InlineCompletionDrain} defers nested deliveries). Do not block
@@ -281,11 +284,11 @@ class ConcurrencyLimiter implements AdmissionGate {
             if (cancel.getAsBoolean()) {
                 failNow = cancelled();
             } else if (asyncWaiters.isEmpty() && semaphore.tryAcquire()) {
-                AsyncWaiter waiter = new AsyncWaiter(listener, executor, cancel);
+                AsyncWaiter waiter = new AsyncWaiter(listener, cancel);
                 waiter.completeGrant();
                 completions = takePendingCompletions();
             } else {
-                AsyncWaiter waiter = new AsyncWaiter(listener, executor, cancel);
+                AsyncWaiter waiter = new AsyncWaiter(listener, cancel);
                 waiter.tracked = tracker.waitStarted(name(), Thread.currentThread().getName());
                 asyncWaiters.addLast(waiter);
                 grantSparesLocked();
@@ -470,14 +473,12 @@ class ConcurrencyLimiter implements AdmissionGate {
 
     private final class AsyncWaiter {
         private final SubscribableListener<Void> listener;
-        private final Executor executor;
         private final BooleanSupplier cancel;
         private final AtomicBoolean completed = new AtomicBoolean();
         private AdmissionTracker.Wait tracked = AdmissionTracker.NOOP_WAIT;
 
-        private AsyncWaiter(SubscribableListener<Void> listener, Executor executor, BooleanSupplier cancel) {
+        private AsyncWaiter(SubscribableListener<Void> listener, BooleanSupplier cancel) {
             this.listener = listener;
-            this.executor = executor;
             this.cancel = cancel;
         }
 
@@ -503,23 +504,12 @@ class ConcurrencyLimiter implements AdmissionGate {
         }
 
         private void fail(Exception e) {
-            pendingCompletions.add(() -> fork(() -> {
+            pendingCompletions.add(() -> {
                 if (completed.compareAndSet(false, true)) {
                     tracked.finished();
                     listener.onFailure(e);
                 }
-            }));
-        }
-
-        private void fork(Runnable task) {
-            try {
-                executor.execute(task);
-            } catch (Exception e) {
-                if (completed.compareAndSet(false, true)) {
-                    tracked.finished();
-                    listener.onFailure(e);
-                }
-            }
+            });
         }
     }
 }

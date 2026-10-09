@@ -237,18 +237,16 @@ public class AsyncConcurrencyLimiterTests extends ESTestCase {
         assertEquals(0, limiter.asyncWaiterCount());
     }
 
-    public void testSyncAcquireFromGrantContinuationAsserts() throws Exception {
+    public void testSyncAcquireFromGrantContinuationFailsImmediately() throws Exception {
         ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false));
         limiter.acquire();
         CountDownLatch done = new CountDownLatch(1);
-        AtomicReference<AssertionError> asserted = new AtomicReference<>();
+        AtomicReference<Exception> failed = new AtomicReference<>();
         limiter.acquireAsync(() -> false, Runnable::run).addListener(ActionListener.wrap(unused -> {
             try {
                 limiter.acquire();
-            } catch (AssertionError e) {
-                asserted.set(e);
             } catch (Exception e) {
-                throw new AssertionError(e);
+                failed.set(e);
             } finally {
                 limiter.release();
                 done.countDown();
@@ -256,8 +254,61 @@ public class AsyncConcurrencyLimiterTests extends ESTestCase {
         }, e -> { throw new AssertionError(e); }));
         limiter.release();
         assertTrue(done.await(5, TimeUnit.SECONDS));
-        assertNotNull(asserted.get());
-        assertThat(asserted.get().getMessage(), containsString("grant continuation"));
+        assertThat(failed.get(), instanceOf(java.util.concurrent.TimeoutException.class));
+        assertThat(failed.get().getMessage(), containsString("grant continuation"));
+    }
+
+    public void testDrainIsolatesCompletionsAndDoesNotThrow() {
+        AtomicInteger ran = new AtomicInteger();
+        InlineCompletionDrain.run(List.of(() -> { throw new IllegalStateException("first boom"); }, ran::incrementAndGet));
+        assertEquals(1, ran.get());
+    }
+
+    public void testFailProgressWhenIoPoolBlockedInAcquire() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(2, false), 5_000L);
+        limiter.acquire();
+        limiter.acquire();
+        ExecutorService pool = Executors.newFixedThreadPool(2, r -> new Thread(r, "io-pool"));
+        try {
+            AtomicBoolean cancel = new AtomicBoolean();
+            CountDownLatch failed = new CountDownLatch(2);
+            AtomicReference<Exception> error = new AtomicReference<>();
+            for (int i = 0; i < 2; i++) {
+                limiter.acquireAsync(cancel::get, pool).addListener(ActionListener.wrap(unused -> fail("should have been cancelled"), e -> {
+                    error.compareAndSet(null, e);
+                    failed.countDown();
+                }));
+            }
+            assertBusy(() -> assertEquals(2, limiter.asyncWaiterCount()));
+
+            CountDownLatch entered = new CountDownLatch(2);
+            CountDownLatch syncDone = new CountDownLatch(2);
+            for (int i = 0; i < 2; i++) {
+                pool.execute(() -> {
+                    entered.countDown();
+                    try {
+                        limiter.acquire();
+                        limiter.release();
+                    } catch (Exception e) {
+                        error.compareAndSet(null, e);
+                    } finally {
+                        syncDone.countDown();
+                    }
+                });
+            }
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            cancel.set(true);
+            limiter.wakeAsyncWaiters();
+            assertTrue("cancel must finish without the pool", failed.await(1, TimeUnit.SECONDS));
+            assertThat(error.get(), instanceOf(TaskCancelledException.class));
+            limiter.release();
+            limiter.release();
+            assertTrue(syncDone.await(5, TimeUnit.SECONDS));
+        } finally {
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS));
+        }
+        assertEquals(2, limiter.availablePermits());
     }
 
     public void testUnlimitedAcquireAsyncCompletes() throws Exception {

@@ -255,18 +255,16 @@ public class AsyncQueryConcurrencyBudgetTests extends ESTestCase {
         assertThat(maxDepth.get(), lessThan(200));
     }
 
-    public void testSyncAcquireFromGrantContinuationAsserts() throws Exception {
+    public void testSyncAcquireFromGrantContinuationFailsImmediately() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
         budget.acquire();
         CountDownLatch done = new CountDownLatch(1);
-        AtomicReference<AssertionError> asserted = new AtomicReference<>();
+        AtomicReference<Exception> failed = new AtomicReference<>();
         budget.acquireAsync(null, false, () -> false, Runnable::run).addListener(ActionListener.wrap(unused -> {
             try {
                 budget.acquire();
-            } catch (AssertionError e) {
-                asserted.set(e);
             } catch (Exception e) {
-                throw new AssertionError(e);
+                failed.set(e);
             } finally {
                 budget.release();
                 done.countDown();
@@ -274,8 +272,51 @@ public class AsyncQueryConcurrencyBudgetTests extends ESTestCase {
         }, e -> { throw new AssertionError(e); }));
         budget.release();
         assertTrue(done.await(5, TimeUnit.SECONDS));
-        assertNotNull(asserted.get());
-        assertThat(asserted.get().getMessage(), containsString("grant continuation"));
+        assertThat(failed.get(), instanceOf(TimeoutException.class));
+        assertThat(failed.get().getMessage(), containsString("grant continuation"));
+    }
+
+    public void testFailProgressWhenIoPoolBlockedInAcquire() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(2, 5_000L, null);
+        budget.acquire();
+        budget.acquire();
+        ExecutorService pool = Executors.newFixedThreadPool(2, r -> new Thread(r, "io-pool"));
+        try {
+            CountDownLatch failed = new CountDownLatch(2);
+            AtomicReference<Exception> error = new AtomicReference<>();
+            for (int i = 0; i < 2; i++) {
+                budget.acquireAsync(null, false, () -> false, pool)
+                    .addListener(ActionListener.wrap(unused -> fail("should have been closed"), e -> {
+                        error.compareAndSet(null, e);
+                        failed.countDown();
+                    }));
+            }
+            assertBusy(() -> assertEquals(2, budget.waiterCount()));
+
+            CountDownLatch entered = new CountDownLatch(2);
+            CountDownLatch syncDone = new CountDownLatch(2);
+            for (int i = 0; i < 2; i++) {
+                pool.execute(() -> {
+                    entered.countDown();
+                    try {
+                        budget.acquire();
+                        budget.release();
+                    } catch (Exception e) {
+                        error.compareAndSet(null, e);
+                    } finally {
+                        syncDone.countDown();
+                    }
+                });
+            }
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            budget.close();
+            assertTrue("close must finish without the pool", failed.await(1, TimeUnit.SECONDS));
+            assertThat(error.get(), instanceOf(TimeoutException.class));
+            assertTrue(syncDone.await(5, TimeUnit.SECONDS));
+        } finally {
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS));
+        }
     }
 
     public void testCloseFailsAsyncWaiters() throws Exception {

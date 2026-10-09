@@ -13,18 +13,21 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SourceFilter;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -148,6 +151,45 @@ public class FallbackSyntheticSourceBlockLoaderTests extends MapperServiceTestCa
             expectThrows(IOException.class, () -> loader.rowStrideReader(breaker, failing.getContext()));
             assertThat(breaker.getUsed(), equalTo(0L));
         });
+    }
+
+    public void testObjectAndDottedNameInParentKeptInIgnoredSource() throws IOException {
+        var params = new BlockLoaderTestCase.Params(
+            IndexMode.STANDARD,
+            SourceFieldMapper.Mode.SYNTHETIC,
+            MappedFieldType.FieldExtractPreference.NONE
+        );
+        var mapping = mapping(b -> {
+            b.startObject("obj").field("type", "object").field("synthetic_source_keep", "all");
+            {
+                b.startObject("properties");
+                b.startObject("sub").field("type", "object");
+                {
+                    b.startObject("properties");
+                    b.startObject("field").field("type", "keyword").field("doc_values", false).endObject();
+                    b.endObject();
+                }
+                b.endObject();
+                b.endObject();
+            }
+            b.endObject();
+        });
+        var settings = BlockLoaderTestCase.getSettingsForParams(params)
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), randomBoolean());
+        MapperService mapperService = createMapperService(settings.build(), mapping);
+
+        var runner = new BlockLoaderTestRunner(params).breaker(newLimitedBreaker(ByteSizeValue.ofMb(1)));
+        runner.mapperService(mapperService);
+        runner.document(mapperService.documentMapper().parse(source("""
+            {
+              "obj": {
+                "sub": { "field": "a", "fielx": "x" },
+                "other": "y",
+                "sub.field": "b"
+              }
+            }""")));
+        runner.fieldName("obj.sub.field");
+        runner.run(List.of(new BytesRef("a"), new BytesRef("b")));
     }
 
     private BlockLoader loader(MapperService mapperService) {

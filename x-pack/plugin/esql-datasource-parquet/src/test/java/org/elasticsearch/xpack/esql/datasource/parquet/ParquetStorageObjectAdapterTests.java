@@ -243,6 +243,78 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         assertEquals(0, adapter.trackedStreamCount());
     }
 
+    public void testReleaseIdleWindowsReallocCircuitBreaksWithoutWatermarkCharge() throws IOException {
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
+        randomBytes(data);
+        long windowCharge = HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofBytes(windowCharge + 1024));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(
+            createRangeReadStorageObject(data),
+            footerByteCache,
+            limited,
+            watermark
+        );
+        SeekableInputStream stream = adapter.newStream();
+        try {
+            stream.readFully(new byte[8]);
+            assertEquals(windowCharge, limited.getUsed());
+            assertEquals(windowCharge, watermark.used());
+            adapter.releaseIdleWindows();
+            assertEquals(0, limited.getUsed());
+            assertEquals(0, watermark.used());
+            limited.addEstimateBytesAndMaybeBreak(windowCharge, "filler");
+            expectThrows(CircuitBreakingException.class, () -> stream.readFully(new byte[8]));
+            assertEquals(windowCharge, limited.getUsed());
+            assertEquals(0, watermark.used());
+        } finally {
+            stream.close();
+        }
+        assertEquals(windowCharge, limited.getUsed());
+        assertEquals(0, watermark.used());
+        assertEquals(0, adapter.trackedStreamCount());
+    }
+
+    public void testReleaseIdleWindowsRefundsTwoOpenStreams() throws IOException {
+        byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
+        randomBytes(data);
+        long windowCharge = HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
+        LimitedBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(
+            createRangeReadStorageObject(data),
+            footerByteCache,
+            limited,
+            watermark
+        );
+        SeekableInputStream first = adapter.newStream();
+        SeekableInputStream second = adapter.newStream();
+        try {
+            first.readFully(new byte[8]);
+            second.readFully(new byte[8]);
+            assertEquals(2, adapter.trackedStreamCount());
+            assertEquals(2 * windowCharge, limited.getUsed());
+            assertEquals(2 * windowCharge, watermark.used());
+            adapter.releaseIdleWindows();
+            assertEquals(0, limited.getUsed());
+            assertEquals(0, watermark.used());
+            first.close();
+            first = null;
+            assertEquals(1, adapter.trackedStreamCount());
+            adapter.releaseIdleWindows();
+            assertEquals(0, limited.getUsed());
+            assertEquals(0, watermark.used());
+        } finally {
+            if (first != null) {
+                first.close();
+            }
+            second.close();
+        }
+        assertEquals(0, limited.getUsed());
+        assertEquals(0, watermark.used());
+        assertEquals(0, adapter.trackedStreamCount());
+    }
+
     /**
      * Incomplete window fill (cancel / exception mid-GET) must {@code abortStream} the range
      * rather than {@code close()}, which on S3 would drain the remaining 4–16 MiB.

@@ -2717,11 +2717,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // the async ColumnChunkPrefetcher rather than the sliding-window stream, so they have
                 // no further reader.
                 adapter.installPreWarmedChunks(null);
-                // Drop the open-time sliding window before ticket admission. The optimized iterator
-                // reads through ColumnChunkPrefetcher, not the reader stream; the window would
-                // otherwise stay charged to the node byte budget while the driver waits for tickets
-                // (esql-planning#2252). Also runs when there is no record filter: unfiltered LIMIT
-                // sequential OffsetIndex reads can allocate the same window.
+                // Optimized path only. Drop the open-time sliding window before ticket admission.
+                // The iterator reads through ColumnChunkPrefetcher, not the reader stream; the
+                // window would otherwise stay charged to the node byte budget while the driver
+                // waits for tickets (esql-planning#2252). Also runs when there is no record filter:
+                // unfiltered LIMIT sequential OffsetIndex reads can allocate the same window.
+                // Do not call this on the row-based reader: it still reads through the stream.
                 adapter.releaseIdleWindows();
             }
 

@@ -16,11 +16,13 @@ import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -29,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -60,6 +63,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -69,11 +73,12 @@ import static org.hamcrest.Matchers.lessThan;
  * never reads that stream again. {@link ParquetStorageObjectAdapter#releaseIdleWindows()} must
  * drop the charge before the driver parks on tickets.
  *
- * <p>On main (without the release) {@link #testWindowReleasedAfterFilteredConstruction} fails:
- * {@code WINDOW_BREAKER_LABEL} stays charged ({@code windowOutstanding} equals the
- * file-clamped window, observed 19536). {@link #testReadersFinishWhenCapBelowNWindows}
- * fails the aggregate check: {@code watermark.used() >= 6 × window} while six iterators
- * are open. The fixture is small, so the window is the file length, not 4 MiB.
+ * <p>The fixture is larger than {@code DEFAULT_WINDOW_SIZE} via an unprojected {@code pad}
+ * column, so the window is 4 MiB rather than file-clamped. Footer-load and the reader stream
+ * each charge one window; the guard requires both. On main (without the release)
+ * {@link #testWindowReleasedAfterFilteredConstruction} fails: {@code WINDOW_BREAKER_LABEL}
+ * stays charged. {@link #testOpenReadersHoldNoWindowsBeforeDrain} fails
+ * {@code watermark.used() >= 6 × window} while six iterators are open.
  */
 public class ParquetOpenWindowReleaseTests extends ESTestCase {
 
@@ -82,6 +87,8 @@ public class ParquetOpenWindowReleaseTests extends ESTestCase {
     private static final String FILTER_VALUE = "cat_03";
     private static final int EXPECTED_MATCHING_ROWS = ROWS / DICT_CARDINALITY;
     private static final List<String> CATEGORY_ONLY = List.of("category");
+    /** Unprojected; makes the file larger than {@code DEFAULT_WINDOW_SIZE} so the window is 4 MiB. */
+    private static final int PAD_PER_ROW = (ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 512 * 1024 + ROWS - 1) / ROWS;
 
     private WindowTrackingBreaker breaker;
     private BlockFactory blockFactory;
@@ -94,7 +101,11 @@ public class ParquetOpenWindowReleaseTests extends ESTestCase {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
         asyncIo = Executors.newFixedThreadPool(4, EsExecutors.daemonThreadFactory("test", "open-window"));
         parquet = dictionaryFilterFile();
-        assertThat("dictionary-encoded fixture must not be empty", parquet.length, greaterThanOrEqualTo(1024));
+        assertThat(
+            "unprojected pad must push the file past DEFAULT_WINDOW_SIZE",
+            parquet.length,
+            greaterThan(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE)
+        );
     }
 
     @After
@@ -107,16 +118,17 @@ public class ParquetOpenWindowReleaseTests extends ESTestCase {
      * charge is gone. Drain and close leak-check the watermark and breaker.
      */
     public void testWindowReleasedAfterFilteredConstruction() throws Exception {
-        long windowCharge = HeapFootprint.byteArrayBytes(Math.min(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, parquet.length));
+        long windowCharge = HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
         ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
-        ImmediateAsyncStorage storage = new ImmediateAsyncStorage(parquet, asyncIo);
+        PooledAsyncStorage storage = new PooledAsyncStorage(parquet, asyncIo);
         try (CloseableIterator<Page> iter = openFiltered(storage, watermark)) {
             assertThat(
-                "fixture must take the dictionary-filter read that allocates a window",
-                breaker.windowPeak(),
-                greaterThanOrEqualTo(windowCharge)
+                "footer-load stream plus reader stream must each charge a window",
+                breaker.windowCharged(),
+                greaterThanOrEqualTo(2 * windowCharge)
             );
             assertEquals("WINDOW_BREAKER_LABEL must be refunded after the row-group filter", 0L, breaker.windowOutstanding());
+            assertThat("WINDOW_BREAKER_LABEL charge is gone; leftover is preload / tickets", watermark.used(), lessThan(windowCharge));
             assertEquals(EXPECTED_MATCHING_ROWS, drain(iter));
         }
         assertEquals(0, watermark.used());
@@ -129,21 +141,21 @@ public class ParquetOpenWindowReleaseTests extends ESTestCase {
      * Six filtered iterators sharing one watermark. After construction, used is below six
      * windows. Then all six drain. On main {@code used} is at least six windows.
      */
-    public void testReadersFinishWhenCapBelowNWindows() throws Exception {
-        long windowFootprint = HeapFootprint.byteArrayBytes(Math.min(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, parquet.length));
+    public void testOpenReadersHoldNoWindowsBeforeDrain() throws Exception {
+        long windowFootprint = HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
         long cap = 3 * windowFootprint;
         NodeByteBudgetService budget = new NodeByteBudgetService(cap);
         ParquetIoWatermark watermark = new ParquetIoWatermark(budget);
-        ImmediateAsyncStorage storage = new ImmediateAsyncStorage(parquet, asyncIo);
+        PooledAsyncStorage storage = new PooledAsyncStorage(parquet, asyncIo);
         List<CloseableIterator<Page>> iters = new ArrayList<>(6);
         try {
             for (int i = 0; i < 6; i++) {
                 iters.add(openFiltered(storage, watermark));
             }
             assertThat(
-                "fixture must charge a window on each of the six readers",
-                breaker.windowPeak(),
-                greaterThanOrEqualTo(6 * windowFootprint)
+                "footer-load plus reader stream must each charge a window on all six opens",
+                breaker.windowCharged(),
+                greaterThanOrEqualTo(12 * windowFootprint)
             );
             assertEquals("six reader windows must be refunded after the row-group filter", 0L, breaker.windowOutstanding());
             assertThat(
@@ -193,45 +205,54 @@ public class ParquetOpenWindowReleaseTests extends ESTestCase {
     private static int drain(CloseableIterator<Page> iter) throws Exception {
         int rows = 0;
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
-        while (System.nanoTime() < deadline) {
-            if (iter.waitForReady().isDone() == false) {
-                Thread.yield();
+        while (true) {
+            long remainingMs = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
+            if (remainingMs <= 0L) {
+                fail("timed out draining iterator after 30s; window floor is still wedging admission");
+            }
+            SubscribableListener<Void> ready = iter.waitForReady();
+            if (ready.isDone() == false) {
+                safeAwait(ready, TimeValue.timeValueMillis(remainingMs));
                 continue;
             }
             Page page = iter.tryAdvance();
+            if (page != null) {
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+                continue;
+            }
+            ready = iter.waitForReady();
+            if (ready.isDone() == false) {
+                remainingMs = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
+                if (remainingMs <= 0L) {
+                    fail("timed out draining iterator after 30s; window floor is still wedging admission");
+                }
+                safeAwait(ready, TimeValue.timeValueMillis(remainingMs));
+                continue;
+            }
+            page = iter.tryAdvance();
             if (page == null) {
-                if (iter.waitForReady().isDone() == false) {
-                    Thread.yield();
-                    continue;
-                }
-                page = iter.tryAdvance();
-                if (page == null) {
-                    if (iter.waitForReady().isDone() == false) {
-                        Thread.yield();
-                        continue;
-                    }
-                    return rows;
-                }
+                return rows;
             }
             rows += page.getPositionCount();
             page.releaseBlocks();
         }
-        fail("timed out draining iterator after 30s; window floor is still wedging admission");
-        return rows;
     }
 
     /**
      * Dictionary-encoded {@code category} so {@code RowGroupFilter} DICTIONARY reads a dictionary
-     * page through the reader stream. Tests project only {@code category} so tickets stay small
-     * relative to the open-time window.
+     * page through the reader stream. {@code pad} is unprojected random BINARY so the file exceeds
+     * {@code DEFAULT_WINDOW_SIZE} while tickets stay on {@code category} only.
      */
-    private static byte[] dictionaryFilterFile() throws IOException {
+    private byte[] dictionaryFilterFile() throws IOException {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT32)
             .named("id")
             .required(PrimitiveType.PrimitiveTypeName.BINARY)
             .as(LogicalTypeAnnotation.stringType())
             .named("category")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .named("pad")
             .named("open_window");
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         SimpleGroupFactory factory = new SimpleGroupFactory(schema);
@@ -242,7 +263,8 @@ public class ParquetOpenWindowReleaseTests extends ESTestCase {
                 .withType(schema)
                 .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
                 .withDictionaryEncoding(true)
-                .withRowGroupSize(64 * 1024)
+                .withDictionaryEncoding("pad", false)
+                .withRowGroupSize(8L * 1024 * 1024)
                 .withPageSize(8 * 1024)
                 .withDictionaryPageSize(64 * 1024)
                 .build()
@@ -252,7 +274,14 @@ public class ParquetOpenWindowReleaseTests extends ESTestCase {
                 categories[c] = c < 10 ? "cat_0" + c : "cat_" + c;
             }
             for (int i = 0; i < ROWS; i++) {
-                writer.write(factory.newGroup().append("id", i).append("category", categories[i % DICT_CARDINALITY]));
+                byte[] pad = new byte[PAD_PER_ROW];
+                random().nextBytes(pad);
+                writer.write(
+                    factory.newGroup()
+                        .append("id", i)
+                        .append("category", categories[i % DICT_CARDINALITY])
+                        .append("pad", Binary.fromConstantByteArray(pad))
+                );
             }
         }
         return out.toByteArray();
@@ -303,12 +332,12 @@ public class ParquetOpenWindowReleaseTests extends ESTestCase {
     }
 
     private static final class WindowTrackingBreaker extends LimitedBreaker {
-        private final AtomicLong windowPeak = new AtomicLong();
+        private final AtomicLong windowCharged = new AtomicLong();
         private final AtomicLong windowOutstanding = new AtomicLong();
         private final AtomicLong windowUnit = new AtomicLong();
 
         private WindowTrackingBreaker() {
-            super("open-window", ByteSizeValue.ofMb(16));
+            super("open-window", ByteSizeValue.ofMb(32));
         }
 
         @Override
@@ -316,7 +345,7 @@ public class ParquetOpenWindowReleaseTests extends ESTestCase {
             super.addEstimateBytesAndMaybeBreak(bytes, label);
             if (ParquetStorageObjectAdapter.WINDOW_BREAKER_LABEL.equals(label) && bytes > 0) {
                 windowOutstanding.addAndGet(bytes);
-                windowPeak.addAndGet(bytes);
+                windowCharged.addAndGet(bytes);
                 windowUnit.set(bytes);
             }
         }
@@ -332,8 +361,8 @@ public class ParquetOpenWindowReleaseTests extends ESTestCase {
             }
         }
 
-        long windowPeak() {
-            return windowPeak.get();
+        long windowCharged() {
+            return windowCharged.get();
         }
 
         long windowOutstanding() {
@@ -341,11 +370,11 @@ public class ParquetOpenWindowReleaseTests extends ESTestCase {
         }
     }
 
-    private static class ImmediateAsyncStorage extends AbstractTestStorageObject {
+    private static class PooledAsyncStorage extends AbstractTestStorageObject {
         private final byte[] data;
         private final ExecutorService asyncIo;
 
-        private ImmediateAsyncStorage(byte[] data, ExecutorService asyncIo) {
+        private PooledAsyncStorage(byte[] data, ExecutorService asyncIo) {
             this.data = data;
             this.asyncIo = asyncIo;
         }

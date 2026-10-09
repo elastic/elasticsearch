@@ -238,11 +238,14 @@ public class ExternalSourceCacheService implements Closeable {
         this.listingStore = WeightedStore.of("listing_cache", listingBudget, FileList::estimatedBytes, listingTtl);
 
         logger.info(
-            "External source cache initialized: total=[{}], schema=[{}], schemaMaxEntry=[{}], datasetAggregate=[{}], "
-                + "datasetAggregateMaxEntry=[{}], listing=[{}], fileMetadataMaxEntries=[{}], listingTTL=[{}]",
+            "External source cache initialized: total=[{}], schema=[{}], schemaMaxEntry=[{}], statistics=[{}], "
+                + "statisticsMaxEntry=[{}], datasetAggregate=[{}], datasetAggregateMaxEntry=[{}], listing=[{}], "
+                + "fileMetadataMaxEntries=[{}], listingTTL=[{}]",
             totalBudget,
             ByteSizeValue.ofBytes(schemaBudget),
             ByteSizeValue.ofBytes(schemaStore.maxEntryBytes()),
+            ByteSizeValue.ofBytes(statisticsBudget),
+            ByteSizeValue.ofBytes(statisticsStore.maxEntryBytes()),
             ByteSizeValue.ofBytes(datasetAggregateBudget),
             ByteSizeValue.ofBytes(datasetAggregateStore.maxEntryBytes()),
             ByteSizeValue.ofBytes(listingBudget),
@@ -399,8 +402,8 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
-     * Stores the dataset-level row-count aggregate for one resolved file set into the dedicated
-     * the dataset-aggregate store. The value is a {@link DatasetAggregate} — one {@code long} — so this
+     * Stores the dataset-level row-count aggregate for one resolved file set into the
+     * dataset-aggregate store. The value is a {@link DatasetAggregate} — one {@code long} — so this
      * store's weight is its entry count times a constant, and nothing a per-file contribution carries can
      * be represented in it.
      */
@@ -1106,7 +1109,8 @@ public class ExternalSourceCacheService implements Closeable {
     /**
      * One query's per-stripe fold for one file: the flat stats map of every stripe this query's
      * fragments proved complete, plus the file-EOF stripe ordinal when this query observed
-     * end-of-input ({@code -1} otherwise). Committed idempotently into the schema cache; whole-file
+     * end-of-input ({@code -1} otherwise). Committed idempotently into the statistics store, under the read
+     * that produced it; whole-file
      * eligibility (stripes {@code 0..lastStripeOrdinal} all committed + marker known) is evaluated
      * against the accumulated cache state, so partial knowledge composes across queries.
      */

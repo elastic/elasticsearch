@@ -72,15 +72,18 @@ final class WeightedStore<K, V> {
 
     /**
      * Per-entry admission ceiling: a quarter of the slice, floored at {@link #PER_ENTRY_CEILING_FLOOR_BYTES} so
-     * a deliberately tiny slice does not refuse every realistic entry, and never above the slice itself.
+     * a deliberately tiny slice does not refuse every realistic entry.
+     * <p>
+     * The result cannot exceed the slice, and needs no clamp to say so: both arms of the {@code max} are
+     * already bounded by it - a quarter is, and the floor arm is itself capped by the slice. A trailing
+     * {@code min(sliceBudget, ...)} was unreachable, and a test that credited it passed with it deleted.
      */
     static long perEntryCeiling(long sliceBudget) {
         if (sliceBudget <= 0L) {
             return 0L;
         }
         long quarter = Math.max(1L, sliceBudget / 4);
-        long floored = Math.max(quarter, Math.min(PER_ENTRY_CEILING_FLOOR_BYTES, sliceBudget));
-        return Math.min(sliceBudget, floored);
+        return Math.max(quarter, Math.min(PER_ENTRY_CEILING_FLOOR_BYTES, sliceBudget));
     }
 
     /**

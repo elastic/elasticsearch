@@ -2206,8 +2206,8 @@ public class ExternalSourceResolver {
 
     /**
      * Registry format name for the absent-column policy, or null when the object name does not resolve.
-     * Does not substitute a raw extension; that fallback belonged to a per-file cache key and is
-     * cache keys, not for choosing a fold.
+     * Does not substitute a raw extension: the registry name is what the absent-column policy is keyed on,
+     * and a raw extension is not a registered format.
      */
     @Nullable
     private String registeredFormatName(StoragePath path, @Nullable Map<String, Object> config) {
@@ -2335,7 +2335,8 @@ public class ExternalSourceResolver {
             mergedConfig = queryConfig != null ? queryConfig : Map.of();
         }
 
-        // Warm stats live in the entry's safeMetadata, reconciled there from the data-node capture
+        // Warm stats arrive on the readStatistics argument, fetched from the statistics store under the read
+        // being served and reconciled there from the data-node capture
         // (DriverCompletionInfo → ExternalSourceCacheService.reconcileSourceStats). The optimizer
         // reads the whole-file _stats.* keys (row count, per-column min/max/null/value-count, mtime,
         // fingerprint) straight off this map when this read's own measurements are on it. It ALSO carries the
@@ -3305,7 +3306,7 @@ public class ExternalSourceResolver {
      * are footer-derived and carry no read configuration, so {@code reconcileSourceStats} never files a statistics
      * record for one. Asking for that address would be a guaranteed miss on every columnar file — and
      * {@code Cache#get} counts an absent key as a miss, so it would also be a per-file distortion of
-     * {@code schema_cache.misses} on the format that dominates.
+     * {@code statistics_cache.misses} on the format that dominates.
      * <p>
      * Otherwise the stamp decides. A record carries the stamp of the read that produced it, and enrichment does
      * not move it: a licensed subset contributes a row count and no stamp, so a record enriched by a foreign read
@@ -3351,12 +3352,11 @@ public class ExternalSourceResolver {
      * other datasets on its own. Single-file resolves do not use this gate.
      * <p>
      * <b>The estimate counts schema records only.</b> The reconcile may later file a read-addressed statistics
-     * record beside a schema record whose own stamp does not match the harvest, and that record copies the schema
-     * record's columns, so it weighs about as much. Those puts go through the per-entry ceiling and not through
-     * this gate, so a listing admitted here can end up holding up to one extra entry per divergent file and
-     * evicting its own schema records through the LRU to do it. The statistics store has its own slice now, so
-     * the overhead is bounded there rather than against the schema budget, and it costs warmth rather than heap.
-     * The value split landed; counting those puts against this gate has not followed it.
+     * record for a file whose own stamp does not match the harvest, and that put goes through the statistics
+     * store's per-entry ceiling rather than through this gate. It cannot evict a schema record: the two kinds of
+     * fact sit in separate stores with separate budgets, and a {@code StatisticsRecord} holds no columns, so it
+     * is the lighter of the two per file. What this gate does not account for is therefore bounded by the
+     * statistics slice, not charged against the schema budget it is sizing.
      */
     private final class SchemaFanOutAdmission {
         private final int fileCount;
@@ -4847,9 +4847,10 @@ public class ExternalSourceResolver {
             );
             // Seed the identity — mtime, config fingerprint, read configuration; the row-count is absent until the
             // first query's data node harvests
-            // it (reconcileSourceStats matches on those two + the path, then overlays STATS_ROW_COUNT). Store no
-            // connector config (Map.of()): the inferred text rail stores none either, and the schema cache is shared
-            // across users, so the seed must not retain the dataset's credentials. buildMetadataFromCache re-merges the
+            // it (reconcileSourceStats matches on those two + the path, then files the measurement to the
+            // statistics store under the read that produced it). Store no connector config (Map.of()): the inferred
+            // text rail stores none either, and a cached value has no reason to retain the dataset's credentials,
+            // whatever the key separates. buildMetadataFromCache re-merges the
             // live query config on read. Build the seed inside the loader so deriving its identity runs only on a
             // cache MISS, not on every (mostly warm) resolve.
             SchemaCacheEntry entry = cacheService.getOrComputeSchema(
@@ -4865,7 +4866,7 @@ public class ExternalSourceResolver {
                         formatConfigIdentity(storagePath.objectName(), storageConfig(config)),
                         // Seed the read configuration too, from the declaration this entry was minted for. Without it the seed
                         // would carry no read configuration while every harvest carries one, so the first contribution would match
-                        // nothing and the strict warm rail would die silently — the failure the reverted stopgap hit.
+                        // nothing and the strict warm rail would die silently.
                         ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
                         ReadConfigFingerprint.of(logicalSchema, declaredReadSpecOf(declaredMapping))
                     ),

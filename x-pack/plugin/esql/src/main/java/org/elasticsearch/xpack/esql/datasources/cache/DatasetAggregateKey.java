@@ -29,10 +29,21 @@ import java.util.Objects;
  * <b>This address carries no read configuration.</b> It stores a bare row count with no stamp and no licence,
  * so the serve path's unstamped pass-through - which exists for the columnar readers, that harvest without
  * stamping - fires on it, and nothing compares the configuration that produced the fold against the one
- * consuming it. It is not a wrong answer today, and every reason is an accident rather than a guard: the strict
- * multi-file rail never reaches the aggregate, a non-strict overlay only retypes and renames in place so a
- * projection-less {@code COUNT(*)} sees the same survivor set, and a projection-decided drop suppresses its
- * publish at the producer. Change any one of those and this becomes a silent wrong count with no failing test.
+ * consuming it.
+ * <p>
+ * <b>That is reachable as a wrong count, and it is not new here.</b> A dynamic-declared dataset and an
+ * inferred one over the same resource and settings mint the same address: {@code DefinitionVersion} folds the
+ * resource, the dataset settings and the parent, and a mapping is neither of those, so the identity cannot
+ * tell them apart. A dynamic mapping is not {@code isDeclaredSchema}, so it takes the first-file-wins rail and
+ * reaches this address; and the non-strict overlay does more than retype in place - appending an absent
+ * declared column upgrades a CSV or TSV read to DECLARED, which binds a headerless file differently from an
+ * inferred read of it, so the two do NOT see the same survivor set. Once the per-file records are evicted and
+ * the fold is not, the declared read is served the inferred read's count having read nothing. Measured, not
+ * argued. The previous shape keyed this address equally blind to the mapping, so the exposure predates the
+ * split; what the split changes is that the fold now outlives the per-file records in its own slice.
+ * <p>
+ * The fix is to fold the bound read's configuration into this key, or to refuse the memoized fold whenever a
+ * declared mapping is in play.
  */
 public record DatasetAggregateKey(DatasetIdentity dataset, String pattern, FileSetFingerprint fileSet) {
 

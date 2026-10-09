@@ -998,6 +998,43 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         );
     }
 
+    /**
+     * Only FAIL_FAST licenses a committed row count to cross read configurations, and that is what makes a
+     * licensed count safe: under a lenient policy a committed count is this read's survivor count, not the
+     * file's physical one, so handing it to another declaration would answer with a number nobody measured.
+     * <p>
+     * Pinned here because the guard is one {@code if} at the publish site and nothing else asserted it. The
+     * pairing also explains why a licensed count can never be served to a read that drops rows: the licence
+     * requires FAIL_FAST, and FAIL_FAST aborts rather than dropping, so the two are mutually exclusive. An
+     * integration test that tried to exercise that crossing could only ever pass vacuously.
+     */
+    public void testOnlyFailFastLicensesTheRowCountToCrossReadConfigurations() throws Exception {
+        byte[] data = "1,a\n2,b\n3,c\n".getBytes(StandardCharsets.UTF_8);
+        List<Attribute> schema = List.of(
+            intCol("id"),
+            new ReferenceAttribute(Source.EMPTY, null, "tags", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+
+        // A budget is rejected with FAIL_FAST (it always aborts on the first error), so it carries none.
+        ErrorPolicy failFast = new ErrorPolicy(ErrorPolicy.Mode.FAIL_FAST, 0, 0.0, false);
+        List<Map<String, Object>> licensed = captureRecordReaderPath(data, 0, true, true, 1000, 64, schema, failFast, 4096);
+        assertFalse("fail_fast must publish something to license", licensed.isEmpty());
+        assertTrue(
+            "fail_fast licenses the count: nothing is dropped, so it is the file's physical record count",
+            licensed.stream().anyMatch(f -> Boolean.TRUE.equals(f.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)))
+        );
+
+        for (ErrorPolicy.Mode lenient : List.of(ErrorPolicy.Mode.SKIP_ROW, ErrorPolicy.Mode.NULL_FIELD)) {
+            ErrorPolicy policy = new ErrorPolicy(lenient, 100, 1.0, false);
+            List<Map<String, Object>> fragments = captureRecordReaderPath(data, 0, true, true, 1000, 64, schema, policy, 4096);
+            assertFalse(lenient + " must publish something to check", fragments.isEmpty());
+            assertTrue(
+                lenient + " must NOT license the count - a survivor count is not the file's physical count",
+                fragments.stream().noneMatch(f -> Boolean.TRUE.equals(f.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)))
+            );
+        }
+    }
+
     public void testMaxRecordSizeDropOnDirectBlockPathSafeMissesStripeCapture() throws Exception {
         // The DEFAULT plain non-bracket read (no _rowPosition projected) takes the direct-to-block path
         // (advanceDirectRecord). An over-external_max_record_size drop there must set recordCapDropped and safe-miss the

@@ -248,12 +248,14 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
      * <p>Fails if the dataset key stops carrying the binding mode: the strict dataset is then handed the inferred
      * one's count and answers its first query without reading anything.
      */
-    @AwaitsFix(bugUrl = "the dataset aggregate carries no read configuration, so nothing separates a strict fold from an inferred one")
     public void testStrictAndInferredDatasetsOverOneGlobNeverShareAnAggregate() throws Exception {
         Path dir = createTempDir();
         long total = writeCsvCorpus(dir, true);
         String uri = globUri(dir, "*.csv");
-        Map<String, Object> settings = Map.of("format", "csv", "error_mode", "null_field");
+        // first_file_wins explicitly: the premise is that the inferred dataset memoizes a whole-dataset count,
+        // and only this rail does. Under the default resolution it re-reads the corpus, so the case never
+        // reaches the invariant it exists to pin and fails on its own premise instead.
+        Map<String, Object> settings = nullFieldSettings("first_file_wins");
 
         String inferred = registerDataset("shared_glob_inferred_csv", uri, settings);
         assertWarmCountShortCircuits(inferred, total);
@@ -280,82 +282,10 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         assertWarmCountShortCircuits(dataset, total);
     }
 
-    /**
-     * A ragged corpus read two ways that SHARE a cache namespace. Both datasets carry the same format settings —
-     * `schema_resolution` and `file_sort_by` are part of the cache key, so anything else gives them separate
-     * entries and tests nothing — and differ only in their mapping: one infers, and reads every part at the
-     * anchor's three columns, dropping the wider part's rows; the other declares all four, binds by name — so
-     * the file's own header bounds its rows — keeps them, and its count is licensed as the files' physical one.
-     * <p>
-     * The narrow read's warm {@code COUNT(*)} must equal its own cold one whichever read measured the files
-     * first. A licensed count is the file's number; it is not the narrow read's number, and the narrow read is
-     * what is being answered.
-     */
-    @AwaitsFix(
-        bugUrl = "the scenario this case needs no longer exists on the first_file_wins rail. It rests on a "
-            + "narrow read dropping a wider file part, and elastic/elasticsearch#161120 binds a headered CSV "
-            + "or TSV by its OWN header, so the wider part's extra column falls outside the read schema and "
-            + "nothing drops: the premise asserts 2 rows and the read counts all 5. Narrowing part-01's header "
-            + "instead makes its rows malformed for BOTH reads, so the wider read stops keeping all 5 and the "
-            + "asymmetry the case exists to show is gone either way - measured, not assumed. The hazard still "
-            + "holds: a licensed physical count must not answer for a read that counted fewer rows. It needs a "
-            + "fixture where one read drops and another does not under header binding, which this corpus "
-            + "cannot express. Tracked by elastic/esql-planning#2201"
-    )
-    public void testALicensedCountDoesNotAnswerForAReadThatDropsWiderRows() throws Exception {
-        Map<String, Object> shared = Map.of(
-            "format",
-            "csv",
-            "error_mode",
-            "null_field",
-            "schema_resolution",
-            "first_file_wins",
-            "file_sort_by",
-            "name"
-        );
-        LinkedHashMap<String, DatasetFieldMapping> fourColumns = new LinkedHashMap<>();
-        fourColumns.put("id", new DatasetFieldMapping("integer", null));
-        fourColumns.put("color", new DatasetFieldMapping("keyword", null));
-        fourColumns.put("value", new DatasetFieldMapping("integer", null));
-        fourColumns.put("extra", new DatasetFieldMapping("keyword", null));
-
-        Path narrowFirst = writeRaggedCorpus();
-        Path widerFirst = writeRaggedCorpus();
-
-        // What the narrow read counts on its own, with nothing warm: the answer both orders below must keep.
-        long narrowCount = raggedCount(registerDataset("ragged_baseline_csv", globUri(narrowFirst, "*.csv"), shared));
-        assertThat("the premise: the narrow read must drop the wider part's rows", narrowCount, equalTo(2L));
-
-        // Order one: the narrow read measured first, then a wider read of the same files licenses their physical
-        // counts into the entries the two share.
-        String wideAfter = registerStrictDataset("ragged_wide_after", globUri(narrowFirst, "*.csv"), fourColumns, shared);
-        assertThat("the wider read keeps every row", raggedCount(wideAfter), equalTo(5L));
-        assertThat(raggedCount(registerDataset("ragged_narrow_after", globUri(narrowFirst, "*.csv"), shared)), equalTo(narrowCount));
-        assertThat(raggedCount(registerDataset("ragged_narrow_after2", globUri(narrowFirst, "*.csv"), shared)), equalTo(narrowCount));
-
-        // Order two: the wider read fills the entries first, before the narrow read has measured anything.
-        String wideFirst = registerStrictDataset("ragged_wide_first", globUri(widerFirst, "*.csv"), fourColumns, shared);
-        assertThat("the wider read keeps every row", raggedCount(wideFirst), equalTo(5L));
-        assertThat(raggedCount(registerDataset("ragged_narrow_last", globUri(widerFirst, "*.csv"), shared)), equalTo(narrowCount));
-        assertThat(raggedCount(registerDataset("ragged_narrow_last2", globUri(widerFirst, "*.csv"), shared)), equalTo(narrowCount));
-    }
-
     private long raggedCount(String dataset) {
         try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*)"), TimeValue.timeValueMinutes(5))) {
             return (Long) response.response().column(0).iterator().next();
         }
-    }
-
-    /** Two parts, the second a column wider than the first, so the anchor's schema cannot bound its rows. */
-    private Path writeRaggedCorpus() throws IOException {
-        Path dir = createTempDir();
-        Files.writeString(dir.resolve("part-00.csv"), "id,color,value\n1,red,10\n2,blue,20\n", StandardCharsets.UTF_8);
-        Files.writeString(
-            dir.resolve("part-01.csv"),
-            "id,color,value,extra\n3,green,30,x\n4,black,40,y\n5,white,50,z\n",
-            StandardCharsets.UTF_8
-        );
-        return dir;
     }
 
     /**

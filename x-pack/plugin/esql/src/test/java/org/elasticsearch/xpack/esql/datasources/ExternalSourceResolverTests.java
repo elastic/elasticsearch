@@ -3183,36 +3183,35 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * The budget threshold itself, derived rather than hardcoded. Whether the stop fires at all is
      * {@code fileCount * entry.estimatedBytes() > schemaBudget}, and {@code schemaBudget} is a fifth of
      * {@code esql.external.cache.size} — so the firing condition is arithmetic on a number no API exposes.
-     * This computes the real entry size for the fixture's schema, then runs the identical resolve either side
-     * of the resulting boundary: below it admission refuses and the gather stops; above it admission admits
-     * and the fan-out completes.
-     * <p>
-     * Written because three attempts to observe this on a live node failed, each for a different arithmetic
-     * reason — a cache generous enough to admit, then one so small the dataset-aggregate slice could not hold
-     * a result either. Nothing counts metadata reads or admission refusals at runtime, so the threshold is
-     * only checkable here.
+     * The entry is weighed by resolving once at a generous size and reading the retained weight back, not by
+     * building a bare {@link SchemaCacheEntry} from the fixture's schema: the live record carries its
+     * fingerprints and stamps in {@code safeMetadata} and weighs nearly twice what a metadata-less one does. A
+     * boundary inverted from the bare figure sits far below the real one, so both sides of it admit and a
+     * re-carved schema slice passes unnoticed — which is what this test did when its refusing side was a 44%
+     * undershoot and its admitting side 36x over.
      */
     public void testTheStopFiresOnlyOnceTheSchemaBudgetIsExceeded() throws Exception {
-        List<Attribute> schema = threeFileSchemas().get("s3://bucket/data/a.parquet");
-        long entryBytes = SchemaCacheEntry.from(new SimpleSourceMetadata(schema, "ndjson", "s3://bucket/nd/a.ndjson")).estimatedBytes();
+        long[] probe = gatherStatsWithCacheBytes(1024L * 1024L);
+        assertEquals("the probe must retain every file's record, or the weight read back is not the fan-out's", 3L, probe[1]);
+        assertEquals("three files sharing one schema must weigh the same, or there is no single boundary", 0L, probe[2] % probe[1]);
+        long entryBytes = probe[2] / probe[1];
         assertThat("a real entry must cost something, or the threshold below is meaningless", entryBytes, greaterThan(0L));
 
         // The schema slice is a fifth of esql.external.cache.size (see ExternalSourceCacheService), so a total
-        // of (3e - 1) * 5 lands the slice one byte under fileCount * entryBytes. Inverted from the carve rather
-        // than hardcoded, so a reshare moves this boundary with it instead of silently leaving the refusing
-        // side below it, where the test would still pass without pinning anything.
-        long refusingCacheBytes = Math.max(1024L, (3 * entryBytes - 1) * 5);
-        long admittingCacheBytes = (3 * entryBytes) * 5 * 64;
+        // of (3e - 1) * 5 lands the slice one byte under fileCount * entryBytes and 3e * 5 lands it exactly on
+        // it. Inverted from the carve rather than hardcoded, so a reshare moves this boundary with it.
+        long refusingCacheBytes = (3 * entryBytes - 1) * 5;
+        long admittingCacheBytes = (3 * entryBytes) * 5;
 
         assertEquals(
-            "below the boundary admission refuses, so nothing is retained and the gather stops",
+            "one byte under the boundary admission refuses, so nothing is retained and the gather stops",
             2,
             gatherReadsWithCacheBytes(refusingCacheBytes)
         );
         // Three, not four: both resolves here are cacheable, so the anchor is served from the schema cache
         // inside the stats loop and only the two non-anchor files are read. Four is the non-cacheable shape.
         assertEquals(
-            "above the boundary admission admits, so the fan-out completes and warms the rail",
+            "exactly at the boundary admission admits, so the fan-out completes and warms the rail",
             3,
             gatherReadsWithCacheBytes(admittingCacheBytes)
         );
@@ -3256,6 +3255,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /** Three ndjson files, no row counts (dead fold), strict policy, at the given total cache size. */
     private int gatherReadsWithCacheBytes(long cacheBytes) throws Exception {
+        return (int) gatherStatsWithCacheBytes(cacheBytes)[0];
+    }
+
+    /**
+     * {@code {reads, schema_cache.count, schema_cache.weight_bytes}} after one resolve of the three-file
+     * fixture at the given cache size. The weight is what lets a caller derive the real boundary instead of
+     * guessing at it; see {@link #testTheStopFiresOnlyOnceTheSchemaBudgetIsExceeded}.
+     */
+    private long[] gatherStatsWithCacheBytes(long cacheBytes) throws Exception {
         Settings settings = Settings.builder()
             .put("esql.external.cache.size", cacheBytes + "b")
             .put("esql.external.cache.enabled", true)
@@ -3281,7 +3289,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 future
             );
             assertNotNull(future.actionGet().resolvedSource(glob));
-            return reads.get();
+            Map<String, Object> stats = cacheService.usageStats();
+            return new long[] {
+                reads.get(),
+                ((Number) stats.get("schema_cache.count")).longValue(),
+                ((Number) stats.get("schema_cache.weight_bytes")).longValue() };
         }
     }
 
@@ -5075,8 +5087,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * The arms, and why each answers:
      * <ul>
      *   <li>no bound read — nothing pins what the record must have measured;</li>
-     *   <li>an empty bound read ({@code ReadConfigFingerprint.UNKNOWN}) — {@code withReadConfig("")} returns the
-     *       same key, so consulting the statistics address would re-fetch this very record;</li>
+     *   <li>an empty bound read ({@code ReadConfigFingerprint.UNKNOWN}) — {@code StatisticsKey.of} maps it to
+     *       {@code UNSTAMPED}, the address this very record already answers from;</li>
      *   <li>a columnar record — never stamped, and no statistics record is ever filed for one, so that address
      *       is a guaranteed miss;</li>
      *   <li>otherwise the stamp decides, matching and not matching.</li>

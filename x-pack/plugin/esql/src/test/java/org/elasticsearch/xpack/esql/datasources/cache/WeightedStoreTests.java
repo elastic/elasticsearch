@@ -11,7 +11,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.greaterThan;
@@ -108,17 +107,6 @@ public class WeightedStoreTests extends ESTestCase {
 
         store.putIfWithinCeiling("k", new Sized(ceiling + 1));
         assertThat("the resident value is gone, not merely un-replaced", store.get("k"), nullValue());
-    }
-
-    public void testTheCeilingCheckConsultsTheWeigher() {
-        AtomicInteger calls = new AtomicInteger();
-        WeightedStore<String, Sized> store = WeightedStore.of("counted", 1024 * 1024L, v -> {
-            calls.incrementAndGet();
-            return v.bytes();
-        }, null);
-
-        store.putIfWithinCeiling("k", new Sized(8));
-        assertThat("the ceiling cannot be enforced without weighing the value", calls.get(), greaterThanOrEqualTo(1));
     }
 
     /**

@@ -127,10 +127,10 @@ final class ParquetIoWatermark implements AdmissionGate {
     }
 
     /**
-     * Drops {@code lease} as the node-wide overshoot owner if it currently holds that slot.
-     * Does not release bytes; those already returned from {@link DirectReadBuffer#close()}.
-     * No-op when another lease is the owner. Signals waiters. Call after budget {@code finish()}
-     * has released the budget lock.
+     * Drops {@code lease} as the node-wide overshoot owner if it currently holds that slot,
+     * unpins it, and re-runs the grant loop even when {@code lease} is not the owner. Does not
+     * release bytes; those already returned from {@link DirectReadBuffer#close()}. Call after
+     * budget {@code finish()} has released the budget lock.
      */
     void clearOwner(RowGroupIo lease) {
         budget.clearOwner(lease);
@@ -149,6 +149,11 @@ final class ParquetIoWatermark implements AdmissionGate {
     @Override
     public RescueResult rescueHead(@Nullable Executor delivery) {
         return budget.rescueHeadOverCap(delivery);
+    }
+
+    @Override
+    public void failCancelledWaiters() {
+        budget.failCancelledWaiters();
     }
 
     @Override

@@ -107,6 +107,34 @@ public class QuerySamplingGroundTruthIT extends QuerySamplingRestTestCase {
         });
     }
 
+    public void testFloorCapturesQuietTrafficWhateverTheCaptureRate() throws Exception {
+        setUpIndexAndSampling();
+        // a capture rate of zero captures nothing: what is captured is only because of the floor. Head threshold one
+        // picks every captured query, so that the outcome does not depend on a coin flip
+        Request settings = new Request("PUT", "/_cluster/settings");
+        settings.setJsonEntity("""
+            { "persistent": {
+                "xpack.query_sampling.capture_rate": 0.0,
+                "xpack.query_sampling.min_captures_per_hour": 1000000,
+                "xpack.query_sampling.head_threshold": 1
+            } }
+            """);
+        client().performRequest(settings);
+
+        // the traffic is observed once a second, until then the rate is the configured one
+        List<Float> sent = new ArrayList<>();
+        assertBusy(() -> {
+            float x = randomFloat();
+            sent.add(x);
+            client().performRequest(knnSearch(x));
+            boolean any = false;
+            for (float y : sent) {
+                any |= storedValue(y, "weighted_multiplicity") != null;
+            }
+            assertTrue("one of the searches was captured", any);
+        });
+    }
+
     public void testSettingsOutOfRangeAreRejected() throws Exception {
         Request settings = new Request("PUT", "/_cluster/settings");
         settings.setJsonEntity("""

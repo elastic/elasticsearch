@@ -139,6 +139,9 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         CaptureHandoff handoff = new CaptureHandoff(services.threadPool().executor(THREAD_POOL_NAME), pipeline);
         QueryCaptureFilter filter = new QueryCaptureFilter(clusterSettings, handoff);
         captureFilter.set(filter);
+        if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled()) {
+            filter.startRateUpdates(services.threadPool(), services.threadPool().generic());
+        }
         return List.of(new QuerySamplingService(filter, handoff, tracker, pipeline, writer, refresher, retention));
     }
 

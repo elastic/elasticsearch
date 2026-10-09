@@ -64,6 +64,19 @@ public final class QuerySamplingSettings {
     );
 
     /**
+     * The number of searches per hour that should be captured on a node even if that takes a higher rate than
+     * {@code capture_rate}, so that a node with little traffic still contributes to the sample. A node whose traffic
+     * is high enough captures more than that at the configured rate and is not affected. 0 means no floor.
+     */
+    public static final Setting<Long> MIN_CAPTURES_PER_HOUR = Setting.longSetting(
+        "xpack.query_sampling.min_captures_per_hour",
+        0L,
+        0L,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * γ, the scale of the probability with which a query is picked: how likely a query seen for the first time is
      * picked (about 0.69·γ), and how fast that falls as the query is searched more. A bigger value samples more
      * queries, and more of the popular ones.
@@ -105,6 +118,15 @@ public final class QuerySamplingSettings {
     private QuerySamplingSettings() {}
 
     public static List<Setting<?>> getSettings() {
-        return List.of(ENABLED, CAPTURE_RATE, ACCEPTANCE_SCALE, HEAD_THRESHOLD, MULTIPLICITY_WINDOW, WEIGHTS_REFRESH_INTERVAL, RETENTION);
+        return List.of(
+            ENABLED,
+            CAPTURE_RATE,
+            MIN_CAPTURES_PER_HOUR,
+            ACCEPTANCE_SCALE,
+            HEAD_THRESHOLD,
+            MULTIPLICITY_WINDOW,
+            WEIGHTS_REFRESH_INTERVAL,
+            RETENTION
+        );
     }
 }

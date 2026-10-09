@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchHit;
@@ -24,10 +25,13 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 
@@ -47,14 +51,51 @@ public final class QueryCaptureFilter implements MappedActionFilter {
 
     private final Consumer<CapturedSearch> consumer;
     private volatile boolean enabled;
-    private volatile double captureRate;
+    private final CaptureRate captureRate = new CaptureRate(0, 0);
+    private long knnSearchesAtLastUpdate;
     private final LongAdder knnSearches = new LongAdder();
     private final LongAdder captured = new LongAdder();
 
     public QueryCaptureFilter(ClusterSettings clusterSettings, Consumer<CapturedSearch> consumer) {
         this.consumer = consumer;
         clusterSettings.initializeAndWatch(QuerySamplingSettings.ENABLED, value -> this.enabled = value);
-        clusterSettings.initializeAndWatch(QuerySamplingSettings.CAPTURE_RATE, value -> this.captureRate = value);
+        clusterSettings.initializeAndWatch(QuerySamplingSettings.CAPTURE_RATE, captureRate::configured);
+        clusterSettings.initializeAndWatch(QuerySamplingSettings.MIN_CAPTURES_PER_HOUR, captureRate::minPerHour);
+    }
+
+    /**
+     * Keeps the capture rate in line with the traffic, once a second until the thread pool shuts down. It has
+     * nothing to do for a node that has no floor, but looks at the traffic so that it is known if one is set.
+     */
+    public Scheduler.Cancellable startRateUpdates(ThreadPool threadPool, Executor executor) {
+        long[] last = { System.nanoTime() };
+        return threadPool.scheduleWithFixedDelay(() -> {
+            long now = System.nanoTime();
+            updateRate((now - last[0]) / 1_000_000_000.0);
+            last[0] = now;
+        }, TimeValue.timeValueSeconds(1), executor);
+    }
+
+    /**
+     * Takes note of the searches that arrived in the last {@code seconds}, which is what the floor of the capture
+     * rate is worked out from.
+     */
+    public synchronized void updateRate(double seconds) {
+        long total = knnSearches.sum();
+        long arrivals = total - knnSearchesAtLastUpdate;
+        knnSearchesAtLastUpdate = total;
+        if (enabled) {
+            captureRate.observe(arrivals, seconds);
+        } else {
+            captureRate.forgetTraffic(); // nothing is counted while off, and what was seen before is out of date
+        }
+    }
+
+    /**
+     * The probability a search is captured with at this moment.
+     */
+    public double effectiveCaptureRate() {
+        return captureRate.effective();
     }
 
     @Override
@@ -77,7 +118,7 @@ public final class QueryCaptureFilter implements MappedActionFilter {
                 knnSearches.increment();
             }
             // read once: the draw and the rate recorded with the search must be the same value
-            double rate = captureRate;
+            double rate = captureRate.effective();
             if (knn != null && Randomness.get().nextDouble() < rate) {
                 captured.increment();
                 try {

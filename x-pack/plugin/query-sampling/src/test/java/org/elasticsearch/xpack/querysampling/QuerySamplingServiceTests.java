@@ -170,7 +170,7 @@ public class QuerySamplingServiceTests extends ESTestCase {
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(
             settings,
-            Set.of(QuerySamplingSettings.ENABLED, QuerySamplingSettings.CAPTURE_RATE)
+            Set.of(QuerySamplingSettings.ENABLED, QuerySamplingSettings.CAPTURE_RATE, QuerySamplingSettings.MIN_CAPTURES_PER_HOUR)
         );
         return new QueryCaptureFilter(clusterSettings, captured -> {});
     }

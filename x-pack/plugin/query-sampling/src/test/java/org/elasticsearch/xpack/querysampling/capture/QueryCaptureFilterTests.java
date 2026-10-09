@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
@@ -128,6 +129,61 @@ public class QueryCaptureFilterTests extends ESTestCase {
         assertTrue(captured.isEmpty());
     }
 
+    public void testFloorRaisesTheRateOfQuietTraffic() {
+        // a capture rate of zero captures nothing, so what is captured here is the floor
+        ClusterSettings clusterSettings = clusterSettings(true, 0.0);
+        QueryCaptureFilter filter = new QueryCaptureFilter(clusterSettings, captured::add);
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(QuerySamplingSettings.ENABLED.getKey(), true)
+                .put(QuerySamplingSettings.CAPTURE_RATE.getKey(), 0.0)
+                .put(QuerySamplingSettings.MIN_CAPTURES_PER_HOUR.getKey(), 720)
+                .build()
+        );
+        assertThat("the traffic is not known yet", filter.effectiveCaptureRate(), equalTo(0.0));
+
+        // 2 searches in a second are 7200 an hour, so one in ten of them gives the 720 asked for
+        apply(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
+        apply(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
+        filter.updateRate(1.0);
+        assertThat(filter.effectiveCaptureRate(), closeTo(0.1, 1e-12));
+
+        captured.clear();
+        int searches = 4000;
+        for (int i = 0; i < searches; i++) {
+            apply(filter, knnSearch(randomVector(4)), TaskId.EMPTY_TASK_ID);
+        }
+        double fiveSigma = 5 * Math.sqrt(searches * 0.1 * 0.9);
+        assertThat((double) captured.size(), both(greaterThan(400 - fiveSigma)).and(lessThan(400 + fiveSigma)));
+        assertTrue("what was captured says the rate it was captured with", captured.stream().allMatch(c -> c.captureRate() == 0.1));
+    }
+
+    public void testNothingIsKnownAboutTheTrafficWhileSamplingIsOff() {
+        ClusterSettings clusterSettings = clusterSettings(true, 0.0);
+        QueryCaptureFilter filter = new QueryCaptureFilter(clusterSettings, captured::add);
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(QuerySamplingSettings.ENABLED.getKey(), true)
+                .put(QuerySamplingSettings.CAPTURE_RATE.getKey(), 0.0)
+                .put(QuerySamplingSettings.MIN_CAPTURES_PER_HOUR.getKey(), 720)
+                .build()
+        );
+        apply(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
+        filter.updateRate(1.0);
+        assertThat(filter.effectiveCaptureRate(), greaterThan(0.0));
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(QuerySamplingSettings.ENABLED.getKey(), false)
+                .put(QuerySamplingSettings.CAPTURE_RATE.getKey(), 0.0)
+                .put(QuerySamplingSettings.MIN_CAPTURES_PER_HOUR.getKey(), 720)
+                .build()
+        );
+        filter.updateRate(1.0);
+
+        assertThat("it would be wrong when sampling is switched on again", filter.effectiveCaptureRate(), equalTo(0.0));
+    }
+
     public void testIgnoresHybridSearches() {
         QueryCaptureFilter filter = filter(true, 1.0, captured::add);
         SearchRequest request = knnSearch(randomVector(8));
@@ -213,7 +269,10 @@ public class QueryCaptureFilterTests extends ESTestCase {
             .put(QuerySamplingSettings.ENABLED.getKey(), enabled)
             .put(QuerySamplingSettings.CAPTURE_RATE.getKey(), rate)
             .build();
-        return new ClusterSettings(settings, Set.of(QuerySamplingSettings.ENABLED, QuerySamplingSettings.CAPTURE_RATE));
+        return new ClusterSettings(
+            settings,
+            Set.of(QuerySamplingSettings.ENABLED, QuerySamplingSettings.CAPTURE_RATE, QuerySamplingSettings.MIN_CAPTURES_PER_HOUR)
+        );
     }
 
     private static SearchRequest knnSearch(float[] vector) {

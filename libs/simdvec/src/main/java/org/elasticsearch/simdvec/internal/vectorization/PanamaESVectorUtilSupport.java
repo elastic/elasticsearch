@@ -20,6 +20,7 @@ import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorShape;
 import jdk.incubator.vector.VectorSpecies;
 
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
@@ -29,7 +30,11 @@ import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
+import java.io.IOException;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
 
 import static jdk.incubator.vector.VectorOperators.ADD;
 import static jdk.incubator.vector.VectorOperators.AND;
@@ -2464,8 +2469,8 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result) {
-        multiply(a, k, b, result, m, k, n);
+    public void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor) {
+        multiply(a, k, b, result, m, k, n, executor);
     }
 
     /*
@@ -2480,6 +2485,8 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
      */
     private static final int MATRIX_TILE_COLS = FLOAT_SPECIES.length() * (VECTOR_BITSIZE == 128 ? 4 : 2);
 
+    private static final int MIN_PARALLEL_TASKS = 16;
+
     /**
      * Panama version of matrix multiply, with 4x row unrolling.
      * <p>
@@ -2489,32 +2496,91 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
      * Instead, B is copied one column panel at a time into a contiguous buffer,
      * and all 4-row blocks of A are multiplied against that panel while it is in cache.
      */
-    private static void multiply(float[] a, int aRowStride, float[] b, float[] c, int cRows, int inner, int n) {
-        final int rowLimit = limit(cRows, 4);
+    private static void multiply(float[] a, int aRowStride, float[] b, float[] c, int cRows, int inner, int n, TaskExecutor executor) {
+        final int rowSectionSize = 4;
+        final int rowLimit = limit(cRows, rowSectionSize);
         final int panelLimit = limit(n, MATRIX_TILE_COLS);
 
         if (rowLimit > 0 && panelLimit > 0) {
-            float[] panel = new float[inner * MATRIX_TILE_COLS];
-            for (int j = 0; j < panelLimit; j += MATRIX_TILE_COLS) {
-                // get all the b column data for this panel packed into a single array for cacheability in the row loop
-                packPanel(b, n, inner, j, panel);
+            int numRequiredTasks = panelLimit / MATRIX_TILE_COLS;
+            if (executor == null || numRequiredTasks < MIN_PARALLEL_TASKS) {
+                // do it sequentially
+                float[] panel = new float[inner * MATRIX_TILE_COLS];
+                for (int p = 0; p < panelLimit; p += MATRIX_TILE_COLS) {
+                    // get all the b column data for this panel packed into a single array for cacheability in the row loop
+                    packPanel(b, n, inner, p, panel);
 
-                for (int i = 0; i < rowLimit; i += 4) {
-                    if (VECTOR_BITSIZE == 128) {
-                        multiplyPanel4x4(a, aRowStride, panel, c, i, j, inner, n);
-                    } else {
-                        multiplyPanel4x2(a, aRowStride, panel, c, i, j, inner, n);
+                    for (int i = 0; i < rowLimit; i += rowSectionSize) {
+                        if (VECTOR_BITSIZE == 128) {
+                            multiplyPanel4x4(a, aRowStride, panel, c, i, p, inner, n);
+                        } else {
+                            multiplyPanel4x2(a, aRowStride, panel, c, i, p, inner, n);
+                        }
                     }
+                }
+            } else {
+                // parallelize!
+                List<Callable<Void>> ops = new ArrayList<>(numRequiredTasks);
+
+                for (int p = 0; p < panelLimit; p += MATRIX_TILE_COLS) {
+                    final int panelStart = p;
+                    ops.add(() -> {
+                        float[] panel = new float[inner * MATRIX_TILE_COLS];
+                        packPanel(b, n, inner, panelStart, panel);
+
+                        for (int i = 0; i < rowLimit; i += rowSectionSize) {
+                            if (VECTOR_BITSIZE == 128) {
+                                multiplyPanel4x4(a, aRowStride, panel, c, i, panelStart, inner, n);
+                            } else {
+                                multiplyPanel4x2(a, aRowStride, panel, c, i, panelStart, inner, n);
+                            }
+                        }
+                        return null;
+                    });
+                }
+
+                try {
+                    executor.invokeAll(ops);
+                } catch (IOException e) {
+                    // can't happen
+                    throw new AssertionError(e);
                 }
             }
         }
 
-        // columns not covered by a full panel, 4 rows at a time
-        for (int i = 0; i < rowLimit; i += 4) {
-            multiplyTile4Tail(a, aRowStride, b, c, i, inner, n, panelLimit);
+        if (panelLimit < n) {
+            // columns not covered by a full panel, 4 rows at a time
+            // parallelize tasks into 16 rows each
+            final int taskRows = rowSectionSize * rowSectionSize;
+
+            int numRequiredTasks = rowLimit / taskRows;
+            if (executor == null || numRequiredTasks < MIN_PARALLEL_TASKS) {
+                for (int r = 0; r < rowLimit; r += rowSectionSize) {
+                    multiplyTile4Tail(a, aRowStride, b, c, r, inner, n, panelLimit);
+                }
+            } else {
+                List<Callable<Void>> ops = new ArrayList<>(numRequiredTasks);
+                for (int r = 0; r < rowLimit; r += taskRows) {
+                    int taskRow = r;
+                    int taskLimit = Math.min(r + taskRows, rowLimit);
+                    ops.add(() -> {
+                        for (int i = taskRow; i < taskLimit; i += rowSectionSize) {
+                            multiplyTile4Tail(a, aRowStride, b, c, i, inner, n, panelLimit);
+                        }
+                        return null;
+                    });
+                }
+
+                try {
+                    executor.invokeAll(ops);
+                } catch (IOException e) {
+                    // can't happen
+                    throw new AssertionError(e);
+                }
+            }
         }
 
-        // row tail
+        // row tail, max 3 rows
         for (int i = rowLimit; i < cRows; i++) {
             multiplyTile1(a, aRowStride, b, c, i, inner, n);
         }

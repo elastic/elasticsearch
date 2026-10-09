@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -50,6 +52,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -57,10 +60,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -77,6 +82,7 @@ import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -4179,6 +4185,83 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertSame(next, AsyncExternalSourceOperatorFactory.occupyPagesSlot(null, next));
     }
 
+    /**
+     * U10 / HANG_FIX_PLAN §1.6 (nightly 312): a text iterator lost by Bug A never closes
+     * {@code PermitReleasingInputStream}, so the node S3 permit and per-query budget stay taken
+     * until restart. Closing the replaced iterator is the leak fix, not a defensive extra.
+     */
+    public void testReplacedTextIteratorReleasesNodePermitAndQueryBudget() throws Exception {
+        int max = 24;
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(max, false));
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(max, 60_000L, null);
+        StorageObject inner = new ByteArrayStorageObject(StoragePath.of("s3://bucket/lost.csv"), "hello".getBytes(StandardCharsets.UTF_8));
+        QueryBudgetedStorageObject budgeted = new QueryBudgetedStorageObject(new ConcurrencyLimitedStorageObject(inner, limiter), budget);
+
+        assertEquals(max, limiter.availablePermits());
+        assertEquals(0, budget.inFlight());
+
+        InputStream stream = budgeted.newStream();
+        assertEquals("lost open holds one node permit", max - 1, limiter.availablePermits());
+        assertEquals("lost open holds one query budget lease", 1, budget.inFlight());
+
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> AsyncExternalSourceOperatorFactory.occupyPagesSlot(iteratorClosing(stream), emptyIterator())
+        );
+        assertEquals("replaced live iterator", e.getMessage());
+        assertEquals(max, limiter.availablePermits());
+        assertEquals(0, budget.inFlight());
+    }
+
+    /**
+     * U10 parquet twin: a lost iterator holds the overshoot slot, byte-budget used, and breaker
+     * charge. occupyPagesSlot close must return all three (used == 0, owner null, breaker 0).
+     */
+    public void testReplacedParquetIteratorReleasesBytesOwnerAndBreaker() {
+        NodeByteBudgetService budget = new NodeByteBudgetService(10);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
+        RowGroupIo lease = new RowGroupIo();
+        PlainActionFuture<NodeByteBudget.Hold> future = new PlainActionFuture<>();
+        budget.admitAsync(15, lease, () -> false, Runnable::run).addListener(future);
+        NodeByteBudget.Hold hold = future.actionGet(5, TimeUnit.SECONDS);
+        assertTrue(hold.isOvershoot());
+        DirectReadBuffer buffer = DirectReadBuffer.allocate(breaker, 1024);
+        assertEquals(15, budget.used());
+        assertSame(lease, budget.overshootOwner());
+        assertThat(breaker.getUsed(), greaterThan(0L));
+
+        CloseableIterator<Page> lost = new CloseableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+
+            @Override
+            public Page next() {
+                throw new NoSuchElementException();
+            }
+
+            @Override
+            public void close() {
+                // Hold.close() drops bytes only. Owner stays until clearOwner, so a lost
+                // iterator must close buffers + hold and then clearOwner or the slot leaks.
+                try {
+                    Releasables.close(buffer, hold);
+                } finally {
+                    budget.clearOwner(lease);
+                }
+            }
+        };
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> AsyncExternalSourceOperatorFactory.occupyPagesSlot(lost, emptyIterator())
+        );
+        assertEquals("replaced live iterator", e.getMessage());
+        assertEquals(0, budget.used());
+        assertNull(budget.overshootOwner());
+        assertEquals(0, breaker.getUsed());
+    }
+
     public void testRequirePagesFailsLoudOnNull() {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> AsyncExternalSourceOperatorFactory.requirePages(null));
         assertEquals("null pages mid-drain", e.getMessage());
@@ -6045,6 +6128,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     private static CloseableIterator<Page> emptyIterator() {
+        return iteratorClosing(() -> {});
+    }
+
+    /** Page iterator whose {@code close()} closes {@code resource}. Models a lost text/Parquet iterator. */
+    private static CloseableIterator<Page> iteratorClosing(Closeable resource) {
         return new CloseableIterator<>() {
             @Override
             public boolean hasNext() {
@@ -6057,7 +6145,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             }
 
             @Override
-            public void close() {}
+            public void close() throws IOException {
+                resource.close();
+            }
         };
     }
 

@@ -12,13 +12,13 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlClientYamlTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 
-public class EsqlClientYamlIT extends ESClientYamlSuiteTestCase {
+public class EsqlClientYamlIT extends EsqlClientYamlTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster();
 

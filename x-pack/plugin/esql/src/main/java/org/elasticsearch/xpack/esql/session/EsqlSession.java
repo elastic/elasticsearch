@@ -1811,6 +1811,7 @@ public class EsqlSession {
                 configuration,
                 executionInfo,
                 trackedUnmappedFieldIndices,
+                nullify == false && unmappedResolution.loadsAllUnmappedFields(),
                 result,
                 requestFilter,
                 viewInternalIndexPatterns(parsed),
@@ -2464,6 +2465,7 @@ public class EsqlSession {
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
+        boolean loadsAllUnmappedFields,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         Set<IndexPattern> viewInternalPatterns,
@@ -2495,6 +2497,7 @@ public class EsqlSession {
                     preAnalysis,
                     executionInfo,
                     trackUnmappedFieldIndices,
+                    loadsAllUnmappedFields,
                     r,
                     // A pattern reachable only inside a view branch must not be pruned by the request filter.
                     viewInternalPatterns.contains(e.getKey()) ? null : requestFilter,
@@ -2518,6 +2521,7 @@ public class EsqlSession {
                     preAnalysis,
                     executionInfo,
                     trackUnmappedFieldIndices,
+                    loadsAllUnmappedFields,
                     r,
                     // A pattern reachable only inside a view branch must not be pruned by the request filter.
                     viewInternalPatterns.contains(e.getKey()) ? null : requestFilter,
@@ -2564,15 +2568,17 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
+        boolean loadsAllUnmappedFields,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
+        boolean resolveNestedPaths = needsNestedPaths(loadsAllUnmappedFields, indexMode, result);
         if (executionInfo.clusterAliases().isEmpty()) {
             // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
             listener.onResponse(result.withIndices(indexPattern, IndexResolution.empty(indexPattern.indexPattern())));
         } else {
-            executionInfo.queryProfile().incFieldCapsCalls();
+            countFieldCapsCalls(executionInfo, resolveNestedPaths);
             indexResolver.resolveMainIndicesVersioned(
                 indexPattern.indexPattern(),
                 result.fieldNames,
@@ -2593,11 +2599,12 @@ public class EsqlSession {
                 preAnalysis.hasTimeSeriesAggregation(),
                 preAnalysis.needsAnalyzerGroups(),
                 trackUnmappedFieldIndices,
+                resolveNestedPaths,
                 indicesExpressionGrouper,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                     maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
-                        executionInfo.queryProfile().incFieldCapsCalls();
+                        countFieldCapsCalls(executionInfo, resolveNestedPaths);
                         indexResolver.resolveMainIndicesVersioned(
                             indexPattern.indexPattern(),
                             result.fieldNames,
@@ -2609,12 +2616,30 @@ public class EsqlSession {
                             false,
                             preAnalysis.needsAnalyzerGroups(),
                             trackUnmappedFieldIndices,
+                            resolveNestedPaths,
                             indicesExpressionGrouper,
                             retryListener
                         );
                     });
                 })
             );
+        }
+    }
+
+    /**
+     * Whether to resolve {@link EsIndex#nestedPaths()}: only LOAD_ALL reads them, to keep them out of what a wildcard discovers, and
+     * never for TS, which LOAD_ALL rejects, nor when the query names no field at all, like a bare {@code STATS COUNT(*)}.
+     */
+    private static boolean needsNestedPaths(boolean loadsAllUnmappedFields, IndexMode indexMode, PreAnalysisResult result) {
+        return loadsAllUnmappedFields
+            && indexMode != IndexMode.TIME_SERIES
+            && IndexResolver.INDEX_METADATA_FIELD.equals(result.fieldNames) == false;
+    }
+
+    private static void countFieldCapsCalls(EsqlExecutionInfo executionInfo, boolean resolveNestedPaths) {
+        executionInfo.queryProfile().incFieldCapsCalls();
+        if (resolveNestedPaths) {
+            executionInfo.queryProfile().incFieldCapsCalls();
         }
     }
 
@@ -2646,6 +2671,7 @@ public class EsqlSession {
             preAnalysis.hasTimeSeriesAggregation(),
             preAnalysis.needsAnalyzerGroups(),
             trackUnmappedFieldIndices,
+            false,
             null,
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
@@ -2664,12 +2690,14 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
+        boolean loadsAllUnmappedFields,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
         ActionListener<PreAnalysisResult> listener
     ) {
-        executionInfo.queryProfile().incFieldCapsCalls();
+        boolean resolveNestedPaths = needsNestedPaths(loadsAllUnmappedFields, indexMode, result);
+        countFieldCapsCalls(executionInfo, resolveNestedPaths);
         indexResolver.resolveFlatIndicesVersioned(
             false /* lenient */,
             indexPattern.indexPattern(),
@@ -2684,6 +2712,7 @@ public class EsqlSession {
             preAnalysis.hasTimeSeriesAggregation(),
             preAnalysis.needsAnalyzerGroups(),
             trackUnmappedFieldIndices,
+            resolveNestedPaths,
             routingInfoCapture,
             ActionListener.wrap(indexResolution -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
@@ -2691,7 +2720,7 @@ public class EsqlSession {
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, listener, retryListener -> {
-                    executionInfo.queryProfile().incFieldCapsCalls();
+                    countFieldCapsCalls(executionInfo, resolveNestedPaths);
                     indexResolver.resolveFlatIndicesVersioned(
                         false /* lenient */,
                         indexPattern.indexPattern(),
@@ -2705,6 +2734,7 @@ public class EsqlSession {
                         false,
                         preAnalysis.needsAnalyzerGroups(),
                         trackUnmappedFieldIndices,
+                        resolveNestedPaths,
                         null,
                         retryListener
                     );

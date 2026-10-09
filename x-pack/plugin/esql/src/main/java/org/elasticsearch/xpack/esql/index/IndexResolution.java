@@ -74,6 +74,12 @@ public final class IndexResolution {
         this.failures = failures;
     }
 
+    public IndexResolution withNestedPaths(Set<String> nestedPaths) {
+        return isValid() == false || nestedPaths.isEmpty()
+            ? this
+            : new IndexResolution(index.withNestedPaths(nestedPaths), invalid, resolvedIndices, failures);
+    }
+
     public boolean matches(String indexName) {
         return isValid() && this.index.name().equals(indexName);
     }

@@ -489,6 +489,12 @@ public class ExceptionsHelperTests extends ESTestCase {
         expectThrows(AssertionError.class, () -> compressPackages(null));
     }
 
+    public void testRemoteUnavailableHandlesIllegalStatesWithoutMessage() {
+        assertFalse(ExceptionsHelper.isRemoteUnavailableException(new IllegalStateException()));
+        assertFalse(ExceptionsHelper.isRemoteUnavailableException(new IllegalArgumentException((String) null)));
+        assertTrue(ExceptionsHelper.isRemoteUnavailableException(new IllegalStateException("Unable to open any connections")));
+    }
+
     private static String compressPackages(String className) {
         StringBuilder s = new StringBuilder();
         ExceptionsHelper.compressPackages(s, className);

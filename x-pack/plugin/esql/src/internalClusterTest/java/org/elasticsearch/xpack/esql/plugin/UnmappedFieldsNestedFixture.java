@@ -35,10 +35,13 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -48,8 +51,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertFalse;
 
 /**
- * Indices that map {@code nested_punk.subfield} differently, and what LOAD and LOAD_ALL must return over any mix of them: each row
- * resolves by its own index's mapping, whatever it shares a node or batch with.
+ * Indices that map {@code nested_punk.subfield} differently, and what LOAD and LOAD_ALL must return over any mix of them: a named field
+ * resolves by each row's own index, whatever it shares a node or batch with, and LOAD_ALL discovers nothing below a nested path.
  */
 final class UnmappedFieldsNestedFixture {
 
@@ -121,7 +124,6 @@ final class UnmappedFieldsNestedFixture {
      * @param values the {@code subfield} values in the document's {@code _source}
      */
     record Doc(String id, Kind kind, List<String> values) {
-        /** A nested subfield is never loaded; every other kind returns its values, which the tests keep sorted and distinct. */
         List<String> loaded() {
             return kind == Kind.NESTED ? List.of() : values;
         }
@@ -144,10 +146,6 @@ final class UnmappedFieldsNestedFixture {
         }
     }
 
-    /**
-     * A query and the result every placement, batching and evaluation order must produce. Columns are {@code name:type}; unordered
-     * results compare as a multiset.
-     */
     record Expectation(String query, List<String> columns, List<List<Object>> rows, boolean ordered) {
         void assertMatches(String schedule, EsqlQueryResponse response) {
             String reason = schedule + " " + query;
@@ -162,27 +160,19 @@ final class UnmappedFieldsNestedFixture {
         }
     }
 
-    /**
-     * Randomly copies nested values onto the root document, where a filter wrongly pushed to a nested shard would match them, and
-     * randomly uses synthetic source, which reads unmapped values back from {@code _ignored_source}.
-     */
     static void createIndex(Client client, Kind kind, String index, String node) {
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, ESTestCase.between(1, 3))
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.routing.allocation.require._name", node);
-        if (ESTestCase.randomBoolean()) {
+        if (randomBoolean()) {
             settings.put("index.mapping.source.mode", "synthetic");
         }
-        String copy = ESTestCase.randomFrom("", "\n\"include_in_root\": true,", "\n\"include_in_parent\": true,");
+        String copy = randomFrom("", "\n\"include_in_root\": true,", "\n\"include_in_parent\": true,");
         String mapping = kind == Kind.NESTED ? Strings.format(kind.mapping, copy) : kind.mapping;
         assertAcked(client.admin().indices().prepareCreate(index).setSettings(settings).setMapping(mapping));
     }
 
-    /**
-     * Indexes {@code count} documents with one {@code subfield} value each, except the second, whose higher value sorts after every
-     * single value, so sorting by lowest and highest differ. Kinds other than {@link Kind#NESTED} also get a document without the field.
-     */
     static List<Doc> indexDocs(Client client, Kind kind, String index, int count) {
         List<Doc> docs = new ArrayList<>(count + 1);
         String idPrefix = kind.idPrefix + index + "_";
@@ -224,18 +214,18 @@ final class UnmappedFieldsNestedFixture {
         );
     }
 
-    /**
-     * Every query keeps all fields or a wildcard: one keeping only exact names, or aggregating, leaves LOAD_ALL nothing to expand.
-     */
     static List<Expectation> loadAllExpectations(String from, List<Doc> docs) {
         String prefix = "SET unmapped_fields=\"load_all\"; " + from;
         List<Doc> sorted = docs.stream().sorted(Comparator.comparing(Doc::id)).toList();
-        List<String> idAndField = List.of(ID_COLUMN, FIELD_COLUMN);
-        List<List<Object>> rows = idAndValue(sorted);
+        Set<Kind> kinds = docs.stream().map(Doc::kind).collect(Collectors.toSet());
+        // Nothing below a path that an index maps as nested is discovered, so only a mapping elsewhere still makes the field a column
+        boolean fieldIsColumn = kinds.contains(Kind.OBJECT) || kinds.contains(Kind.NESTED) == false;
+        List<String> columns = fieldIsColumn ? List.of(ID_COLUMN, FIELD_COLUMN) : List.of(ID_COLUMN);
+        List<List<Object>> rows = fieldIsColumn ? idAndValue(sorted) : ids(sorted);
         return List.of(
-            new Expectation(prefix + " | SORT id", idAndField, rows, true),
-            new Expectation(prefix, idAndField, rows, false),
-            new Expectation(prefix + " | KEEP id, nested_punk.* | SORT id", idAndField, rows, true),
+            new Expectation(prefix + " | SORT id", columns, rows, true),
+            new Expectation(prefix, columns, rows, false),
+            new Expectation(prefix + " | KEEP id, nested_punk.* | SORT id", columns, rows, true),
             sortedByField(prefix + " | SORT " + FIELD + ", id", sorted),
             notNull(prefix, sorted, true),
             isNull(prefix, sorted, true),
@@ -250,7 +240,6 @@ final class UnmappedFieldsNestedFixture {
         }
     }
 
-    /** Ascending sorts a multivalue by its lowest value and puts nulls last. */
     private static Expectation sortedByField(String query, List<Doc> docs) {
         Comparator<Doc> byField = Comparator.comparing(
             (Doc d) -> d.loaded().isEmpty() ? null : d.loaded().getFirst(),
@@ -268,7 +257,6 @@ final class UnmappedFieldsNestedFixture {
         return filtered(prefix, FIELD + " IS NULL", sorted.stream().filter(d -> d.loaded().isEmpty()).toList(), keepField);
     }
 
-    /** Probes the first value of every kind of index, so each kind's filter path must match its value or, if nested, nothing. */
     private static Expectation probed(String prefix, List<Doc> sorted, boolean keepField) {
         List<String> probes = new ArrayList<>();
         for (Kind kind : Kind.values()) {

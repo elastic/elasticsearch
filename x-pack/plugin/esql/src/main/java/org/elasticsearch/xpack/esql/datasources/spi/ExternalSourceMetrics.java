@@ -65,8 +65,8 @@ public final class ExternalSourceMetrics {
     public static final String STORAGE_READ_STALL_DURATION = "es.esql.datasources.storage.read_stall.duration.histogram";
 
     /**
-     * One completed external-source query at the coordinator (dimensioned by {@link #OUTCOME_ATTRIBUTE} and
-     * {@link #CLIENT_ATTRIBUTE}). Counts
+     * One completed external-source query at the coordinator, dimensioned by {@link #OUTCOME_ATTRIBUTE},
+     * {@link #CLIENT_ATTRIBUTE}, and, when known, {@link #TYPE_ATTRIBUTE} and {@link #FORMAT_ATTRIBUTE}. Counts
      * queries whose ANALYZED plan contained an external source; a query that fails DURING analysis (before the
      * external-source flag is set) is not attributed here — its discovery failure is captured by
      * {@link #DISCOVERY_FAILURES_TOTAL} instead.
@@ -145,13 +145,14 @@ public final class ExternalSourceMetrics {
     /**
      * Storage and CRUD type dimension, normalised to {@link DataSourceTelemetryVocabulary.Type} via
      * {@link Type#fromScheme(String)}: {@code s3}, {@code gcs}, {@code azure}, {@code http},
-     * {@code local}, {@code unknown}.
+     * {@code local}, {@code unknown}. On the query instruments it also takes {@link #MIXED}.
      */
     public static final String TYPE_ATTRIBUTE = "es_datasource_type";
 
     /**
-     * Scan-format dimension on the four scan-operator instruments only, a closed set:
-     * {@code parquet}, {@code csv}, {@code tsv}, {@code ndjson}, {@code orc}, {@code other}, {@code unresolved}.
+     * Scan-format dimension on the four scan-operator instruments and on the query instruments, a closed set:
+     * {@code parquet}, {@code csv}, {@code tsv}, {@code ndjson}, {@code orc}, {@code other}, {@code unresolved}. On the
+     * query instruments it also takes {@link #MIXED}.
      */
     public static final String FORMAT_ATTRIBUTE = "es_datasource_format";
 
@@ -213,6 +214,9 @@ public final class ExternalSourceMetrics {
      * never a label: an unbounded origin string would explode the series count.
      */
     public static final String CLIENT_ATTRIBUTE = "es_datasource_client";
+
+    /** The label of a query whose external sources disagree on a storage type or a format. */
+    public static final String MIXED = DataSourceUsageAccumulator.MIXED;
 
     /** Query sent by Kibana ({@code X-elastic-product-origin: kibana}). */
     public static final String CLIENT_KIBANA = DataSourceUsageAccumulator.CLIENT_KIBANA;
@@ -542,15 +546,17 @@ public final class ExternalSourceMetrics {
     }
 
     /**
-     * Records one object-store read that exhausted retries and gave up terminally on the given {@code scheme}.
-     * Best-effort (self-guarded).
+     * Records one object-store read that exhausted retries and gave up terminally on the given {@code scheme}. The give-up
+     * is classified like a failed query: {@code errorType} is folded to {@link DataSourceUsageAccumulator#ERROR_TYPE_NAMES}
+     * (null becomes {@code other}) and {@code status} (the HTTP status) is omitted when null. Best-effort (self-guarded).
      */
-    public void recordError(String scheme) {
+    public void recordError(String scheme, @Nullable String errorType, @Nullable String status) {
         try {
             Type type = Type.fromScheme(scheme);
-            errorsTotal.incrementBy(1, typeAttrsForToken(type.key()));
+            String canonicalErrorType = canonicalErrorType(errorType);
+            errorsTotal.incrementBy(1, failureAttrs(typeAttrsForToken(type.key()), canonicalErrorType, status));
             if (usageAccumulator != null) {
-                usageAccumulator.recordError(type);
+                usageAccumulator.recordError(type, canonicalErrorType);
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordError failed", e);
@@ -589,6 +595,14 @@ public final class ExternalSourceMetrics {
     }
 
     /**
+     * The dimensions of one external-source query, carried together so the query recording methods keep a bounded argument
+     * list. {@code client} is one of {@link #CLIENT_NAMES}. {@code storageType} and {@code format} are the query's
+     * external-source labels, or {@link #MIXED} when its sources disagree; {@code null} means the query has none, and the
+     * APM attribute is omitted (the phone-home counts it as {@code unknown} / {@code unresolved}).
+     */
+    public record QueryLabels(String client, @Nullable String storageType, @Nullable String format) {}
+
+    /**
      * Records one completed external-source query: increments {@link #QUERIES_TOTAL} tagged with {@code outcome},
      * observes {@link #QUERY_DURATION} carrying the same {@code outcome} (so latency can be split by
      * success/failure/cancelled), and increments {@link #QUERIES_CANCELLED_TOTAL} when the outcome is
@@ -606,11 +620,13 @@ public final class ExternalSourceMetrics {
      * failure is captured by {@link #recordDiscoveryFailure} / {@link #DISCOVERY_FAILURES_TOTAL}. Best-effort
      * (self-guarded).
      * <p>
-     * {@code client} is the caller's {@link #CLIENT_ATTRIBUTE} label, clamped to {@link #CLIENT_NAMES} so an unknown
-     * value is published as {@link #CLIENT_OTHER}. Use {@link #clientFromOrigin(String)} to derive it from a request.
+     * The {@code labels} are the query's client, storage type and format. The client is clamped to {@link #CLIENT_NAMES}, so
+     * an unknown value is published as {@link #CLIENT_OTHER}. The storage type and format are published on
+     * {@link #QUERIES_TOTAL} and {@link #QUERY_DURATION} only, and are omitted when null. Use
+     * {@link #clientFromOrigin(String)} to derive the client from a request.
      */
     public void recordQuery(
-        String client,
+        QueryLabels labels,
         String outcome,
         long durationMillis,
         boolean partial,
@@ -621,11 +637,13 @@ public final class ExternalSourceMetrics {
             // Clamp before anything is emitted, so a token outside the closed set can neither become an APM attribute nor
             // make the two sinks disagree.
             String canonicalErrorType = errorType == null ? null : canonicalErrorType(errorType);
-            String canonicalClient = canonicalClient(client);
+            String canonicalClient = canonicalClient(labels.client());
+            String canonicalStorageType = canonicalStorageLabel(labels.storageType());
+            String canonicalFormat = canonicalFormatLabel(labels.format());
             Map<String, Object> attributes = OUTCOME_FAILURE.equals(outcome)
                 ? failureAttrs(Map.of(OUTCOME_ATTRIBUTE, OUTCOME_FAILURE), canonicalErrorType, status)
                 : outcomeAttrs(outcome);
-            attributes = clientAttrs(attributes, canonicalClient);
+            attributes = queryAttrs(attributes, canonicalClient, canonicalStorageType, canonicalFormat);
             Map<String, Object> clientOnlyAttrs = clientAttrs(Map.of(), canonicalClient);
             queriesTotal.incrementBy(1, attributes);
             queryDuration.record(Math.max(0L, durationMillis), attributes);
@@ -636,7 +654,15 @@ public final class ExternalSourceMetrics {
                 queriesPartialTotal.incrementBy(1, clientOnlyAttrs);
             }
             if (usageAccumulator != null) {
-                usageAccumulator.recordQuery(canonicalClient, outcome, durationMillis, partial, canonicalErrorType);
+                usageAccumulator.recordQuery(
+                    canonicalClient,
+                    canonicalStorageType,
+                    canonicalFormat,
+                    outcome,
+                    durationMillis,
+                    partial,
+                    canonicalErrorType
+                );
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordQuery failed", e);
@@ -997,6 +1023,27 @@ public final class ExternalSourceMetrics {
         return client != null && CLIENT_NAMES.contains(client) ? client : CLIENT_OTHER;
     }
 
+    /**
+     * Returns {@code base} plus the query dimensions: {@link #CLIENT_ATTRIBUTE}, and {@link #TYPE_ATTRIBUTE} and
+     * {@link #FORMAT_ATTRIBUTE} when known. The arguments must already be canonical.
+     */
+    private static Map<String, Object> queryAttrs(
+        Map<String, Object> base,
+        String client,
+        @Nullable String storageType,
+        @Nullable String format
+    ) {
+        Map<String, Object> attributes = new HashMap<>(base);
+        attributes.put(CLIENT_ATTRIBUTE, client);
+        if (storageType != null) {
+            attributes.put(TYPE_ATTRIBUTE, storageType);
+        }
+        if (format != null) {
+            attributes.put(FORMAT_ATTRIBUTE, format);
+        }
+        return Map.copyOf(attributes);
+    }
+
     /** Returns {@code base} plus {@link #CLIENT_ATTRIBUTE}. {@code client} must already be canonical. */
     private static Map<String, Object> clientAttrs(Map<String, Object> base, String client) {
         Map<String, Object> attributes = new HashMap<>(base);
@@ -1024,5 +1071,44 @@ public final class ExternalSourceMetrics {
         }
         String lower = format.toLowerCase(Locale.ROOT);
         return DataSourceUsageAccumulator.FORMAT_NAMES_SET.contains(lower) ? lower : DataSourceUsageAccumulator.FORMAT_OTHER_NAME;
+    }
+
+    /**
+     * The storage-type label of a query: {@code null} stays {@code null} (no label), {@link #MIXED} and every
+     * {@link Type} key are kept, and anything else becomes {@code unknown}.
+     */
+    static String canonicalStorageLabel(@Nullable String storageType) {
+        if (storageType == null || MIXED.equals(storageType)) {
+            return storageType;
+        }
+        for (Type type : Type.values()) {
+            if (type.key().equals(storageType)) {
+                return storageType;
+            }
+        }
+        return Type.UNKNOWN.key();
+    }
+
+    /**
+     * The format label of a query: {@code null} stays {@code null} (no label), {@link #MIXED} and every
+     * {@link DataSourceUsageAccumulator#FORMAT_NAMES} entry are kept, and anything else becomes {@code other}.
+     */
+    static String canonicalFormatLabel(@Nullable String format) {
+        if (format == null || MIXED.equals(format)) {
+            return format;
+        }
+        return DataSourceUsageAccumulator.FORMAT_NAMES.contains(format) ? format : DataSourceUsageAccumulator.FORMAT_OTHER_NAME;
+    }
+
+    /**
+     * The storage-type label of an external source, folded from the scheme of its {@code location}. A location without a
+     * scheme ({@link StoragePath#of} rejects it) has no storage type that can be named, so it is {@code unknown}.
+     */
+    public static String storageTypeOf(@Nullable String location) {
+        try {
+            return canonicalScheme(StoragePath.of(location).scheme());
+        } catch (IllegalArgumentException e) {
+            return Type.UNKNOWN.key();
+        }
     }
 }

@@ -354,7 +354,7 @@ public class PlanExecutor {
         boolean partial = x != null && x.inner().completionInfo().partial();
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
-            client,
+            queryLabels(client, planTelemetry),
             planTelemetry.externalSource(),
             (System.nanoTime() - begin) / 1_000_000,
             partial,
@@ -380,12 +380,14 @@ public class PlanExecutor {
         long begin,
         String client
     ) {
-        // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
+        // The general ES|QL counters (metrics.total / metrics.failed, keyed by QueryMetric) deliberately stay on "rest": changing
+        // them would alter dashboards outside the datasource telemetry. The external-source metrics split by client from the
+        // X-elastic-product-origin header instead (see clientOf), so the two families can differ for the same query.
         metrics.failed(clientId);
         planTelemetryManager.publish(planTelemetry, false);
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
-            client,
+            queryLabels(client, planTelemetry),
             planTelemetry.externalSource(),
             (System.nanoTime() - begin) / 1_000_000,
             false,
@@ -393,6 +395,14 @@ public class PlanExecutor {
         );
         queryLog.onQueryFailure(request.queryDescription(), ex, System.nanoTime() - begin);
         listener.onFailure(ex);
+    }
+
+    /**
+     * The labels of one external-source query: its client, and the storage type and format of the external sources it read,
+     * taken from the analyzed plan.
+     */
+    static ExternalSourceMetrics.QueryLabels queryLabels(String client, PlanTelemetry planTelemetry) {
+        return new ExternalSourceMetrics.QueryLabels(client, planTelemetry.externalStorageType(), planTelemetry.externalFormat());
     }
 
     /**
@@ -426,7 +436,7 @@ public class PlanExecutor {
      */
     static void recordExternalSourceQuery(
         ExternalSourceMetrics externalSourceMetrics,
-        String client,
+        ExternalSourceMetrics.QueryLabels labels,
         boolean externalSource,
         long durationMillis,
         boolean partial,
@@ -445,9 +455,9 @@ public class PlanExecutor {
         }
         if (ExternalSourceMetrics.OUTCOME_FAILURE.equals(outcome)) {
             QueryFailureTelemetry.Failure classified = QueryFailureTelemetry.classify(failure);
-            externalSourceMetrics.recordQuery(client, outcome, durationMillis, partial, classified.errorType(), classified.status());
+            externalSourceMetrics.recordQuery(labels, outcome, durationMillis, partial, classified.errorType(), classified.status());
         } else {
-            externalSourceMetrics.recordQuery(client, outcome, durationMillis, partial, null, null);
+            externalSourceMetrics.recordQuery(labels, outcome, durationMillis, partial, null, null);
         }
         // Only hard-failure breaker trips are attributed here: a CB that instead produced is_partial=true reaches the
         // success path with failure==null and is NOT counted (its CircuitBreakingException is not cleanly reachable at

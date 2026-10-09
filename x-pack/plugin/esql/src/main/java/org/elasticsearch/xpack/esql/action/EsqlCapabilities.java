@@ -4319,6 +4319,19 @@ public class EsqlCapabilities {
         USAGE_CONTAINS_DATASOURCES_CLIENT,
 
         /**
+         * Does the usage information for ESQL contain the datasource per-storage-type and per-format query counters
+         * ({@code datasources.queries.by_type.<type>.by_outcome.<outcome>} and
+         * {@code datasources.queries.by_format.<format>.by_outcome.<outcome>})?
+         */
+        USAGE_CONTAINS_DATASOURCES_QUERY_BY_TYPE_FORMAT,
+
+        /**
+         * Does the usage information for ESQL contain the per-error-type terminal storage give-up counters
+         * ({@code datasources.storage.errors.by_error_type.<error_type>})?
+         */
+        USAGE_CONTAINS_DATASOURCES_STORAGE_ERROR_TYPES,
+
+        /**
          * Fix for {@code DocumentParser#parseArrayDynamic}: with {@code subobjects:false} and {@code dynamic:false},
          * arrays of objects now correctly walk mapped dotted fields (e.g. {@code "objarr.k"}), consistent
          * with the plain-object path. Previously the array was silently skipped and the values dropped.

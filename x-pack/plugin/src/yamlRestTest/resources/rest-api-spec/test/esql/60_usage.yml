@@ -658,6 +658,45 @@ took:
   - exists: esql.datasources.queries.by_client.other
 
 ---
+"Datasource query type and format telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources_query_by_type_format ]
+      reason: "Datasource per-storage-type and per-format query counters present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # external-source queries by storage type and by format, split by outcome (always emitted, 0 when none ran)
+  - exists: esql.datasources.queries.by_type.s3.by_outcome.success
+  - exists: esql.datasources.queries.by_type.local.by_outcome.failure
+  - exists: esql.datasources.queries.by_type.unknown.by_outcome.cancelled
+  - exists: esql.datasources.queries.by_type.mixed.by_outcome.success
+  - exists: esql.datasources.queries.by_format.parquet.by_outcome.success
+  - exists: esql.datasources.queries.by_format.csv.by_outcome.failure
+  - exists: esql.datasources.queries.by_format.unresolved.by_outcome.success
+  - exists: esql.datasources.queries.by_format.mixed.by_outcome.success
+
+---
+"Datasource storage error types":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources_storage_error_types ]
+      reason: "Datasource storage give-up counters by error type present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # terminal object-store give-ups by failure category (always emitted, 0 when none gave up)
+  - exists: esql.datasources.storage.errors.by_error_type.storage_unavailable
+  - exists: esql.datasources.storage.errors.by_error_type.storage_throttled
+  - exists: esql.datasources.storage.errors.by_error_type.other
+
+---
 "Datasource inventory marginals":
   - requires:
       test_runner_features: [ capabilities ]

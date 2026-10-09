@@ -48,7 +48,14 @@ public class PlanExecutorExternalSourceMetricsTests extends ESTestCase {
     }
 
     public void testSuccessRecordsQueryTotalAndDurationWithOutcome() {
-        PlanExecutor.recordExternalSourceQuery(metrics, ExternalSourceMetrics.CLIENT_KIBANA, true, 340L, false, null);
+        PlanExecutor.recordExternalSourceQuery(
+            metrics,
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_KIBANA, null, null),
+            true,
+            340L,
+            false,
+            null
+        );
 
         Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
         assertThat(total.getLong(), equalTo(1L));
@@ -68,10 +75,17 @@ public class PlanExecutorExternalSourceMetricsTests extends ESTestCase {
     public void testClientLabelIsPublishedOnTotalAndDurationForEveryOutcome() {
         // The client is resolved once by the caller from the request's origin header, so the same label is expected on the
         // success, failure and cancellation series alike.
-        PlanExecutor.recordExternalSourceQuery(metrics, ExternalSourceMetrics.CLIENT_OTHER, true, 10L, false, null);
         PlanExecutor.recordExternalSourceQuery(
             metrics,
-            ExternalSourceMetrics.CLIENT_OTHER,
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_OTHER, null, null),
+            true,
+            10L,
+            false,
+            null
+        );
+        PlanExecutor.recordExternalSourceQuery(
+            metrics,
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_OTHER, null, null),
             true,
             20L,
             false,
@@ -79,7 +93,7 @@ public class PlanExecutorExternalSourceMetricsTests extends ESTestCase {
         );
         PlanExecutor.recordExternalSourceQuery(
             metrics,
-            ExternalSourceMetrics.CLIENT_OTHER,
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_OTHER, null, null),
             true,
             30L,
             false,
@@ -119,7 +133,14 @@ public class PlanExecutorExternalSourceMetricsTests extends ESTestCase {
         // partial flag drives queries.partial.total. This closes the coordinator-wiring gap for the partial
         // counter (the other outcomes are covered above; the holder-level partial path is covered by
         // ExternalSourceMetricsTests#testRecordQueryPartialAlsoBumpsPartialCounter).
-        PlanExecutor.recordExternalSourceQuery(metrics, ExternalSourceMetrics.CLIENT_KIBANA, true, 77L, true, null);
+        PlanExecutor.recordExternalSourceQuery(
+            metrics,
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_KIBANA, null, null),
+            true,
+            77L,
+            true,
+            null
+        );
 
         Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
         assertThat(total.getLong(), equalTo(1L));
@@ -134,7 +155,14 @@ public class PlanExecutorExternalSourceMetricsTests extends ESTestCase {
     public void testCancellationClassifiesAsCancelled() {
         // A TaskCancelledException anywhere in the cause chain classifies the query as cancelled.
         Throwable failure = new RuntimeException("wrapped", new TaskCancelledException("task cancelled"));
-        PlanExecutor.recordExternalSourceQuery(metrics, ExternalSourceMetrics.CLIENT_KIBANA, true, 12L, false, failure);
+        PlanExecutor.recordExternalSourceQuery(
+            metrics,
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_KIBANA, null, null),
+            true,
+            12L,
+            false,
+            failure
+        );
 
         Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
         assertThat(total.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE), equalTo(ExternalSourceMetrics.OUTCOME_CANCELLED));
@@ -149,7 +177,14 @@ public class PlanExecutorExternalSourceMetricsTests extends ESTestCase {
             "wrapped",
             new CircuitBreakingException("es_datasource breaker tripped", CircuitBreaker.Durability.TRANSIENT)
         );
-        PlanExecutor.recordExternalSourceQuery(metrics, ExternalSourceMetrics.CLIENT_KIBANA, true, 55L, false, failure);
+        PlanExecutor.recordExternalSourceQuery(
+            metrics,
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_KIBANA, null, null),
+            true,
+            55L,
+            false,
+            failure
+        );
 
         Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
         assertThat(total.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE), equalTo(ExternalSourceMetrics.OUTCOME_FAILURE));
@@ -168,7 +203,14 @@ public class PlanExecutorExternalSourceMetricsTests extends ESTestCase {
                 ""
             )
         );
-        PlanExecutor.recordExternalSourceQuery(metrics, ExternalSourceMetrics.CLIENT_KIBANA, true, 55L, false, failure);
+        PlanExecutor.recordExternalSourceQuery(
+            metrics,
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_KIBANA, null, null),
+            true,
+            55L,
+            false,
+            failure
+        );
 
         Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
         assertThat(total.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE), equalTo(ExternalSourceMetrics.OUTCOME_FAILURE));
@@ -182,7 +224,7 @@ public class PlanExecutorExternalSourceMetricsTests extends ESTestCase {
     public void testCircuitBreakerFailureIsClassifiedAsCircuitBreaker() {
         PlanExecutor.recordExternalSourceQuery(
             metrics,
-            ExternalSourceMetrics.CLIENT_KIBANA,
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_KIBANA, null, null),
             true,
             55L,
             false,
@@ -196,10 +238,17 @@ public class PlanExecutorExternalSourceMetricsTests extends ESTestCase {
     }
 
     public void testSuccessAndCancellationCarryNoFailureAttributes() {
-        PlanExecutor.recordExternalSourceQuery(metrics, ExternalSourceMetrics.CLIENT_KIBANA, true, 1L, false, null);
         PlanExecutor.recordExternalSourceQuery(
             metrics,
-            ExternalSourceMetrics.CLIENT_KIBANA,
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_KIBANA, null, null),
+            true,
+            1L,
+            false,
+            null
+        );
+        PlanExecutor.recordExternalSourceQuery(
+            metrics,
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_KIBANA, null, null),
             true,
             1L,
             false,
@@ -216,10 +265,17 @@ public class PlanExecutorExternalSourceMetricsTests extends ESTestCase {
 
     public void testNonExternalSourceQueryRecordsNothing() {
         // Not an external-source query: the whole external-source metric family stays untouched, whatever the outcome.
-        PlanExecutor.recordExternalSourceQuery(metrics, ExternalSourceMetrics.CLIENT_KIBANA, false, 999L, false, null);
         PlanExecutor.recordExternalSourceQuery(
             metrics,
-            ExternalSourceMetrics.CLIENT_KIBANA,
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_KIBANA, null, null),
+            false,
+            999L,
+            false,
+            null
+        );
+        PlanExecutor.recordExternalSourceQuery(
+            metrics,
+            new ExternalSourceMetrics.QueryLabels(ExternalSourceMetrics.CLIENT_KIBANA, null, null),
             false,
             999L,
             false,

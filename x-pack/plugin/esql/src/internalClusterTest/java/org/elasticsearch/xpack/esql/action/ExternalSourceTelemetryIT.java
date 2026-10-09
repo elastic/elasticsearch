@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
@@ -136,6 +137,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         plugins.add(HttpDataSourcePlugin.class);
         plugins.add(CsvDataSourcePlugin.class);
         plugins.add(GzipDataSourcePlugin.class);
+        plugins.add(NdJsonDataSourcePlugin.class);
         plugins.add(TestDataSourcePlugin.class);
         plugins.add(TestTelemetryPlugin.class);
         return plugins;
@@ -173,7 +175,9 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         "emp_bad_row",
         "emp_dup_header",
         "emp_client_ok",
-        "emp_client_bad"
+        "emp_client_bad",
+        "emp_fmt_csv",
+        "emp_fmt_nd"
     );
     private static final Set<String> CREATED_DATASOURCES = Set.of(
         "ds",
@@ -184,7 +188,8 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         "ds_iae",
         "ds_bad_row",
         "ds_dup_header",
-        "ds_client"
+        "ds_client",
+        "ds_fmt"
     );
 
     @After
@@ -527,6 +532,92 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         long failuresAfter = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE));
         assertThat(failuresAfter - failuresBefore, equalTo(1L));
         assertThat(clusterTotal(IT_SUM_OF_QUERY_FAILURES) - byTypeBefore, equalTo(1L));
+    }
+
+    /**
+     * A query is labelled with the storage type and format of the external sources it read: a CSV dataset gives {@code local} and
+     * {@code csv}, and a query over a CSV and an NDJSON dataset gives {@code mixed} on the format. The same labels reach the
+     * phone-home {@code queries.by_type} and {@code queries.by_format} counters.
+     */
+    public void testQueryStorageTypeAndFormatLabels() throws Exception {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("a.csv"), "emp_no:integer\n1\n2\n3\n");
+        Files.writeString(dir.resolve("b.ndjson"), "{\"emp_no\":4}\n{\"emp_no\":5}\n");
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_fmt", "test", null, new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_fmt_csv",
+                    "ds_fmt",
+                    dir.resolve("a.csv").toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv"))
+                )
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_fmt_nd",
+                    "ds_fmt",
+                    dir.resolve("b.ndjson").toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson"))
+                )
+            )
+        );
+
+        int csv = DataSourceUsageAccumulator.FORMAT_NAMES.indexOf("csv");
+        int mixedFormat = DataSourceUsageAccumulator.FORMAT_COUNT;
+        int local = Type.LOCAL.ordinal();
+        long csvBefore = clusterTotal(a -> a.queriesByFormat(csv, DataSourceUsageAccumulator.OUTCOME_SUCCESS));
+        long mixedBefore = clusterTotal(a -> a.queriesByFormat(mixedFormat, DataSourceUsageAccumulator.OUTCOME_SUCCESS));
+        long localBefore = clusterTotal(a -> a.queriesByStorageType(local, DataSourceUsageAccumulator.OUTCOME_SUCCESS));
+
+        resetAllMeters();
+
+        try (var response = run(syncEsqlQueryRequest("FROM emp_fmt_csv | LIMIT 10"), TIMEOUT)) {
+            assertThat(getValuesList(response).size(), equalTo(3));
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM emp_fmt_csv, emp_fmt_nd | LIMIT 100"), TIMEOUT)) {
+            assertThat(getValuesList(response).size(), equalTo(5));
+        }
+
+        collectAllMeters();
+
+        List<Measurement> totals = counters(ExternalSourceMetrics.QUERIES_TOTAL);
+        List<Measurement> csvQueries = totals.stream()
+            .filter(m -> "csv".equals(m.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE)))
+            .toList();
+        assertThat("one query read only the csv dataset", csvQueries, hasSize(1));
+        assertThat(csvQueries.get(0).attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("local"));
+        List<Measurement> mixedQueries = totals.stream()
+            .filter(m -> ExternalSourceMetrics.MIXED.equals(m.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE)))
+            .toList();
+        assertThat("one query read a csv and an ndjson dataset, so its format is mixed", mixedQueries, hasSize(1));
+        assertThat(mixedQueries.get(0).attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("local"));
+        List<Measurement> mixedDurations = histograms(ExternalSourceMetrics.QUERY_DURATION).stream()
+            .filter(m -> ExternalSourceMetrics.MIXED.equals(m.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE)))
+            .toList();
+        assertThat(mixedDurations, hasSize(1));
+
+        assertThat(clusterTotal(a -> a.queriesByFormat(csv, DataSourceUsageAccumulator.OUTCOME_SUCCESS)) - csvBefore, equalTo(1L));
+        assertThat(
+            clusterTotal(a -> a.queriesByFormat(mixedFormat, DataSourceUsageAccumulator.OUTCOME_SUCCESS)) - mixedBefore,
+            equalTo(1L)
+        );
+        assertThat(clusterTotal(a -> a.queriesByStorageType(local, DataSourceUsageAccumulator.OUTCOME_SUCCESS)) - localBefore, equalTo(2L));
     }
 
     /**

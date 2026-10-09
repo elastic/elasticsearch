@@ -49,6 +49,10 @@ public final class DataSourceUsageAccumulator {
     public static final List<String> CLIENT_NAMES = List.of(CLIENT_KIBANA, CLIENT_NONE, CLIENT_OTHER);
     public static final int CLIENT_COUNT = CLIENT_NAMES.size();
 
+    // ---- per-query storage-type and format labels: "mixed" when a query reads sources that disagree ----
+
+    public static final String MIXED = "mixed";
+
     // ---- format vocabulary (closed set for parse.rows.by_format phone-home keys) ----
 
     public static final int FORMAT_PARQUET = 0;
@@ -190,6 +194,8 @@ public final class DataSourceUsageAccumulator {
     private final LongAdder[] storageRequests = adders(TYPE_COUNT);
     private final LongAdder[] storageBytesRead = adders(TYPE_COUNT);
     private final LongAdder[] storageErrors = adders(TYPE_COUNT);
+    /** Terminal storage give-ups by failure category (indexed by {@link #ERROR_TYPE_NAMES}). */
+    private final LongAdder[] storageErrorsByErrorType = adders(ERROR_TYPE_COUNT);
     private final LongAdder[] storageThrottled = adders(TYPE_COUNT);
 
     // ---- unattributed counters ----
@@ -210,6 +216,10 @@ public final class DataSourceUsageAccumulator {
     // ---- per-client query counter (indexed by {@link #CLIENT_NAMES}) ----
 
     private final LongAdder[] queriesByClient = adders(CLIENT_COUNT);
+    /** Queries by storage type ([type ordinal, or TYPE_COUNT for mixed][outcome]). */
+    private final LongAdder[][] queriesByStorageType = adders2(TYPE_COUNT + 1, OUTCOME_COUNT);
+    /** Queries by format ([format index, or FORMAT_COUNT for mixed][outcome]). */
+    private final LongAdder[][] queriesByFormat = adders2(FORMAT_COUNT + 1, OUTCOME_COUNT);
 
     // ---- failure counters by error_type (query failures; discovery failures) ----
 
@@ -271,8 +281,14 @@ public final class DataSourceUsageAccumulator {
         storageRetries.increment();
     }
 
-    public void recordError(Type type) {
-        storageErrors[index(type)].increment();
+    /**
+     * @param errorType one of {@link #ERROR_TYPE_NAMES}; counted in {@code storage.errors.by_error_type}
+     */
+    public void recordError(Type type, String errorType) {
+        int ti = index(type);
+        int ei = errorTypeIndex(errorType);
+        storageErrors[ti].increment();
+        storageErrorsByErrorType[ei].increment();
     }
 
     public void recordThrottled(Type type) {
@@ -289,16 +305,28 @@ public final class DataSourceUsageAccumulator {
      *                  there counts as {@link #ERROR_TYPE_OTHER}, so the per-error-type counters always sum to the
      *                  {@code failure} outcome counter
      */
-    public void recordQuery(String client, String outcome, long durationMillis, boolean partial, String errorType) {
+    public void recordQuery(
+        String client,
+        String storageType,
+        String format,
+        String outcome,
+        long durationMillis,
+        boolean partial,
+        String errorType
+    ) {
         // Resolve every index before the first increment, so an invalid argument cannot leave the counters half-updated.
         int oi = outcomeIndex(outcome);
         int ci = clientIndex(client);
+        int ti = queryTypeIndex(storageType);
+        int fi = queryFormatIndex(format);
         int ei = oi == OUTCOME_FAILURE ? errorTypeIndex(errorType == null ? ERROR_TYPE_OTHER : errorType) : -1;
         if (ei >= 0) {
             queryFailuresByErrorType[ei].increment();
         }
         queries[oi].increment();
         queriesByClient[ci].increment();
+        queriesByStorageType[ti][oi].increment();
+        queriesByFormat[fi][oi].increment();
         bucketTime(queryDuration, Math.max(0L, durationMillis));
         if (oi == OUTCOME_CANCELLED) {
             queriesCancelled.increment();
@@ -400,6 +428,14 @@ public final class DataSourceUsageAccumulator {
         return storageBytesRead[index(type)].sum();
     }
 
+    /** @param errorTypeIndex the index of one of {@link #ERROR_TYPE_NAMES} */
+    public long storageErrorsByErrorType(int errorTypeIndex) {
+        if (errorTypeIndex < 0 || errorTypeIndex >= ERROR_TYPE_COUNT) {
+            throw new IllegalArgumentException("errorTypeIndex out of range: " + errorTypeIndex);
+        }
+        return storageErrorsByErrorType[errorTypeIndex].sum();
+    }
+
     public long storageErrors(Type type) {
         return storageErrors[index(type)].sum();
     }
@@ -416,6 +452,30 @@ public final class DataSourceUsageAccumulator {
     public long queries(int outcomeIndex) {
         checkOutcomeIndex(outcomeIndex);
         return queries[outcomeIndex].sum();
+    }
+
+    /**
+     * @param typeIndex the ordinal of a {@link Type}, or {@code Type.values().length} for {@link #MIXED}
+     * @param outcomeIndex one of the {@code OUTCOME_*} constants
+     */
+    public long queriesByStorageType(int typeIndex, int outcomeIndex) {
+        checkOutcomeIndex(outcomeIndex);
+        if (typeIndex < 0 || typeIndex > TYPE_COUNT) {
+            throw new IllegalArgumentException("typeIndex out of range: " + typeIndex + "; valid range is 0.." + TYPE_COUNT);
+        }
+        return queriesByStorageType[typeIndex][outcomeIndex].sum();
+    }
+
+    /**
+     * @param formatIndex the index of a {@link #FORMAT_NAMES} entry, or {@code FORMAT_COUNT} for {@link #MIXED}
+     * @param outcomeIndex one of the {@code OUTCOME_*} constants
+     */
+    public long queriesByFormat(int formatIndex, int outcomeIndex) {
+        checkOutcomeIndex(outcomeIndex);
+        if (formatIndex < 0 || formatIndex > FORMAT_COUNT) {
+            throw new IllegalArgumentException("formatIndex out of range: " + formatIndex + "; valid range is 0.." + FORMAT_COUNT);
+        }
+        return queriesByFormat[formatIndex][outcomeIndex].sum();
     }
 
     /** @param clientIndex the index of one of {@link #CLIENT_NAMES} */
@@ -572,6 +632,31 @@ public final class DataSourceUsageAccumulator {
         };
     }
 
+    /** The storage-type slot of a query: its {@link Type} ordinal, {@link #MIXED} after the types, {@code unknown} for null. */
+    static int queryTypeIndex(String storageType) {
+        if (MIXED.equals(storageType)) {
+            return TYPE_COUNT;
+        }
+        for (Type type : Type.values()) {
+            if (type.key().equals(storageType)) {
+                return type.ordinal();
+            }
+        }
+        return Type.UNKNOWN.ordinal();
+    }
+
+    /** The format slot of a query: its {@link #FORMAT_NAMES} index, {@link #MIXED} after the formats, {@code unresolved} for null. */
+    static int queryFormatIndex(String format) {
+        if (MIXED.equals(format)) {
+            return FORMAT_COUNT;
+        }
+        if (format == null) {
+            return FORMAT_UNRESOLVED;
+        }
+        int i = FORMAT_NAMES.indexOf(format);
+        return i >= 0 ? i : FORMAT_OTHER;
+    }
+
     static int clientIndex(String client) {
         int i = CLIENT_NAMES.indexOf(client);
         if (i < 0) {
@@ -627,6 +712,14 @@ public final class DataSourceUsageAccumulator {
             }
         }
         buckets[thresholds.length].increment();
+    }
+
+    private static LongAdder[][] adders2(int rows, int cols) {
+        LongAdder[][] arr = new LongAdder[rows][];
+        for (int r = 0; r < rows; r++) {
+            arr[r] = adders(cols);
+        }
+        return arr;
     }
 
     private static LongAdder[] adders(int size) {

@@ -23,9 +23,14 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitiveTests;
+import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
@@ -218,6 +223,66 @@ public class LuceneOperatorExecutionMemoryTests extends ComputeTestCase {
                 }
                 assertThat("a closed evaluator must not hold execution memory", breaker.used.get(), equalTo(0L));
                 searcher.close();
+            }
+        }
+    }
+
+    /**
+     * The competitive iterator of {@link MinCompetitiveQuery} is rebuilt for every leaf. It must hold the charge of one scorer
+     * and release it when the operator is closed.
+     */
+    public void testMinCompetitiveQueryHoldsOneCharge() throws IOException {
+        long bound = NUM_DOCS / 2;
+        try (Directory directory = newDirectory()) {
+            writeIndex(directory);
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                long chargeForAllLeaves = chargeForAllLeaves(reader, LongPoint.newRangeQuery(FIELD, bound, Long.MAX_VALUE));
+                TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+                ContextIndexSearcher searcher = newSearcher(reader);
+                searcher.setCircuitBreaker(breaker);
+
+                SharedMinCompetitive.Supplier minCompetitive = new SharedMinCompetitive.Supplier(
+                    blockFactory().breaker(),
+                    List.of(new SharedMinCompetitive.KeyConfig(ElementType.LONG, TopNEncoder.DEFAULT_SORTABLE, false, false))
+                );
+                SharedMinCompetitiveTests.offerLongDesc(blockFactory(), minCompetitive, bound);
+                MinCompetitiveQuery.Factory minCompetitiveQuery = new MinCompetitiveQuery.Factory(minCompetitive, (ctx, page) -> {
+                    LongBlock block = page.getBlock(0);
+                    return LongPoint.newRangeQuery(FIELD, block.getLong(0), Long.MAX_VALUE);
+                });
+                LuceneSourceOperator.Factory factory = new LuceneSourceOperator.Factory(
+                    new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(searcher, 0)),
+                    ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
+                    DataPartitioning.SHARD,
+                    DataPartitioning.AutoStrategy.DEFAULT,
+                    LuceneOperator.SMALL_INDEX_BOUNDARY,
+                    1,
+                    100,
+                    LuceneOperator.NO_LIMIT,
+                    false,
+                    () -> 0L,
+                    LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                    QueryWarnings.EMIT,
+                    minCompetitiveQuery
+                );
+
+                try (LuceneSourceOperator operator = (LuceneSourceOperator) factory.get(driverContext())) {
+                    assertThat(drain(operator), equalTo(NUM_DOCS / 2));
+                    assertThat("the last competitive iterator is still live", breaker.used.get(), greaterThan(0L));
+                }
+                assertThat("a closed operator must not hold execution memory", breaker.used.get(), equalTo(0L));
+                assertThat("every leaf builds a competitive iterator", breaker.charges.get(), equalTo((long) SEGMENTS));
+                assertThat(
+                    "the charge for a leaf must be released before the next leaf is scored",
+                    breaker.peak.get(),
+                    lessThan(chargeForAllLeaves)
+                );
+                searcher.close();
+                assertThat(breaker.used.get(), equalTo(0L));
+
+                SharedMinCompetitive channel = minCompetitive.get();
+                channel.close();
+                channel.close();
             }
         }
     }

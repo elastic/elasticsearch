@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -275,6 +276,11 @@ public class ComputeService {
         this.formatReaderRegistry = formatReaderRegistry;
     }
 
+    /** The minimum transport version of the nodes that may read the splits planned here. */
+    private TransportVersion minTransportVersion() {
+        return clusterService.state().getMinTransportVersion();
+    }
+
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
     }
@@ -372,6 +378,7 @@ public class ComputeService {
                     FormatReader.NO_LIMIT,
                     discoveryMemory(run),
                     configuration.pragmas().taskConcurrency(),
+                    minTransportVersion(),
                     ioExecutor,
                     ActionListener.wrap(result -> {
                         try {
@@ -799,6 +806,9 @@ public class ComputeService {
      * Behaviour therefore does not belong here. A rule added to this and not to the async twin is a rule no query
      * runs, which has already happened once on this path: the bounded first attempt was written here first and had
      * to be threaded through the async entry before any query got faster.
+     * <p>
+     * {@code minTransportVersion} is the async twin's {@link #minTransportVersion()}: the oldest node that may read the
+     * splits, so the same split shapes are planned as a query would get.
      */
     static PhysicalPlan discoverSplitsFromFragments(
         PhysicalPlan plan,
@@ -806,7 +816,8 @@ public class ComputeService {
         int maxRecordBytes,
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled,
-        OperatorFactoryRegistry operatorFactoryRegistry
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        TransportVersion minTransportVersion
     ) {
         if (operatorFactoryRegistry == null) {
             return plan;
@@ -830,7 +841,9 @@ public class ComputeService {
                         guarded.filters(),
                         guarded.rowLimit(),
                         // No reservation reaches the synchronous path, which only tests take.
-                        PlanningMemory.NONE
+                        PlanningMemory.NONE,
+                        0,
+                        minTransportVersion
                     );
                 }
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
@@ -931,6 +944,7 @@ public class ComputeService {
                 work.guarded().rowLimit(),
                 discoveryMemory(run),
                 taskConcurrency,
+                minTransportVersion(),
                 ioExecutor,
                 ActionListener.wrap(result -> {
                     try {
@@ -1850,7 +1864,8 @@ public class ComputeService {
                 remoteFetchService,
                 parallelWorkerExecutor,
                 esqlWorkerPoolSize,
-                grokMatcherWatchdog.get()
+                grokMatcherWatchdog.get(),
+                clusterService.state().getMinTransportVersion()
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

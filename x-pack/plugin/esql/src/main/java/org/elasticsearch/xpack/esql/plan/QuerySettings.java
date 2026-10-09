@@ -162,8 +162,8 @@ public final class QuerySettings {
         .withDefault(UnmappedResolution.DEFAULT)
         .withClusterDefault()
         .withTelemetryLabels(
-            Arrays.stream(UnmappedResolution.values()).map(value -> value.toString().toLowerCase(Locale.ROOT)).toList(),
-            value -> value.toString().toLowerCase(Locale.ROOT)
+            Arrays.stream(UnmappedResolution.values()).map(UnmappedResolution::settingValue).toList(),
+            UnmappedResolution::settingValue
         )
         .build();
 

@@ -215,7 +215,7 @@ public final class QuerySettingDef<T> {
                 }
                 throw new IllegalArgumentException("Setting [" + name + "] must be a boolean, got [" + value + "]");
             })
-            .streamFormat((out, value) -> out.writeBoolean(value), StreamInput::readBoolean)
+            .streamFormat(StreamOutput::writeBoolean, StreamInput::readBoolean)
             .withTelemetryLabels(List.of("true", "false"), value -> Boolean.toString(value));
     }
 
@@ -322,7 +322,7 @@ public final class QuerySettingDef<T> {
     /**
      * The telemetry label for {@code value}, the value this setting resolved to for a query.
      */
-    public String telemetryLabel(@Nullable T value) {
+    public String telemetryLabel(T value) {
         return telemetryLabeler.apply(value);
     }
 

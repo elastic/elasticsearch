@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -58,6 +59,7 @@ public class Metrics {
     private final TookMetrics tookMetrics = new TookMetrics();
 
     private final EsqlFunctionRegistry functionRegistry;
+    private final List<QuerySettingDef<?>> applicableQuerySettings;
     private final Map<Class<?>, String> classToFunctionName;
 
     /**
@@ -97,10 +99,10 @@ public class Metrics {
         }
         featuresMetrics = Collections.unmodifiableMap(fMap);
 
-        var applicable = QuerySettings.applicableIn(isSnapshot, isServerless);
-        Map<String, CounterMetric> sMap = Maps.newLinkedHashMapWithExpectedSize(applicable.size());
-        Map<String, Map<String, CounterMetric>> rsMap = Maps.newLinkedHashMapWithExpectedSize(applicable.size());
-        for (var def : applicable) {
+        this.applicableQuerySettings = QuerySettings.applicableIn(isSnapshot, isServerless);
+        Map<String, CounterMetric> sMap = Maps.newLinkedHashMapWithExpectedSize(applicableQuerySettings.size());
+        Map<String, Map<String, CounterMetric>> rsMap = Maps.newLinkedHashMapWithExpectedSize(applicableQuerySettings.size());
+        for (var def : applicableQuerySettings) {
             sMap.put(def.name(), new CounterMetric());
             Map<String, CounterMetric> valueMap = Maps.newLinkedHashMapWithExpectedSize(def.telemetryLabels().size());
             for (String label : def.telemetryLabels()) {
@@ -163,14 +165,12 @@ public class Metrics {
     }
 
     public void incResolvedSettings(ResolvedSettings resolvedSettings) {
-        for (QuerySettingDef<?> def : QuerySettings.all()) {
-            Map<String, CounterMetric> valueCounters = this.resolvedSettingsMetrics.get(def.name());
-            if (valueCounters != null) {
-                CounterMetric counter = valueCounters.get(def.telemetryLabel(resolvedSettings));
-                if (counter != null) {
-                    counter.inc();
-                }
-            }
+        for (QuerySettingDef<?> def : applicableQuerySettings) {
+            var counters = resolvedSettingsMetrics.get(def.name());
+            assert counters != null;
+            var counter = counters.get(def.telemetryLabel(resolvedSettings));
+            assert counter != null;
+            counter.inc();
         }
     }
 

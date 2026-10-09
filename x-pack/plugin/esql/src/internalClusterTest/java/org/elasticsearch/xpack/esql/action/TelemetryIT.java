@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
 
+import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -44,6 +45,7 @@ import static org.hamcrest.Matchers.is;
 public class TelemetryIT extends AbstractEsqlIntegTestCase {
 
     private final String query;
+    private final Map<QuerySettingDef<?>, ?> requestSettings;
     private final Map<String, Integer> expectedCommands;
     private final Map<String, Integer> expectedFunctions;
     private final Map<String, Integer> expectedSettings;
@@ -268,6 +270,33 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                 FROM idx
                 | LIMIT 10
                 """, Map.of("FROM", 1, "LIMIT", 1), Map.of(), Map.of("TIME_ZONE", 2), Map.of("TIME_ZONE", "set"), true),
+            // Test with settings supplied in the request body rather than the query.
+            // The resolved values reflect them.
+            // The per-setting usage counters only see in-query SET, so none are expected here.
+            // (see also: https://github.com/elastic/elasticsearch/issues/160257)
+            testCase(
+                "FROM idx | KEEP host",
+                Map.of(QuerySettings.TIME_ZONE, ZoneId.of("America/New_York"), QuerySettings.COLUMN_METADATA, true),
+                Map.of("FROM", 1, "KEEP", 1),
+                Map.of(),
+                Map.of(),
+                Map.of("TIME_ZONE", "set", "COLUMN_METADATA", "true"),
+                true
+            ),
+            // Test with settings from both the request body and the query.
+            testCase(
+                """
+                    SET unmapped_fields = "NULLIFY";
+                    FROM idx
+                    | KEEP host
+                    """,
+                Map.of(QuerySettings.TIME_ZONE, ZoneId.of("America/New_York"), QuerySettings.UNMAPPED_FIELDS, "load"),
+                Map.of("FROM", 1, "KEEP", 1),
+                Map.of(),
+                Map.of("UNMAPPED_FIELDS", 1),
+                Map.of("TIME_ZONE", "set", "UNMAPPED_FIELDS", "nullify"),
+                true
+            ),
             // Test without settings: each one reports the value it resolved to, which is its default
             testCase(
                 "FROM idx | LIMIT 10",
@@ -307,11 +336,31 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         Map<String, String> expectedSettingValues,
         boolean success
     ) {
-        return new Object[] { query, expectedCommands, expectedFunctions, expectedSettings, expectedSettingValues, success };
+        return testCase(query, Map.of(), expectedCommands, expectedFunctions, expectedSettings, expectedSettingValues, success);
+    }
+
+    private static Object[] testCase(
+        String query,
+        Map<QuerySettingDef<?>, ?> requestSettings,
+        Map<String, Integer> expectedCommands,
+        Map<String, Integer> expectedFunctions,
+        Map<String, Integer> expectedSettings,
+        Map<String, String> expectedSettingValues,
+        boolean success
+    ) {
+        return new Object[] {
+            query,
+            requestSettings,
+            expectedCommands,
+            expectedFunctions,
+            expectedSettings,
+            expectedSettingValues,
+            success };
     }
 
     public TelemetryIT(
         String query,
+        Map<QuerySettingDef<?>, ?> requestSettings,
         Map<String, Integer> expectedCommands,
         Map<String, Integer> expectedFunctions,
         Map<String, Integer> expectedSettings,
@@ -319,6 +368,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         boolean success
     ) {
         this.query = query;
+        this.requestSettings = requestSettings;
         this.expectedCommands = expectedCommands;
         this.expectedFunctions = expectedFunctions;
         this.expectedSettings = expectedSettings;
@@ -365,7 +415,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         try {
             int successIterations = randomInt(10);
             for (int i = 0; i < successIterations; i++) {
-                EsqlQueryRequest request = executeQuery(query);
+                EsqlQueryRequest request = executeQuery(query, requestSettings);
                 CountDownLatch latch = new CountDownLatch(1);
 
                 final long iteration = i + 1;
@@ -458,8 +508,15 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
             .collect(Collectors.toSet());
     }
 
-    private static EsqlQueryRequest executeQuery(String query) {
-        return syncEsqlQueryRequest(query).pragmas(randomPragmas());
+    private static EsqlQueryRequest executeQuery(String query, Map<QuerySettingDef<?>, ?> requestSettings) {
+        EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(randomPragmas());
+        requestSettings.forEach((def, value) -> setRequestSetting(request, def, value));
+        return request;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> void setRequestSetting(EsqlQueryRequest request, QuerySettingDef<T> def, Object value) {
+        request.set(def, (T) value);
     }
 
     private static void loadData(String nodeName) {

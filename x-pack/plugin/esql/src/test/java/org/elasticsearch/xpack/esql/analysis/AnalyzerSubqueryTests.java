@@ -1418,6 +1418,13 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
                     "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
                 )
             );
+        analyzer().addK8s()
+            .error(
+                "FROM (TS k8s), (TS k8s) | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)",
+                containsString(
+                    "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
+                )
+            );
 
         analyzer().addK8s()
             .error(

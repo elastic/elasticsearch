@@ -138,7 +138,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * those from the {@link Subquery} and {@link NamedSubquery} wrappers, so compaction must then keep the outermost wrapper of
      * every branch it rewrites or lifts.
      */
-    static boolean keepsBranchWrappers(LogicalPlan plan) {
+    private static boolean keepsBranchWrappers(LogicalPlan plan) {
         return plan.anyMatch(p -> p instanceof UnresolvedMetadata um && MetadataAttribute.requestsRelationColumn(um.metadataFields()));
     }
 

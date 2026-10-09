@@ -44,6 +44,8 @@ public final class NodeByteBudgetService implements NodeByteBudget {
     private final ArrayDeque<TicketWaiter> waiters = new ArrayDeque<>();
     private final ArrayList<Runnable> pendingCompletions = new ArrayList<>();
     private RowGroupIo overshootOwner;
+    /** Live OVER_CAP rescue holds. Guarded by {@link #lock}. */
+    private int rescueHolds;
     private volatile AdmissionTracker tracker = AdmissionTracker.NOOP;
 
     public static NodeByteBudgetService forHeap() {
@@ -252,9 +254,11 @@ public final class NodeByteBudgetService implements NodeByteBudget {
     /**
      * Unsticks the FIFO head, then re-runs the normal grant loop. Skips cancelled heads.
      * {@link AdmissionGate.RescueResult#OVER_CAP} is a plain hold ({@code owner=false}), counted
-     * in {@link #used()}. {@link AdmissionGate.RescueResult#REGRANT} is a within-cap grant that
-     * should have happened on an earlier release (lost wakeup). {@code delivery} replaces
-     * {@code Runnable::run} so the inspect thread does not run grant continuations.
+     * in {@link #used()}. At most one rescued hold is live: a second over-cap grant waits until
+     * that hold releases. OVER_CAP is skipped when {@code used} has dropped since the head
+     * parked (holders draining, not a wedge). {@link AdmissionGate.RescueResult#REGRANT} is a
+     * within-cap grant that should have happened on an earlier release (lost wakeup).
+     * {@code delivery} {@code null} keeps each waiter's executor.
      */
     public AdmissionGate.RescueResult rescueHeadOverCap() {
         return rescueHeadOverCap(null);
@@ -350,7 +354,8 @@ public final class NodeByteBudgetService implements NodeByteBudget {
      * Caller holds the lock. Cancelled heads are dropped until a live head remains. A head that
      * {@link #tryChargeLocked} can admit is a lost-wakeup {@link AdmissionGate.RescueResult#REGRANT}.
      * An over-cap grant is a {@link HoldImpl} with {@code owner=false}; it does not
-     * {@link #tryBecomeOwner} or pin the overshoot slot.
+     * {@link #tryBecomeOwner} or pin the overshoot slot. Skipped when {@code used} has dropped
+     * since the head parked, or when another rescued hold is still live.
      */
     private AdmissionGate.RescueResult rescueHeadLocked(@Nullable Executor delivery) {
         failCancelledWaitersLocked();
@@ -367,16 +372,35 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                 head.complete(charged, deliveryFor(head, delivery));
                 return AdmissionGate.RescueResult.REGRANT;
             }
+            if (used.get() < head.usedAtPark) {
+                head.usedAtPark = used.get();
+                return AdmissionGate.RescueResult.NONE;
+            }
+            if (rescueHolds > 0) {
+                return AdmissionGate.RescueResult.NONE;
+            }
             long next = used.get() + head.bytes;
             if (next < 0L) {
                 throw new EsRejectedExecutionException("parquet I/O byte reservation overflow");
             }
             setUsed(next);
+            rescueHolds++;
             waiters.removeFirst();
-            head.complete(new HoldImpl(this, head.bytes, head.lease, false), deliveryFor(head, delivery));
+            head.complete(new HoldImpl(this, head.bytes, head.lease, false, true), deliveryFor(head, delivery));
             return AdmissionGate.RescueResult.OVER_CAP;
         }
         return AdmissionGate.RescueResult.NONE;
+    }
+
+    private void releaseRescueHold() {
+        lock.lock();
+        try {
+            if (rescueHolds > 0) {
+                rescueHolds--;
+            }
+        } finally {
+            lock.unlock();
+        }
     }
 
     private static Executor deliveryFor(TicketWaiter head, @Nullable Executor delivery) {
@@ -424,6 +448,7 @@ public final class NodeByteBudgetService implements NodeByteBudget {
         private final BooleanSupplier cancel;
         private final Executor executor;
         private final SubscribableListener<Hold> listener;
+        private long usedAtPark;
         private final AtomicBoolean completed = new AtomicBoolean();
         private AdmissionTracker.Wait tracked = AdmissionTracker.NOOP_WAIT;
 
@@ -433,6 +458,7 @@ public final class NodeByteBudgetService implements NodeByteBudget {
             this.cancel = cancel;
             this.executor = executor;
             this.listener = listener;
+            this.usedAtPark = used.get();
         }
 
         private void complete(HoldImpl hold, Executor exec) {
@@ -490,14 +516,21 @@ public final class NodeByteBudgetService implements NodeByteBudget {
         private final long bytes;
         private final RowGroupIo lease;
         private final boolean overshoot;
+        private final boolean rescued;
         private final AtomicLong remaining;
         private final AtomicBoolean closed = new AtomicBoolean();
+        private final AtomicBoolean rescueReleased = new AtomicBoolean();
 
         private HoldImpl(NodeByteBudgetService budget, long bytes, RowGroupIo lease, boolean overshoot) {
+            this(budget, bytes, lease, overshoot, false);
+        }
+
+        private HoldImpl(NodeByteBudgetService budget, long bytes, RowGroupIo lease, boolean overshoot, boolean rescued) {
             this.budget = budget;
             this.bytes = bytes;
             this.lease = lease;
             this.overshoot = overshoot;
+            this.rescued = rescued;
             this.remaining = new AtomicLong(Math.max(0L, bytes));
         }
 
@@ -547,6 +580,9 @@ public final class NodeByteBudgetService implements NodeByteBudget {
             // Charge only. Overshoot owner stays until clearOwner(lease): force-added
             // buffers can still sit in used, and a second over-cap unit must queue.
             drop(Long.MAX_VALUE);
+            if (rescued && rescueReleased.compareAndSet(false, true)) {
+                budget.releaseRescueHold();
+            }
         }
     }
 }

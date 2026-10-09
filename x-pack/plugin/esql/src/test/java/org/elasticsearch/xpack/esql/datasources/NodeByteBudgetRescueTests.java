@@ -92,16 +92,20 @@ public class NodeByteBudgetRescueTests extends ESTestCase {
         assertFalse(firstHold.get().isOvershoot());
         assertSame(overshoot.lease(), budget.overshootOwner());
 
+        assertEquals(NONE, budget.rescueHeadOverCap());
+        assertFalse("one live OVER_CAP hold blocks a second stack", second.isDone());
+        firstHold.get().close();
+        assertEquals(80, budget.used());
+
         assertEquals(OVER_CAP, budget.rescueHeadOverCap());
         assertTrue(second.isDone());
         assertEquals(0, budget.waiterCount());
-        assertEquals(180, budget.used());
+        assertEquals(130, budget.used());
         AtomicReference<NodeByteBudget.Hold> secondHold = new AtomicReference<>();
         second.addListener(ActionListener.wrap(secondHold::set, e -> fail(e.toString())));
         assertFalse(secondHold.get().isOvershoot());
         assertSame(overshoot.lease(), budget.overshootOwner());
 
-        firstHold.get().close();
         secondHold.get().close();
         residual.close();
         budget.clearOwner(overshoot.lease());
@@ -147,6 +151,27 @@ public class NodeByteBudgetRescueTests extends ESTestCase {
         assertEquals(NONE, budget.rescueHeadOverCap());
         assertEquals(40, budget.used());
         hold.close();
+        assertEquals(0, budget.used());
+    }
+
+    public void testRescueSkipsWhenUsedDroppedSincePark() {
+        NodeByteBudgetService budget = new NodeByteBudgetService(100);
+        NodeByteBudget.Hold residual = budget.tryAdmit(80);
+        NodeByteBudget.Hold overshoot = occupyOvershoot(budget, 25);
+        overshoot.close();
+        SubscribableListener<NodeByteBudget.Hold> head = budget.admitAsync(50, new RowGroupIo(), () -> false, Runnable::run);
+        assertFalse(head.isDone());
+        residual.drop(10);
+        assertEquals(70, budget.used());
+        assertEquals("holders draining is not a wedge", NONE, budget.rescueHeadOverCap());
+        assertFalse(head.isDone());
+        assertEquals("plateau after a drop can still rescue", OVER_CAP, budget.rescueHeadOverCap());
+        assertTrue(head.isDone());
+        AtomicReference<NodeByteBudget.Hold> hold = new AtomicReference<>();
+        head.addListener(ActionListener.wrap(hold::set, e -> fail(e.toString())));
+        hold.get().close();
+        residual.close();
+        budget.clearOwner(overshoot.lease());
         assertEquals(0, budget.used());
     }
 

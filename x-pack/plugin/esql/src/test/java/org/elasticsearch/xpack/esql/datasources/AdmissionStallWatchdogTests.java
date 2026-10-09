@@ -592,14 +592,12 @@ public class AdmissionStallWatchdogTests extends ESTestCase {
         watchdog.close();
     }
 
-    public void testRescueRedirectsSameWaitersOffInspectThread() {
+    public void testRescueRunsSameWaitersOnInspectThread() {
         AtomicLong clock = new AtomicLong();
         NodeByteBudgetService budget = new NodeByteBudgetService(100);
         AdmissionStallWatchdog watchdog = watchdog(clock, TimeValue.timeValueSeconds(15), TimeValue.timeValueSeconds(30));
         budget.bindTracker(watchdog);
         watchdog.register(bytesGate(budget));
-        List<Runnable> held = new ArrayList<>();
-        watchdog.setRescueDelivery(held::add);
 
         NodeByteBudget.Hold residual = budget.tryAdmit(80);
         NodeByteBudget.Hold overshoot = occupyOvershoot(budget, 25);
@@ -609,10 +607,7 @@ public class AdmissionStallWatchdogTests extends ESTestCase {
         clock.addAndGet(TimeUnit.SECONDS.toNanos(6));
         watchdog.inspect();
         assertEquals(1, watchdog.rescueCount());
-        assertFalse("inspect must not run SAME waiters", head.isDone());
-        assertFalse(held.isEmpty());
-        held.forEach(Runnable::run);
-        assertTrue(head.isDone());
+        assertTrue("DIRECT callbacks run on inspect like any other releaser", head.isDone());
         residual.close();
         budget.clearOwner(overshoot.lease());
         watchdog.close();

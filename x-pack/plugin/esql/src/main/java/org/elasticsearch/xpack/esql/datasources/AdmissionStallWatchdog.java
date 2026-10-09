@@ -48,8 +48,8 @@ import java.util.function.LongSupplier;
  * <p>
  * Inspect runs on {@code GENERIC} via {@link ThreadPool#scheduleWithFixedDelay} as a
  * force-execution task: the timer thread only enqueues the check, so a stuck scheduler
- * thread does not run the graph walk. Direct ({@code Runnable::run}) waiters are delivered
- * on the rescue executor (production: {@code esql_worker}), never GENERIC. Every tick logs
+ * thread does not run the graph walk. Direct ({@code Runnable::run}) waiters run on inspect
+ * like any other releaser; waiters that passed an I/O executor keep it. Every tick logs
  * a DEBUG dump of the byte budget. Queue depth, oldest-wait, and rescue counters share the
  * {@code es.esql.datasources.admission.*} namespace so a later query-slot admission surface
  * can join the same series. Oldest-wait stays on the APM gauge because phone-home counters
@@ -90,8 +90,6 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
     private final LongAdder regrants = new LongAdder();
     private final AtomicBoolean rescueEnabled = new AtomicBoolean(true);
     private final AtomicBoolean closed = new AtomicBoolean();
-    @Nullable
-    private volatile Executor rescueDelivery;
 
     AdmissionStallWatchdog(ThreadPool threadPool, MeterRegistry meters) {
         this(threadPool, meters, DEFAULT_INTERVAL, DEFAULT_STALL, DEFAULT_RESCUE, DEFAULT_QUIET, System::nanoTime, threadPool.generic());
@@ -197,10 +195,6 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
         rescueEnabled.set(enabled);
     }
 
-    void setRescueDelivery(@Nullable Executor delivery) {
-        this.rescueDelivery = delivery;
-    }
-
     long rescueCount() {
         return rescues.sum();
     }
@@ -292,7 +286,7 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
             return;
         }
         String graph = describe(probe.name(), state, state.outstanding.size(), oldestWaitNanos, sinceGrantNanos, neverGranted);
-        AdmissionGate.RescueResult result = probe.rescueHead(rescueDelivery);
+        AdmissionGate.RescueResult result = probe.rescueHead(null);
         if (result == AdmissionGate.RescueResult.NONE) {
             return;
         }

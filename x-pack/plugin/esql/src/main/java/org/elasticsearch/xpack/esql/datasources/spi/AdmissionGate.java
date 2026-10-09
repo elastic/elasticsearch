@@ -58,8 +58,8 @@ public interface AdmissionGate {
 
     /**
      * Unsticks the FIFO head. The watchdog has already decided the gate is stalled.
-     * {@code delivery} is used instead of {@code Runnable::run} so inspect (GENERIC) does not
-     * run grant continuations. Default is a no-op.
+     * Production inspect passes {@code null}: each waiter keeps its executor, so
+     * {@code Runnable::run} callbacks run on inspect like any other releaser. Default is a no-op.
      */
     default RescueResult rescueHead(@Nullable Executor delivery) {
         return RescueResult.NONE;

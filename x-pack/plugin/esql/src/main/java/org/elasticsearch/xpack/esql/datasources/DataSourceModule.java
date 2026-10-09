@@ -520,16 +520,6 @@ public final class DataSourceModule implements Closeable {
         }
     }
 
-    /**
-     * Where rescue delivers {@code Runnable::run} waiters. Production passes {@code esql_worker}
-     * so GENERIC inspect never starts blob I/O. Null keeps each waiter's own executor (tests).
-     */
-    public void setRescueDelivery(@Nullable Executor delivery) {
-        if (admissionWatchdog != null) {
-            admissionWatchdog.setRescueDelivery(delivery);
-        }
-    }
-
     public DecompressionCodecRegistry codecRegistry() {
         return codecRegistry;
     }

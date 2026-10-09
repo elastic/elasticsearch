@@ -670,3 +670,12 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/161472
 - class: org.elasticsearch.xpack.esql.qa.csv.TsvCompressedFormatSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/161473
+- class: org.elasticsearch.xpack.ml.action.datafeed.DatafeedEsqlGatesTests
+  method: testValidateDatafeedCreateEsqlDatafeedOnUpgradedClusterShouldSucceed
+  issue: https://github.com/elastic/elasticsearch/issues/161484
+- class: org.elasticsearch.xpack.ml.action.datafeed.DatafeedEsqlGatesTests
+  method: testValidateEsqlDatafeedEnabledWhenFlagOnAndClusterSupportsItShouldSucceed
+  issue: https://github.com/elastic/elasticsearch/issues/161485
+- class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
+  method: testShardPrewarming
+  issue: https://github.com/elastic/elasticsearch/issues/161487

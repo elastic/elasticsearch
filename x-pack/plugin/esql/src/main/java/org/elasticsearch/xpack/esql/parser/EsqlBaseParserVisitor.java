@@ -637,13 +637,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitLogicalNot(EsqlBaseParser.LogicalNotContext ctx);
   /**
-   * Visit a parse tree produced by the {@code logicalInMultiColumnLetBinding}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitLogicalInMultiColumnLetBinding(EsqlBaseParser.LogicalInMultiColumnLetBindingContext ctx);
-  /**
    * Visit a parse tree produced by the {@code booleanDefault}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -664,13 +657,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitIsNull(EsqlBaseParser.IsNullContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code logicalInLetBinding}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitLogicalInLetBinding(EsqlBaseParser.LogicalInLetBindingContext ctx);
   /**
    * Visit a parse tree produced by the {@code logicalInSubquery}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

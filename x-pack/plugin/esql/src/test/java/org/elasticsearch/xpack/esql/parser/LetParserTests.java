@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser;
 import org.elasticsearch.Build;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
@@ -137,8 +138,8 @@ public class LetParserTests extends AbstractStatementParserTests {
             ),
             first_column = (
                FROM kibana_sample_data_logs
-                  | FORK (WHERE extension IN top3_extensions)
-                         (WHERE extension NOT IN top3_extensions
+                  | FORK (WHERE extension IN (FROM top3_extensions))
+                         (WHERE extension NOT IN (FROM top3_extensions)
                              | EVAL extension = "other")
             ),
             top3_geo_dest_by_ext = (
@@ -150,8 +151,8 @@ public class LetParserTests extends AbstractStatementParserTests {
             ),
             first_and_second_column = (
               FROM top3_geo_dest_by_ext
-                  | FORK (WHERE (extension, geo.dest) IN top3_geo_dest_by_ext)
-                         (WHERE (extension, geo.dest) NOT IN top3_geo_dest_by_ext
+                  | FORK (WHERE (extension, geo.dest) IN (FROM top3_geo_dest_by_ext))
+                         (WHERE (extension, geo.dest) NOT IN (FROM top3_geo_dest_by_ext)
                              | EVAL geo.dest = "other"::keyword)
             );
             FROM first_and_second_column
@@ -165,53 +166,54 @@ public class LetParserTests extends AbstractStatementParserTests {
     }
 
     // -----------------------------------------------------------------------
-    // IN operand forms — each should produce InSubquery / MultiColumnInSubquery
-    // over an UnresolvedRelation carrying the binding name.
+    // IN operand forms — a LET name is referenced through an explicit FROM subquery,
+    // so it parses to an InSubquery / MultiColumnInSubquery over an UnresolvedRelation
+    // carrying the binding name.
     // -----------------------------------------------------------------------
 
-    /** {@code x IN name} — bare single-column form */
-    public void testInBareIdentifierForm() {
+    /** {@code x IN (FROM name)} — single-column form */
+    public void testInFromBindingForm() {
         assumeLet();
-        EsqlStatement stmt = statement("LET top3 = (FROM idx | LIMIT 3); FROM src | WHERE ext IN top3");
+        EsqlStatement stmt = statement("LET top3 = (FROM idx | LIMIT 3); FROM src | WHERE ext IN (FROM top3)");
         assertThat(stmt.letBindings().size(), is(1));
-        LogicalPlan query = stmt.plan();
-        Filter filter = as(query, Filter.class);
-        assertThat(filter.condition(), instanceOf(InSubquery.class));
-        InSubquery inSub = (InSubquery) filter.condition();
-        assertThat(inSub.subquery(), instanceOf(UnresolvedRelation.class));
-        UnresolvedRelation ur = (UnresolvedRelation) inSub.subquery();
+        Filter filter = as(stmt.plan(), Filter.class);
+        InSubquery inSub = as(filter.condition(), InSubquery.class);
+        UnresolvedRelation ur = as(inSub.subquery(), UnresolvedRelation.class);
         assertThat(ur.indexPattern().indexPattern(), is("top3"));
     }
 
-    /** {@code x NOT IN name} — bare single-column negated form */
-    public void testNotInBareIdentifierForm() {
+    /** {@code x NOT IN (FROM name)} — single-column negated form */
+    public void testNotInFromBindingForm() {
         assumeLet();
-        EsqlStatement stmt = statement("LET top3 = (FROM idx | LIMIT 3); FROM src | WHERE ext NOT IN top3");
-        assertThat(stmt.letBindings().size(), is(1));
+        EsqlStatement stmt = statement("LET top3 = (FROM idx | LIMIT 3); FROM src | WHERE ext NOT IN (FROM top3)");
         Filter filter = as(stmt.plan(), Filter.class);
         // NOT wraps the InSubquery
         assertThat(filter.condition().children().get(0), instanceOf(InSubquery.class));
     }
 
-    /** {@code x IN (name)} where name is a LET binding must be a parse error; use bare form. */
-    public void testInParenthesisedLetBindingRejected() {
+    /** {@code (a, b) IN (FROM name)} — multi-column form */
+    public void testInMultiColumnFromBindingForm() {
         assumeLet();
-        ParsingException pe = expectThrows(
-            ParsingException.class,
-            () -> statement("LET top3 = (FROM idx | LIMIT 3); FROM src | WHERE ext IN (top3)")
-        );
-        assertThat(pe.getMessage(), containsString("use the bare form [IN top3] to reference a LET binding; [IN (top3)] is not supported"));
+        EsqlStatement stmt = statement("LET tbl = (FROM idx | LIMIT 3); FROM src | WHERE (ext, geo) IN (FROM tbl)");
+        Filter filter = as(stmt.plan(), Filter.class);
+        MultiColumnInSubquery inSub = as(filter.condition(), MultiColumnInSubquery.class);
+        UnresolvedRelation ur = as(inSub.subquery(), UnresolvedRelation.class);
+        assertThat(ur.indexPattern().indexPattern(), is("tbl"));
     }
 
-    /** {@code (a, b) IN name} — bare multi-column form */
-    public void testInMultiColumnBareIdentifierForm() {
+    /** The bare {@code x IN name} form is not part of the grammar: a subquery must be written with FROM. */
+    public void testBareInBindingRejected() {
         assumeLet();
-        EsqlStatement stmt = statement("LET tbl = (FROM idx | LIMIT 3); FROM src | WHERE (ext, geo) IN tbl");
+        expectValidationError("LET top3 = (FROM idx | LIMIT 3); FROM src | WHERE ext IN top3", "no viable alternative");
+        expectValidationError("LET tbl = (FROM idx | LIMIT 3); FROM src | WHERE (ext, geo) IN tbl", "mismatched input 'tbl' expecting '('");
+    }
+
+    /** {@code x IN (name)} stays a plain single-element value list (folded to equality), even when name is a LET binding. */
+    public void testInParenthesisedNameIsValueList() {
+        assumeLet();
+        EsqlStatement stmt = statement("LET top3 = (FROM idx | LIMIT 3); FROM src | WHERE ext IN (top3)");
         Filter filter = as(stmt.plan(), Filter.class);
-        assertThat(filter.condition(), instanceOf(MultiColumnInSubquery.class));
-        MultiColumnInSubquery inSub = (MultiColumnInSubquery) filter.condition();
-        assertThat(inSub.subquery(), instanceOf(UnresolvedRelation.class));
-        assertThat(((UnresolvedRelation) inSub.subquery()).indexPattern().indexPattern(), is("tbl"));
+        assertThat(filter.condition(), instanceOf(Equals.class));
     }
 
     // -----------------------------------------------------------------------

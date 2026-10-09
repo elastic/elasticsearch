@@ -59,10 +59,11 @@ language_code:integer | language_name:keyword
 
 letBindingInInSubquery
 required_capability: named_subquery_let
+required_capability: where_in_subquery_without_view
 
 LET low_codes = (FROM languages | WHERE language_code <= 2 | KEEP language_code)\;
 FROM languages
-| WHERE language_code IN low_codes
+| WHERE language_code IN (FROM low_codes)
 | KEEP language_code, language_name
 | SORT language_code
 ;
@@ -73,16 +74,37 @@ language_code:integer | language_name:keyword
 ;
 
 // -------------------------------------------------------------------
+// Same LET binding used as FROM source and inside IN (FROM binding)
+// -------------------------------------------------------------------
+
+letBindingInFromAndInSubquery
+required_capability: named_subquery_let
+required_capability: where_in_subquery_without_view
+
+LET top_codes = (FROM languages | SORT language_code | LIMIT 3 | KEEP language_code)\;
+FROM top_codes
+| WHERE language_code IN (FROM top_codes)
+| SORT language_code
+;
+
+language_code:integer
+1
+2
+3
+;
+
+// -------------------------------------------------------------------
 // Multiple LET bindings: one used as FROM source, another in IN position
 // -------------------------------------------------------------------
 
 letMultipleBindingsFromAndIn
 required_capability: named_subquery_let
+required_capability: where_in_subquery_without_view
 
 LET sources = (FROM languages | WHERE language_code > 1 | KEEP language_code, language_name),
     filter_codes = (FROM languages | WHERE language_code <= 3 | KEEP language_code)\;
 FROM sources
-| WHERE language_code IN filter_codes
+| WHERE language_code IN (FROM filter_codes)
 | KEEP language_code, language_name
 | SORT language_code
 ;
@@ -156,14 +178,14 @@ top2_clusters = (
 ),
 top1_pod_by_cluster = (
     FROM k8s
-        | WHERE cluster IN top2_clusters
+        | WHERE cluster IN (FROM top2_clusters)
         | STATS AVG(network.bytes_in) BY cluster, pod
         | SORT `AVG(network.bytes_in)` DESC
         | LIMIT 1 BY cluster
         | KEEP cluster, pod
 )\;
 FROM k8s
-| WHERE (cluster, pod) IN top1_pod_by_cluster
+| WHERE (cluster, pod) IN (FROM top1_pod_by_cluster)
 | STATS AVG(network.bytes_in) BY cluster, pod
 | SORT cluster, pod
 ;
@@ -196,7 +218,7 @@ top2_clusters = (
 ),
 top_clusters = (
     FROM k8s
-        | EVAL cluster = CASE(cluster IN top2_clusters, cluster, "Other"::keyword)
+        | EVAL cluster = CASE(cluster IN (FROM top2_clusters), cluster, "Other"::keyword)
 ),
 top1_pod_by_cluster = (
     FROM top_clusters
@@ -207,7 +229,7 @@ top1_pod_by_cluster = (
 ),
 top_pods_by_cluster = (
     FROM top_clusters
-        | EVAL pod = CASE((cluster, pod) IN top1_pod_by_cluster, pod, "Other"::keyword)
+        | EVAL pod = CASE((cluster, pod) IN (FROM top1_pod_by_cluster), pod, "Other"::keyword)
 )\;
 FROM top_pods_by_cluster
 | STATS AVG(network.bytes_in) BY cluster, pod

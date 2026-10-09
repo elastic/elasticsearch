@@ -142,16 +142,22 @@ public class LetResolverTests extends ESTestCase {
     public void testLetResolutionSimpleCycle() {
         // LET a = (FROM a | LIMIT 1); FROM a — body references its own binding name
         LetBinding a = binding("a", withLimit(relation("a")));
-        var e = expectThrows(VerificationException.class, () -> LetResolver.resolve(relation("a"), List.of(a)));
-        assertThat(e.getMessage(), containsString("Circular reference detected in LET bindings"));
+        expectThrows(
+            VerificationException.class,
+            containsString("Circular reference detected in LET bindings"),
+            () -> LetResolver.resolve(relation("a"), List.of(a))
+        );
     }
 
     public void testCycleDetectedThroughMixedPattern() {
         // LET a = (FROM a,real_index | LIMIT 1); FROM a
         // "a,real_index" contains the binding name "a" as a token — cycle.
         LetBinding a = binding("a", withLimit(relation("a,real_index")));
-        var e = expectThrows(VerificationException.class, () -> LetResolver.resolve(relation("a"), List.of(a)));
-        assertThat(e.getMessage(), containsString("Circular reference detected in LET bindings"));
+        expectThrows(
+            VerificationException.class,
+            containsString("Circular reference detected in LET bindings"),
+            () -> LetResolver.resolve(relation("a"), List.of(a))
+        );
     }
 
     public void testForwardReferenceDetectedThroughMixedPattern() {
@@ -161,8 +167,11 @@ public class LetResolverTests extends ESTestCase {
         // "b,real_index" in a's body contains the forward-reference "b".
         LetBinding a = binding("a", withLimit(relation("b,real_index")));
         LetBinding b = binding("b", relation("base"));
-        var e = expectThrows(VerificationException.class, () -> LetResolver.resolve(relation("a"), List.of(a, b)));
-        assertThat(e.getMessage(), containsString("Forward reference in LET bindings: [b] cannot be referenced before its declaration"));
+        expectThrows(
+            VerificationException.class,
+            containsString("Forward reference in LET bindings: [b] cannot be referenced before its declaration"),
+            () -> LetResolver.resolve(relation("a"), List.of(a, b))
+        );
     }
 
     public void testLetResolutionComplexCycle() {
@@ -171,26 +180,32 @@ public class LetResolverTests extends ESTestCase {
         // FROM a
         LetBinding a = binding("a", withLimit(relation("b")));
         LetBinding b = binding("b", withLimit(relation("a")));
-        var e = expectThrows(VerificationException.class, () -> LetResolver.resolve(relation("a"), List.of(a, b)));
-        assertThat(e.getMessage(), containsString("Circular reference detected in LET bindings"));
+        expectThrows(
+            VerificationException.class,
+            containsString("Circular reference detected in LET bindings"),
+            () -> LetResolver.resolve(relation("a"), List.of(a, b))
+        );
     }
 
     public void testLetResolutionCycleInInSubquery() {
         // LET a = (FROM b | LIMIT 1),
-        // b = (FROM base | WHERE x IN a | LIMIT 1);
+        // b = (FROM base | WHERE x IN (FROM a) | LIMIT 1);
         // FROM a
         // substitute replaces InSubquery(x, UR("a")) → InSubquery(x, Limit(UR("b"),1))
         // checkForCycles recurses into the subquery and finds UR("b") ∈ resolved → cycle
         LetBinding a = binding("a", withLimit(relation("b")));
         Expression value = new UnresolvedAttribute(EMPTY, "x");
         LetBinding b = binding("b", withLimit(new Filter(EMPTY, relation("base"), new InSubquery(EMPTY, value, relation("a")))));
-        var e = expectThrows(VerificationException.class, () -> LetResolver.resolve(relation("a"), List.of(a, b)));
-        assertThat(e.getMessage(), containsString("Circular reference detected in LET bindings"));
+        expectThrows(
+            VerificationException.class,
+            containsString("Circular reference detected in LET bindings"),
+            () -> LetResolver.resolve(relation("a"), List.of(a, b))
+        );
     }
 
     public void testLetResolutionCycleInMultiColumnInSubquery() {
         // LET a = (FROM b | LIMIT 1),
-        // b = (FROM base | WHERE (x, y) IN a | LIMIT 1);
+        // b = (FROM base | WHERE (x, y) IN (FROM a) | LIMIT 1);
         // FROM a
         // Same cycle as above but through a multi-column IN subquery.
         LetBinding a = binding("a", withLimit(relation("b")));
@@ -199,8 +214,11 @@ public class LetResolverTests extends ESTestCase {
             "b",
             withLimit(new Filter(EMPTY, relation("base"), new MultiColumnInSubquery(EMPTY, values, relation("a"))))
         );
-        var e = expectThrows(VerificationException.class, () -> LetResolver.resolve(relation("a"), List.of(a, b)));
-        assertThat(e.getMessage(), containsString("Circular reference detected in LET bindings"));
+        expectThrows(
+            VerificationException.class,
+            containsString("Circular reference detected in LET bindings"),
+            () -> LetResolver.resolve(relation("a"), List.of(a, b))
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -219,8 +237,11 @@ public class LetResolverTests extends ESTestCase {
         LetBinding a = binding("a", withLimit(relation("b")));
         LetBinding b = binding("b", relation("real_index"));
 
-        var e = expectThrows(VerificationException.class, () -> LetResolver.resolve(relation("a"), List.of(a, b)));
-        assertThat(e.getMessage(), containsString("Forward reference in LET bindings: [b] cannot be referenced before its declaration"));
+        expectThrows(
+            VerificationException.class,
+            containsString("Forward reference in LET bindings: [b] cannot be referenced before its declaration"),
+            () -> LetResolver.resolve(relation("a"), List.of(a, b))
+        );
     }
 
     // -----------------------------------------------------------------------

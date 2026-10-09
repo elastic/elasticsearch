@@ -161,13 +161,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private int queryDepth = 0;
 
-    /**
-     * Names declared by the {@code LET} prefix clause of the current statement.
-     * Populated before the main query is visited so that {@link #visitLogicalInLetBinding} and
-     * {@link #visitLogicalInMultiColumnLetBinding} can reject references to undeclared names.
-     */
-    private Set<String> declaredLetBindingNames = Set.of();
-
     protected EsqlStatement statement(ParseTree ctx) {
         EsqlStatement p = typedParsing(this, ctx, EsqlStatement.class);
         return p;
@@ -197,19 +190,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             settings.add(visitSetCommand(setCommandContext));
         }
 
-        List<LetBinding> letBindings;
-        if (ctx.letCommand() == null) {
-            letBindings = List.of();
-        } else {
-            // Collect all binding names first so that visitLogicalInLetBinding and
-            // visitLogicalInMultiColumnLetBinding can reject undeclared names.
-            declaredLetBindingNames = ctx.letCommand()
-                .letBinding()
-                .stream()
-                .map(b -> b.UNQUOTED_IDENTIFIER().getText())
-                .collect(java.util.stream.Collectors.toUnmodifiableSet());
-            letBindings = visitLetCommand(ctx.letCommand());
-        }
+        List<LetBinding> letBindings = ctx.letCommand() == null ? List.of() : visitLetCommand(ctx.letCommand());
 
         LogicalPlan query = visitSingleStatement(ctx.singleStatement());
         return new EsqlStatement(query, settings, letBindings);
@@ -235,48 +216,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         String name = ctx.UNQUOTED_IDENTIFIER().getText();
         LogicalPlan plan = visitSubquery(ctx.subquery());
         return new LetBinding(source, name, plan);
-    }
-
-    @Override
-    public Expression visitLogicalInLetBinding(EsqlBaseParser.LogicalInLetBindingContext ctx) {
-        String name = visitIdentifier(ctx.identifier());
-        if (declaredLetBindingNames.contains(name) == false) {
-            throw new ParsingException(source(ctx), "unknown LET binding [{}]", name);
-        }
-        Expression value = expression(ctx.valueExpression());
-        Source source = source(ctx);
-        LogicalPlan subqueryPlan = new UnresolvedRelation(
-            source,
-            new IndexPattern(source, name),
-            false,
-            List.of(),
-            org.elasticsearch.index.IndexMode.STANDARD,
-            null,
-            "LET"
-        );
-        Expression e = new InSubquery(source, value, subqueryPlan);
-        return ctx.NOT() == null ? e : new Not(source, e);
-    }
-
-    @Override
-    public Expression visitLogicalInMultiColumnLetBinding(EsqlBaseParser.LogicalInMultiColumnLetBindingContext ctx) {
-        String name = visitIdentifier(ctx.identifier());
-        if (declaredLetBindingNames.contains(name) == false) {
-            throw new ParsingException(source(ctx), "unknown LET binding [{}]", name);
-        }
-        List<Expression> values = ctx.valueExpression().stream().map(this::expression).toList();
-        Source source = source(ctx);
-        LogicalPlan subqueryPlan = new UnresolvedRelation(
-            source,
-            new IndexPattern(source, name),
-            false,
-            List.of(),
-            org.elasticsearch.index.IndexMode.STANDARD,
-            null,
-            "LET"
-        );
-        Expression e = new MultiColumnInSubquery(source, values, subqueryPlan);
-        return ctx.NOT() == null ? e : new Not(source, e);
     }
 
     protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {
@@ -551,28 +490,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         } else {
             return visitRowCommand(ctx.rowCommand());
         }
-    }
-
-    /**
-     * Rejects {@code value IN (letName)} when {@code letName} matches a declared LET binding.
-     * The bare form {@code value IN letName} is the only supported way to reference a binding.
-     * Without this check the parenthesised form would silently become a single-element value list.
-     */
-    @Override
-    public Expression visitLogicalIn(EsqlBaseParser.LogicalInContext ctx) {
-        List<EsqlBaseParser.ValueExpressionContext> valueExprs = ctx.valueExpression();
-        if (EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled() && valueExprs.size() == 2 && declaredLetBindingNames.isEmpty() == false) {
-            Expression possibleName = expression(valueExprs.get(1));
-            if (possibleName instanceof UnresolvedAttribute ua && declaredLetBindingNames.contains(ua.qualifiedName())) {
-                throw new ParsingException(
-                    source(ctx),
-                    "use the bare form [IN {}] to reference a LET binding; [IN ({})] is not supported",
-                    ua.qualifiedName(),
-                    ua.qualifiedName()
-                );
-            }
-        }
-        return super.visitLogicalIn(ctx);
     }
 
     @Override

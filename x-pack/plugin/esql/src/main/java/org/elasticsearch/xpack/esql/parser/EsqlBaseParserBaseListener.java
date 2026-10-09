@@ -1226,18 +1226,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterLogicalInMultiColumnLetBinding(EsqlBaseParser.LogicalInMultiColumnLetBindingContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitLogicalInMultiColumnLetBinding(EsqlBaseParser.LogicalInMultiColumnLetBindingContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterBooleanDefault(EsqlBaseParser.BooleanDefaultContext ctx) { }
   /**
    * {@inheritDoc}
@@ -1269,18 +1257,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitIsNull(EsqlBaseParser.IsNullContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterLogicalInLetBinding(EsqlBaseParser.LogicalInLetBindingContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitLogicalInLetBinding(EsqlBaseParser.LogicalInLetBindingContext ctx) { }
   /**
    * {@inheritDoc}
    *

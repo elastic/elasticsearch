@@ -15,10 +15,6 @@ booleanExpression
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP                 #logicalIn
     | LP valueExpression (COMMA valueExpression)+ RP (NOT)? IN subquery                        #logicalInMultiColumnSubquery
     | valueExpression (NOT)? IN subquery                                                       #logicalInSubquery
-    | {EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled()}?
-      LP valueExpression (COMMA valueExpression)+ RP (NOT)? IN identifier                     #logicalInMultiColumnLetBinding
-    | {EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled()}?
-      valueExpression (NOT)? IN identifier                                                     #logicalInLetBinding
     | valueExpression IS NOT? NULL                                                             #isNull
     | matchBooleanExpression                                                                   #matchExpression
     ;

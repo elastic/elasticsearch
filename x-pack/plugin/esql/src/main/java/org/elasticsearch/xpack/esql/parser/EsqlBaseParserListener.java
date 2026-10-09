@@ -1051,18 +1051,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitLogicalNot(EsqlBaseParser.LogicalNotContext ctx);
   /**
-   * Enter a parse tree produced by the {@code logicalInMultiColumnLetBinding}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void enterLogicalInMultiColumnLetBinding(EsqlBaseParser.LogicalInMultiColumnLetBindingContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code logicalInMultiColumnLetBinding}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void exitLogicalInMultiColumnLetBinding(EsqlBaseParser.LogicalInMultiColumnLetBindingContext ctx);
-  /**
    * Enter a parse tree produced by the {@code booleanDefault}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -1098,18 +1086,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitIsNull(EsqlBaseParser.IsNullContext ctx);
-  /**
-   * Enter a parse tree produced by the {@code logicalInLetBinding}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void enterLogicalInLetBinding(EsqlBaseParser.LogicalInLetBindingContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code logicalInLetBinding}
-   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
-   * @param ctx the parse tree
-   */
-  void exitLogicalInLetBinding(EsqlBaseParser.LogicalInLetBindingContext ctx);
   /**
    * Enter a parse tree produced by the {@code logicalInSubquery}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

@@ -86,7 +86,7 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             LET active_langs = (FROM languages | WHERE language_code > 1 | KEEP language_code);
             FROM employees
-            | WHERE languages IN active_langs
+            | WHERE languages IN (FROM active_langs)
             | KEEP emp_no, languages
             | SORT emp_no
             """, STAGES);
@@ -102,7 +102,7 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
             LET same_lang = (FROM languages | WHERE language_code == outer_code | KEEP language_name);
             FROM languages
             | RENAME language_code AS outer_code
-            | WHERE language_name IN same_lang
+            | WHERE language_name IN (FROM same_lang)
             | KEEP outer_code, language_name
             | SORT outer_code
             """;

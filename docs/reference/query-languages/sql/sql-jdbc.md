@@ -30,7 +30,7 @@ Maven dependency
   <version>{{version.stack}}</version> <1>
 </dependency>
 ```
-1. Replace <version> with your {{es}} version.
+1. Replace the version with your {{es}} version if it differs.
 
 You can also retrieve the driver from `artifacts.elastic.co/maven` by adding it to the repositories list:
 

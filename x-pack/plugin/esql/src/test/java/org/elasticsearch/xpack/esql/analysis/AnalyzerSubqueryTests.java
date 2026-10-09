@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -1412,10 +1413,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         // explaining that TS aggregations cannot span a union.
         analyzer().addK8s()
             .error(
-                """
-                    FROM (FROM k8s), (FROM k8s)
-                    | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
-                    """,
+                "FROM (FROM k8s), (FROM k8s) | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)",
                 containsString(
                     "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
                 )
@@ -1423,25 +1421,50 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
 
         analyzer().addK8s()
             .error(
-                """
-                    FROM (TS k8s), (FROM k8s)
-                    | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
-                    """,
+                "FROM "
+                    + shuffle("(FROM k8s)", "(TS k8s)")
+                    + " | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)",
                 containsString(
                     "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
                 )
             );
+    }
 
+    public void testTimeSeriesAggregateFunctionAfterUnionAllViews() {
+        // index and regular view
         analyzer().addK8s()
+            .addView("k8s_view", "FROM k8s | EVAL f1=1")
             .error(
-                """
-                    FROM (TS k8s), (TS k8s)
-                    | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
-                    """,
+                "FROM " + shuffle("k8s", "k8s_view") + " | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)",
                 containsString(
                     "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
                 )
             );
+        // index and ts view
+        analyzer().addK8s()
+            .addView("k8s_ts_view", "TS k8s | EVAL f2=2")
+            .error(
+                "FROM " + shuffle("k8s", "k8s_ts_view") + " | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)",
+                containsString(
+                    "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
+                )
+            );
+        // regular and ts view
+        analyzer().addK8s()
+            .addView("k8s_view", "FROM k8s | EVAL f1=1")
+            .addView("k8s_ts_view", "TS k8s | EVAL f2=2")
+            .error(
+                "FROM "
+                    + shuffle("k8s_view", "k8s_ts_view")
+                    + " | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)",
+                containsString(
+                    "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
+                )
+            );
+    }
+
+    private static String shuffle(String... sources) {
+        return String.join(",", shuffledList(Arrays.asList(sources)));
     }
 
     /*

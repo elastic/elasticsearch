@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -86,7 +85,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      */
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
-        return postIndexResolution(preIndexResolution(plan), false).transformDown(NamedSubquery.class, UnaryPlan::child);
+        return postIndexResolution(preIndexResolution(plan), false);
     }
 
     /**

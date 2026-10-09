@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
@@ -498,18 +499,20 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         List<LogicalPlan> children = fork.children();
         assertThat(children.size(), equalTo(3));
 
+        List<LogicalPlan> branches = children.stream().map(c -> as(c, Eval.class).child()).toList();
+        assertThat(withoutViewWrappers(branches.get(0)), equalToIgnoringIds(query("FROM emp | WHERE emp.age > 25 | WHERE emp.age < 50")));
+        assertThat(withoutViewWrappers(branches.get(1)), equalToIgnoringIds(query("FROM emp | WHERE emp.age > 25 | WHERE emp.age > 35")));
         assertThat(
-            as(children.get(0), Eval.class).child(),
-            equalToIgnoringIds(query("FROM emp | WHERE emp.age > 25 | WHERE emp.age < 50"))
-        );
-        assertThat(
-            as(children.get(1), Eval.class).child(),
-            equalToIgnoringIds(query("FROM emp | WHERE emp.age > 25 | WHERE emp.age > 35"))
-        );
-        assertThat(
-            as(children.get(2), Eval.class).child(),
+            withoutViewWrappers(branches.get(2)),
             equalToIgnoringIds(query("FROM emp | WHERE emp.age > 25 | STATS count = COUNT(*)"))
         );
+    }
+
+    /**
+     * Strips {@link NamedSubquery} nodes just like the Analyzer does. For simpler test assertions
+     */
+    private static LogicalPlan withoutViewWrappers(LogicalPlan plan) {
+        return plan.transformDown(NamedSubquery.class, UnaryPlan::child);
     }
 
     public void testReplaceViewsWildcard() {

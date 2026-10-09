@@ -78,6 +78,9 @@ setup:
       indices.refresh: { }
 ---
 "kNN search only":
+  - requires:
+      cluster_features: [ "lucene_10_4_upgrade" ]
+      reason: "Approximate int8_hnsw scoring differs between Lucene 10.3 and 10.4+ quantizers"
   - do:
       search:
         index: hnsw_byte_quantized
@@ -112,6 +115,9 @@ setup:
   - match: {hits.hits.1.fields.name.0: "moose.jpg"}
 ---
 "kNN search plus query":
+  - requires:
+      cluster_features: [ "lucene_10_4_upgrade" ]
+      reason: "Approximate int8_hnsw scoring differs between Lucene 10.3 and 10.4+ quantizers"
   - do:
       search:
         index: hnsw_byte_quantized

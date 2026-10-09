@@ -37,6 +37,9 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
         .setting("telemetry.export.endpoint", () -> recordingApmServer.getGrpcEndpoint())
         .setting("telemetry.metrics.buffer.disk_size", "10mb")
         .setting("telemetry.metrics.buffer.ttl", "5m")
+        // Seal buffer files well under the outage sleep below (800ms) so the single recovery flush drains every buffered
+        // file at once (production default is 30s).
+        .systemProperty("telemetry.metrics.buffer.write_window", "200ms")
         // interval > send_timeout > initial_backoff so a failing export fully fails within an interval and the
         // PeriodicMetricReader does not skip a cycle.
         .setting("telemetry.export.interval", "1000ms")
@@ -46,8 +49,7 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
     // make it bigger than export.send_timeout to allow the OTLP exporter to fully fail, and delegate to the disk buffering exporter
     private static final TimeValue SLEEP_BETWEEN_RUNS = TimeValue.timeValueMillis(800);
 
-    // Poll past the fixed production read-min-age window (33s) before a buffered batch becomes drainable.
-    private static final int BUFFER_DRAIN_TIMEOUT = 60;
+    private static final int BUFFER_DRAIN_TIMEOUT = 3;
 
     // use the same clock implementation as the OTel SDK itself
     private static final Clock otelClock = Clock.getDefault();
@@ -106,7 +108,7 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
         // recovery. Exact writes==replays accounting is covered deterministically by BufferingMetricExporterTests
         // with injected millisecond rotation windows. Asserting strict equality here is racy because the
         // PeriodicMetricReader keeps adding writes throughout the outage and the final write can land just before
-        // recovery, so its file does not age into the 33s readable window until after the earlier batches drain.
+        // recovery, so its file is not sealed (one write window later) until after the earlier batches drain.
         assertBusy(() -> {
             long written = writtenFiles.get();
             long replayed = replayedFiles.get();

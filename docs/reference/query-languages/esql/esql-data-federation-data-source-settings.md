@@ -39,25 +39,25 @@ $$$endpoint$$$
     $$$s3-endpoint-requirements$$$
     ::::{dropdown} S3 endpoint requirements
     :applies_to: stack: experimental 9.6+
-    The `endpoint` value must be an absolute `https` URL naming a supported AWS S3 endpoint. The following endpoint forms are accepted. The first three are accepted in every AWS partition. The global form exists only in the commercial partition:
+    The `endpoint` value must be an absolute `https` URL naming a supported AWS S3 endpoint. {{es}} accepts the following endpoint forms. Every AWS partition supports the first three, and only the commercial partition supports the global form:
 
     - Regional: `https://s3.us-east-1.amazonaws.com`
     - Historical: `https://s3-us-west-2.amazonaws.com`
     - VPC interface: `https://bucket.vpce-0a1b2c3d.s3.us-east-1.vpce.amazonaws.com`
     - Global: `https://s3.amazonaws.com`
 
-    A regional endpoint must name a region that the {{es}} version you are running knows about. A region added by AWS after that release is rejected until you upgrade, or until a node permits its host with the setting described below.
+    A regional endpoint must name a region that your {{es}} version knows about. {{es}} rejects a region that AWS added after that release until you upgrade, or until a node permits its host with `esql.external.allowed_endpoint_hosts`.
 
     :::{note}
     `https://s3.amazonaws.com` has no region. When you set `endpoint`, the SDK stops following cross-region redirects, so this global endpoint only reaches `us-east-1` buckets. Other regions get an error. Omit `endpoint` to let the SDK resolve the correct regional endpoint from the `region` setting.
     :::
 
-    Every other AWS endpoint family is rejected, including FIPS endpoints, dual-stack endpoints, transfer acceleration, access points, object lambda, Outposts, the account-level control plane, the legacy `s3-external-1` alias, and S3 Express. A bucket-qualified endpoint such as `https://mybucket.s3.us-east-1.amazonaws.com` is also rejected: name the regional endpoint and let the bucket come from the dataset. So are plain `http`, a value without a scheme, and a host the URL syntax does not allow, such as an underscore or a non-numeric port.
+    {{es}} rejects every other AWS endpoint family, including FIPS endpoints, dual-stack endpoints, transfer acceleration, access points, object lambda, Outposts, the account-level control plane, the legacy `s3-external-1` alias, and S3 Express. It also rejects a bucket-qualified endpoint such as `https://mybucket.s3.us-east-1.amazonaws.com`. Name the regional endpoint instead, and let the bucket come from the dataset. It also rejects plain `http`, a value without a scheme, and a host that the URL syntax doesn't allow, such as one with an underscore or a non-numeric port.
 
     A node can permit additional hosts with the `esql.external.allowed_endpoint_hosts` node setting, a list of `host:port` patterns in `elasticsearch.yml` that defaults to empty. A host it names is also accepted over plain `http` for `endpoint`. The `sts_endpoint` setting always requires `https`.
 
     :::{warning}
-    A data source created before these endpoint restrictions were introduced keeps working for queries, but updating it requires an endpoint that passes the validation described above.
+    A data source created before these endpoint restrictions were introduced keeps working for queries, but updating it requires an endpoint that meets these requirements.
     :::
     ::::
 

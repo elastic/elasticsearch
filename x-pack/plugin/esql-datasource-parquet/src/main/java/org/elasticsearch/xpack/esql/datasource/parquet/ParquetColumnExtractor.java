@@ -38,9 +38,11 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -464,7 +466,12 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 BlockMetaData block = blocks.get(bucket.rowGroupIndex);
                 int rgRowCount = Math.toIntExact(block.getRowCount());
 
-                try {
+                try (
+                    ParquetDecodeBudget decodeBudget = ParquetDecodeBudget.tracking(
+                        reader.ioWatermark(),
+                        ParquetDecodeWorkingSet.estimateBytes(block, projection)
+                    )
+                ) {
                     // Decode every resolved column from this bucket's prefetched chunk map. Each
                     // call passes a single-column projection so PrefetchedRowGroupBuilder only
                     // materialises that column's bytes despite the prefetched map carrying every
@@ -483,13 +490,14 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                             prefetchedResult.chunks(),
                             rgRowCount,
                             createdBy,
-                            blockFactory
+                            blockFactory,
+                            decodeBudget
                         );
                     }
                 } finally {
                     // Release this bucket's prefetched buffers as soon as the loop exits — the
                     // decoded values now live in perBucketBlocks and the raw bytes are no longer
-                    // referenced.
+                    // referenced. Decode extra is already closed; the hold drops with the chunks.
                     prefetchedResult.release().close();
                     finishExtractorLease(inflightLeases, bucketIdx);
                 }
@@ -573,18 +581,19 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         int bucketIdx
     ) {
         long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(block, projection);
+        long admitBytes = ParquetDecodeWorkingSet.admitBytes(block, projection);
         ParquetIoWatermark watermark = reader.ioWatermark();
         ParquetIoWatermark.AdmitHold hold = null;
-        if (prefetchBytes > 0L && watermark != null) {
-            hold = watermark.tryAdmit(prefetchBytes);
+        if (admitBytes > 0L && watermark != null) {
+            hold = watermark.tryAdmit(admitBytes);
             if (hold == null && lookahead && requireHold) {
                 return null;
             }
         }
         RowGroupIo lease = leaseForExtractor(rowGroupIndex);
         inflightLeases[bucketIdx] = lease;
-        if (hold == null && lookahead == false && prefetchBytes > 0L && watermark != null) {
-            return startBucketTicket(block, projection, blockFactory, lease, prefetchBytes, watermark);
+        if (hold == null && lookahead == false && admitBytes > 0L && watermark != null) {
+            return startBucketTicket(block, projection, blockFactory, lease, admitBytes, watermark);
         }
         return startBucketIo(block, projection, blockFactory, lease, watermark, hold);
     }
@@ -599,23 +608,78 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     ) {
         BooleanSupplier ambient = StorageRetryCancellation.current();
         BooleanSupplier captured = ambient == null ? () -> false : ambient;
-        BooleanSupplier cancel = () -> captured.getAsBoolean() || lease.isCancelled();
+        AtomicBoolean abandoned = new AtomicBoolean();
+        BooleanSupplier cancel = () -> abandoned.get() || captured.getAsBoolean() || lease.isCancelled();
         CompletableFuture<ParquetIoWatermark.AdmitHold> ticket = new CompletableFuture<>();
-        watermark.admitAsync(prefetchBytes, lease, cancel, Runnable::run)
-            .addListener(ActionListener.wrap(ticket::complete, ticket::completeExceptionally));
-        return ticket.thenCompose(granted -> {
+        watermark.admitAsync(prefetchBytes, lease, cancel, Runnable::run).addListener(ActionListener.wrap(hold -> {
+            if (ticket.complete(hold) == false) {
+                hold.drop();
+            }
+        }, ticket::completeExceptionally));
+        AtomicReference<CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>> inner = new AtomicReference<>();
+        AtomicReference<CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>> raw = new AtomicReference<>();
+        AtomicReference<ParquetIoWatermark.AdmitHold> grantedHold = new AtomicReference<>();
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> composed = ticket.thenCompose(granted -> {
+            grantedHold.set(granted);
+            if (abandoned.get()) {
+                granted.drop();
+                return CompletableFuture.failedFuture(new CancellationException());
+            }
             try {
                 AtomicReference<CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>> started = new AtomicReference<>();
                 StorageRetryCancellation.runWithCancellation(
                     cancel,
-                    () -> started.set(startBucketIo(block, projection, blockFactory, lease, watermark, granted))
+                    () -> started.set(startBucketIo(block, projection, blockFactory, lease, watermark, granted, raw))
                 );
+                inner.set(started.get());
+                if (abandoned.get()) {
+                    abandonStartedIo(started.get(), raw.get(), granted);
+                }
                 return started.get();
             } catch (Exception e) {
                 granted.drop();
                 return CompletableFuture.failedFuture(e);
             }
         });
+        composed.whenComplete((ignored, error) -> {
+            if (composed.isCancelled() == false || abandoned.compareAndSet(false, true) == false) {
+                return;
+            }
+            FutureUtils.cancel(ticket);
+            watermark.nodeByteBudget().wakeWaiters();
+            abandonStartedIo(inner.get(), raw.get(), grantedHold.get());
+        });
+        return composed;
+    }
+
+    private static void abandonStartedIo(
+        @Nullable CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> startedIo,
+        @Nullable CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> raw,
+        @Nullable ParquetIoWatermark.AdmitHold hold
+    ) {
+        if (startedIo != null) {
+            FutureUtils.cancel(startedIo);
+        }
+        if (raw != null) {
+            FutureUtils.cancel(raw);
+            releasePrefetchIfLanded(raw);
+        } else if (startedIo != null) {
+            releasePrefetchIfLanded(startedIo);
+        }
+        if (hold != null) {
+            hold.drop();
+        }
+    }
+
+    private static void releasePrefetchIfLanded(CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future) {
+        try {
+            ColumnChunkPrefetcher.PrefetchedChunks landed = future.getNow(null);
+            if (landed != null) {
+                landed.release().close();
+            }
+        } catch (Exception ignored) {
+            // cancelled or failed GET: hold.drop is on the error path
+        }
     }
 
     private CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> startBucketIo(
@@ -625,6 +689,18 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         RowGroupIo lease,
         @Nullable ParquetIoWatermark watermark,
         @Nullable ParquetIoWatermark.AdmitHold hold
+    ) {
+        return startBucketIo(block, projection, blockFactory, lease, watermark, hold, null);
+    }
+
+    private CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> startBucketIo(
+        BlockMetaData block,
+        Set<String> projection,
+        BlockFactory blockFactory,
+        RowGroupIo lease,
+        @Nullable ParquetIoWatermark watermark,
+        @Nullable ParquetIoWatermark.AdmitHold hold,
+        @Nullable AtomicReference<CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>> rawHolder
     ) {
         ParquetIoWatermark.ByteGate byteGate = hold == null ? ParquetIoWatermark.ByteGate.UNGATED : ParquetIoWatermark.ByteGate.GROUP_HOLD;
         boolean reserved = hold != null;
@@ -643,7 +719,36 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 );
             }
             if (hold != null) {
-                future.whenComplete((ignored, error) -> hold.drop());
+                long decodeBytes = ParquetDecodeWorkingSet.estimateBytes(block, projection);
+                CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> raw = future;
+                if (rawHolder != null) {
+                    rawHolder.set(raw);
+                }
+                raw.whenComplete((chunks, error) -> {
+                    if (error != null || chunks == null) {
+                        hold.drop();
+                    } else {
+                        hold.dropIoRemainder(decodeBytes);
+                    }
+                });
+                CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> wrapped = raw.thenApply(chunks -> {
+                    if (chunks == null) {
+                        return chunks;
+                    }
+                    return new ColumnChunkPrefetcher.PrefetchedChunks(chunks.chunks(), () -> {
+                        try {
+                            chunks.release().close();
+                        } finally {
+                            hold.drop();
+                        }
+                    });
+                });
+                wrapped.whenComplete((ignored, error) -> {
+                    if (wrapped.isCancelled()) {
+                        FutureUtils.cancel(raw);
+                    }
+                });
+                future = wrapped;
                 reserved = false;
             }
             return future;
@@ -996,7 +1101,8 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> prefetched,
         int rgRowCount,
         String createdBy,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        ParquetDecodeBudget decodeBudget
     ) throws IOException {
         try (
             PrefetchedPageReadStore store = PrefetchedRowGroupBuilder.build(
@@ -1008,7 +1114,8 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 /* preloadedMetadata = */ null,
                 prefetched,
                 reader.codecFactory(),
-                blockFactory.breaker()
+                blockFactory.breaker(),
+                decodeBudget
             )
         ) {
             if (info.maxRepLevel() == 0) {

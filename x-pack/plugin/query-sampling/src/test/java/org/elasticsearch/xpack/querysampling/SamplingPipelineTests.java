@@ -108,6 +108,15 @@ public class SamplingPipelineTests extends ESTestCase {
         assertThat(budget.credit(), closeTo(0.5 * 100, 1e-9));
     }
 
+    public void testASearchThatTookLessThanAMillisecondCountsAsOne() {
+        CostBudget budget = new CostBudget(1.0, 1_000_000);
+        SamplingPipeline pipeline = new SamplingPipeline(tracker, new QuerySampler(1.0, 100, new Random(0L)), List.of(), budget);
+
+        pipeline.accept(new CapturedSearch(search(new float[] { 1f }).query(), List.of(), 0, 0.5));
+
+        assertThat("a millisecond over a probability of one half", budget.credit(), closeTo(2.0, 1e-9));
+    }
+
     private SamplingPipeline pipeline(Random random) {
         return new SamplingPipeline(tracker, new QuerySampler(1.0, 100, random), List.of(sampled::add));
     }

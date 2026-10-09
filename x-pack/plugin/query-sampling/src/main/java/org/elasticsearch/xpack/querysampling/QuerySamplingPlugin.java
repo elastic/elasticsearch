@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.querysampling.capture.CaptureHandoff;
 import org.elasticsearch.xpack.querysampling.capture.QueryCaptureFilter;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
+import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruthWorker;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGroundTruthAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingRecallAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingStatsAction;
@@ -141,6 +142,19 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         CostBudget budget = new CostBudget(0.0, MAX_EXACT_SEARCH_CREDIT_MILLIS);
         budget.watch(clusterSettings);
         SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of(writer), budget);
+        // the exact searches are done as the plugin: nobody is asking for them
+        GroundTruthWorker groundTruthWorker = new GroundTruthWorker(
+            client::search,
+            client::bulk,
+            client::search,
+            services.xContentRegistry(),
+            budget,
+            samplerId,
+            services.threadPool()::absoluteTimeInMillis
+        );
+        if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled()) {
+            groundTruthWorker.start(services.threadPool(), services.threadPool().generic());
+        }
         CaptureHandoff handoff = new CaptureHandoff(services.threadPool().executor(THREAD_POOL_NAME), pipeline);
         QueryCaptureFilter filter = new QueryCaptureFilter(clusterSettings, handoff);
         captureFilter.set(filter);

@@ -61,8 +61,9 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
     @Override
     public void accept(CapturedSearch captured) {
         // a search was captured with the probability it carries, so its time over that probability is an unbiased
-        // estimate of the time of all the searches it stands for, those that were not captured included
-        budget.earn(captured.tookMillis() / captured.captureRate());
+        // estimate of the time of all the searches it stands for, those that were not captured included. The time is
+        // in whole milliseconds, a search that took less than one counts as one, as an exact search does
+        budget.earn(Math.max(1, captured.tookMillis()) / captured.captureRate());
         QueryFingerprint fingerprint = QueryFingerprint.of(captured.query());
         TrackedQuery tracked = tracker.record(fingerprint, captured.captureRate());
         if (tracked != null && sampler.offer(tracked)) {

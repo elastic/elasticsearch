@@ -16,6 +16,7 @@ import org.junit.ClassRule;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -133,6 +134,22 @@ public class QuerySamplingGroundTruthIT extends QuerySamplingRestTestCase {
             }
             assertTrue("one of the searches was captured", any);
         });
+    }
+
+    public void testGroundTruthIsComputedByItselfWithinTheBudget() throws Exception {
+        setUpIndexAndSampling();
+        Request settings = new Request("PUT", "/_cluster/settings");
+        settings.setJsonEntity("""
+            { "persistent": { "xpack.query_sampling.sampling_cost_ratio": 1.0 } }
+            """);
+        client().performRequest(settings);
+
+        // the searches earn the credit that the exact searches are paid with, and the worker looks for work every
+        // few seconds, so nobody asks for the ground truth here
+        float x = sampleOneQuery();
+
+        assertBusy(() -> assertThat(storedValue(x, "has_ground_truth"), equalTo(true)), 60, TimeUnit.SECONDS);
+        assertThat(((List<?>) storedValue(x, "ground_truth.neighbors")).size(), equalTo(3));
     }
 
     public void testSettingsOutOfRangeAreRejected() throws Exception {

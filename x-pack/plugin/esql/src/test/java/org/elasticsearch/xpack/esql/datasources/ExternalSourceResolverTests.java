@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
@@ -7080,6 +7081,191 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    /**
+     * A resolve past the file-metadata interval asks the store for the length and modification time again
+     * instead of serving the cached pair. The schema and statistics stay shared; only the metadata is re-read.
+     */
+    public void testAResolvePastTheMetadataIntervalConsultsTheStore() throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/single.parquet", schema);
+
+        CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), schemasByPath);
+
+        Settings settings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            // The file-metadata cache shares the listing clock, so a window this short puts every
+            // resolve past it -- which is the state these assertions are about.
+            .put("esql.external.cache.listing.ttl", "1ms")
+            .build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), f1);
+            assertNotNull(f1.actionGet().resolvedSource("s3://bucket/data/single.parquet"));
+            assertEquals("cold resolve probes the object", 1, countingProvider.metadataProbeCount.get());
+            assertEquals("the cold resolve is a schema miss", 1L, cacheService.usageStats().get("schema_cache.misses"));
+
+            safeSleep(10);  // Cross the file-metadata window, so this resolve asks storage rather than being answered from it.
+            PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), f2);
+            ExternalSourceResolution res2 = f2.actionGet();
+            assertNotNull(res2.resolvedSource("s3://bucket/data/single.parquet"));
+            assertEquals(1, res2.resolvedSource("s3://bucket/data/single.parquet").fileList().fileCount());
+            assertEquals("warm resolve probes again", 2, countingProvider.metadataProbeCount.get());
+            assertEquals(
+                "the schema still comes from the cache: the probe is retaken, the derived facts are not",
+                1L,
+                cacheService.usageStats().get("schema_cache.hits")
+            );
+            assertEquals("and no second schema miss", 1L, cacheService.usageStats().get("schema_cache.misses"));
+        }
+    }
+
+    /**
+     * The strict rail reads a declared schema rather than inferring one, but it still consults the cached
+     * physical schema as a coercibility oracle, so it re-reads the object's metadata past the interval exactly
+     * as the inferred rail does.
+     */
+    public void testTheStrictRailConsultsTheStorePastTheMetadataInterval() throws Exception {
+        String file = "s3://bucket/data/strict.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(file, List.of(attr("n", DataType.LONG)));
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of(), schemasByPath);
+
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("n", new DatasetFieldMapping("long", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, props));
+
+        Settings settings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            // The file-metadata cache shares the listing clock, so a window this short puts every
+            // resolve past it -- which is the state these assertions are about.
+            .put("esql.external.cache.listing.ttl", "1ms")
+            .build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemasByPath, cacheService);
+
+            for (int i = 1; i <= 2; i++) {
+                safeSleep(10);  // Cross the file-metadata window, so this resolve asks storage rather than being answered from it.
+                PlainActionFuture<ExternalSourceResolution> f = new PlainActionFuture<>();
+                resolver.resolve(List.of(file), Map.of(file, new HashMap<>()), null, Map.of(file, mapping), null, f);
+                assertNotNull(f.actionGet().resolvedSource(file));
+                assertEquals("strict resolve " + i + " probes the object", i, provider.metadataProbeCount.get());
+            }
+        }
+    }
+
+    /**
+     * A provider that reports no modification time still resolves on the strict rail. gRPC/Flight and the GCS and
+     * Azure fixtures report none, and whether the pair is cached or read on this resolve, the answer reaches key
+     * derivation the same way: EPOCH standing in for a missing time is what keeps the derived key buildable.
+     */
+    public void testStrictResolveSucceedsWhenTheProviderReportsNoModificationTime() throws Exception {
+        String file = "s3://bucket/data/strict.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(file, List.of(attr("n", DataType.LONG)));
+        NoModificationTimeStorageProvider provider = new NoModificationTimeStorageProvider(schemasByPath);
+
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("n", new DatasetFieldMapping("long", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, props));
+
+        Settings settings = Settings.builder().put("esql.external.cache.size", "10mb").put("esql.external.cache.enabled", true).build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemasByPath, cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> f = new PlainActionFuture<>();
+            resolver.resolve(List.of(file), Map.of(file, new HashMap<>()), null, Map.of(file, mapping), null, f);
+            assertNotNull("a missing modification time is not a failure to resolve", f.actionGet().resolvedSource(file));
+        }
+    }
+
+    /**
+     * A metadata read that cannot be performed is not an answer, so it must not be reported as a refusal. The
+     * point is that it never fails open: an outage propagates as an outage instead of a serve from what the
+     * stores still hold.
+     */
+    public void testAnOutageDuringTheProbeFailsTheResolveRatherThanServing() throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/single.parquet", schema);
+
+        RevocableStorageProvider provider = new RevocableStorageProvider(schemasByPath, Condition.STORE_UNAVAILABLE);
+
+        Settings settings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            // The file-metadata cache shares the listing clock, so a window this short puts every
+            // resolve past it -- which is the state these assertions are about.
+            .put("esql.external.cache.listing.ttl", "1ms")
+            .build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemasByPath, cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> cold = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), cold);
+            assertNotNull(cold.actionGet().resolvedSource("s3://bucket/data/single.parquet"));
+
+            provider.readRevoked.set(true);
+
+            safeSleep(10);  // Cross the file-metadata window, so this resolve asks storage rather than being answered from it.
+            PlainActionFuture<ExternalSourceResolution> warm = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), warm);
+            Exception e = expectThrows(Exception.class, warm::actionGet);
+            ExternalException unavailable = (ExternalException) ExceptionsHelper.unwrapCause(e);
+            assertEquals(
+                "an unavailable store must not be reported as a refusal, nor swallowed into a warm serve",
+                Condition.STORE_UNAVAILABLE,
+                unavailable.condition()
+            );
+        }
+    }
+
+    /**
+     * The case no cache key can represent: every component of the key is unchanged and the store has begun
+     * refusing the object, so only asking it detects that — which the resolve does past the interval.
+     */
+    public void testAStoreRefusalPastTheMetadataIntervalSurfaces() throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/single.parquet", schema);
+
+        RevocableStorageProvider provider = new RevocableStorageProvider(schemasByPath);
+
+        Settings settings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            // The file-metadata cache shares the listing clock, so a window this short puts every
+            // resolve past it -- which is the state these assertions are about.
+            .put("esql.external.cache.listing.ttl", "1ms")
+            .build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemasByPath, cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> cold = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), cold);
+            assertNotNull(cold.actionGet().resolvedSource("s3://bucket/data/single.parquet"));
+            assertEquals("cold resolve probes the object", 1, provider.metadataProbeCount.get());
+
+            // The store begins refusing this object. Nothing in the dataset's own configuration changes, so no
+            // component of any cache key moves.
+            provider.readRevoked.set(true);
+
+            safeSleep(10);  // Cross the file-metadata window, so this resolve asks storage rather than being answered from it.
+            PlainActionFuture<ExternalSourceResolution> warm = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), warm);
+            ExternalClientException denied = expectThrows(ExternalClientException.class, warm::actionGet);
+            assertEquals(Condition.ACCESS_DENIED, denied.condition());
+        }
+    }
+
     public void testSingleFileCacheDisabledBypassesCache() throws Exception {
         List<Attribute> schema = List.of(attr("val", DataType.LONG));
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();
@@ -7105,9 +7291,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             Map<String, Object> stats = cacheService.usageStats();
             assertEquals("schema cache should have no entries when disabled", 0, stats.get("schema_cache.count"));
+            assertEquals("file metadata cache should have no entries when disabled", 0, stats.get("file_metadata_cache.count"));
             assertEquals("schema cache should have no hits when disabled", 0L, stats.get("schema_cache.hits"));
             assertEquals("schema cache should have no misses when disabled", 0L, stats.get("schema_cache.misses"));
-            assertEquals("file-metadata cache should have no entries when disabled", 0, stats.get("file_metadata_cache.count"));
             assertEquals(
                 "disabled cache must not eliminate the probe — one probe per resolve",
                 3,
@@ -9746,8 +9932,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         final AtomicInteger schemaCallCount = new AtomicInteger();
         // Counts the single-file metadata probe. Incremented by the object's lastModified() (the one caller
         // of it in the cacheable flow), so it isolates the metadata probe from the schema-resolution object
-        // creation that also calls newObject. The warm-path file-metadata cache drives it to exactly one
-        // probe across repeated resolves.
+        // creation that also calls newObject. With the metadata interval set short below, this counts one per
+        // resolve rather than one across repeated resolves.
         final AtomicInteger metadataProbeCount = new AtomicInteger();
         private final StubStorageProvider delegate;
 
@@ -9794,6 +9980,129 @@ public class ExternalSourceResolverTests extends ESTestCase {
         @Override
         public void close() {
             delegate.close();
+        }
+    }
+
+    /**
+     * StorageProvider whose metadata read can be refused part-way through a test, modelling a storage-side
+     * change behind an unchanged configuration: object construction still succeeds, and the read of the
+     * object's length and modification time fails with {@link Condition#ACCESS_DENIED}.
+     */
+    private static class RevocableStorageProvider implements StorageProvider {
+        final AtomicBoolean readRevoked = new AtomicBoolean();
+        final AtomicInteger metadataProbeCount = new AtomicInteger();
+        private final StubStorageProvider delegate;
+
+        private final Condition condition;
+
+        RevocableStorageProvider(Map<String, List<Attribute>> schemasByPath) {
+            this(schemasByPath, Condition.ACCESS_DENIED);
+        }
+
+        RevocableStorageProvider(Map<String, List<Attribute>> schemasByPath, Condition condition) {
+            this.delegate = new StubStorageProvider(Map.of(), schemasByPath, metadataProbeCount);
+            this.condition = condition;
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            return new RevocableStorageObject(path, 0, metadataProbeCount, readRevoked, condition);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return new RevocableStorageObject(path, length, metadataProbeCount, readRevoked, condition);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            return new RevocableStorageObject(path, length, metadataProbeCount, readRevoked, condition);
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            return delegate.listObjects(prefix, recursive);
+        }
+
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            return delegate.exists(path);
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return delegate.supportedSchemes();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+    }
+
+    /**
+     * A provider whose objects report no modification time, as gRPC/Flight and the GCS and Azure fixtures do.
+     * Only {@code newObject(StoragePath)} is overridden, because that is the overload the read-access probe uses.
+     */
+    private static class NoModificationTimeStorageProvider extends CountingStorageProvider {
+        NoModificationTimeStorageProvider(Map<String, List<Attribute>> schemasByPath) {
+            super(Map.of(), schemasByPath);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            return new NoModificationTimeStorageObject(path, 1024L, metadataProbeCount);
+        }
+    }
+
+    /** The object half of {@link NoModificationTimeStorageProvider}. */
+    private static final class NoModificationTimeStorageObject extends StubStorageObject {
+        NoModificationTimeStorageObject(StoragePath path, long length, AtomicInteger probeCount) {
+            super(path, length, probeCount);
+        }
+
+        @Override
+        public Instant lastModified() {
+            return null;
+        }
+    }
+
+    /** The object half of {@link RevocableStorageProvider}. */
+    private static class RevocableStorageObject extends StubStorageObject {
+        private final AtomicBoolean readRevoked;
+        private final Condition condition;
+
+        RevocableStorageObject(StoragePath path, long length, AtomicInteger probeCount, AtomicBoolean readRevoked, Condition condition) {
+            super(path, length, probeCount);
+            this.readRevoked = readRevoked;
+            this.condition = condition;
+        }
+
+        /**
+         * Denies at BOTH accessors, deliberately: the metadata read takes {@code length()} first, so refusing
+         * only {@code lastModified()} would pass on argument evaluation order rather than on the behaviour.
+         */
+        @Override
+        public long length() {
+            refuseIfRevoked();
+            return super.length();
+        }
+
+        @Override
+        public Instant lastModified() {
+            refuseIfRevoked();
+            return super.lastModified();
+        }
+
+        private void refuseIfRevoked() {
+            if (readRevoked.get()) {
+                throw new ExternalClientException(condition, path(), "", "");
+            }
         }
     }
 

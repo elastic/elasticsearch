@@ -236,7 +236,9 @@ public class FileSourceFactoryTests extends ESTestCase {
             .attributes(List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG)))
             .executor(EsExecutors.DIRECT_EXECUTOR_SERVICE)
             .config(Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode))
-            .sourceMetadata(conversionMayNarrow ? Map.of(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, Boolean.TRUE) : Map.of())
+            // Stamped explicitly either way: an ABSENT stamp means a coordinator that predates it and is answered
+            // differently, which testAnUnstampedPlanFallsBackToThePreStampAnswer covers.
+            .sourceMetadata(Map.of(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, conversionMayNarrow))
             .deferredExtraction(true)
             .declaredReadSpec(declaredReadSpec)
             .build();

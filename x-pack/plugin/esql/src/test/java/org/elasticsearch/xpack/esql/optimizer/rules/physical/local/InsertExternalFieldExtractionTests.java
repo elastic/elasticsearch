@@ -554,9 +554,9 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         boolean conversionMayNarrow,
         Set<String> declaredTypeColumns
     ) {
-        Map<String, Object> sourceMetadata = conversionMayNarrow
-            ? Map.of(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, Boolean.TRUE)
-            : Map.<String, Object>of();
+        // Stamped explicitly either way; an absent stamp means a coordinator that predates it and is answered
+        // differently (see ExternalSourceResolverTests.testAnUnstampedPlanFallsBackToThePreStampAnswer).
+        Map<String, Object> sourceMetadata = Map.of(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, conversionMayNarrow);
         return parquetSource(schema, null, sourceMetadata, Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode)).withDeclaredReadSpec(
             DeclaredReadSpec.of(Map.of(), Map.of(), declaredTypeColumns)
         );

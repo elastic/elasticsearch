@@ -247,9 +247,9 @@ public class PushFiltersToSourceTests extends ESTestCase {
         Set<String> declaredTypeColumns
     ) {
         FieldAttribute salary = fieldAttr("salary");
-        Map<String, Object> sourceMetadata = conversionMayNarrow
-            ? Map.of(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, Boolean.TRUE)
-            : Map.<String, Object>of();
+        // Stamped explicitly either way; an absent stamp means a coordinator that predates it and is answered
+        // differently (see ExternalSourceResolverTests.testAnUnstampedPlanFallsBackToThePreStampAnswer).
+        Map<String, Object> sourceMetadata = Map.of(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, conversionMayNarrow);
         ExternalSourceExec source = new ExternalSourceExec(
             SRC,
             sourcePath,

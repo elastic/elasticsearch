@@ -77,9 +77,12 @@ public final class SourceStatisticsSerializer {
      * the filter is pushed, whether field extraction is deferred, and whether the operator factory enables
      * deferred extraction - and each of them moves the page away from the point where the reader drops a row.
      * <p>
-     * Absent means no, so a plan from a coordinator that predates this key reads as "cannot fail", which is what
-     * that coordinator's own data nodes already assumed. Like {@link #PARTITION_COLUMNS_KEY}, deliberately not
-     * under the {@code _stats.} prefix, so the statistics merges preserve it. Value: {@code Boolean}.
+     * Written on every resolve, {@code true} or {@code false}, so that ABSENT means something different: a
+     * coordinator that predates the key, which said nothing. Absent must not be read as "cannot fail" - the
+     * predicate this replaced answered YES for a declared read, so a new data node taking absent as no would push
+     * a filter the old coordinator's own data nodes withheld, during a rolling upgrade. Readers use
+     * {@link #conversionNarrowingStamped} to tell the two apart. Like {@link #PARTITION_COLUMNS_KEY}, deliberately
+     * not under the {@code _stats.} prefix, so the statistics merges preserve it. Value: {@code Boolean}.
      */
     public static final String CONVERSION_MAY_NARROW_KEY = "_read.conversion_may_narrow";
     // Package-private: consumed by the *Key helpers here and by SplitStats.of/toMap (the round-trip between the
@@ -131,10 +134,18 @@ public final class SourceStatisticsSerializer {
 
     /**
      * Whether reading this source may convert a value and fail, read from the {@link #CONVERSION_MAY_NARROW_KEY}
-     * stamp. False when the stamp is absent: see the key for why that is the safe reading of an older plan.
+     * stamp. Only meaningful once {@link #conversionNarrowingStamped} says the plan carries the stamp at all.
      */
     public static boolean conversionMayNarrow(Map<String, Object> sourceMetadata) {
         return sourceMetadata != null && Boolean.TRUE.equals(sourceMetadata.get(CONVERSION_MAY_NARROW_KEY));
+    }
+
+    /**
+     * Whether this plan carries the {@link #CONVERSION_MAY_NARROW_KEY} stamp at all. False only for a plan minted by
+     * a coordinator that predates it, which a reader must answer the pre-stamp way rather than assume into.
+     */
+    public static boolean conversionNarrowingStamped(Map<String, Object> sourceMetadata) {
+        return sourceMetadata != null && sourceMetadata.containsKey(CONVERSION_MAY_NARROW_KEY);
     }
 
     /**

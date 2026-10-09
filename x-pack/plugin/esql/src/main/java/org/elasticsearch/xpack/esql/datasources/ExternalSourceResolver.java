@@ -1688,19 +1688,16 @@ public class ExternalSourceResolver {
      * Narrowing is possible when the read type of a column is not reachable losslessly from the type the file
      * holds it as, and also whenever a file's own types were never read - an unexamined file may hold anything.
      * Every rail passes through here, so no rail can be left answering from provenance (esql-planning#2076).
-     * The stamp is written only when true: absent reads as false, which is how an older coordinator's plan
-     * arrives.
+     * Written on every resolve, true or false, so a data node can tell "this coordinator says no" from "this
+     * coordinator never said" - the second is a pre-stamp plan and is answered the pre-stamp way.
      */
     static ExternalSourceResolution.ResolvedSource stampConversionMayNarrow(
         ExternalSourceResolution.ResolvedSource source,
         @Nullable Map<String, Object> config
     ) {
-        if (conversionMayNarrow(source, config) == false) {
-            return source;
-        }
         Map<String, Object> current = source.metadata().sourceMetadata();
         Map<String, Object> stamped = current == null ? new HashMap<>() : new HashMap<>(current);
-        stamped.put(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, Boolean.TRUE);
+        stamped.put(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, conversionMayNarrow(source, config));
         return new ExternalSourceResolution.ResolvedSource(
             replaceSourceMetadata(source.metadata(), Map.copyOf(stamped)),
             source.fileList(),

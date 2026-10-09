@@ -103,6 +103,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -4937,9 +4938,32 @@ public class ExternalSourceResolverTests extends ESTestCase {
             clean,
             configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
         );
-        assertSame("nothing to say, so the source is handed back untouched", clean, stamped);
         Map<String, Object> metadata = stamped.metadata().sourceMetadata();
-        assertFalse(metadata != null && metadata.containsKey(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY));
+        assertTrue("the stamp is always present", SourceStatisticsSerializer.conversionNarrowingStamped(metadata));
+        assertFalse("and says no", SourceStatisticsSerializer.conversionMayNarrow(metadata));
+    }
+
+    /**
+     * A plan carrying no stamp came from a coordinator that predates it. The read must then be answered the way that
+     * coordinator's own data nodes answered - any declared column type meant a value could fail - so a rolling
+     * upgrade cannot start pushing filters they withheld.
+     */
+    public void testAnUnstampedPlanFallsBackToThePreStampAnswer() {
+        List<Attribute> schema = List.of(attr("x", DataType.LONG));
+        ExternalSourceExec declared = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/*.parquet",
+            "parquet",
+            schema,
+            Map.of(),
+            Map.of(),
+            null,
+            null
+        ).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), Map.of(), Set.of("x"), SchemaProvenance.DECLARED));
+        assertTrue("a declared column was the pre-stamp answer for 'a value can fail'", declared.conversionMayNarrow());
+
+        ExternalSourceExec inferred = declared.withDeclaredReadSpec(DeclaredReadSpec.NONE);
+        assertFalse("and no declared column was the pre-stamp answer for 'it cannot'", inferred.conversionMayNarrow());
     }
 
     /** Stamps one file read as {@code readSchema} whose own types are {@code nativeTypes}, and reads the stamp back. */

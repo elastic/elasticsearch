@@ -896,7 +896,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             }
         };
 
-        assertParsing.accept(null, IvfAutoCalibrationProfile.DISABLED);
+        assertParsing.accept(null, IvfAutoCalibrationProfile.ISO_SIZING);
         assertParsing.accept(true, IvfAutoCalibrationProfile.ISO_SIZING);
         assertParsing.accept(false, IvfAutoCalibrationProfile.DISABLED);
         for (IvfAutoCalibrationProfile profile : IvfAutoCalibrationProfile.values()) {
@@ -995,21 +995,81 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
     }
 
+    public void testAutoCalibrateDefaultByIndexVersion() throws IOException {
+        IndexVersion enabledByDefaultVersion = IndexVersions.DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT;
+        IndexVersion lastDisabledByDefaultVersion = IndexVersionUtils.getPreviousVersion(
+            IndexVersions.DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT
+        );
+        List<Tuple<IndexVersion, IvfAutoCalibrationProfile>> testCases = List.of(
+            Tuple.tuple(
+                IndexVersionUtils.randomVersionBetween(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE, lastDisabledByDefaultVersion),
+                IvfAutoCalibrationProfile.DISABLED
+            ),
+            Tuple.tuple(lastDisabledByDefaultVersion, IvfAutoCalibrationProfile.DISABLED),
+            Tuple.tuple(enabledByDefaultVersion, IvfAutoCalibrationProfile.ISO_SIZING),
+            Tuple.tuple(IndexVersionUtils.randomVersionOnOrAfter(enabledByDefaultVersion), IvfAutoCalibrationProfile.ISO_SIZING)
+        );
+
+        for (Tuple<IndexVersion, IvfAutoCalibrationProfile> testCase : testCases) {
+            IndexVersion version = testCase.v1();
+            IvfAutoCalibrationProfile expectedProfile = testCase.v2();
+            String message = "index version [" + version + "]";
+            MapperService mapperService = createMapperService(version, EXPERIMENTAL_FEATURES_ENABLED, autoCalibrateMapping(null));
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+                mapperService,
+                "field",
+                DenseVectorFieldMapper.BBQIVFIndexOptions.class
+            );
+            assertEquals(message, expectedProfile, indexOptions.autoCalibrationProfile());
+            assertEquals(message, expectedProfile != IvfAutoCalibrationProfile.DISABLED, indexOptions.autoCalibrate());
+
+            // The default is not persisted, so recovery must re-derive it from the index version
+            String mappingSource = mapperService.documentMapper().mappingSource().string();
+            assertThat(message, mappingSource, not(containsString("auto_calibrate")));
+            MapperService recovered = new TestMapperServiceBuilder().indexVersion(version).settings(EXPERIMENTAL_FEATURES_ENABLED).build();
+            merge(recovered, MapperService.MergeReason.MAPPING_RECOVERY, mappingSource);
+            assertEquals(
+                message,
+                expectedProfile,
+                getIndexOptions(recovered, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
+            );
+        }
+    }
+
     public void testAutoCalibrateMappingUpdates() throws IOException {
-        IndexVersion current = IndexVersion.current();
-        IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(
+        IndexVersion currentVersion = IndexVersion.current();
+        IndexVersion lastDisabledByDefaultVersion = IndexVersionUtils.getPreviousVersion(
+            IndexVersions.DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT
+        );
+        IndexVersion defaultToQualityProfileVersion = IndexVersionUtils.randomVersionBetween(
             IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE,
             IndexVersionUtils.getPreviousVersion(IndexVersions.DISK_BBQ_AUTO_CALIBRATE_DEFAULT_ISO_SIZING)
         );
 
-        assertAutoCalibrateUpdate(current, null, false, true);
-        assertAutoCalibrateUpdate(current, false, "disabled", true);
-        assertAutoCalibrateUpdate(current, true, "iso_sizing", true);
-        assertAutoCalibrateUpdate(oldVersion, true, "quality", true);
-        assertAutoCalibrateUpdate(oldVersion, true, "iso_sizing", false);
-        assertAutoCalibrateUpdate(current, "quality", "iso_sizing", false);
-        assertAutoCalibrateUpdate(current, "iso_sizing", "quality", false);
-        assertAutoCalibrateUpdate(current, null, "quality", false);
+        // The unset default is enabled on new indices, so only an enabling value matches it
+        assertAutoCalibrateUpdate(currentVersion, null, true, true);
+        assertAutoCalibrateUpdate(currentVersion, null, "iso_sizing", true);
+        assertAutoCalibrateUpdate(currentVersion, null, false, false);
+        assertAutoCalibrateUpdate(currentVersion, null, "disabled", false);
+        assertAutoCalibrateUpdate(currentVersion, false, null, false);
+        assertAutoCalibrateUpdate(currentVersion, false, "disabled", true);
+        assertAutoCalibrateUpdate(currentVersion, true, "iso_sizing", true);
+        assertAutoCalibrateUpdate(currentVersion, "quality", "iso_sizing", false);
+        assertAutoCalibrateUpdate(currentVersion, "iso_sizing", "quality", false);
+        assertAutoCalibrateUpdate(currentVersion, null, "quality", false);
+
+        // ... and disabled on older indices
+        assertAutoCalibrateUpdate(lastDisabledByDefaultVersion, null, false, true);
+        assertAutoCalibrateUpdate(lastDisabledByDefaultVersion, null, "disabled", true);
+        assertAutoCalibrateUpdate(lastDisabledByDefaultVersion, false, null, true);
+        assertAutoCalibrateUpdate(lastDisabledByDefaultVersion, null, true, false);
+
+        // Test indices that default to the quality profile (when autocalibration is enabled)
+        assertAutoCalibrateUpdate(defaultToQualityProfileVersion, null, false, true);
+        assertAutoCalibrateUpdate(defaultToQualityProfileVersion, false, null, true);
+        assertAutoCalibrateUpdate(defaultToQualityProfileVersion, true, "quality", true);
+        assertAutoCalibrateUpdate(defaultToQualityProfileVersion, true, "iso_sizing", false);
+        assertAutoCalibrateUpdate(defaultToQualityProfileVersion, true, "disabled", false);
     }
 
     private void assertAutoCalibrateUpdate(IndexVersion version, Object from, Object to, boolean accepted) throws IOException {
@@ -1023,8 +1083,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 expected.profile(),
                 getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
             );
-            String expectedSource = to instanceof String ? "\"auto_calibrate\":\"" + to + "\"" : "\"auto_calibrate\":" + to;
-            assertThat(message, mapperService.documentMapper().mappingSource().toString(), containsString(expectedSource));
+
+            String mappingSource = mapperService.documentMapper().mappingSource().toString();
+            if (to == null) {
+                assertThat(message, mappingSource, not(containsString("auto_calibrate")));
+            } else {
+                String expectedSource = to instanceof String ? "\"auto_calibrate\":\"" + to + "\"" : "\"auto_calibrate\":" + to;
+                assertThat(message, mappingSource, containsString(expectedSource));
+            }
         } else {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,

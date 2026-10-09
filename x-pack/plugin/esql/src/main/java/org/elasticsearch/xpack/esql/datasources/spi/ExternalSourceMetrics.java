@@ -13,6 +13,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.telemetry.metric.MetricAttributes;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 
 import java.util.Arrays;
@@ -102,7 +103,10 @@ public final class ExternalSourceMetrics {
     /** Estimated bytes across the files discovered by external-source listing per resolved path (a query may resolve several). */
     public static final String DISCOVERY_BYTES_SCANNED = "es.esql.datasources.discovery.bytes_scanned.histogram";
 
-    /** External-source discovery attempts that failed to resolve. */
+    /**
+     * External-source discovery attempts that failed to resolve, dimensioned by {@link #TYPE_ATTRIBUTE},
+     * {@link #ERROR_TYPE_ATTRIBUTE} and {@link #STATUS_ATTRIBUTE}.
+     */
     public static final String DISCOVERY_FAILURES_TOTAL = "es.esql.datasources.discovery.failures.total";
 
     /** Rows parsed out of a format reader by the external-source scan operator. */
@@ -157,6 +161,21 @@ public final class ExternalSourceMetrics {
 
     /** Rejection reason, present only when {@link #OP_ATTRIBUTE} is {@code rejected}. */
     public static final String REASON_ATTRIBUTE = "es_datasource_reason";
+
+    /**
+     * HTTP status of the failure, a handful of {@link org.elasticsearch.rest.RestStatus} codes in practice (never a free
+     * string). Present only on failed external-source queries ({@link #OUTCOME_ATTRIBUTE} {@code failure}), failed
+     * discovery attempts and rejected configuration changes.
+     */
+    public static final String STATUS_ATTRIBUTE = "es_datasource_status";
+
+    /**
+     * Failure category, a closed set ({@link DataSourceUsageAccumulator#ERROR_TYPE_NAMES}). Uses the unprefixed
+     * {@link MetricAttributes#ERROR_TYPE} name, which the APM metric validator allows as a standard attribute.
+     * Present on the same series as {@link #STATUS_ATTRIBUTE}, except rejected configuration changes (which have
+     * {@link #REASON_ATTRIBUTE} instead).
+     */
+    public static final String ERROR_TYPE_ATTRIBUTE = MetricAttributes.ERROR_TYPE;
 
     /**
      * Schema-resolution dimension on the discovery histograms, a closed low-cardinality set:
@@ -549,19 +568,40 @@ public final class ExternalSourceMetrics {
     }
 
     /**
+     * Records one completed external-source query without failure detail; see
+     * {@link #recordQuery(String, long, boolean, String, String)}. A {@code failure} outcome recorded this way is
+     * attributed to {@link DataSourceUsageAccumulator#ERROR_TYPE_OTHER} in the phone-home counters and carries no
+     * {@link #ERROR_TYPE_ATTRIBUTE} / {@link #STATUS_ATTRIBUTE} on APM.
+     */
+    public void recordQuery(String outcome, long durationMillis, boolean partial) {
+        recordQuery(outcome, durationMillis, partial, null, null);
+    }
+
+    /**
      * Records one completed external-source query: increments {@link #QUERIES_TOTAL} tagged with {@code outcome},
      * observes {@link #QUERY_DURATION} carrying the same {@code outcome} (so latency can be split by
      * success/failure/cancelled), and increments {@link #QUERIES_CANCELLED_TOTAL} when the outcome is
      * {@link #OUTCOME_CANCELLED} and {@link #QUERIES_PARTIAL_TOTAL} when {@code partial} is set.
      * <p>
+     * When the outcome is {@link #OUTCOME_FAILURE}, {@code errorType} (one of
+     * {@link DataSourceUsageAccumulator#ERROR_TYPE_NAMES}) and {@code status} (the HTTP status code) are added as
+     * {@link #ERROR_TYPE_ATTRIBUTE} / {@link #STATUS_ATTRIBUTE} to both instruments, so the failure series is split
+     * by cause while the success and cancelled series are unchanged. Either may be {@code null}, in which case that
+     * attribute is omitted (and the phone-home counters use {@code other}).
+     * <p>
      * Attribution scope: this is only reached for queries whose ANALYZED plan contained an external source. A
      * query that fails during analysis (before the external-source flag is set) is not counted here; its discovery
-     * failure is captured by {@link #recordDiscoveryFailure()} / {@link #DISCOVERY_FAILURES_TOTAL}. Best-effort
+     * failure is captured by {@link #recordDiscoveryFailure} / {@link #DISCOVERY_FAILURES_TOTAL}. Best-effort
      * (self-guarded).
      */
-    public void recordQuery(String outcome, long durationMillis, boolean partial) {
+    public void recordQuery(String outcome, long durationMillis, boolean partial, @Nullable String errorType, @Nullable String status) {
         try {
-            Map<String, Object> attributes = outcomeAttrs(outcome);
+            // Clamp before anything is emitted, so a token outside the closed set can neither become an APM attribute nor
+            // make the two sinks disagree.
+            String canonicalErrorType = errorType == null ? null : canonicalErrorType(errorType);
+            Map<String, Object> attributes = OUTCOME_FAILURE.equals(outcome)
+                ? failureAttrs(Map.of(OUTCOME_ATTRIBUTE, OUTCOME_FAILURE), canonicalErrorType, status)
+                : outcomeAttrs(outcome);
             queriesTotal.incrementBy(1, attributes);
             queryDuration.record(Math.max(0L, durationMillis), attributes);
             if (OUTCOME_CANCELLED.equals(outcome)) {
@@ -571,7 +611,7 @@ public final class ExternalSourceMetrics {
                 queriesPartialTotal.incrementBy(1);
             }
             if (usageAccumulator != null) {
-                usageAccumulator.recordQuery(outcome, durationMillis, partial);
+                usageAccumulator.recordQuery(outcome, durationMillis, partial, canonicalErrorType);
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordQuery failed", e);
@@ -622,12 +662,20 @@ public final class ExternalSourceMetrics {
         }
     }
 
-    /** Records one external-source discovery attempt that failed to resolve. Best-effort (self-guarded). */
-    public void recordDiscoveryFailure() {
+    /**
+     * Records one external-source discovery attempt that failed to resolve, on the given storage {@code scheme}
+     * (folded to {@link #TYPE_ATTRIBUTE}), with the failure category {@code errorType} (one of
+     * {@link DataSourceUsageAccumulator#ERROR_TYPE_NAMES}) and the HTTP {@code status} code. Best-effort
+     * (self-guarded).
+     */
+    public void recordDiscoveryFailure(@Nullable String scheme, String errorType, @Nullable String status) {
         try {
-            discoveryFailuresTotal.incrementBy(1);
+            // Clamp before anything is emitted (see recordQuery).
+            String canonicalErrorType = canonicalErrorType(errorType);
+            Map<String, Object> typeAttributes = typeAttrs(scheme);
+            discoveryFailuresTotal.incrementBy(1, failureAttrs(typeAttributes, canonicalErrorType, status));
             if (usageAccumulator != null) {
-                usageAccumulator.recordDiscoveryFailure();
+                usageAccumulator.recordDiscoveryFailure(canonicalErrorType);
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordDiscoveryFailure failed", e);
@@ -689,13 +737,34 @@ public final class ExternalSourceMetrics {
      * Best-effort (self-guarded).
      */
     public void recordConfigChange(String kind, String op, String type, String reason) {
+        recordConfigChange(kind, op, type, reason, null);
+    }
+
+    /**
+     * As {@link #recordConfigChange(String, String, String, String)}, additionally tagging a {@code rejected} change
+     * with the HTTP {@code status} of the refusal ({@link #STATUS_ATTRIBUTE}; omitted when {@code null}).
+     * Phone-home gets the change by kind × op, by kind × type, and, when rejected, by kind × reason.
+     */
+    public void recordConfigChange(String kind, String op, String type, String reason, @Nullable String status) {
         try {
-            Map<String, Object> attributes = "rejected".equals(op)
-                ? Map.of(KIND_ATTRIBUTE, kind, OP_ATTRIBUTE, op, TYPE_ATTRIBUTE, type, REASON_ATTRIBUTE, reason)
-                : Map.of(KIND_ATTRIBUTE, kind, OP_ATTRIBUTE, op, TYPE_ATTRIBUTE, type);
+            boolean rejected = "rejected".equals(op);
+            Map<String, Object> attributes;
+            if (rejected) {
+                attributes = new HashMap<>();
+                attributes.put(KIND_ATTRIBUTE, kind);
+                attributes.put(OP_ATTRIBUTE, op);
+                attributes.put(TYPE_ATTRIBUTE, type);
+                attributes.put(REASON_ATTRIBUTE, reason);
+                if (status != null) {
+                    attributes.put(STATUS_ATTRIBUTE, status);
+                }
+                attributes = Map.copyOf(attributes);
+            } else {
+                attributes = Map.of(KIND_ATTRIBUTE, kind, OP_ATTRIBUTE, op, TYPE_ATTRIBUTE, type);
+            }
             configChangesTotal.incrementBy(1, attributes);
             if (usageAccumulator != null) {
-                usageAccumulator.recordConfigChange(kind, op);
+                usageAccumulator.recordConfigChange(kind, op, Type.fromTypeId(type), reason);
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordConfigChange failed", e);
@@ -843,6 +912,36 @@ public final class ExternalSourceMetrics {
     static String canonicalSchemaResolution(FormatReader.SchemaResolution schemaResolution) {
         FormatReader.SchemaResolution resolved = schemaResolution == null ? FormatReader.DEFAULT_SCHEMA_RESOLUTION : schemaResolution;
         return resolved.configName();
+    }
+
+    /**
+     * Folds a failure category into the closed {@link DataSourceUsageAccumulator#ERROR_TYPE_NAMES} set: anything outside it,
+     * including {@code null}, becomes {@link DataSourceUsageAccumulator#ERROR_TYPE_OTHER}. The classifier only returns members
+     * of the set; this is the boundary that publishes the label, so it does not rely on that.
+     */
+    static String canonicalErrorType(@Nullable String errorType) {
+        return errorType != null && DataSourceUsageAccumulator.ERROR_TYPE_NAMES.contains(errorType)
+            ? errorType
+            : DataSourceUsageAccumulator.ERROR_TYPE_OTHER;
+    }
+
+    /**
+     * Returns {@code base} plus {@link #ERROR_TYPE_ATTRIBUTE} and {@link #STATUS_ATTRIBUTE} (each omitted when
+     * {@code null}). Only used on the failure paths, so allocating a map per call is not a hot-path concern; the
+     * value space is closed ({@code errorType}) or a handful of HTTP codes ({@code status}).
+     */
+    private static Map<String, Object> failureAttrs(Map<String, Object> base, @Nullable String errorType, @Nullable String status) {
+        if (errorType == null && status == null) {
+            return base;
+        }
+        Map<String, Object> attributes = new HashMap<>(base);
+        if (errorType != null) {
+            attributes.put(ERROR_TYPE_ATTRIBUTE, errorType);
+        }
+        if (status != null) {
+            attributes.put(STATUS_ATTRIBUTE, status);
+        }
+        return Map.copyOf(attributes);
     }
 
     /** Returns the pre-built {@link #OUTCOME_ATTRIBUTE} attribute map for {@code outcome} (a fresh map for any unknown). */

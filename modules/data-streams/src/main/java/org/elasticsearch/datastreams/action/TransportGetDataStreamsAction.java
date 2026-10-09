@@ -46,7 +46,6 @@ import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProviders;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
@@ -254,8 +253,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                         dataStreamDescriptor.getComposableIndexTemplate()
                     );
                     ilmPolicyName = effectiveSettings.get(IndexMetadata.LIFECYCLE_NAME);
-                    String rawMode = effectiveSettings.get(IndexSettings.MODE.getKey());
-                    indexMode = rawMode == null ? null : IndexMode.fromString(rawMode);
+                    indexMode = IndexMode.fromIndexSettingsWithoutValidation(effectiveSettings);
                     indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(effectiveSettings);
                 }
             } else {

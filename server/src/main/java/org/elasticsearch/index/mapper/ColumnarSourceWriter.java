@@ -522,7 +522,9 @@ final class ColumnarSourceWriter {
 
             @Override
             public int docID() {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                // Like every slot below: after a successful advanceExact the iterator is positioned on the target, as it is for a real
+                // segment, and loaders may assert on it, for example the pattern_text one before it reads a value.
+                return present ? DOC_ID : DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override
@@ -572,7 +574,7 @@ final class ColumnarSourceWriter {
 
             @Override
             public int docID() {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                return present || binarySlot.present ? DOC_ID : DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override
@@ -611,7 +613,7 @@ final class ColumnarSourceWriter {
 
             @Override
             public int docID() {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                return present ? DOC_ID : DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override
@@ -664,7 +666,7 @@ final class ColumnarSourceWriter {
 
             @Override
             public int docID() {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                return present ? DOC_ID : DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override
@@ -724,7 +726,7 @@ final class ColumnarSourceWriter {
 
             @Override
             public int docID() {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                return count > 0 ? DOC_ID : DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override
@@ -804,7 +806,7 @@ final class ColumnarSourceWriter {
 
             @Override
             public int docID() {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                return count > 0 ? DOC_ID : DocIdSetIterator.NO_MORE_DOCS;
             }
 
             @Override

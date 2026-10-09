@@ -67,8 +67,6 @@ public class IndexFeatures implements FeatureSpecification {
 
     private static final NodeFeature SEGMENTS_INCLUDE_AUTO_CALIBRATION = new NodeFeature("index.segments_include_auto_calibration");
 
-    private static final NodeFeature FIELD_USAGE_DOC_VALUES_SKIPPER = new NodeFeature("index.field_usage_doc_values_skipper");
-
     @Override
     public Set<NodeFeature> getTestFeatures() {
         Set<NodeFeature> features = new HashSet<>(
@@ -87,8 +85,7 @@ public class IndexFeatures implements FeatureSpecification {
                 InferenceMetadataFieldsMapper.INFERENCE_FIELDS_GET_VIA_SOURCE_EXCLUDE_VECTORS,
                 MERGE_SCHEDULER_CLAMPS_MAX_THREAD_COUNT,
                 STATS_INCLUDE_AUTO_CALIBRATION,
-                SEGMENTS_INCLUDE_AUTO_CALIBRATION,
-                FIELD_USAGE_DOC_VALUES_SKIPPER
+                SEGMENTS_INCLUDE_AUTO_CALIBRATION
             )
         );
         return Set.copyOf(features);

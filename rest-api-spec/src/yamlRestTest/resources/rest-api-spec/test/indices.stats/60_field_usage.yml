@@ -206,7 +206,11 @@
 "Field usage stats for doc values skippers":
   # logsdb indices get a doc values skipper on @timestamp by default
   - requires:
-      cluster_features: [ "index.field_usage_doc_values_skipper" ]
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /{index}/_field_usage_stats
+          capabilities: [ doc_values_skipper ]
       reason: "field usage stats only report doc_values_skipper on nodes that track skipper usage"
 
   - do:

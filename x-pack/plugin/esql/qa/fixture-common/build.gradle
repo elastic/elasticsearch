@@ -1,0 +1,49 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+/*
+ * The declaration every external-source suite reads: the dimensions, which pairs of
+ * them interact, the exclusions, and the fixture matrix.
+ *
+ * This module exists because the declaration had no home. A suite that wanted to know
+ * what values a dimension takes had to re-list them, and a re-listed value drifts from
+ * the declaration silently -- it does not fail, it quietly tests one configuration
+ * fewer than it claims to.
+ *
+ * It carries the declaration and the code that derives cases from it, and nothing that
+ * writes fixture bytes. The generators' shared helpers belong here too and arrive with
+ * the generators that call them; until then they stay where they are, because moving a
+ * class out of a plugin without moving its callers leaves two copies of it.
+ *
+ * Dependency-free by design, and it must stay that way: the ORC and Parquet generator
+ * configurations deliberately isolate their Hadoop jars, and anything this module drags
+ * in would land on those classpaths.
+ */
+apply plugin: 'elasticsearch.build'
+
+base {
+  archivesName = 'x-pack-esql-fixture-common'
+}
+
+dependencies {
+  // Test-only. The main source set stays dependency-free: these never reach the generator
+  // classpaths, which deliberately isolate their Hadoop jars.
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit4}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testImplementation project(':test:framework')
+}
+
+tasks.named('forbiddenApisMain').configure {
+  // Pure JDK, no Elasticsearch types -- it has to be loadable from every generator's
+  // isolated classpath.
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+// The dimension contract gate. Static half on precommit; see the script for why the artifact
+// half rides csvSpecTests in the consuming modules instead.
+apply from: "dimension-contract.gradle"

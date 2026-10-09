@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -178,20 +179,19 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         }).delegateResponse((delegate, e) -> delegate.onFailure(mappingLookupFailure(field, e))));
     }
 
-    /** The mappings response names the concrete indices, so each one's {@link KnnEvalPlugin#INDEX_ENABLED} is checked here. */
     private void rejectDisabledIndices(Iterable<String> indices) {
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
         for (String index : indices) {
             IndexMetadata metadata = project.index(index);
+            // a missing index fails at PIT open
             if (metadata != null && KnnEvalPlugin.INDEX_ENABLED.get(metadata.getSettings()) == false) {
                 throw new IllegalArgumentException(
-                    "["
-                        + RestKnnEvalAction.ENDPOINT
-                        + "] is disabled on index ["
-                        + index
-                        + "] by ["
-                        + KnnEvalPlugin.INDEX_ENABLED.getKey()
-                        + "]"
+                    Strings.format(
+                        "[%s] is disabled on index [%s] by [%s]",
+                        RestKnnEvalAction.ENDPOINT,
+                        index,
+                        KnnEvalPlugin.INDEX_ENABLED.getKey()
+                    )
                 );
             }
         }

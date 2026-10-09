@@ -94,6 +94,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -116,6 +117,12 @@ public class TransportKnnEvalActionTests extends ESTestCase {
     }
 
     private static ClusterService clusterService(boolean allowExpensiveQueries, boolean knnEvalEnabled, boolean indexEnabled) {
+        // the stub client's mappings name "index"
+        return clusterService(allowExpensiveQueries, knnEvalEnabled, Map.of("index", indexEnabled));
+    }
+
+    /** {@code indexEnabled} maps each index in cluster state to its {@code index.knn_eval.enabled}. */
+    private static ClusterService clusterService(boolean allowExpensiveQueries, boolean knnEvalEnabled, Map<String, Boolean> indexEnabled) {
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.builder()
                 .put(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey(), allowExpensiveQueries)
@@ -126,13 +133,16 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create("knn-eval-test-node"));
-        // the stub client's mappings name "index"; the action reads its index.knn_eval.enabled from here
-        IndexMetadata index = IndexMetadata.builder("index")
-            .settings(indexSettings(IndexVersion.current(), 1, 0).put(KnnEvalPlugin.INDEX_ENABLED.getKey(), indexEnabled))
-            .build();
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).put(index, false)))
-            .build();
+        ProjectMetadata.Builder project = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID);
+        indexEnabled.forEach(
+            (name, enabled) -> project.put(
+                IndexMetadata.builder(name)
+                    .settings(indexSettings(IndexVersion.current(), 1, 0).put(KnnEvalPlugin.INDEX_ENABLED.getKey(), enabled))
+                    .build(),
+                false
+            )
+        );
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(project)).build();
         when(clusterService.state()).thenReturn(state);
         return clusterService;
     }
@@ -472,6 +482,37 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
         assertThat(e.getMessage(), containsString("[_knn_eval] is disabled on index [index] by [index.knn_eval.enabled]"));
+    }
+
+    /** One disabled index refuses a multi-index evaluation, and the error names that index. */
+    public void testIndexSettingNamesTheDisabledIndex() {
+        RecordingClient client = new RecordingClient();
+        client.secondIndex = true;
+        TransportKnnEvalAction action = new TransportKnnEvalAction(
+            ActionFilters.EMPTY,
+            client,
+            MockUtils.setupTransportServiceWithThreadpoolExecutor(),
+            clusterService(true, true, Map.of("index", true, "other-index", false)),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+        );
+        PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
+        action.doExecute(
+            null,
+            new KnnEvalRequest(specWithBaseline(new KnnEvalSettings(100.0f, null, null, false)), new String[] { "index", "other-index" }),
+            future
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(e.getMessage(), equalTo("[_knn_eval] is disabled on index [other-index] by [index.knn_eval.enabled]"));
+        assertFalse(client.pointInTimeOpened);
+    }
+
+    /** Index admins, including serverless project users, must be able to flip it on a live index. */
+    public void testIndexSettingIsDynamicIndexScopedAndServerlessPublic() {
+        assertTrue(KnnEvalPlugin.INDEX_ENABLED.isDynamic());
+        assertTrue(KnnEvalPlugin.INDEX_ENABLED.hasIndexScope());
+        assertTrue(KnnEvalPlugin.INDEX_ENABLED.isServerlessPublic());
+        assertFalse(KnnEvalPlugin.INDEX_ENABLED.isOperatorOnly());
+        assertTrue(KnnEvalPlugin.INDEX_ENABLED.getDefault(Settings.EMPTY));
     }
 
     /** {@code search.allow_expensive_queries} doesn't gate exact baselines. */
@@ -926,6 +967,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         private boolean failFieldMappings = false;
         private Exception fieldMappingsFailure;
         private boolean mismatchedFieldMappings = false;
+        /** Adds "other-index" with the same mapping as "index". */
+        private boolean secondIndex = false;
         private boolean pointInTimeOpened = false;
         private boolean pointInTimeClosed = false;
         private boolean failSearch = false;
@@ -998,6 +1041,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
                         "other-index",
                         Map.of(field, new GetFieldMappingsResponse.FieldMappingMetadata(field, otherMapping))
                     );
+                } else if (secondIndex) {
+                    mappings = Map.of("index", indexMapping, "other-index", indexMapping);
                 } else {
                     mappings = Map.of("index", indexMapping);
                 }

@@ -32,7 +32,7 @@ public class KnnEvalPlugin extends Plugin implements ActionPlugin {
         Setting.Property.OperatorDynamic
     );
 
-    /** Lets an index's admins refuse evaluations on it; ANDed with {@link #ENABLED}, so it can't override a cluster-wide off. */
+    /** Per-index opt-out; cannot override a cluster-wide {@link #ENABLED} off. */
     static final Setting<Boolean> INDEX_ENABLED = Setting.boolSetting(
         "index.knn_eval.enabled",
         true,

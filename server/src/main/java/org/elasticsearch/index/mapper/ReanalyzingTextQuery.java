@@ -428,7 +428,7 @@ public final class ReanalyzingTextQuery extends Query {
                 approximationWeight = null;
             }
         }
-        final float maxFreq = scansEveryDocument ? scanMaxFreq(in, terms) : Float.MAX_VALUE;
+        final float maxFreq = scansEveryDocument ? scanMaxFreq(in) : Float.MAX_VALUE;
         return new Weight(this) {
 
             @Override
@@ -541,13 +541,40 @@ public final class ReanalyzingTextQuery extends Query {
      * The highest frequency a document can report where nothing is indexed: {@link #MATCHED_CLAUSES_SIMILARITY} holds
      * a clause the document answers to one point, and a phrase is one clause however often the document holds it. The
      * scorer turns the bound into a score through the similarity in hand, so a collector can stop once no document
-     * left can beat what it holds. Unbounded where the query names no terms to count, a fuzziness or a prefix.
+     * left can beat what it holds. Unbounded where any clause names a range of terms rather than the terms
+     * themselves, a fuzziness or a prefix, since such a clause answers without being counted.
      */
-    private static float scanMaxFreq(Query in, Set<Term> terms) {
+    private static float scanMaxFreq(Query in) {
         if (walkablePhrase(in) != null) {
             return 1f;
         }
-        return terms.isEmpty() ? Float.MAX_VALUE : terms.size();
+        final int[] clauses = { 0 };
+        final boolean[] bounded = { true };
+        in.visit(new QueryVisitor() {
+            @Override
+            public void consumeTerms(Query query, Term... terms) {
+                // One clause, however many terms it names: a document answering it answers it once.
+                clauses[0]++;
+            }
+
+            @Override
+            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+                // A clause naming a range of terms answers as the others do and is not counted among them, so
+                // counting the rest would bound the query below what it can score.
+                bounded[0] = false;
+            }
+
+            @Override
+            public void visitLeaf(Query query) {
+                bounded[0] = false;
+            }
+
+            @Override
+            public QueryVisitor getSubVisitor(Occur occur, Query parent) {
+                return this;
+            }
+        });
+        return bounded[0] && clauses[0] > 0 ? clauses[0] : Float.MAX_VALUE;
     }
 
     private static long getNormValue(NumericDocValues norms, int doc) throws IOException {

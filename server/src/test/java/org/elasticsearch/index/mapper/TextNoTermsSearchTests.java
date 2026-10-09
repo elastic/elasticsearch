@@ -316,10 +316,18 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
         assertEquals(2.0f, maxScoreOf(new MatchQueryBuilder("body", "quick brown")), 0.0001f);
         assertEquals(1.0f, maxScoreOf(new MatchPhraseQueryBuilder("body", "quick brown")), 0.0001f);
         assertEquals(Float.MAX_VALUE, maxScoreOf(new MatchQueryBuilder("body", "quikc").fuzziness(Fuzziness.ONE)), 0.0001f);
+        // A clause naming a range of terms leaves the whole query unbounded, however many of its clauses name
+        // terms themselves: that clause can answer too, and the bound has to hold for the clauses together.
+        assertEquals(Float.MAX_VALUE, maxScoreOf(new MatchBoolPrefixQueryBuilder("body", "quick bro")), 0.0001f);
         for (QueryBuilder query : List.of(
             new MatchQueryBuilder("body", "quick"),
             new MatchQueryBuilder("body", "quick brown"),
-            new MatchPhraseQueryBuilder("body", "quick brown")
+            new MatchPhraseQueryBuilder("body", "quick brown"),
+            new MatchBoolPrefixQueryBuilder("body", "bro"),
+            new MatchBoolPrefixQueryBuilder("body", "quick bro"),
+            new MatchBoolPrefixQueryBuilder("body", "the quick bro"),
+            new MatchQueryBuilder("body", "quikc").fuzziness(Fuzziness.ONE),
+            new MatchPhrasePrefixQueryBuilder("body", "quick bro")
         )) {
             assertThat(query.toString(), scoreOf(query), lessThanOrEqualTo(maxScoreOf(query)));
         }

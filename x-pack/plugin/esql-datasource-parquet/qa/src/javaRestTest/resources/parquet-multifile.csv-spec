@@ -230,7 +230,7 @@ dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"sch
 FROM employees_multifile_ubn_union
 | STATS c = COUNT(*) BY city
 | SORT city ASC;
-warningRegex:declared column \[city\] is not present in some source files
+warningRegex:column \[city\] is not present in some source files
 
 c:long | city:keyword
 1      | london
@@ -249,7 +249,7 @@ dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"sch
 FROM employees_multifile_ubn_union
 | KEEP city
 | SORT city ASC;
-warningRegex:declared column \[city\] is not present in some source files
+warningRegex:column \[city\] is not present in some source files
 
 city:keyword
 london
@@ -267,7 +267,7 @@ dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"sch
 FROM employees_multifile_ubn_union
 | KEEP name, city
 | SORT name ASC;
-warningRegex:declared column \[city\] is not present in some source files
+warningRegex:column \[city\] is not present in some source files
 
 name:keyword | city:keyword
 alice        | null
@@ -315,7 +315,7 @@ dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"sch
 FROM employees_multifile_ubn_union
 | WHERE city IS NULL
 | STATS count = COUNT(*);
-warningRegex:declared column \[city\] is not present in some source files
+warningRegex:column \[city\] is not present in some source files
 
 count:long
 2
@@ -347,7 +347,7 @@ dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"sch
 FROM employees_multifile_ubn_union
 | WHERE city LIKE "par*"
 | KEEP name, city;
-warningRegex:declared column \[city\] is not present in some source files
+warningRegex:column \[city\] is not present in some source files
 
 name:keyword | city:keyword
 charlie      | paris
@@ -365,7 +365,7 @@ FROM employees_multifile_ubn_union
 | WHERE NOT (city LIKE "lon*")
 | KEEP name, city
 | SORT name ASC;
-warningRegex:declared column \[city\] is not present in some source files
+warningRegex:column \[city\] is not present in some source files
 
 name:keyword | city:keyword
 charlie      | paris
@@ -383,8 +383,8 @@ dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"sch
 FROM employees_multifile_ubn_union
 | WHERE NOT (city LIKE "lon*") AND score IS NOT NULL
 | STATS n = COUNT(*);
-warningRegex:declared column \[city\] is not present in some source files
-warningRegex:declared column \[score\] is not present in some source files
+warningRegex:column \[city\] is not present in some source files
+warningRegex:column \[score\] is not present in some source files
 
 n:long
 0
@@ -400,7 +400,7 @@ dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"sch
 FROM employees_multifile_ubn_union
 | WHERE STARTS_WITH(city, "par")
 | KEEP name, city;
-warningRegex:declared column \[city\] is not present in some source files
+warningRegex:column \[city\] is not present in some source files
 
 name:keyword | city:keyword
 charlie      | paris
@@ -416,7 +416,7 @@ dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"sch
 FROM employees_multifile_ubn_union
 | WHERE ENDS_WITH(city, "is")
 | KEEP name, city;
-warningRegex:declared column \[city\] is not present in some source files
+warningRegex:column \[city\] is not present in some source files
 
 name:keyword | city:keyword
 charlie      | paris
@@ -432,7 +432,7 @@ dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"sch
 
 FROM employees_multifile_ubn_union
 | STATS n = COUNT(*) WHERE city LIKE "par*";
-warningRegex:declared column \[city\] is not present in some source files
+warningRegex:column \[city\] is not present in some source files
 
 n:long
 1
@@ -448,7 +448,7 @@ dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"sch
 
 FROM employees_multifile_ubn_union
 | STATS rows = COUNT(*), n = COUNT(*) WHERE city LIKE "par*";
-warningRegex:declared column \[city\] is not present in some source files
+warningRegex:column \[city\] is not present in some source files
 
 rows:long | n:long
 4         | 1
@@ -500,7 +500,7 @@ FROM employees_multifile_ubn_ffw
 | SORT name ASC;
 warningRegex:column \[age\]: \[long\] in the file, \[integer\] in the query
 warningRegex:Some columns in \[.*parquet_ubn_b\.parquet\] have a type the query cannot read; returning null
-warningRegex:declared column \[score\] is not present in some source files
+warningRegex:column \[score\] is not present in some source files
 
 name:keyword | age:integer | score:double
 alice        | 30          | 85.5
@@ -538,7 +538,7 @@ FROM employees_multifile_ubn_ffw
 | SORT name ASC;
 warningRegex:column \[age\]: \[long\] in the file, \[integer\] in the query
 warningRegex:Some columns in \[.*parquet_ubn_b\.parquet\] have a type the query cannot read; returning null
-warningRegex:declared column \[score\] is not present in some source files
+warningRegex:column \[score\] is not present in some source files
 
 name:keyword | score:double
 alice        | 85.5

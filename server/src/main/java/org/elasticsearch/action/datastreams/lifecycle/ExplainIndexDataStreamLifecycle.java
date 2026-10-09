@@ -43,9 +43,12 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     private static final ParseField ERROR_FIELD = new ParseField("error");
     private static final ParseField FROZEN_TRANSITION_STATUS_FIELD = new ParseField("frozen_transition_status");
     private static final ParseField UNMANAGED_REASON_FIELD = new ParseField("unmanaged_reason");
+    private static final ParseField TAIL_MERGE_DATE_MILLIS_FIELD = new ParseField("tail_merge_date_millis");
+    private static final ParseField TAIL_MERGE_DATE_FIELD = new ParseField("tail_merge_date");
 
     static final TransportVersion EXPLAIN_INDEX_FROZEN_TRANSITION = TransportVersion.fromName("explain_index_frozen_transition");
     public static final TransportVersion EXPLAIN_INDEX_UNMANAGED_REASON = TransportVersion.fromName("explain_index_unmanaged_reason");
+    static final TransportVersion EXPLAIN_INDEX_TAIL_MERGE_DATE = TransportVersion.fromName("explain_index_tail_merge_date");
 
     private final String index;
     private final boolean managedByLifecycle;
@@ -64,6 +67,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     private final FrozenTransitionStatus frozenTransitionStatus;
     @Nullable
     private final String unmanagedReason;
+    @Nullable
+    private final Long tailMergeDate;
     private Supplier<Long> nowSupplier = System::currentTimeMillis;
 
     private ExplainIndexDataStreamLifecycle(
@@ -76,6 +81,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         @Nullable DataStreamLifecycle lifecycle,
         @Nullable ErrorEntry error,
         @Nullable FrozenTransitionStatus frozenTransitionStatus,
+        @Nullable Long tailMergeDate,
         @Nullable String unmanagedReason
     ) {
         this.index = index;
@@ -88,6 +94,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         this.error = error;
         this.frozenTransitionStatus = frozenTransitionStatus;
         this.unmanagedReason = unmanagedReason;
+        this.tailMergeDate = tailMergeDate;
     }
 
     public ExplainIndexDataStreamLifecycle(StreamInput in) throws IOException {
@@ -104,6 +111,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
                 ? in.readOptionalEnum(FrozenTransitionStatus.class)
                 : null;
             this.unmanagedReason = null;
+            this.tailMergeDate = in.getTransportVersion().supports(EXPLAIN_INDEX_TAIL_MERGE_DATE) ? in.readOptionalLong() : null;
         } else {
             this.indexCreationDate = null;
             this.rolloverDate = null;
@@ -111,12 +119,13 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             this.lifecycle = null;
             this.error = null;
             this.frozenTransitionStatus = null;
+            this.tailMergeDate = null;
             this.unmanagedReason = in.getTransportVersion().supports(EXPLAIN_INDEX_UNMANAGED_REASON) ? in.readOptionalString() : null;
         }
     }
 
     public static ExplainIndexDataStreamLifecycle unmanagedIndexResponse(String indexName, @Nullable String reason) {
-        return new ExplainIndexDataStreamLifecycle(indexName, false, false, null, null, null, null, null, null, reason);
+        return new ExplainIndexDataStreamLifecycle(indexName, false, false, null, null, null, null, null, null, null, reason);
     }
 
     public static ExplainIndexDataStreamLifecycle managedIndexResponse(
@@ -127,7 +136,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         @Nullable TimeValue generationDate,
         @Nullable DataStreamLifecycle lifecycle,
         @Nullable ErrorEntry error,
-        @Nullable FrozenTransitionStatus frozenTransitionStatus
+        @Nullable FrozenTransitionStatus frozenTransitionStatus,
+        @Nullable Long tailMergeDate
     ) {
         return new ExplainIndexDataStreamLifecycle(
             index,
@@ -139,6 +149,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             lifecycle,
             error,
             frozenTransitionStatus,
+            tailMergeDate,
             null
         );
     }
@@ -195,6 +206,13 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             if (this.frozenTransitionStatus != null) {
                 builder.field(FROZEN_TRANSITION_STATUS_FIELD.getPreferredName(), frozenTransitionStatus.toString());
             }
+            if (this.tailMergeDate != null) {
+                builder.timestampFieldsFromUnixEpochMillis(
+                    TAIL_MERGE_DATE_MILLIS_FIELD.getPreferredName(),
+                    TAIL_MERGE_DATE_FIELD.getPreferredName(),
+                    tailMergeDate
+                );
+            }
         } else if (unmanagedReason != null) {
             builder.field(UNMANAGED_REASON_FIELD.getPreferredName(), unmanagedReason);
         }
@@ -215,6 +233,9 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             out.writeOptionalWriteable(error);
             if (out.getTransportVersion().supports(EXPLAIN_INDEX_FROZEN_TRANSITION)) {
                 out.writeOptionalEnum(frozenTransitionStatus);
+            }
+            if (out.getTransportVersion().supports(EXPLAIN_INDEX_TAIL_MERGE_DATE)) {
+                out.writeOptionalLong(tailMergeDate);
             }
         } else if (out.getTransportVersion().supports(EXPLAIN_INDEX_UNMANAGED_REASON)) {
             out.writeOptionalString(unmanagedReason);
@@ -294,6 +315,11 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         return unmanagedReason;
     }
 
+    @Nullable
+    public Long getTailMergeDate() {
+        return tailMergeDate;
+    }
+
     // public for testing purposes only
     public void setNowSupplier(Supplier<Long> nowSupplier) {
         this.nowSupplier = nowSupplier;
@@ -315,7 +341,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             && Objects.equals(lifecycle, that.lifecycle)
             && Objects.equals(error, that.error)
             && Objects.equals(frozenTransitionStatus, that.frozenTransitionStatus)
-            && Objects.equals(unmanagedReason, that.unmanagedReason);
+            && Objects.equals(unmanagedReason, that.unmanagedReason)
+            && Objects.equals(tailMergeDate, that.tailMergeDate);
     }
 
     @Override
@@ -328,7 +355,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             lifecycle,
             error,
             frozenTransitionStatus,
-            unmanagedReason
+            unmanagedReason,
+            tailMergeDate
         );
     }
 }

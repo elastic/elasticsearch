@@ -510,6 +510,16 @@ public final class DataSourceModule implements Closeable {
         return admissionWatchdog;
     }
 
+    /**
+     * Toggles byte-budget rescue. Production wires this to
+     * {@link ExternalSourceSettings#ADMISSION_RESCUE_ENABLED}.
+     */
+    public void setAdmissionRescueEnabled(boolean enabled) {
+        if (admissionWatchdog != null) {
+            admissionWatchdog.setRescueEnabled(enabled);
+        }
+    }
+
     public DecompressionCodecRegistry codecRegistry() {
         return codecRegistry;
     }

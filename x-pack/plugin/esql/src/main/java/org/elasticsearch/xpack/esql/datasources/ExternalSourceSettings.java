@@ -438,8 +438,8 @@ public final class ExternalSourceSettings {
      * Fields a format reader may materialise while resolving a file's schema before it refuses the file, counting
      * every object and leaf field the way {@code index.mapping.total_fields.limit} does. A small file can describe a
      * schema far larger than itself, and schema resolution runs on the coordinating node during planning. This is
-     * the node-wide default for schema inference, read by the NDJSON reader today and meant for every format that
-     * infers a schema; a dataset overrides it with its {@code schema_max_fields} key, as an index overrides its
+     * the node-wide default for schema inference, read by the NDJSON, CSV, TSV and Parquet readers (ORC does not
+     * enforce it yet); a dataset overrides it with its {@code schema_max_fields} key, as an index overrides its
      * mapping limit. Readers capture it from the node settings, so a change needs a restart.
      */
     public static final Setting<Integer> SCHEMA_MAX_FIELDS = Setting.intSetting(

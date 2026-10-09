@@ -335,8 +335,10 @@ public interface FormatReader extends Closeable {
      * Keyed on provenance, not on whether any column declared a {@code path}. {@code dynamic} controls only whether a
      * schema is inferred; it does not leak into how columns bind (esql-planning#1307).
      * <p>
-     * Only the text readers need it. Parquet/ORC bind by footer name and NDJSON by object key under either provenance,
-     * and keep the no-op default.
+     * Only the text readers need it to bind. Parquet/ORC bind by footer name and NDJSON by object key under either
+     * provenance. NDJSON and Parquet still override it, to lift the file-width cap ({@code schema_max_fields}) on a
+     * declared read, since only the declared columns are read; the text readers lift it the same way. ORC does not
+     * enforce the cap yet, pending a follow-up, and keeps the no-op default.
      *
      * @param declaredProvenanceBinding true when the pinned schema is a DECLARED claim (provenance DECLARED)
      * @return a new reader honoring the binding mode, or {@code this} when it does not apply

@@ -242,6 +242,7 @@ import org.elasticsearch.xpack.stateless.reshard.TransportUpdateSplitTargetShard
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotBacklogTracker;
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
 import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings;
+import org.elasticsearch.xpack.stateless.snapshots.TransportGetShardGenerationsAction;
 import org.elasticsearch.xpack.stateless.snapshots.TransportGetShardSnapshotCommitInfoAction;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollectorProvider;
@@ -724,7 +725,8 @@ public class StatelessPlugin extends Plugin
                 TransportPublishIndexingOperationsHeapMemoryRequirements.class
             ),
             new ActionHandler(TransportPublishMergeMemoryEstimate.INSTANCE, TransportPublishMergeMemoryEstimate.class),
-            new ActionHandler(TransportGetShardSnapshotCommitInfoAction.TYPE, TransportGetShardSnapshotCommitInfoAction.class)
+            new ActionHandler(TransportGetShardSnapshotCommitInfoAction.TYPE, TransportGetShardSnapshotCommitInfoAction.class),
+            new ActionHandler(TransportGetShardGenerationsAction.TYPE, TransportGetShardGenerationsAction.class)
         );
     }
 
@@ -929,6 +931,7 @@ public class StatelessPlugin extends Plugin
         if (hasIndexRole) {
             final var snapshotBacklogTracker = new SnapshotBacklogTracker(
                 clusterService,
+                client,
                 indicesService,
                 commitService,
                 services.repositoriesService(),
@@ -1553,6 +1556,7 @@ public class StatelessPlugin extends Plugin
             ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_DURATION_THRESHOLD_SETTING,
             ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_INTERVAL_SETTING,
             SearchShardInformationIndexListener.QUERY_SEARCH_SHARD_INFORMATION_SETTING,
+            SnapshotBacklogTracker.BACKLOG_TRACKING_ENABLED_SETTING,
             StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING,
             StatelessSnapshotSettings.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING,
             StatelessSnapshotSettings.STATELESS_SNAPSHOT_WAIT_FOR_ACTIVE_PRIMARY_TIMEOUT_SETTING,

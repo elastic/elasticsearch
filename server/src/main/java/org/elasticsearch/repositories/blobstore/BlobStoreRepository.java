@@ -2929,8 +2929,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryData getRepositoryData(long indexGen) {
+        if (indexGen == RepositoryData.EMPTY_REPO_GEN) {
+            return RepositoryData.EMPTY;
+        }
         try {
-            return readRepositoryData(indexGen);
+            final var repositoryDataBlobName = getRepositoryDataBlobName(indexGen);
+
+            // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
+            try (
+                InputStream blob = blobContainer().readBlob(OperationPurpose.SNAPSHOT_METADATA, repositoryDataBlobName);
+                XContentParser parser = XContentType.JSON.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, blob)
+            ) {
+                return RepositoryData.snapshotsFromXContent(parser, indexGen, true);
+            }
         } catch (IOException ioe) {
             if (bestEffortConsistency) {
                 // If we fail to load the generation we tracked in latestKnownRepoGen we reset it.
@@ -2941,30 +2953,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
             }
             throw new RepositoryException(metadata.name(), "could not read repository data from index blob", ioe);
-        }
-    }
-
-    /**
-     * Reads the {@link RepositoryData} of the given generation straight from the repository's root {@code index-N} blob. Unlike
-     * {@link #getRepositoryData(Executor, ActionListener)} this may run on any node (it does not need to be master-eligible), uses and
-     * updates none of the repository's caches or generation tracking, and leaves failures to the caller, e.g. a
-     * {@link java.nio.file.NoSuchFileException} when a newer generation has already replaced the requested one. It is meant for
-     * read-only observers such as data nodes that want to know which shard generations the repository currently holds, in which case
-     * {@code indexGen} should be {@link RepositoryMetadata#generation()}. Must run on a thread pool that may do repository I/O.
-     */
-    public RepositoryData readRepositoryData(long indexGen) throws IOException {
-        if (indexGen == RepositoryData.EMPTY_REPO_GEN) {
-            return RepositoryData.EMPTY;
-        }
-        final var repositoryDataBlobName = getRepositoryDataBlobName(indexGen);
-
-        // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
-        try (
-            InputStream blob = blobContainer().readBlob(OperationPurpose.SNAPSHOT_METADATA, repositoryDataBlobName);
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, blob)
-        ) {
-            return RepositoryData.snapshotsFromXContent(parser, indexGen, true);
         }
     }
 

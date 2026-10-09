@@ -78,7 +78,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 
 import java.io.IOException;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -365,19 +364,6 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             ),
             instanceOf(RepositoryException.class)
         );
-    }
-
-    public void testReadRepositoryDataOfAGeneration() throws Exception {
-        final BlobStoreRepository repository = setupRepo();
-        final RepositoryData repositoryData = generateRandomRepoData();
-        writeIndexGen(repository, repositoryData, RepositoryData.EMPTY_REPO_GEN);
-        final long generation = repository.latestIndexBlobId();
-
-        // reads what the master loads, without being the master or touching the repository's caches
-        assertThat(repository.readRepositoryData(generation), equalTo(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository)));
-        assertThat(repository.readRepositoryData(RepositoryData.EMPTY_REPO_GEN), equalTo(RepositoryData.EMPTY));
-        // a generation that is not there is left to the caller to handle
-        expectThrows(NoSuchFileException.class, () -> repository.readRepositoryData(generation + 1));
     }
 
     public void testCompletionTarget() {

@@ -37,10 +37,13 @@ import java.net.InetAddress;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -654,7 +657,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
 
     /**
      * Creates a data stream with {@code fromTemplate}, switches the template to {@code toTemplate} and rolls over,
-     * verifying the backing index modes and the indexed documents after every step. The templates are passed explicitly
+     * verifying the backing index modes, the indexed documents and common queries after every step. The templates are passed explicitly
      * (rather than through {@link #logsTemplate()}) so that the columnar randomization does not alter the modes under test.
      */
     private void assertIndexModeMigration(String fromTemplate, String fromMode, String toTemplate, String toMode) throws IOException {
@@ -665,22 +668,26 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         indexDocuments(expectedDocs, 0);
         assertDataStreamBackingIndexMode(fromMode, 0, DATA_STREAM_NAME);
         assertDocuments(expectedDocs);
+        assertQueries(expectedDocs);
 
         // Updating the template must not affect the existing write index
         putTemplate(client, "custom-template", toTemplate);
         indexDocuments(expectedDocs, 0);
         assertDataStreamBackingIndexMode(fromMode, 0, DATA_STREAM_NAME);
         assertDocuments(expectedDocs);
+        assertQueries(expectedDocs);
 
         rolloverDataStream(client, DATA_STREAM_NAME);
         assertDataStreamBackingIndexMode(fromMode, 0, DATA_STREAM_NAME);
         assertDataStreamBackingIndexMode(toMode, 1, DATA_STREAM_NAME);
         assertDocuments(expectedDocs);
+        assertQueries(expectedDocs);
 
         indexDocuments(expectedDocs, 1);
         assertDataStreamBackingIndexMode(fromMode, 0, DATA_STREAM_NAME);
         assertDataStreamBackingIndexMode(toMode, 1, DATA_STREAM_NAME);
         assertDocuments(expectedDocs);
+        assertQueries(expectedDocs);
     }
 
     private record ExpectedDoc(
@@ -694,16 +701,20 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
     ) {}
 
     /**
-     * Indexes a random number of documents into the data stream and records them, together with the backing index
-     * (identified by its position in the data stream) they are expected to land in.
+     * Bulk indexes a few thousand documents into the data stream and records them, together with the backing index
+     * (identified by its position in the data stream) they are expected to land in. Three batches of at most 3000
+     * documents stay below {@code index.max_result_window}, so {@link #assertDocuments} can fetch all of them at once.
      */
     private void indexDocuments(List<ExpectedDoc> expectedDocs, int writeBackingIndex) throws IOException {
         final String backingIndex = getWriteBackingIndex(client, DATA_STREAM_NAME, writeBackingIndex);
-        final int numDocs = randomIntBetween(1, 10);
+        final Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        final int numDocs = randomIntBetween(1000, 3000);
+        final StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < numDocs; i++) {
             final ExpectedDoc doc = new ExpectedDoc(
                 backingIndex,
-                Instant.now().truncatedTo(ChronoUnit.MILLIS),
+                // spread over the last minute so that documents from different backing indices interleave in time
+                now.minusMillis(randomLongBetween(0, 60_000)),
                 // unique per document so that search hits can be matched back to what was indexed
                 randomAlphaOfLength(10) + "-" + expectedDocs.size(),
                 randomNonNegativeLong(),
@@ -711,9 +722,9 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomAlphaOfLength(32),
                 InetAddresses.toAddrString(randomIp(randomBoolean()))
             );
-            indexDocument(
-                client,
-                DATA_STREAM_NAME,
+            bulk.append("{ \"create\": {} }\n");
+            // bulk requires every document on a single line
+            bulk.append(
                 document(
                     doc.timestamp(),
                     doc.hostName(),
@@ -722,10 +733,15 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                     doc.message(),
                     InetAddresses.forString(doc.ip()),
                     randomLongBetween(1_000_000L, 2_000_000L)
-                )
-            );
+                ).replace("\n", "")
+            ).append('\n');
             expectedDocs.add(doc);
         }
+        final Request request = new Request("POST", "/" + DATA_STREAM_NAME + "/_bulk?refresh=true");
+        request.setJsonEntity(bulk.toString());
+        final Response response = client.performRequest(request);
+        assertOK(response);
+        assertThat("bulk request had failures", entityAsMap(response).get("errors"), is(false));
     }
 
     /**
@@ -765,6 +781,154 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
             assertThat(firstValue(fields, "message"), equalTo(expected.message()));
             assertThat(firstValue(fields, "ip_address"), equalTo(expected.ip()));
         }
+    }
+
+    /**
+     * Runs common queries over a random time range across all backing indices and verifies the responses: the search and
+     * the ES|QL request Kibana Discover sends, and an ES|QL aggregation.
+     */
+    private void assertQueries(List<ExpectedDoc> expectedDocs) throws IOException {
+        final long from = randomFrom(expectedDocs).timestamp().toEpochMilli();
+        final long to = randomFrom(expectedDocs).timestamp().toEpochMilli();
+        final Instant gte = Instant.ofEpochMilli(Math.min(from, to));
+        final Instant lte = Instant.ofEpochMilli(Math.max(from, to));
+        final List<ExpectedDoc> inRange = expectedDocs.stream()
+            .filter(doc -> doc.timestamp().isBefore(gte) == false && doc.timestamp().isAfter(lte) == false)
+            .sorted(Comparator.comparing(ExpectedDoc::timestamp).reversed())
+            .toList();
+        final Map<String, ExpectedDoc> docsByHostName = expectedDocs.stream()
+            .collect(Collectors.toMap(ExpectedDoc::hostName, Function.identity()));
+
+        assertDiscoverSearch(gte, lte, inRange, docsByHostName);
+        assertDiscoverEsql(gte, lte, inRange, docsByHostName);
+        assertEsqlStats(expectedDocs);
+    }
+
+    /**
+     * Simulates the search Kibana Discover sends: a time range filter, the most recent hits sorted by {@code @timestamp}
+     * with all fields, an exact total hit count and a date histogram.
+     */
+    @SuppressWarnings("unchecked")
+    private void assertDiscoverSearch(Instant gte, Instant lte, List<ExpectedDoc> inRange, Map<String, ExpectedDoc> docsByHostName)
+        throws IOException {
+        final int size = 500;
+        final Request request = new Request("GET", "/" + DATA_STREAM_NAME + "/_search");
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {
+              "size": %d,
+              "track_total_hits": true,
+              "sort": [ { "@timestamp": { "order": "desc", "unmapped_type": "boolean" } } ],
+              "_source": false,
+              "fields": [ { "field": "*", "include_unmapped": true } ],
+              "query": {
+                "bool": {
+                  "filter": [
+                    { "range": { "@timestamp": { "gte": "%s", "lte": "%s", "format": "strict_date_optional_time" } } }
+                  ]
+                }
+              },
+              "aggs": {
+                "histogram": {
+                  "date_histogram": { "field": "@timestamp", "fixed_interval": "1s", "time_zone": "UTC", "min_doc_count": 1 }
+                }
+              }
+            }
+            """, size, gte, lte));
+        final Map<String, Object> response = entityAsMap(client.performRequest(request));
+
+        final Map<String, Object> hitsObject = (Map<String, Object>) response.get("hits");
+        assertThat(((Map<String, Object>) hitsObject.get("total")).get("value"), equalTo(inRange.size()));
+        final List<Map<String, Object>> hits = (List<Map<String, Object>>) hitsObject.get("hits");
+        assertThat(hits.size(), equalTo(Math.min(size, inRange.size())));
+        for (int i = 0; i < hits.size(); i++) {
+            final Map<String, Object> hit = hits.get(i);
+            // documents can share a timestamp, so check the sort order by timestamp and the content by host name
+            final long timestamp = ((Number) ((List<Object>) hit.get("sort")).get(0)).longValue();
+            assertThat(timestamp, equalTo(inRange.get(i).timestamp().toEpochMilli()));
+            final ExpectedDoc expected = docsByHostName.get((String) firstValue((Map<String, Object>) hit.get("fields"), "host.name"));
+            assertNotNull(expected);
+            assertThat(expected.timestamp().toEpochMilli(), equalTo(timestamp));
+            assertThat(hit.get("_index"), equalTo(expected.backingIndex()));
+        }
+
+        final Map<Long, Long> expectedBuckets = inRange.stream()
+            .collect(Collectors.groupingBy(doc -> doc.timestamp().truncatedTo(ChronoUnit.SECONDS).toEpochMilli(), Collectors.counting()));
+        final Map<Long, Long> actualBuckets = new HashMap<>();
+        final Map<String, Object> histogram = (Map<String, Object>) ((Map<String, Object>) response.get("aggregations")).get("histogram");
+        for (Map<String, Object> bucket : (List<Map<String, Object>>) histogram.get("buckets")) {
+            actualBuckets.put(((Number) bucket.get("key")).longValue(), ((Number) bucket.get("doc_count")).longValue());
+        }
+        assertThat(actualBuckets, equalTo(expectedBuckets));
+    }
+
+    /**
+     * Simulates the ES|QL request Kibana Discover sends: the most recent documents, with the time range passed as a filter.
+     */
+    private void assertDiscoverEsql(Instant gte, Instant lte, List<ExpectedDoc> inRange, Map<String, ExpectedDoc> docsByHostName)
+        throws IOException {
+        final int limit = 100;
+        final List<Map<String, Object>> rows = esql(String.format(Locale.ROOT, """
+            {
+              "query": "FROM %s | SORT @timestamp DESC | KEEP @timestamp, host.name, pid, method, message, ip_address | LIMIT %d",
+              "filter": {
+                "bool": {
+                  "filter": [
+                    { "range": { "@timestamp": { "gte": "%s", "lte": "%s", "format": "strict_date_optional_time" } } }
+                  ]
+                }
+              }
+            }
+            """, DATA_STREAM_NAME, limit, gte, lte));
+        assertThat(rows.size(), equalTo(Math.min(limit, inRange.size())));
+        for (int i = 0; i < rows.size(); i++) {
+            final Map<String, Object> row = rows.get(i);
+            // documents can share a timestamp, so check the sort order by timestamp and the content by host name
+            final Instant timestamp = Instant.parse((String) row.get("@timestamp"));
+            assertThat(timestamp, equalTo(inRange.get(i).timestamp()));
+            final ExpectedDoc expected = docsByHostName.get((String) row.get("host.name"));
+            assertNotNull(expected);
+            assertThat(expected.timestamp(), equalTo(timestamp));
+            assertThat(((Number) row.get("pid")).longValue(), equalTo(expected.pid()));
+            assertThat(row.get("method"), equalTo(expected.method()));
+            assertThat(row.get("message"), equalTo(expected.message()));
+            assertThat(row.get("ip_address"), equalTo(expected.ip()));
+        }
+    }
+
+    /**
+     * Runs an ES|QL aggregation grouping by backing index and a keyword field.
+     */
+    private void assertEsqlStats(List<ExpectedDoc> expectedDocs) throws IOException {
+        final List<Map<String, Object>> rows = esql(String.format(Locale.ROOT, """
+            { "query": "FROM %s METADATA _index | STATS c = COUNT(*) BY _index, method | LIMIT 10" }
+            """, DATA_STREAM_NAME));
+        final Map<List<String>, Long> expectedCounts = expectedDocs.stream()
+            .collect(Collectors.groupingBy(doc -> List.of(doc.backingIndex(), doc.method()), Collectors.counting()));
+        final Map<List<String>, Long> actualCounts = new HashMap<>();
+        for (Map<String, Object> row : rows) {
+            actualCounts.put(List.of((String) row.get("_index"), (String) row.get("method")), ((Number) row.get("c")).longValue());
+        }
+        assertThat(actualCounts, equalTo(expectedCounts));
+    }
+
+    /**
+     * Runs an ES|QL request and returns the result rows as maps from column name to value.
+     */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> esql(String body) throws IOException {
+        final Request request = new Request("POST", "/_query");
+        request.setJsonEntity(body);
+        final Map<String, Object> response = entityAsMap(client.performRequest(request));
+        final List<Map<String, Object>> columns = (List<Map<String, Object>>) response.get("columns");
+        final List<Map<String, Object>> rows = new ArrayList<>();
+        for (List<Object> values : (List<List<Object>>) response.get("values")) {
+            final Map<String, Object> row = new HashMap<>();
+            for (int i = 0; i < columns.size(); i++) {
+                row.put((String) columns.get(i).get("name"), values.get(i));
+            }
+            rows.add(row);
+        }
+        return rows;
     }
 
     @SuppressWarnings("unchecked")

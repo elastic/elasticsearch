@@ -481,6 +481,16 @@ $$$csv-max-field-size$$$
     - **Default:** 10 MiB (`10485760`)
     - **Valid values:** An integer number of bytes. `0` removes the limit.
 
+$$$csv-schema-max-fields$$$
+
+`schema_max_fields` {applies_to}`stack: experimental 9.6+`
+:   The maximum number of columns a file's schema can have.
+
+    - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)
+    - **Valid values:** An integer from `1` through `100000`
+
+    If the header (or the widest sampled row, when `header_row` is `false`) names more columns, the query fails with an HTTP 400 error before the schema is built. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file. With `dynamic: true`, the file's inferred schema is held to the limit as well.
+
 ## NDJSON settings
 
 The following settings apply to NDJSON files.
@@ -533,8 +543,18 @@ $$$ndjson-schema-max-fields$$$
     - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)
     - **Valid values:** An integer from `1` through `100000`
 
-    Objects count as fields, as well as leaf fields, and each segment of a dotted key counts as a field. If a file's inferred schema exceeds the limit, the query fails.
+    Objects count as fields, as well as leaf fields, and each segment of a dotted key counts as a field. If a file's inferred schema exceeds the limit, the query fails with an HTTP 400 error. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file. With `dynamic: true`, the file's inferred schema is held to the limit as well.
 
 ## Parquet settings
 
-Parquet is self-describing and has no format-specific dataset settings.
+Parquet is self-describing, so it has a single dataset setting.
+
+$$$parquet-schema-max-fields$$$
+
+`schema_max_fields` {applies_to}`stack: experimental 9.6+`
+:   The maximum number of columns a file's schema can have, counting each nested field as a column once groups are flattened.
+
+    - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)
+    - **Valid values:** An integer from `1` through `100000`
+
+    If the file has more columns, the query fails with an HTTP 400 error. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file, although a file wider than 100,000 columns can still be refused because the planner reads its footer at that limit to check the declared types. With `dynamic: true`, the file's inferred schema is held to the limit as well.

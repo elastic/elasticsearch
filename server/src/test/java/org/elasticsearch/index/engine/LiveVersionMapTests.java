@@ -41,6 +41,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class LiveVersionMapTests extends ESTestCase {
     public void testRamBytesUsed() throws Exception {
@@ -514,5 +515,78 @@ public class LiveVersionMapTests extends ESTestCase {
         map.afterRefresh(randomBoolean());
         assertEquals(map.reclaimableRefreshRamBytes(), 0L);
         assertEquals(map.ramBytesUsedForRefresh(), 0L);
+    }
+
+    /**
+     * A concurrent indexing op can flip the map from safe to unsafe after a caller has already observed it as safe.
+     * The archived version for an unrelated id is still the correct one, but {@link LiveVersionMap#getUnderLockOrUnsafe}
+     * returns {@link LiveVersionMap#VERSION_MAP_UNSAFE} instead of that entry. The engine uses the sentinel to advance
+     * {@code lastUnsafeSegmentGenerationForGets} and resolve the version from Lucene, rather than trusting the archive.
+     */
+    public void testArchiveUnsafeGateDropsValidEntryAfterConcurrentFlip() throws IOException {
+        final TestArchive archive = new TestArchive();
+        final LiveVersionMap map = new LiveVersionMap(archive);
+
+        final BytesRef id = uid("doc-under-test");
+        final IndexVersionValue version = randomIndexVersionValue();
+
+        // Put the document and move it into the archive via a refresh. The map does not need safe access, and nothing
+        // is unsafe yet, which is the state getVersionFromMap observes when it decides not to refresh.
+        try (Releasable ignored = map.acquireLock(id)) {
+            map.putIndexUnderLock(id, version);
+        }
+        map.beforeRefresh();
+        map.afterRefresh(true);
+
+        assertFalse(map.isUnsafe());
+        try (Releasable ignored = map.acquireLock(id)) {
+            assertThat(map.getUnderLock(id), equalTo(version));
+            assertThat(map.getUnderLockOrUnsafe(id), equalTo(version));
+        }
+
+        // An indexing op for an unrelated id is skipped and marks the current map unsafe. This is the flip that can
+        // land after getVersionFromMap's isUnsafe() check and before the archive lookup.
+        final BytesRef unrelated = uid("unrelated-doc");
+        try (Releasable ignored = map.acquireLock(unrelated)) {
+            map.maybePutIndexUnderLock(unrelated, randomIndexVersionValue());
+        }
+        assertTrue(map.isUnsafe());
+
+        try (Releasable ignored = map.acquireLock(id)) {
+            // The ungated lookup still finds the archived version. The gated lookup must not return it.
+            assertThat(map.getUnderLock(id), equalTo(version));
+            assertThat(map.getUnderLockOrUnsafe(id), sameInstance(LiveVersionMap.VERSION_MAP_UNSAFE));
+        }
+    }
+
+    /**
+     * In-memory archive that retains entries and reports unsafe once an unsafe old map has been archived.
+     */
+    private static final class TestArchive implements LiveVersionMapArchive {
+        private final Map<BytesRef, VersionValue> archived = new HashMap<>();
+        private boolean unsafe;
+
+        @Override
+        public void afterRefresh(LiveVersionMap.VersionLookup old) {
+            archived.putAll(old.getMap());
+            if (old.isUnsafe()) {
+                unsafe = true;
+            }
+        }
+
+        @Override
+        public VersionValue get(BytesRef uid) {
+            return archived.get(uid);
+        }
+
+        @Override
+        public long getMinDeleteTimestamp() {
+            return Long.MAX_VALUE;
+        }
+
+        @Override
+        public boolean isUnsafe() {
+            return unsafe;
+        }
     }
 }

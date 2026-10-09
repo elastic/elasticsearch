@@ -319,6 +319,19 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         assertThat(Expressions.names(as(aggregate.child(), Eval.class).fields()), contains("a", "b"));
     }
 
+    /** Like {@link #testKeepsPrunedConstantReadByKeptGrouping}, but {@code b} reads the pruned {@code a} as an aggregate input. */
+    public void testKeepsPrunedConstantReadByAggregateInput() {
+        LogicalPlan result = applyRuleOnly("""
+            FROM ext_ds
+            | EVAL a = 1, b = a * 2
+            | STATS s = SUM(b) BY ClientIP, a
+            """);
+
+        Aggregate aggregate = singleAggregate(result);
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP"));
+        assertThat(Expressions.names(as(aggregate.child(), Eval.class).fields()), contains("a", "b"));
+    }
+
     /**
      * {@code d} is unused but reads the pruned {@code a}. Both go: dropping only {@code a} would leave {@code d} dangling, and
      * keeping {@code a} for {@code d} would compute it for every row although nothing needs either.

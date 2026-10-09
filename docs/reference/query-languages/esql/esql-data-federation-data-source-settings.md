@@ -29,8 +29,10 @@ $$$endpoint$$$
 :   An Amazon S3 endpoint override, for example `https://s3.us-east-1.amazonaws.com`.
 
     - **Default:** None. The endpoint is resolved from the region.
-    - **Valid values:** An absolute URL naming a supported AWS S3 endpoint. Refer to [S3 endpoint requirements](#s3-endpoint-requirements).
-    - **Related:** `addressing_style`, and `region` in the [dataset settings](esql-data-federation-dataset-settings.md#amazon-s3-region)
+    - **Valid values:**
+      - {applies_to}`stack: experimental 9.6+` An absolute URL naming a supported AWS S3 endpoint. Refer to [S3 endpoint requirements](#s3-endpoint-requirements).
+      - {applies_to}`stack: experimental =9.5` Any endpoint URL. The value isn't validated.
+    - **Related:** `addressing_style`, `region`
 
     Omit `endpoint` to resolve the endpoint from the region, which is the recommended configuration.
 
@@ -75,7 +77,7 @@ $$$addressing-style$$$
 
 $$$region$$$
 
-`region`
+`region` {applies_to}`stack: deprecated 9.6+, experimental =9.5`
 :   The AWS region used for the S3 client.
 
     {applies_to}`stack: experimental 9.6+` The `region` setting on a data source is deprecated and has no effect. Set `region` in the [dataset settings](esql-data-federation-dataset-settings.md#amazon-s3-region) instead, or omit it to let {{es}} detect the region automatically. When no `endpoint` is set, the SDK redirects transparently. When one is set, {{es}} issues a `HeadBucket` probe on the first request and caches the discovered region. The cache is cleared after a few minutes without requests, and the next request discovers the region again.
@@ -174,8 +176,10 @@ $$$sts-region$$$
 `sts_region`
 :   The AWS region of the STS endpoint.
 
-    - **Default:** The dataset's `region` setting, or `us-east-1` if the dataset has no region
+    - **Default:**
+      - {applies_to}`stack: experimental 9.6+` The dataset's `region` setting, or `us-east-1` if the dataset has no region
+      - {applies_to}`stack: experimental =9.5` The data source's `region` setting, or `us-east-1` if no region is set
     - **Requires:** `auth` set to `federated_identity`
-    - **Related:** `sts_endpoint`, and `region` in the [dataset settings](esql-data-federation-dataset-settings.md#amazon-s3-region)
+    - **Related:** `sts_endpoint`, `region`
 
     {applies_to}`stack: experimental 9.6+` A `region` set on the data source no longer applies to STS. If a `federated_identity` data source relied on it, set `sts_region` on the data source, or `region` on each dataset, to keep calling STS in that region.

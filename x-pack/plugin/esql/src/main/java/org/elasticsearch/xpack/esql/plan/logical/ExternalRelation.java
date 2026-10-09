@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -200,7 +201,11 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         out.writeString(sourcePath);
         out.writeString(metadata.sourceType());
         out.writeNamedWriteableCollection(output);
-        out.writeGenericValue(metadata.config());
+        // The dataset-tier definition version is coordinator-only and must not reach a data node: see
+        // ExternalSourceResolver.wireConfig. This is the route a FROM over a dataset actually takes, because the
+        // Mapper wraps this relation into a FragmentExec and the data node expands it locally - so
+        // ExternalSourceExec.writeTo, which strips the same key, never runs on that path.
+        out.writeGenericValue(ExternalSourceResolver.wireConfig(metadata.config()));
         out.writeGenericValue(metadata.sourceMetadata());
         // See {@link #readFrom} for why the schema is serialized separately from {@code output}.
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_READ_SCHEMA)) {

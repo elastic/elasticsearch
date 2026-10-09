@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
@@ -54,14 +55,18 @@ import static org.hamcrest.Matchers.notNullValue;
  * entries are in place before MIN/MAX, reproducing the production ordering where COUNT short-circuits and
  * MIN/MAX must still serve from the merged dataset-wide column min/max. Run for CSV and NDJSON.
  * <p>
- * <b>Every harvest here is whole-file</b>, and the reason is that no query pragma reaches the request.
+ * <b>Almost every harvest here is whole-file</b>, because no query pragma reaches the request:
  * {@code AbstractEsqlIntegTestCase} attaches {@code getPragmas()} only from its {@code run(String, TimeValue)}
- * overload; every query below builds its own {@code syncEsqlQueryRequest} and goes through the
- * {@code run(EsqlQueryRequest, TimeValue)} override, so nothing selects the parallel-parse path. The
- * contributions this suite produces therefore classify as {@code WholeFile} and never as
- * {@code StripeFragment}, {@code applyStripeDelta} matches nothing, and the cross-file merge is fed by the
- * whole-file path alone. The per-stripe rail is covered by {@code ExternalMultiChunkPerStripeWarmFoldIT};
- * a divergent file read in chunk mode is covered by neither and is a gap, not a claim this suite makes.
+ * overload, and every query below builds its own {@code syncEsqlQueryRequest} and goes through the
+ * {@code run(EsqlQueryRequest, TimeValue)} override. Those contributions classify as {@code WholeFile}, never as
+ * {@code StripeFragment}, so {@code applyStripeDelta} matches nothing and the cross-file merge is fed by the
+ * whole-file path alone.
+ * <p>
+ * The exception is {@code testRetypingMappingWarmsASegmentedRead}, which reaches the chunked commit by SIZE
+ * rather than by pragma - its files pass twice the reader's minimum segment at a 64 KiB {@code segment_size} - and
+ * asserts that geometry from the cold profile rather than assuming it. The multiple-chunks-per-stripe geometry is
+ * still the sibling {@code ExternalMultiChunkPerStripeWarmFoldIT}'s; a divergent file read in chunk mode is
+ * covered by neither and is a gap, not a claim this suite makes.
  * <p>
  * The precise pre-fix-fail / post-fix-pass regression for the cross-file column-stat merge defect lives in
  * {@code MergedSplitStatsTests#testColumnMinMaxUsesChildValueWhenNullCountUnknownButMinMaxPresent}: a
@@ -393,6 +398,14 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
                 "64kb"
             )
         );
+        // The split needs more than one parser thread, and external_parsing_parallelism defaults to the allocated
+        // processors, so on a single-processor runner the read is a whole-file sequential scan: the warm
+        // assertions would still pass and only the geometry assertion would redden, on a correct build. The
+        // sibling suite skips for the same reason.
+        assumeTrue(
+            "a segmented read needs external_parsing_parallelism > 1 (allocated processors)",
+            EsExecutors.allocatedProcessors(Settings.EMPTY) > 1
+        );
         ExternalSourceCacheService cacheService = internalCluster().getInstance(PlanExecutor.class, internalCluster().getMasterName())
             .cacheService();
         String countQuery = "FROM " + dataset + " | STATS c = COUNT(*)";
@@ -417,7 +430,8 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
      * The geometry this arm exists for, asserted rather than assumed. A read that quietly stops splitting still
      * short-circuits warm - a whole-file measurement is authoritative - so without this the arm stays green while
      * guarding nothing, which is what happens if parse parallelism resolves to 1 or a segment floor moves. The
-     * sibling {@code ExternalMultiChunkPerStripeWarmFoldIT} asserts the same property the same way.
+     * sibling {@code ExternalMultiChunkPerStripeWarmFoldIT} asserts the same property the same way, behind the
+     * same processor-count assumption.
      */
     private static void assertEveryFileArrivedAsStripeFragments(EsqlQueryResponse response) {
         assertThat("the query must run with profile(true) to read the scan's contributions", response.profile(), notNullValue());

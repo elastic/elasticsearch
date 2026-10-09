@@ -499,25 +499,41 @@ public class DefinitionVersionTests extends ESTestCase {
     }
 
     /**
-     * A declared column name is user-controlled text in a VALUE slot, so what defends it is the value length
-     * prefix. The forgery is constructed against the encoder rather than guessed, because a guessed one does not
-     * collide and the case then proves nothing: a two-column declaration is impersonated by a one-column one
-     * whose single name embeds the first column's remaining fields and the next column's {@code col} marker.
+     * A declared column name is user-controlled text in a VALUE slot, and two different defences stand between it
+     * and a forged field boundary. Each forgery below is constructed against a specific one, because a string that
+     * collides under one encoder is inert under the other - a guessed string is inert under both and the case then
+     * proves nothing.
+     * <p>
+     * Both impersonate a two-column declaration with a one-column one whose single name swallows the rest of the
+     * first column and the next column's marker. The first collides when the {@code col} tag and the name are
+     * written without going through {@link DefinitionVersion#append}; the second when {@code append} keeps its
+     * name prefix but drops the VALUE prefix. Removing either defence makes the matching assertion fail.
      */
     public void testADeclaredColumnNameCannotForgeAFieldBoundary() {
         DataSource src = source(Map.of("endpoint", "https://s3.example"));
-        // What `append` writes for the fields that follow the name of the first column, then the second's marker.
-        String forged = "age" + "1:t7:keyword" + "1:p-1:" + "1:f-1:" + "col" + "zz";
-
         Map<String, DatasetFieldMapping> twoColumns = new LinkedHashMap<>();
         twoColumns.put("age", new DatasetFieldMapping("keyword", null));
         twoColumns.put("zz", new DatasetFieldMapping("long", null));
+        String real = DefinitionVersion.ofDataset(mapped(declaring(DatasetMapping.Dynamic.TRUE, twoColumns)), src);
 
+        // What an unprefixed tag+name would emit for the first column's tail and the second column's marker.
+        String forgedAgainstTheTag = "age" + "1:t7:keyword" + "1:p-1:" + "1:f-1:" + "col" + "zz";
         assertNotEquals(
-            "a declared column name must not be able to forge a field boundary",
-            DefinitionVersion.ofDataset(mapped(declaring(DatasetMapping.Dynamic.TRUE, twoColumns)), src),
+            "a column name must not forge a boundary when the tag and name are written without append",
+            real,
             DefinitionVersion.ofDataset(
-                mapped(declaring(DatasetMapping.Dynamic.TRUE, Map.of(forged, new DatasetFieldMapping("long", null)))),
+                mapped(declaring(DatasetMapping.Dynamic.TRUE, Map.of(forgedAgainstTheTag, new DatasetFieldMapping("long", null)))),
+                src
+            )
+        );
+
+        // And what a name-prefixed-but-value-unprefixed encoder would emit for the same span.
+        String forgedAgainstTheValuePrefix = "age1:tkeyword1:p-1:1:f-1:3:colzz";
+        assertNotEquals(
+            "a column name must not forge a boundary when append drops its value length prefix",
+            real,
+            DefinitionVersion.ofDataset(
+                mapped(declaring(DatasetMapping.Dynamic.TRUE, Map.of(forgedAgainstTheValuePrefix, new DatasetFieldMapping("long", null)))),
                 src
             )
         );

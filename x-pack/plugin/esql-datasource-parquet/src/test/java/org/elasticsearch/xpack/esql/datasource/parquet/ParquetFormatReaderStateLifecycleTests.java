@@ -87,7 +87,8 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withSchema", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.CREATES_COPY),
         Map.entry("withHeaderBindingByProvenance", WitherLifecycle.IDENTITY_NO_COPY),
-        Map.entry("withReadConfig", WitherLifecycle.IDENTITY_NO_COPY)
+        Map.entry("withReadConfig", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withSchemaSampleShare", WitherLifecycle.IDENTITY_NO_COPY)
     );
 
     public void testEveryInstanceFieldIsClassified() {
@@ -225,6 +226,7 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
             case "withDeclaredProvenanceBinding" -> new Object[] { true };
             case "withHeaderBindingByProvenance" -> new Object[] { false };
             case "withReadConfig" -> new Object[] { "" };
+            case "withSchemaSampleShare" -> new Object[] { 8 };
             default -> throw new AssertionError("update sampleArgsFor() for new wither: " + wither);
         };
     }

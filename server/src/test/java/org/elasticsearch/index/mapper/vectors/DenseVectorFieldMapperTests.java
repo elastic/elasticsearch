@@ -1134,7 +1134,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testAutoCalibrateWithAsh() throws IOException {
         assumeTrue("ash requires a snapshot build", Build.current().isSnapshot());
 
-        for (Object value : List.of(false, "disabled")) {
+        // null means unset, which defaults to disabled for ash
+        for (Object value : Arrays.asList(null, false, "disabled")) {
             MapperService mapperService = createMapperService(
                 EXPERIMENTAL_FEATURES_ENABLED,
                 autoCalibrateMapping(value, DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH)

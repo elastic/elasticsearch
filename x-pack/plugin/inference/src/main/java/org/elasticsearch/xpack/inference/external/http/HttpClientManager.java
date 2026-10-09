@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
+import org.apache.hc.core5.pool.PoolStats;
+import org.apache.http.HttpHost;
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
@@ -17,7 +19,7 @@ import org.apache.http.nio.conn.SchemeIOSessionStrategy;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.nio.reactor.ConnectingIOReactor;
 import org.apache.http.nio.reactor.IOReactorException;
-import org.apache.http.pool.PoolStats;
+import org.apache.http.nio.reactor.IOSession;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -28,13 +30,20 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ssl.AbstractSslBuilder;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLSession;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX;
@@ -132,8 +141,18 @@ public class HttpClientManager implements Closeable {
         CircuitBreaker circuitBreaker
     ) {
         // Set the sslStrategy to ensure an encrypted connection, as Elastic Inference Service requires it.
-        final SSLIOSessionStrategy sslioSessionStrategy = sslService.profile(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX)
-            .ioSessionStrategy();
+        final SslProfile sslProfile = sslService.profile(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX);
+        final SSLIOSessionStrategy sslioSessionStrategy = new AbstractSslBuilder<SSLIOSessionStrategy>() {
+            @Override
+            protected SSLIOSessionStrategy build(SSLContext sslContext, String[] protocols, String[] ciphers, HostnameVerifier verifier) {
+                return new SSLIOSessionStrategy(sslContext, protocols, ciphers, verifier) {
+                    @Override
+                    protected void verifySession(HttpHost host, IOSession iosession, SSLSession session) throws SSLException {
+                        verifyHostname(verifier, host.getHostName(), session);
+                    }
+                };
+            }
+        }.build(sslProfile.configuration(), sslProfile.sslContext());
         PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(sslioSessionStrategy, connectionTtl);
         return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager, circuitBreaker);
     }
@@ -260,7 +279,8 @@ public class HttpClientManager implements Closeable {
     }
 
     public PoolStats getPoolStats() {
-        return connectionManager.getTotalStats();
+        var stats = connectionManager.getTotalStats();
+        return new PoolStats(stats.getLeased(), stats.getPending(), stats.getAvailable(), stats.getMax());
     }
 
     @Override

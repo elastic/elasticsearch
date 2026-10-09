@@ -8,13 +8,9 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -27,9 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -38,12 +32,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
 
 public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOptimizerTests {
 
@@ -61,7 +50,7 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
      */
     private static final int DEEP_ALIASES = 200;
 
-    /** Comfortably more than the bounded rule needs for any test here, even when interpreted. */
+    /** Comfortably more than the rule needs for any test here, even when interpreted. */
     private static final long SMALL_STACK_BYTES = 512 * 1024;
 
     public PruneRedundantAggregateGroupingsTests(VersionMode versionMode) {
@@ -151,84 +140,76 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         assertThat(Expressions.names(aggregate.groupings()), contains("mv", "last_name"));
     }
 
-    public void testPrunesDerivedExternalGroupings() {
+    /**
+     * A key derived from another external key with {@code -} looks functionally dependent on it, but only while the
+     * source column is single-valued: on a row holding a list the derived key evaluates to {@code null} and the
+     * aggregate unrolls the list into one group per element. The rule therefore keeps derived keys in the aggregate,
+     * where they are evaluated on the row, and leaves the pre-aggregate {@code EVAL} in place.
+     */
+    public void testDoesNotPruneDerivedExternalGroupings() {
         var plan = externalPlan("""
             FROM ext_ds
             | EVAL ip_m1 = ClientIP - 1, ip_m2 = ClientIP - 2, ip_m3 = ClientIP - 3
             | STATS c = COUNT(*) BY ClientIP, ip_m1, ip_m2, ip_m3
             """);
 
-        var project = rewrittenProject(plan);
-        assertThat(Expressions.names(project.projections()), contains("c", "ClientIP", "ip_m1", "ip_m2", "ip_m3"));
+        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "ip_m1", "ip_m2", "ip_m3"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "ClientIP", "ip_m1", "ip_m2", "ip_m3"));
 
-        var eval = as(project.child(), Eval.class);
+        var eval = as(aggregate.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("ip_m1", "ip_m2", "ip_m3"));
-
-        var aggregate = rewrittenAggregate(eval);
-        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP"));
-        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "ClientIP"));
-        as(aggregate.child(), ExternalRelation.class);
-        assertThat(
-            eval.fields().get(0).child(),
-            instanceOf(org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub.class)
-        );
+        as(eval.child(), ExternalRelation.class);
     }
 
-    public void testPrunesRecursiveDerivedExternalGrouping() {
+    public void testDoesNotPruneRecursiveDerivedExternalGrouping() {
         var plan = externalPlan("""
             FROM ext_ds
             | EVAL ip_m1 = ClientIP - 1, ip_m2 = ip_m1 - 1
             | STATS c = COUNT(*) BY ClientIP, ip_m2
             """);
 
-        var project = rewrittenProject(plan);
-        assertThat(Expressions.names(project.projections()), contains("c", "ClientIP", "ip_m2"));
+        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "ip_m2"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "ClientIP", "ip_m2"));
 
-        var eval = as(project.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("ip_m2"));
-
-        var aggregate = rewrittenAggregate(eval);
-        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP"));
-        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "ClientIP"));
-        as(aggregate.child(), ExternalRelation.class);
-        assertThat(
-            eval.fields().get(0).child(),
-            instanceOf(org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub.class)
-        );
+        var eval = as(aggregate.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("ip_m1", "ip_m2"));
+        as(eval.child(), ExternalRelation.class);
     }
 
-    public void testPartialDerivedExternalPruningKeepsNeededPreAggregateEval() {
+    /**
+     * A constant key next to a derived key: the constant is pruned and rebuilt above the aggregate, the derived key is
+     * kept, and the pre-aggregate {@code EVAL} drops the constant's field while retaining the derived one.
+     */
+    public void testPrunesConstantButKeepsDerivedExternalGrouping() {
         var plan = externalPlan("""
             FROM ext_ds
-            | EVAL ip_m1 = ClientIP - 1, other_m1 = OtherIP - 1
-            | STATS c = COUNT(*) BY ClientIP, ip_m1, other_m1
+            | EVAL const1 = 1, ip_m1 = ClientIP - 1
+            | STATS c = COUNT(*) BY ClientIP, const1, ip_m1
             """);
 
         var project = rewrittenProject(plan);
-        assertThat(Expressions.names(project.projections()), contains("c", "ClientIP", "ip_m1", "other_m1"));
+        assertThat(Expressions.names(project.projections()), contains("c", "ClientIP", "const1", "ip_m1"));
 
         var postAggregateEval = as(project.child(), Eval.class);
-        assertThat(Expressions.names(postAggregateEval.fields()), contains("ip_m1"));
+        assertThat(Expressions.names(postAggregateEval.fields()), contains("const1"));
 
         var aggregate = rewrittenAggregate(postAggregateEval);
-        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "other_m1"));
-        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "ClientIP", "other_m1"));
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "ip_m1"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "ClientIP", "ip_m1"));
 
         var preAggregateEval = as(aggregate.child(), Eval.class);
-        assertThat(Expressions.names(preAggregateEval.fields()), contains("other_m1"));
+        assertThat(Expressions.names(preAggregateEval.fields()), contains("ip_m1"));
         as(preAggregateEval.child(), ExternalRelation.class);
     }
 
     /**
-     * An external grouping column is renamed, a value is derived from the renamed column, then both the
-     * renamed column and the derived value are used as STATS BY keys. The derived key is functionally dependent on the
-     * renamed column, so it is pruned and rebuilt above the aggregate. The rebuilt expression must reference the column
-     * as the aggregate re-exposes it (i.e. the rename alias {@code cip}), not the pre-aggregate external id which the
-     * aggregate no longer surfaces. Otherwise the rebuilt Eval dangles and the plan fails the post-optimization
-     * consistency check. The same query over a native index is unaffected because the rule only prunes external
-     * groupings (see {@link #testDoesNotPruneDerivedOrdinaryIndexGrouping}).
+     * An external grouping column is renamed, a value is derived from the renamed column, then both are used as
+     * STATS BY keys. The derived key stays in the aggregate (see {@link #testDoesNotPruneDerivedExternalGroupings}),
+     * and the aggregate re-exposes the renamed column as {@code ClientIP AS cip}.
      */
-    public void testPrunesRenamedDerivedExternalGrouping() {
+    public void testDoesNotPruneRenamedDerivedExternalGrouping() {
         var plan = externalPlan("""
             FROM ext_ds
             | RENAME ClientIP AS cip
@@ -236,18 +217,13 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
             | STATS count = COUNT(*) BY cip, c
             """);
 
-        var project = rewrittenProject(plan);
-        assertThat(Expressions.names(project.projections()), contains("count", "cip", "c"));
+        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "c"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("count", "cip", "c"));
 
-        var eval = as(project.child(), Eval.class);
+        var eval = as(aggregate.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("c"));
-        // the rebuilt grouping must read the aggregate's renamed output, not the pre-aggregate external attribute
-        assertThat(Expressions.names(eval.fields().get(0).child().references()), contains("cip"));
-
-        var aggregate = rewrittenAggregate(eval);
-        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP"));
-        assertThat(Expressions.names(aggregate.aggregates()), contains("count", "cip"));
-        as(aggregate.child(), ExternalRelation.class);
+        as(eval.child(), ExternalRelation.class);
     }
 
     public void testDoesNotPruneInlineStatsGroupings() {
@@ -290,29 +266,7 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         assertThat(Expressions.names(aggregate.groupings()), contains("emp_no", "emp_m1"));
     }
 
-    public void testDoesNotPruneIndependentExternalExpression() {
-        var plan = externalPlan("""
-            FROM ext_ds
-            | EVAL other_m1 = OtherIP - 1
-            | STATS c = COUNT(*) BY ClientIP, other_m1
-            """);
-
-        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
-        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "other_m1"));
-    }
-
-    public void testDoesNotPruneNonWhitelistedExternalExpression() {
-        var plan = externalPlan("""
-            FROM ext_ds
-            | EVAL ip_mul = ClientIP * 2
-            | STATS c = COUNT(*) BY ClientIP, ip_mul
-            """);
-
-        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
-        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "ip_mul"));
-    }
-
-    /** The shape of {@code HeapAttackIT#testGroupOnManyLongs}: over an index nothing derived is prunable, so every grouping stays. */
+    /** The shape of {@code HeapAttackIT#testGroupOnManyLongs}: no grouping is a constant, so every grouping stays. */
     public void testLongAliasChainOverIndexKeepsEveryGrouping() {
         LogicalPlan analyzed = defaultAnalyzer().query(aliasChainQuery("test", "emp_no", "salary", LONG_CHAIN_FIELDS));
 
@@ -321,20 +275,8 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         assertThat(groupingNames(result), hasSize(LONG_CHAIN_FIELDS + 2));
     }
 
-    /** The same chain over an external source: the short links are pruned, the long ones are kept, and nothing rebuilt is deep. */
-    public void testLongAliasChainOverExternalSourceIsBounded() {
-        LogicalPlan analyzed = analyzedExternalPlan(aliasChainQuery(DATASET_NAME, "ClientIP", "OtherIP", LONG_CHAIN_FIELDS));
-
-        LogicalPlan result = applyOnSmallStack(analyzed);
-
-        List<String> groupings = groupingNames(result);
-        assertThat(groupings, not(hasItem("i0")));
-        assertThat(groupings, hasItem("i" + (LONG_CHAIN_FIELDS - 1)));
-        assertThat(evalFieldDepths(result), everyItem(lessThanOrEqualTo(ExpressionBuilder.MAX_EXPRESSION_DEPTH)));
-    }
-
-    /** Each alias reads the two before it, so expanding every reference separately grows exponentially with the chain. */
-    public void testSharedAliasReferencesAreBounded() {
+    /** Each alias reads the two before it, so expanding every reference separately would grow exponentially with the chain. */
+    public void testSharedAliasReferencesKeepEveryGrouping() {
         int fields = 5_000;
         StringBuilder query = new StringBuilder("FROM ext_ds\n| EVAL i0 = ClientIP + OtherIP, i1 = OtherIP + i0");
         for (int i = 2; i < fields; i++) {
@@ -344,9 +286,7 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
 
         LogicalPlan result = applyOnSmallStack(analyzedExternalPlan(query.toString()));
 
-        List<String> groupings = groupingNames(result);
-        assertThat(groupings, not(hasItem("i0")));
-        assertThat(groupings, hasItem("i" + (fields - 1)));
+        assertThat(groupingNames(result), hasSize(fields + 2));
     }
 
     /** Over an index, like {@code HeapAttackIT#testGroupOnManyLongs}, but with the depth in the definitions, not the alias count. */
@@ -358,7 +298,7 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         assertThat(groupingNames(result), contains("emp_no", "salary", "j" + (DEEP_ALIASES - 1)));
     }
 
-    public void testDeepAliasDefinitionsOverExternalSourceAreBounded() {
+    public void testDeepAliasDefinitionsOverExternalSourceKeepEveryGrouping() {
         LogicalPlan analyzed = analyzedExternalPlan(deepDefinitionsQuery(DATASET_NAME, "ClientIP", "OtherIP"));
 
         LogicalPlan result = applyOnSmallStack(analyzed);
@@ -366,47 +306,15 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         assertThat(groupingNames(result), contains("ClientIP", "OtherIP", "j" + (DEEP_ALIASES - 1)));
     }
 
-    /** Plain renames add no expression depth, but following each one is still a step of the expansion. */
-    public void testRenameChainIsBounded() {
-        StringBuilder query = new StringBuilder("FROM ext_ds\n| EVAL i0 = ClientIP");
-        for (int i = 1; i < LONG_CHAIN_FIELDS; i++) {
-            query.append(", i").append(i).append(" = i").append(i - 1);
-        }
-        query.append("\n| STATS c = COUNT(*) BY ClientIP, i").append(LONG_CHAIN_FIELDS - 1);
-
-        LogicalPlan result = applyOnSmallStack(analyzedExternalPlan(query.toString()));
-
-        assertThat(groupingNames(result), contains("ClientIP", "i" + (LONG_CHAIN_FIELDS - 1)));
-    }
-
-    /** Expanding a chain of {@code - 1} links visits three nodes per link: the subtraction, the alias it reads and the literal. */
-    public void testPrunesDerivedGroupingWithinExpansionBudget() {
-        int links = ExpressionBuilder.MAX_EXPRESSION_DEPTH / 3;
-
-        var plan = externalPlan(subtractionChainQuery(links));
-
-        assertThat(groupingNames(plan), contains("ClientIP"));
-    }
-
-    public void testKeepsDerivedGroupingBeyondExpansionBudget() {
-        int links = ExpressionBuilder.MAX_EXPRESSION_DEPTH / 3 + 1;
-
-        var plan = externalPlan(subtractionChainQuery(links));
-
-        assertThat(groupingNames(plan), contains("ClientIP", "j" + (links - 1)));
-    }
-
     /** {@code b} stays a grouping and reads the pruned {@code a}, so {@code a} must stay defined below the aggregate. */
-    public void testKeepsPrunedAliasReadByKeptGrouping() {
-        var plan = externalPlan("""
+    public void testKeepsPrunedConstantReadByKeptGrouping() {
+        LogicalPlan result = applyRuleOnly("""
             FROM ext_ds
-            | EVAL a = ClientIP - 1, b = a * 2
+            | EVAL a = 1, b = a * 2
             | STATS c = COUNT(*) BY ClientIP, a, b
             """);
 
-        var project = rewrittenProject(plan);
-        assertThat(Expressions.names(project.projections()), contains("c", "ClientIP", "a", "b"));
-        var aggregate = rewrittenAggregate(as(project.child(), Eval.class));
+        Aggregate aggregate = singleAggregate(result);
         assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "b"));
         assertThat(Expressions.names(as(aggregate.child(), Eval.class).fields()), contains("a", "b"));
     }
@@ -415,39 +323,16 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
      * {@code d} is unused but reads the pruned {@code a}. Both go: dropping only {@code a} would leave {@code d} dangling, and
      * keeping {@code a} for {@code d} would compute it for every row although nothing needs either.
      */
-    public void testDropsUnusedFieldReadingPrunedAlias() {
-        LogicalPlan analyzed = analyzedExternalPlan("""
+    public void testDropsUnusedFieldReadingPrunedConstant() {
+        LogicalPlan result = applyRuleOnly("""
             FROM ext_ds
-            | EVAL a = ClientIP - 1, d = a + 1
+            | EVAL a = 1, d = a + 1
             | STATS c = COUNT(*) BY ClientIP, a
             """);
 
-        LogicalPlan result = new PruneRedundantAggregateGroupings().apply(analyzed);
-
-        assertThat(groupingNames(result), contains("ClientIP"));
-        List<Aggregate> aggregates = new ArrayList<>();
-        result.forEachDown(Aggregate.class, aggregates::add);
-        as(aggregates.get(0).child(), ExternalRelation.class);
-    }
-
-    /** A constant subtree is folded into the rebuilt grouping, so each node the expansion visits adds one node to the result. */
-    public void testFoldsConstantInRebuiltGrouping() {
-        LogicalPlan analyzed = analyzedExternalPlan("""
-            FROM ext_ds
-            | EVAL d = ClientIP + ABS(-1)
-            | STATS c = COUNT(*) BY ClientIP, d
-            """);
-
-        LogicalPlan result = new PruneRedundantAggregateGroupings().apply(analyzed);
-
-        assertThat(groupingNames(result), contains("ClientIP"));
-        List<Expression> rebuilt = new ArrayList<>();
-        result.forEachDown(
-            Eval.class,
-            eval -> eval.fields().stream().filter(f -> f.name().equals("d")).forEach(f -> rebuilt.add(f.child()))
-        );
-        assertThat(rebuilt, hasSize(1));
-        as(as(rebuilt.get(0), Add.class).right(), Literal.class);
+        Aggregate aggregate = singleAggregate(result);
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP"));
+        as(aggregate.child(), ExternalRelation.class);
     }
 
     /** Mirrors {@code HeapAttackTestCase#makeManyLongs}: two interleaved chains, each link adding a literal to the link two back. */
@@ -484,14 +369,6 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         }
     }
 
-    private static String subtractionChainQuery(int links) {
-        StringBuilder query = new StringBuilder("FROM ext_ds\n| EVAL j0 = ClientIP - 1");
-        for (int i = 1; i < links; i++) {
-            query.append(", j").append(i).append(" = j").append(i - 1).append(" - 1");
-        }
-        return query.append("\n| STATS c = COUNT(*) BY ClientIP, j").append(links - 1).toString();
-    }
-
     /** Applies only this rule, on a thread with a {@link #SMALL_STACK_BYTES} stack. */
     private static LogicalPlan applyOnSmallStack(LogicalPlan plan) {
         AtomicReference<LogicalPlan> result = new AtomicReference<>();
@@ -506,7 +383,7 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         // A rule still running at the timeout must not also fail the suite as a leaked thread.
         thread.setDaemon(true);
         thread.start();
-        // Longer than safeJoin's timeout: the rule visits millions of nodes for the long chains, which takes a while interpreted.
+        // Longer than safeJoin's timeout, so that a slow interpreted run is not mistaken for a rule that never finishes.
         try {
             thread.join(TimeValue.timeValueMinutes(2).millis());
         } catch (InterruptedException e) {
@@ -520,32 +397,24 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         return result.get();
     }
 
-    private static List<String> groupingNames(LogicalPlan plan) {
+    /**
+     * Applies only this rule to the analyzed plan. In the full optimizer {@link PropagateEvalFoldables} runs first and inlines a
+     * constant into every field that reads it, so a field below the aggregate still reads a pruned constant only when this rule
+     * runs on its own.
+     */
+    private LogicalPlan applyRuleOnly(String query) {
+        return new PruneRedundantAggregateGroupings().apply(analyzedExternalPlan(query));
+    }
+
+    private static Aggregate singleAggregate(LogicalPlan plan) {
         List<Aggregate> aggregates = new ArrayList<>();
         plan.forEachDown(Aggregate.class, aggregates::add);
         assertThat(aggregates, hasSize(1));
-        return Expressions.names(aggregates.get(0).groupings());
+        return aggregates.get(0);
     }
 
-    private static List<Integer> evalFieldDepths(LogicalPlan plan) {
-        List<Integer> depths = new ArrayList<>();
-        plan.forEachDown(Eval.class, eval -> eval.fields().forEach(field -> depths.add(depth(field.child()))));
-        return depths;
-    }
-
-    /** Iterative, so it can measure expressions deeper than a recursive walk could visit. */
-    private static int depth(Expression root) {
-        int max = 0;
-        Deque<Tuple<Expression, Integer>> pending = new ArrayDeque<>();
-        pending.push(Tuple.tuple(root, 1));
-        while (pending.isEmpty() == false) {
-            Tuple<Expression, Integer> next = pending.pop();
-            max = Math.max(max, next.v2());
-            for (Expression child : next.v1().children()) {
-                pending.push(Tuple.tuple(child, next.v2() + 1));
-            }
-        }
-        return max;
+    private static List<String> groupingNames(LogicalPlan plan) {
+        return Expressions.names(singleAggregate(plan).groupings());
     }
 
     private LogicalPlan externalPlan(String query) {

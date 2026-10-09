@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.Strings;
@@ -117,6 +118,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntPredicate;
 
 /**
  * Default {@link SplitProvider} for file-based sources.
@@ -156,6 +158,14 @@ import java.util.function.BooleanSupplier;
 public class FileSplitProvider implements SplitProvider {
 
     private static final Logger LOGGER = LogManager.getLogger(FileSplitProvider.class);
+
+    /**
+     * A node before this version cannot bind a headered CSV/TSV split past the file's first byte by the file's header,
+     * so below it such files stay one whole-file split.
+     */
+    static final TransportVersion ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT = TransportVersion.fromName(
+        "esql_external_text_header_every_split"
+    );
 
     /**
      * In-flight {@link FileTask} shells for this provider. One discovery runs at a time.
@@ -754,10 +764,11 @@ public class FileSplitProvider implements SplitProvider {
         try {
             PartitionMetadata partitionInfo = context.partitionInfo();
             Set<String> partitionKeys = partitionInfo == null ? Set.of() : partitionInfo.partitionColumns().keySet();
-            List<PartitionFilterHintExtractor.PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            List<PartitionFilterHintExtractor.PartitionFilterHint> hints = listingHintsForQuery(
                 context.filterHints(),
                 context.metadataColumnNames(),
-                partitionKeys
+                partitionKeys,
+                PartitionSpec.fromConfig(config)
             );
             List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
             if (extents.boundsFileSet()) {
@@ -803,6 +814,48 @@ public class FileSplitProvider implements SplitProvider {
         } finally {
             StorageProviderCache.closeLease(provider);
         }
+    }
+
+    /**
+     * Listing-cache hints: hive keys and requested {@code _file.*} from the LISTING
+     * extract, plus spec-projected {@code year IN} / identity remaps. Data columns
+     * such as {@code @timestamp} never join the listing cache identity.
+     */
+    static List<PartitionFilterHintExtractor.PartitionFilterHint> listingHintsForQuery(
+        List<Expression> filters,
+        Set<String> requestedMetadata,
+        Set<String> partitionKeys,
+        PartitionSpec spec
+    ) {
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            filters,
+            requestedMetadata,
+            partitionKeys
+        );
+        if (spec == null || spec.isEmpty()) {
+            return hints;
+        }
+        List<PartitionFilterHintExtractor.PartitionFilterHint> merged = new ArrayList<>(hints);
+        merged.addAll(
+            PartitionFilterHintExtractor.fromConjuncts(filters, Set.of(), spec.boundColumns(), PartitionFilterHintExtractor.TEMPORAL)
+        );
+        return dropNonListingKeys(spec.projectListingHints(merged), partitionKeys, requestedMetadata);
+    }
+
+    static List<PartitionFilterHintExtractor.PartitionFilterHint> dropNonListingKeys(
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Set<String> partitionKeys,
+        Set<String> requestedMetadata
+    ) {
+        List<PartitionFilterHintExtractor.PartitionFilterHint> kept = new ArrayList<>(hints.size());
+        for (PartitionFilterHintExtractor.PartitionFilterHint hint : hints) {
+            String column = hint.columnName();
+            if (partitionKeys.contains(column)
+                || (FileMetadataColumns.isFileMetadataColumn(column) && requestedMetadata.contains(column))) {
+                kept.add(hint);
+            }
+        }
+        return kept;
     }
 
     @Override
@@ -1195,7 +1248,8 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable Map<String, DataType> inferredFileTypes,
         @Nullable SourceStatistics statistics,
         @Nullable Map<String, Object> foldedSourceMetadata,
-        boolean unknownNativeTypes
+        boolean unknownNativeTypes,
+        TransportVersion minTransportVersion
     ) {
         private FileTask toTask() {
             return new FileTask(
@@ -1212,7 +1266,8 @@ public class FileSplitProvider implements SplitProvider {
                 inferredFileTypes,
                 statistics,
                 foldedSourceMetadata,
-                unknownNativeTypes
+                unknownNativeTypes,
+                minTransportVersion
             );
         }
     }
@@ -1633,7 +1688,8 @@ public class FileSplitProvider implements SplitProvider {
             inferredFileTypes,
             fileStatistics,
             context.metadata() == null ? null : context.metadata().sourceMetadata(),
-            unknownNativeTypes
+            unknownNativeTypes,
+            context.minTransportVersion()
         );
     }
 
@@ -2608,7 +2664,9 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable Map<String, Object> foldedSourceMetadata,
         // True when this FIRST_FILE_WINS glob file has no native-type snapshot. Column statistics
         // must be withheld before alignment can interpret them against the pinned read schema.
-        boolean unknownNativeTypes
+        boolean unknownNativeTypes,
+        // The cluster's minimum transport version, for ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT.
+        TransportVersion minTransportVersion
     ) {}
 
     /**
@@ -2820,7 +2878,7 @@ public class FileSplitProvider implements SplitProvider {
             if (configuredReader != null && task.declaredReadSpec().provenance() == SchemaProvenance.DECLARED) {
                 configuredReader = configuredReader.withDeclaredProvenanceBinding(true);
             }
-            if (requiresSequentialWholeFileRead(configuredReader)) {
+            if (requiresSequentialWholeFileRead(configuredReader, task.minTransportVersion())) {
                 listener.onResponse(
                     new PlanResult.Splits(
                         List.of(
@@ -2891,9 +2949,8 @@ public class FileSplitProvider implements SplitProvider {
 
         // Resolve the config-aware reader once and reuse it for both the sequential-whole-file gate and the
         // newline-aligned macro-split attempt below, which would otherwise each resolve it independently. The
-        // declared-name binding bit rides the typed DeclaredReadSpec (NOT the config map), so it must be applied
-        // here too, or the split-side reader's declaredNameBindingNeedsFileStart() is silently false and the gate
-        // below never fires — the read-side reader would then hit a chunk with no header line to bind against.
+        // declared-name binding bit rides the typed DeclaredReadSpec (NOT the config map), so it is applied here too,
+        // keeping the split-side reader configured exactly as the read-side one is.
         FormatReader configuredReader = resolveConfiguredReader(task.filePath(), task.config());
         if (configuredReader != null && task.declaredReadSpec().provenance() == SchemaProvenance.DECLARED) {
             configuredReader = configuredReader.withDeclaredProvenanceBinding(true);
@@ -2904,7 +2961,7 @@ public class FileSplitProvider implements SplitProvider {
         // splitting is safe: not newline-aligned macro-splits, nor compressed block/frame-aligned splits.
         // Emit a single whole-file split (identical to the fallback below); the reader consumes it as one
         // sequential stream and finds boundaries quote/escape-aware.
-        if (requiresSequentialWholeFileRead(configuredReader)) {
+        if (requiresSequentialWholeFileRead(configuredReader, task.minTransportVersion())) {
             fileSplits.add(
                 wholeFileSplit(
                     task.filePath(),
@@ -3098,13 +3155,18 @@ public class FileSplitProvider implements SplitProvider {
      * is not a compression-delegating reader (a quoted {@code .csv.bz2} stays whole-file: the probe would run
      * against compressed bytes). Returns {@code false} (splitting allowed) when the reader could not be resolved,
      * so an unresolvable reader is treated as splittable.
+     * <p>
+     * A file with a header line ({@link FormatReader#readsHeaderLine()}) is also kept whole while
+     * {@code minTransportVersion} predates {@link #ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT}.
      */
-    private boolean requiresSequentialWholeFileRead(@Nullable FormatReader reader) {
+    private static boolean requiresSequentialWholeFileRead(@Nullable FormatReader reader, TransportVersion minTransportVersion) {
         if (reader == null) {
             return false;
         }
-        if (reader.declaredNameBindingNeedsFileStart()) {
-            // Binding is resolved against the header, which only a split starting at byte 0 can read.
+        // Old data nodes cannot bind a split by columns read elsewhere, so the file stays whole. Over the same window a new
+        // data node binds headered files as the old ones do (see FileSourceFactory#bindsHeaderByProvenance), whichever
+        // coordinator planned the query, so one result never mixes the two bindings.
+        if (reader.readsHeaderLine() && minTransportVersion.supports(ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT) == false) {
             return true;
         }
         SegmentableFormatReader seg = AsyncExternalSourceOperatorFactory.resolveSegmentableReader(reader);
@@ -4359,35 +4421,25 @@ public class FileSplitProvider implements SplitProvider {
         IdentityHashMap<Expression, ByteRunAutomaton> regexAutomata
     ) {
         return switch (filter) {
-            case Equals eq -> evaluateComparison(eq.left(), eq.right(), partitionValues, PartitionValueMatcher::compareEquals);
+            case Equals eq -> evaluateComparison(eq.left(), eq.right(), partitionValues, PartitionValueMatcher::equalIfComparable);
             case NotEquals neq -> {
-                Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, PartitionValueMatcher::compareEquals);
+                Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, PartitionValueMatcher::equalIfComparable);
                 yield result != null ? result == false : null;
             }
             case GreaterThanOrEqual gte -> evaluateComparison(
                 gte.left(),
                 gte.right(),
                 partitionValues,
-                (a, b) -> PartitionValueMatcher.compareValues(a, b) >= 0
+                (a, b) -> ordered(a, b, cmp -> cmp >= 0)
             );
-            case GreaterThan gt -> evaluateComparison(
-                gt.left(),
-                gt.right(),
-                partitionValues,
-                (a, b) -> PartitionValueMatcher.compareValues(a, b) > 0
-            );
+            case GreaterThan gt -> evaluateComparison(gt.left(), gt.right(), partitionValues, (a, b) -> ordered(a, b, cmp -> cmp > 0));
             case LessThanOrEqual lte -> evaluateComparison(
                 lte.left(),
                 lte.right(),
                 partitionValues,
-                (a, b) -> PartitionValueMatcher.compareValues(a, b) <= 0
+                (a, b) -> ordered(a, b, cmp -> cmp <= 0)
             );
-            case LessThan lt -> evaluateComparison(
-                lt.left(),
-                lt.right(),
-                partitionValues,
-                (a, b) -> PartitionValueMatcher.compareValues(a, b) < 0
-            );
+            case LessThan lt -> evaluateComparison(lt.left(), lt.right(), partitionValues, (a, b) -> ordered(a, b, cmp -> cmp < 0));
             case In in -> {
                 String columnName = extractColumnName(in.value());
                 if (columnName == null || partitionValues.containsKey(columnName) == false) {
@@ -4402,9 +4454,14 @@ public class FileSplitProvider implements SplitProvider {
                     if (listItem instanceof Literal lit) {
                         if (zerosOfOppositeSign(partitionValue, lit.value())) {
                             found = null;
-                        } else if (PartitionValueMatcher.compareEquals(partitionValue, lit.value())) {
-                            found = true;
-                            break;
+                        } else {
+                            Boolean eq = PartitionValueMatcher.equalIfComparable(partitionValue, lit.value());
+                            if (eq == null) {
+                                found = null;
+                            } else if (eq) {
+                                found = true;
+                                break;
+                            }
                         }
                     } else {
                         yield null;
@@ -4433,7 +4490,7 @@ public class FileSplitProvider implements SplitProvider {
                 mvContains.left(),
                 mvContains.right(),
                 partitionValues,
-                PartitionValueMatcher::compareEquals
+                PartitionValueMatcher::equalIfComparable
             );
             case MvIntersects mvIntersects -> evaluateMvIntersects(mvIntersects, partitionValues);
             case MvInRange mvInRange -> {
@@ -4598,15 +4655,22 @@ public class FileSplitProvider implements SplitProvider {
         }
         List<?> values = literalValue instanceof List<?> list ? list : List.of(literalValue);
         boolean sawValue = false;
+        boolean undecidable = false;
         for (Object value : values) {
             if (value != null) {
                 sawValue = true;
-                if (PartitionValueMatcher.compareEquals(partitionValue, value)) {
+                Boolean eq = PartitionValueMatcher.equalIfComparable(partitionValue, value);
+                if (eq == null) {
+                    undecidable = true;
+                } else if (eq) {
                     return true;
                 }
             }
         }
-        return sawValue ? false : null;
+        if (sawValue == false) {
+            return null;
+        }
+        return undecidable ? null : false;
     }
 
     /**
@@ -4625,15 +4689,27 @@ public class FileSplitProvider implements SplitProvider {
         return options == null ? defaultInclusive : null;
     }
 
-    /** TRUE strictly above {@code bound}, FALSE strictly below, {@code onBound} exactly on it. */
+    /** Ordered comparison that keeps the file when the values are not the same kind. */
+    private static Boolean ordered(Object a, Object b, IntPredicate pred) {
+        Integer cmp = PartitionValueMatcher.orderedCompare(a, b);
+        return cmp == null ? null : pred.test(cmp);
+    }
+
+    /** TRUE strictly above {@code bound}, FALSE strictly below, {@code onBound} exactly on it. Kind mismatch keeps. */
     private static Boolean above(Object value, Object bound, Boolean onBound) {
-        int cmp = PartitionValueMatcher.compareValues(value, bound);
+        Integer cmp = PartitionValueMatcher.orderedCompare(value, bound);
+        if (cmp == null) {
+            return null;
+        }
         return cmp > 0 ? Boolean.TRUE : cmp < 0 ? Boolean.FALSE : onBound;
     }
 
-    /** TRUE strictly below {@code bound}, FALSE strictly above, {@code onBound} exactly on it. */
+    /** TRUE strictly below {@code bound}, FALSE strictly above, {@code onBound} exactly on it. Kind mismatch keeps. */
     private static Boolean below(Object value, Object bound, Boolean onBound) {
-        int cmp = PartitionValueMatcher.compareValues(value, bound);
+        Integer cmp = PartitionValueMatcher.orderedCompare(value, bound);
+        if (cmp == null) {
+            return null;
+        }
         return cmp < 0 ? Boolean.TRUE : cmp > 0 ? Boolean.FALSE : onBound;
     }
 

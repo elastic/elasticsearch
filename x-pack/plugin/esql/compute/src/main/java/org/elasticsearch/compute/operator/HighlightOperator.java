@@ -30,10 +30,11 @@ import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.apache.lucene.search.uhighlight.CharArrayMatcher;
 import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
 import org.apache.lucene.search.uhighlight.LabelledCharArrayMatcher;
-import org.apache.lucene.search.uhighlight.PassageFormatter;
+import org.apache.lucene.search.uhighlight.Passage;
 import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
@@ -120,10 +121,28 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         }
     }
 
+    /** {@link SimpleHTMLEncoder} expands one char into at most 6, such as {@code "} into {@code &quot;}. */
+    private static final int MAX_HTML_ENCODED_CHARS = 6;
+    /**
+     * Rough upper bound on the heap per snippet char before it is copied into a block. The formatter's StringBuilder
+     * and the String it returns take up to 2 bytes per char each, the builder more while it grows, and
+     * {@link BytesRef#BytesRef(CharSequence)} allocates 3.
+     */
+    private static final int SNIPPET_BYTES_PER_CHAR = 8;
+    /**
+     * Heap per snippet regardless of its length, so many tiny snippets are not undercounted: the formatter's
+     * StringBuilder with its default 16-char array, the String and {@link Snippet} it returns, the {@link BytesRef}
+     * {@link #appendSnippets} copies it into, their array headers, and the snippet's slot in the {@code Snippet[]}.
+     */
+    private static final long SNIPPET_OVERHEAD_BYTES = RamUsageEstimator.shallowSizeOfInstance(StringBuilder.class) + RamUsageEstimator
+        .shallowSizeOfInstance(String.class) + RamUsageEstimator.shallowSizeOfInstance(Snippet.class) + RamUsageEstimator
+            .shallowSizeOfInstance(BytesRef.class) + 3L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + 16
+        + RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+
     private final BlockFactory blockFactory;
     private final HighlightConfig config;
     private final List<String> fieldNames;
-    private final PassageFormatter formatter;
+    private final BreakingPassageFormatter formatter;
     private final int indexMaxAnalyzedOffset;
     private final QueryMaxAnalyzedOffset queryMaxAnalyzedOffset;
     private final int highlighterNumberOfFragments;
@@ -150,8 +169,11 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         assert fieldNames.size() == fieldEvaluators.length
             : "HIGHLIGHT ON field count [" + fieldNames.size() + "] does not match ON expression count [" + fieldEvaluators.length + "]";
         assert config.groupByIndex().isEmpty() || indexEvaluator != null : "HIGHLIGHT per-index analyzers need the row's _index";
-        Encoder encoder = HighlightConfig.HTML_ENCODER.equals(config.encoder()) ? new SimpleHTMLEncoder() : new DefaultEncoder();
-        this.formatter = new CustomPassageFormatter(config.preTag(), config.postTag(), encoder, config.numberOfFragments());
+        boolean html = HighlightConfig.HTML_ENCODER.equals(config.encoder());
+        this.formatter = new BreakingPassageFormatter(
+            html ? new SimpleHTMLEncoder() : new DefaultEncoder(),
+            html ? MAX_HTML_ENCODED_CHARS : 1
+        );
         // Coordinator-side highlighting has no IndexSettings yet, so the index cap is just the default. Clamping the
         // user's max_analyzed_offset to it (rather than overwriting the index cap) prevents raising the default.
         this.indexMaxAnalyzedOffset = IndexSettings.MAX_ANALYZED_OFFSET_SETTING.get(Settings.EMPTY);
@@ -390,7 +412,49 @@ public class HighlightOperator extends AbstractPageMappingOperator {
                 appendSnippets(field.builder, highlight(memoryIndexReader, group, fieldIndex, field.rowText));
             } catch (IOException e) {
                 throw new IllegalStateException("HIGHLIGHT failed for ON field [" + field.name + "]", e);
+            } finally {
+                formatter.releaseCharged();
             }
+        }
+    }
+
+    /**
+     * Charges the breaker for the snippet strings before {@link CustomPassageFormatter} builds them. They are not in a
+     * block until {@link #appendSnippets} copies them, and the tags repeat around every match, so they can be far larger
+     * than the input. {@link #highlightRow} calls {@link #releaseCharged} after the copy.
+     */
+    private final class BreakingPassageFormatter extends CustomPassageFormatter {
+        private final int tagsLength;
+        private final int maxEncodedCharsPerChar;
+        /**
+         * Outlives {@link #format} because Lucene calls it inside {@code highlightField}, before the snippets are copied.
+         * Not volatile: only the driver thread running {@link #process} touches it.
+         */
+        private long charged;
+
+        BreakingPassageFormatter(Encoder encoder, int maxEncodedCharsPerChar) {
+            super(config.preTag(), config.postTag(), encoder, config.numberOfFragments());
+            this.tagsLength = config.preTag().length() + config.postTag().length();
+            this.maxEncodedCharsPerChar = maxEncodedCharsPerChar;
+        }
+
+        @Override
+        public Snippet[] format(Passage[] passages, String content) {
+            long chars = 0;
+            for (Passage passage : passages) {
+                long text = passage.getEndOffset() - passage.getStartOffset();
+                chars += text * maxEncodedCharsPerChar + (long) passage.getNumMatches() * tagsLength;
+            }
+            long bytes = chars * SNIPPET_BYTES_PER_CHAR + passages.length * SNIPPET_OVERHEAD_BYTES
+                + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+            blockFactory.adjustBreaker(bytes);
+            charged += bytes;
+            return super.format(passages, content);
+        }
+
+        void releaseCharged() {
+            blockFactory.adjustBreaker(-charged);
+            charged = 0;
         }
     }
 

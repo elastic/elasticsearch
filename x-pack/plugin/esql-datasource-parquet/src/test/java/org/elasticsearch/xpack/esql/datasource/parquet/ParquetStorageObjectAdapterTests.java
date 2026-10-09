@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -75,7 +76,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     @Before
     public void initBreaker() {
-        breaker = new NoopCircuitBreaker("test");
+        breaker = NoopCircuitBreaker.INSTANCE;
     }
 
     public void testNullStorageObjectThrowsException() {
@@ -126,11 +127,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             assertEquals(0, limited.getUsed());
             byte[] buf = new byte[64];
             stream.readFully(buf);
-            assertEquals(data.length, watermark.used());
-            assertEquals(data.length, limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(data.length), watermark.used());
+            assertEquals(HeapFootprint.byteArrayBytes(data.length), limited.getUsed());
             stream.readFully(buf);
-            assertEquals(data.length, watermark.used());
-            assertEquals(data.length, limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(data.length), watermark.used());
+            assertEquals(HeapFootprint.byteArrayBytes(data.length), limited.getUsed());
         }
         assertEquals(0, watermark.used());
         assertEquals(0, limited.getUsed());
@@ -281,7 +282,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             try (SeekableInputStream stream = adapter.newStream()) {
                 assertEquals(0, parent.getUsed());
                 stream.readFully(new byte[data.length]);
-                assertEquals(data.length, parent.getUsed());
+                assertEquals(HeapFootprint.byteArrayBytes(data.length), parent.getUsed());
             }
             assertEquals(0, parent.getUsed());
         } finally {
@@ -299,7 +300,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         try (SeekableInputStream stream = adapter.newStream()) {
             assertEquals(0, limited.getUsed());
             stream.readFully(new byte[data.length]);
-            assertEquals(data.length, limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(data.length), limited.getUsed());
         }
         assertEquals(0, limited.getUsed());
     }
@@ -318,7 +319,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             assertEquals(0, limited.getUsed());
             byte[] buf = new byte[data.length];
             stream.readFully(buf);
-            assertEquals(data.length, limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(data.length), limited.getUsed());
             assertArrayEquals(data, buf);
         }
         assertEquals(0, limited.getUsed());
@@ -333,7 +334,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         try (SeekableInputStream stream = adapter.newStream()) {
             assertEquals(0, limited.getUsed());
             assertEquals(data[0] & 0xFF, stream.read());
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), limited.getUsed());
         }
         assertEquals(0, limited.getUsed());
     }
@@ -375,11 +376,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         try (SeekableInputStream stream = adapter.newStream()) {
             assertEquals(0, limited.getUsed());
             assertEquals(data[0] & 0xFF, stream.read());
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, watermark.used());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), watermark.used());
             stream.readFully(new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 63]);
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, watermark.used());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), watermark.used());
         }
         assertEquals(0, limited.getUsed());
         assertEquals(0, watermark.used());
@@ -403,8 +404,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.seek(200);
             stream.readFully(new byte[200]);
             assertEquals(0, rangeReadCount.get());
-            assertEquals(data.length, limited.getUsed());
-            assertEquals(data.length, watermark.used());
+            assertEquals(HeapFootprint.byteArrayBytes(data.length), limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(data.length), watermark.used());
         }
         assertEquals(0, limited.getUsed());
         assertEquals(0, watermark.used());
@@ -425,8 +426,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.seek(tailStart);
             stream.readFully(tail);
             assertEquals(1, rangeReadCount.get());
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, watermark.used());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), watermark.used());
         }
         assertEquals(0, limited.getUsed());
         assertEquals(0, watermark.used());
@@ -435,8 +436,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.seek(tailStart);
             stream.readFully(new byte[1024]);
             assertEquals(1, rangeReadCount.get());
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, watermark.used());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), watermark.used());
         }
         assertEquals(0, limited.getUsed());
         assertEquals(0, watermark.used());
@@ -452,8 +453,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(failing, footerByteCache, limited, watermark);
         try (SeekableInputStream stream = adapter.newStream()) {
             expectThrows(IOException.class, () -> stream.readFully(new byte[1024]));
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, limited.getUsed());
-            assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, watermark.used());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), limited.getUsed());
+            assertEquals(HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE), watermark.used());
         }
         assertEquals(0, limited.getUsed());
         assertEquals(0, watermark.used());
@@ -2270,4 +2271,22 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         assert enabled = true;
         return enabled;
     }
+
+    /**
+     * Split windows snap to the two region-friendly sizes: a range that fits the default gets the default, any larger
+     * range gets the cap. An in-between window (say 6 MiB) would be humongous and occupy 8 MiB of heap at 4 MiB and
+     * 8 MiB G1 regions anyway.
+     */
+    public void testForRangeWindowSnapsToRegionFriendlySizes() {
+        int defaultWindow = ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE;
+        int maxWindow = ParquetStorageObjectAdapter.MAX_WINDOW_SIZE;
+        assertEquals(HeapFootprint.regionFriendlyLength(4 * 1024 * 1024), defaultWindow);
+        assertEquals(HeapFootprint.regionFriendlyLength(8 * 1024 * 1024), maxWindow);
+        assertEquals(defaultWindow, ParquetStorageObjectAdapter.windowSizeForRange(0));
+        assertEquals(defaultWindow, ParquetStorageObjectAdapter.windowSizeForRange(randomLongBetween(1, defaultWindow)));
+        assertEquals(maxWindow, ParquetStorageObjectAdapter.windowSizeForRange(defaultWindow + 1L));
+        assertEquals(maxWindow, ParquetStorageObjectAdapter.windowSizeForRange(randomLongBetween(defaultWindow + 1L, maxWindow)));
+        assertEquals(maxWindow, ParquetStorageObjectAdapter.windowSizeForRange(randomLongBetween(maxWindow, Long.MAX_VALUE)));
+    }
+
 }

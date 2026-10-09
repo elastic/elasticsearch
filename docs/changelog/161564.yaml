@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 161084
+pr: 161564
+summary: "[8.19] Fix async-search context leak across node restart"
+type: bug

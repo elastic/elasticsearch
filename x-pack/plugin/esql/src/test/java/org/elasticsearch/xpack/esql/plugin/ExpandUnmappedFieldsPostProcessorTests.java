@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -37,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.session.Result;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -47,6 +51,7 @@ import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntFunction;
 
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.plugin.ExpandUnmappedFieldsPostProcessor.MAX_EXPANDED_FIELDS;
@@ -54,7 +59,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -868,6 +875,297 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         } finally {
             Releasables.close(expanded.pages());
         }
+    }
+
+    /**
+     * A {@code LOAD_ALL} over a wide {@code _source} must trip a graceful {@link CircuitBreakingException} from the field-name
+     * accounting rather than growing the kept set until the node OOMs (esql-planning#2061). This isolates the new accounting from the
+     * per-row parse reservation, which is released every row and so never accumulates: two runs with identical parse pressure - same
+     * row count, same {@code _source} length per row - differ only in how many <em>distinct</em> field names they carry. The run that
+     * reuses one name keeps a single reservation and completes; the run with a distinct name per row grows the reservation until it
+     * breaks. Because the only variable is the distinct-name count, the break can only be the names' doing - without accounting them it
+     * would, like the control, never cross the limit (and would instead OOM in the wild). The input pages are built against a generous
+     * breaker so that only the expansion's own reservations are charged to the tight one, and {@code tearDown}'s breaker check confirms
+     * both runs hand every reserved byte back.
+     */
+    public void testCollectFieldNamesCircuitBreaksGracefullyWithoutLeaking() {
+        int rows = 2000;
+        int nameLength = 100;
+        ByteSizeValue limit = ByteSizeValue.ofKb(64);
+
+        // Control: the same name in every row, so the parse reservation churns but only one name is ever kept - this must not break.
+        String sharedName = "f".repeat(nameLength);
+        runExpandUnderLimit(limit, rows, row -> sharedName);
+
+        // Attack: a distinct name of the same length in every row, so the kept set - and its reservation - grows until it breaks.
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> runExpandUnderLimit(limit, rows, row -> "f" + String.format(Locale.ROOT, "%0" + (nameLength - 1) + "d", row))
+        );
+    }
+
+    /**
+     * Builds {@code rows} single-field rows (the field named by {@code nameForRow}) against a generous breaker, then runs the expansion
+     * against one capped at {@code limit}, so only the expansion's own reservations - the per-row parse and the kept field names - are
+     * charged to the tight breaker. Releases the expanded pages on success; on a break the expansion releases everything itself.
+     */
+    private void runExpandUnderLimit(ByteSizeValue limit, int rows, IntFunction<String> nameForRow) {
+        BlockFactory inputFactory = blockFactory();
+        List<List<Object>> pageRows = new ArrayList<>(rows);
+        for (int i = 0; i < rows; i++) {
+            pageRows.add(row(i, jsonWithFields(List.of(nameForRow.apply(i)))));
+        }
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(inputFactory, pageRows)));
+
+        BlockFactory tightFactory = blockFactory(limit);
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, null, tightFactory, PlannerSettings.DEFAULTS, () -> false);
+        Releasables.close(expanded.pages());
+    }
+
+    /**
+     * A single structure-heavy {@code _source} row - an array of thousands of tiny objects - parses into a {@code Map}/{@code List}
+     * graph many times its own byte size, so the parse reservation must charge for that structure and trip a graceful
+     * {@link CircuitBreakingException} rather than let the parse OOM the node (esql-planning#2061). A flat {@code json.length} times
+     * factor reservation misses this, because the array is only a few bytes per element. The control spends the same {@code _source}
+     * byte budget on one long string value - almost no structural tokens - and completes: the only difference between the two is the
+     * structure, so the break can only be the reservation accounting for it. {@code tearDown}'s breaker check confirms neither run leaks
+     * a reserved byte.
+     */
+    public void testStructuralParseReservationBreaksOnArrayOfObjectsWithoutLeaking() {
+        int elements = 4000;
+        ByteSizeValue limit = ByteSizeValue.ofKb(512);
+
+        // Control: the same byte budget carried as one long string value, so only the flat json.length reservation is charged.
+        runExpandSingleRowUnderLimit(limit, "{\"a\":\"" + "x".repeat(elements * 8) + "\"}");
+
+        // Attack: an array of tiny objects - thousands of maps and members - whose structural reservation outgrows the limit.
+        StringBuilder arrayOfObjects = new StringBuilder("{\"a\":[");
+        for (int i = 0; i < elements; i++) {
+            if (i > 0) {
+                arrayOfObjects.append(',');
+            }
+            arrayOfObjects.append("{\"x\":1}");
+        }
+        arrayOfObjects.append("]}");
+        expectThrows(CircuitBreakingException.class, () -> runExpandSingleRowUnderLimit(limit, arrayOfObjects.toString()));
+    }
+
+    /**
+     * Pins the coarse heap-overhead constants that feed the parse and field-name reservations. They are hand-derived from
+     * {@link RamUsageEstimator} primitives, so nothing else would catch a typo - a dropped {@code alignObjectSize} or a wrong reference
+     * count - that silently shrinks one toward zero and makes the reservation too small to protect anything. Assert each is a positive,
+     * 8-byte-aligned value within the order of magnitude a small heap object occupies, not an exact footprint.
+     */
+    public void testHeapOverheadConstantsAreSanePositiveMagnitudes() {
+        Map<String, Long> constants = Map.of(
+            "MAP_OVERHEAD_BYTES",
+            ExpandUnmappedFieldsPostProcessor.MAP_OVERHEAD_BYTES,
+            "LIST_OVERHEAD_BYTES",
+            ExpandUnmappedFieldsPostProcessor.LIST_OVERHEAD_BYTES,
+            "MEMBER_OVERHEAD_BYTES",
+            ExpandUnmappedFieldsPostProcessor.MEMBER_OVERHEAD_BYTES,
+            "PER_NAME_CONTAINER_OVERHEAD",
+            ExpandUnmappedFieldsPostProcessor.FieldNameCollector.PER_NAME_CONTAINER_OVERHEAD
+        );
+        for (Map.Entry<String, Long> constant : constants.entrySet()) {
+            String name = constant.getKey();
+            long bytes = constant.getValue();
+            // At least one object header: anything smaller is a derivation slip, not a real heap-object overhead.
+            assertThat(name + " is implausibly small", bytes, greaterThanOrEqualTo((long) RamUsageEstimator.NUM_BYTES_OBJECT_HEADER));
+            // A handful of small objects is tens of bytes; into the kilobytes means a wrong multiplier.
+            assertThat(name + " is implausibly large", bytes, lessThanOrEqualTo(4096L));
+            // Each constant is a sum of alignObjectSize(...) terms, so it must stay 8-aligned; a stray unaligned term flags a dropped
+            // alignObjectSize.
+            assertThat(name + " is not 8-byte aligned (dropped alignObjectSize?)", bytes % 8, equalTo(0L));
+        }
+    }
+
+    /**
+     * The point of {@code structuralReservation} is to be an <em>upper bound</em> on the heap the parse allocates, so the breaker fires
+     * before the materialised map exhausts it. The break/no-leak tests prove the reservation trips; this proves it is genuinely an
+     * over-estimate rather than merely a large number that happens to work for one shape. For a range of structure-heavy sources - with
+     * numeric values, so they match the boxed-number footprint the per-member overhead models - it parses the very JSON the production
+     * path parses and asserts the reservation is at least the materialised map's measured retained size. A per-token constant that
+     * drifted below the real footprint (a dropped term, a wrong reference count) would flip one of these from over- to under-estimate.
+     */
+    public void testStructuralReservationUpperBoundsTheMaterialisedMap() {
+        // The esql-planning#2061 attack shape: an array of many tiny objects, which a flat json.length reservation most badly misses.
+        StringBuilder arrayOfObjects = new StringBuilder("{\"a\":[");
+        for (int i = 0; i < 2000; i++) {
+            arrayOfObjects.append(i > 0 ? "," : "").append("{\"x\":1}");
+        }
+        arrayOfObjects.append("]}");
+
+        // A deeply nested single-leaf object: every level is one more object and one more member.
+        int depth = 200;
+        StringBuilder nested = new StringBuilder();
+        for (int i = 0; i < depth; i++) {
+            nested.append("{\"a").append(i).append("\":");
+        }
+        nested.append('1').append("}".repeat(depth));
+
+        for (String json : List.of(arrayOfObjects.toString(), nested.toString(), jsonWithFields(paddedNames("f", 500)))) {
+            BytesRef ref = new BytesRef(json);
+            long measured = RamUsageEstimator.sizeOfObject(ExpandUnmappedFieldsPostProcessor.parseJson(ref));
+            long reservation = ExpandUnmappedFieldsPostProcessor.structuralReservation(ref);
+            assertThat(
+                "structural reservation under-estimates the parsed map for a source of length " + ref.length,
+                reservation,
+                greaterThanOrEqualTo(measured)
+            );
+        }
+    }
+
+    /**
+     * Pins the structural scan's token counting and, above all, that structural tokens inside string literals are skipped: a value that
+     * merely contains a brace, bracket or colon (JSON embedded in text, a colon in a key) must not inflate the estimate, or an ordinary
+     * document carrying punctuation would reserve as if it were structure-heavy. Each case is also fed at a non-zero {@link BytesRef}
+     * offset, because the scan walks {@code offset..offset+length} and a regression that assumed a 0-based array would miscount silently.
+     */
+    public void testStructuralReservationCountsTokensAndSkipsStringContents() {
+        // The only member is the key:value colon; the braces, bracket and colon inside the string value are skipped.
+        assertStructural("{\"a\":\"{:[}\"}", 1, 0, 1);
+        // A nested object inside an array: two objects, one array, two members.
+        assertStructural("{\"a\":[{\"b\":1}]}", 2, 1, 2);
+        // A colon inside a quoted key is not a member separator.
+        assertStructural("{\"a:b\":1}", 1, 0, 1);
+        // An escaped quote keeps the scan inside the string, so the colon that follows it is still skipped.
+        assertStructural("{\"a\":\"x\\\"y:z\"}", 1, 0, 1);
+    }
+
+    /**
+     * Asserts {@code structuralReservation} charges exactly {@code objects} map, {@code arrays} list and {@code members} member overheads
+     * on top of the byte length, both for {@code json} at offset zero and for the same bytes shifted to a non-zero offset.
+     */
+    private static void assertStructural(String json, long objects, long arrays, long members) {
+        byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
+        long expected = bytes.length + objects * ExpandUnmappedFieldsPostProcessor.MAP_OVERHEAD_BYTES + arrays
+            * ExpandUnmappedFieldsPostProcessor.LIST_OVERHEAD_BYTES + members * ExpandUnmappedFieldsPostProcessor.MEMBER_OVERHEAD_BYTES;
+        assertThat(
+            "token counting for " + json,
+            ExpandUnmappedFieldsPostProcessor.structuralReservation(new BytesRef(bytes)),
+            equalTo(expected)
+        );
+
+        byte[] shifted = new byte[bytes.length + 5];
+        System.arraycopy(bytes, 0, shifted, 5, bytes.length);
+        assertThat(
+            "offset handling for " + json,
+            ExpandUnmappedFieldsPostProcessor.structuralReservation(new BytesRef(shifted, 5, bytes.length)),
+            equalTo(expected)
+        );
+    }
+
+    /**
+     * The documented limitation of the structural scan: an array of scalars carries one {@code [} and no {@code :}, so it is charged a
+     * single {@code LIST_OVERHEAD} for the whole array with nothing per element, leaning on the flat {@code json.length * factor}
+     * estimate instead (see {@code reserveForParse}). Pins that the structural charge over the raw bytes is exactly one list overhead
+     * whatever the element count, and that the flat estimate dominates it - so a change that silently began charging per scalar element,
+     * or let the structural estimate overtake the flat one here, would trip this.
+     */
+    public void testScalarArrayLeansOnFlatEstimateNotStructuralScan() {
+        // The structural charge over the raw bytes is the outer object, its one member and a single list overhead for the whole array -
+        // and nothing more, however many scalar elements the array holds. A thousand-fold more elements adds bytes but not one overhead.
+        long expectedOverhead = ExpandUnmappedFieldsPostProcessor.MAP_OVERHEAD_BYTES
+            + ExpandUnmappedFieldsPostProcessor.MEMBER_OVERHEAD_BYTES + ExpandUnmappedFieldsPostProcessor.LIST_OVERHEAD_BYTES;
+        assertThat(scalarArrayStructuralOverhead(10), equalTo(expectedOverhead));
+        assertThat(scalarArrayStructuralOverhead(10_000), equalTo(expectedOverhead));
+
+        // With no per-element charge, a large scalar array's structural estimate falls below the flat json.length * factor one, so
+        // reserveForParse leans on the flat estimate for this shape (see its javadoc). A tiny array is instead dominated by the fixed
+        // overhead, which is a safe over-estimate rather than an under-estimate - the under-count the flat factor guards against is the
+        // large case, where per-element boxing adds up.
+        BytesRef large = scalarArray(10_000);
+        long flat = (long) (large.length * PlannerSettings.DEFAULTS.sourceReservationFactor());
+        assertThat(ExpandUnmappedFieldsPostProcessor.structuralReservation(large), lessThanOrEqualTo(flat));
+    }
+
+    /** A {@code {"a":[0,1,...]}} source whose array holds {@code elements} distinct integer scalars. */
+    private static BytesRef scalarArray(int elements) {
+        StringBuilder json = new StringBuilder("{\"a\":[");
+        for (int i = 0; i < elements; i++) {
+            json.append(i > 0 ? "," : "").append(i);
+        }
+        return new BytesRef(json.append("]}").toString());
+    }
+
+    /** The structural reservation {@link #scalarArray} draws beyond its own byte length - the per-token overhead the scan charges it. */
+    private static long scalarArrayStructuralOverhead(int elements) {
+        BytesRef ref = scalarArray(elements);
+        return ExpandUnmappedFieldsPostProcessor.structuralReservation(ref) - ref.length;
+    }
+
+    /**
+     * The field-name accounting must reserve for the kept set, not for every distinct name it ever sees: past the cap each insert evicts
+     * the alphabetically-largest kept name and must hand its bytes back, so the reservation plateaus at {@code MAX_EXPANDED_FIELDS}
+     * names rather than climbing with the total seen. Feeds half again as many equal-length distinct names, in random order, and asserts
+     * the breaker holds exactly the first {@code MAX_EXPANDED_FIELDS} names' worth - then that {@code close} returns every byte.
+     */
+    public void testFieldNameCollectorReservationPlateausAtCapAndReleasesEvicted() {
+        BlockFactory bf = blockFactory();
+        var breaker = bf.breaker();
+        List<String> names = paddedNames("f", MAX_EXPANDED_FIELDS + 500);
+        List<String> arrival = new ArrayList<>(names);
+        Collections.shuffle(arrival, random());
+
+        try (
+            var collector = new ExpandUnmappedFieldsPostProcessor.FieldNameCollector(
+                UnmappedFieldsPattern.ALL,
+                Collections.emptySet(),
+                breaker
+            )
+        ) {
+            for (String name : arrival) {
+                collector.accept(name, 1);
+            }
+            // Every name is the same length, so the kept set's reservation is exactly MAX names' worth, not the (MAX + 500) seen: the
+            // overflowing inserts each evicted and released the largest name they displaced.
+            long perName = RamUsageEstimator.sizeOf(names.get(0))
+                + ExpandUnmappedFieldsPostProcessor.FieldNameCollector.PER_NAME_CONTAINER_OVERHEAD;
+            assertThat(breaker.getUsed(), equalTo((long) MAX_EXPANDED_FIELDS * perName));
+        }
+        assertThat("close must hand back every reserved byte", breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * {@link #testCancellationDuringExpansionThrowsAndReleasesPages} lands its cancellation on {@code collectFieldNames}' opening poll,
+     * before any field name has been reserved, so it proves the pages are freed but not that the name accounting is. This lands the
+     * cancellation on the second poll instead - after a full {@code ROWS_PER_CANCELLATION_CHECK} rows of distinct names have been
+     * collected and charged to the breaker - and asserts the throw still leaves the breaker at zero, i.e. the collector's
+     * try-with-resources handed its reservation back on the cancellation path, not only on the normal return.
+     */
+    public void testCancellationMidCollectionReleasesReservedFieldNames() {
+        BlockFactory bf = blockFactory();
+        int rows = 2048; // two collectFieldNames polls, at rows 0 and 1024
+        List<List<Object>> pageRows = new ArrayList<>(rows);
+        for (int i = 0; i < rows; i++) {
+            pageRows.add(row(i, jsonWithFields(List.of(String.format(Locale.ROOT, "f%06d", i)))));
+        }
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, pageRows)));
+
+        AtomicInteger polls = new AtomicInteger();
+        expectThrows(
+            TaskCancelledException.class,
+            () -> ExpandUnmappedFieldsPostProcessor.expand(result, null, bf, PlannerSettings.DEFAULTS, () -> polls.incrementAndGet() > 1)
+        );
+
+        // Cancelled on the second poll (row 1024), so the first 1024 distinct names were collected and reserved before the throw.
+        assertThat("cancellation should land on the second collectFieldNames poll", polls.get(), equalTo(2));
+        assertThat("expand leaked the reserved field names when cancelled mid-collection", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Builds a single-row page carrying {@code json} as its {@code _unmapped_fields} value against a generous breaker, then runs the
+     * expansion against one capped at {@code limit}, so only the expansion's own reservations are charged to the tight breaker.
+     * Releases the expanded pages on success; on a break the expansion releases everything itself.
+     */
+    private void runExpandSingleRowUnderLimit(ByteSizeValue limit, String json) {
+        BlockFactory inputFactory = blockFactory();
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(inputFactory, List.of(row(1, json)))));
+
+        BlockFactory tightFactory = blockFactory(limit);
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, null, tightFactory, PlannerSettings.DEFAULTS, () -> false);
+        Releasables.close(expanded.pages());
     }
 
     // No ordering recipe: these exercise the expansion mechanics, so the natural real-then-discovered fallback applies. The ordering

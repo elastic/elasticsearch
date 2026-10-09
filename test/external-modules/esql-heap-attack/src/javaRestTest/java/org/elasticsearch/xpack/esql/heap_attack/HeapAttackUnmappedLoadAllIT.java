@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -26,11 +27,12 @@ import static org.hamcrest.Matchers.hasItem;
 /**
  * Heap-attack coverage for {@code SET unmapped_fields="LOAD_ALL"}, which turns every distinct {@code _source} leaf of the result
  * rows into an output column. The coordinator must cap the number of such columns rather than collect an unbounded set of field
- * names: each test indexes millions of distinct unmapped leaves - far more names than fit in the heap - and expects the query to
- * return only the alphabetically first {@link #MAX_EXPANDED_FIELDS} of them, with a warning.
+ * names: the first two tests index millions of distinct unmapped leaves - far more names than fit in the heap - and expect the
+ * query to return only the alphabetically first {@link #MAX_EXPANDED_FIELDS} of them, with a warning.
  * <p>
- * The two tests differ in where the distinct names come from: spread thinly across many moderately sized documents, or packed
- * into a handful of huge ones.
+ * Two of the tests differ only in where the distinct names come from: spread thinly across many moderately sized documents, or
+ * packed into a handful of huge ones. A third ({@link #testArrayOfTinyObjectsCircuitBreaksInExpansion}) fails differently again -
+ * not on the number of names, but on the object graph a single structure-heavy {@code _source} parses into.
  * <p>
  * Each index maps a single {@link #MAPPED_FIELD}, so the queries exercise the expansion rather than whatever an index with no
  * mapped fields at all would plan to.
@@ -135,6 +137,50 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
             }
         }
         assertLoadAllCapped(index, docs, expected);
+    }
+
+    /**
+     * A third shape, failing differently from the two above: a single document whose {@code _source} is one array of many tiny
+     * objects ({@code "a":[{"x":1},{"x":1},...]}). It carries only a handful of bytes per element but the coordinator parses it into a
+     * {@code Map}/{@code List} graph tens of times its own size, and - unlike the wide cases - it collapses to a single output column
+     * ({@code a.x}), so neither the {@link #MAX_EXPANDED_FIELDS} cap nor the output table is what grows. Only the parse does, and it
+     * must trip a graceful {@code circuit_breaking_exception} from the parse reservation in {@code ExpandUnmappedFieldsPostProcessor}
+     * rather than exhaust the heap (esql-planning#2061).
+     * <p>
+     * The request breaker is lowered so the reservation - which tracks the real object-graph size - crosses it well before this 512MB
+     * node's real heap would, standing in for the headroom a normally provisioned node has under the default breaker. Without the
+     * structural reservation the flat {@code json.length} estimate stays far below the limit and the parse OOMs the node instead.
+     */
+    public void testArrayOfTinyObjectsCircuitBreaksInExpansion() throws IOException {
+        // High enough that the data-node source reservation (10x the source length) and block building pass, low enough that the
+        // coordinator's structural parse reservation (which tracks the much larger object graph) is the one to trip.
+        setRequestBreakerLimit("50%");
+        assertCircuitBreaksVia(attempt -> {
+            int elements = 1_500_000 * attempt;
+            String index = "load_all_array_" + attempt;
+            createMostlyUnmappedIndex(index);
+            StringBuilder doc = new StringBuilder(elements * 8 + 64);
+            doc.append("{\"create\":{}}\n{\"").append(MAPPED_FIELD).append("\":\"0\",\"a\":[");
+            for (int e = 0; e < elements; e++) {
+                if (e > 0) {
+                    doc.append(',');
+                }
+                doc.append("{\"x\":1}");
+            }
+            doc.append("]}\n");
+            bulk(index, doc.toString());
+            initIndex(index, "");
+
+            StringBuilder query = startQuery();
+            query.append("SET unmapped_fields=\\\"LOAD_ALL\\\";\n");
+            query.append("FROM ").append(index).append("\n| LIMIT 1\"}");
+            return responseAsMap(query(query.toString(), "columns"));
+        }, "ExpandUnmappedFieldsPostProcessor");
+    }
+
+    @After
+    public void resetRequestBreakerLimit() throws IOException {
+        setRequestBreakerLimit(null);
     }
 
     private void createMostlyUnmappedIndex(String index) throws IOException {

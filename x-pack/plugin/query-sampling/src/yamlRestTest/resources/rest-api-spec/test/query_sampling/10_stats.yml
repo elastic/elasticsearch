@@ -16,6 +16,7 @@
   - match: { nodes.$node_id.picked: 0 }
   - match: { nodes.$node_id.written: 0 }
   - match: { nodes.$node_id.expired: 0 }
+  - match: { nodes.$node_id.effective_capture_rate: 0.01 }
 
   # nothing has been sampled yet, so there is nothing to compute
   - do:

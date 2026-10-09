@@ -30,6 +30,8 @@ import java.io.IOException;
  * @param writeDropped       picked queries turned away because too many were waiting to be written
  * @param weightsRefreshed   updates of the weights of written queries
  * @param expired            sampled queries deleted from the index because they were older than the retention
+ * @param effectiveCaptureRate the probability a search is captured with right now: the {@code capture_rate}, or higher
+ *                             if the traffic is so low that the floor of captures per hour asks for it
  */
 public record QuerySamplingStats(
     long knnSearches,
@@ -42,7 +44,8 @@ public record QuerySamplingStats(
     long writeFailures,
     long writeDropped,
     long weightsRefreshed,
-    long expired
+    long expired,
+    double effectiveCaptureRate
 ) implements Writeable, ToXContentFragment {
 
     public QuerySamplingStats(StreamInput in) throws IOException {
@@ -57,7 +60,8 @@ public record QuerySamplingStats(
             in.readVLong(),
             in.readVLong(),
             in.readVLong(),
-            in.readVLong()
+            in.readVLong(),
+            in.readDouble()
         );
     }
 
@@ -74,6 +78,7 @@ public record QuerySamplingStats(
         out.writeVLong(writeDropped);
         out.writeVLong(weightsRefreshed);
         out.writeVLong(expired);
+        out.writeDouble(effectiveCaptureRate);
     }
 
     @Override
@@ -89,6 +94,7 @@ public record QuerySamplingStats(
         builder.field("write_dropped", writeDropped);
         builder.field("weights_refreshed", weightsRefreshed);
         builder.field("expired", expired);
+        builder.field("effective_capture_rate", effectiveCaptureRate);
         return builder;
     }
 }

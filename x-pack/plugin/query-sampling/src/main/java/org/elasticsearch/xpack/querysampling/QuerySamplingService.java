@@ -59,7 +59,8 @@ public class QuerySamplingService {
             writer.failed(),
             writer.dropped(),
             refresher.refreshed(),
-            retention.deleted()
+            retention.deleted(),
+            filter.effectiveCaptureRate()
         );
     }
 }

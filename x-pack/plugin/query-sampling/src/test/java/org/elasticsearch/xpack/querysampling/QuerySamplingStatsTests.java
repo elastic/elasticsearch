@@ -28,6 +28,7 @@ public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<Que
     @Override
     protected QuerySamplingStats createTestInstance() {
         return stats(
+            randomDouble(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -56,8 +57,15 @@ public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<Que
             instance.writeDropped(),
             instance.weightsRefreshed(),
             instance.expired() };
-        values[between(0, values.length - 1)]++;
+        double rate = instance.effectiveCaptureRate();
+        int mutated = between(0, values.length);
+        if (mutated == values.length) {
+            rate += 0.5;
+        } else {
+            values[mutated]++;
+        }
         return stats(
+            rate,
             values[0],
             values[1],
             values[2],
@@ -73,7 +81,7 @@ public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<Que
     }
 
     public void testRendersEveryCounter() throws IOException {
-        QuerySamplingStats stats = stats(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
+        QuerySamplingStats stats = stats(0.25, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
@@ -82,12 +90,13 @@ public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<Que
             Strings.toString(builder),
             equalTo(
                 "{\"knn_searches\":1,\"captured\":2,\"dropped\":3,\"distinct_queries\":4,\"untracked_arrivals\":5,"
-                    + "\"picked\":6,\"written\":7,\"write_failures\":8,\"write_dropped\":9,\"weights_refreshed\":10,\"expired\":11}"
+                    + "\"picked\":6,\"written\":7,\"write_failures\":8,\"write_dropped\":9,\"weights_refreshed\":10,"
+                    + "\"expired\":11,\"effective_capture_rate\":0.25}"
             )
         );
     }
 
-    private static QuerySamplingStats stats(long... values) {
+    private static QuerySamplingStats stats(double effectiveCaptureRate, long... values) {
         return new QuerySamplingStats(
             values[0],
             values[1],
@@ -99,7 +108,8 @@ public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<Que
             values[7],
             values[8],
             values[9],
-            values[10]
+            values[10],
+            effectiveCaptureRate
         );
     }
 }

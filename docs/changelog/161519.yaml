@@ -1,5 +1,5 @@
-area: "ES|QL, Performance"
+area: "ES|QL"
 issues: []
 pr: 161519
-summary: Bulk collect doc id ranges in Lucene source
+summary: Speed up ES|QL scans of dense doc id ranges by collecting them in bulk
 type: enhancement

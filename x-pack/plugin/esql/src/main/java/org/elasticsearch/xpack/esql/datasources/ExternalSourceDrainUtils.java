@@ -58,6 +58,8 @@ public final class ExternalSourceDrainUtils {
      * every drain step (initial and executor-resumed) — mirroring the {@code runProducerLoop} read path.
      * The hot loop parks on {@link CloseableIterator#waitForReady()} rather than blocking
      * {@code hasNext()}, so an async iterator can yield the executor slot while I/O is in flight.
+     * EOF is {@code tryAdvance() == null} after {@code waitForReady()} is done; the drain never
+     * calls {@code hasNext()}.
      */
     public static void drainPagesAsync(
         CloseableIterator<Page> pages,
@@ -102,6 +104,33 @@ public final class ExternalSourceDrainUtils {
         drainBatch(pages, buffer, executor, readCancelled, stop, pageSink, listener, new ResumeMailbox());
     }
 
+    /**
+     * Non-blocking drain probe. Never {@link CloseableIterator#hasNext()}. Returns a page,
+     * {@code null} at EOF, or {@code null} with {@code blockedOn} set when the iterator is
+     * waiting on I/O. Callers must already have a done {@link CloseableIterator#waitForReady()}.
+     * A second {@code tryAdvance} after a done recheck is required because a page can arrive
+     * in that race, and that second call can start the next GET.
+     */
+    static Page tryAdvanceOrPark(CloseableIterator<Page> pages, Holder<SubscribableListener<Void>> blockedOn) {
+        Page tryPage = pages.tryAdvance();
+        if (tryPage == null) {
+            SubscribableListener<Void> recheck = pages.waitForReady();
+            if (recheck.isDone() == false) {
+                blockedOn.set(recheck);
+                return null;
+            }
+            tryPage = pages.tryAdvance();
+            if (tryPage == null) {
+                SubscribableListener<Void> after = pages.waitForReady();
+                if (after.isDone() == false) {
+                    blockedOn.set(after);
+                    return null;
+                }
+            }
+        }
+        return tryPage;
+    }
+
     private static Consumer<Page> defaultPageSink(AsyncExternalSourceBuffer buffer) {
         return page -> {
             page.allowPassingToDifferentDriver();
@@ -129,22 +158,7 @@ public final class ExternalSourceDrainUtils {
                     }
 
                     Holder<SubscribableListener<Void>> blockedOn = new Holder<>();
-                    Page page = buffer.readCounters().meteredCpu(() -> {
-                        Page tryPage = pages.tryAdvance();
-                        if (tryPage == null) {
-                            SubscribableListener<Void> recheck = pages.waitForReady();
-                            if (recheck.isDone()) {
-                                if (pages.hasNext() == false) {
-                                    return null;
-                                }
-                                tryPage = pages.next();
-                            } else {
-                                blockedOn.set(recheck);
-                                return null;
-                            }
-                        }
-                        return tryPage;
-                    });
+                    Page page = buffer.readCounters().meteredCpu(() -> tryAdvanceOrPark(pages, blockedOn));
                     if (blockedOn.get() != null) {
                         park(blockedOn.get(), null, pages, buffer, executor, readCancelled, stop, pageSink, listener, resume);
                         return;

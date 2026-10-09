@@ -179,6 +179,73 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertEquals(0, breaker.getUsed());
     }
 
+    public void testDropIoRemainderKeepsDecodeSliceUntilDrop() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(200);
+        ParquetIoWatermark.AdmitHold hold = watermark.tryAdmit(100);
+        assertNotNull(hold);
+        hold.dropIoRemainder(40);
+        assertEquals("unused I/O estimate released; decode slice stays", 40, watermark.used());
+        hold.drop();
+        assertEquals(0, watermark.used());
+    }
+
+    public void testDropIoRemainderForceAddsWhenIoAteDecodeSlice() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(10);
+        ParquetIoWatermark.AdmitHold hold = watermark.tryAdmit(10);
+        assertNotNull(hold);
+        hold.drop(10);
+        assertEquals(0, watermark.used());
+        hold.dropIoRemainder(20);
+        assertEquals("restore overshoots the cap without waiting", 20, watermark.used());
+        hold.dropIoRemainder(20);
+        assertEquals("second dropIoRemainder must not restore again", 20, watermark.used());
+        hold.drop();
+        assertEquals(0, watermark.used());
+    }
+
+    public void testDecodeBudgetForceAddsShortfallNeverWaits() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(30);
+        ParquetIoWatermark.AdmitHold hold = watermark.tryAdmit(30);
+        assertNotNull(hold);
+        hold.dropIoRemainder(30);
+        ParquetDecodeBudget budget = ParquetDecodeBudget.tracking(watermark, 30);
+        budget.consume(50);
+        assertEquals("shortfall overshoots the cap without waiting", 50, watermark.used());
+        assertEquals(20, budget.extra());
+        budget.close();
+        assertEquals(30, watermark.used());
+        hold.drop();
+        assertEquals(0, watermark.used());
+    }
+
+    public void testDecodeBudgetZeroEstimateForceAddsFullConsume() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(10);
+        ParquetDecodeBudget budget = ParquetDecodeBudget.tracking(watermark, 0L);
+        budget.consume(25);
+        assertEquals("missing footer estimate still forceAdds dest/dict charges over the cap", 25, watermark.used());
+        assertEquals(25, budget.extra());
+        budget.close();
+        assertEquals(0, watermark.used());
+    }
+
+    public void testDecodeBudgetConsumeAfterCloseIsNoop() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(40);
+        ParquetDecodeBudget leftover = ParquetDecodeBudget.tracking(watermark, 30);
+        leftover.close();
+        leftover.consume(20);
+        assertEquals("leftover estimate must not swallow dest after close", 0, watermark.used());
+        assertEquals(0, leftover.extra());
+
+        ParquetDecodeBudget exhausted = ParquetDecodeBudget.tracking(watermark, 0L);
+        exhausted.consume(15);
+        assertEquals(15, watermark.used());
+        exhausted.close();
+        assertEquals(0, watermark.used());
+        exhausted.consume(10);
+        assertEquals("forceAdd after close must not leak extras", 0, watermark.used());
+        assertEquals(0, exhausted.extra());
+    }
+
     public void testTryReserveRetriesWhenReleaseLandsOverLimit() {
         ParquetIoWatermark watermark = new ParquetIoWatermark(10);
         watermark.forceAdd(50);

@@ -2468,6 +2468,45 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Schema records of one file that differ only in their sample depth share one statistics address, so a stripe
+     * delta must be applied to it once. The cover here completes across two commits: the first record's pass folds
+     * and compacts, and a second pass over the same address would read the compacted record back, find no grid
+     * stamp, and re-commit only the completing delta's stripes, which cannot fold on their own, so the stripe
+     * bookkeeping the compaction removed would stay beside the whole-file statistics.
+     */
+    public void testStripeDeltaAppliedOnceToAStatisticsAddressSharedAcrossSampleDepths() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            long mtime = 1000L;
+            DatasetIdentity identity = TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv"));
+            SchemaCacheKey whole = SchemaCacheKey.build(path, mtime, identity, false);
+            SchemaCacheKey shared = SchemaCacheKey.buildShared(path, mtime, identity, 100);
+            seedSchemaCache(service, whole, path, "fp");
+            seedSchemaCache(service, shared, path, "fp");
+
+            service.reconcileSourceStatsFromContributions(
+                Map.of(path, List.of(stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false)))
+            );
+            service.reconcileSourceStatsFromContributions(
+                Map.of(path, List.of(stripeFragment(mtime, "fp", 70L, 100L, 1, 100, 150, true, true, true)))
+            );
+
+            assertEquals("one statistics record for the one read", 1, service.statisticsCache().count());
+            Map<String, Object> statistics = service.getStatistics(StatisticsKey.of(whole, null));
+            assertNotNull(statistics);
+            assertEquals("the cover completed across both commits", 100L, statistics.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            assertEquals(
+                "no stripe bookkeeping survives the completed fold",
+                List.of(),
+                statistics.keySet().stream().filter(ExternalStats::isStripeBookkeeping).toList()
+            );
+            for (SchemaCacheKey key : List.of(whole, shared)) {
+                assertEquals(key.toString(), 100L, warm(service, key).safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            }
+        }
+    }
+
     public void testReconcileEmptyStripeFromOversizedRecord() throws Exception {
         // A record larger than the grid skips an ordinal entirely — the reader emits an explicit
         // zero-length empty fragment for it (atStripeStart & atStripeEnd). The whole-file fold counts

@@ -444,15 +444,16 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
      * The ticket's acceptance shape: a plain dataset and a retyping one over the same corpus under the default
      * {@code fail_fast}, both warming their repeated COUNT(*).
      * <p>
-     * Separate directories on purpose. The two datasets differ only in their mapping, and the definition version
-     * folds the resource and the settings but not the mapping, so over one directory they share every per-file
-     * address and - more to the point - the read-configuration-less dataset aggregate, which would let one
-     * dataset's memoized count answer the other's COLD query and break the cold assertion.
+     * Separate directories, because of the LICENCE and not the addresses. Under {@code fail_fast} a row count is
+     * licensed to cross read configurations, so over one corpus the retyping dataset could be served the plain
+     * one's count on its first query and the cold assertion would fail for a legitimate reason. The two do not
+     * share a dataset-level fold whatever corpus they sit on - that is what the definition version decides, and
+     * {@code testStrictAndInferredDatasetsOverOneGlobNeverShareAnAggregate} pins it over a single glob.
      * <p>
-     * Under {@code fail_fast} a licensed row count crosses read configurations, so this arm is acceptance rather
-     * than a discriminator: {@code testRetypingMappingWarmsMinMaxOnAnUntouchedColumn} and the {@code null_field}
-     * count arm are what actually fail without the fix. The fallback guard is here so it cannot pass by way of the
-     * dataset aggregate instead of the per-file records.
+     * That licence also makes this arm acceptance rather than a discriminator:
+     * {@code testRetypingMappingWarmsMinMaxOnAnUntouchedColumn} and the {@code null_field} count arm are what fail
+     * without the fix. The fallback guard is here so it cannot pass by way of the dataset aggregate instead of the
+     * per-file records.
      */
     public void testPlainAndRetypingDatasetsBothWarmTheirCount() throws Exception {
         Path plainDir = createTempDir();

@@ -496,19 +496,29 @@ public class DefinitionVersionTests extends ESTestCase {
 
     /**
      * A declared column name is user-controlled text in the pre-image, so it gets the same length-prefix defence
-     * the settings have. Without it a column named to contain the encoding's own separators could make one
-     * declaration encode identically to a different one, and two different datasets would share every entry.
+     * the settings have. Without it, a name containing the encoding's own separators makes one declaration encode
+     * identically to a different one, and two different datasets then share every address derived from it.
+     * <p>
+     * The forgery is constructed against the encoder rather than guessed, because a guessed one does not collide
+     * and the case passes while proving nothing: a two-column declaration is impersonated by a ONE-column
+     * declaration whose single name embeds the first column's remaining fields and the next column's {@code col}
+     * marker. Length-prefixing the name is exactly what makes the two encodings differ, so dropping the prefix
+     * makes this case fail - which is how it was checked.
      */
     public void testADeclaredColumnNameCannotForgeAFieldBoundary() {
         DataSource src = source(Map.of("endpoint", "https://s3.example"));
-        String forged = "age" + "\u00003:t7:keyword";
+        // What `append` writes for the fields that follow the name of the first column, then the second's marker.
+        String forged = "age" + "1:t7:keyword" + "1:p-1:" + "1:f-1:" + "col" + "zz";
+
+        Map<String, DatasetFieldMapping> twoColumns = new LinkedHashMap<>();
+        twoColumns.put("age", new DatasetFieldMapping("keyword", null));
+        twoColumns.put("zz", new DatasetFieldMapping("long", null));
+
         assertNotEquals(
+            "a declared column name must not be able to forge a field boundary",
+            DefinitionVersion.ofDataset(mapped(declaring(DatasetMapping.Dynamic.TRUE, twoColumns)), src),
             DefinitionVersion.ofDataset(
                 mapped(declaring(DatasetMapping.Dynamic.TRUE, Map.of(forged, new DatasetFieldMapping("long", null)))),
-                src
-            ),
-            DefinitionVersion.ofDataset(
-                mapped(declaring(DatasetMapping.Dynamic.TRUE, Map.of("age", new DatasetFieldMapping("keyword", null)))),
                 src
             )
         );

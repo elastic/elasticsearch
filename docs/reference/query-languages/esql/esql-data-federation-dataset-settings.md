@@ -283,7 +283,7 @@ $$$amazon-s3-region$$$
     Omit `region` for standard AWS S3. Set it when the data source uses a custom `endpoint`, such as MinIO or Scaleway, to skip region discovery on the first request.
 
     :::{dropdown} Region discovery and federated identity
-    Without an `endpoint`, the AWS SDK redirects requests to the bucket's region. With an `endpoint`, a `HeadBucket` request on first access discovers the region, and the result is cached for the lifetime of the data source. An explicit `region` is always used as set. A wrong value returns an error instead of redirecting.<br><br>With `auth: federated_identity`, `region` also selects the STS regional endpoint for role assumption, unless the data source sets `sts_region`. When neither is set, STS uses `us-east-1`. This works for standard commercial AWS but can fail for buckets in other AWS partitions, such as GovCloud or China.
+    Without an `endpoint`, the AWS SDK redirects requests to the bucket's region. With an `endpoint`, a `HeadBucket` request on first access discovers the region. {{es}} caches the result and clears it after a few minutes without requests. An explicit `region` is always used as set. A wrong value returns an error instead of redirecting.<br><br>With `auth: federated_identity`, `region` also selects the STS regional endpoint for role assumption, unless the data source sets `sts_region`. When neither is set, STS uses `us-east-1`. This works for standard commercial AWS but can fail for buckets in other AWS partitions, such as GovCloud or China.
 
     :::
 

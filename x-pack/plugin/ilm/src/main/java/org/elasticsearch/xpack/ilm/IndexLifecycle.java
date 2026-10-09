@@ -18,6 +18,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
@@ -299,6 +300,11 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
 
     List<ReservedProjectStateHandler<?>> reservedProjectStateHandlers() {
         return List.of(reservedLifecycleAction.get());
+    }
+
+    @Override
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
+        return List.of(new PreferIlmSettingProvider());
     }
 
     @Override

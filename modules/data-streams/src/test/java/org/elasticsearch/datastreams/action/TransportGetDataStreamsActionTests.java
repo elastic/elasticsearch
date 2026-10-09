@@ -549,6 +549,63 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         );
     }
 
+    /**
+     * The data stream already knows its index mode, which used to short-circuit running the additional setting providers. The data
+     * stream level prefer_ilm should still reflect what a provider would set on the next backing index.
+     */
+    public void testProvidersAffectPreferIlm() {
+        ProjectMetadata project = getProjectWithDataStreamWithSettings(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES).build(),
+            Settings.EMPTY,
+            Settings.EMPTY,
+            IndexMode.STANDARD
+        );
+        DataStream dataStream = project.dataStreams().get("data-stream-1");
+
+        var response = TransportGetDataStreamsAction.innerOperation(
+            projectStateFromProject(project),
+            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {}),
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamLifecycleSettings,
+            emptyDataStreamFailureStoreSettings,
+            IndexSettingProviders.of(additionalSettings -> additionalSettings.put(IndexSettings.PREFER_ILM, false)),
+            null,
+            metadataDataStreamsService
+        );
+        assertThat(response.getDataStreams().getFirst().getIndexModeName(), equalTo(IndexMode.TIME_SERIES.getName()));
+        assertThat(response.getDataStreams().getFirst().templatePreferIlmValue(), is(false));
+    }
+
+    /**
+     * A prefer_ilm configured by the user, in a template or on the data stream, takes precedence over the one from a provider that
+     * does not overrule the template and request settings.
+     */
+    public void testConfiguredPreferIlmWinsOverProviders() {
+        Settings preferIlm = Settings.builder().put(IndexSettings.PREFER_ILM, true).build();
+        ProjectMetadata project = switch (randomIntBetween(0, 2)) {
+            case 0 -> getProjectWithDataStreamWithSettings(preferIlm, Settings.EMPTY, Settings.EMPTY, IndexMode.TIME_SERIES);
+            case 1 -> getProjectWithDataStreamWithSettings(Settings.EMPTY, preferIlm, Settings.EMPTY, IndexMode.TIME_SERIES);
+            case 2 -> getProjectWithDataStreamWithSettings(Settings.EMPTY, Settings.EMPTY, preferIlm, IndexMode.TIME_SERIES);
+            default -> throw new AssertionError("unexpected branch");
+        };
+
+        var response = TransportGetDataStreamsAction.innerOperation(
+            projectStateFromProject(project),
+            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {}),
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamLifecycleSettings,
+            emptyDataStreamFailureStoreSettings,
+            IndexSettingProviders.of(additionalSettings -> additionalSettings.put(IndexSettings.PREFER_ILM, false)),
+            null,
+            metadataDataStreamsService
+        );
+        assertThat(response.getDataStreams().getFirst().templatePreferIlmValue(), is(true));
+    }
+
     public void testGetEffectiveSettingsTemplateOnlySettings() {
         // Set a lifecycle only in the template, and make sure that is in the response:
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
@@ -699,17 +756,14 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 )
             );
         }
-        List<IndexMetadata> allIndices = new ArrayList<>(backingIndices);
-
+        for (IndexMetadata index : backingIndices) {
+            builder.put(index, false);
+        }
         DataStream ds = DataStream.builder(
             dataStreamName,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
         ).setGeneration(numberOfBackingIndices).setSettings(dataStreamSettings).setIndexMode(dsIndexMode).setReplicated(replicated).build();
         builder.put(ds);
-
-        for (IndexMetadata index : allIndices) {
-            builder.put(index, false);
-        }
         return builder.build();
     }
 }

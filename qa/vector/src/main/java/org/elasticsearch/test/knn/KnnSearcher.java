@@ -62,6 +62,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -808,7 +809,7 @@ public class KnnSearcher {
                     filterQuery,
                     visitRatio,
                     ivfQueryConfigResolver,
-                    PARTITION_ID_FIELD,
+                    SliceIndexing.SLICE_KEY_FIELD_NAME,
                     partition
                 );
             } else {
@@ -897,7 +898,7 @@ public class KnnSearcher {
                     filterQuery,
                     visitRatio,
                     ivfQueryConfigResolver,
-                    PARTITION_ID_FIELD,
+                    SliceIndexing.SLICE_KEY_FIELD_NAME,
                     partition
                 );
             } else {

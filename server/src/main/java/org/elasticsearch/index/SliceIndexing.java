@@ -9,12 +9,16 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestRequest;
 
+import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
 
 /**
@@ -56,6 +60,71 @@ public final class SliceIndexing {
      * This is used to query across all slices while still indicating intentional slice-mode access.
      */
     public static final String SLICE_ALL = "_all";
+
+    /**
+     * Doc-values field holding the slice sort key, {@code BE32(sliceHash) ++ utf8(slice)}; the primary (and only
+     * prepended) index sort of a slice-enabled index. Bytewise order equals {@code (unsigned hash, slice)} order, so
+     * segments are laid out by hash prefix while slices with colliding hashes remain distinct, adjacent terms.
+     */
+    public static final String SLICE_KEY_FIELD_NAME = "_slice_key";
+
+    /**
+     * Reserved field name; nothing writes it. The slice hash needs no column of its own because it is the
+     * {@link #SLICE_KEY_FIELD_NAME} prefix ({@link #sliceHashFromKey}), readable per document, per term, or per segment
+     * from the key. The name stays reserved so a future hash-derived structure (for example a per-segment distinct-hash
+     * summary for leaf pruning or merge partitioning) can claim it without colliding with user mappings.
+     */
+    public static final String SLICE_HASH_FIELD_NAME = "_slice_hash";
+
+    private static final int SLICE_HASH_BYTES = Integer.BYTES;
+
+    /** Unsigned 32-bit Murmur3 of the slice value; the same hash shard routing uses for the routing value. */
+    public static long sliceHash(String slice) {
+        return Murmur3HashFunction.hash(slice) & 0xFFFFFFFFL;
+    }
+
+    /** As {@link #sliceHash(String)} for a raw UTF-8 slice value (never an encoded key). */
+    public static long sliceHash(BytesRef slice) {
+        return Murmur3HashFunction.hash(slice) & 0xFFFFFFFFL;
+    }
+
+    /** Encodes a {@link #SLICE_KEY_FIELD_NAME} term: big-endian unsigned hash followed by the UTF-8 slice bytes. */
+    public static BytesRef encodeSliceKey(String slice) {
+        final byte[] utf8 = slice.getBytes(StandardCharsets.UTF_8);
+        return encodeSliceKey(sliceHash(slice), utf8, 0, utf8.length);
+    }
+
+    /** As {@link #encodeSliceKey(String)} for a raw UTF-8 slice value; never pass an already encoded key. */
+    public static BytesRef encodeSliceKey(BytesRef slice) {
+        return encodeSliceKey(sliceHash(slice), slice.bytes, slice.offset, slice.length);
+    }
+
+    private static BytesRef encodeSliceKey(long hash, byte[] utf8, int offset, int length) {
+        final byte[] key = new byte[SLICE_HASH_BYTES + length];
+        ByteUtils.writeIntBE((int) hash, key, 0);
+        System.arraycopy(utf8, offset, key, SLICE_HASH_BYTES, length);
+        return new BytesRef(key);
+    }
+
+    /**
+     * Field names a slice-enabled index reserves: the user-facing {@link #FIELD_NAME} alias, the internal
+     * {@link #SLICE_KEY_FIELD_NAME} doc-values field, and the reserved {@link #SLICE_HASH_FIELD_NAME}.
+     */
+    public static boolean isReservedFieldName(String name) {
+        return FIELD_NAME.equals(name) || SLICE_KEY_FIELD_NAME.equals(name) || SLICE_HASH_FIELD_NAME.equals(name);
+    }
+
+    /** The unsigned hash prefix of an encoded slice key. */
+    public static long sliceHashFromKey(BytesRef key) {
+        assert key.length >= SLICE_HASH_BYTES : "slice key too short: " + key.length;
+        return ByteUtils.readIntBE(key.bytes, key.offset) & 0xFFFFFFFFL;
+    }
+
+    /** The slice value an encoded slice key was built from. */
+    public static String sliceFromKey(BytesRef key) {
+        assert key.length >= SLICE_HASH_BYTES : "slice key too short: " + key.length;
+        return new BytesRef(key.bytes, key.offset + SLICE_HASH_BYTES, key.length - SLICE_HASH_BYTES).utf8ToString();
+    }
 
     /**
      * Parsed routing result with provenance indicating if the value came from {@code slice}.

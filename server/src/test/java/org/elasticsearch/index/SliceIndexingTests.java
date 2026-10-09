@@ -9,14 +9,23 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class SliceIndexingTests extends ESTestCase {
 
@@ -105,5 +114,62 @@ public class SliceIndexingTests extends ESTestCase {
     private static void assertInvalid(String value) {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SliceIndexing.validateUserSliceValue(value));
         assertThat(ex.getMessage(), containsString("invalid [slice] value"));
+    }
+
+    private static String randomSliceValue() {
+        return randomAlphaOfLengthBetween(1, 40) + randomFrom("", "-" + randomAlphaOfLength(3), ":" + randomInt(999));
+    }
+
+    /** The BytesRef overloads must agree with the String ones (and so with routing) for offset slices, long values and non-ASCII. */
+    public void testBytesRefOverloadsMatchStringOverloads() {
+        for (int i = 0; i < 100; i++) {
+            String slice = switch (randomIntBetween(0, 2)) {
+                case 0 -> randomSliceValue();
+                case 1 -> randomAlphaOfLengthBetween(129, 700);
+                case 2 -> randomRealisticUnicodeOfLengthBetween(1, 40);
+                default -> throw new AssertionError();
+            };
+            byte[] utf8 = slice.getBytes(StandardCharsets.UTF_8);
+            int pad = randomIntBetween(0, 5);
+            byte[] padded = new byte[pad + utf8.length + pad];
+            System.arraycopy(utf8, 0, padded, pad, utf8.length);
+            BytesRef ref = new BytesRef(padded, pad, utf8.length);
+            assertThat(SliceIndexing.sliceHash(ref), equalTo(SliceIndexing.sliceHash(slice)));
+            assertThat(SliceIndexing.encodeSliceKey(ref), equalTo(SliceIndexing.encodeSliceKey(slice)));
+        }
+    }
+
+    public void testSliceHashIsUnsigned32Bit() {
+        for (int i = 0; i < 100; i++) {
+            long hash = SliceIndexing.sliceHash(randomSliceValue());
+            assertThat(hash, greaterThanOrEqualTo(0L));
+            assertThat(hash, lessThan(1L << 32));
+        }
+    }
+
+    public void testSliceKeyRoundTrip() {
+        for (int i = 0; i < 100; i++) {
+            String slice = randomSliceValue();
+            BytesRef key = SliceIndexing.encodeSliceKey(slice);
+            assertThat(key.length, equalTo(Integer.BYTES + slice.getBytes(StandardCharsets.UTF_8).length));
+            assertThat(SliceIndexing.sliceFromKey(key), equalTo(slice));
+            assertThat(SliceIndexing.sliceHashFromKey(key), equalTo(SliceIndexing.sliceHash(slice)));
+            assertThat(SliceIndexing.encodeSliceKey(new BytesRef(slice)), equalTo(key));
+            assertThat(SliceIndexing.sliceHash(new BytesRef(slice)), equalTo(SliceIndexing.sliceHash(slice)));
+        }
+    }
+
+    /** Bytewise key order must equal {@code (unsigned hash, slice)} order, so segments are laid out by hash prefix. */
+    public void testSliceKeyByteOrderMatchesHashOrder() {
+        Set<String> unique = new HashSet<>();
+        while (unique.size() < 1000) {
+            unique.add(randomSliceValue());
+        }
+        List<String> slices = new ArrayList<>(unique);
+        List<String> byHash = new ArrayList<>(slices);
+        byHash.sort(Comparator.comparingLong((String s) -> SliceIndexing.sliceHash(s)).thenComparing(s -> new BytesRef(s)));
+        List<String> byKey = new ArrayList<>(slices);
+        byKey.sort(Comparator.comparing((String s) -> SliceIndexing.encodeSliceKey(s)));
+        assertThat(byKey, equalTo(byHash));
     }
 }

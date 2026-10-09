@@ -610,15 +610,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalSchemaDiscoveryBoundIT
   method: testRepeatedSchemaDiscoveryAnswersTheSameSchema
   issue: https://github.com/elastic/elasticsearch/issues/161361
-- class: org.elasticsearch.xpack.esql.action.ExternalWarmDatasetAggregatePartialEvictionIT
-  method: testNdjsonWarmCountSurvivesOneMissingPerFileEntry
-  issue: https://github.com/elastic/elasticsearch/issues/161381
-- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonManyFileWarmFoldIT
-  method: testNdjsonFileSetChangeInvalidatesDatasetAggregate
-  issue: https://github.com/elastic/elasticsearch/issues/161390
-- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonManyFileWarmFoldIT
-  method: testNdjsonWarmCountSurvivesPerFileEntryEviction
-  issue: https://github.com/elastic/elasticsearch/issues/161391
 - class: org.elasticsearch.xpack.esql.qa.csv.TsvFormatSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/161394
 - class: org.elasticsearch.integration.FieldLevelSecurityTests
@@ -629,21 +620,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/161409
 - class: org.elasticsearch.xpack.esql.qa.parquet.ClickBenchParquetSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/161413
-- class: org.elasticsearch.xpack.esql.action.ExternalWarmDatasetAggregatePartialEvictionIT
-  method: testWarmNonCountAggregatesSafeMissUnderEviction
-  issue: https://github.com/elastic/elasticsearch/issues/161428
-- class: org.elasticsearch.xpack.esql.action.ExternalWarmDatasetAggregatePartialEvictionIT
-  method: testNdjsonWarmCountSurvivesHalfMissingPerFileEntries
-  issue: https://github.com/elastic/elasticsearch/issues/161434
 - class: org.elasticsearch.columnar.substrate.MonotonicTableTests
   method: testTablesInterleavedInOneFile
   issue: https://github.com/elastic/elasticsearch/issues/161435
-- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonManyFileWarmFoldIT
-  method: testNdjsonManyFileCountStarWarmShortCircuits
-  issue: https://github.com/elastic/elasticsearch/issues/161443
-- class: org.elasticsearch.xpack.esql.action.ExternalCountStarUsesShippedSchemaIT
-  method: testCountStarAtParallelismOne
-  issue: https://github.com/elastic/elasticsearch/issues/161451
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
   method: testPeerRecovery
   issue: https://github.com/elastic/elasticsearch/issues/161463

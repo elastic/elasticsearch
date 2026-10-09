@@ -673,3 +673,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.action.datafeed.DatafeedEsqlGatesTests
   method: testValidateDatafeedCreateEsqlDatafeedOnUpgradedClusterShouldSucceed
   issue: https://github.com/elastic/elasticsearch/issues/161484
+- class: org.elasticsearch.xpack.ml.action.datafeed.DatafeedEsqlGatesTests
+  method: testValidateEsqlDatafeedEnabledWhenFlagOnAndClusterSupportsItShouldSucceed
+  issue: https://github.com/elastic/elasticsearch/issues/161485

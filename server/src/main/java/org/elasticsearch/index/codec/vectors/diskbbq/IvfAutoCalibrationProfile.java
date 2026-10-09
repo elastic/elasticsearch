@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Locale;
+import java.util.Optional;
 
 public enum IvfAutoCalibrationProfile {
     DISABLED(null),
@@ -23,6 +24,16 @@ public enum IvfAutoCalibrationProfile {
 
     IvfAutoCalibrationProfile(@Nullable IvfAutoCalibrationOsqParams osqParams) {
         this.osqParams = osqParams;
+    }
+
+    /** Returns the profile whose {@link #toString()} equals {@code name}, or empty if there is none. */
+    public static Optional<IvfAutoCalibrationProfile> fromString(String name) {
+        for (IvfAutoCalibrationProfile profile : values()) {
+            if (profile.toString().equals(name)) {
+                return Optional.of(profile);
+            }
+        }
+        return Optional.empty();
     }
 
     public IvfAutoCalibrationOsqParams osqParams() {

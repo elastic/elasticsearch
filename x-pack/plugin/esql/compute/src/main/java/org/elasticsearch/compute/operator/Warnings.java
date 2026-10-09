@@ -7,9 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import java.util.HashSet;
-import java.util.Set;
-
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
@@ -83,7 +80,6 @@ public class Warnings {
     private final String location;
     private final String firstExceptionWarning;
     private final String nonExceptionWarningPrefix;
-    private final Set<String> emittedWarnings = new HashSet<>();
 
     private int addedWarnings;
     private boolean exceptionWarningEmitted = false;
@@ -152,8 +148,7 @@ public class Warnings {
      * The sink deduplicates warnings, so only distinct ones may consume the limit.
      */
     private void addDistinct(String warning) {
-        if (emittedWarnings.add(warning)) {
-            driverContext.addWarning(warning);
+        if (driverContext.addWarning(warning)) {
             addedWarnings++;
         }
     }

@@ -18,6 +18,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -101,9 +102,10 @@ public class DatafeedJobBuilder {
         final ParentTaskAssigningClient parentTaskAssigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
         final DatafeedConfig datafeedConfig = context.datafeedConfig();
         final Job job = context.job();
+        final long bucketSpanMs = job.getAnalysisConfig().getBucketSpan().millis();
         final long latestFinalBucketEndMs = context.restartTimeInfo().getLatestFinalBucketTimeMs() == null
             ? -1
-            : context.restartTimeInfo().getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
+            : context.restartTimeInfo().getLatestFinalBucketTimeMs() + bucketSpanMs - 1;
         final long latestRecordTimeMs = context.restartTimeInfo().getLatestRecordTimeMs() == null
             ? -1
             : context.restartTimeInfo().getLatestRecordTimeMs();
@@ -155,13 +157,23 @@ public class DatafeedJobBuilder {
                 job,
                 effectiveDatafeedConfig,
                 parentTaskAssigningClient,
-                xContentRegistry
+                xContentRegistry,
+                dataExtractorFactory
             );
             CrossClusterSearchStats crossClusterSearchStats = new CrossClusterSearchStats(
                 () -> java.time.Instant.ofEpochMilli(currentTimeSupplier.get()),
                 ccsStabilizationCycles,
                 java.time.Duration.ofMillis(ccsStabilizationFloorMs)
             );
+            boolean isEsqlDatafeed = datafeedConfig.getEsqlQuery() != null;
+            String emittedTimeField = job.getDataDescription() == null ? null : job.getDataDescription().getTimeField();
+            String esqlCheckpointFingerprint = isEsqlDatafeed
+                ? EsqlDatafeedSourceCheckpoint.computeFingerprint(effectiveDatafeedConfig, emittedTimeField)
+                : null;
+            Long esqlSourceEndMs = null;
+            if (isEsqlDatafeed && context.esqlSourceCheckpoint() != null) {
+                esqlSourceEndMs = context.esqlSourceCheckpoint().getSourceEndMs();
+            }
             DatafeedJob datafeedJob = new DatafeedJob(
                 datafeedConfig.getId(),
                 effectiveDatafeedConfig.getProjectRouting(),
@@ -182,7 +194,13 @@ public class DatafeedJobBuilder {
                 latestRecordTimeMs,
                 context.restartTimeInfo().haveSeenDataPreviously(),
                 delayedDataCheckFreq,
-                crossClusterSearchStats
+                bucketSpanMs,
+                isEsqlDatafeed,
+                crossClusterSearchStats,
+                isEsqlDatafeed ? effectiveDatafeedConfig.getGroupingInterval().millis() : 0L,
+                esqlCheckpointFingerprint,
+                esqlSourceEndMs,
+                isEsqlDatafeed ? jobResultsPersister::persistEsqlDatafeedSourceCheckpoint : null
             );
 
             listener.onResponse(datafeedJob);
@@ -211,6 +229,10 @@ public class DatafeedJobBuilder {
 
     private void checkRemoteIndicesAreAvailable(DatafeedConfig datafeedConfig) {
         if (remoteClusterClient == false) {
+            // ESQL datafeeds have no indices list
+            if (datafeedConfig.getIndices() == null) {
+                return;
+            }
             List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(datafeedConfig.getIndices());
             if (remoteIndices.isEmpty() == false) {
                 throw ExceptionsHelper.badRequestException(

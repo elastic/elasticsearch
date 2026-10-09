@@ -6649,30 +6649,78 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(2L, stats.get(SourceStatisticsSerializer.columnValueCountKey("x")));
     }
 
-    public void testDeclaredProvenanceDoesNotTreatMissingInferredTypesAsUnknown() {
-        Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
-        RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
-        FileSplitProvider splitter = splitterFor(mockReader);
-        ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "x", DataType.INTEGER)));
-        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/part-b.parquet"), 2000, Instant.EPOCH);
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
-            null,
-            GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet"),
-            Map.of(entry.path(), new SchemaReconciliation.FileSchemaInfo(unified, null, null)),
-            Map.of("schema_resolution", "first_file_wins"),
-            PartitionMetadata.EMPTY,
-            List.of(),
-            unified,
-            unified,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false,
-            DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), SchemaProvenance.DECLARED)
-        );
+    /**
+     * An anchor-pinned read whose per-file types were never read must not publish that file's extrema,
+     * because nothing has established that the file's own column types match the schema the statistics
+     * are being interpreted against. Whether the schema was declared or inferred does not bear on it:
+     * both arms below are the same bytes read the same way, and both safe-miss.
+     */
+    public void testAnchorPinnedFileWithUnreadTypesSafeMissesWhoeverDeclaredTheSchema() {
+        for (SchemaProvenance provenance : List.of(SchemaProvenance.DECLARED, SchemaProvenance.INFERRED)) {
+            Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
+            RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
+            FileSplitProvider splitter = splitterFor(mockReader);
+            ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "x", DataType.INTEGER)));
+            StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/part-b.parquet"), 2000, Instant.EPOCH);
+            SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+                null,
+                GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet"),
+                Map.of(entry.path(), new SchemaReconciliation.FileSchemaInfo(unified, null, null)),
+                Map.of("schema_resolution", "first_file_wins"),
+                PartitionMetadata.EMPTY,
+                List.of(),
+                unified,
+                unified,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false,
+                DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), provenance)
+            );
 
-        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
-        Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
-        assertEquals(-10L, stats.get(SourceStatisticsSerializer.columnMinKey("x")));
-        assertEquals(20L, stats.get(SourceStatisticsSerializer.columnMaxKey("x")));
+            List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+            assertUnknownColumnStats(((FileSplit) splits.get(0)).statistics(), "x", 2L);
+        }
+    }
+
+    /**
+     * The twin of the above, and the reason it is not simply "anchor-pinned reads publish nothing": once
+     * the file's own types have been read, its extrema are interpretable and are published. Both
+     * provenances again agree, so the published statistics follow from what was read, not from who
+     * supplied the schema.
+     */
+    public void testAnchorPinnedFilePublishesExtremaOnceItsOwnTypesWereRead() {
+        for (SchemaProvenance provenance : List.of(SchemaProvenance.DECLARED, SchemaProvenance.INFERRED)) {
+            Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
+            RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
+            FileSplitProvider splitter = splitterFor(mockReader);
+            ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "x", DataType.INTEGER)));
+            StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/part-b.parquet"), 2000, Instant.EPOCH);
+            SchemaReconciliation.FileSchemaInfo read = new SchemaReconciliation.FileSchemaInfo(
+                unified,
+                null,
+                null,
+                Map.of("x", DataType.INTEGER)
+            );
+            assertTrue("the four-arg form records that the types were read", read.nativeTypesRead());
+            SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+                null,
+                GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet"),
+                Map.of(entry.path(), read),
+                Map.of("schema_resolution", "first_file_wins"),
+                PartitionMetadata.EMPTY,
+                List.of(),
+                unified,
+                unified,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false,
+                DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), provenance)
+            );
+
+            List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+            Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
+            assertEquals(-10L, stats.get(SourceStatisticsSerializer.columnMinKey("x")));
+            assertEquals(20L, stats.get(SourceStatisticsSerializer.columnMaxKey("x")));
+            assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.columnValueCountKey("x"))).longValue());
+        }
     }
 
     public void testUnknownFirstFileWinsRenamePoisonsLogicalSplitColumns() {

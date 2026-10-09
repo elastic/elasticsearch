@@ -141,17 +141,30 @@ public final class SchemaReconciliation {
         ExternalSchema fileSchema,
         @Nullable ColumnMapping mapping,
         @Nullable SourceStatistics statistics,
-        // PRE-retype file types, physical-keyed; null means fileSchema IS the inferred schema,
-        // except on an inferred FIRST_FILE_WINS glob where a missing snapshot means the native
-        // types were never obtained and must not be filled from the pinned read schema.
-        // Populated by the UNION_BY_NAME pin, the declared overlay, and FIRST_FILE_WINS (which
-        // snapshots every file's own footer types when known, including files that agree with
-        // the anchor). Lets stats boundaries normalize footer stats with the real inferred types
-        // and identify pinned columns to safe-miss on the read-schema-blind cache.
-        @Nullable Map<String, DataType> inferredTypes
+        // PRE-retype file types, physical-keyed. Populated by the UNION_BY_NAME pin, the declared
+        // overlay, and FIRST_FILE_WINS (which snapshots every file's own footer types when known,
+        // including files that agree with the anchor). Lets stats boundaries normalize footer stats
+        // with the real inferred types and identify pinned columns to safe-miss on the
+        // read-schema-blind cache.
+        @Nullable Map<String, DataType> inferredTypes,
+        // Whether this file's own column types were READ, rather than inferred from the pinned
+        // schema or never obtained at all. Said explicitly because {@code inferredTypes == null}
+        // carried two meanings that decide differently: "this file's types ARE the schema" and
+        // "nobody looked". Every consumer that must not fill a type from the read schema asks this
+        // instead of re-deriving the distinction from provenance.
+        boolean nativeTypesRead
     ) {
         public FileSchemaInfo(ExternalSchema fileSchema, @Nullable ColumnMapping mapping, @Nullable SourceStatistics statistics) {
-            this(fileSchema, mapping, statistics, null);
+            this(fileSchema, mapping, statistics, null, false);
+        }
+
+        public FileSchemaInfo(
+            ExternalSchema fileSchema,
+            @Nullable ColumnMapping mapping,
+            @Nullable SourceStatistics statistics,
+            @Nullable Map<String, DataType> inferredTypes
+        ) {
+            this(fileSchema, mapping, statistics, inferredTypes, inferredTypes != null);
         }
     }
 
@@ -214,7 +227,7 @@ public final class SchemaReconciliation {
                 );
             }
         }
-        return new FileSchemaInfo(first.fileSchema(), first.mapping(), null, null);
+        return new FileSchemaInfo(first.fileSchema(), first.mapping(), null, null, false);
     }
 
     private static boolean sameContract(FileSchemaInfo a, FileSchemaInfo b) {

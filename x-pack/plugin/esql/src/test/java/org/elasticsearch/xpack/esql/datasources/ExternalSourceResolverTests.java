@@ -2156,6 +2156,37 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
+    /**
+     * The structural half of the pin, which the split planner reads: a glob or comma-list under
+     * FIRST_FILE_WINS pins the schema from one file, and an explicit single-file path does not, because
+     * there the pinned schema is that file's own. Who declared the schema is not an input - the two
+     * provenances must agree on every row, since neither changes which file the schema came from.
+     */
+    public void testSchemaPinnedFromAnchorFileIgnoresWhoDeclaredTheSchema() {
+        Map<String, Object> ffw = configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS);
+        Map<String, Object> ubn = configFor(FormatReader.SchemaResolution.UNION_BY_NAME);
+
+        assertTrue(ExternalSourceResolver.isSchemaPinnedFromAnchorFile(GLOB, ffw));
+        assertTrue(ExternalSourceResolver.isSchemaPinnedFromAnchorFile("s3://bucket/data/a.parquet,s3://bucket/data/b.parquet", ffw));
+        assertFalse(ExternalSourceResolver.isSchemaPinnedFromAnchorFile("s3://bucket/data/a.parquet", ffw));
+        assertFalse(ExternalSourceResolver.isSchemaPinnedFromAnchorFile(null, ffw));
+        assertFalse(ExternalSourceResolver.isSchemaPinnedFromAnchorFile(GLOB, ubn));
+    }
+
+    /**
+     * A file's types are unknown when nobody read them, which the record now states outright rather than
+     * leaving to be inferred from a null type map - that null is also what a file whose own schema IS the
+     * read schema carries.
+     */
+    public void testNativeTypesUnknownAsksWhetherTheFilesOwnTypesWereRead() {
+        ExternalSchema pin = new ExternalSchema(List.of(attr("x", DataType.INTEGER)));
+        assertTrue(ExternalSourceResolver.nativeTypesUnknown(null));
+        assertTrue(ExternalSourceResolver.nativeTypesUnknown(new SchemaReconciliation.FileSchemaInfo(pin, null, null)));
+        assertFalse(
+            ExternalSourceResolver.nativeTypesUnknown(new SchemaReconciliation.FileSchemaInfo(pin, null, null, Map.of("x", DataType.LONG)))
+        );
+    }
+
     public void testNativeTypesUnknownRequiresAnchorPinAndMissingSnapshot() {
         ExternalSchema pin = new ExternalSchema(List.of(attr("x", DataType.INTEGER)));
         SchemaReconciliation.FileSchemaInfo unknown = new SchemaReconciliation.FileSchemaInfo(pin, null, null);

@@ -1223,7 +1223,7 @@ public class FileSplitProvider implements SplitProvider {
         SplitDiscoveryContext context,
         Map<String, DataType> reconciledTypes,
         Map<ColumnMapping, ColumnMapping> mappingCache,
-        boolean anchorPinnedFirstFileWins,
+        boolean schemaPinnedFromAnchorFile,
         ExternalSchema fileBackedQuerySchema
     ) {
         int size() {
@@ -1289,11 +1289,7 @@ public class FileSplitProvider implements SplitProvider {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = context.schemaMap();
         Map<ColumnMapping, ColumnMapping> mappingCache = new ConcurrentHashMap<>();
         ExternalSchema unifiedSchema = context.unifiedSchema();
-        boolean anchorPinnedFirstFileWins = ExternalSourceResolver.isAnchorPinnedFirstFileWins(
-            fileList.originalPattern(),
-            config,
-            context.declaredReadSpec()
-        );
+        boolean schemaPinnedFromAnchorFile = ExternalSourceResolver.isSchemaPinnedFromAnchorFile(fileList.originalPattern(), config);
         Set<String> metadataColumnNames = context.metadataColumnNames();
         Set<String> retainedPartitionKeys = context.retainedPartitionKeys();
         PartitionSpec spec = PartitionSpec.fromConfig(config);
@@ -1409,7 +1405,7 @@ public class FileSplitProvider implements SplitProvider {
             context,
             reconciledTypes,
             mappingCache,
-            anchorPinnedFirstFileWins,
+            schemaPinnedFromAnchorFile,
             fileBackedQuerySchema
         );
     }
@@ -1673,7 +1669,10 @@ public class FileSplitProvider implements SplitProvider {
             }
             readSchema = fileSchemaInfo.fileSchema().attributes();
         }
-        boolean unknownNativeTypes = ExternalSourceResolver.nativeTypesUnknown(fileSchemaInfo, batch.anchorPinnedFirstFileWins());
+        // Two questions, neither about provenance: could the pinned schema fail to describe this file,
+        // and were this file's own types read. A declared schema pinned across many files answers the
+        // first exactly as an inferred one does (esql-planning#2076).
+        boolean unknownNativeTypes = batch.schemaPinnedFromAnchorFile() && ExternalSourceResolver.nativeTypesUnknown(fileSchemaInfo);
         return new ResolvedFile(
             filePath,
             fileLength,

@@ -3752,21 +3752,35 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Whether this source is an inferred multi-file FIRST_FILE_WINS read, so every file is parsed
-     * at the anchor schema. Explicit single-file paths use their own schema; strict declared datasets
-     * use the declaration. A glob that matches one file still follows the multi-file resolver, so the
-     * source path (not {@code fileCount}) is the discriminator. Compute once per source, since parsing
-     * a comma-separated resource traverses the whole file list.
+     * Whether the read schema was pinned from one file rather than describing every file, so a second
+     * file's own types may differ from it. True for a multi-file FIRST_FILE_WINS read. An explicit
+     * single-file path is excluded because the pinned schema is that file's own schema; a glob matching
+     * one file still follows the multi-file resolver, so the source path (not {@code fileCount}) is the
+     * discriminator. Compute once per source, since parsing a comma-separated resource traverses the
+     * whole file list.
+     * <p>
+     * Deliberately does not ask how the schema was declared. A declared schema pinned across many files
+     * says no more about the second file's types than an inferred one does (esql-planning#2076).
+     */
+    public static boolean isSchemaPinnedFromAnchorFile(@Nullable String sourcePath, @Nullable Map<String, Object> config) {
+        if (GlobExpander.isMultiFile(sourcePath) == false) {
+            return false;
+        }
+        return effectiveSchemaResolution(config) == FormatReader.SchemaResolution.FIRST_FILE_WINS;
+    }
+
+    /**
+     * The pre-#2076 form: {@link #isSchemaPinnedFromAnchorFile} narrowed to inferred reads. Still read by
+     * {@code pinnedColumnsOf} and {@code EsqlSession}, which decide which columns to safe-miss on the
+     * read-schema-blind cache; widening those to strict reads changes cache occupancy, not correctness of
+     * a read, so it moves separately. Removed with the last provenance reader.
      */
     public static boolean isAnchorPinnedFirstFileWins(
         @Nullable String sourcePath,
         @Nullable Map<String, Object> config,
         @Nullable DeclaredReadSpec declaredReadSpec
     ) {
-        if (GlobExpander.isMultiFile(sourcePath) == false) {
-            return false;
-        }
-        if (effectiveSchemaResolution(config) != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
+        if (isSchemaPinnedFromAnchorFile(sourcePath, config) == false) {
             return false;
         }
         SchemaProvenance provenance = declaredReadSpec == null ? SchemaProvenance.INFERRED : declaredReadSpec.provenance();
@@ -3774,12 +3788,25 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * True when an anchor-pinned FIRST_FILE_WINS read has no native-type snapshot for this file.
-     * Unknown is not incompatible: column statistics must not be interpreted until the file's
-     * own types are known.
+     * True when this file's own column types were never read, so column statistics must not be
+     * interpreted against them. Unknown is not incompatible: it means nobody looked.
+     * <p>
+     * Asks the record whether its types were read rather than inferring it from how the schema was
+     * produced. {@code inferredTypes == null} alone cannot answer this - it is also what a file whose
+     * own schema IS the read schema carries - and keying on provenance instead gives two reads of the
+     * same bytes different answers, which is esql-planning#2076.
+     */
+    static boolean nativeTypesUnknown(@Nullable SchemaReconciliation.FileSchemaInfo info) {
+        return info == null || info.nativeTypesRead() == false;
+    }
+
+    /**
+     * The pre-#2076 form, still read by {@code pinnedColumnsOf} and {@code EsqlSession}: those two decide
+     * which columns to safe-miss on the read-schema-blind cache, and routing a strict read through
+     * "types unknown" there pins every column rather than none. Removed with the last provenance reader.
      */
     static boolean nativeTypesUnknown(@Nullable SchemaReconciliation.FileSchemaInfo info, boolean anchorPinnedFirstFileWins) {
-        return anchorPinnedFirstFileWins && (info == null || info.inferredTypes() == null);
+        return anchorPinnedFirstFileWins && nativeTypesUnknown(info);
     }
 
     /**

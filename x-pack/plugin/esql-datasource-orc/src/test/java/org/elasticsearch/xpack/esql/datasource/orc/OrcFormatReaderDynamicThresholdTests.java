@@ -51,6 +51,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -82,6 +83,32 @@ public class OrcFormatReaderDynamicThresholdTests extends ESTestCase {
         assertTrue(rows.contains(0L));
         assertTrue(rows.contains(99L));
         assertFalse(rows.contains(1_000L));
+    }
+
+    /**
+     * Pins CURRENT behaviour for esql-planning#2076: {@code StripeSkipTable.build} (private to {@link OrcFormatReader},
+     * so reached through a read) declines the stripe skip for a sort column that is merely declared, without comparing
+     * the declared type to the file's. {@code id} is declared yet read at its own {@code bigint}, and the two dominated
+     * stripes are still read in full; the same read over an undeclared {@code id} skips them. Once the decline is keyed
+     * on an actual retype, the declared arm is expected to skip like the plain one.
+     */
+    public void testStripeSkipDeclinedForSameTypedDeclaredSortColumn() throws Exception {
+        byte[] data = createMultiStripeOrcFile(3, (stripeIndex, batch) -> {
+            batch.size = 100;
+            LongColumnVector id = (LongColumnVector) batch.cols[0];
+            long base = stripeIndex * 1_000L;
+            for (int i = 0; i < batch.size; i++) {
+                id.vector[i] = base + i;
+            }
+        });
+
+        List<Long> declared = readIdsWithThreshold(data, threshold(99L, true, false), Set.of("id"));
+        assertThat("declared sort column: no stripe is skipped", declared.size(), equalTo(300));
+        assertTrue(declared.contains(1_000L));
+
+        List<Long> plain = readIdsWithThreshold(data, threshold(99L, true, false), Set.of());
+        assertThat("undeclared sort column: dominated stripes are skipped", plain.size(), equalTo(100));
+        assertFalse(plain.contains(1_000L));
     }
 
     public void testNoFurtherCandidatesExhaustsImmediately() throws Exception {
@@ -279,7 +306,12 @@ public class OrcFormatReaderDynamicThresholdTests extends ESTestCase {
     }
 
     private List<Long> readIdsWithThreshold(byte[] data, DynamicThreshold threshold) throws IOException {
-        OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withDynamicThreshold(threshold);
+        return readIdsWithThreshold(data, threshold, Set.of());
+    }
+
+    private List<Long> readIdsWithThreshold(byte[] data, DynamicThreshold threshold, Set<String> declaredColumns) throws IOException {
+        OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withDynamicThreshold(threshold)
+            .withDeclaredTypeColumns(declaredColumns);
         try (threshold; CloseableIterator<Page> iterator = reader.read(storageObject(data), List.of("id"), 128)) {
             List<Long> values = new ArrayList<>();
             while (iterator.hasNext()) {

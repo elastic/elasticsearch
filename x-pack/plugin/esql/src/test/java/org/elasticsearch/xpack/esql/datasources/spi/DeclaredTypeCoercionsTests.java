@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -62,6 +63,35 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
      * declarable set, checked against an independently-written expectation of the mapper-ingest
      * coercion rules (so a change to either side is caught).
      */
+    /**
+     * The licence an inferred column has today is {@link TypeWidening}'s lossless promotion; the licence a declared
+     * column has is {@link DeclaredTypeCoercions#supports}. esql-planning#2076 collapses the two so a file's column
+     * type is read the same way whatever produced the schema, and that collapse is only safe in one direction: every
+     * pair an inferred column may widen through must already be a supported pair, or giving both columns the
+     * {@code supports} licence would silently REFUSE a read that works today.
+     * <p>
+     * Enumerated over the whole {@link DataType} space rather than over the four promotions by name, so a promotion
+     * added to {@code TypeWidening} without a matching {@code supports} arm fails here instead of narrowing a read.
+     */
+    public void testEveryLosslessWideningIsAlsoACoerciblePair() {
+        List<String> gaps = new ArrayList<>();
+        for (DataType from : DataType.values()) {
+            for (DataType to : DataType.values()) {
+                if (from == to) {
+                    continue;
+                }
+                // "from widens to to" is widenLossless naming `to` as the common supertype.
+                if (to.equals(TypeWidening.widenLossless(from, to)) == false) {
+                    continue;
+                }
+                if (DeclaredTypeCoercions.supports(from, to) == false) {
+                    gaps.add(from + " -> " + to);
+                }
+            }
+        }
+        assertThat("a lossless widening that supports() does not admit would be refused after the collapse", gaps, empty());
+    }
+
     public void testSupportsPinnedToMapperCoercionSet() {
         Set<DataType> types = Set.of(
             DataType.KEYWORD,

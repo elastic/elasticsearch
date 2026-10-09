@@ -1471,6 +1471,56 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(Set.of("x"), ExternalSourceResolver.pinnedColumnsOf(driftInfo));
     }
 
+    /**
+     * Pins CURRENT behaviour for esql-planning#2076 on the strict declared rail ({@code dynamic: false}): every file is
+     * keyed to one shared {@code FileSchemaInfo} carrying the declaration, with {@code inferredTypes} null and no
+     * statistics, so a file whose footer type differs from the declaration is not identifiable from the map. The
+     * first-file-wins rail above snapshots each file's own footer type instead. Once the readers key coercion on the
+     * per-file types for declared and inferred columns alike, this rail is expected to record them too.
+     */
+    public void testStrictDeclaredMultiFileRecordsNoPerFileInferredTypes() throws Exception {
+        String anchorPath = "s3://bucket/data/a.parquet";
+        String driftPath = "s3://bucket/data/b.parquet";
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put(anchorPath, List.of(attr("x", DataType.INTEGER)));
+        schemasByPath.put(driftPath, List.of(attr("x", DataType.LONG)));
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(
+            StoragePath.of(DECLARED_GLOB).patternPrefix().toString(),
+            List.of(entry(anchorPath, 100), entry(driftPath, 200))
+        );
+
+        ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of("x", new DatasetFieldMapping("long", null)))
+        );
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of(DECLARED_GLOB),
+            Map.of(DECLARED_GLOB, new HashMap<>()),
+            null,
+            Map.of(DECLARED_GLOB, mapping),
+            null,
+            future
+        );
+        ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(DECLARED_GLOB);
+
+        assertNotNull(resolved);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = resolved.schemaMap();
+        assertEquals(2, schemaMap.size());
+        SchemaReconciliation.FileSchemaInfo anchorInfo = schemaMap.get(StoragePath.of(anchorPath));
+        SchemaReconciliation.FileSchemaInfo driftInfo = schemaMap.get(StoragePath.of(driftPath));
+        assertSame("one declared record backs both files", anchorInfo, driftInfo);
+        assertNull("the strict rail records no per-file footer types", driftInfo.inferredTypes());
+        assertNull("the strict rail harvests no statistics", driftInfo.statistics());
+        assertEquals(
+            "the read schema is the declaration, not the file's",
+            DataType.LONG,
+            driftInfo.fileSchema().attributes().get(0).dataType()
+        );
+        assertEquals("with no snapshot, no column reads as pinned", Set.of(), ExternalSourceResolver.pinnedColumnsOf(driftInfo));
+    }
+
     // ===== Stats partial / file-count flag tests =====
 
     /**

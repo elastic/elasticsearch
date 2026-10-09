@@ -6351,6 +6351,80 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * column with the summary + detail warnings; {@code skip_row} drops every row of the file, charged to the budget.
      * Both the optimized and the baseline row-at-a-time iterator.
      */
+    /**
+     * The inferred twin of {@link #testDeclaredUncoercibleColumnFollowsErrorMode}, pinning what this reader does
+     * TODAY so esql-planning#2076 can be told apart from a regression when it lands.
+     * <p>
+     * The file types {@code flag} as {@code int32} and the query wants {@code boolean}, a pair
+     * {@link DeclaredTypeCoercions#supports} rejects outright. For a DECLARED column that is a read failure of the
+     * whole column and {@code error_mode} decides it. For an inferred one the gate in
+     * {@code validatePlannerTypesAgainstFile} reads
+     * {@code if (declared && errorPolicy.isStrict())} / {@code else if (declared && SKIP_ROW)} / {@code else null},
+     * so every policy falls into the last arm: the column nulls and {@code error_mode} is never consulted. A user
+     * who asked for {@code fail_fast} still gets silent nulls.
+     * <p>
+     * When #2076 removes the {@code declared &&} terms this test flips: STRICT must throw, SKIP_ROW must drop the
+     * file's rows, and only PERMISSIVE keeps nulling. Both iterators are exercised because the optimized and
+     * baseline paths make this decision separately.
+     */
+    public void testInferredUncoercibleColumnNullsWhateverTheErrorMode() throws Exception {
+        assertInferredUncoercibleColumnNullsWhateverTheErrorMode(new ParquetFormatReader(blockFactory));
+        assertInferredUncoercibleColumnNullsWhateverTheErrorMode(new ParquetFormatReader(blockFactory, false));
+    }
+
+    private void assertInferredUncoercibleColumnNullsWhateverTheErrorMode(ParquetFormatReader r) throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("flag")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("id")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group a = factory.newGroup();
+            a.add("flag", 1);
+            a.add("id", 1);
+            Group b = factory.newGroup();
+            b.add("flag", 0);
+            b.add("id", 2);
+            return List.of(a, b);
+        });
+        List<Attribute> plannerTypes = List.of(
+            new ReferenceAttribute(Source.EMPTY, "flag", DataType.BOOLEAN),
+            new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER)
+        );
+        String location = StoragePath.of("s3://bucket/drift.parquet").objectName();
+        List<String> expectedWarnings = List.of(
+            DeclaredTypeCoercions.uncoercibleColumnsNullSummary(location),
+            "column [flag]: [integer] in the file, [boolean] in the query"
+        );
+
+        for (ErrorPolicy policy : List.of(
+            ErrorPolicy.STRICT,
+            ErrorPolicy.PERMISSIVE,
+            new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 0.0, false)
+        )) {
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    createStorageObject(parquetData, "s3://bucket/drift.parquet"),
+                    new RangeReadContext(List.of("flag", "id"), 10, 0, parquetData.length, plannerTypes, policy)
+                )
+            ) {
+                int rows = 0;
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    for (int i = 0; i < page.getPositionCount(); i++) {
+                        assertTrue("an inferred uncoercible column nulls under " + policy.mode(), page.getBlock(0).isNull(i));
+                    }
+                    assertEquals("the readable column is unaffected", 1, ((IntBlock) page.getBlock(1)).getInt(0));
+                    rows += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+                assertEquals("no row is dropped under " + policy.mode() + ": the policy is never consulted", 2, rows);
+            }
+            assertEquals("the same null summary under every policy", expectedWarnings, drainWarnings());
+        }
+    }
+
     public void testDeclaredUncoercibleColumnFollowsErrorMode() throws Exception {
         assertDeclaredUncoercibleColumnFollowsErrorMode(declaredReader("flag"));
         assertDeclaredUncoercibleColumnFollowsErrorMode(

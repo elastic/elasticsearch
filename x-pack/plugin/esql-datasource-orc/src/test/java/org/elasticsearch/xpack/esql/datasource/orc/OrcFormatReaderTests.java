@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.After;
@@ -85,7 +86,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
@@ -936,6 +939,53 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertNotSame("withPushedFilter(null) must fork when expressions are installed", filtered, cleared);
         assertSame("second null is identity", cleared, cleared.withPushedFilter(null));
         assertEquals(5, countRows((OrcFormatReader) cleared, storageObject, null, 1024));
+    }
+
+    /**
+     * Pins CURRENT behaviour for esql-planning#2076: {@code resolveSearchArgument} withholds an {@code IS NULL} pushdown
+     * over every declared-type column without comparing the declared type to the file's. Here {@code ts} is declared
+     * yet read at its own {@code bigint}, where decode can never mint a null, and the predicate is still withheld; the
+     * same predicate pushes over an undeclared {@code ts}. Once the withhold is keyed on an actual coercion, the
+     * declared arm is expected to push like the plain one.
+     */
+    public void testIsNullPushdownWithheldOverSameTypedDeclaredColumn() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("ts", TypeDescription.createLong())
+            .addField("name", TypeDescription.createString());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            LongColumnVector tsCol = (LongColumnVector) batch.cols[0];
+            BytesColumnVector nameCol = (BytesColumnVector) batch.cols[1];
+            for (int i = 0; i < 3; i++) {
+                tsCol.vector[i] = 1_000L * i;
+                nameCol.setVal(i, ("row-" + i).getBytes(StandardCharsets.UTF_8));
+            }
+        });
+        OrcPushedExpressions isNullOverTs = new OrcPushedExpressions(
+            List.of(new IsNull(Source.EMPTY, new ReferenceAttribute(Source.EMPTY, "ts", DataType.LONG)))
+        );
+
+        OrcReaderStatus declared = drainWithPushedExpressions(orcData, declaredReader("ts"), isNullOverTs);
+        assertFalse("declared ts: IS NULL is withheld although no coercion applies", declared.predicatePushdownUsed());
+        assertThat(declared.predicateColumns(), empty());
+
+        OrcReaderStatus plain = drainWithPushedExpressions(orcData, new OrcFormatReader(blockFactory), isNullOverTs);
+        assertTrue("undeclared ts: IS NULL pushes", plain.predicatePushdownUsed());
+        assertThat(plain.predicateColumns(), contains("ts"));
+    }
+
+    /** Installs {@code pushed} on {@code base}, drains the file with fresh counters and returns their snapshot. */
+    private OrcReaderStatus drainWithPushedExpressions(byte[] orcData, OrcFormatReader base, OrcPushedExpressions pushed)
+        throws IOException {
+        OrcFormatReader reader = (OrcFormatReader) base.withPushedFilter(pushed);
+        OrcReaderCounters counters = (OrcReaderCounters) reader.newReadCounters();
+        FormatReadContext context = FormatReadContext.builder().batchSize(1024).readCounters(counters).build();
+        try (CloseableIterator<Page> iterator = reader.read(createStorageObject(orcData), context)) {
+            while (iterator.hasNext()) {
+                iterator.next().releaseBlocks();
+            }
+        }
+        return counters.snapshot();
     }
 
     public void testReadWithPushedFilterMatchingAll() throws Exception {

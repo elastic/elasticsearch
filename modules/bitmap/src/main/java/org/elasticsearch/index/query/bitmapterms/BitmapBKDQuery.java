@@ -31,6 +31,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.DocIdSetBuilder;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.RamUsageEstimator;
 
@@ -405,6 +406,27 @@ public class BitmapBKDQuery extends Query implements Accountable {
             return -1;
         }
 
+        int runEndFrom(int current) {
+            int end = current + 1;
+            int i = position;
+            while (i < size && docs[i] == end) {
+                end++;
+                i++;
+            }
+            return end;
+        }
+
+        int drainBelow(int upTo, FixedBitSet bitSet, int offset) {
+            while (position < size) {
+                int doc = docs[position++];
+                if (doc >= upTo) {
+                    return doc;
+                }
+                bitSet.set(doc - offset);
+            }
+            return -1;
+        }
+
         @Override
         public void grow(int count) {
             docs = ArrayUtil.grow(docs, size + count);
@@ -515,6 +537,29 @@ public class BitmapBKDQuery extends Query implements Accountable {
                 }
             }
             return doc = NO_MORE_DOCS;
+        }
+
+        @Override
+        public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+            assert offset <= doc : "offset=" + offset + " doc=" + doc + " upTo=" + upTo;
+            if (doc >= upTo) {
+                return;
+            }
+            bitSet.set(doc - offset);
+            int next = visitor.drainBelow(upTo, bitSet, offset);
+            while (next == -1) {
+                if (nextCellWithMatches() == false) {
+                    doc = NO_MORE_DOCS;
+                    return;
+                }
+                next = visitor.drainBelow(upTo, bitSet, offset);
+            }
+            emit(next);
+        }
+
+        @Override
+        public int docIDRunEnd() {
+            return visitor.runEndFrom(doc);
         }
 
         /**

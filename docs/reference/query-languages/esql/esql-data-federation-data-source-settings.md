@@ -1,6 +1,6 @@
 ---
 navigation_title: "Data source settings"
-description: "Reference for ES|QL Data Federation data source settings, including Amazon S3 connection, endpoint, and authentication settings."
+description: "Configure how ES|QL Data Federation data sources connect and authenticate to Amazon S3, including endpoint, region, and credential settings."
 applies_to:
   stack: experimental 9.5+
   serverless: unavailable

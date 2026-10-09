@@ -406,6 +406,21 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         assertThat(Expressions.names(as(aggregate.child(), Eval.class).fields()), contains("a", "b"));
     }
 
+    /** Like {@link #testKeepsPrunedAliasReadByKeptGrouping}, but {@code b} reads the pruned {@code a} as an aggregate input. */
+    public void testKeepsPrunedAliasReadByAggregateInput() {
+        var plan = externalPlan("""
+            FROM ext_ds
+            | EVAL a = ClientIP - 1, b = a * 2
+            | STATS s = SUM(b) BY ClientIP, a
+            """);
+
+        var project = rewrittenProject(plan);
+        assertThat(Expressions.names(project.projections()), contains("s", "ClientIP", "a"));
+        var aggregate = rewrittenAggregate(as(project.child(), Eval.class));
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP"));
+        assertThat(Expressions.names(as(aggregate.child(), Eval.class).fields()), contains("a", "b"));
+    }
+
     /**
      * {@code d} is unused but reads the pruned {@code a}. Both go: dropping only {@code a} would leave {@code d} dangling, and
      * keeping {@code a} for {@code d} would compute it for every row although nothing needs either.

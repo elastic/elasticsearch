@@ -7,13 +7,10 @@
 
 package org.elasticsearch.xpack.wildcard.heappressure;
 
-import org.elasticsearch.client.Request;
-
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -64,6 +61,6 @@ public class WildcardFieldWildcardHeapPressureIT extends WildcardFieldHeapPressu
         // Otherwise no automaton is ever retained, and the test only covers the cost of building one.
         assertThat("expected some of the requests to get past the breaker and hold their automaton", rejected, lessThan(THREAD_COUNT));
         // Check that the node didn't OOM and is still alive.
-        assertThat(client().performRequest(new Request("GET", "/")).getStatusLine().getStatusCode(), equalTo(200));
+        assertNodeAlive();
     }
 }

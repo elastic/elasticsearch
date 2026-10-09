@@ -26,6 +26,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,6 +39,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -402,6 +405,86 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         }
     }
 
+    /**
+     * A wide tree under {@code max_discovered_files=5} must not throw when every folder is pruned: one inference
+     * anchor is listed, the row filter yields zero rows, and the scan opens nothing.
+     */
+    public void testAllPrunedListsOneAnchorUnderLowCap() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        updateClusterSettings(Settings.builder().put("esql.external.max_discovered_files", 5));
+        try {
+            for (String distribution : List.of("round_robin", "coordinator_only")) {
+                assertAllPrunedZeroRows(
+                    registerWideTree("csv_anchor_" + distribution, "csv", Map.of()),
+                    "WHERE month == 5 AND day == 1",
+                    distribution
+                );
+                assertAllPrunedZeroRows(registerWideTree("csv_pfx_" + distribution, "csv", Map.of()), "WHERE year == 2099", distribution);
+            }
+            assertAllPrunedZeroRows(
+                registerWideTree("csv_anchor_ffw", "csv", Map.of("schema_resolution", "first_file_wins")),
+                "WHERE month == 5 AND day == 1",
+                "coordinator_only"
+            );
+        } finally {
+            updateClusterSettings(Settings.builder().putNull("esql.external.max_discovered_files"));
+        }
+    }
+
+    private void assertAllPrunedZeroRows(String dataset, String filterClause, String distribution) {
+        QueryPragmas pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), distribution).build());
+        String[] tails = {
+            filterClause + " | STATS COUNT(*)",
+            filterClause + " | STATS MIN(id), MAX(id)",
+            filterClause + " | KEEP * | LIMIT 10",
+            filterClause + " | STATS COUNT(*) BY month",
+            filterClause + " | LIMIT 0" };
+        for (String tail : tails) {
+            var request = syncEsqlQueryRequest("FROM " + dataset + " | " + tail);
+            request.pragmas(pragmas);
+            request.acceptedPragmaRisks(true);
+            request.profile(true);
+            try (var response = run(request)) {
+                List<List<Object>> rows = getValuesList(response);
+                if (tail.endsWith("STATS COUNT(*)")) {
+                    assertThat("[" + distribution + " " + tail + "]", rows.size(), equalTo(1));
+                    assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(0L));
+                } else if (tail.contains("MIN(id)")) {
+                    assertThat(rows.size(), equalTo(1));
+                    assertNull(rows.get(0).get(0));
+                    assertNull(rows.get(0).get(1));
+                } else {
+                    assertThat("[" + distribution + " " + tail + "] no rows", rows, empty());
+                }
+                if (tail.endsWith("LIMIT 0")) {
+                    List<String> names = response.columns().stream().map(c -> c.name()).toList();
+                    assertThat(names, hasItems("month", "day"));
+                    Map<String, String> types = new LinkedHashMap<>();
+                    response.columns().forEach(c -> types.put(c.name(), c.type().esType()));
+                    assertEquals("integer", types.get("month"));
+                    assertEquals("integer", types.get("day"));
+                }
+                assertThat(
+                    "[" + distribution + " " + tail + "] filesScanned",
+                    response.getExecutionInfo().queryProfile().filesScanned(),
+                    equalTo(0)
+                );
+                List<AsyncExternalSourceOperator.Status> statuses = externalScanStatuses(response);
+                if (tail.endsWith("LIMIT 0") == false) {
+                    assertThat(
+                        "[" + distribution + " " + tail + "] scan operator must run so its zero-I/O can be asserted",
+                        statuses,
+                        not(empty())
+                    );
+                }
+                for (AsyncExternalSourceOperator.Status status : statuses) {
+                    assertEquals(0, status.splitsTotal());
+                    assertEquals(0L, status.bytesRead());
+                }
+            }
+        }
+    }
+
     // -- NOT-EQUALS on a partition column: prunes the excluded folder, keeps the rest --
 
     public void testCsvNotEqualsPrunesExcludedYear() throws Exception {
@@ -562,6 +645,22 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     public void testKeyedGlobPrunesTheListing() throws Exception {
         String dataset = registerKeyedTree("csv_keyed", "csv");
         assertPrune(dataset, "WHERE year == 2025", TOTAL_FILES, 4, idsWhere((y, m, d) -> y == 2025));
+    }
+
+    /**
+     * {@code city=New%20York} is the on-disk spelling of New York. An IN must return that row and Paris, and not
+     * Berlin, on both a keyed {@code city=*} glob and a {@code **} glob.
+     */
+    public void testKeyedCityInKeepsPercentEncodedFolder() throws Exception {
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String dataset = registerCityTree("csv_city_keyed", "/city=*/**/*.csv");
+        assertPrune(dataset, "WHERE city IN (\"New York\", \"Paris\")", 3, 2, List.of(1L, 2L));
+    }
+
+    public void testGlobstarCityInKeepsPercentEncodedFolder() throws Exception {
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String dataset = registerCityTree("csv_city_globstar", "/**/*.csv");
+        assertPrune(dataset, "WHERE city IN (\"New York\", \"Paris\")", 3, 2, List.of(1L, 2L));
     }
 
     /** Same, across all three keys, so every segment of the glob is rewritten. */
@@ -756,9 +855,9 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
 
     /**
      * Registers {@code d=-0e0}, {@code d=0e0} and {@code d=1e5}, one single-row file each, with ids 0, 1 and 2. The
-     * zeros are spelled in exponent form because a Hive segment containing a dot is not a partition; that spelling is
-     * also what types {@code d} as {@code DOUBLE}. {@code keyedGlob} names {@code d=*} in the glob, which takes the textual
-     * rewrite instead of the listing walk; the default {@code **} glob is the one the walk narrows.
+     * zeros are spelled in exponent form, which types {@code d} as {@code DOUBLE}. {@code keyedGlob} names {@code d=*}
+     * in the glob, which takes the textual rewrite instead of the listing walk; the default {@code **} glob is the one
+     * the walk narrows.
      */
     private String registerSignedZeroTree(String name, String format, boolean keyedGlob) throws IOException {
         Path root = createTempDir().resolve(name);
@@ -771,6 +870,51 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + (keyedGlob ? "/d=*/**/*." : "/**/*.") + format;
         return registerDataset(name, glob, Map.of("partition_detection", "hive"));
+    }
+
+    /** An empty Hive folder {@code k=} is the value {@code ""}. {@code k == "x"} returns the other file. */
+    public void testCsvEmptyPartitionFolderFilters() throws Exception {
+        String name = "csv_empty_k";
+        Path root = createTempDir().resolve(name);
+        Path empty = root.resolve("k=");
+        Path valued = root.resolve("k=x");
+        Files.createDirectories(empty);
+        Files.createDirectories(valued);
+        Files.writeString(empty.resolve("f.csv"), "id\n1\n", StandardCharsets.UTF_8);
+        Files.writeString(valued.resolve("f.csv"), "id\n2\n", StandardCharsets.UTF_8);
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        String dataset = registerDataset(name, glob, Map.of("partition_detection", "hive"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE k == \"x\" | KEEP id"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(1));
+            assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(2));
+        }
+    }
+
+    /** {@code price=1.5} is a partition value. A filter on {@code year} returns both prices. */
+    public void testCsvDottedPricePartitionValue() throws Exception {
+        String name = "csv_dotted_price";
+        Path root = createTempDir().resolve(name);
+        Path decimal = root.resolve("year=2024").resolve("price=1.5");
+        Path integral = root.resolve("year=2024").resolve("price=2");
+        Files.createDirectories(decimal);
+        Files.createDirectories(integral);
+        Files.writeString(decimal.resolve("f1.csv"), "v\n1\n", StandardCharsets.UTF_8);
+        Files.writeString(integral.resolve("f2.csv"), "v\n2\n", StandardCharsets.UTF_8);
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        String dataset = registerDataset(name, glob, Map.of("partition_detection", "hive"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE year == 2024 | KEEP v, price | SORT v"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(2));
+            assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
+            assertThat(((Number) rows.get(0).get(1)).doubleValue(), equalTo(1.5));
+            assertThat(((Number) rows.get(1).get(0)).intValue(), equalTo(2));
+            assertThat(((Number) rows.get(1).get(1)).doubleValue(), equalTo(2.0));
+        }
     }
 
     /** Registers the 8-file {@code year/month/day} fixture and asserts the filter's pruning + rows. */
@@ -934,6 +1078,25 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     }
 
     /**
+     * Three city folders, one row each: {@code New%20York} (id 1), {@code Paris} (id 2), {@code Berlin} (id 3).
+     * {@code globSuffix} is appended to the directory URI and must contain {@code **} so the local provider recurses.
+     */
+    private String registerCityTree(String name, String globSuffix) throws IOException {
+        Path root = createTempDir().resolve(name);
+        writeCity(root, "New%20York", 1);
+        writeCity(root, "Paris", 2);
+        writeCity(root, "Berlin", 3);
+        String glob = StoragePath.fileUri(root) + globSuffix;
+        return registerDataset(name, glob, Map.of("partition_detection", "hive"));
+    }
+
+    private static void writeCity(Path root, String folderValue, int id) throws IOException {
+        Path dir = root.resolve("city=" + folderValue);
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("f.csv"), "id\n" + id + "\n", StandardCharsets.UTF_8);
+    }
+
+    /**
      * The same 8-file tree, registered with a glob that <em>names</em> its partition keys — {@code year=*},
      * {@code month=*}, {@code day=*} — instead of hiding them behind a bare {@code **}.
      *
@@ -963,6 +1126,28 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's trailing '/**' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/year=*/month=*/day=*/**/*." + format;
         return registerDataset(name, glob, Map.of("partition_detection", "hive"));
+    }
+
+    /**
+     * {@code year=2026/month={07,08,09}/day=01..12/} (36 files) plus {@code _SUCCESS} per month. Glob keyed under
+     * {@code year=2026/} so {@code year == 2099} is prefix-bound (flat) while {@code month == 5} walks.
+     */
+    private String registerWideTree(String name, String format, Map<String, Object> extraSettings) throws IOException {
+        Path root = createTempDir().resolve(name);
+        for (int month : List.of(7, 8, 9)) {
+            Path monthDir = root.resolve("year=2026").resolve("month=" + pad2(month));
+            Files.createDirectories(monthDir);
+            Files.writeString(monthDir.resolve("_SUCCESS"), "", StandardCharsets.UTF_8);
+            for (int day = 1; day <= 12; day++) {
+                writeFile(root, 2026, month, day, format);
+            }
+        }
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/year=2026/month=*/**/*." + format;
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("partition_detection", "hive");
+        settings.putAll(extraSettings);
+        return registerDataset(name, glob, settings);
     }
 
     /**

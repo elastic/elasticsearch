@@ -333,6 +333,50 @@ teardown:
   - match: { _source.foo: "" }
 
 ---
+"Test set processor with copy_from handles BigInteger":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "set": {
+                  "field": "copied_big_int",
+                  "copy_from": "big_int"
+                }
+              },
+              {
+                "script": {
+                  "description": "Divide by 10000000000 to produce a value the test framework can assert on -- the YAML test runner cannot parse integers larger than Long.MAX_VALUE from JSON responses",
+                  "lang": "painless",
+                  "source": "ctx.divided = ((java.math.BigInteger)ctx.copied_big_int).divide(new java.math.BigInteger(\"10000000000\")).longValueExact()"
+                }
+              },
+              {
+                "remove": {
+                  "field": ["big_int", "copied_big_int"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body:
+          big_int: 12345678900000000000
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.divided: 1234567890 }
+
+---
 "Test set processor with more interesting mustache":
   - do:
       ingest.put_pipeline:

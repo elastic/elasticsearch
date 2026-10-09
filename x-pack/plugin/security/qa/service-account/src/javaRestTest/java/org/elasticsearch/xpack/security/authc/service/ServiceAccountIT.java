@@ -87,7 +87,8 @@ public class ServiceAccountIT extends ESRestTestCase {
             "cluster": [
                 "monitor",
                 "read_ilm",
-                "read_slm"
+                "read_slm",
+                "cluster:admin/xpack/searchable_snapshots/cache/stats"
             ],
             "indices": [
                 {
@@ -433,6 +434,7 @@ public class ServiceAccountIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .name("service-account-cluster")
         .nodes(2)
         .module("analysis-common")
         .module("reindex")
@@ -955,6 +957,6 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> fileTokens = (Map<String, Object>) nodes.get("file_tokens");
         assertThat(fileTokens, hasKey("token1"));
         final Map<String, Object> token1 = (Map<String, Object>) fileTokens.get("token1");
-        assertThat((List<String>) token1.get("nodes"), equalTo(List.of("test-cluster-0", "test-cluster-1")));
+        assertThat((List<String>) token1.get("nodes"), equalTo(List.of("service-account-cluster-0", "service-account-cluster-1")));
     }
 }

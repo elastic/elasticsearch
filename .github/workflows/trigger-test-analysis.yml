@@ -77,7 +77,7 @@ jobs:
             const labelUpdateOptedIn = issueLabels.some((label) => TRIAGE_LABEL_OPTIN.includes(label));
             const triageMode = labelUpdateOptedIn ? 'full' : 'blocker-only';
 
-            core.setOutput('reportToPr', !commentOptedOut);
+            core.setOutput('skipComment', commentOptedOut);
             core.setOutput('triageMode', triageMode);
 
       - name: Trigger Buildkite pipeline
@@ -87,19 +87,16 @@ jobs:
           ISSUE_URL:    ${{ github.event.issue.html_url }}
           ISSUE_TITLE:  ${{ github.event.issue.title }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
-          REPORT_TO_PR: ${{ steps.team-config.outputs.reportToPr }}
+          ARCHIMEDES_SKIP_COMMENT: ${{ steps.team-config.outputs.skipComment }}
           ARCHIMEDES_TRIAGE_MODE: ${{ steps.team-config.outputs.triageMode }}
         run: |
           set -euo pipefail
-
-          DRY_RUN=$(jq -n --argjson report "$REPORT_TO_PR" '$report | not')
 
           BODY=$(jq -n \
             --arg url   "$ISSUE_URL" \
             --arg title "$ISSUE_TITLE" \
             --arg num   "$ISSUE_NUMBER" \
-            --argjson report "$REPORT_TO_PR" \
-            --argjson dryRun "$DRY_RUN" \
+            --arg skipComment "$ARCHIMEDES_SKIP_COMMENT" \
             --arg triageMode "$ARCHIMEDES_TRIAGE_MODE" \
             '{
               branch:  "main",
@@ -108,8 +105,7 @@ jobs:
               env: {
                 ISSUE_URL: $url,
                 WORKFLOW: "test-analysis",
-                REPORT_TO_PR: ($report | tostring),
-                DRY_RUN: ($dryRun | tostring),
+                ARCHIMEDES_SKIP_COMMENT: $skipComment,
                 ARCHIMEDES_TRIAGE_MODE: $triageMode
               }
             }')

@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -23,6 +24,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.QueryFailureTelemetry;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -293,13 +296,43 @@ public class PlanExecutor {
         metrics.total(clientId);
 
         var begin = System.nanoTime();
+        ActionListener<Versioned<Result>> releasingListener = bindPlanningReservation(
+            services,
+            executionInfo,
+            externalSourceResolver,
+            listener
+        );
         ActionListener<Versioned<Result>> executeListener = wrap(
-            x -> onQuerySuccess(request, listener, x, planTelemetry, services.usageService(), executionInfo, begin),
-            ex -> onQueryFailure(request, listener, ex, clientId, planTelemetry, begin)
+            x -> onQuerySuccess(request, releasingListener, x, planTelemetry, services.usageService(), executionInfo, begin),
+            ex -> onQueryFailure(request, releasingListener, ex, clientId, planTelemetry, begin)
         );
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
         // and all the metrics are properly updated
-        ActionListener.run(executeListener, l -> session.execute(request, executionInfo, planRunner, l));
+        ActionListener.run(executeListener, l -> session.execute(request, executionInfo, planRunner, cancellation, l));
+    }
+
+    /**
+     * Creates the query's external-planning reservation, which charges listings, schema maps and split shells to the
+     * request breaker, and returns {@code listener} wrapped to close it. Creating and closing it here, around the whole
+     * session, releases it for every caller whether the session succeeds, fails, or throws synchronously out of
+     * {@code session.execute}. The release runs after this class's telemetry in {@link #onQuerySuccess} and
+     * {@link #onQueryFailure} and before {@code listener}, so callers must not use the reservation once notified.
+     * Without a breaker there is nothing to charge and {@code listener} is returned as is.
+     */
+    private static ActionListener<Versioned<Result>> bindPlanningReservation(
+        TransportActionServices services,
+        EsqlExecutionInfo executionInfo,
+        ExternalSourceResolver externalSourceResolver,
+        ActionListener<Versioned<Result>> listener
+    ) {
+        BlockFactory blockFactory = services.blockFactoryProvider().blockFactory();
+        if (blockFactory == null || blockFactory.breaker() == null) {
+            return listener;
+        }
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(blockFactory.breaker());
+        executionInfo.externalPlanning(reservation);
+        externalSourceResolver.planning(reservation);
+        return ActionListener.releaseBefore(reservation, listener);
     }
 
     private void onQuerySuccess(
@@ -357,7 +390,8 @@ public class PlanExecutor {
      * Publishes the per-query external-source coordinator metrics — but only when the query actually scanned an
      * external source ({@code externalSource}: an {@code ExternalRelation} was seen in the analyzed plan, flagged on
      * {@code PlanTelemetry}). The outcome is classified from {@code failure}: {@code null} → success; a
-     * {@link TaskCancelledException} anywhere in the cause chain → cancelled; anything else → failure. A hard failure
+     * {@link TaskCancelledException} anywhere in the cause chain → cancelled; anything else → failure, which is further
+     * classified by {@link QueryFailureTelemetry} into an {@code error_type} and HTTP status. A hard failure
      * that unwraps to a {@link CircuitBreakingException} additionally bumps {@code breaker.tripped}. Best-effort: the
      * {@code recordX} methods self-guard, so an instrumentation failure never affects the query outcome.
      * <p>
@@ -390,7 +424,12 @@ public class PlanExecutor {
         } else {
             outcome = ExternalSourceMetrics.OUTCOME_FAILURE;
         }
-        externalSourceMetrics.recordQuery(outcome, durationMillis, partial);
+        if (ExternalSourceMetrics.OUTCOME_FAILURE.equals(outcome)) {
+            QueryFailureTelemetry.Failure classified = QueryFailureTelemetry.classify(failure);
+            externalSourceMetrics.recordQuery(outcome, durationMillis, partial, classified.errorType(), classified.status());
+        } else {
+            externalSourceMetrics.recordQuery(outcome, durationMillis, partial);
+        }
         // Only hard-failure breaker trips are attributed here: a CB that instead produced is_partial=true reaches the
         // success path with failure==null and is NOT counted (its CircuitBreakingException is not cleanly reachable at
         // this seam — see the javadoc "Known gap"). The partial is still counted via queries.partial.total above.

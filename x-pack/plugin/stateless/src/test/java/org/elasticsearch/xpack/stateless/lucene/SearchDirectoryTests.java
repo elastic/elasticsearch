@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -40,6 +41,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
@@ -47,6 +49,7 @@ import org.elasticsearch.xpack.stateless.cache.TimestampCapturingEvictionPolicy;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -151,11 +154,7 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(super.nodeSettings())
                     .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
-                    .put(
-                        StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING.getKey(),
-                        timestampBackfillEnabled
-                    );
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize);
                 return settings.build();
             }
 
@@ -206,6 +205,30 @@ public class SearchDirectoryTests extends ESTestCase {
                 ThreadPool threadPool,
                 MeterRegistry MeterRegistry
             ) {
+                if (timestampBackfillEnabled) {
+                    return new StatelessSharedBlobCacheService(
+                        nodeEnvironment,
+                        settings,
+                        clusterSettings,
+                        threadPool,
+                        BlobCacheMetrics.NOOP,
+                        new DefaultEvictionPolicy<FileCacheKey>() {
+                            @Override
+                            public boolean hasRegionTimestampProtection() {
+                                return true;
+                            }
+                        },
+                        System::nanoTime,
+                        threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
+                        new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                    ) {
+                        @Override
+                        protected boolean assertOffsetsWithinFileLength(long offset, long length, long fileLength) {
+                            // this test tries to read beyond the file length
+                            return true;
+                        }
+                    };
+                }
                 StatelessSharedBlobCacheService statelessSharedBlobCacheService = new StatelessSharedBlobCacheService(
                     nodeEnvironment,
                     settings,
@@ -249,7 +272,7 @@ public class SearchDirectoryTests extends ESTestCase {
             final var blobContainer = searchDirectory.getBlobContainer(primaryTerm);
             final int minFileSize = CodecUtil.footerLength();
 
-            final String blobName = StatelessCompoundCommit.blobNameFromGeneration(1L);
+            final String blobName = BatchedCompoundCommit.blobNameFromGeneration(1L);
             long blobLength = 0L;
             long generation = 0L;
 
@@ -687,8 +710,8 @@ public class SearchDirectoryTests extends ESTestCase {
             final var genFileSeg1 = "_1_1.fnm"; // soft-delete of segment _1, first written into BCC (1,2)
 
             // Backing bytes for the two BCC blobs so the generational files can actually be opened once their BCC is pinned.
-            writeBlob(blobContainer, StatelessCompoundCommit.blobNameFromGeneration(1L), 300);
-            writeBlob(blobContainer, StatelessCompoundCommit.blobNameFromGeneration(2L), 300);
+            writeBlob(blobContainer, BatchedCompoundCommit.blobNameFromGeneration(1L), 300);
+            writeBlob(blobContainer, BatchedCompoundCommit.blobNameFromGeneration(2L), 300);
 
             // Notification for the commit in BCC (1,1): segment _0 and its first soft-delete gen file, all internal to BCC (1,1).
             searchDirectory.updateCommit(
@@ -762,7 +785,6 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
                     .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING.getKey(), true)
                     .build();
             }
 
@@ -848,7 +870,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 equalTo(MINIMAL_CACHE_TIMESTAMP)
             );
 
-            final var metadataBlobName = StatelessCompoundCommit.blobNameFromGeneration(3L);
+            final var metadataBlobName = BatchedCompoundCommit.blobNameFromGeneration(3L);
             final var metadataTermAndGen = new PrimaryTermAndGeneration(1L, 3L);
             searchDirectory.updateLatestUploadedBcc(metadataTermAndGen);
             var metadataReadDirectory = searchDirectory.createMetadataReadDirectory(true);
@@ -908,7 +930,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 equalTo(BACKFILL_IN_PROGRESS_TIMESTAMP)
             );
             assertThat(
-                "backfill should be disabled when timestamp backfill setting is off",
+                "backfill should be disabled when the eviction policy has no timestamp protection",
                 directory.timestampBackfillEnabled(),
                 equalTo(false)
             );
@@ -944,7 +966,7 @@ public class SearchDirectoryTests extends ESTestCase {
         // Time-based shard with timestamp backfill enabled.
         try (var node = createFakeStatelessNode(regionSize, cacheSize, true, true)) {
             assertThat(
-                "backfill should be enabled when timestamp backfill setting is on",
+                "backfill should be enabled when the eviction policy has timestamp protection",
                 SearchDirectory.unwrapDirectory(node.searchStore.directory()).timestampBackfillEnabled(),
                 equalTo(true)
             );
@@ -1057,7 +1079,6 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
                     .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING.getKey(), true)
                     .build();
             }
 
@@ -1108,8 +1129,8 @@ public class SearchDirectoryTests extends ESTestCase {
             final long primaryTerm = 1L;
             final var orphanTermAndGen = new PrimaryTermAndGeneration(primaryTerm, 1L);
             final var reReadTermAndGen = new PrimaryTermAndGeneration(primaryTerm, 2L);
-            final var orphanBlobName = StatelessCompoundCommit.blobNameFromGeneration(orphanTermAndGen.generation());
-            final var reReadBlobName = StatelessCompoundCommit.blobNameFromGeneration(reReadTermAndGen.generation());
+            final var orphanBlobName = BatchedCompoundCommit.blobNameFromGeneration(orphanTermAndGen.generation());
+            final var reReadBlobName = BatchedCompoundCommit.blobNameFromGeneration(reReadTermAndGen.generation());
 
             final var orphanKey = new FileCacheKey(node.shardId, primaryTerm, orphanBlobName);
             final var reReadKey = new FileCacheKey(node.shardId, primaryTerm, reReadBlobName);

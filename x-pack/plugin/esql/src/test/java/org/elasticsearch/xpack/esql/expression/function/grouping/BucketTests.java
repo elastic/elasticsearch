@@ -841,7 +841,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         td,
                         range,
                         null,
-                        new MemoryTrackingTDigestArrays(new NoopCircuitBreaker("noop"))
+                        new MemoryTrackingTDigestArrays(NoopCircuitBreaker.INSTANCE)
                     );
                     default -> throw new AssertionError("unexpected histogram [" + histogram + "]");
                 };

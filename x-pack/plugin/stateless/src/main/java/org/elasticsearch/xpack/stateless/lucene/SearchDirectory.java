@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -132,7 +133,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     /**
      * Whether BCC metadata reads on this shard should stamp {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} and be backfilled
-     * after parsing. Requires a time-based index and the metadata-read timestamp backfill setting to be enabled.
+     * after parsing. Requires a time-based index and the eviction policy to consider timestamps.
      */
     public boolean timestampBackfillEnabled() {
         return hasTimestampField && cacheService.isMetadataTimestampBackfillEnabled();
@@ -402,7 +403,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             final long maxBccGen = maxBccGeneration;
             cacheService.forceEvict(shardId, (key, region) -> {
                 final String blobName = key.fileName();
-                final long bccGeneration = StatelessCompoundCommit.parseGenerationFromBlobName(blobName);
+                final long bccGeneration = BatchedCompoundCommit.parseGenerationFromBlobName(blobName);
 
                 BitSet activeRegions = activeRegionsByBccGen.get(bccGeneration);
                 if (activeRegions != null && activeRegions.get(region)) {

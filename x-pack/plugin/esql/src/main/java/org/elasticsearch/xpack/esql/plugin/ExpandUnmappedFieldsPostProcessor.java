@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -18,6 +19,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.analysis.UnmappedFieldsOrdering;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -35,14 +38,15 @@ import org.elasticsearch.xpack.esql.session.Result;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.isApproximationColumn;
 
@@ -67,27 +71,81 @@ import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.isApp
  * The data node only puts keys into the column that hold a value, so no expanded column comes out null in every row -
  * {@link #assertNoAllNullExpandedColumn} holds that end of the contract down.
  * <p>
+ * At most {@link #MAX_EXPANDED_FIELDS} discovered fields become columns, with a warning if there were
+ * more.
+ * <p>
+ * The expansion scans every row of every page twice (once to collect field names, once to rewrite), so it polls for cancellation
+ * every {@link #ROWS_PER_CANCELLATION_CHECK} rows and throws {@link TaskCancelledException} to abort promptly. Cancellation is
+ * therefore row-granular: a single pathological row (deeply nested {@code _source} with very many leaves) still parses and flattens
+ * to completion before the next poll. That is acceptable here because expansion cost scales with row count rather than any one row,
+ * and the circuit breaker - not cancellation - is what bounds the memory a wide row can demand.
+ * <p>
  * TODO every row's {@code _source} ends up parsed three times: the data node parses it to filter the column, then the
  *  coordinator parses the column once to collect field names and once more to expand them. A columnar shape — one block of
  *  names and one of values — would let us build the union while reading and expand without re-parsing.
  */
 public final class ExpandUnmappedFieldsPostProcessor {
     /**
+     * The most discovered fields a {@code LOAD_ALL} result expands into. Without a cap, a wide or heterogeneous index turns every
+     * distinct {@code _source} leaf into a column, and merely collecting their names - before a single column is built - is enough
+     * to exhaust the coordinator's heap. 1000 matches the default of {@code index.mapping.total_fields.limit}.
+     * <p>
+     * The cap is deliberately decoupled from that setting: it is per index and often raised, and it is ambiguous which index's limit
+     * would apply to a query over several. A hard-coded value is the starting point; making it configurable is a follow-up.
+     * <p>
+     * The cap keeps the alphabetically first names, so which fields survive does not depend on the order pages arrive in.
+     * {@code KEEP} or {@code DROP} can be used to reach fields that would go over the limit.
+     */
+    static final int MAX_EXPANDED_FIELDS = 1000;
+
+    /**
+     * How often the expansion loops poll {@code isCancelled}. The expansion is a coordinator-side, single-threaded scan over every row
+     * of every page (parsing each row's {@code _source} JSON), so for a wide or high-row {@code LOAD_ALL} result it can run for seconds.
+     * Polling every {@value} rows keeps cancellation latency to a small fraction of a page while adding no measurable overhead per row.
+     * Must stay a power of two for the bit-mask test below.
+     */
+    private static final int ROWS_PER_CANCELLATION_CHECK = 1024;
+
+    static {
+        assert Integer.bitCount(ROWS_PER_CANCELLATION_CHECK) == 1 : "ROWS_PER_CANCELLATION_CHECK must be a power of two for the bit-mask";
+    }
+
+    /**
+     * Test-only seam invoked once at the start of the expansion phase — after a {@code _unmapped_fields} column has been confirmed
+     * present but before any page is scanned. Production never installs a hook (the field stays {@code null}), so this adds a single
+     * volatile read per {@code LOAD_ALL} response and nothing otherwise. {@code LoadAllCancellationIT} installs a hook that blocks
+     * until it has cancelled the task, which lets it deterministically land a cancellation inside an in-progress expansion (rather than
+     * during the compute phase, where the drivers would abort first) and assert that the per-row {@link #ROWS_PER_CANCELLATION_CHECK}
+     * poll then aborts it. Volatile so the coordinator thread running the expansion observes the test's write.
+     */
+    static volatile Runnable expansionStartedForTest = null;
+
+    /**
      * Expands the {@code _unmapped_fields} column in {@code result} into per-field columns.
      * Returns {@code result} unchanged if no {@link UnmappedFieldsAttribute} is present in the schema.
+     *
+     * @param isCancelled polled every {@link #ROWS_PER_CANCELLATION_CHECK} rows during the (potentially long) expansion; when it reports
+     *                    the task cancelled the expansion throws {@link TaskCancelledException} and releases the input and any partially
+     *                    built pages, so an expensive expansion can be cancelled promptly instead of only after it finishes.
      */
     public static Result expand(
         Result result,
         @Nullable UnmappedFieldsOrdering ordering,
         BlockFactory blockFactory,
-        PlannerSettings plannerSettings
+        PlannerSettings plannerSettings,
+        BooleanSupplier isCancelled
     ) {
         List<Attribute> schema = result.schema();
 
-        int unmappedIdx = CollectionUtils.findIndex(schema, e -> e instanceof UnmappedFieldsAttribute);
+        int unmappedIdx = unmappedFieldsIndex(schema);
         if (unmappedIdx == -1) {
             return result;
         }
+        // From #160286: the expansion below is a CPU-heavy, coordinator-side scan over every row of every page, so it must run on the
+        // esql_worker pool (EsqlSession dispatches it there) rather than a transport/search thread. The guard sits after the no-op early
+        // return so the "no unmapped fields" path, which completes inline on the calling thread, is unaffected. assertCurrentThreadPool is
+        // a no-op on test threads, so unit tests that call expand() directly are not impacted.
+        assert ThreadPool.assertCurrentThreadPool(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
         double reservationFactor = plannerSettings.sourceReservationFactor();
         UnmappedFieldsAttribute unmappedAttribute = (UnmappedFieldsAttribute) schema.get(unmappedIdx);
         UnmappedFieldsPattern pattern = unmappedAttribute.pattern();
@@ -96,19 +154,24 @@ public final class ExpandUnmappedFieldsPostProcessor {
         // is left below. Page#releaseBlocks is idempotent, so re-releasing pages rewritePage already drained is a no-op.
         boolean success = false;
         try {
-            var fieldNames = collectFieldNames(result, unmappedIdx, pattern, blockFactory.breaker(), reservationFactor);
-            Set<String> existingNames = existingColumnNames(schema, unmappedIdx);
-            List<String> expandedFieldNames = new ArrayList<>(fieldNames.size());
-            // A discovered field name that collides with an existing column name is dropped, not an error: with flattening a
-            // discovered field mapped in one index can also appear in another's _source, and the per-shard UnmappedKeywordBlockLoader
-            // already filled that column, so the value is kept.
-            for (String name : fieldNames) {
-                if (existingNames.contains(name) == false) {
-                    expandedFieldNames.add(name);
-                }
+            // Run the test seam inside the try so a throwing hook releases the input pages through the finally below, exactly like a
+            // cancellation or parsing failure would.
+            Runnable expansionStarted = expansionStartedForTest;
+            if (expansionStarted != null) {
+                expansionStarted.run();
             }
-            // TODO account for newSchema's field names against the circuit breaker. A wide _source turns into a wide schema, and
-            // unlike the pages, the response schema has no breaker-tracked lifetime to release it against today.
+            Set<String> existingNames = existingColumnNames(schema, unmappedIdx);
+            List<String> expandedFieldNames = collectFieldNames(
+                result,
+                unmappedIdx,
+                pattern,
+                existingNames,
+                blockFactory.breaker(),
+                reservationFactor,
+                isCancelled
+            );
+            // TODO account for newSchema's field names against the circuit breaker. MAX_EXPANDED_FIELDS bounds how many there are,
+            // but not how long each is, and unlike the pages the response schema has no breaker-tracked lifetime to release it against.
             ExpandedLayout layout = computeLayout(schema, unmappedIdx, expandedFieldNames, ordering);
             List<Page> newPages = rewritePages(
                 result,
@@ -117,7 +180,8 @@ public final class ExpandUnmappedFieldsPostProcessor {
                 layout.schema(),
                 layout.blockOrder(),
                 blockFactory,
-                reservationFactor
+                reservationFactor,
+                isCancelled
             );
 
             Result expanded = new Result(
@@ -138,44 +202,137 @@ public final class ExpandUnmappedFieldsPostProcessor {
         }
     }
 
+    /** Whether {@link #expand} would rewrite a result with this schema, i.e. the synthetic {@code _unmapped_fields} column is present. */
+    public static boolean hasUnmappedFields(List<Attribute> schema) {
+        return unmappedFieldsIndex(schema) != -1;
+    }
+
+    /** Index of the synthetic {@code _unmapped_fields} column in {@code schema}, or {@code -1} if none is present. */
+    private static int unmappedFieldsIndex(List<Attribute> schema) {
+        return CollectionUtils.findIndex(schema, e -> e instanceof UnmappedFieldsAttribute);
+    }
+
     /**
-     * Collect the unique field names (sorted) carried by {@code _unmapped_fields} across all pages.
+     * Collect the field names carried by {@code _unmapped_fields} across all pages that become output columns: the alphabetically
+     * first {@link #MAX_EXPANDED_FIELDS} that match {@code pattern} and do not collide with {@code existingNames}, sorted. Adds a
+     * warning if that cut off any.
      * <p>
-     * Every key here earns an output column, which is why the data node drops the keys that carry no value - see
+     * Every name returned earns an output column, which is why the data node drops the keys that carry no value - see
      * {@code UnmappedFieldsBlockLoader} and {@link #assertNoAllNullExpandedColumn}.
      * <p>
-     * TODO cap this set. Every distinct key in any row's {@code _source} becomes an output column, so a wide or
-     *  heterogeneous index can blow the response up into thousands of columns.
+     * A discovered field name that collides with an existing column name is dropped, not an error: with flattening a discovered field
+     * mapped in one index can also appear in another's {@code _source}, and the per-shard UnmappedKeywordBlockLoader already filled
+     * that column, so the value is kept. Such names are dropped before the cap, so they do not take up its slots.
      * <p>
      * TODO walk the JSON with a parser instead of materialising a whole {@code Map} only to flatten it to field names. That would
      *  also make the reservation below unnecessary.
      */
-    private static SortedSet<String> collectFieldNames(
+    private static List<String> collectFieldNames(
         Result result,
         int unmappedIdx,
         UnmappedFieldsPattern pattern,
+        Set<String> existingNames,
         CircuitBreaker breaker,
-        double reservationFactor
+        double reservationFactor,
+        BooleanSupplier isCancelled
     ) {
-        TreeSet<String> fieldNames = new TreeSet<>();
+        FieldNameCollector fieldNames = new FieldNameCollector(pattern, existingNames);
         BytesRef scratch = new BytesRef();
         for (Page page : result.pages()) {
             BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
             for (int row = 0; row < unmappedBlock.getPositionCount(); row++) {
+                if ((row & (ROWS_PER_CANCELLATION_CHECK - 1)) == 0) {
+                    throwIfCancelled(isCancelled);
+                }
                 if (unmappedBlock.isNull(row)) {
                     continue;
                 }
                 BytesRef json = getBytesRef(unmappedBlock, row, scratch);
                 long reservation = reserveForParse(json, breaker, reservationFactor);
                 try {
-                    collectLeaves("", parseJson(json), (name, value) -> fieldNames.add(name));
+                    collectLeaves("", parseJson(json), fieldNames);
                 } finally {
                     breaker.addWithoutBreaking(-reservation);
                 }
             }
         }
-        fieldNames.removeIf(name -> pattern.matches(name) == false);
-        return fieldNames;
+        if (fieldNames.truncated) {
+            HeaderWarning.addWarning(
+                "unmapped_fields=\"LOAD_ALL\" found more than [{}] fields in _source; only the first [{}] in alphabetical order are "
+                    + "returned. Use KEEP or DROP to select the others.",
+                MAX_EXPANDED_FIELDS,
+                MAX_EXPANDED_FIELDS
+            );
+        }
+        return fieldNames.sortedNames();
+    }
+
+    /**
+     * Essentially a max-heap that keeps the alphabetically first {@link #MAX_EXPANDED_FIELDS} distinct names it is fed, and never more
+     * than one extra. The same name typically turns up in many rows, so the kept names also live in a hash set: encountering the same
+     * name twice costs one lookup, and deciding if a new name is alphabetically later than any already encountered one costs one
+     * comparison against the head of the heap. Only a new name that makes the cut pays the heap's logarithmic insert.
+     */
+    private static final class FieldNameCollector implements BiConsumer<String, Object> {
+        private final UnmappedFieldsPattern pattern;
+        private final Set<String> existingNames;
+        private final Set<String> keptNames = new HashSet<>();
+        /** The same names as {@link #keptNames}, largest first, so the one to evict is always at the head. */
+        private final PriorityQueue<String> largestFirst = new PriorityQueue<>(Comparator.reverseOrder());
+        /** Whether a wanted name was dropped for lack of room, i.e. there were more than {@link #MAX_EXPANDED_FIELDS}. */
+        private boolean truncated = false;
+
+        FieldNameCollector(UnmappedFieldsPattern pattern, Set<String> existingNames) {
+            this.pattern = pattern;
+            this.existingNames = existingNames;
+        }
+
+        @Override
+        public void accept(String name, Object ignoredValue) {
+            if (keptNames.contains(name)) {
+                return;
+            }
+            if (largestFirst.size() == MAX_EXPANDED_FIELDS && name.compareTo(largestFirst.peek()) > 0) {
+                // Strictly greater than every kept name, so it is a distinct name that does not make the cut. Once one wanted name
+                // has been dropped there is no need to check whether any later one is wanted.
+                if (truncated == false && wanted(name)) {
+                    truncated = true;
+                }
+                return;
+            }
+            if (wanted(name) == false) {
+                return;
+            }
+            keptNames.add(name);
+            largestFirst.add(name);
+            if (largestFirst.size() > MAX_EXPANDED_FIELDS) {
+                keptNames.remove(largestFirst.poll());
+                truncated = true;
+            }
+        }
+
+        private boolean wanted(String name) {
+            return existingNames.contains(name) == false && pattern.matches(name);
+        }
+
+        /**
+         * Drains the heap, largest first, into a list from the back, leaving the names in ascending order. The collector is spent
+         * afterwards: it holds no names anymore.
+         */
+        List<String> sortedNames() {
+            String[] sorted = new String[largestFirst.size()];
+            for (int i = sorted.length - 1; i >= 0; i--) {
+                sorted[i] = largestFirst.poll();
+            }
+            return Arrays.asList(sorted);
+        }
+    }
+
+    /** Throws {@link TaskCancelledException} if {@code isCancelled} reports the query cancelled, so a long expansion aborts promptly. */
+    private static void throwIfCancelled(BooleanSupplier isCancelled) {
+        if (isCancelled.getAsBoolean()) {
+            throw new TaskCancelledException("task cancelled during unmapped fields expansion");
+        }
     }
 
     /**
@@ -252,7 +409,13 @@ public final class ExpandUnmappedFieldsPostProcessor {
         if (orderedExpandedAttributes == null || orderedExpandedAttributes.size() != dataColumnCount + expandedFieldsAttributes.size()) {
             // Either nothing was captured, or the replay disagrees with the executed schema because something rewrote the shape
             // after analysis. Fall back to the natural real-then-discovered order rather than dropping or duplicating a column.
-            assert ordering == null : "unmapped fields ordering replay diverged from the executed schema";
+            assert ordering == null
+                : Strings.format(
+                    "unmapped fields ordering replay diverged from the executed schema: replay=%s executedWithoutUfa=%s discovered=%s",
+                    orderedExpandedAttributes == null ? "null" : orderedExpandedAttributes.stream().map(Attribute::name).toList(),
+                    nameToSchemaIdx.keySet(),
+                    expandedFieldsNames
+                );
             orderedExpandedAttributes = new ArrayList<>(dataColumnCount + expandedFieldsAttributes.size());
             for (int i = 0; i < originalColumnCount; i++) {
                 if (i != unmappedIdx && isApproximationColumn(schema.get(i).name()) == false) {
@@ -296,7 +459,8 @@ public final class ExpandUnmappedFieldsPostProcessor {
         List<Attribute> newSchema,
         int[] blockOrder,
         BlockFactory factory,
-        double reservationFactor
+        double reservationFactor,
+        BooleanSupplier isCancelled
     ) {
         int originalColumnCount = result.schema().size();
         Set<String> keep = Set.copyOf(expandedFieldsNames);
@@ -305,7 +469,17 @@ public final class ExpandUnmappedFieldsPostProcessor {
         try {
             for (Page p : result.pages()) {
                 newPages.add(
-                    rewritePage(unmappedIdx, keep, expandedFieldsNames, blockOrder, originalColumnCount, factory, p, reservationFactor)
+                    rewritePage(
+                        unmappedIdx,
+                        keep,
+                        expandedFieldsNames,
+                        blockOrder,
+                        originalColumnCount,
+                        factory,
+                        p,
+                        reservationFactor,
+                        isCancelled
+                    )
                 );
             }
             assert assertNoAllNullExpandedColumn(newPages, newSchema, expandedFieldsNames);
@@ -360,7 +534,8 @@ public final class ExpandUnmappedFieldsPostProcessor {
         int originalColumnCount,
         BlockFactory blockFactory,
         Page page,
-        double reservationFactor
+        double reservationFactor,
+        BooleanSupplier isCancelled
     ) {
         int expandedFieldsCount = expandedFieldsNames.size();
         Block[] allBlocks = new Block[blockOrder.length];
@@ -384,6 +559,8 @@ public final class ExpandUnmappedFieldsPostProcessor {
             // and skip the wasted per-row _source re-parse.
             if (expandedFieldsCount > 0) {
                 BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
+                // TODO a column that is null in every row of this page could be a constant null block instead of a builder, which would
+                // save the memory of builders - one per expanded field, each sized for the whole page - that end up holding nothing.
                 Arrays.setAll(builders, i -> blockFactory.newBytesRefBlockBuilder(page.getPositionCount()));
                 // ------ Naming convention ------
                 // "leaf" = JSON string
@@ -402,6 +579,9 @@ public final class ExpandUnmappedFieldsPostProcessor {
                 };
                 CircuitBreaker breaker = blockFactory.breaker();
                 for (int row = 0; row < page.getPositionCount(); row++) {
+                    if ((row & (ROWS_PER_CANCELLATION_CHECK - 1)) == 0) {
+                        throwIfCancelled(isCancelled);
+                    }
                     if (unmappedBlock.isNull(row)) {
                         appendRow(Map.of(), expandedFieldsNames, builders, valueScratch);
                         continue;

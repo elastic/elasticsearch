@@ -398,7 +398,7 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
     public void testColumnarPayload_withInlineNull_skipsNullSlot() throws IOException {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
             LuceneDocument doc = new LuceneDocument();
-            ColumnarBinaryDocValuesField.recordNull(doc, "name");
+            ColumnarBinaryDocValuesField.recordNull(doc, "name", null);
             ColumnarBinaryDocValuesField.recordValue(doc, "name", new BytesRef("zebra"), ValueOrdering.UNSORTED);
             ColumnarBinaryDocValuesField.recordValue(doc, "name", new BytesRef("bob"), ValueOrdering.UNSORTED);
             w.addDocument(doc);
@@ -422,12 +422,12 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
     public void testColumnarPayload_noNonNullSlot_readsAsMissing() throws IOException {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
             LuceneDocument allNull = new LuceneDocument();
-            ColumnarBinaryDocValuesField.recordNull(allNull, "name");
-            ColumnarBinaryDocValuesField.recordNull(allNull, "name");
+            ColumnarBinaryDocValuesField.recordNull(allNull, "name", null);
+            ColumnarBinaryDocValuesField.recordNull(allNull, "name", null);
             w.addDocument(allNull);
 
             LuceneDocument emptyArray = new LuceneDocument();
-            ColumnarBinaryDocValuesField.recordEmptyArray(emptyArray, "name");
+            ColumnarBinaryDocValuesField.recordEmptyArray(emptyArray, "name", null);
             w.addDocument(emptyArray);
 
             try (DirectoryReader reader = DirectoryReader.open(w)) {
@@ -453,7 +453,7 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
             w.addDocument(first);
 
             LuceneDocument allNull = new LuceneDocument();
-            ColumnarBinaryDocValuesField.recordNull(allNull, "name");
+            ColumnarBinaryDocValuesField.recordNull(allNull, "name", null);
             w.addDocument(allNull);
 
             w.addDocument(new LuceneDocument()); // field absent entirely
@@ -504,11 +504,11 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
                 final LuceneDocument doc = new LuceneDocument();
                 if (slots != null) {
                     if (slots.length == 0) {
-                        ColumnarBinaryDocValuesField.recordEmptyArray(doc, "name");
+                        ColumnarBinaryDocValuesField.recordEmptyArray(doc, "name", null);
                     }
                     for (String slot : slots) {
                         if (slot == null) {
-                            ColumnarBinaryDocValuesField.recordNull(doc, "name");
+                            ColumnarBinaryDocValuesField.recordNull(doc, "name", null);
                         } else {
                             ColumnarBinaryDocValuesField.recordValue(doc, "name", new BytesRef(slot), ValueOrdering.UNSORTED);
                         }

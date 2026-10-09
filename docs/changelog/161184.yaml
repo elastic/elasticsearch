@@ -1,0 +1,5 @@
+pr: 161184
+summary: "[Inference API] Accept explicit null optional fields in OpenAI chat completion chunks"
+area: Inference
+type: bug
+issues: []

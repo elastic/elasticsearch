@@ -25,7 +25,7 @@ final class InferenceStringFieldInferenceResponse extends FieldInferenceResponse
     /** The position of the input within its source field. */
     private final int sourceFieldInputIndex;
     /** the inference results. */
-    private final EmbeddingResults.Embedding<?> inferenceResults;
+    private final List<? extends EmbeddingResults.Embedding<?>> inferenceResults;
 
     InferenceStringFieldInferenceResponse(
         String field,
@@ -33,18 +33,18 @@ final class InferenceStringFieldInferenceResponse extends FieldInferenceResponse
         int fieldInputOrder,
         int sourceFieldInputIndex,
         @Nullable Model model,
-        EmbeddingResults.Embedding<?> inferenceResults
+        List<? extends EmbeddingResults.Embedding<?>> inferenceResults
     ) {
         super(field, sourceField, fieldInputOrder, model);
         this.sourceFieldInputIndex = sourceFieldInputIndex;
-        this.inferenceResults = inferenceResults;
+        this.inferenceResults = List.copyOf(inferenceResults);
     }
 
     public int sourceFieldInputIndex() {
         return sourceFieldInputIndex;
     }
 
-    public EmbeddingResults.Embedding<?> inferenceResults() {
+    public List<? extends EmbeddingResults.Embedding<?>> inferenceResults() {
         return inferenceResults;
     }
 
@@ -53,7 +53,7 @@ final class InferenceStringFieldInferenceResponse extends FieldInferenceResponse
         if (useLegacyFormat) {
             throw new IllegalStateException("Legacy semantic text format does not support non-text chunks for field [" + field() + "]");
         }
-        return List.of(SemanticTextField.toSemanticFieldChunk(sourceFieldInputIndex, inferenceResults, contentType));
+        return SemanticTextField.toSemanticFieldChunks(sourceFieldInputIndex, inferenceResults, contentType);
     }
 
     @Override

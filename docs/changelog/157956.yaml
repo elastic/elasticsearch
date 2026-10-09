@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 157956
+summary: "Fix `CASE` with a single-value list condition, and report multivalued conditions\
+  \ with the standard `single-value function encountered multi-value` warning"
+type: bug

@@ -9,22 +9,23 @@
 
 package org.elasticsearch.columnar.string;
 
-import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
+import org.elasticsearch.columnar.substrate.ColumnTestFiles;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 
@@ -44,9 +45,8 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
  */
 public abstract class ColumnarStringTestCase extends ESTestCase {
 
-    private static final String DATA_FILE = "str.cnd";
+    private static final String COLUMN_FILES = "str";
     private static final String META_FILE = "str.cnm";
-    private static final String DATA_CODEC = "ColumnarStringTestData";
     private static final String META_CODEC = "ColumnarStringTestMeta";
 
     /** What a test does with the column it asked for. */
@@ -182,9 +182,23 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
             StringColumnOptions.DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
             compressedOrdinalBlockSize,
             StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
-            slotCountsBlockSize
+            slotCountsBlockSize,
+            randomLengthBlockSize(blockSize)
         );
         withColumn(docSlots, new StringColumnOptions(policy, StringColumnOptions.DEFAULT_SUMMARY, chunkCodec, sizes), check);
+    }
+
+    /**
+     * A block of lengths that is the block of values doubled a random number of times, up to the largest
+     * block the format writes. Sized off the values so a block of them lands on a block of lengths, and
+     * random so the columns these tests write cross a varying number of them.
+     */
+    protected static int randomLengthBlockSize(int valuesPerBlock) {
+        int size = valuesPerBlock;
+        while (size < ColumNARDocValuesFormat.MAX_BLOCK_SIZE && randomBoolean()) {
+            size <<= 1;
+        }
+        return size;
     }
 
     /** As above, with every choice named at once, for a test that cares about one the overloads do not reach. */
@@ -193,8 +207,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         random().nextBytes(segmentId);
         try (Directory dir = newDirectory()) {
             final StringColumnMetadata metadata = writeColumn(dir, segmentId, docSlots, options);
-            try (IndexInput data = openData(dir, segmentId)) {
-                check.check(metadata, StringColumnReader.open(metadata, data));
+            try (ColumnTestFiles.Inputs inputs = ColumnTestFiles.open(dir, COLUMN_FILES, segmentId)) {
+                check.check(metadata, StringColumnReader.open(metadata, inputs.inputs()));
             }
         }
     }
@@ -300,6 +314,37 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         return numValues;
     }
 
+    /** What the consumer counts before writing a column: documents, slots, nulls and the value lengths. */
+    protected static StringColumnValues.Totals totals(final BytesRef[][] docSlots) {
+        int minLength = -1;
+        int maxLength = -1;
+        for (BytesRef[] slots : docSlots) {
+            if (slots == null) {
+                continue;
+            }
+            for (BytesRef slot : slots) {
+                if (slot != null) {
+                    minLength = minLength < 0 ? slot.length : Math.min(minLength, slot.length);
+                    maxLength = Math.max(maxLength, slot.length);
+                }
+            }
+        }
+        boolean oneSlotADocument = true;
+        for (BytesRef[] slots : docSlots) {
+            if (slots != null) {
+                oneSlotADocument &= slots.length == 1;
+            }
+        }
+        return new StringColumnValues.Totals(
+            numDocsWithField(docSlots),
+            numValues(docSlots),
+            numNullSlots(docSlots),
+            minLength,
+            maxLength,
+            oneSlotADocument
+        );
+    }
+
     /** The total number of null slots across every document. */
     protected static long numNullSlots(final BytesRef[][] docSlots) {
         long numNullSlots = 0;
@@ -322,21 +367,17 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final StringColumnOptions options
     ) throws IOException {
         final StringColumnMetadata written;
-        try (IndexOutput out = dir.createOutput(DATA_FILE, IOContext.DEFAULT)) {
-            ColumnarCodecUtil.writeHeader(out, DATA_CODEC, FormatVersion.CURRENT, segmentId, "");
+        try (ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, COLUMN_FILES, segmentId)) {
             written = StringColumnWriter.write(
                 docSlots.length,
-                numDocsWithField(docSlots),
-                numValues(docSlots),
-                numNullSlots(docSlots),
+                totals(docSlots),
                 () -> cursor(docSlots),
                 options,
                 null,
                 dir,
                 IOContext.DEFAULT,
-                out
+                out.outputs()
             );
-            ColumnarCodecUtil.writeFooter(out);
         }
         try (IndexOutput meta = dir.createOutput(META_FILE, IOContext.DEFAULT)) {
             ColumnarCodecUtil.writeHeader(meta, META_CODEC, FormatVersion.CURRENT, segmentId, "");
@@ -348,21 +389,6 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
             final StringColumnMetadata read = StringColumnMetadata.readFrom(in, docSlots.length, version);
             ColumnarCodecUtil.checkFooter(in);
             return read;
-        }
-    }
-
-    private static IndexInput openData(final Directory dir, final byte[] segmentId) throws IOException {
-        final IndexInput data = dir.openInput(DATA_FILE, IOContext.DEFAULT);
-        boolean success = false;
-        try {
-            CodecUtil.checksumEntireFile(data);
-            ColumnarCodecUtil.checkHeader(data, DATA_CODEC, segmentId, "");
-            success = true;
-            return data;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(data);
-            }
         }
     }
 
@@ -431,5 +457,55 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 return docSlots.length;
             }
         };
+    }
+
+    /**
+     * A sink that takes a page as the values its documents hold, whichever shape the page arrived in. The values are
+     * copies, so they outlive the page.
+     */
+    protected abstract static class ValuesSink implements StringBlockSink {
+        /** Whether the last page arrived as ordinals. */
+        protected boolean wasOrdinals;
+
+        /** The page's values in document order, and how many each document holds, or null where each holds one. */
+        protected abstract void page(List<BytesRef> values, int[] valueCounts, int docCount);
+
+        @Override
+        public void appendOrdinals(int[] ordinals, int valueCount, int[] valueCounts, int docCount, BytesRef[] dictionary, int size) {
+            wasOrdinals = true;
+            final List<BytesRef> values = new ArrayList<>(valueCount);
+            for (int i = 0; i < valueCount; i++) {
+                assertTrue("ordinal in range", ordinals[i] >= 0 && ordinals[i] < size);
+                values.add(BytesRef.deepCopyOf(dictionary[ordinals[i]]));
+            }
+            page(values, valueCounts, docCount);
+        }
+
+        @Override
+        public Values values(int valueCount, int[] valueCounts, int docCount) {
+            wasOrdinals = false;
+            final List<BytesRef> values = new ArrayList<>(valueCount);
+            return new Values() {
+                private boolean finished;
+
+                @Override
+                public void append(BytesRef value) {
+                    assertFalse("appended to a finished page", finished);
+                    values.add(BytesRef.deepCopyOf(value));
+                }
+
+                @Override
+                public void finish() {
+                    assertEquals("values handed over", valueCount, values.size());
+                    finished = true;
+                    page(values, valueCounts, docCount);
+                }
+
+                @Override
+                public void close() {
+                    assertTrue("a page was closed without being finished", finished);
+                }
+            };
+        }
     }
 }

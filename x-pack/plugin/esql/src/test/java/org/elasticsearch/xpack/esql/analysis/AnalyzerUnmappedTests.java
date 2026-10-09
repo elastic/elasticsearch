@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -55,6 +56,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -63,6 +65,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.nonLoadablePunkWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
@@ -449,12 +452,12 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             """), containsString("Only a single FORK command is supported, but found multiple"));
     }
 
-    public void testLoadModeRejectsSubqueryUnionForkWithDroppedUnmappedField() {
+    public void testLoadModeAllowsSubqueryUnionForkWithDroppedUnmappedField() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        partialMappingTest().statementError(setUnmappedLoad("""
+        partialMappingTest().statement(setUnmappedLoad("""
             FROM (FROM partial_mapping_sample_data),(FROM partial_mapping_sample_data)
             | FORK (DROP unmapped_message) (WHERE true)
-            """), containsString("FORK after subquery is not supported"));
+            """));
     }
 
     public void testNullifyLookupJoinExpressionWithNullifiedFields() {
@@ -623,8 +626,11 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      * same-named column) — a loaded {@link FieldAttribute}, or a {@code ReferenceAttribute} to it once above a FORK/union. #142033.
      */
     private void expectInSubqueryLeftKeyResolved(String column, String query) {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-        LogicalPlan plan = partialMappingTest().statement(setUnmappedLoad(query));
+        expectInSubqueryLeftKeyPlan(column, setUnmappedLoad(query));
+    }
+
+    private void expectInSubqueryLeftKeyPlan(String column, String queryWithSet) {
+        LogicalPlan plan = partialMappingTest().statement(queryWithSet);
         assertThat("plan should be fully resolved once the IN left key loads from _source", plan.resolved(), is(true));
         assertThat("column [" + column + "] should be present in the resolved output", Expressions.names(plan.output()), hasItem(column));
         plan.forEachDown(AbstractSubqueryJoin.class, join -> {
@@ -711,8 +717,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statement(setUnmappedLoad("FROM (FROM test),(FROM test),(FROM test)"));
     }
 
-    // Nested subqueries are rejected by checkNestedUnionAlls, which runs at post-optimization (not during analysis), so the
-    // analyzer no longer fails this statement once the subquery+load restriction is lifted (#142033).
+    // Nested subqueries and their optional fields are resolved bottom-up.
     public void testLoadModeAllowsNestedSubqueriesAtAnalysis() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         test().addLanguages()
@@ -738,35 +743,18 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statement(setUnmappedLoad("FROM (FROM test) | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"));
     }
 
-    // The subquery+load restriction is lifted (#142033), but FORK after a subquery is still rejected (checkFork, post-analysis).
-    public void testLoadModeDisallowsMultipleSubqueriesPlusFork() {
+    public void testLoadModeAllowsMultipleSubqueriesPlusFork() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        test().statementError(
-            setUnmappedLoad("FROM (FROM test),(FROM test) | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"),
-            allOf(
-                containsString("Found 2 problems"),
-                // error below appears twice
-                containsString("line 1:34: FORK after subquery is not supported")
-            )
-        );
+        test().statement(setUnmappedLoad("FROM (FROM test),(FROM test) | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"));
     }
 
-    // The subquery+load restriction is lifted (#142033), but FORK after a subquery is still rejected (checkFork, post-analysis).
-    public void testLoadModeDisallowsSubqueryAndFork() {
+    public void testLoadModeAllowsSubqueryAndFork() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var query = setUnmappedLoad("""
             FROM test, (FROM languages | WHERE language_code > 1)
             | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
             """);
-        test().addLanguages()
-            .statementError(
-                query,
-                allOf(
-                    containsString("Found 2 problems"),
-                    // error below appears twice
-                    containsString("line 1:34: FORK after subquery is not supported")
-                )
-            );
+        test().addLanguages().statement(query);
     }
 
     public void testLoadModeAllowsNonBranchingViewEquivalent() {
@@ -1484,7 +1472,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; ["
+                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
                         + commandAndLabel.v2()
                         + "] is not supported yet"
                 )
@@ -1536,6 +1524,120 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statementError(setUnmappedLoad(query), containsString("No matches found for pattern [_inde*]"));
     }
 
+    public void testLoadAllModeAllowsSingleSubqueryInFrom() {
+        test().statement(setUnmappedLoadAll("FROM (FROM test)"));
+    }
+
+    public void testLoadAllModeAllowsMainIndexPlusSubquery() {
+        test().addLanguages().statement(setUnmappedLoadAll("FROM test, (FROM languages | WHERE language_code > 1)"));
+        assertWarnings(nonLoadablePunkWarning("gender", "text"), nonLoadablePunkWarning("job", "text"));
+    }
+
+    public void testLoadAllModeAllowsTwoSubqueriesWithoutMainIndex() {
+        test().statement(setUnmappedLoadAll("FROM (FROM test),(FROM test)"));
+    }
+
+    public void testLoadAllModeAllowsThreeSubqueries() {
+        test().statement(setUnmappedLoadAll("FROM (FROM test),(FROM test),(FROM test)"));
+    }
+
+    public void testLoadAllSubqueryEvalThenKeepExactNamesDoesNotExpand() {
+        LogicalPlan plan = partialMappingTest().statement(setUnmappedLoadAll("""
+            FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+                 (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+            | EVAL dur = unmapped_event_duration::long
+            | KEEP message, dur
+            | SORT message
+            """));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("message", "dur")));
+    }
+
+    public void testLoadAllSubqueryMappedConflictStaysUnsupported() {
+        TestAnalyzer a = sampleDataAndSampleDataStr();
+        for (String query : List.of(
+            "FROM (FROM sample_data_str), (FROM sample_data)",
+            "FROM (FROM sample_data_str METADATA _source), (FROM sample_data METADATA _source)"
+        )) {
+            LogicalPlan plan = a.statement(setUnmappedLoadAll(query));
+            var clientIp = EsqlTestUtils.singleValue(plan.output().stream().filter(attr -> attr.name().equals("client_ip")).toList());
+            assertThat(query, clientIp, instanceOf(UnsupportedAttribute.class));
+            assertThat(query, ((UnsupportedAttribute) clientIp).originalTypes(), equalTo(List.of("keyword", "ip")));
+        }
+    }
+
+    public void testLoadAllSubqueryDropIpMappingLeavesKeywordClientIp() {
+        assertThat(clientIpAfterDroppingOneMappedBranch("", " | DROP client_ip").dataType(), equalTo(DataType.KEYWORD));
+    }
+
+    public void testLoadAllSubqueryDropKeywordMappingLeavesIpClientIp() {
+        assertThat(clientIpAfterDroppingOneMappedBranch(" | DROP client_ip", "").dataType(), equalTo(DataType.IP));
+    }
+
+    public void testLoadAllSubqueryDropClientIpInEveryBranchIsUnknownColumn() {
+        sampleDataAndSampleDataStr().statementError(setUnmappedLoadAll("""
+            FROM (FROM sample_data_str METADATA _index | DROP client_ip), (FROM sample_data METADATA _index | DROP client_ip)
+            | KEEP client_ip, _index
+            """), containsString("Unknown column [client_ip]"));
+    }
+
+    private Attribute clientIpAfterDroppingOneMappedBranch(String sampleDataStrSuffix, String sampleDataSuffix) {
+        LogicalPlan plan = sampleDataAndSampleDataStr().statement(
+            setUnmappedLoadAll(
+                "FROM (FROM sample_data_str METADATA _index"
+                    + sampleDataStrSuffix
+                    + "), (FROM sample_data METADATA _index"
+                    + sampleDataSuffix
+                    + ")\n| KEEP client_ip, _index"
+            )
+        );
+        return EsqlTestUtils.singleValue(plan.output().stream().filter(attr -> attr.name().equals("client_ip")).toList());
+    }
+
+    private TestAnalyzer sampleDataAndSampleDataStr() {
+        Map<String, EsField> mapping = new LinkedHashMap<>(loadMapping("mapping-sample_data.json"));
+        mapping.put("client_ip", new EsField("client_ip", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        return analyzer().addSampleData()
+            .addIndex(
+                new EsIndex(
+                    "sample_data_str",
+                    mapping,
+                    Map.of("sample_data_str", new IndexProperties(IndexMode.STANDARD, 0)),
+                    Map.of(),
+                    Map.of()
+                )
+            );
+    }
+
+    public void testLoadAllSubqueryNonLoadableWarns() {
+        var mapped = new EsIndex(
+            "idx1",
+            Map.of("tx", aggregateMetricDoubleField("tx")),
+            Map.of("idx1", new IndexProperties(IndexMode.STANDARD, 0)),
+            Map.of(),
+            Map.of()
+        );
+        var unmapped = new EsIndex(
+            "idx2",
+            Map.of("id", keywordField("id")),
+            Map.of("idx2", new IndexProperties(IndexMode.STANDARD, 0)),
+            Map.of(),
+            Map.of()
+        );
+        var plan = analyzer().addIndex(mapped).addIndex(unmapped).statement(setUnmappedLoadAll("FROM (FROM idx1), (FROM idx2) | KEEP tx"));
+        var tx = EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals("tx")).toList());
+        assertThat(tx.dataType(), equalTo(DataType.AGGREGATE_METRIC_DOUBLE));
+        assertWarnings(nonLoadablePunkWarning("tx", "aggregate_metric_double"));
+    }
+
+    public void testLoadAllModeAllowsSubqueryWithLookupJoin() {
+        test().addLanguagesLookup().statement(setUnmappedLoadAll("""
+            FROM test,
+                (FROM test
+                | EVAL language_code = languages
+                | LOOKUP JOIN languages_lookup ON language_code)
+            """));
+    }
+
     /**
      * The {@code TS} command creates an {@link EsRelation} with {@link IndexMode#TIME_SERIES}, which is rejected by the allow-list.
      * The error names the source command ({@code TS}), not the internal node type. Tested both with and without a downstream STATS.
@@ -1546,7 +1648,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; [TS] is not supported yet"
+                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [TS] is not supported yet"
                 )
             );
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
@@ -1554,7 +1656,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; [TS] is not supported yet"
+                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [TS] is not supported yet"
                 )
             );
     }
@@ -1582,6 +1684,16 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             | DROP event_duration, unmapped.nested
             | SORT @timestamp, unmapped.nested
             """), containsString("Unknown column [unmapped.nested]"));
+    }
+
+    public void testLoadAllSubqueryDropInEveryBranchOuterEvalIsUnknownColumn() {
+        partialMappingTest().statementError(setUnmappedLoadAll("""
+            FROM (FROM partial_mapping_sample_data | WHERE message == "42" | DROP unmapped_message),
+                 (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!" | DROP unmapped_message)
+            | EVAL upper = TO_UPPER(unmapped_message)
+            | KEEP messag*, unmapped_mess*, upper
+            | SORT message
+            """), containsString("Unknown column [unmapped_message]"));
     }
 
     // nullify is allowed with PromQL (unlike load), but a field after the collapsing aggregate still fails.

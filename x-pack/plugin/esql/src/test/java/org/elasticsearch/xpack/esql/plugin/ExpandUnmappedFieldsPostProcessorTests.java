@@ -8,6 +8,13 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -17,6 +24,8 @@ import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -30,15 +39,22 @@ import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.xpack.esql.plugin.ExpandUnmappedFieldsPostProcessor.MAX_EXPANDED_FIELDS;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -606,10 +622,258 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         assertThat("expand leaked the input pages on failure", bf.breaker().getUsed(), equalTo(0L));
     }
 
+    /**
+     * Pins {@code EsqlSession}'s LOAD_ALL dispatch contract: the expansion is handed to the {@code esql_worker} pool wrapped in
+     * {@link ActionRunnable#wrapReleasing}, so the buffered result pages are released if that pool rejects the task (e.g. the node is
+     * shutting down or the worker queue is saturated). Here a one-thread, zero-queue worker is saturated so the dispatch is rejected;
+     * the test asserts the pages are freed (breaker back to zero) and the listener observes the rejection rather than a leak. The generic
+     * {@code wrapReleasing}-on-rejection behaviour is covered by {@code ActionRunnableTests#testWrapReleasingRejected}; this adds the
+     * esql-specific guarantee that the released resource is the result pages.
+     */
+    public void testDispatchReleasesPagesWhenWorkerRejects() throws Exception {
+        BlockFactory bf = blockFactory();
+        List<Page> pages = List.of(
+            page(bf, List.of(row(1, jsonObject("{'pet':'Rex'}")))),
+            page(bf, List.of(row(2, jsonObject("{'city':'Berlin'}"))))
+        );
+        assertThat("pages should reserve breaker memory before dispatch", bf.breaker().getUsed(), greaterThan(0L));
+
+        var executor = EsExecutors.newFixed(
+            EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
+            1,
+            0,
+            Thread::new,
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+        );
+        try {
+            // Occupy the single worker thread so the next submission has nowhere to queue and is rejected.
+            var barrier = new CyclicBarrier(2);
+            executor.execute(() -> safeAwait(barrier));
+
+            var rejection = new PlainActionFuture<Void>();
+            executor.execute(ActionRunnable.wrapReleasing(new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    fail("expansion must not run once the worker has rejected the task");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(EsRejectedExecutionException.class));
+                    rejection.onResponse(null);
+                }
+            },
+                () -> Releasables.closeExpectNoException(pages),
+                ll -> fail("expansion body must not run once the worker has rejected the task")
+            ));
+
+            safeGet(rejection);
+            assertThat("rejected dispatch must release the result pages", bf.breaker().getUsed(), equalTo(0L));
+            safeAwait(barrier);
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testCancellationDuringExpansionThrowsAndReleasesPages() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{'pet':'Rex'}")))), page(bf, List.of(row(2, jsonObject("{'pet':'Max'}")))))
+        );
+        assertThat("input pages should reserve breaker memory before expand runs", bf.breaker().getUsed(), greaterThan(0L));
+
+        // Stands in for a task cancelled mid-expansion: the checker reports cancelled as soon as the expansion polls it.
+        expectThrows(
+            TaskCancelledException.class,
+            () -> ExpandUnmappedFieldsPostProcessor.expand(result, null, bf, PlannerSettings.DEFAULTS, () -> true)
+        );
+
+        // expand must release the input pages on the cancellation path, just as it does for any other failure.
+        assertThat("expand leaked pages when cancelled", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The manual "graceful termination" test on esql-planning#1778 flagged both expansion loops - {@code collectFieldNames} and
+     * {@code rewritePages} - as running to completion without checking for cancellation. {@link
+     * #testCancellationDuringExpansionThrowsAndReleasesPages} pins the first loop: a checker that reports cancelled up front trips on
+     * {@code collectFieldNames}' opening poll, before {@code rewritePage} ever runs. This pins the second: name collection scans every
+     * row first and only then does {@code rewritePage}, so with a single-row page the checker is polled once while collecting names and
+     * again while rewriting. Reporting cancelled only from the second poll lets collection finish and lands the cancellation inside
+     * {@code rewritePage}, proving that loop's checkpoint both throws and releases the input page together with the half-built expansion.
+     */
+    public void testCancellationDuringPageRewriteThrowsAndReleasesPages() {
+        BlockFactory bf = blockFactory();
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonObject("{'pet':'Rex'}")));
+        assertThat("input page should reserve breaker memory before expand runs", bf.breaker().getUsed(), greaterThan(0L));
+
+        AtomicInteger polls = new AtomicInteger();
+        expectThrows(
+            TaskCancelledException.class,
+            () -> ExpandUnmappedFieldsPostProcessor.expand(result, null, bf, PlannerSettings.DEFAULTS, () -> polls.incrementAndGet() > 1)
+        );
+
+        assertThat("cancellation should have been observed during rewritePage, not name collection", polls.get(), greaterThan(1));
+        assertThat("expand leaked pages when cancelled during rewrite", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Every other test uses a handful of rows, so the {@code (row & mask) == 0} cadence only ever fires on row 0 and the bit-mask
+     * arithmetic past the first row is never exercised. This scans a page wide enough to cross the 1024-row threshold several times and
+     * pins the exact number of polls: {@code collectFieldNames} and {@code rewritePage} each scan the page once, polling at rows
+     * {@code 0, 1024, 2048, ...}, i.e. {@code ceil(rows / 1024)} times apiece. It would catch a regression that polled every row (far
+     * too often) or only once per scan (defeating the point of a mid-scan checkpoint).
+     */
+    public void testCancellationPollCadenceMatchesRowThreshold() {
+        BlockFactory bf = blockFactory();
+        int rows = 3000;
+        List<List<Object>> pageRows = new ArrayList<>(rows);
+        for (int i = 0; i < rows; i++) {
+            pageRows.add(row(i, jsonObject("{'pet':'Rex'}")));
+        }
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, pageRows)));
+
+        AtomicInteger polls = new AtomicInteger();
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, null, bf, PlannerSettings.DEFAULTS, () -> {
+            polls.incrementAndGet();
+            return false;
+        });
+        try {
+            // 1024 mirrors the production ROWS_PER_CANCELLATION_CHECK, which is private to the post-processor.
+            int perScan = (rows + 1023) / 1024;
+            assertThat(polls.get(), equalTo(2 * perScan));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testExpansionPollsForCancellation() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{'pet':'Rex'}")))), page(bf, List.of(row(2, jsonObject("{'pet':'Max'}")))))
+        );
+
+        // Guards the wiring: collectFieldNames and rewritePage both poll at least once per page, so expansion must poll the checker.
+        AtomicInteger checks = new AtomicInteger();
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, null, bf, PlannerSettings.DEFAULTS, () -> {
+            checks.incrementAndGet();
+            return false;
+        });
+        try {
+            assertThat(checks.get(), greaterThan(0));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    /**
+     * More than {@link ExpandUnmappedFieldsPostProcessor#MAX_EXPANDED_FIELDS} distinct names, arriving in random order across random
+     * rows and pages and with repeats, expand to exactly the alphabetically first ones - whatever order they arrived in - plus a
+     * warning.
+     */
+    public void testCapsExpandedFieldsToAlphabeticallyFirstRegardlessOfArrivalOrder() {
+        BlockFactory bf = blockFactory();
+        List<String> fieldNames = paddedNames("f", MAX_EXPANDED_FIELDS + between(1, 200));
+        List<String> arrivalOrder = new ArrayList<>(fieldNames);
+        Collections.shuffle(arrivalOrder, random());
+
+        List<List<Object>> rows = new ArrayList<>();
+        int next = 0;
+        while (next < arrivalOrder.size()) {
+            int end = Math.min(arrivalOrder.size(), next + between(1, 50));
+            List<String> rowNames = new ArrayList<>(arrivalOrder.subList(next, end));
+            if (next > 0 && randomBoolean()) {
+                // Repeat a name an earlier row already brought: kept or not, it must not count twice.
+                rowNames.add(arrivalOrder.get(between(0, next - 1)));
+            }
+            rows.add(row(rows.size(), jsonWithFields(rowNames)));
+            next = end;
+        }
+        List<Page> pages = new ArrayList<>();
+        int rowIdx = 0;
+        while (rowIdx < rows.size()) {
+            int end = Math.min(rows.size(), rowIdx + between(1, 10));
+            pages.add(page(bf, rows.subList(rowIdx, end)));
+            rowIdx = end;
+        }
+
+        Result expanded = expand(result(List.of(intAttr(), unmappedAttr()), pages), bf);
+        try {
+            List<String> expected = new ArrayList<>();
+            expected.add(INT_ATTR);
+            expected.addAll(fieldNames.subList(0, MAX_EXPANDED_FIELDS));
+            assertThat(names(expanded), equalTo(expected));
+            assertThat(rowCount(expanded), equalTo(rows.size()));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+        assertWarnings(TRUNCATION_WARNING);
+    }
+
+    /** Exactly {@link ExpandUnmappedFieldsPostProcessor#MAX_EXPANDED_FIELDS} names all fit, so nothing is cut off or warned about. */
+    public void testExactlyMaxExpandedFieldsAreAllKept() {
+        BlockFactory bf = blockFactory();
+        List<String> fieldNames = paddedNames("f", MAX_EXPANDED_FIELDS);
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonWithFields(fieldNames)));
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded).subList(1, names(expanded).size()), equalTo(fieldNames));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+        // ESTestCase fails the test on any warning left unasserted, so not asserting one checks that there is none.
+    }
+
+    /** Names the {@code KEEP}/{@code DROP} pattern rejects are dropped before the cap, so they cannot crowd out wanted ones. */
+    public void testNamesExcludedByPatternDoNotCountTowardsCap() {
+        BlockFactory bf = blockFactory();
+        List<String> kept = paddedNames("keep_", MAX_EXPANDED_FIELDS);
+        // Sort before every kept name, so they would take all the slots if they counted.
+        List<String> dropped = paddedNames("a_drop_", between(1, 500));
+        List<String> rowNames = new ArrayList<>(dropped);
+        rowNames.addAll(kept);
+        Result result = singlePage(
+            bf,
+            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.excludes(List.of("a_drop_*")))),
+            row(1, jsonWithFields(rowNames))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded).subList(1, names(expanded).size()), equalTo(kept));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    /** A name colliding with a query column is dropped (see {@link #testFlattenedLeafCollidingWithQueryColumnIsDropped}) before the cap. */
+    public void testNamesCollidingWithExistingColumnsDoNotCountTowardsCap() {
+        BlockFactory bf = blockFactory();
+        List<String> discovered = paddedNames("f", MAX_EXPANDED_FIELDS);
+        // Sorts before every discovered name, so it would take a slot if it counted.
+        String existing = "a_existing";
+        List<String> rowNames = new ArrayList<>(discovered);
+        rowNames.add(existing);
+        Result result = singlePage(bf, List.of(keywordAttr(existing), unmappedAttr()), row("v", jsonWithFields(rowNames)));
+
+        Result expanded = expand(result, bf);
+        try {
+            List<String> expected = new ArrayList<>();
+            expected.add(existing);
+            expected.addAll(discovered);
+            assertThat(names(expanded), equalTo(expected));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
     // No ordering recipe: these exercise the expansion mechanics, so the natural real-then-discovered fallback applies. The ordering
     // itself is covered against real plans in DetermineUnmappedFieldsToKeepTests.
     private static Result expand(Result result, BlockFactory blockFactory) {
-        return ExpandUnmappedFieldsPostProcessor.expand(result, null, blockFactory, PlannerSettings.DEFAULTS);
+        return ExpandUnmappedFieldsPostProcessor.expand(result, null, blockFactory, PlannerSettings.DEFAULTS, () -> false);
     }
 
     private static Result result(List<Attribute> schema, List<Page> pages) {
@@ -654,6 +918,27 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         return singleQuoted.replace('\'', '"');
     }
 
+    /** {@code count} distinct names starting with {@code prefix}, zero-padded so that their alphabetical order is their numeric one. */
+    private static List<String> paddedNames(String prefix, int count) {
+        List<String> names = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            names.add(String.format(Locale.ROOT, "%s%05d", prefix, i));
+        }
+        return names;
+    }
+
+    /** A flat JSON object with one numeric value per name. */
+    private static String jsonWithFields(List<String> names) {
+        StringBuilder json = new StringBuilder("{");
+        for (int i = 0; i < names.size(); i++) {
+            if (i > 0) {
+                json.append(',');
+            }
+            json.append('"').append(names.get(i)).append("\":").append(i);
+        }
+        return json.append('}').toString();
+    }
+
     private static List<String> names(Result r) {
         return r.schema().stream().map(Attribute::name).toList();
     }
@@ -691,4 +976,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
     }
 
     private static final String INT_ATTR = "emp_no";
+
+    private static final String TRUNCATION_WARNING = "unmapped_fields=\"LOAD_ALL\" found more than [1000] fields in _source; only the "
+        + "first [1000] in alphabetical order are returned. Use KEEP or DROP to select the others.";
 }

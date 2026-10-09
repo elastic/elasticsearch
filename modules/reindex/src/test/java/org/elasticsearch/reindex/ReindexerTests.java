@@ -3249,7 +3249,7 @@ public class ReindexerTests extends ESTestCase {
 
     private static CircuitBreakerService noopCircuitBreakerService() {
         CircuitBreakerService service = mock(CircuitBreakerService.class);
-        when(service.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+        when(service.getBreaker(CircuitBreaker.REQUEST)).thenReturn(NoopCircuitBreaker.INSTANCE);
         return service;
     }
 

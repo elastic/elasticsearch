@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ColumnarKeywordBlockLoaderTests extends ESTestCase {
 
     private static final String FIELD = "kw";
-    private static final CircuitBreaker NOOP = new NoopCircuitBreaker("test");
+    private static final CircuitBreaker NOOP = NoopCircuitBreaker.INSTANCE;
 
     public void testSingleValued() throws IOException {
         assertPageMatchesPerDocument(docs -> {
@@ -87,6 +87,33 @@ public class ColumnarKeywordBlockLoaderTests extends ESTestCase {
                     case 2 -> new String[0];                  // an empty array, likewise
                     case 3 -> new String[] { null, null };
                     case 4 -> new String[] { "" };            // the empty string is a value
+                    default -> new String[] { "a-" + (d % 5) };
+                };
+            }
+        });
+    }
+
+    /**
+     * Documents without the field among every other shape, alone and in long stretches. A page covering them is still
+     * served, each arriving as a null, and agrees with reading one document at a time.
+     */
+    public void testDocumentsWithoutTheField() throws IOException {
+        assertPageMatchesPerDocument(docs -> {
+            boolean absentStretch = false;
+            for (int d = 0; d < docs.length; d++) {
+                if (random().nextInt(40) == 0) {
+                    absentStretch = absentStretch == false;
+                }
+                if (absentStretch || random().nextInt(5) == 0) {
+                    docs[d] = null;
+                    continue;
+                }
+                docs[d] = switch (random().nextInt(6)) {
+                    case 0 -> new String[] { "a-" + (d % 5), null, "b" };
+                    case 1 -> new String[] { null };
+                    case 2 -> new String[0];
+                    case 3 -> new String[] { "" };
+                    case 4 -> new String[] { "a-" + (d % 5), "c" };
                     default -> new String[] { "a-" + (d % 5) };
                 };
             }
@@ -140,7 +167,10 @@ public class ColumnarKeywordBlockLoaderTests extends ESTestCase {
             try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
                 for (String[] slots : docs) {
                     final Document doc = new Document();
-                    doc.add(new Field(FIELD, encode(slots), type));
+                    // A null entry is a document without the field at all.
+                    if (slots != null) {
+                        doc.add(new Field(FIELD, encode(slots), type));
+                    }
                     writer.addDocument(doc);
                 }
                 writer.forceMerge(1);
@@ -310,7 +340,18 @@ public class ColumnarKeywordBlockLoaderTests extends ESTestCase {
         public void appendOrdinals(int[] ordinals, int valueCount, int[] valueCounts, int docCount, BytesRef[] dict, int dictSize) {}
 
         @Override
-        public void appendValues(BytesRef[] values, int valueCount, int[] valueCounts, int docCount) {}
+        public Values values(int valueCount, int[] valueCounts, int docCount) {
+            return new Values() {
+                @Override
+                public void append(BytesRef value) {}
+
+                @Override
+                public void finish() {}
+
+                @Override
+                public void close() {}
+            };
+        }
     };
 
     private static BytesRef encode(String[] slots) {

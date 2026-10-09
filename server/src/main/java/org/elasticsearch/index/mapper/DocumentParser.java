@@ -24,7 +24,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -872,9 +872,7 @@ public final class DocumentParser {
             ensureNotStrict(dynamic, context, lastFieldName);
             if (dynamic == ObjectMapper.Dynamic.FLATTENED) {
                 // Absorb the null slot so columnar array order (e.g. [1, null, 3]) is preserved for the unmapped field.
-                FlattenedFieldMapper sink = (FlattenedFieldMapper) context.mappingLookup()
-                    .getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
-                sink.indexValueAtPath(context, context.path().pathAsText(lastFieldName));
+                UnmappedSinkFieldMapper.absorb(context, lastFieldName);
             }
         }
     }

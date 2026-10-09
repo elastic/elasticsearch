@@ -176,7 +176,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     public static final FeatureFlag UNMAPPED_FIELDS_FEATURE_FLAG = new FeatureFlag("flattened_unmapped_fields");
 
     /**
-     * Name of the implicit, non-serialized flattened sink injected under root to absorb unmapped fields as full dotted keys.
+     * Name of the implicit flattened sink that absorbs unmapped fields as full dotted keys. See {@link UnmappedSinkFieldMapper}.
      */
     public static final String UNMAPPED_SINK_NAME = "_unmapped";
 
@@ -2052,16 +2052,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 + key.substring(0, Math.min(key.length(), 50))
                 + "]"
         );
-    }
-
-    /**
-     * Whether this mapper is the implicit {@code _unmapped} sink; other flattened fields (including user-declared ones) return false.
-     * Computed on demand rather than stored: sink-ness is a pure function of the index setting and the field name, both fixed for the
-     * life of the mapper. The setting gate is load-bearing, since a user may declare a flattened field named {@code _unmapped} on a
-     * non-feature index and it must stay a normal field.
-     */
-    public boolean isUnmappedSink() {
-        return builder.indexSettings.isFlattenedUnmappedFieldsEnabled() && UNMAPPED_SINK_NAME.equals(mappedFieldType.name());
     }
 
     /**

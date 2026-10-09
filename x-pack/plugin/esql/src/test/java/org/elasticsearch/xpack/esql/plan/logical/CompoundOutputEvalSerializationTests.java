@@ -58,4 +58,9 @@ public abstract class CompoundOutputEvalSerializationTests<T extends CompoundOut
     }
 
     protected abstract T createInitialInstance(Source source, LogicalPlan child, Expression input, Attribute outputFieldPrefix);
+
+    public void testOutputIsCached() {
+        LogicalPlan plan = createTestInstance().replaceChild(EsRelationSerializationTests.randomEsRelation());
+        assertSame(plan.output(), plan.output());
+    }
 }

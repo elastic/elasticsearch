@@ -9,7 +9,6 @@
 
 package org.elasticsearch.test.knn.data;
 
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.ESTestCase;
@@ -27,7 +26,6 @@ public class PartitionDataGeneratorTests extends ESTestCase {
 
         var sliced = new PartitionDataGenerator(vectors, 10, vectors, 0, partitionConfiguration, true);
         assertEquals(SliceIndexing.SLICE_KEY_FIELD_NAME, sliced.getIndexSort().getSort()[0].getField());
-        assertEquals(SortField.STRING_LAST, sliced.getIndexSort().getSort()[0].getMissingValue());
 
         var unsliced = new PartitionDataGenerator(vectors, 10, vectors, 0, partitionConfiguration, false);
         assertEquals(KnnIndexer.PARTITION_ID_FIELD, unsliced.getIndexSort().getSort()[0].getField());

@@ -55,9 +55,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 
@@ -361,16 +359,23 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
     }
 
     /**
+     * Two distinct slice ids with the same 32-bit slice hash, found by enumerating six-letter strings. Pinned so
+     * {@link #testHashCollidingSlicesStayDistinct} always runs rather than depending on a random search finding one.
+     */
+    private static final String COLLIDING_SLICE_A = "aaanec";
+    private static final String COLLIDING_SLICE_B = "aabqdj";
+    private static final long COLLIDING_SLICE_HASH = 1276495976L;
+
+    /**
      * Two distinct slices whose 32-bit hashes collide share a key prefix but remain separate, adjacent terms, so each is
      * still a contiguous doc range and a query for one never returns the other.
      */
     public void testHashCollidingSlicesStayDistinct() throws IOException {
-        final String[] colliding = findHashCollidingSlices();
-        assumeTrue("no 32-bit slice hash collision found within the draw budget", colliding != null);
-        final String sliceA = colliding[0];
-        final String sliceB = colliding[1];
+        final String sliceA = COLLIDING_SLICE_A;
+        final String sliceB = COLLIDING_SLICE_B;
         assertNotEquals(sliceA, sliceB);
-        assertEquals(SliceIndexing.sliceHash(sliceA), SliceIndexing.sliceHash(sliceB));
+        assertEquals("pinned pair must still collide under the slice hash", COLLIDING_SLICE_HASH, SliceIndexing.sliceHash(sliceA));
+        assertEquals("pinned pair must still collide under the slice hash", COLLIDING_SLICE_HASH, SliceIndexing.sliceHash(sliceB));
         final String[] slices = new String[] { sliceA, sliceB, "unrelated-one", "unrelated-two" };
         final int dimensions = random().nextInt(12, 128);
         final int docsPerSlice = random().nextInt(3, 20);
@@ -432,18 +437,6 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
      * Draws random slice values until two share a hash. A 32-bit birthday collision is expected after ~2^16 draws, so
      * the budget below is generous; returns {@code null} if it is exhausted.
      */
-    private static String[] findHashCollidingSlices() {
-        final Map<Long, String> seen = new HashMap<>();
-        for (int i = 0; i < (1 << 19); i++) {
-            final String candidate = TestUtil.randomSimpleString(random(), 6, 12);
-            final String previous = seen.putIfAbsent(SliceIndexing.sliceHash(candidate), candidate);
-            if (previous != null && previous.equals(candidate) == false) {
-                return new String[] { previous, candidate };
-            }
-        }
-        return null;
-    }
-
     /**
      * Each leaf's slice-hash range comes from skipper metadata; a leaf whose range excludes the queried slice is not
      * searched. This checks the layout that makes that possible and that results are unaffected. The strict proof that

@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 157955
+summary: Fix rollover authorization checks
+type: bug

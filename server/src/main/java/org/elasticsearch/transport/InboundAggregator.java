@@ -84,9 +84,7 @@ public class InboundAggregator implements Releasable {
             // Reserve each piece as it arrives so it is checked against the memory in use at that moment. Requests whose action name isn't
             // known yet are reserved in reserveContentBytes.
             if (currentHeader.isRequest() && currentHeader.needsToReadVariableHeader() == false && content.length() > 0) {
-                if (reserveBreakerBytes(content.length(), currentHeader.getActionName())) {
-                    breakerControl.addReservedBytes(content.length());
-                } else {
+                if (reserveBreakerBytes(content.length(), currentHeader.getActionName()) == false) {
                     releaseContent();
                     firstContent = null;
                     contentAggregation = null;
@@ -224,7 +222,8 @@ public class InboundAggregator implements Releasable {
         return header.isCompressed() == (header.getCompressionScheme() != null);
     }
 
-    // Returns false if the breaker tripped, which short-circuits the aggregation
+    // Reserves the bytes on the breaker and records them in the breaker control, so they are released with it. Returns false if the breaker
+    // tripped, which short-circuits the aggregation.
     private boolean reserveBreakerBytes(int bytes, String label) {
         if (canTripBreaker) {
             try {
@@ -236,6 +235,7 @@ public class InboundAggregator implements Releasable {
         } else {
             circuitBreaker.get().addWithoutBreaking(bytes);
         }
+        breakerControl.addReservedBytes(bytes);
         return true;
     }
 
@@ -243,8 +243,8 @@ public class InboundAggregator implements Releasable {
      * Reserves the content of a request whose action name was only parsed along with the content, so it couldn't be reserved while read.
      */
     private void reserveContentBytes(final Header header, final int contentLength) {
-        if (header.isRequest() && reserveBreakerBytes(contentLength, header.getActionName())) {
-            breakerControl.addReservedBytes(contentLength);
+        if (header.isRequest()) {
+            reserveBreakerBytes(contentLength, header.getActionName());
         }
     }
 

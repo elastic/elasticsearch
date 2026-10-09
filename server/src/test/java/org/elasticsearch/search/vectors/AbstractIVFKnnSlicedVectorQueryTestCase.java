@@ -504,6 +504,45 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
     }
 
     /**
+     * The mapper always writes the slice hash alongside the slice key, so a slice-sorted leaf without a hash skipper is
+     * malformed. Searching it must fail rather than silently search or estimate unpruned, with or without a filter (the
+     * filter path reaches the leaf through the slice-selectivity estimate first).
+     */
+    public void testLeafWithoutHashSkipperIsRejected() throws IOException {
+        final String slice = TestUtil.randomSimpleString(random(), 3, 8);
+        final int dimensions = random().nextInt(12, 128);
+        final int docs = random().nextInt(3, 20);
+        final IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setIndexSort(sliceIndexSort());
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
+
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            for (int i = 0; i < docs; i++) {
+                final Document doc = new Document();
+                // Sort field only: deliberately no SLICE_HASH_FIELD_NAME.
+                doc.add(SortedDocValuesField.indexedField(SLICE_FIELD, SliceIndexing.encodeSliceKey(slice)));
+                doc.add(new StringField("id", "id-" + i, Field.Store.NO));
+                doc.add(createVectorField("vector", dimensions));
+                w.addDocument(doc);
+            }
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    assertNull(ctx.reader().getDocValuesSkipper(SliceIndexing.SLICE_HASH_FIELD_NAME));
+                }
+                final IndexSearcher searcher = new IndexSearcher(reader);
+                final Query filter = random().nextBoolean() ? null : new TermQuery(new Term("id", "id-0"));
+                final Query query = createSlicedQuery("vector", dimensions, docs, docs, filter, 1.0f, new BytesRef(slice));
+                final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> searcher.search(query, docs));
+                assertThat(
+                    e.getMessage(),
+                    equalTo("slice hash field [" + SliceIndexing.SLICE_HASH_FIELD_NAME + "] must be indexed as a DocValuesSkipper field")
+                );
+            }
+        }
+    }
+
+    /**
      * Strict read-proof counterpart of {@link #testExcludedLeavesAreSkipped}: proves that the excluded leaf's
      * slice field is never opened via {@code getSortedDocValues} or {@code getDocValuesSkipper}.
      */

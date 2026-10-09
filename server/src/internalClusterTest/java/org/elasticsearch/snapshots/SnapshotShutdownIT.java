@@ -195,6 +195,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         clearShutdownMetadata(clusterService);
     }
 
+    // kept apart from testRemoveNodeDuringSnapshot so that this one always wraps the exception and so always reproduces the bug
     public void testRemoveNodeDuringSnapshotWithWrappedPauseException() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(1);
         final var originalNode = internalCluster().startDataOnlyNode();

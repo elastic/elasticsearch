@@ -455,10 +455,11 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     }
 
     /**
-     * A shard snapshot is paused by an exception thrown while the data to upload is read. The Azure client wraps it, so check that it
-     * stays in the cause chain for both single and multipart uploads, where the snapshot code looks for it.
+     * Guards the assumption behind looking through the causes in {@code SnapshotShardsService}: an exception thrown while the Azure client
+     * reads the data to upload (as a paused snapshot does) stays in the cause chain, for both single and multipart uploads. This does not
+     * reproduce the bug, and passes with or without that change.
      */
-    public void testWriteBlobKeepsPausedSnapshotExceptionInTheCauses() {
+    public void testWriteBlobKeepsExceptionFromInputStreamInTheCauses() {
         final BlobContainer blobContainer = createBlobContainer(randomIntBetween(0, 3));
         final boolean multipart = randomBoolean();
         final byte[] data = randomBytes(

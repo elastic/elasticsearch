@@ -291,7 +291,8 @@ public class IndexVersions {
     public static final IndexVersion IGNORE_ABOVE_NO_OP_IN_COLUMNAR = def(9_117_0_00, Version.LUCENE_10_5_1);
     public static final IndexVersion COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF = def(9_118_0_00, Version.LUCENE_10_5_1);
     public static final IndexVersion TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES = def(9_119_0_00, Version.LUCENE_10_5_1);
-    public static final IndexVersion UPDATABLE_AUTO_CALIBRATE = def(9_120_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion TEXT_INDEX_OPTIONS_DOCS_BY_DEFAULT_IN_COLUMNAR = def(9_120_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion UPDATABLE_AUTO_CALIBRATE = def(9_121_0_00, Version.LUCENE_10_5_1);
 
     /*
      * STOP! READ THIS FIRST! No, really,

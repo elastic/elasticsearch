@@ -16,6 +16,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
@@ -100,6 +101,61 @@ public class WeightsRefresherTests extends ESTestCase {
 
         nextRound();
         assertThat("rejected updates are tried again too", requests.size(), equalTo(3));
+    }
+
+    public void testQueriesWhoseDocumentIsGoneAreDroppedAndDoNotKeepOthersFromBeingUpdated() {
+        WeightsRefresher refresher = refresher(2);
+        QueryFingerprint[] fingerprints = new QueryFingerprint[3];
+        for (int i = 0; i < 3; i++) {
+            fingerprints[i] = new QueryFingerprint(i + 1, i + 1);
+            TrackedQuery query = tracker.record(fingerprints[i]);
+            refresher.written(fingerprints[i], query, query.weights());
+            tracker.record(fingerprints[i]);
+        }
+
+        nextRound();
+        assertThat(requests.size(), equalTo(1));
+        // the documents of the two queries in the request were deleted, say with the rest of the sample
+        BulkItemResponse missing = BulkItemResponse.failure(
+            0,
+            DocWriteRequest.OpType.UPDATE,
+            new BulkItemResponse.Failure(
+                QuerySamplingIndex.NAME,
+                "id",
+                new DocumentMissingException(new ShardId(QuerySamplingIndex.NAME, "_na_", 0), "id")
+            )
+        );
+        listeners.get(0).onResponse(new BulkResponse(new BulkItemResponse[] { missing, missing }, 1));
+        assertThat("what has no document any more is not looked at again", refresher.tracked(), equalTo(1));
+
+        nextRound();
+        assertThat("so the one that has a document is updated", requests.size(), equalTo(2));
+        assertThat(requests.get(1).numberOfActions(), equalTo(1));
+    }
+
+    public void testQueriesThatKeepFailingAreGivenUpOn() {
+        WeightsRefresher refresher = refresher(1);
+        QueryFingerprint a = new QueryFingerprint(1, 1);
+        QueryFingerprint b = new QueryFingerprint(2, 2);
+        for (QueryFingerprint fingerprint : List.of(a, b)) {
+            TrackedQuery query = tracker.record(fingerprint);
+            refresher.written(fingerprint, query, query.weights());
+            tracker.record(fingerprint);
+        }
+
+        // one request can only carry one of them, and the one that is first keeps failing without its document being gone
+        int rounds = 0;
+        while (refresher.tracked() == 2 && rounds < 20) {
+            nextRound();
+            listeners.get(listeners.size() - 1).onResponse(responseOf(1, false));
+            rounds++;
+        }
+
+        assertThat("it was given up on", refresher.tracked(), equalTo(1));
+        assertTrue("and not at the first failure", rounds > 1);
+        nextRound();
+        listeners.get(listeners.size() - 1).onResponse(responseOf(1, true));
+        assertThat("the other one was then served", refresher.refreshed(), equalTo(1L));
     }
 
     public void testAFullRequestIsFollowedByTheNextOneWithoutWaiting() {

@@ -15,6 +15,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -45,7 +47,20 @@ public final class WeightsRefresher {
 
     private static final Logger logger = LogManager.getLogger(WeightsRefresher.class);
 
-    private record Written(TrackedQuery tracked, TrackedQuery.Weights last) {}
+    /**
+     * Updates of one query that failed one after the other, without the whole request failing, after which it is given
+     * up on. A transient problem is over by then, and a query that cannot be updated should not hold up the others.
+     */
+    private static final int MAX_FAILURES = 5;
+
+    /**
+     * @param failures how many updates in a row were rejected
+     */
+    private record Written(TrackedQuery tracked, TrackedQuery.Weights last, int failures) {
+        Written(TrackedQuery tracked, TrackedQuery.Weights last) {
+            this(tracked, last, 0);
+        }
+    }
 
     private final String samplerId;
     private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> bulk;
@@ -143,21 +158,26 @@ public final class WeightsRefresher {
                     )
                 );
             } catch (Exception e) {
-                completed(fingerprints, weights, new boolean[fingerprints.size()]);
+                completed(fingerprints, weights, null);
                 logger.debug("failed to build the update of a sampled query", e);
                 return;
             }
         }
         ActionListener<BulkResponse> listener = ActionListener.wrap(response -> {
-            boolean[] succeeded = new boolean[fingerprints.size()];
+            Outcome[] outcomes = new Outcome[fingerprints.size()];
+            Arrays.fill(outcomes, Outcome.FAILED);
             BulkItemResponse[] items = response.getItems();
-            for (int i = 0; i < items.length && i < succeeded.length; i++) {
-                succeeded[i] = items[i].isFailed() == false;
+            for (int i = 0; i < items.length && i < outcomes.length; i++) {
+                if (items[i].isFailed() == false) {
+                    outcomes[i] = Outcome.UPDATED;
+                } else if (items[i].getFailure().getStatus() == RestStatus.NOT_FOUND) {
+                    outcomes[i] = Outcome.GONE;
+                }
             }
-            completed(fingerprints, weights, succeeded);
+            completed(fingerprints, weights, outcomes);
         }, e -> {
             logger.debug("failed to refresh the weights of sampled queries", e);
-            completed(fingerprints, weights, new boolean[fingerprints.size()]);
+            completed(fingerprints, weights, null);
         });
         try {
             bulk.accept(request, listener);
@@ -167,20 +187,46 @@ public final class WeightsRefresher {
     }
 
     /**
-     * What was updated is remembered, what was not is tried again in the next round.
+     * What happened to one update.
      */
-    private void completed(List<QueryFingerprint> fingerprints, List<TrackedQuery.Weights> weights, boolean[] succeeded) {
-        boolean allSucceeded = true;
+    private enum Outcome {
+        UPDATED,
+        /** The document does not exist any more, so there is nothing to keep up to date. */
+        GONE,
+        FAILED
+    }
+
+    /**
+     * What was updated is remembered. What failed is tried again in the next round, unless its document is gone or it
+     * keeps failing: such a query would be first in line every time and keep the ones behind it from being updated.
+     *
+     * @param outcomes what happened to each update, or {@code null} if the request as a whole failed, which says
+     *                 nothing about the queries and is not held against them
+     */
+    private void completed(List<QueryFingerprint> fingerprints, List<TrackedQuery.Weights> weights, Outcome[] outcomes) {
+        boolean allSucceeded = outcomes != null;
         synchronized (this) {
             inFlight = false;
-            for (int i = 0; i < succeeded.length; i++) {
-                if (succeeded[i]) {
+            for (int i = 0; i < fingerprints.size(); i++) {
+                QueryFingerprint fingerprint = fingerprints.get(i);
+                Outcome outcome = outcomes == null ? Outcome.FAILED : outcomes[i];
+                if (outcome == Outcome.UPDATED) {
                     refreshed.increment();
                     TrackedQuery.Weights sent = weights.get(i);
-                    written.computeIfPresent(fingerprints.get(i), (key, value) -> new Written(value.tracked(), sent));
-                } else {
-                    failed.increment();
-                    allSucceeded = false;
+                    written.computeIfPresent(fingerprint, (key, value) -> new Written(value.tracked(), sent));
+                    continue;
+                }
+                failed.increment();
+                allSucceeded = false;
+                if (outcome == Outcome.GONE) {
+                    written.remove(fingerprint);
+                } else if (outcomes != null) {
+                    written.computeIfPresent(
+                        fingerprint,
+                        (key, value) -> value.failures() + 1 >= MAX_FAILURES
+                            ? null
+                            : new Written(value.tracked(), value.last(), value.failures() + 1)
+                    );
                 }
             }
             // a full request means that more may be waiting, which is not the case to wait for after a failure

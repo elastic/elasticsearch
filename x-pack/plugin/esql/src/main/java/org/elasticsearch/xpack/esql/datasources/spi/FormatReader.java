@@ -335,8 +335,10 @@ public interface FormatReader extends Closeable {
      * Keyed on provenance, not on whether any column declared a {@code path}. {@code dynamic} controls only whether a
      * schema is inferred; it does not leak into how columns bind (esql-planning#1307).
      * <p>
-     * Only the text readers need it. Parquet/ORC bind by footer name and NDJSON by object key under either provenance,
-     * and keep the no-op default.
+     * Only the text readers need it to bind. Parquet/ORC bind by footer name and NDJSON by object key under either
+     * provenance. NDJSON and Parquet still override it, to lift the file-width cap ({@code schema_max_fields}) on a
+     * declared read, since only the declared columns are read; the text readers lift it the same way. ORC does not
+     * enforce the cap yet, pending a follow-up, and keeps the no-op default.
      *
      * @param declaredProvenanceBinding true when the pinned schema is a DECLARED claim (provenance DECLARED)
      * @return a new reader honoring the binding mode, or {@code this} when it does not apply
@@ -374,6 +376,58 @@ public interface FormatReader extends Closeable {
      */
     default FormatReader withReadConfig(String readConfig) {
         return this;
+    }
+
+    /**
+     * Fewest rows (lines) a shared schema sample still takes from each file (see {@link #sharedSchemaSampleSize}), so
+     * that every file of a listing contributes type evidence, and a headerless file its width.
+     */
+    int MIN_SHARED_SCHEMA_SAMPLE_SIZE = 100;
+
+    /**
+     * Returns a reader whose schema inference treats its sample size as a budget shared by {@code files} files rather
+     * than spent on each one: it samples {@link #sharedSchemaSampleSize} rows (lines) from the file it reads.
+     * <p>
+     * The planner calls this when it must infer the schema of every file in a listing ({@code union_by_name},
+     * {@code strict}). Without it, planning reads {@code files x sample} rows, which for a listing of many small files
+     * is the whole dataset. With it, planning reads about one sample's worth, or {@link #MIN_SHARED_SCHEMA_SAMPLE_SIZE}
+     * rows from every file once there are more files than the sample has such shares (for the default CSV sample,
+     * from a few hundred files on). The total still grows with the file count, by a floor's worth per file rather than
+     * a sample's. The cost is the one any sample has: a column or a value that only appears past a file's share is not
+     * seen at planning.
+     * <p>
+     * The narrower sample decides only how much of a file planning reads, so it must not change
+     * {@link Configured#identity()}: that string is also the fingerprint a data node stamps on the statistics it
+     * harvests, and the data node reads with the unshared configuration.
+     * <p>
+     * Returns {@code this} when sharing changes nothing, which callers rely on to tell whether it applies. Default
+     * no-op: formats that read a file's schema from its own metadata (Parquet, ORC) sample no rows.
+     *
+     * @param files how many files share the sample; {@code 1} for the whole sample
+     */
+    default FormatReader withSchemaSampleShare(int files) {
+        return this;
+    }
+
+    /**
+     * The maximum rows (lines) this configured reader samples for schema inference, or {@code 0} when it does not
+     * sample. A reader that overrides {@link #withSchemaSampleShare} must override this too: the planner keys a shared
+     * inference by the effective sample size, so two file-count shares that both hit the per-file floor reuse one
+     * cache entry.
+     */
+    default int schemaSampleSize() {
+        return 0;
+    }
+
+    /**
+     * Rows (lines) each of {@code files} files samples out of a {@code sampleSize} budget: an even share, but at least
+     * {@link #MIN_SHARED_SCHEMA_SAMPLE_SIZE}, and never more than {@code sampleSize}.
+     */
+    static int sharedSchemaSampleSize(int sampleSize, int files) {
+        if (files <= 1) {
+            return sampleSize;
+        }
+        return Math.min(sampleSize, Math.max(MIN_SHARED_SCHEMA_SAMPLE_SIZE, Math.ceilDiv(sampleSize, files)));
     }
 
     /**

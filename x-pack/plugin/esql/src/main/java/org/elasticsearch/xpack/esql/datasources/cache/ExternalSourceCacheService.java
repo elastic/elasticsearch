@@ -49,11 +49,13 @@ import java.util.function.LongFunction;
  * Coordinator-only, in-memory cache service for external source metadata. Maintains five independent caches, one per kind of fact:
  * <ul>
  *   <li>Per-file schema cache (~20% of budget) — keyed by {@code (dataset identity, path, mtime,
- *       declaredStrict)}. One kind of record: what the file contains. No measurement, and one entry per file.
+ *       answer)}. One kind of record: what the file contains. No measurement, and one entry per file and answer
+ *       (strict-declared, inferred, or inferred from a shared sample of a given depth).
  *       A changed file has a new mtime, hence a new key; the clock on top of that bounds reuse rather than
  *       freshness ({@link ExternalSourceCacheSettings#SCHEMA_TTL}).</li>
  *   <li>Statistics cache (~15% of budget) — what ONE read measured about one file, keyed by the file's own
- *       address plus the read that measured it, so one entry per file per read configuration. Its own slice,
+ *       address (less a shared sample's depth) plus the read that measured it, so one entry per file per read
+ *       configuration. Its own slice,
  *       so the measurements cannot evict the schema records they were measured against. Heavier than a schema
  *       record per FILE - a harvested {@code _stats.*} map outweighs the schema it was measured against - but
  *       the smaller SLICE, because schema keeps the fraction it had and this consumer is funded from listing.</li>
@@ -919,7 +921,7 @@ public class ExternalSourceCacheService implements Closeable {
         }
         // One whole-cache forEach, filtered to the contribution paths. This cannot be a set of per-path
         // get()s: SchemaCacheKey is a multi-component record (dataset identity, path, mtime,
-        // declaredStrict), so a contribution path alone does not reconstruct a key, and forEach
+        // answer), so a contribution path alone does not reconstruct a key, and forEach
         // is the only path-agnostic enumeration the Cache exposes that is safe against concurrent LRU
         // mutation (keys()/values() walk the lock-free LRU list). The sweep is O(cache) for a multi-path
         // reconcile, but that is the price of capturing each sibling's pre-eviction entry before the first
@@ -1355,6 +1357,9 @@ public class ExternalSourceCacheService implements Closeable {
             delta.fingerprint(),
             fallback
         );
+        // Schema records differing only in their sample depth share one statistics address (see StatisticsKey),
+        // and stripe state accumulates, so each address takes this delta once.
+        Set<StatisticsKey> applied = new HashSet<>();
         for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
             SchemaCacheKey key = match.getKey();
             SchemaCacheEntry schemaRecord = match.getValue();
@@ -1371,6 +1376,9 @@ public class ExternalSourceCacheService implements Closeable {
             // itself for the stripe state, and this comparison keeps a delta off a file whose schema record was
             // resolved under a different read, where the types below would be the wrong ones to coerce against.
             if (Objects.equals(readConfigStampOf(schemaRecord), delta.readConfig()) == false) {
+                continue;
+            }
+            if (applied.add(statsKey) == false) {
                 continue;
             }
             StatisticsRecord priorStats = statisticsStore.get(statsKey);
@@ -1750,6 +1758,12 @@ public class ExternalSourceCacheService implements Closeable {
                 // absence and "" stay indistinguishable to every comparator.
                 Object stamp = mergedStats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
                 String contributionReadConfig = stamp instanceof String str && str.isEmpty() == false ? str : null;
+                // Schema records differing only in their sample depth share one statistics address (see
+                // StatisticsKey), so the writes are collected per address and filed once. Where one record's own
+                // read and another's harvested read land on the same address, the own read wins: it is the same
+                // read, normalised against its own types, and filing the raw harvest over or under it would keep
+                // an extremum the coercion dropped.
+                Map<StatisticsKey, PendingStatistics> pending = new LinkedHashMap<>();
                 for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
                     SchemaCacheKey key = match.getKey();
                     SchemaCacheEntry existing = match.getValue();
@@ -1773,7 +1787,7 @@ public class ExternalSourceCacheService implements Closeable {
                             existing.columnTypes(),
                             true
                         );
-                        fileStatistics(StatisticsKey.of(key, ownRead), statisticsIdentity(existing), coerced);
+                        pending.put(StatisticsKey.of(key, ownRead), new PendingStatistics(statisticsIdentity(existing), coerced));
                     }
 
                     // (2) The read that actually produced this harvest, when it is not the record's own. Stored
@@ -1783,9 +1797,13 @@ public class ExternalSourceCacheService implements Closeable {
                     // dropped, which covers both a refusal and the licensed partial admission that is the
                     // default error mode.
                     if (applicable != mergedStats && Objects.equals(contributionReadConfig, ownRead) == false) {
-                        fileStatistics(StatisticsKey.of(key, contributionReadConfig), statisticsIdentity(existing), mergedStats);
+                        pending.putIfAbsent(
+                            StatisticsKey.of(key, contributionReadConfig),
+                            new PendingStatistics(statisticsIdentity(existing), mergedStats)
+                        );
                     }
                 }
+                pending.forEach((statsKey, write) -> fileStatistics(statsKey, write.identity(), write.measurements()));
             }
         }
     }
@@ -1843,6 +1861,9 @@ public class ExternalSourceCacheService implements Closeable {
      * The identity keys are layered under the measurements and re-taken per write, so accumulation cannot
      * outlive the file version it describes.
      */
+       /** One reconcile write, held until every matching schema record has said what goes to its address. */
+    private record PendingStatistics(Map<String, Object> identity, Map<String, Object> measurements) {}
+
     private void fileStatistics(StatisticsKey key, Map<String, Object> identity, Map<String, Object> measurements) {
         StatisticsRecord prior = statisticsStore.get(key);
         Map<String, Object> merged = new HashMap<>(prior == null ? Map.of() : prior.measurements());

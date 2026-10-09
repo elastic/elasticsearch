@@ -19,10 +19,18 @@ package org.elasticsearch.xpack.esql.datasources.cache;
  * {@link DatasetAggregateKey} in its own store, so no component here distinguishes the two kinds and no
  * consumer has to test for it.
  * <p>
- * {@code declaredStrict} separates a per-file record on the strict-declared warm rail from the inferred
- * record for the same file, which is a different answer about the same bytes. A component the key
- * compares, rather than anything encoded inside another field, because the reconcile's contribution
- * matching must still reach these records.
+ * {@code answer} separates the records that are different answers about the same bytes:
+ * <ul>
+ *   <li>{@link #DECLARED_STRICT}: the strict-declared warm rail's record, which holds the declared schema;</li>
+ *   <li>{@link #INFERRED}: the schema inferred from the whole sample;</li>
+ *   <li>a positive count: the schema inferred from a share of the sample ({@code FormatReader#withSchemaSampleShare}),
+ *       that many rows (lines) of this file. The effective per-file sample rather than the number of files sharing
+ *       it, so shares that all reach the per-file floor reuse one record.</li>
+ * </ul>
+ * One compared component, rather than anything encoded inside another field, because the reconcile's contribution
+ * matching must still reach every one of these records: they are reads of the same object, and none of this may
+ * enter {@code dataset}, whose participants the enrich refusal compares. One {@code int} rather than a flag and a
+ * count because both describe how the answer was reached, and a fifth component would grow every key by 8 bytes.
  * <p>
  * The key carries no format name, and what separates two reads of one object as different formats is not
  * a component of its own. A
@@ -32,7 +40,21 @@ package org.elasticsearch.xpack.esql.datasources.cache;
  * {@code FileSourceFactory#COORDINATOR_KEYS} and deliberately not inert, so an explicit format separates
  * the addresses there, and an implied one is separated by the path's own extension.
  */
-public record SchemaCacheKey(DatasetIdentity dataset, String location, long lastModifiedEpochMillis, boolean declaredStrict) {
+public record SchemaCacheKey(DatasetIdentity dataset, String location, long lastModifiedEpochMillis, int answer) {
+
+    /** {@link #answer()} of the strict-declared warm rail's record. */
+    public static final int DECLARED_STRICT = -1;
+    /** {@link #answer()} of a record inferred from the whole schema sample. */
+    public static final int INFERRED = 0;
+
+    public SchemaCacheKey {
+        if (answer < DECLARED_STRICT) {
+            throw new IllegalArgumentException(
+                "a schema record is strict-declared, inferred or inferred from a shared sample of rows, got answer [" + answer + "]"
+            );
+        }
+    }
+
     /**
      * Key for a per-file record.
      *
@@ -40,7 +62,32 @@ public record SchemaCacheKey(DatasetIdentity dataset, String location, long last
      *                       same file than the inferred one and must not share its address
      */
     public static SchemaCacheKey build(String location, long mtime, DatasetIdentity dataset, boolean declaredStrict) {
-        return new SchemaCacheKey(dataset, location, mtime, declaredStrict);
+        return new SchemaCacheKey(dataset, location, mtime, declaredStrict ? DECLARED_STRICT : INFERRED);
     }
 
+    /**
+     * Key for a per-file record inferred from a shared schema sample of {@code sharedSchemaSampleSize} rows (lines)
+     * of this file. Only inference samples, so there is no strict-declared variant.
+     */
+    public static SchemaCacheKey buildShared(String location, long mtime, DatasetIdentity dataset, int sharedSchemaSampleSize) {
+        if (sharedSchemaSampleSize < 1) {
+            throw new IllegalArgumentException("a shared schema sample takes at least one row, got [" + sharedSchemaSampleSize + "]");
+        }
+        return new SchemaCacheKey(dataset, location, mtime, sharedSchemaSampleSize);
+    }
+
+    /** Whether this addresses the strict-declared warm rail's record. */
+    public boolean declaredStrict() {
+        return answer == DECLARED_STRICT;
+    }
+
+    /**
+     * This address with a shared sample's depth dropped: the whole-sample {@link #INFERRED} record's address for a
+     * shared-sample key, and this key otherwise. How deep inference sampled decides which schema a record holds,
+     * not what a read of the file measures, so the statistics address is built from this (see
+     * {@link StatisticsKey}).
+     */
+    public SchemaCacheKey withoutSampleDepth() {
+        return answer > INFERRED ? new SchemaCacheKey(dataset, location, lastModifiedEpochMillis, INFERRED) : this;
+    }
 }

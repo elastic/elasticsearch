@@ -13,6 +13,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
@@ -33,17 +34,23 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
 
 /**
- * Warns when an external-source admission gate has waiters and no holders for
- * {@link #DEFAULT_STALL}. Holders that keep a unit for a whole stream (permits, segmentators)
- * are healthy saturation: {@code lastGrant} is telemetry, not a stall signal. Per-query
- * starvation on a live gate is out of scope.
+ * Warns when an external-source admission gate has been stalled for {@link #DEFAULT_STALL}.
+ * Stall is per-gate: {@link AdmissionGate.StallPolicy#HOLDERS} (permits, budget, segmentators)
+ * skips while holders exist; {@link AdmissionGate.StallPolicy#GRANT_AGE} (byte budget) keys
+ * on waiters with no grant, ignoring holders. WARN is rate-limited by {@link #DEFAULT_QUIET}.
+ * Byte-gate rescue uses {@link #DEFAULT_RESCUE}, not the stall or quiet windows: one FIFO
+ * grant per rescue window, then the normal grant loop. Rescue WARN is a possible stall, not
+ * a user error.
  * <p>
  * Inspect runs on {@code GENERIC} via {@link ThreadPool#scheduleWithFixedDelay} as a
  * force-execution task: the timer thread only enqueues the check, so a stuck scheduler
- * thread does not run the graph walk. Queue depth and oldest-wait gauges share the
+ * thread does not run the graph walk. Direct ({@code Runnable::run}) waiters run on inspect
+ * like any other releaser; waiters that passed an I/O executor keep it. Every tick logs
+ * a DEBUG dump of the byte budget. Queue depth, oldest-wait, and rescue counters share the
  * {@code es.esql.datasources.admission.*} namespace so a later query-slot admission surface
  * can join the same series. Oldest-wait stays on the APM gauge because phone-home counters
  * sum across nodes.
@@ -54,11 +61,14 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
 
     static final TimeValue DEFAULT_INTERVAL = TimeValue.timeValueSeconds(5);
     static final TimeValue DEFAULT_STALL = TimeValue.timeValueSeconds(15);
+    static final TimeValue DEFAULT_RESCUE = TimeValue.timeValueSeconds(5);
     static final TimeValue DEFAULT_QUIET = TimeValue.timeValueSeconds(30);
 
     static final String WAITERS_CURRENT = "es.esql.datasources.admission.waiters.current";
     static final String HOLDERS_CURRENT = "es.esql.datasources.admission.holders.current";
     static final String OLDEST_WAIT_MILLIS = "es.esql.datasources.admission.oldest_wait_millis.current";
+    static final String RESCUES_TOTAL = "es.esql.datasources.admission.rescues.total";
+    static final String REGRANTS_TOTAL = "es.esql.datasources.admission.regrants.total";
     static final String GATE_ATTRIBUTE = "es_datasource_admission_gate";
 
     private static final int LABEL_CAP = 8;
@@ -67,16 +77,22 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
     private final CopyOnWriteArrayList<AdmissionGate> gates = new CopyOnWriteArrayList<>();
     private final LongSupplier nanoTime;
     private final long stallNanos;
+    private final long rescueNanos;
     private final long quietNanos;
     @Nullable
     private final Scheduler.Cancellable cancellable;
     private final LongAsyncGauge waitersGauge;
     private final LongAsyncGauge holdersGauge;
     private final LongAsyncGauge oldestWaitGauge;
+    private final LongCounter rescuesCounter;
+    private final LongCounter regrantsCounter;
+    private final LongAdder rescues = new LongAdder();
+    private final LongAdder regrants = new LongAdder();
+    private final AtomicBoolean rescueEnabled = new AtomicBoolean(true);
     private final AtomicBoolean closed = new AtomicBoolean();
 
     AdmissionStallWatchdog(ThreadPool threadPool, MeterRegistry meters) {
-        this(threadPool, meters, DEFAULT_INTERVAL, DEFAULT_STALL, DEFAULT_QUIET, System::nanoTime, threadPool.generic());
+        this(threadPool, meters, DEFAULT_INTERVAL, DEFAULT_STALL, DEFAULT_RESCUE, DEFAULT_QUIET, System::nanoTime, threadPool.generic());
     }
 
     /**
@@ -92,8 +108,22 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
         LongSupplier nanoTime,
         Executor inspectExecutor
     ) {
+        this(threadPool, meters, interval, stall, DEFAULT_RESCUE, quiet, nanoTime, inspectExecutor);
+    }
+
+    AdmissionStallWatchdog(
+        @Nullable ThreadPool threadPool,
+        MeterRegistry meters,
+        TimeValue interval,
+        TimeValue stall,
+        TimeValue rescue,
+        TimeValue quiet,
+        LongSupplier nanoTime,
+        Executor inspectExecutor
+    ) {
         this.nanoTime = nanoTime;
         this.stallNanos = stall.nanos();
+        this.rescueNanos = rescue.nanos();
         this.quietNanos = quiet.nanos();
         MeterRegistry registry = meters != null ? meters : MeterRegistry.NOOP;
         this.waitersGauge = registry.registerLongsAsyncGauge(
@@ -113,6 +143,16 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
             "Oldest external-source admission wait currently parked, dimensioned by gate",
             "ms",
             this::oldestWaitObservations
+        );
+        this.rescuesCounter = registry.registerLongCounter(
+            RESCUES_TOTAL,
+            "Over-cap byte-budget rescue grants issued because a FIFO head stalled",
+            "1"
+        );
+        this.regrantsCounter = registry.registerLongCounter(
+            REGRANTS_TOTAL,
+            "Within-cap byte-budget grants issued because a FIFO head was stuck after a lost wakeup",
+            "1"
         );
         if (threadPool != null && interval.nanos() > 0L) {
             this.cancellable = threadPool.scheduleWithFixedDelay(new AbstractRunnable() {
@@ -151,11 +191,24 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
         }
     }
 
+    void setRescueEnabled(boolean enabled) {
+        rescueEnabled.set(enabled);
+    }
+
+    long rescueCount() {
+        return rescues.sum();
+    }
+
+    long regrantCount() {
+        return regrants.sum();
+    }
+
     void inspect() {
         if (closed.get()) {
             return;
         }
         long now = nanoTime.getAsLong();
+        dumpByteBudget();
         StringBuilder graph = null;
         long oldestStalled = 0L;
         for (Map.Entry<String, GateWaitState> entry : waits.entrySet()) {
@@ -165,40 +218,105 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
                 continue;
             }
             AdmissionGate probe = probe(entry.getKey());
-            int holders = probe == null ? 0 : Math.max(0, probe.holders());
-            if (holders > 0) {
-                continue;
-            }
             long oldestWait = now - state.oldestStartNanos();
-            if (oldestWait < stallNanos) {
-                continue;
-            }
             long lastGrant = state.lastGrantNanos.get();
             long sinceGrant = lastGrant == 0L ? oldestWait : now - lastGrant;
-            long lastWarn = state.lastWarnNanos.get();
-            if (lastWarn != 0L && now - lastWarn < quietNanos) {
-                continue;
+            if (isStalled(probe, waiterCount, oldestWait, sinceGrant)) {
+                long lastWarn = state.lastWarnNanos.get();
+                if (lastWarn == 0L || now - lastWarn >= quietNanos) {
+                    if (state.lastWarnNanos.compareAndSet(lastWarn, now)) {
+                        if (graph == null) {
+                            graph = new StringBuilder();
+                        } else {
+                            graph.append("; ");
+                        }
+                        graph.append(describe(entry.getKey(), state, waiterCount, oldestWait, sinceGrant, lastGrant == 0L));
+                        if (oldestWait > oldestStalled) {
+                            oldestStalled = oldestWait;
+                        }
+                    }
+                }
             }
-            if (state.lastWarnNanos.compareAndSet(lastWarn, now) == false) {
-                continue;
-            }
-            if (graph == null) {
-                graph = new StringBuilder();
-            } else {
-                graph.append("; ");
-            }
-            graph.append(describe(entry.getKey(), state, waiterCount, oldestWait, sinceGrant, lastGrant == 0L));
-            if (oldestWait > oldestStalled) {
-                oldestStalled = oldestWait;
+            try {
+                maybeRescue(probe, state, now, oldestWait, sinceGrant, lastGrant == 0L);
+            } catch (Exception e) {
+                logger.warn("external-source admission rescue failed: {}", probe == null ? entry.getKey() : probe.name(), e);
             }
         }
         if (graph != null) {
-            logger.warn(
-                "external-source admission stall: waiters with no holders for [{}ms]: {}",
-                TimeUnit.NANOSECONDS.toMillis(oldestStalled),
-                graph
-            );
+            logger.warn("possible admission stall: [{}ms]: {}", TimeUnit.NANOSECONDS.toMillis(oldestStalled), graph);
         }
+    }
+
+    private boolean isStalled(AdmissionGate probe, int waiterCount, long oldestWaitNanos, long sinceGrantNanos) {
+        if (waiterCount == 0) {
+            return false;
+        }
+        AdmissionGate.StallPolicy policy = probe == null ? AdmissionGate.StallPolicy.HOLDERS : probe.stallPolicy();
+        return switch (policy) {
+            case HOLDERS -> {
+                int holders = probe == null ? 0 : Math.max(0, probe.holders());
+                yield holders == 0 && oldestWaitNanos >= stallNanos;
+            }
+            // Head must have waited the stall window, and no grant may have landed in that window.
+            // lastGrant alone would over-cap a waiter that arrived after 15s of idle occupancy.
+            case GRANT_AGE -> oldestWaitNanos >= stallNanos && sinceGrantNanos >= stallNanos;
+        };
+    }
+
+    private void maybeRescue(
+        AdmissionGate probe,
+        GateWaitState state,
+        long now,
+        long oldestWaitNanos,
+        long sinceGrantNanos,
+        boolean neverGranted
+    ) {
+        if (rescueEnabled.get() == false || probe == null) {
+            return;
+        }
+        if (probe.stallPolicy() != AdmissionGate.StallPolicy.GRANT_AGE) {
+            return;
+        }
+        if (oldestWaitNanos < rescueNanos || sinceGrantNanos < rescueNanos) {
+            return;
+        }
+        long lastRescue = state.lastRescueNanos.get();
+        if (lastRescue != 0L && now - lastRescue < rescueNanos) {
+            return;
+        }
+        String graph = describe(probe.name(), state, state.outstanding.size(), oldestWaitNanos, sinceGrantNanos, neverGranted);
+        AdmissionGate.RescueResult result = probe.rescueHead(null);
+        if (result == AdmissionGate.RescueResult.NONE) {
+            return;
+        }
+        state.lastRescueNanos.set(now);
+        switch (result) {
+            case OVER_CAP -> {
+                rescues.increment();
+                rescuesCounter.increment();
+                logger.warn("external-source admission rescue: granted FIFO head over the byte cap: {} {}", probe.holderSummary(), graph);
+            }
+            case REGRANT -> {
+                regrants.increment();
+                regrantsCounter.increment();
+                logger.warn("external-source admission rescue: lost-wakeup regrant of FIFO head: {} {}", probe.holderSummary(), graph);
+            }
+            case NONE -> throw new AssertionError("NONE already returned");
+        }
+    }
+
+    private void dumpByteBudget() {
+        if (logger.isDebugEnabled() == false) {
+            return;
+        }
+        AdmissionGate bytes = probe(AdmissionTracker.GATE_BYTES);
+        if (bytes == null) {
+            return;
+        }
+        GateWaitState state = waits.get(AdmissionTracker.GATE_BYTES);
+        int waiterCount = state == null ? 0 : state.outstanding.size();
+        logger.debug("external-source byte budget: {} waiters=[{}]", bytes.holderSummary(), waiterCount);
     }
 
     List<GateStats> stats() {
@@ -334,6 +452,7 @@ final class AdmissionStallWatchdog implements AdmissionTracker, Closeable {
         private final Set<WaitImpl> outstanding = ConcurrentHashMap.newKeySet();
         private final AtomicLong lastGrantNanos = new AtomicLong();
         private final AtomicLong lastWarnNanos = new AtomicLong();
+        private final AtomicLong lastRescueNanos = new AtomicLong();
 
         long oldestStartNanos() {
             long oldest = Long.MAX_VALUE;

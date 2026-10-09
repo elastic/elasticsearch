@@ -75,6 +75,7 @@ public record TestConfiguration(
     boolean onDiskRescore,
     List<SearchParameters> searchParams,
     int numMergeWorkers,
+    int numQuantizerWorkers,
     boolean doPrecondition,
     int preconditioningBlockDims,
     int flatVectorThreshold,
@@ -468,6 +469,7 @@ public record TestConfiguration(
         private List<Boolean> filterCached = List.of(Boolean.TRUE);
         private List<SearchParameters.Builder> searchParams = null;
         private int numMergeWorkers = 1;
+        private int numQuantizerWorkers = Runtime.getRuntime().availableProcessors() / 2;
         private int flatVectorThreshold = -1; // -1 mean use default (vectorPerCluster * 3)
         private int secondaryClusterSize = -1;
         private boolean autoCalibrate = false;
@@ -1025,6 +1027,7 @@ public record TestConfiguration(
                 onDiskRescore,
                 searchRuns,
                 numMergeWorkers,
+                numQuantizerWorkers,
                 doPrecondition,
                 preconditioningBlockDims,
                 flatVectorThreshold,

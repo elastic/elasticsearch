@@ -85,6 +85,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -930,6 +931,33 @@ public class ExternalSourceResolver {
         } catch (IllegalArgumentException e) {
             LOGGER.trace(() -> "no format claims [" + objectName + "]; no format-config identity to derive", e);
             return "";
+        }
+    }
+
+    /**
+     * Effective per-file sample size when this object's configured reader shares its sample among {@code files}, or
+     * {@code 0} when sharing does not narrow it. Only a narrowed inference gets a distinct schema-cache key. The key
+     * carries the effective size rather than the share, so listings of different sizes reuse entries once both shares
+     * reach the per-file floor. A reader with no sample to narrow (Parquet, ORC) or whose configured sample is already
+     * within its share keeps the key an unshared read uses. Whether a CSV file's header declares its types is only
+     * known once it is read, so typed-header CSV is still re-keyed while the effective sample size changes.
+     * <p>
+     * The reader is derived exactly as the metadata read derives the one it samples with
+     * ({@link FormatReaderRegistry#readerForListedObject}), from the same location and config: the size this returns
+     * is the key the read's schema is cached under, so it must be the size that read samples.
+     */
+    private int sharedSchemaSampleSize(StoragePath filePath, Map<String, Object> config, int files) {
+        if (files <= 1) {
+            return 0;
+        }
+        try {
+            FormatReader reader = dataSourceModule.formatReaderRegistry()
+                .readerForListedObject(filePath.toString(), filePath.objectName(), config);
+            FormatReader shared = reader.withSchemaSampleShare(files);
+            return shared == reader ? 0 : shared.schemaSampleSize();
+        } catch (IllegalArgumentException e) {
+            LOGGER.trace(() -> "no format claims [" + filePath + "] or its reader rejects the config; no schema sample to share", e);
+            return 0;
         }
     }
 
@@ -2930,7 +2958,11 @@ public class ExternalSourceResolver {
     enum GatherPurpose {
         /** Folds a cross-file aggregate, warming the schema cache where cacheable. No consumer needs every file. */
         STATS_AGGREGATE,
-        /** The schema is the union of every file's, so union_by_name and strict need all of them. */
+        /**
+         * The schema is the union of every file's, so union_by_name and strict need all of them. Each file infers
+         * from a share of the schema sample (see {@link ExternalSourceResolver#schemaSampleShare}), or planning reads
+         * the whole dataset.
+         */
         SCHEMA_RECONCILIATION;
 
         boolean requiresEveryFile() {
@@ -2960,6 +2992,24 @@ public class ExternalSourceResolver {
             && fold != null
             && fold.canStillProduceAnAggregate() == false
             && (admission == null || admission.stillAdmitting() == false);
+    }
+
+    /**
+     * How many files share one schema sample when every file of a {@code fileCount}-file listing must be inferred
+     * (see {@link FormatReader#withSchemaSampleShare}): the smallest power of two not below {@code fileCount}, so the
+     * total sampled stays within one sample until the share reaches the per-file floor, and is the floor times the
+     * file count past that.
+     * <p>
+     * Rounded up rather than exact because the effective sample size is part of each file's schema-cache key: the
+     * file count moves with every file added and with how a query's filters prune the listing, and an exact share
+     * would re-key - and re-read - every file each time it does. Rounded, the keys move only when the count crosses a
+     * power of two, and stop moving once the per-file floor is reached.
+     * <p>
+     * Deliberately not clamped: listings are capped at 1,000,000 files by
+     * {@link ExternalSourceSettings#MAX_DISCOVERED_FILES}, far below the first {@code int} overflow at {@code 2^30}.
+     */
+    static int schemaSampleShare(int fileCount) {
+        return fileCount <= 1 ? 1 : Integer.highestOneBit(fileCount - 1) << 1;
     }
 
     /**
@@ -3020,6 +3070,8 @@ public class ExternalSourceResolver {
         ActionListener<List<SourceMetadata>> listener
     ) {
         int fileCount = fileList.fileCount();
+        int schemaSampleShare = purpose.requiresEveryFile() ? schemaSampleShare(fileCount) : 1;
+        Map<String, Integer> sharedSampleSizeByFormat = cacheable && schemaSampleShare > 1 ? new ConcurrentHashMap<>() : null;
         ExternalPlanningReservation localReservation = planningReservation;
         final ExternalPlanningReservation.Run resultsRun = localReservation != null ? localReservation.openRun() : null;
         AtomicReferenceArray<SourceMetadata> results = new AtomicReferenceArray<>(fileCount);
@@ -3086,7 +3138,7 @@ public class ExternalSourceResolver {
                 // Length + mtime come from the directory listing: thread them through so the factory can build the
                 // storage object without a synchronous existence/HEAD probe on the executor thread before the async
                 // footer read.
-                ListingHint hint = new ListingHint(fileList.size(i), fileList.lastModifiedMillis(i));
+                ListingHint hint = new ListingHint(fileList.size(i), fileList.lastModifiedMillis(i), schemaSampleShare);
                 if (cacheable) {
                     cachedResolveSingleSourceAsync(
                         filePath,
@@ -3096,6 +3148,7 @@ public class ExternalSourceResolver {
                         config,
                         admission,
                         boundReadConfig,
+                        sharedSampleSizeByFormat,
                         itemListener
                     );
                 } else {
@@ -3205,12 +3258,45 @@ public class ExternalSourceResolver {
         @Nullable String boundReadConfig,
         ActionListener<SourceMetadata> listener
     ) {
-        SchemaCacheKey schemaKey = SchemaCacheKey.build(
-            filePath.toString(),
-            hint.lastModifiedMillis(),
-            datasetIdentity(filePath.objectName(), storageIdentity, secretIdentity, storageConfig(config)),
-            false
-        );
+        cachedResolveSingleSourceAsync(filePath, hint, storageIdentity, secretIdentity, config, admission, boundReadConfig, null, listener);
+    }
+
+    /**
+     * As above, for a hint that may share the schema sample. A schema inferred from a shared sample is keyed by its
+     * effective sample size ({@link SchemaCacheKey#buildShared}), and only such a schema: when the key carries no
+     * sample size the read takes the whole sample, since a shallower schema under the unshared key would be served
+     * to every unshared read of the file. {@code sharedSampleSizeByFormat} memoizes the effective size per format;
+     * it is per gather because the share and the configuration are fixed within one.
+     */
+    private void cachedResolveSingleSourceAsync(
+        StoragePath filePath,
+        ListingHint hint,
+        String storageIdentity,
+        String secretIdentity,
+        Map<String, Object> config,
+        @Nullable SchemaFanOutAdmission admission,
+        @Nullable String boundReadConfig,
+        @Nullable Map<String, Integer> sharedSampleSizeByFormat,
+        ActionListener<SourceMetadata> listener
+    ) {
+        ListingHint readHint = hint;
+        int sharedSampleSize = 0;
+        if (hint.schemaSampleShare() > 1) {
+            int files = hint.schemaSampleShare();
+            String formatName = sharedSampleSizeByFormat == null
+                ? null
+                : FormatNameResolver.resolveFormatNameForIdentity(config, filePath.objectName(), dataSourceModule.formatReaderRegistry());
+            sharedSampleSize = formatName == null
+                ? sharedSchemaSampleSize(filePath, config, files)
+                : sharedSampleSizeByFormat.computeIfAbsent(formatName, f -> sharedSchemaSampleSize(filePath, config, files));
+            if (sharedSampleSize == 0) {
+                readHint = new ListingHint(hint.length(), hint.lastModifiedMillis());
+            }
+        }
+        DatasetIdentity dataset = datasetIdentity(filePath.objectName(), storageIdentity, secretIdentity, storageConfig(config));
+        SchemaCacheKey schemaKey = sharedSampleSize > 0
+            ? SchemaCacheKey.buildShared(filePath.toString(), hint.lastModifiedMillis(), dataset, sharedSampleSize)
+            : SchemaCacheKey.build(filePath.toString(), hint.lastModifiedMillis(), dataset, false);
         // The schema record first, and the statistics address only if it cannot answer. The schema record
         // describes the file and is the same answer whoever asks, so when it already carries THIS read's
         // measurements there is nothing a read-addressed record could add.
@@ -3240,7 +3326,7 @@ public class ExternalSourceResolver {
             listener.onResponse(buildMetadataFromCache(cached, cached.toAttributes(), config, statistics, null));
             return;
         }
-        resolveSingleSourceAsync(filePath.toString(), hint, config, listener.map(meta -> {
+        resolveSingleSourceAsync(filePath.toString(), readHint, config, listener.map(meta -> {
             SchemaCacheEntry entry = stampInferredReadConfig(SchemaCacheEntry.from(meta));
             if (admission == null || admission.tryAdmit(entry)) {
                 cacheService.putSchema(schemaKey, entry);

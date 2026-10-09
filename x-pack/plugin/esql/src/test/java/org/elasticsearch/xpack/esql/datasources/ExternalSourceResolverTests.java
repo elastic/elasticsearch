@@ -112,6 +112,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -136,6 +137,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.hamcrest.Matchers.allOf;
@@ -147,6 +149,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
@@ -9834,11 +9837,27 @@ public class ExternalSourceResolverTests extends ESTestCase {
         private final Map<String, List<StorageEntry>> listingsByPrefix;
         private final StoragePath path;
         private final byte[] payload;
+        private final Map<String, byte[]> payloadsByPath;
 
         MeteredBytesStorageProvider(Map<String, List<StorageEntry>> listingsByPrefix, StoragePath path, byte[] payload) {
+            this(listingsByPrefix, path, payload, Map.of());
+        }
+
+        /** Serves each of {@code payloadsByPath} under its own path, and {@code payload} under any other. */
+        MeteredBytesStorageProvider(
+            Map<String, List<StorageEntry>> listingsByPrefix,
+            StoragePath path,
+            byte[] payload,
+            Map<String, byte[]> payloadsByPath
+        ) {
             this.listingsByPrefix = listingsByPrefix;
             this.path = path;
             this.payload = payload;
+            this.payloadsByPath = payloadsByPath;
+        }
+
+        private byte[] payloadOf(StoragePath requested) {
+            return payloadsByPath.getOrDefault(requested.toString(), payload);
         }
 
         @Override
@@ -9848,17 +9867,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         @Override
         public StorageObject newObject(StoragePath requested) {
-            return new MeteredBytesStorageObject(requested, payload);
+            return new MeteredBytesStorageObject(requested, payloadOf(requested));
         }
 
         @Override
         public StorageObject newObject(StoragePath requested, long length) {
-            return new MeteredBytesStorageObject(requested, payload);
+            return new MeteredBytesStorageObject(requested, payloadOf(requested));
         }
 
         @Override
         public StorageObject newObject(StoragePath requested, long length, Instant lastModified) {
-            return new MeteredBytesStorageObject(requested, payload);
+            return new MeteredBytesStorageObject(requested, payloadOf(requested));
         }
 
         @Override
@@ -9887,7 +9906,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         @Override
         public boolean exists(StoragePath requested) {
-            return path.equals(requested);
+            return path.equals(requested) || payloadsByPath.containsKey(requested.toString());
         }
 
         @Override
@@ -10381,6 +10400,365 @@ public class ExternalSourceResolverTests extends ESTestCase {
             () -> false
         );
         return new ExternalSourceResolver(executor, module);
+    }
+
+    /** The share only moves when the file count crosses a power of two, so repartitioned listings keep their keys. */
+    public void testSchemaSampleShareIsTheNextPowerOfTwo() {
+        assertEquals(1, ExternalSourceResolver.schemaSampleShare(0));
+        assertEquals(1, ExternalSourceResolver.schemaSampleShare(1));
+        assertEquals(2, ExternalSourceResolver.schemaSampleShare(2));
+        assertEquals(4, ExternalSourceResolver.schemaSampleShare(3));
+        assertEquals(4, ExternalSourceResolver.schemaSampleShare(4));
+        assertEquals(8, ExternalSourceResolver.schemaSampleShare(5));
+        // No overflow clamp is needed: MAX_DISCOVERED_FILES caps a resolved listing at 1,000,000 files.
+        assertEquals(1 << 20, ExternalSourceResolver.schemaSampleShare(1_000_000));
+    }
+
+    /**
+     * esql-planning#2236: reconciling reads every file, so a full sample from each would have planning read the whole
+     * dataset when files are small. Each file contributes its share of {@code schema_sample_size} instead, while
+     * {@code first_file_wins} still reads its one file in full.
+     */
+    public void testReconcilingStrategiesShareTheSchemaSampleAcrossFiles() {
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        for (int i = 0; i < 3; i++) {
+            files.put("s3://bucket/data/f" + i + ".csv", csvRows(1_000, -1));
+        }
+        for (FormatReader.SchemaResolution strategy : FormatReader.SchemaResolution.values()) {
+            ExternalSourceResolution resolution = resolveCsvGlob(createMeteredCsvResolver(files, null), "s3://bucket/data/*.csv", strategy);
+            int expected = strategy == FormatReader.SchemaResolution.FIRST_FILE_WINS ? 800 : 800 / 4;
+            assertEquals("[" + strategy + "]", expected, resolution.resolvedSource("s3://bucket/data/*.csv").metadata().sampleRows());
+        }
+    }
+
+    /**
+     * The share bounds how deep each file is sampled, not which files reconcile: a wider type inside the share still
+     * widens the dataset under {@code union_by_name} and is still refused under {@code strict}, while one past it goes
+     * unseen at planning, as it would under a smaller {@code schema_sample_size}.
+     */
+    public void testReconcilingStrategiesSeeTypeChangesWithinTheSharedSample() {
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        files.put("s3://bucket/data/f0.csv", csvRows(1_000, -1));
+        files.put("s3://bucket/data/f1.csv", csvRows(1_000, 300));
+        files.put("s3://bucket/data/f2.csv", csvRows(1_000, 500));
+        String within = "s3://bucket/data/{f0,f1}.csv";
+        String past = "s3://bucket/data/{f0,f2}.csv";
+        ExternalSourceResolver resolver = createMeteredCsvResolver(files, null);
+
+        FormatReader.SchemaResolution union = FormatReader.SchemaResolution.UNION_BY_NAME;
+        assertEquals(DataType.LONG, columnType(resolveCsvGlob(resolver, within, union), within, "n"));
+        assertEquals(DataType.INTEGER, columnType(resolveCsvGlob(resolver, past, union), past, "n"));
+
+        FormatReader.SchemaResolution strict = FormatReader.SchemaResolution.STRICT;
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> resolveCsvGlob(resolver, within, strict));
+        assertThat(e.getMessage(), containsString("column [n] is [long]"));
+        assertEquals(DataType.INTEGER, columnType(resolveCsvGlob(resolver, past, strict), past, "n"));
+    }
+
+    /**
+     * A schema inferred from a shared sample is keyed by its effective depth: a listing sampling less from each file
+     * must not be served the deeper sample cached for another listing, nor the reverse, though both cover the same
+     * file at the same mtime.
+     */
+    public void testSchemaInferredFromAShareIsCachedPerEffectiveDepth() {
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        for (int i = 0; i < 4; i++) {
+            files.put("s3://bucket/data/f" + i + ".csv", csvRows(1_000, -1));
+        }
+        String pair = "s3://bucket/data/{f0,f1}.csv";
+        String all = "s3://bucket/data/*.csv";
+        FormatReader.SchemaResolution strategy = FormatReader.SchemaResolution.UNION_BY_NAME;
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createMeteredCsvResolver(files, cacheService);
+
+            assertEquals(400, resolveCsvGlob(resolver, pair, strategy).resolvedSource(pair).metadata().sampleRows());
+            assertEquals(200, resolveCsvGlob(resolver, all, strategy).resolvedSource(all).metadata().sampleRows());
+            ExternalPlanningReservation reservation = new ExternalPlanningReservation(NoopCircuitBreaker.INSTANCE);
+            resolver.planning(reservation);
+            assertEquals(400, resolveCsvGlob(resolver, pair, strategy).resolvedSource(pair).metadata().sampleRows());
+            assertEquals("the share-2 entries must still be cached", 0L, reservation.planningIo().bytesRead());
+        }
+    }
+
+    /**
+     * Different file-count shares that produce the same effective sample depth use the same cache key. Once the
+     * 100-row floor is reached, crossing another power-of-two boundary must read only newly listed files.
+     */
+    public void testSchemaSampleCacheKeyStabilizesAtTheFloor() {
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        for (int i = 0; i < 17; i++) {
+            files.put("s3://bucket/data/f" + i + ".csv", csvRows(1_000, -1));
+        }
+        String firstNine = csvBraceGlob(9);
+        String allSeventeen = csvBraceGlob(17);
+        FormatReader.SchemaResolution strategy = FormatReader.SchemaResolution.UNION_BY_NAME;
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createMeteredCsvResolver(files, cacheService);
+
+            long nineFiles = planningBytesRead(resolver, firstNine, strategy, 800);
+            long eightNewFiles = planningBytesRead(resolver, allSeventeen, strategy, 800);
+            assertThat(nineFiles, greaterThan(0L));
+            assertThat("the nine shared files keep their floor-sized cache entries", eightNewFiles, lessThan(nineFiles));
+        }
+    }
+
+    /**
+     * A reader whose configured sample is already within its share samples the same either way, so its entries keep
+     * the unshared key: a listing that grows past a power of two re-reads only the files it added.
+     */
+    public void testAReaderThatDoesNotNarrowKeepsItsEntriesAcrossShares() {
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        for (int i = 0; i < 4; i++) {
+            files.put("s3://bucket/data/f" + i + ".csv", csvRows(1_000, -1));
+        }
+        FormatReader.SchemaResolution strategy = FormatReader.SchemaResolution.UNION_BY_NAME;
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createMeteredCsvResolver(files, cacheService);
+
+            long pair = planningBytesRead(resolver, "s3://bucket/data/{f0,f1}.csv", strategy, 50);
+            long all = planningBytesRead(resolver, "s3://bucket/data/*.csv", strategy, 50);
+            assertThat(pair, greaterThan(0L));
+            assertEquals("only the two files the pair did not cover are read", pair, all);
+        }
+    }
+
+    /**
+     * The cost the share exists for: reconciling many files reads a fraction of each, where it used to read each
+     * up to the whole sample.
+     */
+    public void testReconcilingManyFilesReadsAFractionOfEach() {
+        byte[] payload = csvRows(40_000, -1);
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        for (int i = 0; i < 8; i++) {
+            files.put("s3://bucket/data/f" + i + ".csv", payload);
+        }
+        ExternalSourceResolver resolver = createMeteredCsvResolver(files, null);
+
+        long read = planningBytesRead(resolver, "s3://bucket/data/*.csv", FormatReader.SchemaResolution.UNION_BY_NAME, 40_000);
+        assertThat(read, lessThan(files.size() * (long) payload.length / 2));
+    }
+
+    /**
+     * The listing shape of esql-planning#2236: far more files than the sample has floor-sized shares, each file longer
+     * than the floor but shorter than the sample. Every file is sampled for the floor and no more, so planning reads
+     * {@code files x floor} rows: more than one sample, and a fraction of the dataset, where it used to read all of it.
+     */
+    public void testReconcilingManyFilesSamplesTheFloorFromEachAndNoMore() {
+        int floor = FormatReader.MIN_SHARED_SCHEMA_SAMPLE_SIZE;
+        int sampleSize = 40_000;
+        // Past this many files every share is the floor: the smallest power of two not below it leaves fewer than
+        // 100 rows per file (40,000 / 512 rounds up to 79), as the issue's 3,264 files did.
+        int fileCount = 512;
+        assertThat(Math.ceilDiv(sampleSize, ExternalSourceResolver.schemaSampleShare(fileCount)), lessThan(floor));
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        long rowsInDataset = 0;
+        for (int i = 0; i < fileCount; i++) {
+            int rows = randomIntBetween(floor + 1, 1_000);
+            rowsInDataset += rows;
+            files.put("s3://bucket/data/f" + i + ".csv", csvRows(rows, -1));
+        }
+        List<Integer> sampledRowsPerFile = Collections.synchronizedList(new ArrayList<>());
+        ExternalSourceResolver resolver = createMeteredCsvResolver(
+            files,
+            null,
+            reader -> new SampleRowsRecordingFormatReader(reader, sampledRowsPerFile)
+        );
+
+        resolveCsvGlob(resolver, "s3://bucket/data/*.csv", FormatReader.SchemaResolution.UNION_BY_NAME, sampleSize);
+
+        assertEquals("every file is sampled", fileCount, sampledRowsPerFile.size());
+        long sampledRows = sampledRowsPerFile.stream().mapToLong(Integer::longValue).sum();
+        assertThat(sampledRows, lessThanOrEqualTo((long) fileCount * floor));
+        assertThat("the floor, not the sample, is what bounds a wide listing", sampledRows, greaterThan((long) sampleSize));
+        assertThat(sampledRows, lessThan(rowsInDataset / 2));
+    }
+
+    /**
+     * Forwards to a text reader, recording how many rows each file's schema inference sampled. Only the planning-side
+     * surface the resolver reaches is forwarded: configuring, sharing the sample, and reading the metadata.
+     */
+    private static final class SampleRowsRecordingFormatReader implements FormatReader {
+        private final FormatReader inner;
+        private final List<Integer> sampledRowsPerFile;
+
+        SampleRowsRecordingFormatReader(FormatReader inner, List<Integer> sampledRowsPerFile) {
+            this.inner = inner;
+            this.sampledRowsPerFile = sampledRowsPerFile;
+        }
+
+        private FormatReader rewrap(FormatReader configured) {
+            return configured == inner ? this : new SampleRowsRecordingFormatReader(configured, sampledRowsPerFile);
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) throws IOException {
+            SourceMetadata metadata = inner.metadata(object);
+            sampledRowsPerFile.add(metadata.sampleRows());
+            return metadata;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            return inner.read(object, context);
+        }
+
+        @Override
+        public String formatName() {
+            return inner.formatName();
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return inner.fileExtensions();
+        }
+
+        @Override
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            Configured<FormatReader> configured = inner.withConfigTrackingConsumedKeys(config);
+            return new Configured<>(
+                rewrap(configured.value()),
+                configured.consumedKeys(),
+                configured.identity(),
+                configured.secretIdentity()
+            );
+        }
+
+        @Override
+        public FormatReader withSchemaSampleShare(int files) {
+            return rewrap(inner.withSchemaSampleShare(files));
+        }
+
+        @Override
+        public int schemaSampleSize() {
+            return inner.schemaSampleSize();
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return inner.rowPositionStrategy();
+        }
+
+        @Override
+        public void close() throws IOException {
+            inner.close();
+        }
+    }
+
+    private static long planningBytesRead(
+        ExternalSourceResolver resolver,
+        String glob,
+        FormatReader.SchemaResolution strategy,
+        int schemaSampleSize
+    ) {
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(NoopCircuitBreaker.INSTANCE);
+        resolver.planning(reservation);
+        resolveCsvGlob(resolver, glob, strategy, schemaSampleSize);
+        return reservation.planningIo().bytesRead();
+    }
+
+    private static DataType columnType(ExternalSourceResolution resolution, String path, String column) {
+        return resolution.resolvedSource(path)
+            .metadata()
+            .schema()
+            .stream()
+            .filter(a -> a.name().equals(column))
+            .findFirst()
+            .orElseThrow()
+            .dataType();
+    }
+
+    /** {@code rows} rows of {@code id,n}, all integers but for a long in row {@code longRow} (none if negative). */
+    private static byte[] csvRows(int rows, int longRow) {
+        StringBuilder csv = new StringBuilder("id,n\n");
+        for (int i = 0; i < rows; i++) {
+            csv.append(i).append(',').append(i == longRow ? 3_000_000_000L : i).append('\n');
+        }
+        return csv.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static String csvBraceGlob(int fileCount) {
+        StringBuilder glob = new StringBuilder("s3://bucket/data/{");
+        for (int i = 0; i < fileCount; i++) {
+            if (i > 0) {
+                glob.append(',');
+            }
+            glob.append('f').append(i);
+        }
+        return glob.append("}.csv").toString();
+    }
+
+    private static ExternalSourceResolution resolveCsvGlob(
+        ExternalSourceResolver resolver,
+        String glob,
+        FormatReader.SchemaResolution strategy
+    ) {
+        return resolveCsvGlob(resolver, glob, strategy, 800);
+    }
+
+    private static ExternalSourceResolution resolveCsvGlob(
+        ExternalSourceResolver resolver,
+        String glob,
+        FormatReader.SchemaResolution strategy,
+        int schemaSampleSize
+    ) {
+        Map<String, Object> config = new HashMap<>(configFor(strategy));
+        config.put("schema_sample_size", schemaSampleSize);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(glob), Map.of(glob, config), future);
+        return future.actionGet();
+    }
+
+    /** A resolver over in-memory {@code .csv} objects under {@code s3://bucket/data/}, read by the real CSV reader. */
+    private ExternalSourceResolver createMeteredCsvResolver(Map<String, byte[]> files, @Nullable ExternalSourceCacheService cacheService) {
+        return createMeteredCsvResolver(files, cacheService, UnaryOperator.identity());
+    }
+
+    /** As above, with the registered CSV reader passed through {@code readerWrapper}, so a test can observe its calls. */
+    private ExternalSourceResolver createMeteredCsvResolver(
+        Map<String, byte[]> files,
+        @Nullable ExternalSourceCacheService cacheService,
+        UnaryOperator<FormatReader> readerWrapper
+    ) {
+        List<StorageEntry> listing = new ArrayList<>();
+        files.forEach((path, bytes) -> listing.add(new StorageEntry(StoragePath.of(path), bytes.length, Instant.EPOCH)));
+        StorageProvider storageProvider = new MeteredBytesStorageProvider(
+            Map.of("s3://bucket/data/", listing),
+            StoragePath.of("s3://bucket/data/"),
+            new byte[0],
+            files
+        );
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("csv", ".csv", Set.of("schema_sample_size")));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("csv", (s, bf) -> readerWrapper.apply(new CsvFormatReader(bf, "csv", List.of(".csv"))));
+            }
+        };
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            DataSourceCapabilities.build(plugins),
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, cacheService);
     }
 
     /**

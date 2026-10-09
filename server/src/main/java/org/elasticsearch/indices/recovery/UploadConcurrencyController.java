@@ -27,14 +27,23 @@ import java.util.OptionalLong;
  */
 class UploadConcurrencyController {
 
-    /** A raise is kept only if throughput grew by at least this factor. */
-    static final double MIN_THROUGHPUT_GAIN = 1.05;
+    /**
+     * A raise is kept only if throughput grew by at least this fraction of the ideal gain, which is the throughput each upload brought
+     * on average before the raise. With one upload added at a time the ideal gain is small and shrinks as the target grows, so a fixed
+     * percentage cannot be used.
+     */
+    static final double MIN_FRACTION_OF_IDEAL_GAIN = 0.5;
     /** Raise only if uploads spent less than this fraction of their time paused in a rate limiter. */
     static final double MAX_LIMITER_WAIT_FRACTION = 0.1;
     /** Fraction of the interval in which runnable tasks waited for CPU, above which foreground work counts as being delayed. */
     static final double CONTENDED_CPU_PRESSURE = 0.05;
     /** Fraction of the interval in which runnable tasks waited for CPU, below which CPU counts as quiet enough to add uploads. */
     static final double QUIET_CPU_PRESSURE = 0.01;
+    /**
+     * Fraction of the interval the pod may be throttled by its CPU quota before foreground work counts as being delayed. Throttling for
+     * less than this is common for short bursts and not worth cutting for, but any throttling stops raises.
+     */
+    static final double CONTENDED_THROTTLED_FRACTION = 0.01;
     /** Mean time in milliseconds that write tasks waited in the queue, above which foreground work counts as being delayed. */
     static final double CONTENDED_WRITE_QUEUE_WAIT_MILLIS = 10.0;
     /** Mean time in milliseconds that write tasks waited in the queue, below which writes count as quiet enough to add uploads. */
@@ -59,6 +68,7 @@ class UploadConcurrencyController {
      * @param cpuPressure            fraction of the interval in which runnable tasks of the pod waited for CPU, if known
      * @param throttledMicros        time the pod was throttled by its CPU quota, if known
      * @param writeQueueWaitMillis   mean time write tasks waited in the queue, if known (zero if none started)
+     * @param writeStalled           whether write tasks were queued but none started in the interval
      * @param readErrors             uploads that failed reading the source (shared with foreground work)
      * @param uploadErrors           uploads that failed writing to the repository
      */
@@ -71,6 +81,7 @@ class UploadConcurrencyController {
         OptionalDouble cpuPressure,
         OptionalLong throttledMicros,
         OptionalDouble writeQueueWaitMillis,
+        boolean writeStalled,
         long readErrors,
         long uploadErrors
     ) {}
@@ -165,12 +176,23 @@ class UploadConcurrencyController {
             decision = new Decision(target, "cut", String.join(", ", contention));
         } else if (probePending) {
             probePending = false;
-            if (signals.throughputBytesPerSec() >= throughputBeforeProbe * MIN_THROUGHPUT_GAIN) {
-                decision = new Decision(target, "keep", throughputChange(signals.throughputBytesPerSec()));
+            final double throughput = signals.throughputBytesPerSec();
+            // what each upload brought on average before the raise, which a raise should at least half bring again
+            final double idealGain = throughputBeforeProbe / targetBeforeProbe;
+            final double gain = throughput - throughputBeforeProbe;
+            final String change = throughputChange(throughput);
+            if (gain > 0.0 && gain >= MIN_FRACTION_OF_IDEAL_GAIN * idealGain) {
+                // keep it, and carry on in the same interval so that the climb is one upload per interval
+                final Decision next = raiseOrHold(signals, coolingDown);
+                decision = new Decision(
+                    next.target(),
+                    next.action().equals("raise") ? "raise" : "keep",
+                    "kept, " + change + "; " + next.reason()
+                );
             } else {
                 target = targetBeforeProbe;
                 cooldownRemaining = Math.max(cooldownRemaining, REVERT_COOLDOWN_INTERVALS);
-                decision = new Decision(target, "revert", throughputChange(signals.throughputBytesPerSec()));
+                decision = new Decision(target, "revert", change);
             }
         } else {
             decision = raiseOrHold(signals, coolingDown);
@@ -187,8 +209,12 @@ class UploadConcurrencyController {
         if (signals.cpuPressure().isPresent() && signals.cpuPressure().getAsDouble() > CONTENDED_CPU_PRESSURE) {
             reasons.add(Strings.format("cpu pressure %.3f", signals.cpuPressure().getAsDouble()));
         }
-        if (signals.throttledMicros().isPresent() && signals.throttledMicros().getAsLong() > 0L) {
+        if (signals.throttledMicros().isPresent()
+            && signals.throttledMicros().getAsLong() * 1000.0 > CONTENDED_THROTTLED_FRACTION * signals.intervalNanos()) {
             reasons.add("cpu throttled " + signals.throttledMicros().getAsLong() + "us");
+        }
+        if (signals.writeStalled()) {
+            reasons.add("write pool stalled");
         }
         if (signals.writeQueueWaitMillis().isPresent()
             && signals.writeQueueWaitMillis().getAsDouble() > CONTENDED_WRITE_QUEUE_WAIT_MILLIS) {
@@ -245,6 +271,8 @@ class UploadConcurrencyController {
         }
         if (signals.throttledMicros().isEmpty()) {
             return "cpu throttling unavailable";
+        } else if (signals.throttledMicros().getAsLong() > 0L) {
+            return "cpu throttled " + signals.throttledMicros().getAsLong() + "us";
         }
         if (signals.writeQueueWaitMillis().isEmpty()) {
             return "write queue wait unavailable";

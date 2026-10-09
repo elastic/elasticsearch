@@ -50,6 +50,7 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
             OptionalDouble.of(randomDoubleBetween(0.0, QUIET_CPU_PRESSURE, false)),
             OptionalLong.of(0L),
             OptionalDouble.of(randomDoubleBetween(0.0, QUIET_WRITE_QUEUE_WAIT_MILLIS, false)),
+            false,
             0L,
             0L
         );
@@ -65,6 +66,7 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
             cpuPressure,
             throttledMicros,
             writeQueueWaitMillis,
+            s.writeStalled(),
             s.readErrors(),
             s.uploadErrors()
         );
@@ -80,6 +82,7 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
             s.cpuPressure(),
             s.throttledMicros(),
             s.writeQueueWaitMillis(),
+            s.writeStalled(),
             readErrors,
             uploadErrors
         );
@@ -95,6 +98,7 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
             s.cpuPressure(),
             s.throttledMicros(),
             s.writeQueueWaitMillis(),
+            s.writeStalled(),
             s.readErrors(),
             s.uploadErrors()
         );
@@ -116,9 +120,9 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
     public void testRaisesByOneWhateverTheTarget() {
         // additive increase: one more per interval, however large the target is
         final var big = new UploadConcurrencyController(100, 140);
-        assertThat(big.onInterval(quiet(1, 100, 100.0)).target(), equalTo(101));
-        assertThat(big.onInterval(quiet(1, 101, 200.0)).action(), equalTo("keep"));
-        assertThat(big.onInterval(quiet(1, 101, 200.0)).target(), equalTo(102));
+        assertThat(big.onInterval(quiet(1, 100, 1000.0)).target(), equalTo(101));
+        assertThat(big.onInterval(quiet(1, 101, 1100.0)).target(), equalTo(102));
+        assertThat(big.onInterval(quiet(1, 102, 1200.0)).target(), equalTo(103));
     }
 
     public void testQuietThresholds() {
@@ -175,14 +179,65 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
         assertThat(decision.action(), equalTo("hold"));
     }
 
-    public void testKeepsRaiseWhenThroughputGrows() {
+    public void testKeepsRaiseAndRaisesAgainInTheSameInterval() {
         controller.onInterval(quiet(100.0));
+        // each of the 10 uploads brought 10, the 11th brings 6, more than half of that
         final Decision decision = controller.onInterval(quiet(106.0));
-        assertThat(decision.action(), equalTo("keep"));
-        assertThat(decision.target(), equalTo(11));
-        // and probes again on the next interval
-        assertThat(controller.onInterval(quiet(106.0)).action(), equalTo("raise"));
-        assertThat(controller.getTarget(), equalTo(12));
+        assertThat(decision.action(), equalTo("raise"));
+        assertThat(decision.reason(), containsString("kept"));
+        assertThat(decision.target(), equalTo(FLOOR + 2));
+        assertThat(controller.getTarget(), equalTo(FLOOR + 2));
+    }
+
+    public void testKeepRuleIsHalfTheIdealGain() {
+        // at 100 uploads each brings 10 on average, so a raise must bring at least 5
+        final var big = new UploadConcurrencyController(100, 140);
+        big.onInterval(quiet(1, 100, 1000.0));
+        assertThat(big.onInterval(quiet(1, 101, 1004.9)).action(), equalTo("revert"));
+        assertThat(big.getTarget(), equalTo(100));
+
+        final var other = new UploadConcurrencyController(100, 140);
+        other.onInterval(quiet(1, 100, 1000.0));
+        assertThat(other.onInterval(quiet(1, 101, 1005.0)).action(), equalTo("raise"));
+        assertThat(other.getTarget(), equalTo(102));
+    }
+
+    public void testClimbsPastTwentyWhenEachUploadAddsMostOfItsShare() {
+        final int cap = 40;
+        final var climbing = new UploadConcurrencyController(FLOOR, cap);
+        int previous = FLOOR;
+        boolean passedTwenty = false;
+        for (int interval = 0; interval < 60; interval++) {
+            final int target = climbing.getTarget();
+            // 100 per upload at the floor, and every further upload adds 80% of that
+            final double throughput = 100.0 * FLOOR + 80.0 * (target - FLOOR);
+            climbing.onInterval(quiet(10, target, throughput));
+            assertThat(climbing.getTarget(), org.hamcrest.Matchers.greaterThanOrEqualTo(previous));
+            previous = climbing.getTarget();
+            passedTwenty |= previous > 20;
+        }
+        assertTrue(passedTwenty);
+        assertThat(climbing.getTarget(), equalTo(cap));
+    }
+
+    public void testFlatThroughputIsNoise() {
+        controller.onInterval(quiet(100.0));
+        final Decision flat = controller.onInterval(quiet(100.0));
+        assertThat(flat.action(), equalTo("revert"));
+        assertThat(controller.getTarget(), equalTo(FLOOR));
+        // a little more than flat is still not half the ideal gain
+        final var other = new UploadConcurrencyController(FLOOR, CEILING);
+        other.onInterval(quiet(1, FLOOR, 100.0));
+        assertThat(other.onInterval(quiet(1, FLOOR + 1, 102.0)).action(), equalTo("revert"));
+        // and so is less
+        final var down = new UploadConcurrencyController(FLOOR, CEILING);
+        down.onInterval(quiet(1, FLOOR, 100.0));
+        assertThat(down.onInterval(quiet(1, FLOOR + 1, 90.0)).action(), equalTo("revert"));
+    }
+
+    public void testNoGainFromZeroThroughput() {
+        controller.onInterval(quiet(0.0));
+        assertThat(controller.onInterval(quiet(0.0)).action(), equalTo("revert"));
     }
 
     public void testRevertsRaiseWithoutGainAndCoolsDown() {
@@ -222,9 +277,12 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
     public void testStopsAtCeiling() {
         final var small = new UploadConcurrencyController(10, 12);
         assertThat(small.onInterval(quiet(1, 10, 100.0)).target(), equalTo(11));
-        assertThat(small.onInterval(quiet(1, 11, 200.0)).action(), equalTo("keep"));
         assertThat(small.onInterval(quiet(1, 11, 200.0)).target(), equalTo(12));
-        assertThat(small.onInterval(quiet(1, 12, 300.0)).action(), equalTo("keep"));
+        // the last raise is kept, and there is nothing to raise to
+        final Decision kept = small.onInterval(quiet(1, 12, 300.0));
+        assertThat(kept.action(), equalTo("keep"));
+        assertThat(kept.reason(), containsString("at ceiling"));
+        assertThat(kept.target(), equalTo(12));
         final Decision decision = small.onInterval(quiet(1, 12, 300.0));
         assertThat(decision.action(), equalTo("hold"));
         assertThat(decision.reason(), equalTo("at ceiling"));
@@ -258,17 +316,14 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
 
     private static final int CLIMB_STEPS = 20;
 
-    /** Climbs a few steps, each raise kept by doubled throughput, and raises once more with the probe pending. */
+    /** Climbs a few steps, each raise kept by doubled throughput, and so one raise per interval, the last one still pending. */
     private double climbToPendingProbe() {
         double throughput = 100.0;
         for (int i = 0; i < CLIMB_STEPS; i++) {
             controller.onInterval(quiet(throughput));
             throughput *= 2;
-            controller.onInterval(quiet(throughput));
         }
         assertThat(controller.getTarget(), equalTo(FLOOR + CLIMB_STEPS));
-        controller.onInterval(quiet(throughput));
-        assertThat(controller.getTarget(), equalTo(FLOOR + CLIMB_STEPS + 1));
         return throughput;
     }
 
@@ -289,8 +344,10 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
 
     public void testCutsOnThrottlingAndOnWriteQueueWait() {
         final Signals base = quiet(100.0);
+        // more than 1% of the interval
+        final long throttledMicros = randomLongBetween(50_001L, 5_000_000L);
         final Decision throttled = controller.onInterval(
-            with(base, base.cpuPressure(), OptionalLong.of(randomLongBetween(1, 1_000_000)), base.writeQueueWaitMillis())
+            with(base, base.cpuPressure(), OptionalLong.of(throttledMicros), base.writeQueueWaitMillis())
         );
         assertThat(throttled.action(), equalTo("cut"));
         assertThat(throttled.reason(), containsString("cpu throttled"));
@@ -310,9 +367,41 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
         assertThat(atThreshold.action(), equalTo("hold"));
     }
 
+    public void testBriefThrottlingStopsRaisesButDoesNotCut() {
+        final Signals base = quiet(100.0);
+        // 1% of the interval exactly is not more than 1%
+        final long brief = TimeUnit.NANOSECONDS.toMicros(INTERVAL_NANOS) / 100;
+        final Decision decision = controller.onInterval(
+            with(base, base.cpuPressure(), OptionalLong.of(randomLongBetween(1L, brief)), base.writeQueueWaitMillis())
+        );
+        assertThat(decision.action(), equalTo("hold"));
+        assertThat(decision.reason(), containsString("cpu throttled"));
+        assertThat(controller.getTarget(), equalTo(FLOOR));
+    }
+
+    public void testStalledWritePoolIsContention() {
+        final Signals base = quiet(100.0);
+        final Signals stalled = new Signals(
+            base.queued(),
+            base.running(),
+            base.throughputBytesPerSec(),
+            base.limiterPauseNanos(),
+            base.intervalNanos(),
+            base.cpuPressure(),
+            base.throttledMicros(),
+            OptionalDouble.of(0.0),
+            true,
+            0L,
+            0L
+        );
+        final Decision decision = controller.onInterval(stalled);
+        assertThat(decision.action(), equalTo("cut"));
+        assertThat(decision.reason(), containsString("write pool stalled"));
+    }
+
     public void testContentionReasonNamesEverySignal() {
         final Decision decision = controller.onInterval(
-            with(quiet(100.0), OptionalDouble.of(0.5), OptionalLong.of(1000L), OptionalDouble.of(50.0))
+            with(quiet(100.0), OptionalDouble.of(0.5), OptionalLong.of(1_000_000L), OptionalDouble.of(50.0))
         );
         assertThat(decision.reason(), containsString("cpu pressure"));
         assertThat(decision.reason(), containsString("cpu throttled"));

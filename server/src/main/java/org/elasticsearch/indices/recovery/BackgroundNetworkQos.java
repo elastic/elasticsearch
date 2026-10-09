@@ -34,7 +34,6 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
@@ -56,7 +55,9 @@ import static org.elasticsearch.core.Strings.format;
  *     the wait in the write queue) because uploads also use CPU outside their threads, and upload errors. Off, uploads run on the
  *     snapshot pool at today's concurrency.</li>
  * </ul>
- * All repositories share this node's upload task runner so that a single controller sets the node's upload concurrency.
+ * While adaptive upload concurrency is on, all repositories share this node's upload task runner so that a single controller sets the
+ * node's upload concurrency. While both switches are off nothing here does anything: no measurements are read and no work is counted.
+ * Background QoS only applies on stateless nodes, where snapshots read from the object store; on other nodes they read local disk.
  */
 public class BackgroundNetworkQos extends AbstractLifecycleComponent {
 
@@ -107,9 +108,10 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     static final long LOG_ACTIVE_WINDOW_NANOS = TimeUnit.SECONDS.toNanos(30);
 
     /**
-     * Total time and number of tasks of the node's write queue, from which the mean wait in the queue over an interval follows.
+     * Total time and number of tasks started by the node's write queue, from which the mean wait in the queue over an interval follows,
+     * and the number of tasks queued now.
      */
-    record QueueLatency(long totalNanos, long tasks) {}
+    record QueueLatency(long totalNanos, long tasks, int queued) {}
 
     /**
      * Where the node's measurements come from. Each supplier returns {@code null} if the measurement is not available.
@@ -125,7 +127,7 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
             final CgroupV2Probe cgroupProbe = CgroupV2Probe.getInstance();
             return new Probes(networkProbe::getNetworkStats, cgroupProbe::getCpuPressure, cgroupProbe::getCpuThrottling, () -> {
                 if (threadPool.executor(ThreadPool.Names.WRITE) instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor write) {
-                    return new QueueLatency(write.getTotalQueueLatencyNanos(), write.getTotalStartedTasks());
+                    return new QueueLatency(write.getTotalQueueLatencyNanos(), write.getTotalStartedTasks(), write.getCurrentQueueSize());
                 }
                 return null;
             });
@@ -136,12 +138,12 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     private final RecoverySettings recoverySettings;
     private final Probes probes;
     private final LongSupplier nanoTimeSupplier;
+    private final boolean stateless;
 
     private final Resource networkIn;
     private final Resource networkOut;
     private final List<Resource> resources;
 
-    private final Executor uploadExecutor;
     private final PrioritizedThrottledTaskRunner<ShardSnapshotTaskRunner.SnapshotTask> uploadTaskRunner;
     private final UploadConcurrencyController uploadConcurrencyController;
     private final LongAdder uploadBytes = new LongAdder();
@@ -157,10 +159,17 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     @Nullable
     private volatile Scheduler.Cancellable scheduledTick;
 
-    // state below is only accessed by the periodic tick
-    private long lastTickNanos;
+    // Everything below is guarded by the lock, which the periodic tick holds and so does a change of the adaptive switch.
+    private final Object lock = new Object();
+    private boolean loggedProbes;
     private long tickCount;
-    private boolean adaptiveUploadConcurrencyActive;
+    private long lastActiveNanos;
+    private boolean everActive;
+    private long lastUploadBytes;
+    // whether the network measurements, or the controller's interval measurements, have a start to compare with
+    private boolean trackingNetwork;
+    private boolean trackingInterval;
+    private long lastNetworkTickNanos;
     private long intervalStartNanos;
     private long intervalStartUploadBytes;
     private long intervalStartUploadPauseNanos;
@@ -175,62 +184,88 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     private UploadConcurrencyController.Signals lastSignals;
     private long readErrorsSinceLog;
     private long writeErrorsSinceLog;
-    private long lastUploadBytes;
-    private long lastActiveNanos;
-    private boolean everActive;
 
-    public BackgroundNetworkQos(ClusterSettings clusterSettings, ThreadPool threadPool, RecoverySettings recoverySettings) {
-        this(clusterSettings, threadPool, recoverySettings, Probes.forNode(threadPool), System::nanoTime);
+    /**
+     * @param stateless whether this is a stateless node, the only kind that snapshots read from the object store, which the network
+     *                  limiters are for
+     */
+    public BackgroundNetworkQos(
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        RecoverySettings recoverySettings,
+        boolean stateless
+    ) {
+        this(clusterSettings, threadPool, recoverySettings, stateless, Probes.forNode(threadPool), System::nanoTime);
     }
 
     BackgroundNetworkQos(
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
         RecoverySettings recoverySettings,
+        boolean stateless,
         Probes probes,
         LongSupplier nanoTimeSupplier
     ) {
         this.threadPool = threadPool;
         this.recoverySettings = recoverySettings;
+        this.stateless = stateless;
         this.probes = probes;
         this.nanoTimeSupplier = nanoTimeSupplier;
-        this.lastTickNanos = nanoTimeSupplier.getAsLong();
-        this.intervalStartNanos = lastTickNanos;
         // same capacity in both network directions until we know whether the node's share applies per direction or combined
         final long networkCapacity = recoverySettings.nodeBandwidthSettingsExist()
             ? Math.max(recoverySettings.getAvailableNetworkBandwidth().getBytes(), 0L)
             : 0L;
-        this.networkIn = new Resource("net in", networkCapacity, stats -> stats == null ? -1L : stats.receiveBytes());
-        this.networkOut = new Resource("net out", networkCapacity, stats -> stats == null ? -1L : stats.transmitBytes());
+        // a snapshot reads each byte it uploads from the object store, so every background byte is both ingress and egress
+        this.networkIn = new Resource("net in", networkCapacity, uploadBytes::sum, stats -> stats == null ? -1L : stats.receiveBytes());
+        this.networkOut = new Resource("net out", networkCapacity, uploadBytes::sum, stats -> stats == null ? -1L : stats.transmitBytes());
         this.resources = List.of(networkIn, networkOut);
 
         // today's concurrency, also the target while adaptive upload concurrency is off
         final int floor = threadPool.info(ThreadPool.Names.SNAPSHOT).getMax();
         this.nodeUploadConcurrencyCeiling = Math.max(floor, threadPool.info(ThreadPool.Names.SNAPSHOT_UPLOAD).getMax());
         this.uploadConcurrencyController = new UploadConcurrencyController(floor, nodeUploadConcurrencyCeiling);
-        final Executor snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        final Executor snapshotUploadExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT_UPLOAD);
-        // chosen for each task, so that switching off sends new uploads back to the snapshot pool without waiting for anything
-        this.uploadExecutor = command -> (adaptiveUploadConcurrencyEnabled ? snapshotUploadExecutor : snapshotExecutor).execute(command);
-        this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(ShardSnapshotTaskRunner.TASK_RUNNER_NAME, floor, uploadExecutor);
+        this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
+            ShardSnapshotTaskRunner.TASK_RUNNER_NAME,
+            floor,
+            threadPool.executor(ThreadPool.Names.SNAPSHOT_UPLOAD)
+        );
 
         clusterSettings.initializeAndWatch(UPLOAD_CONCURRENCY_MAX_SETTING, max -> this.uploadConcurrencyMax = max);
         uploadConcurrencyController.setCeiling(Math.min(uploadConcurrencyMax, nodeUploadConcurrencyCeiling));
         clusterSettings.initializeAndWatch(BACKGROUND_QOS_ENABLED_SETTING, enabled -> this.backgroundQosEnabled = enabled);
-        clusterSettings.initializeAndWatch(ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING, enabled -> {
+        clusterSettings.initializeAndWatch(ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING, this::setAdaptiveUploadConcurrencyEnabled);
+    }
+
+    private void setAdaptiveUploadConcurrencyEnabled(boolean enabled) {
+        // serialized with the tick, which must not be deciding a target while this puts the controller back to the floor
+        synchronized (lock) {
             this.adaptiveUploadConcurrencyEnabled = enabled;
-            if (enabled == false) {
-                // do not leave the adaptive target in place until the next interval
-                setUploadConcurrency(uploadConcurrencyController.getFloor());
-            }
-        });
+            // off: do not leave the adaptive target in place until the next interval. On: start from today's concurrency.
+            trackingInterval = false;
+            uploadConcurrencyController.reset();
+            setUploadConcurrency(uploadConcurrencyController.getFloor());
+        }
     }
 
     /**
      * Whether snapshots should use {@link #getIngressLimiter()} and {@link #getEgressLimiter()}.
      */
     public boolean isBackgroundQosEnabled() {
-        return backgroundQosEnabled && networkIn.capacityBytesPerSec > 0L;
+        return stateless && backgroundQosEnabled && networkIn.capacityBytesPerSec > 0L;
+    }
+
+    /**
+     * Whether shard snapshot uploads should use the node's {@link #getUploadTaskRunner()}.
+     */
+    public boolean isAdaptiveUploadConcurrencyEnabled() {
+        return adaptiveUploadConcurrencyEnabled;
+    }
+
+    /**
+     * Whether either switch is on. Off, snapshots behave as they always did and this does not measure or count anything.
+     */
+    public boolean isActive() {
+        return adaptiveUploadConcurrencyEnabled || isBackgroundQosEnabled();
     }
 
     public RateLimiter getIngressLimiter() {
@@ -242,22 +277,28 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     }
 
     /**
-     * The node-level runner for shard snapshot tasks, shared by all repositories.
+     * The node-level runner for shard snapshot tasks, shared by all repositories, which only runs tasks while adaptive upload
+     * concurrency is on.
      */
     public PrioritizedThrottledTaskRunner<ShardSnapshotTaskRunner.SnapshotTask> getUploadTaskRunner() {
         return uploadTaskRunner;
     }
 
     /**
-     * The executor of the upload task runner: the {@link ThreadPool.Names#SNAPSHOT_UPLOAD} pool while adaptive upload concurrency is
-     * on, the {@link ThreadPool.Names#SNAPSHOT} pool otherwise.
+     * The runner for a repository's next shard snapshot task: the node's shared runner while adaptive upload concurrency is on and
+     * otherwise the repository's own, as it has always been.
      */
-    Executor getUploadExecutor() {
-        return uploadExecutor;
+    public PrioritizedThrottledTaskRunner<ShardSnapshotTaskRunner.SnapshotTask> selectUploadTaskRunner(
+        PrioritizedThrottledTaskRunner<ShardSnapshotTaskRunner.SnapshotTask> repositoryTaskRunner
+    ) {
+        return adaptiveUploadConcurrencyEnabled ? uploadTaskRunner : repositoryTaskRunner;
     }
 
     /**
-     * Wraps a snapshot upload stream to count the uploaded bytes, an input to the upload concurrency controller.
+     * Wraps a snapshot upload stream to count the background bytes, an input to the limiters and to the upload concurrency controller.
+     * Every byte is counted once each time it is read, so bytes that are read again after a reset of the stream, or by a retried
+     * upload, are counted again: they cross the network again, except when the stream replays them from memory, which overstates the
+     * background traffic a little and so can only make the limiters more careful.
      */
     public InputStream countUploadBytes(InputStream stream) {
         return new FilterInputStream(stream) {
@@ -307,8 +348,15 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     }
 
     // package-private for tests
+    long getCountedUploadBytes() {
+        return uploadBytes.sum();
+    }
+
+    // package-private for tests
     int getUploadConcurrencyCeiling() {
-        return uploadConcurrencyController.getCeiling();
+        synchronized (lock) {
+            return uploadConcurrencyController.getCeiling();
+        }
     }
 
     /**
@@ -327,20 +375,7 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        lastTickNanos = nanoTimeSupplier.getAsLong();
-        intervalStartNanos = lastTickNanos;
-        logger.info(
-            "background qos measurements: network [{}], cpu.pressure [{}], cpu.stat throttling [{}], write queue [{}]",
-            availability(probes.network()),
-            availability(probes.cpuPressure()),
-            availability(probes.cpuThrottling()),
-            availability(probes.writeQueue())
-        );
         scheduledTick = threadPool.scheduleWithFixedDelay(this::tick, TICK_INTERVAL, threadPool.generic());
-    }
-
-    private static String availability(Supplier<?> probe) {
-        return probe.get() == null ? "unavailable" : "available";
     }
 
     @Override
@@ -354,39 +389,87 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     @Override
     protected void doClose() {}
 
+    private void logProbesOnce() {
+        if (loggedProbes == false) {
+            loggedProbes = true;
+            logger.info(
+                "background qos measurements: network [{}], cpu.pressure [{}], cpu.stat throttling [{}], write queue [{}]",
+                availability(probes.network()),
+                availability(probes.cpuPressure()),
+                availability(probes.cpuThrottling()),
+                availability(probes.writeQueue())
+            );
+        }
+    }
+
+    private static String availability(Supplier<?> probe) {
+        return probe.get() == null ? "unavailable" : "available";
+    }
+
     // package-private for tests
     void tick() {
-        try {
-            final long now = nanoTimeSupplier.getAsLong();
-            final long elapsedNanos = now - lastTickNanos;
-            lastTickNanos = now;
-            tickCount++;
+        synchronized (lock) {
+            try {
+                final long now = nanoTimeSupplier.getAsLong();
+                final boolean qosEnabled = isBackgroundQosEnabled();
+                final boolean adaptive = adaptiveUploadConcurrencyEnabled;
+                if (qosEnabled == false && adaptive == false) {
+                    stopTracking();
+                    return;
+                }
+                logProbesOnce();
+                tickCount++;
 
-            final NetworkProbe.NetworkStats networkStats = probes.network().get();
-            final boolean qosEnabled = isBackgroundQosEnabled();
-            boolean backgroundActive = false;
-            for (Resource resource : resources) {
-                resource.update(networkStats, elapsedNanos, qosEnabled);
-                backgroundActive |= resource.lastBackgroundBytesPerSec > 0;
-            }
+                boolean backgroundActive = false;
+                if (qosEnabled) {
+                    final NetworkProbe.NetworkStats networkStats = probes.network().get();
+                    if (trackingNetwork == false) {
+                        trackingNetwork = true;
+                        resources.forEach(Resource::startTracking);
+                        lastNetworkTickNanos = now;
+                    }
+                    final long elapsedNanos = now - lastNetworkTickNanos;
+                    lastNetworkTickNanos = now;
+                    for (Resource resource : resources) {
+                        resource.update(networkStats, elapsedNanos, recoverySettings.getExplicitMaxBytesPerSec().getBytes());
+                        backgroundActive |= resource.lastBackgroundBytesPerSec > 0;
+                    }
+                } else if (trackingNetwork) {
+                    stopTrackingNetwork();
+                }
 
-            final long uploadBytesNow = uploadBytes.sum();
-            if (backgroundActive || uploadBytesNow != lastUploadBytes) {
-                lastActiveNanos = now;
-                everActive = true;
-            }
-            lastUploadBytes = uploadBytesNow;
+                final long uploadBytesNow = uploadBytes.sum();
+                if (backgroundActive || uploadBytesNow != lastUploadBytes) {
+                    lastActiveNanos = now;
+                    everActive = true;
+                }
+                lastUploadBytes = uploadBytesNow;
 
-            if (tickCount % UPLOAD_CONCURRENCY_INTERVAL_TICKS == 0) {
-                updateUploadConcurrency(now, uploadBytesNow);
+                if (adaptive && tickCount % UPLOAD_CONCURRENCY_INTERVAL_TICKS == 0) {
+                    updateUploadConcurrency(now, uploadBytesNow);
+                }
+                if (tickCount % LOG_INTERVAL_TICKS == 0 && everActive && now - lastActiveNanos <= LOG_ACTIVE_WINDOW_NANOS) {
+                    logStatus(qosEnabled);
+                }
+            } catch (Exception e) {
+                logger.warn("background network qos update failed", e);
+                assert false : e;
             }
-            if (tickCount % LOG_INTERVAL_TICKS == 0 && everActive && now - lastActiveNanos <= LOG_ACTIVE_WINDOW_NANOS) {
-                logStatus(qosEnabled);
-            }
-        } catch (Exception e) {
-            logger.warn("background network qos update failed", e);
-            assert false : e;
         }
+    }
+
+    private void stopTracking() {
+        tickCount = 0;
+        trackingInterval = false;
+        if (trackingNetwork) {
+            stopTrackingNetwork();
+        }
+    }
+
+    private void stopTrackingNetwork() {
+        // back to the floor, so that switching on starts from today's rate
+        trackingNetwork = false;
+        resources.forEach(Resource::stopTracking);
     }
 
     private void updateUploadConcurrency(long now, long uploadBytesNow) {
@@ -397,6 +480,7 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         final CgroupV2Probe.CpuThrottling cpuThrottlingNow = probes.cpuThrottling().get();
         final QueueLatency writeQueueNow = probes.writeQueue().get();
 
+        final boolean hadStart = trackingInterval;
         final long intervalNanos = now - intervalStartNanos;
         final long bytes = uploadBytesNow - intervalStartUploadBytes;
         final long pauseNanos = uploadPauseNanosNow - intervalStartUploadPauseNanos;
@@ -409,12 +493,10 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
             cpuPressure(intervalStartCpuPressure, cpuPressureNow, intervalNanos),
             throttledMicros(intervalStartCpuThrottling, cpuThrottlingNow),
             writeQueueWaitMillis(intervalStartWriteQueue, writeQueueNow),
+            writeStalled(intervalStartWriteQueue, writeQueueNow),
             readErrorsNow - intervalStartReadErrors,
             writeErrorsNow - intervalStartWriteErrors
         );
-        readErrorsSinceLog += signals.readErrors();
-        writeErrorsSinceLog += signals.uploadErrors();
-        lastSignals = signals;
 
         intervalStartNanos = now;
         intervalStartUploadBytes = uploadBytesNow;
@@ -424,22 +506,18 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         intervalStartCpuPressure = cpuPressureNow;
         intervalStartCpuThrottling = cpuThrottlingNow;
         intervalStartWriteQueue = writeQueueNow;
+        trackingInterval = true;
 
-        if (adaptiveUploadConcurrencyEnabled) {
-            adaptiveUploadConcurrencyActive = true;
-            if (intervalNanos <= 0L) {
-                return;
-            }
-            // the setting may have changed
-            uploadConcurrencyController.setCeiling(Math.min(uploadConcurrencyMax, nodeUploadConcurrencyCeiling));
-            setUploadConcurrency(uploadConcurrencyController.onInterval(signals).target());
-        } else {
-            if (adaptiveUploadConcurrencyActive) {
-                adaptiveUploadConcurrencyActive = false;
-                uploadConcurrencyController.reset();
-            }
-            setUploadConcurrency(uploadConcurrencyController.getFloor());
+        // the setting may have changed
+        uploadConcurrencyController.setCeiling(Math.min(uploadConcurrencyMax, nodeUploadConcurrencyCeiling));
+        if (hadStart == false || intervalNanos <= 0L) {
+            // the first interval after switching on has nothing to compare with
+            return;
         }
+        readErrorsSinceLog += signals.readErrors();
+        writeErrorsSinceLog += signals.uploadErrors();
+        lastSignals = signals;
+        setUploadConcurrency(uploadConcurrencyController.onInterval(signals).target());
     }
 
     static OptionalDouble cpuPressure(
@@ -473,6 +551,14 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         return OptionalDouble.of((after.totalNanos() - before.totalNanos()) / (double) tasks / TimeUnit.MILLISECONDS.toNanos(1));
     }
 
+    /**
+     * Whether the write queue made no progress: tasks are queued now but none started in the interval. Then there is no wait to
+     * measure, because the tasks that wait have not started.
+     */
+    static boolean writeStalled(@Nullable QueueLatency before, @Nullable QueueLatency after) {
+        return before != null && after != null && after.tasks() == before.tasks() && after.queued() > 0;
+    }
+
     private void setUploadConcurrency(int target) {
         final int current = uploadTaskRunner.getMaxRunningTasks();
         if (current != target) {
@@ -498,7 +584,7 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
                 : format("%.1f", signals.writeQueueWaitMillis().getAsDouble()),
             readErrorsSinceLog,
             writeErrorsSinceLog,
-            adaptiveUploadConcurrencyActive ? "on" : "off",
+            adaptiveUploadConcurrencyEnabled ? "on" : "off",
             uploadTaskRunner.getMaxRunningTasks(),
             uploadTaskRunner.runningTasks(),
             uploadTaskRunner.queueSize(),
@@ -543,6 +629,16 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         return Math.min(target, currentRate + Math.round(capacityBytesPerSec * MAX_STEP_UP_FRACTION));
     }
 
+    /**
+     * The rate the limiter applies: the computed rate, but never more than an operator has set {@code indices.recovery.max_bytes_per_sec}
+     * to.
+     *
+     * @param operatorMaxBytesPerSec the setting if it was set explicitly, otherwise zero or less, where zero is no limit
+     */
+    static long applyOperatorMax(long rate, long operatorMaxBytesPerSec) {
+        return operatorMaxBytesPerSec > 0L ? Math.min(rate, operatorMaxBytesPerSec) : rate;
+    }
+
     private static long perSecond(long delta, long elapsedNanos) {
         return Math.round(delta * (double) TimeUnit.SECONDS.toNanos(1) / elapsedNanos);
     }
@@ -552,16 +648,19 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     }
 
     /**
-     * Limiter and measurements for one resource. Only the limiter is accessed outside the periodic tick.
+     * Limiter and measurements for one resource. Only the limiter is accessed outside the lock.
      */
     private static class Resource {
         private final String name;
         private final long capacityBytesPerSec;
+        private final LongSupplier backgroundBytes;
         private final ToLongFunction<NetworkProbe.NetworkStats> usageBytes;
         private final CountingRateLimiter limiter;
         private final long floorBytesPerSec;
 
+        // the rate by the computation, and the rate applied to the limiter, which an operator's setting may lower
         private long rateBytesPerSec;
+        private long appliedRateBytesPerSec;
         private long lastUsageBytes = -1L;
         private long lastBackgroundBytes;
         private long lastPauseNanos;
@@ -570,24 +669,57 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         private long lastBackgroundBytesPerSec;
 
         /**
-         * @param usageBytes  the cumulative bytes the whole pod used of this resource from the stats (which may be null), or negative if
-         *                    unknown
+         * @param backgroundBytes the cumulative bytes background work used of this resource
+         * @param usageBytes      the cumulative bytes the whole pod used of this resource from the stats (which may be null), or negative
+         *                        if unknown
          */
-        Resource(String name, long capacityBytesPerSec, ToLongFunction<NetworkProbe.NetworkStats> usageBytes) {
+        Resource(
+            String name,
+            long capacityBytesPerSec,
+            LongSupplier backgroundBytes,
+            ToLongFunction<NetworkProbe.NetworkStats> usageBytes
+        ) {
             this.name = name;
             this.capacityBytesPerSec = capacityBytesPerSec;
+            this.backgroundBytes = backgroundBytes;
             this.usageBytes = usageBytes;
             this.floorBytesPerSec = computeFloor(capacityBytesPerSec);
-            this.rateBytesPerSec = floorBytesPerSec;
             this.limiter = new CountingRateLimiter(toMBPerSec(floorBytesPerSec));
+            stopTracking();
         }
 
-        void update(@Nullable NetworkProbe.NetworkStats stats, long elapsedNanos, boolean qosEnabled) {
+        /** Starts from the floor, with nothing to compare the next measurement with. */
+        void startTracking() {
+            lastUsageBytes = -1L;
+            lastUsageBytesPerSec = -1L;
+            lastBackgroundBytes = backgroundBytes.getAsLong();
+            lastBackgroundBytesPerSec = 0L;
+            lastPauseNanos = limiter.getPauseNanos();
+            pauseNanosSinceLog = 0L;
+            setRate(floorBytesPerSec, floorBytesPerSec);
+        }
+
+        void stopTracking() {
+            lastUsageBytes = -1L;
+            lastUsageBytesPerSec = -1L;
+            lastBackgroundBytesPerSec = 0L;
+            setRate(floorBytesPerSec, floorBytesPerSec);
+        }
+
+        private void setRate(long rate, long applied) {
+            rateBytesPerSec = rate;
+            if (applied != appliedRateBytesPerSec || limiter.getMBPerSec() != toMBPerSec(applied)) {
+                appliedRateBytesPerSec = applied;
+                limiter.setMBPerSec(toMBPerSec(applied));
+            }
+        }
+
+        void update(@Nullable NetworkProbe.NetworkStats stats, long elapsedNanos, long operatorMaxBytesPerSec) {
             final long usage = usageBytes.applyAsLong(stats);
-            final long backgroundBytes = limiter.getBytes();
+            final long background = backgroundBytes.getAsLong();
             final long pauseNanos = limiter.getPauseNanos();
             if (elapsedNanos > 0L) {
-                lastBackgroundBytesPerSec = perSecond(backgroundBytes - lastBackgroundBytes, elapsedNanos);
+                lastBackgroundBytesPerSec = perSecond(background - lastBackgroundBytes, elapsedNanos);
                 // counters may reset, e.g. if an interface goes away; treat that as unknown
                 lastUsageBytesPerSec = usage >= 0L && lastUsageBytes >= 0L && usage >= lastUsageBytes
                     ? perSecond(usage - lastUsageBytes, elapsedNanos)
@@ -595,17 +727,11 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
             }
             pauseNanosSinceLog += pauseNanos - lastPauseNanos;
             lastUsageBytes = usage;
-            lastBackgroundBytes = backgroundBytes;
+            lastBackgroundBytes = background;
             lastPauseNanos = pauseNanos;
 
-            // when off, go back to the floor so that switching on starts from today's rate
-            final long newRate = qosEnabled
-                ? computeRate(rateBytesPerSec, capacityBytesPerSec, lastUsageBytesPerSec, lastBackgroundBytesPerSec)
-                : floorBytesPerSec;
-            if (newRate != rateBytesPerSec) {
-                rateBytesPerSec = newRate;
-                limiter.setMBPerSec(toMBPerSec(newRate));
-            }
+            final long newRate = computeRate(rateBytesPerSec, capacityBytesPerSec, lastUsageBytesPerSec, lastBackgroundBytesPerSec);
+            setRate(newRate, applyOperatorMax(newRate, operatorMaxBytesPerSec));
         }
 
         String describeAndResetPause() {
@@ -618,7 +744,7 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
                 lastUsageBytesPerSec < 0L
                     ? "unknown"
                     : ByteSizeValue.ofBytes(Math.max(0L, lastUsageBytesPerSec - lastBackgroundBytesPerSec)),
-                ByteSizeValue.ofBytes(rateBytesPerSec),
+                ByteSizeValue.ofBytes(appliedRateBytesPerSec),
                 TimeUnit.NANOSECONDS.toMillis(pauseNanosSinceLog)
             );
             pauseNanosSinceLog = 0L;

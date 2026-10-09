@@ -14,12 +14,12 @@ import org.apache.lucene.store.RateLimiter;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * A {@link RateLimiter.SimpleRateLimiter} that also counts the bytes that pass through it and the time callers spend paused.
+ * A {@link RateLimiter.SimpleRateLimiter} that also counts the time callers spend paused. It does not count bytes: it only sees them in
+ * batches of {@link #getMinPauseCheckBytes()}, so bytes below that are never passed to it.
  */
 public class CountingRateLimiter extends RateLimiter {
 
     private final RateLimiter.SimpleRateLimiter delegate;
-    private final LongAdder bytes = new LongAdder();
     private final LongAdder pauseNanos = new LongAdder();
 
     public CountingRateLimiter(double mbPerSec) {
@@ -43,17 +43,9 @@ public class CountingRateLimiter extends RateLimiter {
 
     @Override
     public long pause(long bytes) {
-        this.bytes.add(bytes);
         final long paused = delegate.pause(bytes);
         pauseNanos.add(paused);
         return paused;
-    }
-
-    /**
-     * Total bytes passed through this limiter so far.
-     */
-    public long getBytes() {
-        return bytes.sum();
     }
 
     /**

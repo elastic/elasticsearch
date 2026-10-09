@@ -14,7 +14,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -24,6 +26,8 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.indices.recovery.BackgroundNetworkQos;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.LocalPrimarySnapshotShardContext;
 import org.elasticsearch.repositories.SnapshotIndexCommit;
@@ -42,6 +46,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -233,5 +238,63 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
 
         // finally verify that they executed in the order we expected
         assertEquals(tasksInExpectedOrder, tasksInExecutionOrder);
+    }
+
+    /**
+     * Two repositories, as they are on a node: with the node's adaptive upload concurrency off, each runs its shard snapshots in its own
+     * runner as it always has, so that a long snapshot in one does not hold up a newer one in the other. With it on, they share one.
+     */
+    public void testRepositoriesDoNotBlockEachOtherUnlessUploadConcurrencyIsShared() throws Exception {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final BackgroundNetworkQos qos = new BackgroundNetworkQos(
+            clusterSettings,
+            threadPool,
+            new RecoverySettings(Settings.EMPTY, clusterSettings),
+            false
+        );
+        // one task at a time in each runner, on an executor with threads to spare
+        qos.getUploadTaskRunner().setMaxRunningTasks(1);
+        final Executor plentyOfThreads = threadPool.generic();
+        final Supplier<PrioritizedThrottledTaskRunner<ShardSnapshotTaskRunner.SnapshotTask>> ownRunner =
+            () -> new PrioritizedThrottledTaskRunner<>(ShardSnapshotTaskRunner.TASK_RUNNER_NAME, 1, plentyOfThreads);
+        final var ownRunnerA = ownRunner.get();
+        final var ownRunnerB = ownRunner.get();
+
+        for (boolean shared : new boolean[] { false, true }) {
+            clusterSettings.applySettings(
+                Settings.builder().put(BackgroundNetworkQos.ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING.getKey(), shared).build()
+            );
+            qos.getUploadTaskRunner().setMaxRunningTasks(1);
+
+            final var longSnapshotStarted = new CountDownLatch(1);
+            final var releaseLongSnapshot = new CountDownLatch(1);
+            final var newerSnapshotRan = new CountDownLatch(1);
+            final var repoA = new ShardSnapshotTaskRunner(() -> qos.selectUploadTaskRunner(ownRunnerA), context -> {
+                longSnapshotStarted.countDown();
+                safeAwait(releaseLongSnapshot);
+            }, (context, fileInfo) -> {});
+            final var repoB = new ShardSnapshotTaskRunner(
+                () -> qos.selectUploadTaskRunner(ownRunnerB),
+                context -> newerSnapshotRan.countDown(),
+                (context, fileInfo) -> {}
+            );
+
+            repoA.enqueueShardSnapshot(dummyContext(new SnapshotId("older", UUIDs.randomBase64UUID()), 1L));
+            safeAwait(longSnapshotStarted);
+            repoB.enqueueShardSnapshot(dummyContext(new SnapshotId("newer", UUIDs.randomBase64UUID()), 2L));
+            if (shared) {
+                // one runner for both: the newer snapshot waits for the long one
+                assertThat(qos.getUploadTaskRunner().queueSize(), equalTo(1));
+                assertThat(newerSnapshotRan.getCount(), equalTo(1L));
+                releaseLongSnapshot.countDown();
+            }
+            safeAwait(newerSnapshotRan);
+            releaseLongSnapshot.countDown();
+            assertBusy(() -> {
+                assertThat(qos.getUploadTaskRunner().runningTasks(), equalTo(0));
+                assertThat(ownRunnerA.runningTasks(), equalTo(0));
+                assertThat(ownRunnerB.runningTasks(), equalTo(0));
+            });
+        }
     }
 }

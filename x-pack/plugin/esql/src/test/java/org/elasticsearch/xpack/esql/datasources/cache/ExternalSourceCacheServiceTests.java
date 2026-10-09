@@ -109,8 +109,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * Zero configures no clock at all, matching the convention the listing TTL uses: an operator who wants the
-     * previous behaviour back sets it, rather than guessing at a very large value.
+     * Zero configures no clock at all, so an operator who wants the previous behaviour back sets it rather than
+     * guessing at a very large value.
      */
     public void testSchemaTtlOfZeroIsUnbounded() throws Exception {
         SchemaCacheKey key = SchemaCacheKey.build(
@@ -2993,6 +2993,11 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             service.getOrComputeSchema(key, k -> testSchemaEntry());
             assertEquals(1, service.usageStats().get("schema_cache.count"));
         }
+        assertEquals(
+            "the live key must not inherit the deprecated one's value: that key shipped documented as ignored",
+            TimeValue.timeValueMinutes(20),
+            ExternalSourceCacheSettings.SCHEMA_TTL.get(settings)
+        );
     }
 
     /**
@@ -3692,6 +3697,49 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * instead of the record already at the address: column a is gone after the second harvest and the first
      * assertion turns red.
      */
+    /**
+     * The statistics store takes no clock. A measurement stays readable after the schema record beside it has
+     * expired, because its own address does not move. Give that store the schema interval and this goes red.
+     */
+    public void testAMeasurementOutlivesTheSchemaRecordBesideIt() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(withSchemaTtl("1ms"))) {
+            String path = "file:///data/counted.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity(".csv", "id", Map.of()), false);
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    List.of(new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG, Nullability.TRUE, null, false)),
+                    "csv",
+                    path,
+                    Map.of(
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        "fp",
+                        ExternalStats.MTIME_MILLIS_KEY,
+                        mtime,
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        "own"
+                    ),
+                    Map.of()
+                )
+            );
+
+            Map<String, Object> harvest = new LinkedHashMap<>();
+            harvest.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            harvest.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            harvest.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "own");
+            harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 5L);
+            service.reconcileSourceStats(Map.of(path, harvest));
+            assertNotNull("the harvest must be readable to begin with", service.getStatistics(StatisticsKey.of(key, "own")));
+
+            assertBusy(() -> assertNull("the schema record expires on its own clock", service.getSchemaIfPresent(key)));
+
+            Map<String, Object> stats = service.getStatistics(StatisticsKey.of(key, "own"));
+            assertNotNull("a measurement has no clock and outlives the record beside it", stats);
+            assertEquals(5L, stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        }
+    }
+
     public void testAStatisticsRecordAccumulatesAcrossHarvestsOfOneRead() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/two-cols.csv";

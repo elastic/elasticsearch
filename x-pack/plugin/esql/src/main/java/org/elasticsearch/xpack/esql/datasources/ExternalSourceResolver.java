@@ -2170,16 +2170,16 @@ public class ExternalSourceResolver {
     private FileMetadata fileMetadataOf(StoragePath storagePath, StorageProvider provider, String storageIdentity) throws Exception {
         if (isCacheable(provider)) {
             FileMetadataCacheKey metaKey = new FileMetadataCacheKey(storagePath.toString(), storageIdentity);
-            return cacheService.getOrComputeFileMetadata(metaKey, k -> probeRead(storagePath, provider));
+            return cacheService.getOrComputeFileMetadata(metaKey, k -> readFileMetadata(storagePath, provider));
         }
-        return probeRead(storagePath, provider);
+        return readFileMetadata(storagePath, provider);
     }
 
     /**
      * Asks storage for the object's length and modification time. The modification time is never null here:
      * {@link StorageEntry} substitutes EPOCH, which keeps a key derived from it stable.
      */
-    private static FileMetadata probeRead(StoragePath storagePath, StorageProvider provider) throws Exception {
+    private static FileMetadata readFileMetadata(StoragePath storagePath, StorageProvider provider) throws Exception {
         StorageObject object = provider.newObject(storagePath);
         StorageEntry probed = new StorageEntry(storagePath, object.length(), object.lastModified());
         return new FileMetadata(probed.length(), probed.lastModified().toEpochMilli());

@@ -69,7 +69,7 @@ public final class ExternalSourceCacheSettings {
     /**
      * Deprecated no-op. The schema (per-file) and dataset-aggregate caches are invalidated by identity
      * (mtime / file-set fingerprint in the key) and bounded by CACHE_SIZE + LRU, with {@link #SCHEMA_TTL}
-     * bounding how long an entry may be served — see {@link ExternalSourceCacheService}. This setting formerly
+     * bounding the schema store and {@link #LISTING_TTL} the aggregate — see {@link ExternalSourceCacheService}. This setting formerly
      * capped the schema cache with a hard TTL; it is retained, registered, and ignored so a node that carries
      * it in {@code elasticsearch.yml} from
      * an earlier version still starts (removing a released node setting would fail startup). It is wired to
@@ -94,8 +94,9 @@ public final class ExternalSourceCacheSettings {
     );
 
     // This is the only time-based REFRESH: the listing discovers file identity and has no per-file key to
-    // invalidate on. The schema and dataset-aggregate caches invalidate by identity, and SCHEMA_TTL bounds how
-    // long they may serve, which is a different question from whether their inputs moved.
+    // invalidate on. The schema and dataset-aggregate caches invalidate by identity, and a clock bounds how long
+    // each may serve -- SCHEMA_TTL the schema store, this one the aggregate -- which is a different question
+    // from whether their inputs moved.
     // Default is five minutes after write (the deprecated key's default; this key falls back to it). A file
     // added or removed becomes visible on the next query once that elapses. Lower the setting for faster
     // visibility. Re-lists stay query-triggered. A file's length and mtime are cached under this same clock, so
@@ -108,8 +109,9 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
-     * How long a schema or statistic inferred from a file may be served before it is derived again. An upper
-     * bound on reuse, not a freshness bound — the identity keys already miss when a file moves. {@code 0} is
+     * How long a schema inferred from a file may be served before it is derived again. An upper bound on reuse,
+     * not a freshness bound — the identity keys already miss when a file moves. A statistic measured from the
+     * file is addressed separately and has no clock, so it is reused while its entry is held. {@code 0} is
      * unbounded. Unlike {@link #LISTING_TTL} it does not inherit its deprecated {@code esql.source.cache.*}
      * counterpart, which shipped documented as ignored.
      */
@@ -253,7 +255,9 @@ public final class ExternalSourceCacheSettings {
      * and execution of one query over a large file set, plus dashboard refresh intervals. The
      * trade-off: footer cache keys are {@code (path, fileLength)} without mtime (adding it would
      * cost a HEAD request per range split; see {@link FooterByteCache}), so a file overwritten
-     * in place with identical length can be served stale for up to this long. Object-store
+     * in place with identical length can be served stale for up to two of these intervals, because a reparse
+     * from still-cached bytes dates the parsed entry later than the read behind it (see
+     * {@link ParsedFooterCache}). Object-store
      * analytics layouts treat data files as immutable, and this setting is the operator escape
      * hatch where they do not.
      */

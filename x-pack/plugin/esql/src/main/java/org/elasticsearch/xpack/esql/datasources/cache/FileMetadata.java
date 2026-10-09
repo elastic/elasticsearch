@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.datasources.cache;
 
 /**
- * A single object's cheap physical metadata: byte {@code length} and last-modified epoch millis, as
- * observed by the probe that resolved the object on this query.
+ * A single object's cheap physical metadata: byte {@code length} and last-modified epoch millis, as last
+ * read from the store.
  * <p>
  * mtime is the version token that rebuilds the {@link SchemaCacheKey} and populates the resolved
  * {@code StorageEntry}; it is not a second freshness clock. {@code length} travels with it because the

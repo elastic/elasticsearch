@@ -21,6 +21,7 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -29,6 +30,8 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+
+import org.mockito.ArgumentCaptor;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -59,7 +62,7 @@ public class S3RequestCountingTests extends ESTestCase {
 
     private void stubFirstByteResponse() {
         GetObjectResponse resp = GetObjectResponse.builder()
-            .contentRange("bytes " + (FILE_SIZE - 1) + "-" + (FILE_SIZE - 1) + "/" + FILE_SIZE)
+            .contentRange("bytes 0-0/" + FILE_SIZE)
             .contentLength(1L)
             .lastModified(LAST_MODIFIED)
             .build();
@@ -79,7 +82,11 @@ public class S3RequestCountingTests extends ESTestCase {
 
         assertEquals(FILE_SIZE, length);
         verify(mockS3, never()).headObject(any(HeadObjectRequest.class));
-        verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
+        ArgumentCaptor<GetObjectRequest> sent = ArgumentCaptor.forClass(GetObjectRequest.class);
+        verify(mockS3, times(1)).getObject(sent.capture());
+        // The range is load-bearing: a 403 is surfaced without a second request because this already is the
+        // cheapest read S3 serves, so widening it would quietly remove the fallback the 403 path gave up.
+        assertEquals("bytes=0-0", sent.getValue().range());
     }
 
     /**
@@ -249,7 +256,10 @@ public class S3RequestCountingTests extends ESTestCase {
         );
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
-        expectThrows(Exception.class, obj::length);
+        // Assert the mapped type and condition, not merely that something threw: a 403 mapped to anything else
+        // would still satisfy expectThrows(Exception.class) while telling the caller the wrong thing.
+        ExternalClientException denied = expectThrows(ExternalClientException.class, obj::length);
+        assertEquals(ExternalClientException.Condition.ACCESS_DENIED, denied.condition());
 
         verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
         verify(mockS3, never()).headObject(any(HeadObjectRequest.class));

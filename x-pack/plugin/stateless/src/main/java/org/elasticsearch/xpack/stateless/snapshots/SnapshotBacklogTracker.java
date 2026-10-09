@@ -61,13 +61,12 @@ import java.util.stream.Collectors;
  * <p>
  * For one shard the backlog is the total length of the files of its latest local commit that the repository does not hold, see
  * {@link ShardBacklog}, minus what a running snapshot of the shard has already uploaded. It is a lower bound of what a snapshot started
- * now would upload, because a snapshot flushes the shard first and so captures a commit that is newer than the latest one. What the repository holds comes from the
- * shard's latest shard-level metadata, which {@link RepositoryFilesCache} keeps current. The generation of that metadata comes from the
- * master, which this node asks whenever the repository generation in the cluster state changes or a shard starts on the node (see
- * {@link ShardGenerationsRefresher}), so this node never reads the root blob of the repository. A shard whose repository files are not
- * known yet
- * (this node just started, or the shard just arrived, or a snapshot just finished or got deleted) is not counted, but reported as an
- * unknown shard so that it is never mistaken for a shard with nothing to upload.
+ * now would upload, because a snapshot flushes the shard first and so captures a commit that is newer than the latest one. What the
+ * repository holds comes from the shard's latest shard-level metadata, which {@link RepositoryFilesCache} keeps current. The generation of
+ * that metadata comes from the master, which this node asks whenever the repository generation in the cluster state changes or a shard
+ * starts on the node (see {@link ShardGenerationsRefresher}), so this node never reads the root blob of the repository. A shard whose
+ * repository files are not known yet (this node just started, or the shard just arrived, or a snapshot just finished or got deleted) is
+ * not counted, but reported as an unknown shard so that it is never mistaken for a shard with nothing to upload.
  * <p>
  * Repositories that are read-only are not tracked. Every other registered repository is, whether or not a snapshot of the node's shards
  * is going to target it. Nothing is tracked, requested, read, reported or logged unless {@link #BACKLOG_TRACKING_ENABLED_SETTING} is on.

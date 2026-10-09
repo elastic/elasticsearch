@@ -18,6 +18,7 @@ toc:
       - file: analysis-keyword-tokenizer.md
       - file: analysis-letter-tokenizer.md
       - file: analysis-lowercase-tokenizer.md
+      - file: analysis-mlstandard-tokenizer.md
       - file: analysis-ngram-tokenizer.md
       - file: analysis-pathhierarchy-tokenizer.md
       - file: analysis-pattern-tokenizer.md

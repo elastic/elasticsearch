@@ -568,6 +568,10 @@ public final class DatasetRewriter {
             ExternalSourceResolver.DATASET_CONTEXT_KEY,
             Map.of("dataset", dataset.name(), "datasource", parent.name(), "type", parent.type())
         );
+        // The dataset tier's own address: which definition exactly, names and mapping included, so any edit to
+        // this dataset moves every dataset-level fact derived from it. Per-file facts keep the content-derived
+        // version above, which two definitions equal in content are meant to share.
+        merged.put(DefinitionVersion.DATASET_CONFIG_KEY, DefinitionVersion.ofDataset(dataset, parent));
         return merged;
     }
 

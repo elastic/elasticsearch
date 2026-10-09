@@ -1361,7 +1361,7 @@ public class ExternalSourceCacheService implements Closeable {
             // this record's cover - which is what the refusal this replaces was protecting. The refusal cost the
             // whole measurement: a non-strict declaration that retypes a column resolves to a read whose stamp
             // never equals the record's, so a segmented text read of a mapped dataset filed nothing, on any
-            // address, forever (esql-planning#2246). Its whole-file sibling has filed a foreign read at its own
+            // address, forever. Its whole-file sibling has filed a foreign read at its own
             // address all along, and this is that rule for the chunked path - but only half of it. The whole-file
             // arm files a foreign contribution TWICE: the licensed row count at the record's own address, and the
             // whole harvest at the read's. A stripe delta is an accumulating cover, so a licensed count from
@@ -1413,7 +1413,7 @@ public class ExternalSourceCacheService implements Closeable {
                 // delta when nothing is returned, so they reach that promise regardless, and its key carries no
                 // read configuration to tell them apart. What the test keeps is this method's own contract - the
                 // value returned describes the record it was matched against - and with it the promise channel's
-                // behaviour, unchanged by this commit. Stamping that channel is esql-planning#2201's step 3.
+                // behaviour, unchanged by this commit. Stamping that channel is separate work.
                 if (completedFold == null && deltaIsTheRecordsOwnRead) {
                     completedFold = wholeFile;
                 }

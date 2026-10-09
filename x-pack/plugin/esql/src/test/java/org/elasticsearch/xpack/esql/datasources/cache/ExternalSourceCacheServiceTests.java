@@ -58,6 +58,13 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 
 public class ExternalSourceCacheServiceTests extends ESTestCase {
+
+    /**
+     * Stands in for {@code DefinitionVersion.ofDataset}. These cases are about the store, not about what the
+     * version folds, so one opaque value of the right shape is enough; what it must fold is pinned in
+     * {@code DefinitionVersionTests}.
+     */
+    private static final String DATASET_VERSION = "0123456789abcdef0123456789abcdef";
     private static final Map<String, Object> HIVE_ON = Map.of();
 
     private static Settings defaultSettings() {
@@ -1016,14 +1023,13 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * The cover is an accumulating fold, so mixing two reads' stripes into one would let a partial read answer as a
      * whole one. The address is what keeps them apart; refusing the delta outright also kept them apart but threw the
      * measurement away, and a non-strict declaration that retypes a column resolves to a read whose stamp never
-     * equals the record's - so a segmented text read of such a dataset filed nothing anywhere, forever
-     * (esql-planning#2246).
+     * equals the record's - so a segmented text read of such a dataset filed nothing anywhere, forever.
      * <p>
      * Asserting only that the foreign delta is absent from this record would pass either way: stripe state lives in
      * the statistics store and the schema record is never written by this path. The assertions that discriminate are
      * the two addresses.
      */
-    public void testForeignConfiguredStripeDeltaDoesNotEnrich() throws Exception {
+    public void testForeignStripeDeltaIsFiledAtItsOwnReadNotTheRecords() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/a.ndjson";
             long mtime = 1000L;
@@ -1086,7 +1092,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * cover. That is worse on this rail than on the whole-file one: the cover accumulates, so a foreign fragment can
      * complete a span and make a partial read answer as a whole one.
      * <p>
-     * Distinct from {@link #testForeignConfiguredStripeDeltaDoesNotEnrich}: there the read configs differ and the
+     * Distinct from {@link #testForeignStripeDeltaIsFiledAtItsOwnReadNotTheRecords}: there the read configs differ and the
      * read-shape gate rejects the delta. Here they agree, and only refusing an unattributable match stops it.
      */
     public void testStripeDeltaFromAnotherStoreEntersNeitherCover() throws Exception {
@@ -1244,7 +1250,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             );
 
             Map<String, Object> aggregate = service.getDatasetAggregate(key);
-            assertNotNull("the folded stripe result must carry its read configuration through to the promise", aggregate);
+            assertNotNull("the folded stripe result must reach the promise it was registered against", aggregate);
             assertEquals(100L, ((Number) aggregate.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
         }
     }
@@ -2855,11 +2861,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     // --- dataset-level aggregate (warm COUNT(*) survival independent of per-file entries) ---
 
     private static DatasetAggregateKey datasetKey() {
-        return DatasetAggregateKey.of(
-            "s3://bucket/data/*.csv",
-            new FileSetFingerprint(111, 222),
-            TestDatasetIdentities.identity("csv", "", Map.of("format", "csv"))
-        );
+        return DatasetAggregateKey.of("s3://bucket/data/*.csv", new FileSetFingerprint(111, 222), DATASET_VERSION);
     }
 
     public void testDatasetAggregateRoundtrip() {
@@ -3022,7 +3024,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 DatasetAggregateKey key = DatasetAggregateKey.of(
                     "s3://bucket/g" + g + "/*.csv",
                     new FileSetFingerprint(g, g),
-                    TestDatasetIdentities.identity("csv", "", Map.of("format", "csv"))
+                    DATASET_VERSION
                 );
                 service.registerPendingDatasetAggregate(key, paths, pathsPerGlob, "fp", Map.of(), "csv", "s3://bucket/g" + g + "/*.csv");
             }
@@ -3042,11 +3044,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         // reconcile would enrich the entry and overwrite the whole-set 100 with the contribution's 42.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String glob = "s3://bucket/data/*.csv";
-            DatasetAggregateKey key = DatasetAggregateKey.of(
-                glob,
-                new FileSetFingerprint(1, 2),
-                TestDatasetIdentities.identity("csv", "", Map.of("format", "csv"))
-            );
+            DatasetAggregateKey key = DatasetAggregateKey.of(glob, new FileSetFingerprint(1, 2), DATASET_VERSION);
             service.putDatasetAggregate(key, 100L);
 
             Map<String, Object> strayContribution = new LinkedHashMap<>();
@@ -3281,18 +3279,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
             Map<String, Long> paths = Map.of(pathA, 1000L, pathB, 2000L);
-            DatasetAggregateKey oldest = DatasetAggregateKey.of(
-                "g0",
-                new FileSetFingerprint(0, 0),
-                TestDatasetIdentities.identity("csv", "", Map.of())
-            );
+            DatasetAggregateKey oldest = DatasetAggregateKey.of("g0", new FileSetFingerprint(0, 0), DATASET_VERSION);
             service.registerPendingDatasetAggregate(oldest, paths, 2, "fp", Map.of(), "csv", "g0");
             for (int i = 1; i <= 64; i++) {
-                DatasetAggregateKey k = DatasetAggregateKey.of(
-                    "g" + i,
-                    new FileSetFingerprint(i, i),
-                    TestDatasetIdentities.identity("csv", "", Map.of())
-                );
+                DatasetAggregateKey k = DatasetAggregateKey.of("g" + i, new FileSetFingerprint(i, i), DATASET_VERSION);
                 service.registerPendingDatasetAggregate(k, paths, 2, "fp", Map.of(), "csv", "g" + i);
             }
 
@@ -3301,11 +3291,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             );
 
             assertNull("evicted oldest promise must not materialize", service.getDatasetAggregate(oldest));
-            DatasetAggregateKey newest = DatasetAggregateKey.of(
-                "g64",
-                new FileSetFingerprint(64, 64),
-                TestDatasetIdentities.identity("csv", "", Map.of())
-            );
+            DatasetAggregateKey newest = DatasetAggregateKey.of("g64", new FileSetFingerprint(64, 64), DATASET_VERSION);
             Map<String, Object> served = service.getDatasetAggregate(newest);
             assertNotNull("surviving promise must materialize", served);
             assertEquals(300L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
@@ -3815,8 +3801,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * <p>
      * An earlier revision refused to commit it at all, for that same reason. The refusal cost the measurement
      * entirely: a non-strict declaration that retypes a column resolves to a read whose stamp never equals the
-     * record's, so a segmented text read of such a dataset filed nothing at any address, forever
-     * (esql-planning#2246). The hazard the refusal was built to stop is the COERCION, not the storage - and its
+     * record's, so a segmented text read of such a dataset filed nothing at any address, forever. The hazard
+     * the refusal was built to stop is the COERCION, not the storage - and its
      * whole-file sibling has stored a foreign read as harvested all along.
      * <p>
      * The per-stripe coercion targets the schema record's resolved types, and that is sound only when the

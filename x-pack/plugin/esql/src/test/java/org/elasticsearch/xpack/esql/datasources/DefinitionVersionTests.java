@@ -16,9 +16,13 @@ import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * The version exists so that everything derived from a dataset's definitions is addressed by those
@@ -292,5 +296,272 @@ public class DefinitionVersionTests extends ESTestCase {
             DefinitionVersion.of(undeclared, src),
             DefinitionVersion.of(redeclared, src)
         );
+    }
+
+    // ---------------------------------------------------------------------------------------------------------
+    // ofDataset: the DATASET-tier address. Everything above pins "which bytes, read how"; these pin "which
+    // definition, in its entirety". The two differ deliberately on exactly two things - the names and the
+    // declared mapping - so each of those is pinned here AND contrasted against #of, because a change that
+    // collapsed the two values would pass either half alone.
+    // ---------------------------------------------------------------------------------------------------------
+
+    private static Dataset described(String description, Map<String, Object> settings) {
+        return new Dataset("parts", new DataSourceReference("src"), "s3://b/*.csv", description, settings);
+    }
+
+    private static DatasetMapping declaring(DatasetMapping.Dynamic dynamic, Map<String, DatasetFieldMapping> properties) {
+        return new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties));
+    }
+
+    private static Dataset mapped(DatasetMapping mapping) {
+        return new Dataset("parts", new DataSourceReference("src"), "s3://b/*.csv", null, Map.of("format", "csv"), mapping);
+    }
+
+    public void testTheDatasetVersionIsStableForTheSameDefinitions() {
+        DataSource src = source(Map.of("endpoint", "https://s3.example"));
+        assertEquals(
+            DefinitionVersion.ofDataset(dataset("s3://b/*.csv", Map.of("format", "csv")), src),
+            DefinitionVersion.ofDataset(dataset("s3://b/*.csv", Map.of("format", "csv")), src)
+        );
+    }
+
+    /**
+     * The first of the two divergences from {@link DefinitionVersion#of}. A fact about a FILE is reusable by any
+     * dataset reading that file, so a rename must keep it warm; a fact about a DATASET is not, because two
+     * datasets over identical bytes are still two datasets.
+     */
+    public void testRenamingEitherDefinitionMovesTheDatasetVersionButNotTheFileVersion() {
+        DataSource src = source("src", Map.of("endpoint", "https://s3.example"));
+        DataSource renamedSource = source("other", Map.of("endpoint", "https://s3.example"));
+        Dataset parts = dataset("parts", "s3://b/*.csv", Map.of("format", "csv"));
+        Dataset pieces = dataset("pieces", "s3://b/*.csv", Map.of("format", "csv"));
+
+        assertNotEquals(
+            "two datasets over identical bytes are still two datasets",
+            DefinitionVersion.ofDataset(parts, src),
+            DefinitionVersion.ofDataset(pieces, src)
+        );
+        assertNotEquals(
+            "and so are two data sources",
+            DefinitionVersion.ofDataset(parts, src),
+            DefinitionVersion.ofDataset(parts, renamedSource)
+        );
+        assertEquals(
+            "while the file-tier version still ignores both names, so a rename keeps per-file entries warm",
+            DefinitionVersion.of(parts, src),
+            DefinitionVersion.of(pieces, renamedSource)
+        );
+    }
+
+    public void testEditingTheResourceMovesTheDatasetVersion() {
+        DataSource src = source(Map.of("endpoint", "https://s3.example"));
+        assertNotEquals(
+            DefinitionVersion.ofDataset(dataset("s3://b/*.csv", Map.of("format", "csv")), src),
+            DefinitionVersion.ofDataset(dataset("s3://b/other/*.csv", Map.of("format", "csv")), src)
+        );
+    }
+
+    public void testEditingADatasetSettingMovesTheDatasetVersion() {
+        DataSource src = source(Map.of("endpoint", "https://s3.example"));
+        assertNotEquals(
+            DefinitionVersion.ofDataset(dataset("s3://b/*.csv", Map.of("format", "csv")), src),
+            DefinitionVersion.ofDataset(dataset("s3://b/*.csv", Map.of("format", "csv", "error_mode", "skip_row")), src)
+        );
+    }
+
+    public void testEditingTheDataSourceMovesTheDatasetVersion() {
+        Dataset parts = dataset("s3://b/*.csv", Map.of("format", "csv"));
+        assertNotEquals(
+            "an inherited setting decides what every dataset over the source reads",
+            DefinitionVersion.ofDataset(parts, source(Map.of("endpoint", "https://s3.example"))),
+            DefinitionVersion.ofDataset(parts, source(Map.of("endpoint", "https://s3.other")))
+        );
+        assertNotEquals(
+            "and so does a rotated credential",
+            DefinitionVersion.ofDataset(parts, encryptedSource("https://s3.example", "key-1", "cipher")),
+            DefinitionVersion.ofDataset(parts, encryptedSource("https://s3.example", "key-2", "cipher"))
+        );
+    }
+
+    /**
+     * The second divergence from {@link DefinitionVersion#of}, and the one this change exists for. A declaration
+     * decides which rows a read counts - one that drops rows under a lenient policy counts fewer of them - so a
+     * count measured under one mapping is not another mapping's to serve. There is no version counter on either
+     * metadata type to fold instead, so the mapping's content IS its version, and every component of it has to
+     * move this value or an edit to that component silently reuses the previous definition's measurements.
+     */
+    public void testEveryPartOfADeclarationMovesTheDatasetVersion() {
+        DataSource src = source(Map.of("endpoint", "https://s3.example"));
+        DatasetMapping base = declaring(DatasetMapping.Dynamic.TRUE, Map.of("age", new DatasetFieldMapping("keyword", null)));
+        String baseVersion = DefinitionVersion.ofDataset(mapped(base), src);
+
+        assertNotEquals(
+            "declaring anything at all",
+            DefinitionVersion.ofDataset(dataset("s3://b/*.csv", Map.of("format", "csv")), src),
+            baseVersion
+        );
+        assertNotEquals(
+            "retyping a column",
+            baseVersion,
+            DefinitionVersion.ofDataset(
+                mapped(declaring(DatasetMapping.Dynamic.TRUE, Map.of("age", new DatasetFieldMapping("long", null)))),
+                src
+            )
+        );
+        assertNotEquals(
+            "renaming a column's source path",
+            baseVersion,
+            DefinitionVersion.ofDataset(
+                mapped(declaring(DatasetMapping.Dynamic.TRUE, Map.of("age", new DatasetFieldMapping("keyword", "years")))),
+                src
+            )
+        );
+        assertNotEquals(
+            "editing a column's date format",
+            baseVersion,
+            DefinitionVersion.ofDataset(
+                mapped(
+                    declaring(DatasetMapping.Dynamic.TRUE, Map.of("age", DatasetFieldMapping.withFormat("keyword", null, "yyyy-MM-dd")))
+                ),
+                src
+            )
+        );
+        assertNotEquals(
+            "declaring a second column",
+            baseVersion,
+            DefinitionVersion.ofDataset(
+                mapped(
+                    declaring(
+                        DatasetMapping.Dynamic.TRUE,
+                        Map.of("age", new DatasetFieldMapping("keyword", null), "name", new DatasetFieldMapping("keyword", null))
+                    )
+                ),
+                src
+            )
+        );
+        assertNotEquals(
+            "changing the dynamic mode, which decides whether an undeclared column is read at all",
+            baseVersion,
+            DefinitionVersion.ofDataset(
+                mapped(declaring(DatasetMapping.Dynamic.FALSE, Map.of("age", new DatasetFieldMapping("keyword", null)))),
+                src
+            )
+        );
+        assertEquals(
+            "while the file-tier version still ignores the declaration entirely",
+            DefinitionVersion.of(dataset("s3://b/*.csv", Map.of("format", "csv")), src),
+            DefinitionVersion.of(mapped(base), src)
+        );
+    }
+
+    /**
+     * The one exclusion, and the reason the mechanism is not just "hash the whole object": a description changes
+     * nothing a reader does, so editing one must not cost a cold scan of the dataset.
+     */
+    public void testEditingEitherDescriptionDoesNotMoveTheDatasetVersion() {
+        Map<String, Object> settings = Map.of("format", "csv");
+        DataSource sourceDescribed = new DataSource("src", "s3", "what this source is for", source(Map.of()).settings().asMap());
+        DataSource sourceRedescribed = new DataSource("src", "s3", "something else entirely", source(Map.of()).settings().asMap());
+
+        assertEquals(
+            "a dataset's description decides nothing a reader does",
+            DefinitionVersion.ofDataset(described("the parts corpus", settings), source(Map.of())),
+            DefinitionVersion.ofDataset(described("the parts corpus, revised", settings), source(Map.of()))
+        );
+        assertEquals(
+            "and neither does a data source's",
+            DefinitionVersion.ofDataset(dataset("s3://b/*.csv", settings), sourceDescribed),
+            DefinitionVersion.ofDataset(dataset("s3://b/*.csv", settings), sourceRedescribed)
+        );
+    }
+
+    /**
+     * A parsed mapping's iteration order is not part of the definition, for the same reason the settings are
+     * sorted: the same declaration arriving in a different order must address the same entries.
+     */
+    public void testDeclaredColumnOrderDoesNotMoveTheDatasetVersion() {
+        DataSource src = source(Map.of("endpoint", "https://s3.example"));
+        Map<String, DatasetFieldMapping> ageFirst = new LinkedHashMap<>();
+        ageFirst.put("age", new DatasetFieldMapping("keyword", null));
+        ageFirst.put("name", new DatasetFieldMapping("long", null));
+        Map<String, DatasetFieldMapping> nameFirst = new LinkedHashMap<>();
+        nameFirst.put("name", new DatasetFieldMapping("long", null));
+        nameFirst.put("age", new DatasetFieldMapping("keyword", null));
+
+        assertEquals(
+            DefinitionVersion.ofDataset(mapped(declaring(DatasetMapping.Dynamic.TRUE, ageFirst)), src),
+            DefinitionVersion.ofDataset(mapped(declaring(DatasetMapping.Dynamic.TRUE, nameFirst)), src)
+        );
+    }
+
+    /**
+     * A declared column name is user-controlled text in the pre-image, so it gets the same length-prefix defence
+     * the settings have. Without it a column named to contain the encoding's own separators could make one
+     * declaration encode identically to a different one, and two different datasets would share every entry.
+     */
+    public void testADeclaredColumnNameCannotForgeAFieldBoundary() {
+        DataSource src = source(Map.of("endpoint", "https://s3.example"));
+        String forged = "age" + "\u00003:t7:keyword";
+        assertNotEquals(
+            DefinitionVersion.ofDataset(
+                mapped(declaring(DatasetMapping.Dynamic.TRUE, Map.of(forged, new DatasetFieldMapping("long", null)))),
+                src
+            ),
+            DefinitionVersion.ofDataset(
+                mapped(declaring(DatasetMapping.Dynamic.TRUE, Map.of("age", new DatasetFieldMapping("keyword", null)))),
+                src
+            )
+        );
+    }
+
+    public void testTheDatasetVersionIsFixedWidth() {
+        DataSource src = source(Map.of("endpoint", "https://s3.example"));
+        for (int i = 0; i < 64; i++) {
+            String version = DefinitionVersion.ofDataset(dataset("s3://b/" + i + "/*.csv", Map.of("format", "csv")), src);
+            assertEquals("a version that varied in width could be a prefix of another: " + version, 32, version.length());
+        }
+    }
+
+    /**
+     * The census, and the only case here that survives someone ADDING a field. Every other case pins a field
+     * that exists today; this one fails the build when a new one appears, because the decision it then needs -
+     * does this field change what a reader does? - cannot be made by a hash function and must not be made by
+     * omission. A field left out of the fold is an edit that silently serves the previous definition's
+     * measurements, which is the failure mode this tier has no other defence against: there is no version
+     * counter to fold instead and no invalidation message, so the content is the whole of the protocol.
+     */
+    public void testTheFoldAccountsForEveryFieldOfBothDefinitions() {
+        assertEquals(
+            "a field was added to Dataset. Decide whether DefinitionVersion.ofDataset must fold it - anything that "
+                + "changes what a reader does MUST - then list it here.",
+            Set.of("name", "dataSource", "resource", "description", "settings", "mapping"),
+            instanceFieldNames(Dataset.class)
+        );
+        assertEquals(
+            "a field was added to DataSource. Same decision as above.",
+            Set.of("name", "type", "description", "settings"),
+            instanceFieldNames(DataSource.class)
+        );
+        assertEquals(
+            "a field was added to a declared column. Same decision as above.",
+            Set.of("type", "path", "format"),
+            instanceFieldNames(DatasetFieldMapping.class)
+        );
+        assertEquals("a field was added to DatasetMapping.", Set.of("mappings"), instanceFieldNames(DatasetMapping.class));
+        assertEquals(
+            "a component was added to a mapping block.",
+            Set.of("dynamic", "properties"),
+            instanceFieldNames(DatasetMapping.Mappings.class)
+        );
+    }
+
+    private static Set<String> instanceFieldNames(Class<?> type) {
+        Set<String> names = new TreeSet<>();
+        for (Field field : type.getDeclaredFields()) {
+            if (Modifier.isStatic(field.getModifiers()) == false && field.isSynthetic() == false) {
+                names.add(field.getName());
+            }
+        }
+        return names;
     }
 }

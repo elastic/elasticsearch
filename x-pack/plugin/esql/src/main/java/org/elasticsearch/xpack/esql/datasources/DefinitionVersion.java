@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.hash.MurmurHash3;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
@@ -100,6 +103,68 @@ public final class DefinitionVersion {
         // (0x12, 0x3) would both render "123" — and two definitions rendering to one version share every
         // cache address, which is the failure this class exists to prevent.
         return String.format(Locale.ROOT, "%016x%016x", hash.h1, hash.h2);
+    }
+
+    /**
+     * Key under which the DATASET-TIER version travels in a query's merged config map. Distinct from
+     * {@link #CONFIG_KEY} because the two address different tiers; see {@link #ofDataset}.
+     */
+    public static final String DATASET_CONFIG_KEY = "_dataset_version";
+
+    /**
+     * The version of one dataset <em>as a dataset</em>: everything {@link #of} folds, plus the names the
+     * definitions were stored under and the declared mapping.
+     * <p>
+     * {@link #of} answers "which bytes, read with which settings", which is the right address for a fact about a
+     * FILE: one file's schema is reusable by any dataset that reads it, so two definitions equal in content
+     * should share that work. A fact about a DATASET is not reusable that way. A dataset-level fold is
+     * determined by one definition in its entirety, and a count measured under one mapping is not another
+     * mapping's to serve - a declaration that drops rows under a lenient policy counts fewer of them.
+     * <p>
+     * So this folds the two things {@link #of} deliberately omits. The names, because two datasets over
+     * identical bytes with identical settings are still two datasets. The mapping, because an edit to it must
+     * move every address derived from this: there is no version counter on either metadata type to fold
+     * instead - {@code Dataset} carries name, data source, resource, description, settings and mapping, and
+     * {@code DatasetMetadata} carries only the map of them - so the content IS the version, and a field left
+     * out of it is an edit that silently reuses what the previous definition measured.
+     * <p>
+     * {@code description} is left out on purpose: it changes nothing a reader does, so an edit to it should not
+     * cost a cold scan.
+     */
+    public static String ofDataset(Dataset dataset, DataSource parent) {
+        StringBuilder encoded = new StringBuilder();
+        append(encoded, "ds", dataset.name());
+        append(encoded, "src", parent.name());
+        append(encoded, "res", dataset.resource());
+        encodeSettings(encoded, dataset.settings());
+        append(encoded, "type", parent.type());
+        encodeDataSourceSettings(encoded, parent);
+        encodeMapping(encoded, dataset.mapping());
+
+        byte[] bytes = encoded.toString().getBytes(StandardCharsets.UTF_8);
+        MurmurHash3.Hash128 hash = MurmurHash3.hash128(bytes, 0, bytes.length, 0, new MurmurHash3.Hash128());
+        return String.format(Locale.ROOT, "%016x%016x", hash.h1, hash.h2);
+    }
+
+    /**
+     * The declared mapping, canonically: the dynamic mode, then each column sorted by its logical name with the
+     * type, the {@code path} rename and the date {@code format} it declares. Sorted for the reason the settings
+     * are - a parsed map's iteration order is not part of the definition - and length-prefixed through
+     * {@link #append} so no declared name can forge a field boundary.
+     */
+    private static void encodeMapping(StringBuilder encoded, @Nullable DatasetMapping mapping) {
+        DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
+        if (mappings == null) {
+            append(encoded, "map", null);
+            return;
+        }
+        append(encoded, "dyn", mappings.dynamic() == null ? null : mappings.dynamic().name());
+        for (Map.Entry<String, DatasetFieldMapping> e : new TreeMap<>(mappings.properties()).entrySet()) {
+            append(encoded, "col", e.getKey());
+            append(encoded, "t", e.getValue().type());
+            append(encoded, "p", e.getValue().path());
+            append(encoded, "f", e.getValue().format());
+        }
     }
 
     /** Sorted, so two equal definitions encode identically whatever order their settings were stored in. */

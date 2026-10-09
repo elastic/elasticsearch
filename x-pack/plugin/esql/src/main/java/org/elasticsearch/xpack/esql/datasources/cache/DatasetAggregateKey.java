@@ -26,33 +26,33 @@ import java.util.Objects;
  * different globs that happen to resolve to one file set are two datasets, and sharing a fold between them
  * would be a behaviour change rather than a saving.
  * <p>
- * <b>This address carries no read configuration.</b> It stores a bare row count with no stamp and no licence,
- * so the serve path's unstamped pass-through - which exists for the columnar readers, that harvest without
- * stamping - fires on it, and nothing compares the configuration that produced the fold against the one
- * consuming it.
+ * <b>{@code datasetVersion} is which definition exactly</b> - {@code DefinitionVersion.ofDataset}, which folds
+ * the dataset's and the data source's names, the resource, the settings, the credentials and the declared
+ * mapping. A dataset-level fold is determined by one definition in its entirety, so it is addressed by that
+ * definition and shared with no other dataset: two datasets over identical bytes with identical settings are
+ * still two datasets, and a count measured under one mapping is not the other's to serve, because a
+ * declaration that drops rows under a lenient policy counts fewer of them.
  * <p>
- * <b>That is reachable as a wrong count, and it is not new here.</b> A dynamic-declared dataset and an
- * inferred one over the same resource and settings mint the same address: {@code DefinitionVersion} folds the
- * resource, the dataset settings and the parent, and a mapping is neither of those, so the identity cannot
- * tell them apart. A dynamic mapping is not {@code isDeclaredSchema}, so it takes the first-file-wins rail and
- * reaches this address; and the non-strict overlay does more than retype in place - appending an absent
- * declared column upgrades a CSV or TSV read to DECLARED, which binds a headerless file differently from an
- * inferred read of it, so the two do NOT see the same survivor set. Once the per-file records are evicted and
- * the fold is not, the declared read is served the inferred read's count having read nothing. Measured, not
- * argued. The previous shape keyed this address equally blind to the mapping, so the exposure predates the
- * split; what the split changes is that the fold now outlives the per-file records in its own slice.
+ * Any edit to the dataset therefore moves this address and the fold measured under the previous definition
+ * becomes unreachable, which is the invalidation protocol this tier has instead of a notification: nothing has
+ * to notice a change and tell the cache about it.
  * <p>
- * The fix is to fold the bound read's configuration into this key, or to refuse the memoized fold whenever a
- * declared mapping is in play.
+ * This is the dataset tier only. A per-file record stays addressed by the content-derived
+ * {@link DatasetIdentity}, because one file's schema and measurements are legitimately reusable by any dataset
+ * that reads that file - and there the read configuration disambiguates, because one file can be read several
+ * ways. Here it cannot: one definition over one file set performs one read, so there is nothing for a read
+ * configuration to separate.
  */
-public record DatasetAggregateKey(DatasetIdentity dataset, String pattern, FileSetFingerprint fileSet) {
+public record DatasetAggregateKey(String datasetVersion, String pattern, FileSetFingerprint fileSet) {
 
     public DatasetAggregateKey {
-        Objects.requireNonNull(dataset, "dataset aggregate key requires a dataset identity");
         Objects.requireNonNull(fileSet, "dataset aggregate key requires a file-set fingerprint");
+        if (datasetVersion == null || datasetVersion.isEmpty()) {
+            throw new IllegalArgumentException("a dataset aggregate address needs the definition it belongs to");
+        }
     }
 
-    public static DatasetAggregateKey of(String pattern, FileSetFingerprint fileSet, DatasetIdentity dataset) {
-        return new DatasetAggregateKey(dataset, pattern == null ? "" : pattern, fileSet);
+    public static DatasetAggregateKey of(String pattern, FileSetFingerprint fileSet, String datasetVersion) {
+        return new DatasetAggregateKey(datasetVersion, pattern == null ? "" : pattern, fileSet);
     }
 }

@@ -9,137 +9,84 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
-import org.elasticsearch.xpack.esql.datasources.spi.Configured;
-
-import java.util.Map;
-import java.util.Set;
 
 /**
  * Locks the identity contract of {@link DatasetAggregateKey}: the address of a memoized multi-file fold must
- * change with the listing's file-set fingerprint, with the dataset identity behind it, and with the pattern it
- * was resolved from.
+ * change with the listing's file-set fingerprint, with the pattern it was resolved from, and with the version of
+ * the dataset definition it belongs to.
  * <p>
- * It can no longer be mistaken for a per-file address, and that is a property of the type rather than something
+ * The three components are the whole address, and each is here for a different reason. The fingerprint makes the
+ * key correct-or-miss over the bytes: any file added, removed or modified derives a different key and the stale
+ * fold ages out with no invalidation protocol. The pattern separates two globs that happen to resolve to one
+ * file set. The version separates two dataset definitions, and carries every edit to either definition - that is
+ * {@code DefinitionVersion.ofDataset}'s contract, pinned field by field in {@code DefinitionVersionTests}
+ * rather than restated here, because what the version folds is that method's business and not this address's.
+ * <p>
+ * What this type no longer carries is a read configuration. One dataset definition over one file set performs
+ * one read, so there is nothing for a read configuration to separate at this tier - and the properties that
+ * reasoning used to be needed for (two principals, two regions, two readers must not share a fold) hold now
+ * because each of those is an edit to a definition, and so moves the version. They are pinned where they are
+ * decided.
+ * <p>
+ * It also cannot be mistaken for a per-file address, and that is a property of the type rather than something
  * asserted here: {@link DatasetAggregateKey} and {@link SchemaCacheKey} are different types, so the per-file
- * reconcile and lookup paths cannot be handed one. The case that used to assert {@code isDatasetAggregate()} on
- * one key and not the other has nothing left to check.
+ * reconcile and lookup paths cannot be handed one.
  */
 public class DatasetAggregateKeyTests extends ESTestCase {
 
     private static final String PATTERN = "s3://bucket/data/*.ndjson";
+    private static final String VERSION = "0123456789abcdef0123456789abcdef";
 
     public void testDatasetAggregateKeyStableForSameInputs() {
-        DatasetAggregateKey a = DatasetAggregateKey.of(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", "", Map.of("format", "ndjson"))
+        assertEquals(
+            DatasetAggregateKey.of(PATTERN, new FileSetFingerprint(11, 22), VERSION),
+            DatasetAggregateKey.of(PATTERN, new FileSetFingerprint(11, 22), VERSION)
         );
-        DatasetAggregateKey b = DatasetAggregateKey.of(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", "", Map.of("format", "ndjson"))
-        );
-        assertEquals(a, b);
     }
 
     public void testDatasetAggregateKeyChangesWithEitherFingerprintLane() {
-        DatasetAggregateKey base = DatasetAggregateKey.of(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", "", Map.of())
-        );
+        DatasetAggregateKey base = DatasetAggregateKey.of(PATTERN, new FileSetFingerprint(11, 22), VERSION);
+        assertNotEquals(base, DatasetAggregateKey.of(PATTERN, new FileSetFingerprint(12, 22), VERSION));
+        assertNotEquals(base, DatasetAggregateKey.of(PATTERN, new FileSetFingerprint(11, 23), VERSION));
+    }
+
+    public void testDatasetAggregateKeyChangesWithThePattern() {
         assertNotEquals(
-            base,
-            DatasetAggregateKey.of(PATTERN, new FileSetFingerprint(12, 22), TestDatasetIdentities.identity("ndjson", "", Map.of()))
-        );
-        assertNotEquals(
-            base,
-            DatasetAggregateKey.of(PATTERN, new FileSetFingerprint(11, 23), TestDatasetIdentities.identity("ndjson", "", Map.of()))
+            "two globs that happen to resolve to one file set are two datasets",
+            DatasetAggregateKey.of(PATTERN, new FileSetFingerprint(11, 22), VERSION),
+            DatasetAggregateKey.of("s3://bucket/data/2026-*.ndjson", new FileSetFingerprint(11, 22), VERSION)
         );
     }
 
     /**
-     * Two data sources differing only in their credentials must not share an address. This reverses what this
-     * suite previously pinned - that they DO share one, on the reasoning that credentials are not
-     * row-interpretation-affecting and so two users over the same files may share the aggregate. That reasoning
-     * is sound about interpretation and answers a different question than the one that matters: a row count and a
-     * column extremum are facts about the data, not interpretations of it, and the listing and footer-byte stores
-     * already separate principals for exactly that reason.
-     * <p>
-     * It is a second layer of defence and not the authorization control. It cannot see a principal who may list
-     * but not read within ONE data source, it cannot see a revoked credential, which digests to the value it had
-     * while it was valid, and it cannot see a federated token, which arrives at read time and belongs to no
-     * definition. An authorization check on the resolve path is the control.
-     * <p>
-     * It also costs sharing that is legitimately correct, since S3 authorizes per object and two data sources
-     * over the same files hold facts equally true for both. That trade is deliberate.
+     * The invalidation protocol, in one case: an edited definition derives a different version, so the fold
+     * measured under the previous one is unreachable and ages out. Nothing has to notice the edit and tell the
+     * cache about it, which is why every component of a definition has to reach the version - see
+     * {@code DefinitionVersionTests}.
      */
-    public void testDatasetAggregateKeySeparatesPrincipals() {
-        DatasetAggregateKey a = DatasetAggregateKey.of(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", "", "digest-of-userA-secret", Map.of())
-        );
-        DatasetAggregateKey b = DatasetAggregateKey.of(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", "", "digest-of-userB-secret", Map.of())
-        );
-        assertNotEquals("two data sources differing only in their credentials must not share an aggregate", a, b);
-        assertEquals(
-            "and two resolves under the same credentials must still share it",
-            a,
-            DatasetAggregateKey.of(
-                PATTERN,
-                new FileSetFingerprint(11, 22),
-                TestDatasetIdentities.identity("ndjson", "", "digest-of-userA-secret", Map.of())
-            )
+    public void testDatasetAggregateKeyChangesWithTheDatasetVersion() {
+        assertNotEquals(
+            DatasetAggregateKey.of(PATTERN, new FileSetFingerprint(11, 22), VERSION),
+            DatasetAggregateKey.of(PATTERN, new FileSetFingerprint(11, 22), "fedcba9876543210fedcba9876543210")
         );
     }
 
-    public void testDatasetAggregateKeyChangesWithTheReaderIdentity() {
-        DatasetAggregateKey ndjson = DatasetAggregateKey.of(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", "", Map.of())
-        );
-        DatasetAggregateKey csv = DatasetAggregateKey.of(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("csv", "", Map.of())
-        );
-        assertNotEquals(ndjson, csv);
+    /**
+     * A fold with no definition behind it has nothing to invalidate it, so it must not be addressable at all.
+     * The resolver already refuses to mint one for a bare {@code FROM} over a URI; this makes the address itself
+     * refuse, so a future caller cannot reintroduce a shared slot by passing an empty version.
+     */
+    public void testADatasetAggregateAddressRequiresADefinition() {
+        FileSetFingerprint fileSet = new FileSetFingerprint(11, 22);
+        expectThrows(IllegalArgumentException.class, () -> DatasetAggregateKey.of(PATTERN, fileSet, null));
+        expectThrows(IllegalArgumentException.class, () -> DatasetAggregateKey.of(PATTERN, fileSet, ""));
+        expectThrows(NullPointerException.class, () -> DatasetAggregateKey.of(PATTERN, null, VERSION));
     }
 
-    public void testDatasetAggregateKeyChangesWithRegion() {
-        // region is a dataset-level key; two identical file sets accessed with different regions
-        // must not share the same aggregate cache entry.
-        DatasetAggregateKey usEast = DatasetAggregateKey.of(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", Configured.identityOf(Map.of("region", "us-east-1"), Set.of("region")), Map.of())
-        );
-        DatasetAggregateKey euWest = DatasetAggregateKey.of(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", Configured.identityOf(Map.of("region", "eu-west-1"), Set.of("region")), Map.of())
-        );
-        assertNotEquals(usEast, euWest);
+    public void testDatasetAggregateKeyKeepsWhatItWasBuiltFrom() {
+        DatasetAggregateKey key = DatasetAggregateKey.of(PATTERN, new FileSetFingerprint(11, 22), VERSION);
+        assertEquals(PATTERN, key.pattern());
+        assertEquals(new FileSetFingerprint(11, 22), key.fileSet());
+        assertEquals(VERSION, key.datasetVersion());
     }
-
-    public void testDatasetAggregateKeyDistinctFromPerFileKeys() {
-        // A per-file key cannot equal a dataset key: the file-set fingerprint rides its own component, which
-        // every per-file key leaves null. location stays the plain glob pattern, for diagnostics.
-        DatasetAggregateKey dataset = DatasetAggregateKey.of(
-            PATTERN,
-            new FileSetFingerprint(11, 22),
-            TestDatasetIdentities.identity("ndjson", "", Map.of())
-        );
-        // Nothing left to assert about telling the two apart: a DatasetAggregateKey and a SchemaCacheKey are
-        // different types, so no consumer can be handed the wrong one and no flag or nullable component encodes
-        // the distinction. What remains worth pinning is that the address keeps what it was built from.
-        assertEquals(PATTERN, dataset.pattern());
-        assertEquals(new FileSetFingerprint(11, 22), dataset.fileSet());
-    }
-
 }

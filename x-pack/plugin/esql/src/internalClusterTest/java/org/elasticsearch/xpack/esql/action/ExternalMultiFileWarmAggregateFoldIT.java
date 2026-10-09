@@ -255,8 +255,10 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
      * Two datasets over the same files with the same settings, one declaring its schema and one inferring it. They
      * bind their columns differently — by name against each file's own header, or by position — so they bound a
      * row's width differently and need not count the same rows. Neither may be served the other's memoized count.
-     * <p>Fails if the dataset key stops carrying the binding mode: the strict dataset is then handed the inferred
-     * one's count and answers its first query without reading anything.
+     * <p>What keeps them apart is that a dataset-level fold is addressed by the whole definition it belongs to,
+     * and a declaration is part of a definition. Fails if the dataset key stops carrying the definition version,
+     * or if the version stops folding the mapping: the strict dataset is then handed the inferred one's count and
+     * answers its first query without reading anything.
      */
     public void testStrictAndInferredDatasetsOverOneGlobNeverShareAnAggregate() throws Exception {
         Path dir = createTempDir();
@@ -327,11 +329,6 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
     private static final int NDJSON_ROWS_PER_FILE = 4_000;
 
     /**
-     * Parts that do not all infer the same schema, in the two ways NDJSON produces: {@code color} holds a string
-     * in one part and a number everywhere else, and {@code order_id} is absent from a run of parts, which is
-     * NDJSON's analogue of CSV's blank cell — there is no empty cell, a key is simply not there.
-     */
-    /**
      * Rows per file for the segmented corpus, sized so every file passes {@code 2 * segment_size} at the 64 KiB
      * minimum and is therefore split into byte-range segments rather than parsed whole. At ~45 bytes a row this is
      * ~360 KiB a file, comfortably over the 128 KiB a split needs, without writing megabytes into a test.
@@ -371,8 +368,8 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
      * <p>
      * The two publish through different commit paths, and only the whole-file one filed a foreign read's
      * measurement. A retyping declaration resolves to a read whose stamp never equals the schema record's, so no
-     * per-file record was written for a segmented read of such a dataset and it re-read every byte forever
-     * (esql-planning#2246). A file reaches that path two ways, and size is only one of them: it is split when it
+     * per-file record was written for a segmented read of such a dataset and it re-read every byte forever.
+     * A file reaches that path two ways, and size is only one of them: it is split when it
      * is at least twice its reader's own minimum segment (1 MiB for csv, the 4 MiB {@code segment_size} for
      * ndjson), which is what this arm arranges; or a declaration that binds by header name forces the streaming
      * whole-file path, which publishes per-stripe fragments at ANY size. {@code testDeclaringAnAbsentColumnWarmsCount}
@@ -417,8 +414,8 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
      * MIN/MAX can only have come from a record at this read's own address.
      * <p>
      * {@code value} is declared by nothing, so the declared-overlay poison does not reach it. MIN/MAX on the
-     * RETYPED column itself still re-scans - its harvested extrema are pre-coercion - which is stated in
-     * esql-planning#2246 and not what this arm covers.
+     * RETYPED column itself still re-scans - its harvested extrema are pre-coercion - which this arm does not
+     * cover.
      * <p>
      * The homogeneous corpus, because {@code fail_fast} is the default here and the heterogeneous one leaves
      * {@code order_id} empty in some files, which a strict read of an integer column refuses.
@@ -492,8 +489,8 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
      * rail reached the lookup with no mapping in scope at all, so it addressed every file by its own pre-overlay
      * stamp.
      * <p>
-     * A corpus whose files infer DIFFERENT schemas is a different defect - a file read at a schema other than its
-     * own, elastic/esql-planning#2201 - and its arms in this class stay muted.
+     * A corpus whose files infer DIFFERENT schemas is a different defect - a file read at a schema other than
+     * its own - and its arms in this class stay muted.
      */
     public void testRetypingMappingWarmsCountUnderUnionByName() throws Exception {
         Path dir = createTempDir();
@@ -529,6 +526,11 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         assertWarmCountShortCircuits(dataset, total);
     }
 
+    /**
+     * Parts that do not all infer the same schema, in the two ways NDJSON produces: {@code color} holds a string
+     * in one part and a number everywhere else, and {@code order_id} is absent from a run of parts, which is
+     * NDJSON's analogue of CSV's blank cell — there is no empty cell, a key is simply not there.
+     */
     private static long writeNdjsonCorpus(Path dir) throws IOException {
         long total = 0;
         for (int f = 0; f < NDJSON_FILE_COUNT; f++) {
@@ -714,7 +716,7 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
             + "established. The mechanism the union_by_name cells name is not it: "
             + "RunningFileStatsFold.applyPinnedColumns is reached only from "
             + "resolveMultiFileWithReconciliation, which is gated on schemaResolution != FIRST_FILE_WINS, "
-            + "so this rail never calls it. Fails identically on main; tracked by elastic/esql-planning#2201"
+            + "so this rail never calls it. Fails identically on main."
     )
     public void testCsvSparseCorpusWarmMinMaxServedUnderSkipRowFirstFileWins() throws Exception {
         Path dir = createTempDir();
@@ -741,7 +743,7 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
             + "established. The mechanism the union_by_name cells name is not it: "
             + "RunningFileStatsFold.applyPinnedColumns is reached only from "
             + "resolveMultiFileWithReconciliation, which is gated on schemaResolution != FIRST_FILE_WINS, "
-            + "so this rail never calls it. Fails identically on main; tracked by elastic/esql-planning#2201"
+            + "so this rail never calls it. Fails identically on main."
     )
     public void testCsvSparseCorpusWarmCountServedUnderSkipRowFirstFileWins() throws Exception {
         Path dir = createTempDir();
@@ -869,7 +871,7 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
             + "RunningFileStatsFold.applyPinnedColumns returns null as soon as ANY file is pinned, so the "
             + "whole dataset aggregate is discarded rather than overlaid. strict is served because its "
             + "corpus pins nothing; null_field is served because it overlays instead of dropping. "
-            + "Fails identically on main; tracked by elastic/esql-planning#2201"
+            + "Fails identically on main."
     )
     public void testMatrixCountSkipRowUnionByName() throws Exception {
         assertWarmMatrixCell("m_count_skip_unio", "skip_row", "union_by_name", false);
@@ -880,7 +882,7 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
             + "RunningFileStatsFold.applyPinnedColumns returns null as soon as ANY file is pinned, so the "
             + "whole dataset aggregate is discarded rather than overlaid. strict is served because its "
             + "corpus pins nothing; null_field is served because it overlays instead of dropping. "
-            + "Fails identically on main; tracked by elastic/esql-planning#2201"
+            + "Fails identically on main."
     )
     public void testMatrixMinMaxSkipRowUnionByName() throws Exception {
         assertWarmMatrixCell("m_minmax_skip_unio", "skip_row", "union_by_name", true);
@@ -933,7 +935,7 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
             + "established. The mechanism the union_by_name cells name is not it: "
             + "RunningFileStatsFold.applyPinnedColumns is reached only from "
             + "resolveMultiFileWithReconciliation, which is gated on schemaResolution != FIRST_FILE_WINS, "
-            + "so this rail never calls it. Fails identically on main; tracked by elastic/esql-planning#2201"
+            + "so this rail never calls it. Fails identically on main."
     )
     public void testMatrixMinMaxSkipRowFirstFileWins() throws Exception {
         assertWarmMatrixCell("m_minmax_skip_firs", "skip_row", "first_file_wins", true);
@@ -944,7 +946,7 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
             + "established. The mechanism the union_by_name cells name is not it: "
             + "RunningFileStatsFold.applyPinnedColumns is reached only from "
             + "resolveMultiFileWithReconciliation, which is gated on schemaResolution != FIRST_FILE_WINS, "
-            + "so this rail never calls it. Fails identically on main; tracked by elastic/esql-planning#2201"
+            + "so this rail never calls it. Fails identically on main."
     )
     public void testMatrixCountSkipRowFirstFileWins() throws Exception {
         assertWarmMatrixCell("m_count_skip_firs", "skip_row", "first_file_wins", false);

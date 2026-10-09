@@ -112,7 +112,7 @@ public class ReadConfigFingerprintDerivationSitesTests extends ESTestCase {
                 + "must not disagree: the per-file serve expectation, its defensive fallback when the schemaMap is "
                 + "empty, and the statistics address every rail's lookup asks (overlaidBoundReadOf / ffwBoundRead). "
                 + "They were three call sites; a declaration that retyped a column made the lookup's differ from the "
-                + "other two, which is esql-planning#2246",
+                + "other two, which is the defect",
             Role.SERVE_EXPECTATION,
             "HARVEST + STAMP; the overlaid-read derivation pinned by ExternalSourceResolverTests"
                 + "#testOverlaidReadOfDerivesTheReadTheDataNodeWillBind, the first-file-wins pairing by "
@@ -265,7 +265,6 @@ public class ReadConfigFingerprintDerivationSitesTests extends ESTestCase {
      * {@code ExternalMultiFileWarmAggregateFoldIT#testCsvHeterogeneousCorpusWarmCountServedUnderNullFieldFirstFileWins},
      * which goes cold the moment the lookup and the harvest disagree.
      */
-
     public void testFirstFileWinsStatisticsLookupAgreesWithTheHarvestOverThePin() {
         List<Attribute> anchorSchema = List.of(attr("a", DataType.LONG), attr("b", DataType.LONG));
         // A sibling file carrying a third column: same rail, read at the anchor's schema regardless.
@@ -290,7 +289,7 @@ public class ReadConfigFingerprintDerivationSitesTests extends ESTestCase {
      * <p>
      * Its sibling above derives both sides with {@link DeclaredReadSpec#NONE} and so cannot reach this: with no
      * mapping the pre-fix derivation {@code of(base.schema(), declaredReadSpecOf(null))} is byte-identical to the
-     * overlaid value. That blindness is why esql-planning#2246 shipped, and the third assertion here is the one that
+     * overlaid value. That blindness is why the defect shipped, and the third assertion here is the one that
      * would have caught it.
      */
     public void testFirstFileWinsStatisticsLookupAddressesTheOverlaidAnchorRead() {
@@ -313,8 +312,8 @@ public class ReadConfigFingerprintDerivationSitesTests extends ESTestCase {
 
         String preOverlay = ReadConfigFingerprint.of(anchor, DeclaredReadSpec.NONE);
         assertNotEquals(
-            "deriving the address from the anchor's PRE-overlay schema is esql-planning#2246: it addresses a read "
-                + "nothing performs, so every repeated aggregate over a retyping dataset re-reads every byte",
+            "deriving the address from the anchor's PRE-overlay schema addresses a read nothing performs, so "
+                + "every repeated aggregate over a retyping dataset re-reads every byte",
             harvest,
             preOverlay
         );

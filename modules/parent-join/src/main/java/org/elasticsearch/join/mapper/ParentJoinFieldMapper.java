@@ -149,9 +149,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             return new ParentJoinFieldMapper(
                 leafName(),
                 new JoinFieldType(context.buildFullName(leafName()), joiner, meta.get()),
-                Collections.unmodifiableMap(parentIdFields),
-                eagerGlobalOrdinals.get(),
-                relations.get()
+                Collections.unmodifiableMap(parentIdFields)
             );
         }
     }
@@ -216,20 +214,10 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     private final Map<String, ParentIdFieldMapper> parentIdFields;
-    private final boolean eagerGlobalOrdinals;
-    private final List<Relations> relations;
 
-    protected ParentJoinFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        Map<String, ParentIdFieldMapper> parentIdFields,
-        boolean eagerGlobalOrdinals,
-        List<Relations> relations
-    ) {
+    protected ParentJoinFieldMapper(String simpleName, MappedFieldType mappedFieldType, Map<String, ParentIdFieldMapper> parentIdFields) {
         super(simpleName, mappedFieldType, BuilderParams.empty());
         this.parentIdFields = parentIdFields;
-        this.eagerGlobalOrdinals = eagerGlobalOrdinals;
-        this.relations = relations;
     }
 
     @Override

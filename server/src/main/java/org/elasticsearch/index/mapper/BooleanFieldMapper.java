@@ -558,9 +558,7 @@ public class BooleanFieldMapper extends FieldMapper {
     private final DocValuesParameter.Values docValuesParameters;
     private final DocValuesFieldFactory dvFactory;
     private final boolean stored;
-    private final Script script;
     private final FieldValues<Boolean> scriptValues;
-    private final ScriptCompiler scriptCompiler;
     private final Explicit<Boolean> ignoreMalformed;
     private final IndexSettings indexSettings;
     private final boolean writeDimensionRouting;
@@ -586,9 +584,7 @@ public class BooleanFieldMapper extends FieldMapper {
             mappedFieldType.indexType.hasDocValuesSkipper(),
             builder.indexSettings.getIndexVersionCreated()
         );
-        this.script = builder.script.get();
         this.scriptValues = builder.scriptValues();
-        this.scriptCompiler = builder.scriptCompiler;
         this.indexSettings = builder.indexSettings;
         this.writeDimensionRouting = builder.dimension.getValue()
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs

@@ -715,10 +715,6 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
     /** Deprecated, we default to average or the single metric, if there is only one configured */
     @Deprecated(since = "9.4.0", forRemoval = true)
-    protected Metric defaultMetric;
-
-    /** The metric type (gauge, counter, summary) if  field is a time series metric */
-    private final TimeSeriesParams.MetricType metricType;
 
     private final IndexSettings indexSettings;
 
@@ -732,9 +728,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.metrics = builder.metrics.getValue();
-        this.defaultMetric = builder.defaultMetric.getValue();
         this.metricFieldMappers = metricFieldMappers;
-        this.metricType = builder.timeSeriesMetric.getValue();
         this.indexSettings = builder.indexSettings;
     }
 

@@ -264,8 +264,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     // TODO would be nicer not to hold onto the Builder here as it's a pretty big object
     private final FieldValues<GeoPoint> scriptValues;
-    private final TimeSeriesParams.MetricType metricType;
-    private final boolean indexed;
     private final IndexSettings indexSettings;
 
     public GeoPointFieldMapper(
@@ -285,8 +283,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             parser
         );
         this.scriptValues = builder.scriptValues();
-        this.metricType = builder.metric.get();
-        this.indexed = builder.indexed.get();
         this.indexSettings = builder.indexSettings;
     }
 

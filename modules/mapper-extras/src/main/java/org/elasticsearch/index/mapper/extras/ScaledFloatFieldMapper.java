@@ -635,7 +635,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     private final Double nullValue;
     private final double scalingFactor;
     private final boolean isSourceSynthetic;
-    private final TimeSeriesParams.MetricType metricType;
     private final String offsetsFieldName;
     private final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> offsetsFallback;
 
@@ -661,7 +660,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.coerce = builder.coerce.getValue();
         this.indexSettings = builder.indexSettings;
-        this.metricType = builder.metric.getValue();
         this.offsetsFieldName = offsetsFieldName;
         // The recorded value is the scaled long (doc values) representation; decode it like the offsets-aware loader does.
         this.offsetsFallback = (b, v) -> b.value(decodeForSyntheticSource((Long) v, scalingFactor));

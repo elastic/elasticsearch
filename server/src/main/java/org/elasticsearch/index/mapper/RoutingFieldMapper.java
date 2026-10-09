@@ -91,7 +91,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
         @Override
         public RoutingFieldMapper build() {
-            return InstancesLookup.lookup(requiredByDefault, required.getValue(), docValuesEnabledByDefault, docValues.getValue());
+            return InstancesLookup.lookup(required.getValue(), docValues.getValue());
         }
     }
 
@@ -373,28 +373,16 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     private final boolean required;
 
     /**
-     * Whether routing is required by default
-     */
-    private final boolean requiredByDefault;
-
-    /**
      * Whether routing values are stored as sorted doc values instead of stored fields.
      */
     private final boolean docValues;
 
-    /**
-     * Whether routing values are stored as sorted doc values by default.
-     */
-    private final boolean docValuesEnabledByDefault;
-
     private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
 
-    private RoutingFieldMapper(boolean requiredByDefault, boolean required, boolean docValuesEnabledByDefault, boolean docValues) {
+    private RoutingFieldMapper(boolean required, boolean docValues) {
         super(docValues ? DOC_VALUES_FIELD_TYPE : FIELD_TYPE);
         this.required = required;
-        this.requiredByDefault = requiredByDefault;
         this.docValues = docValues;
-        this.docValuesEnabledByDefault = docValuesEnabledByDefault;
     }
 
     @Override
@@ -479,32 +467,20 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     static final class InstancesLookup {
 
-        private record Key(boolean requiredByDefault, boolean required, boolean docValuesEnabledByDefault, boolean docValues) {}
+        private record Key(boolean required, boolean docValues) {}
 
-        static final Map<Key, RoutingFieldMapper> INSTANCES = new HashMap<>(16);
+        static final Map<Key, RoutingFieldMapper> INSTANCES = new HashMap<>(4);
 
         static {
             for (boolean required : new boolean[] { true, false }) {
-                for (boolean requiredByDefault : new boolean[] { true, false }) {
-                    for (boolean docValuesEnabled : new boolean[] { true, false }) {
-                        for (boolean docValuesEnabledByDefault : new boolean[] { true, false }) {
-                            INSTANCES.put(
-                                new Key(requiredByDefault, required, docValuesEnabledByDefault, docValuesEnabled),
-                                new RoutingFieldMapper(requiredByDefault, required, docValuesEnabledByDefault, docValuesEnabled)
-                            );
-                        }
-                    }
+                for (boolean docValues : new boolean[] { true, false }) {
+                    INSTANCES.put(new Key(required, docValues), new RoutingFieldMapper(required, docValues));
                 }
             }
         }
 
-        static RoutingFieldMapper lookup(
-            boolean requiredByDefault,
-            boolean required,
-            boolean docValuesEnabledByDefault,
-            boolean docValues
-        ) {
-            var key = new Key(requiredByDefault, required, docValuesEnabledByDefault, docValues);
+        static RoutingFieldMapper lookup(boolean required, boolean docValues) {
+            var key = new Key(required, docValues);
             var routingFieldMapper = INSTANCES.get(key);
             assert routingFieldMapper != null;
             return routingFieldMapper;

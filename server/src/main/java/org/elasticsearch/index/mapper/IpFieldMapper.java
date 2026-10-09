@@ -787,9 +787,7 @@ public class IpFieldMapper extends FieldMapper {
     private final String nullValueAsString;
 
     private final IndexSettings indexSettings;
-    private final Script script;
     private final FieldValues<InetAddress> scriptValues;
-    private final ScriptCompiler scriptCompiler;
 
     private final String offsetsFieldName;
 
@@ -813,9 +811,7 @@ public class IpFieldMapper extends FieldMapper {
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.nullValue = builder.parseNullValue();
         this.nullValueAsString = builder.nullValue.getValue();
-        this.script = builder.script.get();
         this.scriptValues = builder.scriptValues();
-        this.scriptCompiler = builder.scriptCompiler;
         this.dimension = builder.dimension.getValue();
         this.writeDimensionRouting = this.dimension
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs

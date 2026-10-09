@@ -372,15 +372,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                 meta.getValue(),
                 usesBinaryDocValues(docValuesParams)
             );
-            return new ICUCollationKeywordFieldMapper(
-                leafName(),
-                buildFieldType(),
-                ft,
-                builderParams(this, context),
-                collator,
-                this,
-                indexSettings
-            );
+            return new ICUCollationKeywordFieldMapper(leafName(), buildFieldType(), ft, builderParams(this, context), collator, this);
         }
     }
 
@@ -499,13 +491,9 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     private final int ignoreAbove;
     private final Collator collator;
-    private final CollatorParams params;
     private final String nullValue;
     private final FieldType fieldType;
-    private final boolean indexed;
-    private final String indexOptions;
     private final DocValuesParameter.Values docValuesParams;
-    private final IndexSettings indexSettings;
 
     protected ICUCollationKeywordFieldMapper(
         String simpleName,
@@ -513,20 +501,15 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
         Collator collator,
-        Builder builder,
-        IndexSettings indexSettings
+        Builder builder
     ) {
         super(simpleName, mappedFieldType, builderParams);
         assert collator.isFrozen();
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
-        this.params = builder.collatorParams();
         this.ignoreAbove = builder.ignoreAbove.getValue();
         this.collator = collator;
         this.nullValue = builder.nullValue.getValue();
-        this.indexed = builder.indexed.getValue();
-        this.indexOptions = builder.indexOptions.getValue();
         this.docValuesParams = builder.docValuesPameters.getValue();
-        this.indexSettings = indexSettings;
     }
 
     public DocValuesParameter.Values docValuesParams() {

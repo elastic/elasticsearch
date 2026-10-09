@@ -167,7 +167,6 @@ public class TokenCountFieldMapper extends FieldMapper {
     private final boolean enablePositionIncrements;
     private final Integer nullValue;
     private final DocValuesFieldFactory dvFactory;
-    private final IndexSettings indexSettings;
 
     protected TokenCountFieldMapper(String simpleName, MappedFieldType defaultFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, defaultFieldType, builderParams);
@@ -179,7 +178,6 @@ public class TokenCountFieldMapper extends FieldMapper {
         this.store = builder.store.getValue();
         // in parseCreateField(), we call IndexType.points(), which defaults skippers to false
         this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), false, IndexVersion.current());
-        this.indexSettings = builder.indexSettings;
     }
 
     @Override

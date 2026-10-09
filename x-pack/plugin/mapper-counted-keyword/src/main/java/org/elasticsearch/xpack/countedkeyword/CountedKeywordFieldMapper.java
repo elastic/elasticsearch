@@ -312,8 +312,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                 ),
                 builderParams(this, context),
                 countFieldMapper,
-                indexSourceKeepMode,
-                indexDisabledByDefault
+                indexSourceKeepMode
             );
         }
     }
@@ -404,7 +403,6 @@ public class CountedKeywordFieldMapper extends FieldMapper {
     private final FieldType fieldType;
     private final BinaryFieldMapper countFieldMapper;
     private final SourceKeepMode indexSourceKeepMode;
-    private final boolean indexDisabledByDefault;
 
     protected CountedKeywordFieldMapper(
         String simpleName,
@@ -412,14 +410,12 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
         BinaryFieldMapper countFieldMapper,
-        SourceKeepMode indexSourceKeepMode,
-        boolean indexDisabledByDefault
+        SourceKeepMode indexSourceKeepMode
     ) {
         super(simpleName, mappedFieldType, builderParams);
         this.fieldType = fieldType;
         this.countFieldMapper = countFieldMapper;
         this.indexSourceKeepMode = indexSourceKeepMode;
-        this.indexDisabledByDefault = indexDisabledByDefault;
     }
 
     @Override

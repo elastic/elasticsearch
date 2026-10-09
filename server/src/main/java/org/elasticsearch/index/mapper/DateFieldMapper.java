@@ -1181,16 +1181,12 @@ public final class DateFieldMapper extends FieldMapper {
     private final boolean indexed;
     private final DocValuesParameter.Values docValuesParameters;
     private final DocValuesFieldFactory dvFactory;
-    private final Locale locale;
-    private final String format;
     private final boolean ignoreMalformed;
     private final Long nullValue;
     private final String nullValueAsString;
     private final Resolution resolution;
     private final boolean isSourceSynthetic;
 
-    private final Script script;
-    private final ScriptCompiler scriptCompiler;
     private final FieldValues<Long> scriptValues;
 
     private final boolean isDataStreamTimestampField;
@@ -1218,15 +1214,11 @@ public final class DateFieldMapper extends FieldMapper {
             ((DateFieldType) mappedFieldType).hasDocValuesSkipper(),
             builder.indexSettings.getIndexVersionCreated()
         );
-        this.locale = builder.locale.getValue();
-        this.format = builder.format.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.nullValueAsString = builder.nullValue.getValue();
         this.nullValue = nullValue;
         this.resolution = resolution;
         this.isSourceSynthetic = isSourceSynthetic;
-        this.script = builder.script.get();
-        this.scriptCompiler = builder.scriptCompiler;
         this.scriptValues = builder.scriptValues();
         this.isDataStreamTimestampField = isDataStream && mappedFieldType.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         this.indexSettings = builder.indexSettings;

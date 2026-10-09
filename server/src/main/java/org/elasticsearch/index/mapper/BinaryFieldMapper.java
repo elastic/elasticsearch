@@ -243,9 +243,6 @@ public class BinaryFieldMapper extends FieldMapper {
     private final boolean stored;
     private final DocValuesParameter.Values docValues;
     private final boolean hasDocValues;
-    private final boolean isSyntheticSourceEnabled;
-    @Nullable
-    private final IndexSettings indexSettings;
     /**
      * Whether the values are left out of the {@code columnar_stored} {@code _source} and patched back from doc values on read: only
      * for the ColumNAR layouts, which keep array order and duplicates, and not under {@code on_failure: ignore}, whose set-aside
@@ -264,8 +261,6 @@ public class BinaryFieldMapper extends FieldMapper {
         this.stored = builder.stored.getValue();
         this.docValues = builder.docValues.getValue();
         this.hasDocValues = docValues.enabled();
-        this.isSyntheticSourceEnabled = builder.isSyntheticSourceEnabled;
-        this.indexSettings = builder.indexSettings;
         this.patchedIntoSource = sourceColumnarStored
             && hasDocValues
             && mappedFieldType.columnarFormat() != null

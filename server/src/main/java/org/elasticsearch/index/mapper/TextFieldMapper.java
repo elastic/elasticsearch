@@ -1977,19 +1977,10 @@ public final class TextFieldMapper extends FieldMapper {
 
     }
 
-    private final boolean index;
     private final boolean store;
     private final DocValuesParameter.Values docValuesParameters;
     private final DocValuesFieldFactory dvFactory;
-    private final String indexOptions;
-    private final boolean norms;
-    private final String termVectors;
-    private final SimilarityProvider similarity;
     private final NamedAnalyzer indexAnalyzer;
-    private final IndexAnalyzers indexAnalyzers;
-    private final PrefixConfig indexPrefixes;
-    private final FielddataFrequencyFilter freqFilter;
-    private final boolean fieldData;
     private final FieldType fieldType;
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
@@ -2024,18 +2015,9 @@ public final class TextFieldMapper extends FieldMapper {
         this.prefixFieldInfo = prefixFieldInfo;
         this.phraseFieldInfo = phraseFieldInfo;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
-        this.indexAnalyzers = builder.analyzers.indexAnalyzers;
-        this.index = builder.index.getValue();
         this.store = builder.store.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
         this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), false, indexSettings.getIndexVersionCreated());
-        this.similarity = builder.similarity.getValue();
-        this.indexOptions = builder.indexOptions.getValue();
-        this.norms = builder.norms.getValue();
-        this.termVectors = builder.termVectors.getValue();
-        this.indexPrefixes = builder.indexPrefixes.getValue();
-        this.freqFilter = builder.freqFilter.getValue();
-        this.fieldData = builder.fieldData.get();
         this.usesBinaryDocValuesForFallbackFields = useBinaryDocValuesForFallbackFields(builder.indexSettings);
         this.offsetsFieldName = builder.offsetsFieldName;
         this.payloadTypeWhenValueless = isIndexed ? ColumnarBinaryDocValuesField.typeWhenValueless(this.fieldType) : null;

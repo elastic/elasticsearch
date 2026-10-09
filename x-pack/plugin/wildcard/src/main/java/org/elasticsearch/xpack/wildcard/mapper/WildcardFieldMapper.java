@@ -1167,7 +1167,6 @@ public class WildcardFieldMapper extends FieldMapper {
     private final String nullValue;
     private final IndexMode indexMode;
     private final IndexVersion indexVersionCreated;
-    private final int ignoreAboveDefault;
     private final IgnoreAbove ignoreAbove;
     private final boolean storeIgnored;
     private final String originalName;
@@ -1185,7 +1184,6 @@ public class WildcardFieldMapper extends FieldMapper {
         this.storeIgnored = storeIgnored;
         this.indexMode = builder.indexMode;
         this.indexVersionCreated = builder.indexCreatedVersion;
-        this.ignoreAboveDefault = builder.ignoreAboveDefault;
         this.ignoreAbove = new IgnoreAbove(builder.ignoreAbove.getValue(), builder.indexMode, builder.indexCreatedVersion);
         this.originalName = storeIgnored ? fullPath() + TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX : null;
         this.storeIgnoredFieldsInBinaryDocValues = builder.storeIgnoredFieldsInBinaryDocValues;

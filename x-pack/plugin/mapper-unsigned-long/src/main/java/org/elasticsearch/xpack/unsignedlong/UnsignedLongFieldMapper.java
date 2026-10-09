@@ -755,7 +755,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     private final String nullValue;
     private final Long nullValueIndexed; // null value to use for indexing, represented as shifted to signed long range
     private final boolean dimension;
-    private final MetricType metricType;
     private final IndexSettings indexSettings;
     private final String offsetsFieldName;
 
@@ -786,7 +785,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             this.nullValueIndexed = unsignedToSortableSignedLong(parsed);
         }
         this.dimension = builder.dimension.getValue();
-        this.metricType = builder.metric.getValue();
         this.indexSettings = builder.indexSettings;
         this.offsetsFieldName = offsetsFieldName;
     }

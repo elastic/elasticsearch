@@ -153,19 +153,15 @@ public class TDigestFieldMapper extends FieldMapper {
     );
 
     private final Explicit<Boolean> ignoreMalformed;
-    private final boolean ignoreMalformedByDefault;
     private final TDigestExecutionHint digestType;
     private final double compression;
-    private final TimeSeriesParams.MetricType metricType;
     private final IndexSettings indexSettings;
 
     public TDigestFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
-        this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.digestType = builder.digestType.getValue();
         this.compression = builder.compression.getValue();
-        this.metricType = builder.metric.get();
         this.indexSettings = builder.indexSettings;
     }
 

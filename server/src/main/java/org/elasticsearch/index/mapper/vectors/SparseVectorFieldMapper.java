@@ -138,7 +138,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     indexOptions.getValue()
                 ),
                 builderParams(this, context),
-                isExcludeSourceVectors,
                 isExcludeSourceVectorsFinal
             );
         }
@@ -321,19 +320,16 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private final boolean excludeSourceVectorsSetting;
     private final boolean excludeSourceVectors;
 
     private SparseVectorFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
-        boolean excludeSourceVectorsSetting,
         boolean excludeSourceVectors
     ) {
         super(simpleName, mappedFieldType, builderParams);
         assert excludeSourceVectors == false || fieldType().isStored();
-        this.excludeSourceVectorsSetting = excludeSourceVectorsSetting;
         this.excludeSourceVectors = excludeSourceVectors;
     }
 

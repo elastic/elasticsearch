@@ -378,10 +378,6 @@ public class RangeFieldMapper extends FieldMapper {
     private final boolean hasDocValues;
     private final boolean store;
     private final Explicit<Boolean> coerce;
-    private final String format;
-    private final Locale locale;
-
-    private final boolean coerceByDefault;
 
     private RangeFieldMapper(
         String simpleName,
@@ -396,9 +392,6 @@ public class RangeFieldMapper extends FieldMapper {
         this.hasDocValues = builder.hasDocValues.getValue();
         this.store = builder.store.getValue();
         this.coerce = builder.coerce.getValue();
-        this.format = builder.format.getValue();
-        this.locale = builder.locale.getValue();
-        this.coerceByDefault = builder.coerce.getDefaultValue().value();
     }
 
     boolean coerce() {

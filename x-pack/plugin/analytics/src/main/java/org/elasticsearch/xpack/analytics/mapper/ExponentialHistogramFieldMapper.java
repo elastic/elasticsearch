@@ -193,11 +193,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     );
 
     private final Explicit<Boolean> ignoreMalformed;
-    private final boolean ignoreMalformedByDefault;
 
     private final Explicit<Boolean> coerce;
-    private final boolean coerceByDefault;
-    private final TimeSeriesParams.MetricType metricType;
     private final IndexSettings indexSettings;
 
     ExponentialHistogramFieldMapper(
@@ -208,10 +205,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     ) {
         super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
-        this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerce = builder.coerce.getValue();
-        this.coerceByDefault = builder.coerce.getDefaultValue().value();
-        this.metricType = builder.metric.getValue();
         this.indexSettings = builder.indexSettings;
     }
 

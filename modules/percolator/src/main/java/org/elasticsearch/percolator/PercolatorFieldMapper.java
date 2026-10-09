@@ -166,7 +166,6 @@ public class PercolatorFieldMapper extends FieldMapper {
                 rangeFieldMapper,
                 minimumShouldMatchFieldMapper,
                 mapUnmappedFieldsAsText,
-                indexSettings,
                 clusterTransportVersion
             );
         }
@@ -357,7 +356,6 @@ public class PercolatorFieldMapper extends FieldMapper {
     private final NumberFieldMapper minimumShouldMatchFieldMapper;
     private final RangeFieldMapper rangeFieldMapper;
     private final boolean mapUnmappedFieldsAsText;
-    private final IndexSettings indexSettings;
     private final Supplier<TransportVersion> clusterTransportVersion;
 
     PercolatorFieldMapper(
@@ -371,7 +369,6 @@ public class PercolatorFieldMapper extends FieldMapper {
         RangeFieldMapper rangeFieldMapper,
         NumberFieldMapper minimumShouldMatchFieldMapper,
         boolean mapUnmappedFieldsAsText,
-        IndexSettings indexSettings,
         Supplier<TransportVersion> clusterTransportVersion
     ) {
         super(simpleName, mappedFieldType, builderParams);
@@ -382,7 +379,6 @@ public class PercolatorFieldMapper extends FieldMapper {
         this.minimumShouldMatchFieldMapper = minimumShouldMatchFieldMapper;
         this.rangeFieldMapper = rangeFieldMapper;
         this.mapUnmappedFieldsAsText = mapUnmappedFieldsAsText;
-        this.indexSettings = indexSettings;
         this.clusterTransportVersion = clusterTransportVersion;
     }
 

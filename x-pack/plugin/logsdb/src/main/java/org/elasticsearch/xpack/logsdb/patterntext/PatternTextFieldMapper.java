@@ -237,10 +237,7 @@ public class PatternTextFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = new TypeParser(Builder::new);
 
-    private final IndexVersion indexCreatedVersion;
     private final NamedAnalyzer analyzer;
-    private final IndexSettings indexSettings;
-    private final String indexOptions;
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
     private final FieldType templateIdFieldType;
@@ -259,10 +256,7 @@ public class PatternTextFieldMapper extends FieldMapper {
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         this.fieldType = fieldType;
-        this.indexCreatedVersion = builder.indexCreatedVersion();
         this.analyzer = builder.analyzer.get();
-        this.indexSettings = builder.indexSettings;
-        this.indexOptions = builder.indexOptions.getValue();
         this.templateIdMapper = templateIdMapper;
         this.templateIdFieldType = templateIdMapper.luceneFieldType();
         this.useBinaryDocValueArgs = builder.useBinaryDocValuesForArgsColumn();

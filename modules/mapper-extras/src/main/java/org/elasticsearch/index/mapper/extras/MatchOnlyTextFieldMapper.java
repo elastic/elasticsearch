@@ -1096,7 +1096,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     private final IndexVersion indexCreatedVersion;
-    private final IndexAnalyzers indexAnalyzers;
     private final NamedAnalyzer indexAnalyzer;
     private final FieldType fieldType;
     private final boolean storedFieldInBinaryFormat;
@@ -1123,7 +1122,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.indexCreatedVersion = builder.indexCreatedVersion();
-        this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
         this.storedFieldInBinaryFormat = builder.storedFieldInBinaryFormat;
         this.usesBinaryDocValuesForFallbackFields = builder.usesBinaryDocValuesForFallbackFields;

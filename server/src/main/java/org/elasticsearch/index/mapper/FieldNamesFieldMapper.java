@@ -88,15 +88,13 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 }
             }
             if (Defaults.ENABLED.equals(enabled.getValue())) {
-                return createdOnOrAfterV8 ? DEFAULT : DEFAULT_OLD;
+                return DEFAULT;
             }
-            return new FieldNamesFieldMapper(enabled.getValue(), createdOnOrAfterV8);
+            return new FieldNamesFieldMapper(enabled.getValue());
         }
     }
 
-    private static final FieldNamesFieldMapper DEFAULT = new FieldNamesFieldMapper(Defaults.ENABLED, true);
-
-    private static final FieldNamesFieldMapper DEFAULT_OLD = new FieldNamesFieldMapper(Defaults.ENABLED, false);
+    private static final FieldNamesFieldMapper DEFAULT = new FieldNamesFieldMapper(Defaults.ENABLED);
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new Builder(c.indexVersionCreated()));
 
@@ -151,12 +149,10 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     private final Explicit<Boolean> enabled;
-    private final boolean createdOnOrAfterV8;
 
-    private FieldNamesFieldMapper(Explicit<Boolean> enabled, boolean createdOnOrAfterV8) {
+    private FieldNamesFieldMapper(Explicit<Boolean> enabled) {
         super(FieldNamesFieldType.get(enabled.value()));
         this.enabled = enabled;
-        this.createdOnOrAfterV8 = createdOnOrAfterV8;
     }
 
     @Override

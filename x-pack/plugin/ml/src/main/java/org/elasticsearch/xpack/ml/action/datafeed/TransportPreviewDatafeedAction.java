@@ -6,16 +6,20 @@
  */
 package org.elasticsearch.xpack.ml.action.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -39,6 +43,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
@@ -114,6 +119,12 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     protected void doExecute(Task task, PreviewDatafeedAction.Request request, ActionListener<PreviewDatafeedAction.Response> listener) {
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         ActionListener<DatafeedConfig> datafeedConfigActionListener = listener.delegateFailureAndWrap((delegate, datafeedConfig) -> {
+            try {
+                validateEsqlDatafeedEnabled(datafeedConfig, clusterService.state());
+            } catch (ElasticsearchStatusException e) {
+                delegate.onFailure(e);
+                return;
+            }
             if (request.getJobConfig() != null) {
                 previewDatafeed(parentTaskId, datafeedConfig, request.getJobConfig().build(new Date()), request, delegate);
                 return;
@@ -135,6 +146,15 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 datafeedConfigActionListener.delegateFailureAndWrap((l, builder) -> l.onResponse(builder.build()))
             );
         }
+    }
+
+    static void validateEsqlDatafeedEnabled(DatafeedConfig datafeedConfig, ClusterState state) {
+        DatafeedEsqlGates.validateEsqlDatafeedEnabled(
+            datafeedConfig,
+            state,
+            Messages.DATAFEED_ESQL_PREVIEW_UPGRADE_IN_PROGRESS,
+            Messages.DATAFEED_ESQL_PREVIEW_DISABLED
+        );
     }
 
     private void previewDatafeed(
@@ -260,8 +280,12 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
 
     static FieldCapabilitiesRequest buildDateNanosFieldCapsRequest(DatafeedConfig datafeed, String timeField) {
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
-        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
-        if (datafeed.getIndicesOptions().resolveCrossProjectIndexExpression()) {
+        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0]));
+        IndicesOptions indicesOptions = datafeed.getIndicesOptions() != null
+            ? datafeed.getIndicesOptions()
+            : SearchRequest.DEFAULT_INDICES_OPTIONS;
+        fieldCapabilitiesRequest.indicesOptions(indicesOptions);
+        if (indicesOptions.resolveCrossProjectIndexExpression()) {
             // Cross-project field-caps resolution is validated on the coordinator whenever the request runs in
             // cross-project mode; that validation relies on the per-project resolution map, which is only collected
             // when includeResolvedTo is set. Omitting it leaves the map empty and trips a node-fatal assertion for

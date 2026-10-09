@@ -122,7 +122,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     /**
      * Request-breaker reservation for external-datasource planning. Coordinator-only, like the other transient
      * fields on this class: {@link #writeTo} does not write it and {@link #EsqlExecutionInfo(StreamInput)} does
-     * not read it. The query listener closes it once.
+     * not read it. {@code PlanExecutor.esql} closes it once, when the session completes.
      */
     private transient ExternalPlanningReservation externalPlanning;
     private transient boolean hasLinkedProjects;
@@ -236,7 +236,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     /**
      * Installs the query's external-planning reservation. One query, one reservation, set from
-     * {@code EsqlSession.execute} before resolution. Not serialized.
+     * {@code PlanExecutor.esql} before the session starts. Not serialized.
      */
     public void externalPlanning(ExternalPlanningReservation reservation) {
         this.externalPlanning = reservation;

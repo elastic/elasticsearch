@@ -10,6 +10,7 @@ package org.elasticsearch.compute.test;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -20,6 +21,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
+import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -33,10 +35,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.test.ESTestCase.between;
+import static org.elasticsearch.test.ESTestCase.fail;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.terminate;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;
@@ -48,6 +56,7 @@ import static org.hamcrest.Matchers.not;
 public class TestDriverRunner {
     private Integer numThreads = null;
     private TimeValue timeout = TimeValue.timeValueSeconds(30);
+    private boolean testDriverStatuses = Randomness.get().nextInt(100) < 1;
 
     /**
      * Set the number of threads use to run the driver. If this isn't called
@@ -64,6 +73,11 @@ public class TestDriverRunner {
      */
     public TestDriverRunner timeout(TimeValue timeout) {
         this.timeout = timeout;
+        return this;
+    }
+
+    public TestDriverRunner testDriverStatuses(boolean testDriverStatuses) {
+        this.testDriverStatuses = testDriverStatuses;
         return this;
     }
 
@@ -104,6 +118,8 @@ public class TestDriverRunner {
      */
     public void run(List<Driver> drivers) {
         assertThat("We can't run 0 drivers. Production runs at least one, even if we match no documents.", drivers, not(empty()));
+        record CapturedStatus(DriverStatus status, String xContent, Exception failure) {}
+        ConcurrentLinkedQueue<CapturedStatus> capturedStatuses = new ConcurrentLinkedQueue<>();
         drivers = new ArrayList<>(drivers);
         int dummyDrivers = between(0, 10);
         for (int i = 0; i < dummyDrivers; i++) {
@@ -129,7 +145,25 @@ public class TestDriverRunner {
         var driverRunner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
-                Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 10000), driverListener);
+                AtomicInteger captured = new AtomicInteger(0);
+                Executor esqlExecutor = threadPool.executor("esql");
+                Executor executor = command -> {
+                    esqlExecutor.execute(() -> {
+                        // simulate the task API that periodically capture the status
+                        if (testDriverStatuses && randomBoolean() && captured.getAndIncrement() < 5) {
+                            try {
+                                DriverStatus status = driver.status();
+                                capturedStatuses.add(new CapturedStatus(status, Strings.toString(status, false, false), null));
+                            } catch (Exception e) {
+                                capturedStatuses.add(
+                                    new CapturedStatus(null, null, new RuntimeException("failed while capturing status", e))
+                                );
+                            }
+                        }
+                        command.run();
+                    });
+                };
+                Driver.start(threadPool.getThreadContext(), executor, driver, between(1, 10000), driverListener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -138,6 +172,20 @@ public class TestDriverRunner {
             future.actionGet(timeout);
         } finally {
             terminate(threadPool);
+        }
+        if (testDriverStatuses) {
+            for (var captured : capturedStatuses) {
+                if (captured.failure != null) {
+                    fail(captured.failure);
+                } else {
+                    String currentXContent = Strings.toString(captured.status, false, false);
+                    if (Objects.equals(currentXContent, captured.xContent) == false) {
+                        fail(
+                            "captured driver status changed; captured = [" + currentXContent + "]; original = [" + captured.xContent + "]"
+                        );
+                    }
+                }
+            }
         }
     }
 

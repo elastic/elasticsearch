@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.hasSize;
  * (index refresh, search, template setup), plus minimal-privilege API keys for
  * authenticating actual Prometheus endpoint calls:
  * <ul>
- *   <li>{@link #writeApiKey} — {@code create_doc} + {@code auto_configure} on {@code metrics-*},
+ *   <li>{@link #writeApiKey} — {@code create_doc} + {@code auto_configure} on {@code metrics-*} and {@code exemplars-*},
  *       sufficient for {@code /_prometheus/api/v1/write}</li>
  *   <li>{@link #readApiKey} — {@code read} on {@code metrics-*},
  *       sufficient for all query and metadata endpoints</li>
@@ -147,7 +147,7 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
 
     @Before
     public void createApiKeys() throws IOException {
-        writeApiKey = createApiKey("prometheus-write-key", "metrics-*", "create_doc", "auto_configure");
+        writeApiKey = createApiKey("prometheus-write-key", List.of("metrics-*", "exemplars-*"), "create_doc", "auto_configure");
         readApiKey = createApiKey("prometheus-read-key", "metrics-*", "read");
     }
 
@@ -605,11 +605,16 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
     // --- security helpers ---
 
     protected static String createApiKey(String name, String indexPattern, String... privileges) throws IOException {
+        return createApiKey(name, List.of(indexPattern), privileges);
+    }
+
+    protected static String createApiKey(String name, List<String> indexPatterns, String... privileges) throws IOException {
         var privilegeArray = new StringBuilder();
         for (int i = 0; i < privileges.length; i++) {
             if (i > 0) privilegeArray.append("\", \"");
             privilegeArray.append(privileges[i]);
         }
+        String indexPatternArray = indexPatterns.stream().map(pattern -> "\"" + pattern + "\"").collect(Collectors.joining(", "));
         var request = makeRequest("POST", "/_security/api_key", """
             {
               "name": "%s",
@@ -617,14 +622,14 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
                 "role": {
                   "index": [
                     {
-                      "names": ["%s"],
+                      "names": [%s],
                       "privileges": ["%s"]
                     }
                   ]
                 }
               }
             }
-            """, name, indexPattern, privilegeArray);
+            """, name, indexPatternArray, privilegeArray);
         ObjectPath response = ObjectPath.createFromResponse(client().performRequest(request));
         return response.evaluate("encoded");
     }

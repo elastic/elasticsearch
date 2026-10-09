@@ -292,8 +292,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                         }
                     }
                     ilmPolicyName = effectiveSettings.get(IndexMetadata.LIFECYCLE_NAME);
-                    String rawMode = effectiveSettings.get(IndexSettings.MODE.getKey());
-                    indexMode = rawMode == null ? null : IndexMode.fromString(rawMode);
+                    indexMode = IndexMode.fromIndexSettingsWithoutValidation(effectiveSettings);
                     indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(effectiveSettings);
                 } else {
                     LOGGER.warn(

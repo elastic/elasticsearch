@@ -31,6 +31,12 @@ import java.util.function.LongSupplier;
  * {@link #meteredCpu(ActionListener)} carries metering across async boundaries: the completion is measured on
  * whichever thread completes the listener. {@link #finish()} settles the calling thread's open measurement and
  * freezes the total, so nothing that runs after it is counted, even inside a measurement that is still open.
+ * <p>
+ * Code that holds the query's tracker calls it directly. Code that does not hold it inherits it from the calling thread with
+ * {@link #inheritMeteredCpu} and {@link #checkpointCurrentThread}, which only works for hand-offs through listeners the
+ * code wraps itself. An executor handed to code that hops threads on its own, such as a format reader completing a
+ * storage read on an SDK thread before it submits the parse, must be metered by a tracker the executor holds: the
+ * submitting thread may not be metered. {@link #UNMETERED} stands in when there is no tracker.
  */
 public final class PlanningCpuTracker {
 
@@ -40,6 +46,9 @@ public final class PlanningCpuTracker {
     private static final long SETTLED = -1;
     private static final long PAUSED = -2;
     private static final long NOT_FINISHED = -1;
+
+    /** A tracker that measures nothing. Stands in where no query's planning is being metered, so callers need no null checks. */
+    public static final PlanningCpuTracker UNMETERED = new PlanningCpuTracker(() -> -1);
 
     private final LongSupplier cpuClock;
     private final LongAdder cpuNanos = new LongAdder();
@@ -72,9 +81,16 @@ public final class PlanningCpuTracker {
             this.startCpuNanos = startCpuNanos;
         }
 
-        void pause(long nowCpuNanos) {
+        /** Adds the CPU time since the latest (re)start to the owner. Does nothing while paused or settled. */
+        void commit(long nowCpuNanos) {
             if (startCpuNanos >= 0) {
                 owner.add(nowCpuNanos - startCpuNanos);
+            }
+        }
+
+        void pause(long nowCpuNanos) {
+            if (startCpuNanos >= 0) {
+                commit(nowCpuNanos);
                 startCpuNanos = PAUSED;
             }
         }
@@ -86,9 +102,7 @@ public final class PlanningCpuTracker {
         }
 
         void settle(long nowCpuNanos) {
-            if (startCpuNanos >= 0) {
-                owner.add(nowCpuNanos - startCpuNanos);
-            }
+            commit(nowCpuNanos);
             startCpuNanos = SETTLED;
         }
     }
@@ -143,6 +157,9 @@ public final class PlanningCpuTracker {
      * call {@link #finish()}.
      */
     public <T> ActionListener<T> meteredCpu(ActionListener<T> listener) {
+        if (this == UNMETERED) {
+            return listener;
+        }
         checkpoint();
         return new ActionListener<>() {
             @Override
@@ -168,8 +185,7 @@ public final class PlanningCpuTracker {
      * argument expression of the async dispatch it decorates, never stored and applied later.
      */
     public static <T> ActionListener<T> inheritMeteredCpu(ActionListener<T> listener) {
-        Measurement measurement = CURRENT.get();
-        return measurement == null ? listener : measurement.owner.meteredCpu(listener);
+        return current().meteredCpu(listener);
     }
 
     /**
@@ -184,19 +200,22 @@ public final class PlanningCpuTracker {
             return;
         }
         long nowCpuNanos = cpuClock.getAsLong();
-        add(nowCpuNanos - measurement.startCpuNanos);
+        measurement.commit(nowCpuNanos);
         measurement.startCpuNanos = nowCpuNanos;
     }
 
     /**
      * {@link #checkpoint()} for whichever tracker is metering the calling thread, or nothing when none is. For code
-     * that signals another thread but has no tracker in hand, such as a listing fan-out releasing its permits.
+     * that signals another thread but has no tracker in hand, such as a listing fan-out that may end on another thread.
      */
     public static void checkpointCurrentThread() {
+        current().checkpoint();
+    }
+
+    /** The tracker that owns the calling thread's innermost open measurement, or {@link #UNMETERED} when none is open. */
+    private static PlanningCpuTracker current() {
         Measurement measurement = CURRENT.get();
-        if (measurement != null) {
-            measurement.owner.checkpoint();
-        }
+        return measurement == null ? UNMETERED : measurement.owner;
     }
 
     /**

@@ -82,6 +82,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -216,9 +217,11 @@ public class ExternalSourceResolver {
     private volatile ExternalPlanningReservation planningReservation;
     /**
      * Planning CPU tracker of the query this resolver serves. Set once from {@code EsqlSession.execute}, after
-     * construction, so tasks read it when they run. Null when no session meters this resolver (tests, tools).
+     * construction, so tasks read it when they run rather than inheriting it from the submitting thread: format readers
+     * submit to these executors from storage SDK threads that are not metered. {@link PlanningCpuTracker#UNMETERED} when
+     * no session meters this resolver (tests, tools).
      */
-    private volatile PlanningCpuTracker planningCpu;
+    private volatile PlanningCpuTracker planningCpu = PlanningCpuTracker.UNMETERED;
     /**
      * Test hook. Invoked after each reconcile-gather private-list charge, while that run is still open.
      * Production leaves this null.
@@ -381,34 +384,10 @@ public class ExternalSourceResolver {
 
     /**
      * Binds the planning CPU tracker of the query {@code EsqlSession.execute} is planning. Executor tasks and storage
-     * completions are then measured by it, so object-store waits drop out of the planning CPU. Null leaves them unmetered.
+     * completions are then measured by it, so object-store waits drop out of the planning CPU.
      */
-    public void planningCpu(@Nullable PlanningCpuTracker tracker) {
-        this.planningCpu = tracker;
-    }
-
-    /** Runs an executor task inside a planning CPU measurement, or directly when no tracker is bound. */
-    private void runMeteredPlanningCpu(Runnable command) {
-        PlanningCpuTracker tracker = planningCpu;
-        if (tracker == null) {
-            command.run();
-        } else {
-            tracker.meteredCpu(command::run);
-        }
-    }
-
-    /** Meters a listener that an SDK or executor thread will complete, or returns it unchanged when no tracker is bound. */
-    private <T> ActionListener<T> meteredPlanningCpu(ActionListener<T> listener) {
-        PlanningCpuTracker tracker = planningCpu;
-        return tracker == null ? listener : tracker.meteredCpu(listener);
-    }
-
-    /** Commits this thread's planning CPU so far, see {@link PlanningCpuTracker#checkpoint()}. No-op when no tracker is bound. */
-    private void checkpointPlanningCpu() {
-        PlanningCpuTracker tracker = planningCpu;
-        if (tracker != null) {
-            tracker.checkpoint();
-        }
+    public void planningCpu(PlanningCpuTracker tracker) {
+        this.planningCpu = Objects.requireNonNull(tracker);
     }
 
     /**
@@ -620,7 +599,7 @@ public class ExternalSourceResolver {
         this.executor = executor;
         this.fanOutExecutor = executor == EsExecutors.DIRECT_EXECUTOR_SERVICE
             ? executor
-            : ExternalIoExecutors.preserving(executor, this::runMeteredPlanningCpu);
+            : ExternalIoExecutors.preserving(executor, command -> planningCpu.meteredCpu(command::run));
         this.dataSourceModule = dataSourceModule;
         this.settings = settings;
         this.cacheService = cacheService;
@@ -641,7 +620,7 @@ public class ExternalSourceResolver {
                 ExternalPlanningReservation reservation = planningReservation;
                 ExternalPlanningIo planningIo = reservation != null ? reservation.planningIo() : ExternalPlanningIo.current();
                 try (Releasable ignored = ExternalPlanningIo.activate(planningIo)) {
-                    runMeteredPlanningCpu(command);
+                    planningCpu.meteredCpu(command::run);
                 }
             }
         );
@@ -2984,7 +2963,7 @@ public class ExternalSourceResolver {
             }, e -> failure.compareAndSet(null, e)), () -> {
                 // Commit this item's CPU before the permit release: the release can let another thread run the gather
                 // completion and the rest of planning, and finish() there would drop a measurement still open here.
-                checkpointPlanningCpu();
+                planningCpu.checkpoint();
                 releasable.close();
             });
             // ThrottledIterator's itemConsumer must not throw: an escaped exception would leave this item's ref
@@ -4060,7 +4039,14 @@ public class ExternalSourceResolver {
         try {
             // The metered listener starts a planning CPU measurement on whichever thread completes the read (SDK, Netty, or
             // executor), so the continuation is counted and the wait before it is not.
-            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, pendingMetadataWarnings::add, meteredPlanningCpu(next));
+            factory.resolveMetadataAsync(
+                path,
+                hint,
+                config,
+                metadataReadExecutor,
+                pendingMetadataWarnings::add,
+                planningCpu.meteredCpu(next)
+            );
         } catch (Exception e) {
             // A factory that throws synchronously from dispatch (before invoking the listener) must not abort the
             // whole resolve: fall through to the next candidate exactly as the async onFailure path does.

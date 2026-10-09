@@ -217,6 +217,23 @@ public class PlanningCpuTrackerTests extends ESTestCase {
         assertEquals(9L, tracker.cpuNanos());
     }
 
+    /**
+     * {@link PlanningCpuTracker#UNMETERED} stands in for "no tracker": work run inside it stays counted by an enclosing
+     * measurement, as if it were not wrapped at all, and listeners are passed through unchanged.
+     */
+    public void testUnmeteredIsTransparent() {
+        FakeCpuClock clock = new FakeCpuClock();
+        PlanningCpuTracker outer = new PlanningCpuTracker(clock);
+        ActionListener<Void> listener = ActionListener.noop();
+        assertSame(listener, PlanningCpuTracker.UNMETERED.meteredCpu(listener));
+        outer.meteredCpu(() -> PlanningCpuTracker.UNMETERED.meteredCpu(() -> {
+            clock.burn(7);
+            PlanningCpuTracker.UNMETERED.checkpoint();
+        }));
+        assertEquals(7L, outer.cpuNanos());
+        assertEquals(0L, PlanningCpuTracker.UNMETERED.cpuNanos());
+    }
+
     public void testCheckpointCurrentThread() {
         FakeCpuClock clock = new FakeCpuClock();
         PlanningCpuTracker outer = new PlanningCpuTracker(clock);

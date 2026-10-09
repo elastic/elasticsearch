@@ -1861,10 +1861,14 @@ public final class GlobExpander {
         AtomicReference<Exception> failure = new AtomicReference<>();
         AtomicInteger sharedKeptCount = new AtomicInteger();
 
-        // The drain that completes the listing can finish planning while this thread is still returning from run,
-        // so commit the planning CPU spent building the slots before any drain is dispatched.
+        // This thread's measurement only commits when it closes. Once a drain is dispatched, the last one to finish runs the
+        // completion and can carry planning on to finish() before that, which would drop the slot listing's CPU. Commit it now.
         PlanningCpuTracker.checkpointCurrentThread();
-        ThrottledIterator.run(indexIterator(size), (releasable, i) -> {
+        // Planning can only finish on another thread once the thread running the slot loop drops its reference, which it
+        // does when the loop stops: the slots run out, or the permits do right after a folder dispatch. File slots release
+        // their permit inline and cannot end the listing, so committing at those two exits covers them without a CPU clock
+        // read per file.
+        ThrottledIterator.run(indexIterator(size, PlanningCpuTracker::checkpointCurrentThread), (releasable, i) -> {
             if (failure.get() != null || isCancelled.getAsBoolean()) {
                 // Record cancellation so the completion callback propagates TaskCancelledException rather
                 // than returning an empty FileList that the caller would misread as "no files matched".
@@ -1891,9 +1895,6 @@ public final class GlobExpander {
                     } catch (Exception e) {
                         failure.compareAndSet(null, e);
                     } finally {
-                        // Releasing the permit can let a drain complete the listing and finish planning before this
-                        // thread's measurement settles, so commit the planning CPU spent on this file first.
-                        PlanningCpuTracker.checkpointCurrentThread();
                         releasable.close();
                     }
                 }
@@ -1934,6 +1935,8 @@ public final class GlobExpander {
                         }
                     };
                     try {
+                        // The permits can run out right after this dispatch, ending the loop on this thread.
+                        PlanningCpuTracker.checkpointCurrentThread();
                         fanOutExecutor.execute(drain);
                     } catch (Exception submitEx) {
                         // Executor rejected the task (e.g. shutting down): record and release the permit
@@ -2032,14 +2035,18 @@ public final class GlobExpander {
         });
     }
 
-    /** An {@link Iterator} over the integers {@code [0, count)}. */
-    private static Iterator<Integer> indexIterator(int count) {
+    /** An {@link Iterator} over the integers {@code [0, count)} that runs {@code onExhausted} whenever it reports no next. */
+    private static Iterator<Integer> indexIterator(int count, Runnable onExhausted) {
         return new Iterator<>() {
             private int next = 0;
 
             @Override
             public boolean hasNext() {
-                return next < count;
+                if (next < count) {
+                    return true;
+                }
+                onExhausted.run();
+                return false;
             }
 
             @Override

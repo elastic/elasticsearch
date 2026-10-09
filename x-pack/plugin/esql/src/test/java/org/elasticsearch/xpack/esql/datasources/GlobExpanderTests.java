@@ -5263,22 +5263,43 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * A root-level file is matched inline on the calling thread after the slot listing is committed, and a drain can
-     * complete the listing and finish planning before that thread's measurement settles. The file's planning CPU must
-     * be committed before its permit is released, or it is dropped from the frozen total.
+     * A root-level file is matched inline on the calling thread, and a drain can complete the listing and finish planning
+     * before that thread's measurement settles. Here the file comes before two folders and two slots run at a time, so
+     * the slot loop on the calling thread usually ends when the permits run out after the second folder dispatch: the
+     * file's planning CPU must be committed by then, or it is dropped from the frozen total.
      */
-    public void testFileSlotCommitsPlanningCpuBeforeReleasingItsPermit() {
-        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
-        long burnNanos = TimeUnit.MILLISECONDS.toNanos(50);
-        PlanningCpuTracker tracker = new PlanningCpuTracker();
-        CountDownLatch finished = new CountDownLatch(1);
-        TreeStubProvider provider = new TreeStubProvider(
+    public void testFileSlotBeforeFoldersCommitsPlanningCpuBeforeTheLoopEnds() {
+        assertFileSlotPlanningCpuCommitted(
+            2,
             List.of(
                 entry("s3://bucket/data/c.parquet", 10),
                 entry("s3://bucket/data/d1/a.parquet", 10),
                 entry("s3://bucket/data/d2/b.parquet", 10)
             )
         );
+    }
+
+    /**
+     * As {@link #testFileSlotBeforeFoldersCommitsPlanningCpuBeforeTheLoopEnds}, but the file comes after the folders, so
+     * the slot loop ends when the slots run out.
+     */
+    public void testFileSlotAfterFoldersCommitsPlanningCpuBeforeTheLoopEnds() {
+        assertFileSlotPlanningCpuCommitted(
+            16,
+            List.of(
+                entry("s3://bucket/data/d1/a.parquet", 10),
+                entry("s3://bucket/data/d2/b.parquet", 10),
+                entry("s3://bucket/data/e.parquet", 10)
+            )
+        );
+    }
+
+    private void assertFileSlotPlanningCpuCommitted(int concurrency, List<StorageEntry> entries) {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(50);
+        PlanningCpuTracker tracker = new PlanningCpuTracker();
+        CountDownLatch finished = new CountDownLatch(1);
+        TreeStubProvider provider = new TreeStubProvider(entries);
         AtomicReference<Thread> callerThread = new AtomicReference<>();
         AtomicInteger callerReserves = new AtomicInteger();
         AtomicLong committedBeforeBurn = new AtomicLong();
@@ -5304,7 +5325,7 @@ public class GlobExpanderTests extends ESTestCase {
                 MAX,
                 ListingExtents.UNBOUNDED,
                 memory,
-                16,
+                concurrency,
                 () -> false,
                 pool::execute,
                 future

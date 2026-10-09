@@ -319,7 +319,37 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         assertNull(messages.get(1).reasoningDetails());
     }
 
-    public void testRepeatedSignatureFragmentsShareReasoningIndex() {
+    /**
+     * Converse streams consecutive Claude thinking blocks in the same content block, each as its text followed by its signature.
+     */
+    public void testThinkingBlocksInOneContentBlockGetSeparateReasoningIndices() {
+        processor = createProcessor(AmazonBedrockProvider.ANTHROPIC);
+
+        var messages = messagesFrom(
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromText("")), 0),
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromSignature("sig-a")), 0),
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromText("")), 0),
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromSignature("sig-b")), 0),
+            contentBlockDeltaOutput(ContentBlockDelta.fromText("answer"), 1),
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromText("more")), 2)
+        );
+
+        assertThat(
+            messages.stream().map(ChatCompletionMessageResponse::reasoningDetails).toList(),
+            equalTo(
+                Arrays.asList(
+                    List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 0L, "", null)),
+                    List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 0L, null, "sig-a")),
+                    List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 1L, "", null)),
+                    List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 1L, null, "sig-b")),
+                    null,
+                    List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 2L, "more", null))
+                )
+            )
+        );
+    }
+
+    public void testEachSignatureEndsAReasoningBlock() {
         processor = createProcessor(AmazonBedrockProvider.ANTHROPIC);
 
         var messages = messagesFrom(
@@ -332,7 +362,7 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
             equalTo(
                 List.of(
                     List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 0L, null, "sig-a")),
-                    List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 0L, null, "sig-b"))
+                    List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 1L, null, "sig-b"))
                 )
             )
         );

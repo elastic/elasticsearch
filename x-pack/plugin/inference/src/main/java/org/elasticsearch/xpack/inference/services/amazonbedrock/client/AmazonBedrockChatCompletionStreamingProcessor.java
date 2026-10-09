@@ -66,7 +66,9 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
     private final boolean emitReasoningDetails;
 
     private int reasoningBlockCount;
-    private final Map<Integer, Integer> contentBlockIndexToReasoningIndex = new HashMap<>();
+    private int currentReasoningIndex;
+    private int currentReasoningContentBlockIndex = -1;
+    private boolean currentReasoningBlockSigned;
     private int toolCallCount;
     private final Map<Integer, Integer> contentBlockIndexToToolCallIndex = new HashMap<>();
 
@@ -403,8 +405,14 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
             return type == ReasoningContentBlockDelta.Type.TEXT ? reasoningMessage(reasoning.text(), null) : null;
         }
 
-        // Converse sends no content block start for reasoning, so the first delta of a block assigns its reasoning index.
-        long reasoningIdx = contentBlockIndexToReasoningIndex.computeIfAbsent(contentBlockIndex, k -> reasoningBlockCount++);
+        // Converse sends no content block start for reasoning and can stream several Claude thinking blocks in one content block.
+        // Claude ends each thinking block with a single signature, so a reasoning delta after a signature starts the next block.
+        if (contentBlockIndex != currentReasoningContentBlockIndex || currentReasoningBlockSigned) {
+            currentReasoningIndex = reasoningBlockCount++;
+            currentReasoningContentBlockIndex = contentBlockIndex;
+        }
+        currentReasoningBlockSigned = type == ReasoningContentBlockDelta.Type.SIGNATURE;
+        long reasoningIdx = currentReasoningIndex;
         return switch (type) {
             case ReasoningContentBlockDelta.Type.TEXT -> reasoningMessage(
                 reasoning.text(),

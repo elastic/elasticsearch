@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.compute.operator.SuppressedFailures;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -52,6 +53,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
@@ -1866,9 +1868,9 @@ public final class GlobExpander {
         PlanningCpuTracker.checkpointCurrentThread();
         // Planning can only finish on another thread once the thread running the slot loop drops its reference, which it
         // does when the loop stops: the slots run out, or the permits do right after a folder dispatch. File slots release
-        // their permit inline and cannot end the listing, so committing at those two exits covers them without a CPU clock
-        // read per file.
-        ThrottledIterator.run(indexIterator(size, PlanningCpuTracker::checkpointCurrentThread), (releasable, i) -> {
+        // their permit inline and cannot end the listing, so committing after the last slot and before each folder dispatch
+        // covers them without a CPU clock read per file.
+        ThrottledIterator.run(indexIterator(size), checkpointAfterLastSlot(size, (releasable, i) -> {
             if (failure.get() != null || isCancelled.getAsBoolean()) {
                 // Record cancellation so the completion callback propagates TaskCancelledException rather
                 // than returning an empty FileList that the caller would misread as "no files matched".
@@ -1949,7 +1951,7 @@ public final class GlobExpander {
                     }
                 }
             }
-        }, Math.max(1, concurrency), () -> {
+        }), Math.max(1, concurrency), () -> {
             Exception e = failure.get();
             if (e != null) {
                 listener.onFailure(e);
@@ -2035,18 +2037,31 @@ public final class GlobExpander {
         });
     }
 
-    /** An {@link Iterator} over the integers {@code [0, count)} that runs {@code onExhausted} whenever it reports no next. */
-    private static Iterator<Integer> indexIterator(int count, Runnable onExhausted) {
+    /**
+     * Wraps a slot loop's item consumer to {@link PlanningCpuTracker#checkpointCurrentThread() checkpoint} after the last
+     * slot. Slots are handed out in order, so the loop that processes the last one stops right after it, on the same
+     * thread, and that stop can let another thread finish planning.
+     */
+    private static BiConsumer<Releasable, Integer> checkpointAfterLastSlot(int size, BiConsumer<Releasable, Integer> consumer) {
+        return (releasable, i) -> {
+            try {
+                consumer.accept(releasable, i);
+            } finally {
+                if (i == size - 1) {
+                    PlanningCpuTracker.checkpointCurrentThread();
+                }
+            }
+        };
+    }
+
+    /** An {@link Iterator} over the integers {@code [0, count)}. */
+    private static Iterator<Integer> indexIterator(int count) {
         return new Iterator<>() {
             private int next = 0;
 
             @Override
             public boolean hasNext() {
-                if (next < count) {
-                    return true;
-                }
-                onExhausted.run();
-                return false;
+                return next < count;
             }
 
             @Override

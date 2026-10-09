@@ -43,9 +43,11 @@ public final class PlanningCpuTracker {
     /** Innermost open measurement on this thread, whichever tracker owns it. */
     private static final ThreadLocal<Measurement> CURRENT = new ThreadLocal<>();
 
+    /** {@link Measurement#startCpuNanos} sentinels. Negative, so they never collide with a thread CPU reading. */
     private static final long SETTLED = -1;
     private static final long PAUSED = -2;
-    private static final long NOT_FINISHED = -1;
+    /** {@link #finishedCpuNanos} sentinel. Distinct from the measurement sentinels, so they cannot be confused. */
+    private static final long NOT_FINISHED = -3;
 
     /** A tracker that measures nothing. Stands in where no query's planning is being metered, so callers need no null checks. */
     public static final PlanningCpuTracker UNMETERED = new PlanningCpuTracker(() -> -1);

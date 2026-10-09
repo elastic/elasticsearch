@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.QueryFailureTelemetry;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -389,7 +390,8 @@ public class PlanExecutor {
      * Publishes the per-query external-source coordinator metrics — but only when the query actually scanned an
      * external source ({@code externalSource}: an {@code ExternalRelation} was seen in the analyzed plan, flagged on
      * {@code PlanTelemetry}). The outcome is classified from {@code failure}: {@code null} → success; a
-     * {@link TaskCancelledException} anywhere in the cause chain → cancelled; anything else → failure. A hard failure
+     * {@link TaskCancelledException} anywhere in the cause chain → cancelled; anything else → failure, which is further
+     * classified by {@link QueryFailureTelemetry} into an {@code error_type} and HTTP status. A hard failure
      * that unwraps to a {@link CircuitBreakingException} additionally bumps {@code breaker.tripped}. Best-effort: the
      * {@code recordX} methods self-guard, so an instrumentation failure never affects the query outcome.
      * <p>
@@ -422,7 +424,12 @@ public class PlanExecutor {
         } else {
             outcome = ExternalSourceMetrics.OUTCOME_FAILURE;
         }
-        externalSourceMetrics.recordQuery(outcome, durationMillis, partial);
+        if (ExternalSourceMetrics.OUTCOME_FAILURE.equals(outcome)) {
+            QueryFailureTelemetry.Failure classified = QueryFailureTelemetry.classify(failure);
+            externalSourceMetrics.recordQuery(outcome, durationMillis, partial, classified.errorType(), classified.status());
+        } else {
+            externalSourceMetrics.recordQuery(outcome, durationMillis, partial);
+        }
         // Only hard-failure breaker trips are attributed here: a CB that instead produced is_partial=true reaches the
         // success path with failure==null and is NOT counted (its CircuitBreakingException is not cleanly reachable at
         // this seam — see the javadoc "Known gap"). The partial is still counted via queries.partial.total above.

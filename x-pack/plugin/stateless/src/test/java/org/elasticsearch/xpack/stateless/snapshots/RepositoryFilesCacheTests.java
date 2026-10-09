@@ -208,7 +208,7 @@ public class RepositoryFilesCacheTests extends ESTestCase {
         assertTrue(holds(cache.getShardFiles(shard0), "_0.cfs", 10));
     }
 
-    public void testAChangedShardIsUnknownUntilItsNewFilesAreRead() {
+    public void testAChangedShardKeepsItsOldFilesUntilTheNewOnesAreRead() {
         repository.publish(1, gen0);
         repository.shardFiles.put(gen0, shardSnapshots("_0.cfs", 10L));
         cache.getShardFiles(shard0);
@@ -219,11 +219,29 @@ public class RepositoryFilesCacheTests extends ESTestCase {
         repository.publish(2, gen1);
         repository.shardFiles.put(gen1, shardSnapshots("_5.cfs", 5L));
         cache.onRepositoryGeneration(2);
-        // load the repository data, but do not read the shard yet
-        executor.tasks.poll().run();
-        assertThat(cache.getShardFiles(shard0), nullValue());
+
+        // while the repository data is loading, and while the shard is being read, the shard is not unknown
+        assertThat(cache.getShardFiles(shard0).generation(), equalTo(gen0));
+        executor.tasks.poll().run(); // load the repository data, which queues the read of the shard
+        assertThat(cache.getShardFiles(shard0).generation(), equalTo(gen0));
+        assertTrue(holds(cache.getShardFiles(shard0), "_0.cfs", 10));
+
         executor.runAll();
+        assertThat(cache.getShardFiles(shard0).generation(), equalTo(gen1));
         assertTrue(holds(cache.getShardFiles(shard0), "_5.cfs", 5));
+    }
+
+    public void testAChangedShardKeepsItsOldFilesWhenReadingTheNewOnesFails() {
+        repository.publish(1, gen0);
+        repository.shardFiles.put(gen0, shardSnapshots("_0.cfs", 10L));
+        cache.getShardFiles(shard0);
+        cache.onRepositoryGeneration(1);
+        executor.runAll();
+
+        repository.publish(2, gen1); // index-gen1 is not there (yet)
+        cache.onRepositoryGeneration(2);
+        executor.runAll();
+        assertThat(cache.getShardFiles(shard0).generation(), equalTo(gen0));
     }
 
     public void testTheSameRepositoryGenerationIsLoadedOnce() {

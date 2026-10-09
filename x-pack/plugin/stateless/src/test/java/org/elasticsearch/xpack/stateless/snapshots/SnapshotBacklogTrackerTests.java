@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.stateless.snapshots;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.ShardGeneration;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotBacklogTracker.LocalShard;
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotBacklogTracker.RepositoryBacklog;
@@ -106,5 +108,25 @@ public class SnapshotBacklogTrackerTests extends ESTestCase {
         assertThat(compute(cache, List.of(), Map.of()), equalTo(new RepositoryBacklog(0, 0, 0, 0)));
         assertTrue(compute(cache, List.of(), Map.of()).isEmpty());
         assertFalse(new RepositoryBacklog(0, 0, 1, 0).isEmpty());
+    }
+
+    public void testTheBacklogOfAShardDoesNotGoUnknownWhileTheRepositoryIsRefreshed() {
+        final var oldFiles = RepositoryShardFiles.of(GENERATION, shardSnapshots("_0.cfs", 10L));
+        cache.known.put(shardId(0), oldFiles);
+        final var shards = List.of(new LocalShard(shardId(0), projectId, commitFiles("_0.cfs", 10L, "_1.cfs", 100L)));
+        assertThat(compute(cache, shards, Map.of()), equalTo(new RepositoryBacklog(100, 1, 0, 100)));
+
+        // a snapshot of the shard finished: the repository has not caught up yet, the shard still has its old list and the
+        // finished snapshot's uploads are subtracted
+        final var status = IndexShardSnapshotStatus.newInitializing(GENERATION, 1);
+        status.moveToStarted(1, 1, 2, 100, 110);
+        status.addProcessedFile(100);
+        status.moveToFinalize();
+        status.moveToDone(2, new ShardSnapshotResult(new ShardGeneration("new"), ByteSizeValue.ofBytes(100), 1));
+        assertThat(compute(cache, shards, Map.of(shardId(0), List.of(status))), equalTo(new RepositoryBacklog(0, 1, 0, 0)));
+
+        // and once the new list is in, the status is not subtracted again
+        cache.known.put(shardId(0), RepositoryShardFiles.of(new ShardGeneration("new"), shardSnapshots("_0.cfs", 10L, "_1.cfs", 100L)));
+        assertThat(compute(cache, shards, Map.of(shardId(0), List.of(status))), equalTo(new RepositoryBacklog(0, 1, 0, 0)));
     }
 }

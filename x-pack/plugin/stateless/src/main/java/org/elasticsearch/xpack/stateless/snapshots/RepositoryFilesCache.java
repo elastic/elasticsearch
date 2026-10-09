@@ -29,9 +29,10 @@ import java.util.concurrent.Executor;
  * <p>
  * The repository's latest shard generations come from its {@link RepositoryData}, which is reloaded when the repository generation in the
  * cluster state changes (a snapshot finished, or one was deleted). The file list of a shard ({@code index-{generation}}) is read again
- * only for shards whose generation changed. A shard whose list is not in the cache yet, because it just arrived on this node or its
- * generation just changed, has an unknown list: {@link #getShardFiles} returns {@code null} for it and starts the read, instead of
- * pretending the repository holds nothing or everything.
+ * only for shards whose generation changed. Until that read is done the previously cached list is still returned, which is a little
+ * stale but close, so the reported backlog does not jump just because the repository changed. Only a shard that has never been read on
+ * this node, because it just arrived or this node just started, has an unknown list: {@link #getShardFiles} returns {@code null} for
+ * it and starts the read, instead of pretending the repository holds nothing or everything.
  * <p>
  * All repository reads run on the executor given to the constructor, which is what limits how many run at the same time.
  */
@@ -123,8 +124,8 @@ class RepositoryFilesCache {
     }
 
     /**
-     * @return the files the repository holds of the given shard, or {@code null} if they are not known (yet), in which case they are being
-     *         read.
+     * @return the files the repository holds of the given shard, which may be the list of an older shard generation while the current one
+     *         is being read, or {@code null} if this node has never read the files of the shard, in which case they are being read.
      */
     @Nullable
     RepositoryShardFiles getShardFiles(ShardId shardId) {
@@ -140,11 +141,10 @@ class RepositoryFilesCache {
             return RepositoryShardFiles.NONE;
         }
         final RepositoryShardFiles cached = shardFiles.get(shardId);
-        if (cached != null && cached.generation().equals(latest)) {
-            return cached;
+        if (cached == null || cached.generation().equals(latest) == false) {
+            readShardFiles(indexId, shardId, latest);
         }
-        readShardFiles(indexId, shardId, latest);
-        return null;
+        return cached;
     }
 
     private void readShardFiles(IndexId indexId, ShardId shardId, ShardGeneration generation) {

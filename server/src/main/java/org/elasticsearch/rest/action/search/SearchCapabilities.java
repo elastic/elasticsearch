@@ -74,6 +74,20 @@ public final class SearchCapabilities {
     private static final String KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES = "knn_retriever_optional_num_candidates";
     /** Query types that keyed {@code flattened} subfields do not support are rejected with a 400 instead of a 500. */
     private static final String KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST = "keyed_flattened_unsupported_queries_bad_request";
+    /** Terms-family aggregations reject an include/exclude regex longer than index.max_regex_length instead of compiling it. */
+    private static final String AGGREGATION_INCLUDE_EXCLUDE_REGEX_LENGTH_LIMIT = "aggregation_include_exclude_regex_length_limit";
+    /**
+     * Terms-family aggregations compile the include/exclude regex on the shard through the charged compiler: one set of
+     * flags whether the request was parsed locally or deserialized, each build charged to the request breaker, and the
+     * build and the include/exclude product bounded by a work limit.
+     */
+    private static final String AGGREGATION_INCLUDE_EXCLUDE_REGEX_CHARGED = "aggregation_include_exclude_regex_charged";
+    /**
+     * The regexp query builds its automaton through the charged compiler, each step reserved on the request breaker before
+     * it runs, so a pattern whose build is predicted to exceed the breaker's limit is refused with a circuit breaking
+     * exception and nothing stays reserved afterwards.
+     */
+    private static final String REGEXP_QUERY_CHARGED = "regexp_query_charged";
 
     /** A text field that indexes no positions answers positional queries from the values it keeps. */
     private static final String POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS = "positional_queries_on_text_without_positions";
@@ -116,6 +130,9 @@ public final class SearchCapabilities {
         capabilities.add(AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE);
         capabilities.add(KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES);
         capabilities.add(KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST);
+        capabilities.add(AGGREGATION_INCLUDE_EXCLUDE_REGEX_LENGTH_LIMIT);
+        capabilities.add(AGGREGATION_INCLUDE_EXCLUDE_REGEX_CHARGED);
+        capabilities.add(REGEXP_QUERY_CHARGED);
         capabilities.add(POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS);
         CAPABILITIES = Set.copyOf(capabilities);
     }

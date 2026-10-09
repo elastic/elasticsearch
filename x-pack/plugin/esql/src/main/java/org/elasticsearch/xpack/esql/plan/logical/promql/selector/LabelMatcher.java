@@ -11,12 +11,20 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -74,6 +82,7 @@ public class LabelMatcher implements NodeStringRenderable {
     private final String name;
     private final List<String> values;
     private final Matcher matcher;
+    private final int maxRegexLength;
 
     private Automaton automaton;
 
@@ -82,9 +91,15 @@ public class LabelMatcher implements NodeStringRenderable {
     }
 
     public LabelMatcher(String name, List<String> values, Matcher matcher) {
+        this(name, values, matcher, MAX_REGEX_LENGTH);
+    }
+
+    /** Tests lift the length bound to reach the compiler's own overflow guard with a pattern the bound would reject first. */
+    LabelMatcher(String name, List<String> values, Matcher matcher, int maxRegexLength) {
         this.name = name;
         this.values = values;
         this.matcher = matcher;
+        this.maxRegexLength = maxRegexLength;
     }
 
     public String name() {
@@ -119,37 +134,98 @@ public class LabelMatcher implements NodeStringRenderable {
         return matcher;
     }
 
+    /**
+     * The bound the regexp query applies through {@code index.max_regex_length}, at its default: a label matcher has no
+     * index to read the setting from, but an unbounded pattern is how a query author overflows the compiler's stack.
+     */
+    public static final int MAX_REGEX_LENGTH = IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY);
+
     // TODO: externalize this to allow pluggable strategies (such as caching across labels/requests)
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     public Automaton automaton() {
         if (automaton != null) {
             return automaton;
         }
-
-        Automaton result;
-        if (isMultiValue() && matcher.isRegex() == false) {
-            // Multi-value exact match: union of all literal values
-            List<Automaton> automata = values.stream().map(Automata::makeString).toList();
-            result = Operations.union(automata);
-        } else if (isMultiValue()) {
-            // Multi-value regex: union of all regex patterns
-            List<Automaton> automata = values.stream().map(v -> new RegExp(v).toAutomaton()).toList();
-            result = Operations.union(automata);
-        } else {
-            // Single value
-            String v = getFirstValue();
-            try {
-                result = matcher.isRegex() ? new RegExp(v).toAutomaton() : Automata.makeString(v);
-            } catch (IllegalArgumentException ex) {
-                throw new QlIllegalArgumentException(ex, "Cannot parse regex {}", v);
-            }
+        // A bad pattern is the user's, so every failure is a client error; QlIllegalArgumentException would be a 500.
+        // determinize() and complement() throw it too, so the guard covers the whole build, not just the parse.
+        try {
+            automaton = buildAutomaton();
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException("The regex used in a label matcher is too complex to determinize", e);
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
+            // Lucene's parser recurses on nested groups; this Error must not escape the request.
+            throw new IllegalArgumentException("The regex used in a label matcher is too deeply nested");
         }
-        result = MinimizationOperations.minimize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        // negate if needed
-        if (matcher == NEQ || matcher == NREG) {
-            result = Operations.complement(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        }
-        automaton = result;
         return automaton;
+    }
+
+    private static final String BREAKER_LABEL = "promql_label_matcher";
+
+    private Automaton buildAutomaton() {
+        // Matchers are built while parsing, before any request breaker exists, so each build is bounded the way constant
+        // folding is: by a fresh fold budget, held only while the automaton is built. A length limit alone does not bound
+        // the size: nested bounded repeats multiply.
+        CircuitBreaker breaker = FoldContext.small().circuitBreakerView(Source.EMPTY);
+        long held = 0;
+        try {
+            Automaton result;
+            if (isMultiValue() && matcher.isRegex() == false) {
+                // Multi-value exact match: union of all literal values
+                List<Automaton> automata = values.stream().map(Automata::makeString).toList();
+                result = Operations.union(automata);
+            } else if (isMultiValue()) {
+                // Multi-value regex: union of all regex patterns
+                List<Automaton> automata = new ArrayList<>(values.size());
+                for (String value : values) {
+                    Automaton automaton = regexAutomaton(value, breaker);
+                    held += hold(automaton, breaker);
+                    automata.add(automaton);
+                }
+                result = Operations.union(automata);
+            } else {
+                // Single value
+                String v = getFirstValue();
+                result = matcher.isRegex() ? regexAutomaton(v, breaker) : Automata.makeString(v);
+            }
+            held += hold(result, breaker);
+            // The DFA is not minimized. Everything read from it (isTotal, isEmpty, run and getSingleton) needs a deterministic
+            // automaton without dead states, which determinize and complement both produce, and a matcher does not outlive
+            // the planning of its query, so the smaller automaton would not be worth a step whose memory can only be guessed.
+            result = CircuitBreakingOperations.determinize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker, BREAKER_LABEL);
+            held += hold(result, breaker);
+            // negate if needed
+            if (matcher == NEQ || matcher == NREG) {
+                result = CircuitBreakingOperations.complement(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker, BREAKER_LABEL);
+            }
+            return result;
+        } finally {
+            breaker.addWithoutBreaking(-held);
+        }
+    }
+
+    private static long hold(Automaton automaton, CircuitBreaker breaker) {
+        long bytes = automaton.ramBytesUsed();
+        breaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
+        return bytes;
+    }
+
+    private Automaton regexAutomaton(String regex, CircuitBreaker breaker) {
+        if (regex.length() > maxRegexLength) {
+            throw new IllegalArgumentException(
+                "The length of regex ["
+                    + regex.length()
+                    + "] used in a label matcher has exceeded the allowed maximum of ["
+                    + maxRegexLength
+                    + "]"
+            );
+        }
+        CircuitBreakingRegExp re;
+        try {
+            re = new CircuitBreakingRegExp(regex, RegExp.ALL, 0);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Cannot parse regex " + regex, ex);
+        }
+        return re.toAutomaton(breaker, BREAKER_LABEL);
     }
 
     public boolean matchesAll() {

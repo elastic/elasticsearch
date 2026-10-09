@@ -15,7 +15,7 @@ dependencies {
 restResources {
   restApi {
     include 'capabilities', '_common', 'bulk', 'count', 'cluster', 'index', 'indices', 'field_caps', 'msearch',
-      'search', 'async_search', 'graph', '*_point_in_time', 'put_script', 'scripts_painless_execute'
+      'search', 'search_shards', 'nodes.stats', 'async_search', 'graph', '*_point_in_time', 'put_script', 'scripts_painless_execute'
   }
   restTests {
     includeCore '*'

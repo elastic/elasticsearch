@@ -18,15 +18,16 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
@@ -81,7 +83,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
-import static org.apache.lucene.search.RegexpQuery.DEFAULT_PROVIDER;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
 
@@ -204,15 +205,20 @@ public class VersionStringFieldMapper extends FieldMapper {
                     "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
                 );
             }
-            return new RegexpQuery(
-                new Term(name(), new BytesRef(value)),
+            Term term = new Term(name(), new BytesRef(value));
+            Automaton automaton = AutomatonQueries.toRegexpAutomaton(
+                term,
                 syntaxFlags,
                 matchFlags,
-                DEFAULT_PROVIDER,
                 maxDeterminizedStates,
-                method == null ? CONSTANT_SCORE_REWRITE : method,
-                true
-            ) {
+                context.getCircuitBreaker()
+            );
+            return new AutomatonQuery(term, automaton, false, method == null ? CONSTANT_SCORE_REWRITE : method) {
+
+                @Override
+                public String toString(String field) {
+                    return (term.field().equals(field) ? "" : term.field() + ":") + "/" + term.text() + "/";
+                }
 
                 @Override
                 protected TermsEnum getTermsEnum(Terms terms, AttributeSource atts) throws IOException {

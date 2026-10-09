@@ -604,9 +604,7 @@ public class EsqlSession {
                     var logicalPlanOptimizer = new LogicalPlanOptimizer(
                         new LogicalOptimizerContext(finalConfiguration, foldContext, minimumVersion, flags)
                     );
-                    var physicalPlanOptimizer = new PhysicalPlanOptimizer(
-                        new PhysicalOptimizerContext(configuration, minimumVersion, flags)
-                    );
+                    var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion));
 
                     var columnMetadata = new Holder<Map<NameId, Map<String, Object>>>();
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))

@@ -597,7 +597,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
             new Request("POST", "/slice-search-url-mixed-enabled-it,slice-search-url-mixed-disabled-it/_refresh")
         );
 
-        Request searchWithSlice = new Request("GET", "/slice-search-url-mixed-enabled-it/s1/_search");
+        Request searchWithSlice = new Request("GET", "/slice-search-url-mixed-enabled-it,slice-search-url-mixed-disabled-it/s1/_search");
         searchWithSlice.setJsonEntity("""
             {
               "query": {

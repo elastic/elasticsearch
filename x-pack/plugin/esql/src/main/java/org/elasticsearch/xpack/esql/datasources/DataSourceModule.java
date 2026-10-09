@@ -246,6 +246,7 @@ public final class DataSourceModule implements Closeable {
         AdmissionTracker admissionTracker = AdmissionTracker.NOOP;
         if (threadPool != null) {
             watchdog = new AdmissionStallWatchdog(threadPool, meterRegistry != null ? meterRegistry : MeterRegistry.NOOP);
+            watchdog.setRescueEnabled(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED.get(settings));
             admissionTracker = watchdog;
         }
         this.admissionWatchdog = watchdog;
@@ -508,6 +509,16 @@ public final class DataSourceModule implements Closeable {
     @Nullable
     AdmissionStallWatchdog admissionWatchdog() {
         return admissionWatchdog;
+    }
+
+    /**
+     * Toggles byte-budget rescue. Production wires this to
+     * {@link ExternalSourceSettings#ADMISSION_RESCUE_ENABLED}.
+     */
+    public void setAdmissionRescueEnabled(boolean enabled) {
+        if (admissionWatchdog != null) {
+            admissionWatchdog.setRescueEnabled(enabled);
+        }
     }
 
     public DecompressionCodecRegistry codecRegistry() {

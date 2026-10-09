@@ -139,6 +139,16 @@ final class ParquetIoWatermark implements AdmissionGate {
     }
 
     @Override
+    public StallPolicy stallPolicy() {
+        return StallPolicy.GRANT_AGE;
+    }
+
+    @Override
+    public boolean rescueIfStalled() {
+        return budget.rescueHeadOverCap();
+    }
+
+    @Override
     public int holders() {
         int live = Math.max(0, holds.get());
         if (live > 0) {

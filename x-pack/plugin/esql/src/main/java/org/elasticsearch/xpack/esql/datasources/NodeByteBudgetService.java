@@ -114,7 +114,9 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                 } else {
                     waiter.tracked = tracker.waitStarted(
                         AdmissionTracker.GATE_BYTES,
-                        lease == null ? Thread.currentThread().getName() : "lease#" + lease.startSeq()
+                        lease == null
+                            ? Thread.currentThread().getName() + ":bytes=" + bytes
+                            : "lease#" + lease.startSeq() + ":bytes=" + bytes
                     );
                     waiters.addLast(waiter);
                     if (lease != null) {
@@ -247,6 +249,26 @@ public final class NodeByteBudgetService implements NodeByteBudget {
     }
 
     /**
+     * Grants the FIFO head over the cap as a plain hold ({@code owner=false}), then re-runs the
+     * normal grant loop. Skips cancelled heads. Returns {@code true} only for an over-cap grant.
+     * The rescued hold is counted in {@link #used()} and released on the normal close path.
+     */
+    public boolean rescueHeadOverCap() {
+        List<Runnable> completions;
+        boolean rescued;
+        lock.lock();
+        try {
+            rescued = rescueHeadLocked();
+            grantTicketWaitersLocked();
+            completions = takePendingCompletions();
+        } finally {
+            lock.unlock();
+        }
+        runCompletions(completions);
+        return rescued;
+    }
+
+    /**
      * Caller holds the lock. Does not inspect the waiter queue: the caller decides whether a
      * queued waiter may charge (grant path) or must refuse (look-ahead {@link #tryAdmit}).
      * {@code allowOvershoot} is true for tickets; {@link #tryAdmit} never takes the slot.
@@ -311,6 +333,38 @@ public final class NodeByteBudgetService implements NodeByteBudget {
             waiters.removeFirst();
             head.complete(granted);
         }
+    }
+
+    /**
+     * Caller holds the lock. Cancelled heads are dropped until a live head remains. A head that
+     * {@link #tryChargeLocked} can admit is not a rescue. An over-cap grant is a {@link HoldImpl}
+     * with {@code owner=false}; it does not {@link #tryBecomeOwner} or pin the overshoot slot.
+     */
+    private boolean rescueHeadLocked() {
+        failCancelledWaitersLocked();
+        while (waiters.isEmpty() == false) {
+            TicketWaiter head = waiters.peekFirst();
+            if (head.cancel.getAsBoolean() || (head.lease != null && head.lease.isCancelled())) {
+                waiters.removeFirst();
+                head.fail(cancelled());
+                continue;
+            }
+            HoldImpl charged = tryChargeLocked(head.bytes, head.lease, true);
+            if (charged != null) {
+                waiters.removeFirst();
+                head.complete(charged);
+                return false;
+            }
+            long next = used.get() + head.bytes;
+            if (next < 0L) {
+                throw new EsRejectedExecutionException("parquet I/O byte reservation overflow");
+            }
+            setUsed(next);
+            waiters.removeFirst();
+            head.complete(new HoldImpl(this, head.bytes, head.lease, false));
+            return true;
+        }
+        return false;
     }
 
     private void failCancelledWaitersLocked() {

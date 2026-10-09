@@ -338,9 +338,10 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * {@link SearchService#freeReaderContext} must not cancel a stuck scroll fetch. The query phase frees
-     * single-session readers itself, and {@link SearchService#freeAllContextsForShard} is also used when a shard
-     * is reassigned.
+     * {@link SearchService#freeReaderContext} and a shard close that is not an index removal must not cancel a
+     * stuck scroll fetch. The query phase frees single-session readers itself, and
+     * {@link SearchService#freeAllContextsForShard} is also used when a shard is reassigned. Relocation closes
+     * the shard without {@link SearchService#beforeIndexRemoved}.
      */
     public void testFreeReaderContextDoesNotCancelInFlightScroll() throws Exception {
         ParkedScrollQueryBuilder.reset();
@@ -364,6 +365,11 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 .getSearchContextId();
             assertTrue(service.freeReaderContext(contextId));
             assertFalse("freeReaderContext cancelled an in-flight scroll fetch", ParkedScrollQueryBuilder.cancelled.get());
+
+            IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+            IndexShard indexShard = indicesService.indexServiceSafe(resolveIndex("index")).getShard(0);
+            service.beforeIndexShardClosed(indexShard.shardId(), indexShard, Settings.EMPTY);
+            assertFalse("shard close cancelled an in-flight scroll fetch", ParkedScrollQueryBuilder.cancelled.get());
         } finally {
             ParkedScrollQueryBuilder.release.set(true);
             opened.decRef();

@@ -52,6 +52,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Booleans;
@@ -488,6 +489,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final TaskManager taskManager;
 
+    /**
+     * Indices whose in-flight searches are cancelled from {@link #beforeIndexShardClosed}.
+     * {@link #beforeIndexRemoved} records an index only when that removal frees search contexts.
+     */
+    private final Set<Index> indicesCancellingSearchesOnClose = ConcurrentCollections.newConcurrentSet();
+
     public SearchService(
         ClusterService clusterService,
         IndicesService indicesService,
@@ -671,28 +678,44 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     @Override
+    public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
+        // Recorded before shards close. engine.close waits on searchers held by in-flight phases, so the
+        // cancel in beforeIndexShardClosed has to happen first. Relocation and shutdown close shards too,
+        // but those searches must keep running.
+        if (cancelsInFlightSearches(reason)) {
+            indicesCancellingSearchesOnClose.add(indexService.index());
+        }
+    }
+
+    @Override
     public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
-        // engine.close waits on searchers held by in-flight SearchContexts. Cancel here, before that close,
-        // so a phase blocked inside its SearchContext can exit and release its searcher.
         // freeAllContextsForShard must not cancel: beforeIndexShardCreated uses it for reassignment.
         assert shardId != null;
+        if (indicesCancellingSearchesOnClose.contains(shardId.getIndex()) == false) {
+            return;
+        }
         for (ReaderContext ctx : activeReaders.values()) {
             if (shardId.equals(ctx.indexShard().shardId())) {
-                ctx.cancelInFlightSearches(taskManager, "shard closed: " + shardId);
+                ctx.cancelInFlightSearches(taskManager, "index removed: " + shardId.getIndex().getName());
             }
         }
     }
 
     @Override
     public void afterIndexRemoved(Index index, IndexSettings indexSettings, IndexRemovalReason reason) {
+        indicesCancellingSearchesOnClose.remove(index);
         // once an index is removed due to deletion or closing, we can just clean up all the pending search context information
         // if we then close all the contexts we can get some search failures along the way which are not expected.
         // it's fine to keep the contexts open if the index is still "alive"
         // unfortunately we don't have a clear way to signal today why an index is closed.
         // to release memory and let references to the filesystem go etc.
-        if (reason == IndexRemovalReason.DELETED || reason == IndexRemovalReason.CLOSED || reason == IndexRemovalReason.REOPENED) {
+        if (cancelsInFlightSearches(reason)) {
             freeAllContextForIndex(index);
         }
+    }
+
+    private static boolean cancelsInFlightSearches(IndexRemovalReason reason) {
+        return reason == IndexRemovalReason.DELETED || reason == IndexRemovalReason.CLOSED || reason == IndexRemovalReason.REOPENED;
     }
 
     @Override

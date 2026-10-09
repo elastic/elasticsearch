@@ -186,7 +186,7 @@ Columns with unexpected types or missing values
 :   When {{es}} infers a dataset's schema from its files, it might infer types differently than you expect. For example, a date column might appear as a keyword if the values do not match the default datetime format. To inspect the inferred field mappings, refer to [check field mappings](esql-data-federation-quickstart.md#check-field-mappings) in the quickstart. [Declare the schema explicitly](esql-data-federation-schema.md#declare-a-schema-explicitly) to control column types, or adjust the `datetime_format` setting for [CSV and TSV](esql-data-federation-dataset-settings.md#csv-datetime-format) or [NDJSON](esql-data-federation-dataset-settings.md#ndjson-datetime-format). If some rows have null values for a column that exists in other files, review [schema inference and resolution](esql-data-federation-schema.md).
 
 Access denied or connection errors
-:   Credential and permission errors appear at query time, not when the data source or dataset is created. For each access denied message and the permission it needs, refer to [troubleshoot access errors](esql-data-federation-s3.md#s3-access-errors) for Amazon S3. Also check that the region is correct.
+:   Credential and permission errors appear at query time, not when the data source or dataset is created. For each access denied message and the permission it needs, refer to [troubleshoot access errors](esql-data-federation-s3.md#s3-access-errors) for Amazon S3, and verify that the region is correct.
 
 ## Next steps
 

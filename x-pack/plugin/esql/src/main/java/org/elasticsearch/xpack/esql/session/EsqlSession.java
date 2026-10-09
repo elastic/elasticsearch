@@ -172,6 +172,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -484,10 +485,29 @@ public class EsqlSession {
             listener.delegateFailureAndWrap((l, viewResolution) -> {
                 // Validate: no InSubquery expressions should survive view and subquery resolution.
                 InSubqueryResolver.verify(viewResolution.plan());
+                rejectViewsForExemplars(resolved, viewResolution);
                 viewResolutionProfile.stop();
                 analyseAndExecute(request, executionInfo, planRunner, statement, resolved, viewResolution, cancellation, l);
             })
         );
+    }
+
+    /**
+     * Rejects views in a query run with {@code SET exemplars=true}.
+     * <p>
+     * TODO: support views with the exemplars setting, with explicit tests. View resolution has inlined the view bodies by now, so the
+     * exemplar rewrite (see {@link ExemplarsRewriter}) would see through them: a {@code TS} or {@code PROMQL} query inside a view body
+     * would select exemplars like one written in the query itself, while the view boundary and everything the query does with the
+     * view's output would be dropped. Whether that is the intended behavior has not been decided, so views are rejected until it is.
+     */
+    private static void rejectViewsForExemplars(ResolvedSettings resolved, ViewResolver.ViewResolutionResult viewResolution) {
+        if (QuerySettings.EXEMPLARS.get(resolved).enabled() && viewResolution.viewQueries().isEmpty() == false) {
+            throw new VerificationException(
+                "[{}] does not support views yet, found view(s) [{}]",
+                QuerySettings.EXEMPLARS.name(),
+                String.join(", ", new TreeSet<>(viewResolution.viewQueries().keySet()))
+            );
+        }
     }
 
     private void analyseAndExecute(
@@ -1621,10 +1641,10 @@ public class EsqlSession {
     static void handleFieldCapsFailures(
         boolean allowPartialResults,
         EsqlExecutionInfo executionInfo,
-        Map<IndexPattern, IndexResolution> indexResolutions
+        Collection<IndexResolution> indexResolutions
     ) throws Exception {
         FailureCollector failureCollector = new FailureCollector();
-        for (IndexResolution indexResolution : indexResolutions.values()) {
+        for (IndexResolution indexResolution : indexResolutions) {
             handleFieldCapsFailures(allowPartialResults, executionInfo, indexResolution.failures(), failureCollector);
         }
         Exception failure = failureCollector.getFailure();
@@ -1807,7 +1827,10 @@ public class EsqlSession {
         // TODO this is a quick hack to alleviate the pressure off of https://github.com/elastic/elasticsearch/issues/145920. A better
         // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
         boolean trackedUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
-        boolean nullify = parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
+        boolean exemplars = QuerySettings.EXEMPLARS.get(configuration.resolvedSettings()).enabled();
+        // an exemplar query refers to fields of the metrics query that the exemplar indices may not have, see ExemplarsRewriter
+        boolean nullify = exemplars || parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
+        UnmappedResolution effectiveUnmappedResolution = nullify ? UnmappedResolution.NULLIFY : unmappedResolution;
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(
                 preAnalysis,
@@ -1864,6 +1887,12 @@ public class EsqlSession {
                 }
             }
             return r;
+        }).<PreAnalysisResult>andThen((l, r) -> {
+            if (exemplars) {
+                preAnalyzeExemplarIndices(preAnalysis, executionInfo, r, requestFilter, l);
+            } else {
+                l.onResponse(r);
+            }
         })
             .<PreAnalysisResult>andThen(
                 (l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), parsed, r, executionInfo, l)
@@ -1903,7 +1932,7 @@ public class EsqlSession {
             .<Versioned<LogicalPlan>>andThen((l, r) -> {
                 analyzeWithRetry(
                     parsed,
-                    nullify ? UnmappedResolution.NULLIFY : unmappedResolution,
+                    effectiveUnmappedResolution,
                     configuration,
                     executionInfo,
                     description,
@@ -2629,6 +2658,44 @@ public class EsqlSession {
     }
 
     /**
+     * Performs the field caps request for the exemplar data streams of a query run with {@code SET exemplars=true}. They are derived
+     * from the metrics data streams its time series relations matched (see {@link ExemplarsRewriter#exemplarIndexPattern}), so this has
+     * to run after the main index patterns are resolved. Nothing is resolved when no metrics data stream matched, in which case there
+     * are no exemplars to fetch.
+     */
+    private void preAnalyzeExemplarIndices(
+        PreAnalyzer.PreAnalysis preAnalysis,
+        EsqlExecutionInfo executionInfo,
+        PreAnalysisResult result,
+        QueryBuilder requestFilter,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        List<IndexResolution> metricsResolutions = new ArrayList<>();
+        preAnalysis.indexes().forEach((indexPattern, indexMode) -> {
+            if (indexMode == IndexMode.TIME_SERIES) {
+                metricsResolutions.add(result.indexResolution().get(indexPattern));
+            }
+        });
+        String exemplarIndexPattern = ExemplarsRewriter.exemplarIndexPattern(metricsResolutions);
+        if (exemplarIndexPattern == null) {
+            listener.onResponse(result);
+            return;
+        }
+        executionInfo.queryProfile().incFieldCapsCalls();
+        indexResolver.resolveExemplarDataStreamsVersioned(
+            exemplarIndexPattern,
+            requestFilter,
+            result.minimumTransportVersion(),
+            listener.delegateFailureAndWrap((l, indexResolution) -> {
+                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                l.onResponse(
+                    result.withExemplarsResolution(indexResolution.inner()).withMinimumTransportVersion(indexResolution.minimumVersion())
+                );
+            })
+        );
+    }
+
+    /**
      * This performs field caps resolutions for linkedIndexPatterns
      * in order to resolve optional and required linked indices shadowed by local views.
      */
@@ -2905,7 +2972,11 @@ public class EsqlSession {
         TimestampBounds timestampBounds,
         boolean preserveViewBoundaries
     ) throws Exception {
-        handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
+        List<IndexResolution> indexResolutions = new ArrayList<>(r.indexResolution().values());
+        if (r.exemplarsResolution() != null) {
+            indexResolutions.add(r.exemplarsResolution());
+        }
+        handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, indexResolutions);
         AnalyzerContext analyzerContext = new AnalyzerContext(
             configuration,
             functionRegistry,
@@ -2920,6 +2991,12 @@ public class EsqlSession {
         );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
         LogicalPlan plan = analyzer.analyze(parsed);
+        ExemplarsSettings exemplarsSettings = QuerySettings.EXEMPLARS.get(configuration.resolvedSettings());
+        if (exemplarsSettings.enabled()) {
+            // the analyzed query is the metrics query: it is not executed but describes the exemplars to fetch, which the query built
+            // from it selects from the exemplar relation; that query is analyzed in turn to resolve its fields against that relation
+            plan = analyzer.analyze(ExemplarsRewriter.exemplarsQuery(plan, r.exemplarsResolution(), exemplarsSettings));
+        }
         unmappedFieldsOrdering = analyzer.unmappedFieldsOrdering();
         plan.setAnalyzed();
         return plan;
@@ -2996,6 +3073,8 @@ public class EsqlSession {
         Set<String> fieldNames,
         Set<String> wildcardJoinIndices,
         Map<IndexPattern, IndexResolution> indexResolution,
+        // the exemplar data streams of the time series relations, resolved for SET exemplars=true; null when there are none
+        @Nullable IndexResolution exemplarsResolution,
         Map<String, IndexResolution> lookupIndices,
         // CPS specific linkedIndexPatterns. Such patterns references indices (if present) shadowing views resolved on origin
         Map<LinkedIndexPattern, IndexResolution> linkedResolution,
@@ -3010,6 +3089,7 @@ public class EsqlSession {
                 fieldNames,
                 wildcardJoinIndices,
                 new HashMap<>(),
+                null,
                 new HashMap<>(),
                 new HashMap<>(),
                 null,
@@ -3034,11 +3114,27 @@ public class EsqlSession {
             return this;
         }
 
+        PreAnalysisResult withExemplarsResolution(IndexResolution exemplarsResolution) {
+            return new PreAnalysisResult(
+                fieldNames,
+                wildcardJoinIndices,
+                indexResolution,
+                exemplarsResolution,
+                lookupIndices,
+                linkedResolution,
+                enrichResolution,
+                inferenceResolution,
+                externalSourceResolution,
+                minimumTransportVersion
+            );
+        }
+
         PreAnalysisResult withEnrichResolution(EnrichResolution enrichResolution) {
             return new PreAnalysisResult(
                 fieldNames,
                 wildcardJoinIndices,
                 indexResolution,
+                exemplarsResolution,
                 lookupIndices,
                 linkedResolution,
                 enrichResolution,
@@ -3053,6 +3149,7 @@ public class EsqlSession {
                 fieldNames,
                 wildcardJoinIndices,
                 indexResolution,
+                exemplarsResolution,
                 lookupIndices,
                 linkedResolution,
                 enrichResolution,
@@ -3067,6 +3164,7 @@ public class EsqlSession {
                 fieldNames,
                 wildcardJoinIndices,
                 indexResolution,
+                exemplarsResolution,
                 lookupIndices,
                 linkedResolution,
                 enrichResolution,
@@ -3087,6 +3185,7 @@ public class EsqlSession {
                 fieldNames,
                 wildcardJoinIndices,
                 indexResolution,
+                exemplarsResolution,
                 lookupIndices,
                 linkedResolution,
                 enrichResolution,

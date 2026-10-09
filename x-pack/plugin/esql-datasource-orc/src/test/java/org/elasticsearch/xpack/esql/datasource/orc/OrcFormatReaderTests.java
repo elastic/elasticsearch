@@ -83,7 +83,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -104,16 +103,6 @@ public class OrcFormatReaderTests extends ESTestCase {
     @Before
     public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
-    }
-
-    /**
-     * A reader that treats the given columns as declared-type — the ones whose target came from an explicit declaration
-     * and are therefore licensed to coerce (including narrow) toward it. Mirrors what {@code FileSourceFactory} threads
-     * from a dataset mapping in production; without it a coercion that is not a pure widening is treated as an inferred
-     * clash and the whole column null-fills.
-     */
-    private OrcFormatReader declaredReader(String... declaredColumns) {
-        return (OrcFormatReader) new OrcFormatReader(blockFactory).withDeclaredTypeColumns(Set.of(declaredColumns));
     }
 
     public void testFormatName() {
@@ -948,7 +937,15 @@ public class OrcFormatReaderTests extends ESTestCase {
      * same predicate pushes over an undeclared {@code ts}. Once the withhold is keyed on an actual coercion, the
      * declared arm is expected to push like the plain one.
      */
-    public void testIsNullPushdownWithheldOverSameTypedDeclaredColumn() throws Exception {
+    /**
+     * {@code IS NULL} pushes to ORC's stripe statistics, which describe the stored values, so it must be withheld
+     * exactly where the decode can turn a stored value into a null. A declared date {@code format} does that; being
+     * named in a declaration does not.
+     * <p>
+     * It used to be withheld for any column the dataset declared a type for, even one read at its own type where no
+     * conversion happens at all, which cost the pruning for nothing (esql-planning#2076).
+     */
+    public void testIsNullPushdownWithheldOnlyWhereDecodeCanNull() throws Exception {
         TypeDescription schema = TypeDescription.createStruct()
             .addField("ts", TypeDescription.createLong())
             .addField("name", TypeDescription.createString());
@@ -965,13 +962,16 @@ public class OrcFormatReaderTests extends ESTestCase {
             List.of(new IsNull(Source.EMPTY, new ReferenceAttribute(Source.EMPTY, "ts", DataType.LONG)))
         );
 
-        OrcReaderStatus declared = drainWithPushedExpressions(orcData, declaredReader("ts"), isNullOverTs);
-        assertFalse("declared ts: IS NULL is withheld although no coercion applies", declared.predicatePushdownUsed());
-        assertThat(declared.predicateColumns(), empty());
+        OrcFormatReader parsedPerValue = (OrcFormatReader) new OrcFormatReader(blockFactory).withDeclaredDateFormats(
+            Map.of("ts", "epoch_second")
+        );
+        OrcReaderStatus canNull = drainWithPushedExpressions(orcData, parsedPerValue, isNullOverTs);
+        assertFalse("a per-value parse can null a stored value: IS NULL is withheld", canNull.predicatePushdownUsed());
+        assertThat(canNull.predicateColumns(), empty());
 
-        OrcReaderStatus plain = drainWithPushedExpressions(orcData, new OrcFormatReader(blockFactory), isNullOverTs);
-        assertTrue("undeclared ts: IS NULL pushes", plain.predicatePushdownUsed());
-        assertThat(plain.predicateColumns(), contains("ts"));
+        OrcReaderStatus readAtItsOwnType = drainWithPushedExpressions(orcData, new OrcFormatReader(blockFactory), isNullOverTs);
+        assertTrue("read at its own type, nothing can null a stored value: IS NULL pushes", readAtItsOwnType.predicatePushdownUsed());
+        assertThat(readAtItsOwnType.predicateColumns(), contains("ts"));
     }
 
     /** Installs {@code pushed} on {@code base}, drains the file with fresh counters and returns their snapshot. */
@@ -1732,7 +1732,9 @@ public class OrcFormatReaderTests extends ESTestCase {
             ((BytesColumnVector) batch.cols[0]).setVal(0, "10/Oct/2000:13:55:36 -0700".getBytes(StandardCharsets.UTF_8));
         });
         StorageObject storageObject = createStorageObject(orcData);
-        OrcFormatReader reader = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z"));
+        OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withDeclaredDateFormats(
+            Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z")
+        );
         List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
         try (
             CloseableIterator<Page> it = reader.readRange(
@@ -1763,7 +1765,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             idCol.vector[1] = 2L;
         });
         StorageObject storageObject = createStorageObject(orcData);
-        OrcFormatReader reader = declaredReader("id");
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
         List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "id", DataType.DATETIME));
         try (
             CloseableIterator<Page> it = reader.readRange(
@@ -1793,7 +1795,9 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
 
-        OrcFormatReader withFormat = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        OrcFormatReader withFormat = (OrcFormatReader) new OrcFormatReader(blockFactory).withDeclaredDateFormats(
+            Map.of("ts", "epoch_second")
+        );
         try (
             CloseableIterator<Page> it = withFormat.readRange(
                 storageObject,
@@ -1805,7 +1809,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             page.releaseBlocks();
         }
         try (
-            CloseableIterator<Page> it = declaredReader("ts").readRange(
+            CloseableIterator<Page> it = new OrcFormatReader(blockFactory).readRange(
                 storageObject,
                 new RangeReadContext(List.of("ts"), 10, 0, orcData.length, asDatetime, ErrorPolicy.STRICT)
             )
@@ -1831,7 +1835,7 @@ public class OrcFormatReaderTests extends ESTestCase {
                 batch.size = 1;
                 ((LongColumnVector) batch.cols[0]).vector[0] = cell.raw();
             });
-            OrcFormatReader reader = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(cell.formats());
+            OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withDeclaredDateFormats(cell.formats());
             try (
                 CloseableIterator<Page> it = reader.readRange(
                     createStorageObject(orcData),
@@ -1852,7 +1856,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         });
         // null_field: the nanosecond count nulls with a Warning naming the column; the millis row survives.
         try (
-            CloseableIterator<Page> it = declaredReader("ts").readRange(
+            CloseableIterator<Page> it = new OrcFormatReader(blockFactory).readRange(
                 createStorageObject(nanosCount),
                 new RangeReadContext(List.of("ts"), 10, 0, nanosCount.length, asDateNanos, ErrorPolicy.PERMISSIVE)
             )
@@ -1868,7 +1872,7 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         Exception failure = expectThrows(Exception.class, () -> {
             try (
-                CloseableIterator<Page> it = declaredReader("ts").readRange(
+                CloseableIterator<Page> it = new OrcFormatReader(blockFactory).readRange(
                     createStorageObject(nanosCount),
                     new RangeReadContext(List.of("ts"), 10, 0, nanosCount.length, asDateNanos, ErrorPolicy.STRICT)
                 )
@@ -1899,7 +1903,9 @@ public class OrcFormatReaderTests extends ESTestCase {
         List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
 
         // null_field: the overflow cell nulls, both good rows survive, one Warning per bad cell.
-        OrcFormatReader nullFieldReader = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        OrcFormatReader nullFieldReader = (OrcFormatReader) new OrcFormatReader(blockFactory).withDeclaredDateFormats(
+            Map.of("ts", "epoch_second")
+        );
         try (
             CloseableIterator<Page> it = nullFieldReader.readRange(
                 createStorageObject(orcData),
@@ -1919,7 +1925,9 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertTrue("Warning should name the column, got: " + nullFieldWarnings, nullFieldWarnings.toString().contains("[ts]"));
 
         // skip_row: the overflowing row is dropped entirely; only the 2 good rows survive.
-        OrcFormatReader skipRowReader = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        OrcFormatReader skipRowReader = (OrcFormatReader) new OrcFormatReader(blockFactory).withDeclaredDateFormats(
+            Map.of("ts", "epoch_second")
+        );
         try (
             CloseableIterator<Page> it = skipRowReader.readRange(
                 createStorageObject(orcData),
@@ -1936,7 +1944,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         drainWarnings();
 
         // fail_fast: the same overflow aborts the read with a sensible per-cell error — not a bare ArithmeticException.
-        OrcFormatReader strict = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        OrcFormatReader strict = (OrcFormatReader) new OrcFormatReader(blockFactory).withDeclaredDateFormats(Map.of("ts", "epoch_second"));
         Exception failure = expectThrows(Exception.class, () -> {
             try (
                 CloseableIterator<Page> it = strict.readRange(
@@ -1974,7 +1982,9 @@ public class OrcFormatReaderTests extends ESTestCase {
         long expectedMinMillis = 1372968000000L; // 2013-07-04T20:00:00Z
         long expectedMaxMillis = 1374436797000L; // 2013-07-21T19:59:57Z
 
-        OrcFormatReader reader = (OrcFormatReader) declaredReader("EventTime").withDeclaredDateFormats(Map.of("EventTime", "epoch_second"));
+        OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withDeclaredDateFormats(
+            Map.of("EventTime", "epoch_second")
+        );
         List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "EventTime", DataType.DATETIME));
         long count = 0;
         long min = Long.MAX_VALUE;
@@ -2030,11 +2040,15 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
     }
 
-    public void testBigintInferredIntegerNullFillsWholeColumn() throws Exception {
-        // The ORC analog of parquet's parquetFfwAllRows / testInt64InferredIntegerNullFillsWholeColumn: an INFERRED
-        // INTEGER target over a BIGINT (int64) column must null-fill the whole column, never narrow. A plain (non-declared)
-        // reader here pins the inferred branch of the null-fill gate — DeclaredTypeCoercions.supports(LONG, INTEGER) is
-        // true, so dropping the declaredTypeColumns guard in validatePlannerTypesAgainstFile would downcast and this fails.
+    /**
+     * A {@code bigint} column read as {@code integer} is narrowed per value: a value that fits comes back, and
+     * nothing is warned about, because nothing went wrong. The schema needed no declaration for this - whether a
+     * value can be read as the query's type turns on the two types.
+     * <p>
+     * This read used to return a column of nulls, under {@code fail_fast}, with a warning saying the column had a
+     * type the query could not read - for values a 32-bit integer holds comfortably (esql-planning#2076).
+     */
+    public void testBigintReadAsIntegerNarrowsPerValue() throws Exception {
         TypeDescription schema = TypeDescription.createStruct().addField("n", TypeDescription.createLong());
         byte[] orcData = createOrcFile(schema, batch -> {
             batch.size = 2;
@@ -2043,7 +2057,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             nCol.vector[1] = 42L;
         });
         StorageObject storageObject = createStorageObject(orcData);
-        OrcFormatReader reader = new OrcFormatReader(blockFactory); // PLAIN reader: no declaredTypeColumns => inferred
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
         List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.INTEGER));
         List<String> warnings = new ArrayList<>();
         try (
@@ -2054,16 +2068,44 @@ public class OrcFormatReaderTests extends ESTestCase {
         ) {
             Page page = it.next();
             assertEquals(2, page.getPositionCount());
-            assertTrue("inferred int64->integer must null-fill the whole column, never downcast", page.getBlock(0).isNull(0));
-            assertTrue(page.getBlock(0).isNull(1));
+            IntBlock values = page.getBlock(0);
+            assertEquals(7, values.getInt(0));
+            assertEquals(42, values.getInt(1));
             page.releaseBlocks();
         }
-        assertFalse("inferred incompatibility must emit a structured warning", warnings.isEmpty());
-        assertTrue(
-            "warning must name the incompatibility, got: " + warnings,
-            warnings.toString().contains("column [n]: [long] in the file, [integer] in the query")
-        );
+        assertTrue("a value that fits is not a failure, got: " + warnings, warnings.isEmpty());
         assertTrue("the supplied sink must replace ambient response headers", drainWarnings().isEmpty());
+    }
+
+    /**
+     * The other half of the same read: a value the narrower type cannot hold is a per-value failure, so
+     * {@code fail_fast} fails the query naming the column rather than returning a null in its place. This is what
+     * the whole-column null-fill made unreachable for an inferred column, whatever {@code error_mode} asked for.
+     */
+    public void testBigintReadAsIntegerFailsFastOnAValueThatDoesNotFit() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("n", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            LongColumnVector nCol = (LongColumnVector) batch.cols[0];
+            nCol.vector[0] = 7L;
+            nCol.vector[1] = 3_000_000_000L; // past Integer.MAX_VALUE
+        });
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.INTEGER));
+        Exception e = expectThrows(Exception.class, () -> {
+            try (
+                CloseableIterator<Page> it = reader.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of("n"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.STRICT, null)
+                )
+            ) {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(e.getMessage(), containsString("n"));
     }
 
     public void testLongToDoubleCoerces() throws Exception {
@@ -2112,7 +2154,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             ((BytesColumnVector) batch.cols[3]).setVal(0, "10.20.30.40".getBytes(StandardCharsets.UTF_8));
         });
         StorageObject storageObject = createStorageObject(orcData);
-        OrcFormatReader reader = declaredReader("s_long", "s_double", "s_bool", "s_ip");
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
         List<Attribute> plannerSchema = List.of(
             new ReferenceAttribute(Source.EMPTY, "s_long", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, "s_double", DataType.DOUBLE),
@@ -2182,7 +2224,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         });
 
         SearchArgument sarg = SearchArgumentFactory.newBuilder().startNot().lessThanEquals("id", PredicateLeaf.Type.LONG, 0L).end().build();
-        OrcFormatReader reader = (OrcFormatReader) declaredReader("n").withPushedFilter(sarg);
+        OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(sarg);
         List<Attribute> plannerSchema = List.of(
             new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG)
@@ -2223,7 +2265,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             ((BytesColumnVector) batch.cols[0]).setVal(2, "43".getBytes(StandardCharsets.UTF_8));
         });
         StorageObject storageObject = createStorageObject(orcData);
-        OrcFormatReader reader = declaredReader("n");
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
         List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG));
         List<String> warnings = new ArrayList<>();
         try (
@@ -2258,7 +2300,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             ((BytesColumnVector) batch.cols[0]).setVal(1, "oops".getBytes(StandardCharsets.UTF_8));
         });
         StorageObject storageObject = createStorageObject(orcData);
-        OrcFormatReader reader = declaredReader("n");
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
         List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG));
         try (
             CloseableIterator<Page> it = reader.readRange(
@@ -2288,7 +2330,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             ((BytesColumnVector) batch.cols[0]).setVal(2, "43".getBytes(StandardCharsets.UTF_8));
         });
         StorageObject storageObject = createStorageObject(orcData);
-        OrcFormatReader reader = declaredReader("n");
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
         List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG));
         try (
             CloseableIterator<Page> it = reader.readRange(
@@ -2329,7 +2371,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             ((BytesColumnVector) batch.cols[1]).setVal(2, "c".getBytes(StandardCharsets.UTF_8));
         });
         StorageObject storageObject = createStorageObject(orcData);
-        OrcFormatReader reader = declaredReader("n");
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
         List<Attribute> plannerSchema = List.of(
             new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, "tag", DataType.KEYWORD)
@@ -2364,7 +2406,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             ((BytesColumnVector) batch.cols[0]).setVal(0, "nope".getBytes(StandardCharsets.UTF_8));
             ((BytesColumnVector) batch.cols[0]).setVal(1, "also-nope".getBytes(StandardCharsets.UTF_8));
         });
-        OrcFormatReader reader = declaredReader("n");
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
         List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG));
         try (
             CloseableIterator<Page> it = reader.readRange(
@@ -2393,7 +2435,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             ((BytesColumnVector) batch.cols[0]).setVal(3, "4".getBytes(StandardCharsets.UTF_8));
         });
         StorageObject storageObject = createStorageObject(orcData);
-        OrcFormatReader reader = declaredReader("n");
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
         List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG));
         ErrorPolicy budget = new ErrorPolicy(1L, false);
         try (
@@ -2438,7 +2480,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG));
         List<Long> got = new ArrayList<>();
         try (
-            CloseableIterator<Page> it = declaredReader("n").readRange(
+            CloseableIterator<Page> it = new OrcFormatReader(blockFactory).readRange(
                 createStorageObject(orcData),
                 new RangeReadContext(List.of("n"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.LENIENT, null, /* rowLimit = */ 2)
             )
@@ -2480,7 +2522,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         });
         List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
         try (
-            CloseableIterator<Page> it = declaredReader("x").readRange(
+            CloseableIterator<Page> it = new OrcFormatReader(blockFactory).readRange(
                 createStorageObject(orcData),
                 new RangeReadContext(List.of("x"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.LENIENT)
             )
@@ -2517,7 +2559,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
         List<String> sink = new ArrayList<>();
         try (
-            CloseableIterator<Page> it = declaredReader("ts").readRange(
+            CloseableIterator<Page> it = new OrcFormatReader(blockFactory).readRange(
                 createStorageObject(orcData),
                 new RangeReadContext(List.of("ts"), 10_000, 0, orcData.length, plannerSchema, ErrorPolicy.PERMISSIVE, sink::add)
             )
@@ -2551,7 +2593,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             ((BytesColumnVector) batch.cols[0]).setVal(1, "not-a-date".getBytes(StandardCharsets.UTF_8));
             ((BytesColumnVector) batch.cols[0]).setVal(2, "2000-10-10T20:55:38Z".getBytes(StandardCharsets.UTF_8));
         });
-        OrcFormatReader reader = declaredReader("ts");
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
         List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
         try (
             CloseableIterator<Page> it = reader.readRange(
@@ -2607,7 +2649,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             child.setVal(1, "not-a-date".getBytes(StandardCharsets.UTF_8));
             child.setVal(2, "2000-10-10T20:55:38Z".getBytes(StandardCharsets.UTF_8));
         });
-        OrcFormatReader reader = declaredReader("vals");
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
         List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "vals", DataType.DATETIME));
         try (
             CloseableIterator<Page> it = reader.readRange(
@@ -2661,7 +2703,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             id.vector[0] = 1;
             id.vector[1] = 2;
         });
-        OrcFormatReader reader = declaredReader("flag");
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
         List<Attribute> plannerSchema = List.of(
             new ReferenceAttribute(Source.EMPTY, "flag", DataType.BOOLEAN),
             new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER)
@@ -2682,7 +2724,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         });
         assertThat(
             e.getMessage(),
-            containsString("column [flag] in [" + location + "] is [integer] in the file and cannot be read as its declared type [boolean]")
+            containsString("column [flag] in [" + location + "] is [integer] in the file and cannot be read as [boolean]")
         );
 
         List<String> warnings = new ArrayList<>();
@@ -2768,7 +2810,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             }
             return batch;
         });
-        OrcFormatReader reader = declaredReader("flag");
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
         StorageObject storageObject = createStorageObject(orcData);
         List<SplitRange> ranges = reader.discoverSplitRanges(storageObject);
         assertTrue("the fixture must span several stripes", ranges.size() >= 2);
@@ -2977,7 +3019,7 @@ public class OrcFormatReaderTests extends ESTestCase {
                 }
                 byte[] orcData = createOrcFile(schema, populator);
                 List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "x", to));
-                OrcFormatReader reader = declaredReader("x");
+                OrcFormatReader reader = new OrcFormatReader(blockFactory);
                 try (
                     CloseableIterator<Page> it = reader.readRange(
                         createStorageObject(orcData),

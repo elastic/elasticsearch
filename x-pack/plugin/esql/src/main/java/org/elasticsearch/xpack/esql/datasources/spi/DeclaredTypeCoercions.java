@@ -524,6 +524,9 @@ public final class DeclaredTypeCoercions {
     /**
      * The {@code fail_fast} message of {@link #onUncoercibleColumn}. Resolution raises it too, for the files whose types
      * it already knows, so a query fails with the same text wherever the drift is caught.
+     * <p>
+     * Names the type the query reads the column as, without saying where that type came from: the same failure now
+     * reaches a column whose type was inferred, and "its declared type" was untrue of those (esql-planning#2076).
      */
     public static String uncoercibleColumnFailure(String columnName, String fileLocation, DataType fileType, DataType queryType) {
         return "column ["
@@ -532,7 +535,7 @@ public final class DeclaredTypeCoercions {
             + fileLocation
             + "] is ["
             + fileType.typeName()
-            + "] in the file and cannot be read as its declared type ["
+            + "] in the file and cannot be read as ["
             + queryType.typeName()
             + "]; set [error_mode] to [null_field] to return null instead";
     }

@@ -51,7 +51,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -86,13 +86,15 @@ public class OrcFormatReaderDynamicThresholdTests extends ESTestCase {
     }
 
     /**
-     * Pins CURRENT behaviour for esql-planning#2076: {@code StripeSkipTable.build} (private to {@link OrcFormatReader},
-     * so reached through a read) declines the stripe skip for a sort column that is merely declared, without comparing
-     * the declared type to the file's. {@code id} is declared yet read at its own {@code bigint}, and the two dominated
-     * stripes are still read in full; the same read over an undeclared {@code id} skips them. Once the decline is keyed
-     * on an actual retype, the declared arm is expected to skip like the plain one.
+     * {@code StripeSkipTable.build} (private to {@link OrcFormatReader}, so reached through a read) declines the
+     * stripe skip only where the column's decode can turn a stored value into a null, because the stripe statistics
+     * describe the stored values. A declared date {@code format} does that; being named in a declaration does not.
+     * <p>
+     * It used to decline for any column the dataset declared a type for, without comparing that type to the file's,
+     * so {@code id} declared and read at its own {@code bigint} read all three stripes while the same bytes read
+     * without a declaration read one (esql-planning#2076).
      */
-    public void testStripeSkipDeclinedForSameTypedDeclaredSortColumn() throws Exception {
+    public void testStripeSkipDeclinedOnlyWhereDecodeCanNull() throws Exception {
         byte[] data = createMultiStripeOrcFile(3, (stripeIndex, batch) -> {
             batch.size = 100;
             LongColumnVector id = (LongColumnVector) batch.cols[0];
@@ -102,13 +104,13 @@ public class OrcFormatReaderDynamicThresholdTests extends ESTestCase {
             }
         });
 
-        List<Long> declared = readIdsWithThreshold(data, threshold(99L, true, false), Set.of("id"));
-        assertThat("declared sort column: no stripe is skipped", declared.size(), equalTo(300));
-        assertTrue(declared.contains(1_000L));
+        List<Long> parsedPerValue = readIdsWithThreshold(data, threshold(99L, true, false), Map.of("id", "epoch_second"));
+        assertThat("a per-value parse can null a stored value: no stripe is skipped", parsedPerValue.size(), equalTo(300));
+        assertTrue(parsedPerValue.contains(1_000L));
 
-        List<Long> plain = readIdsWithThreshold(data, threshold(99L, true, false), Set.of());
-        assertThat("undeclared sort column: dominated stripes are skipped", plain.size(), equalTo(100));
-        assertFalse(plain.contains(1_000L));
+        List<Long> readAtItsOwnType = readIdsWithThreshold(data, threshold(99L, true, false), Map.of());
+        assertThat("read at its own type: dominated stripes are skipped", readAtItsOwnType.size(), equalTo(100));
+        assertFalse(readAtItsOwnType.contains(1_000L));
     }
 
     public void testNoFurtherCandidatesExhaustsImmediately() throws Exception {
@@ -306,12 +308,18 @@ public class OrcFormatReaderDynamicThresholdTests extends ESTestCase {
     }
 
     private List<Long> readIdsWithThreshold(byte[] data, DynamicThreshold threshold) throws IOException {
-        return readIdsWithThreshold(data, threshold, Set.of());
+        return readIdsWithThreshold(data, threshold, Map.of());
     }
 
-    private List<Long> readIdsWithThreshold(byte[] data, DynamicThreshold threshold, Set<String> declaredColumns) throws IOException {
+    /**
+     * Reads with the given per-column date parse patterns, which is what now puts a sort column beyond the stripe
+     * skip: the pattern parses each value and nulls what it cannot parse, so the raw stripe statistics are not in the
+     * unit the column decodes into.
+     */
+    private List<Long> readIdsWithThreshold(byte[] data, DynamicThreshold threshold, Map<String, String> declaredDateFormats)
+        throws IOException {
         OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withDynamicThreshold(threshold)
-            .withDeclaredTypeColumns(declaredColumns);
+            .withDeclaredDateFormats(declaredDateFormats);
         try (threshold; CloseableIterator<Page> iterator = reader.read(storageObject(data), List.of("id"), 128)) {
             List<Long> values = new ArrayList<>();
             while (iterator.hasNext()) {

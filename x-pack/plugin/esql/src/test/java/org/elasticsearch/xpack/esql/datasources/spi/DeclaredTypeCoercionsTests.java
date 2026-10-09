@@ -1396,7 +1396,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "column [flag] in [data/a.parquet] is [integer] in the file and cannot be read as its declared type [boolean]; "
+                "column [flag] in [data/a.parquet] is [integer] in the file and cannot be read as [boolean]; "
                     + "set [error_mode] to [null_field] to return null instead"
             )
         );

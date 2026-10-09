@@ -58,7 +58,6 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
         "optimizedReader",
         "dynamicThreshold",
         "declaredDateFormats",
-        "declaredTypeColumns",
         "codecFactory",
         "heapBufferPool"
     );
@@ -81,7 +80,6 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withPushedFilter", WitherLifecycle.CREATES_COPY),
         Map.entry("withDynamicThreshold", WitherLifecycle.CREATES_COPY),
         Map.entry("withDeclaredDateFormats", WitherLifecycle.CREATES_COPY),
-        Map.entry("withDeclaredTypeColumns", WitherLifecycle.CREATES_COPY),
         Map.entry("withConfigTrackingConsumedKeys", WitherLifecycle.CREATES_COPY),
         Map.entry("withConfig", WitherLifecycle.CREATES_COPY),
         Map.entry("withSchema", WitherLifecycle.IDENTITY_NO_COPY),
@@ -218,7 +216,6 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
             // null is accepted by withDynamicThreshold and always produces a copy (no identity shortcut).
             case "withDynamicThreshold" -> new Object[] { null };
             case "withDeclaredDateFormats" -> new Object[] { Map.of("x", "yyyy-MM-dd") };
-            case "withDeclaredTypeColumns" -> new Object[] { Set.of("x") };
             // An empty config takes the identity shortcut; a cap that differs from the default forces the copy.
             case "withConfigTrackingConsumedKeys", "withConfig" -> new Object[] { Map.of("schema_max_fields", 7) };
             case "withSchema" -> new Object[] { List.of() };

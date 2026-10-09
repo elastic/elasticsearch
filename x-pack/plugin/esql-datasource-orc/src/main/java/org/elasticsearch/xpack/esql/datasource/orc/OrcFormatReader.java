@@ -95,6 +95,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -173,8 +174,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     private final DynamicThreshold dynamicThreshold;
     /** Declared per-column date parse patterns (physical name &rarr; pattern); see {@link #withDeclaredDateFormats}. */
     private final Map<String, String> declaredDateFormats;
-    /** Physical names of declared-type columns (licensed to narrow toward their target); see {@link #withDeclaredTypeColumns}. */
-    private final Set<String> declaredTypeColumns;
 
     /**
      * Creates a root reader with footer caches sized from node {@link Settings}. This is the
@@ -188,7 +187,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             null,
             null,
             Map.of(),
-            Set.of(),
             ParsedFooterCache.fromSettings(settings, OrcFormatReader::estimateTailWeightBytes),
             FooterByteCache.fromSettings(settings)
         );
@@ -206,7 +204,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             null,
             null,
             Map.of(),
-            Set.of(),
             ParsedFooterCache.fromSettings(Settings.EMPTY, OrcFormatReader::estimateTailWeightBytes),
             FooterByteCache.fromSettings(Settings.EMPTY)
         );
@@ -222,7 +219,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         OrcPushedExpressions pushedExpressions,
         DynamicThreshold dynamicThreshold,
         Map<String, String> declaredDateFormats,
-        Set<String> declaredTypeColumns,
         ParsedFooterCache<OrcTail> parsedFooters,
         FooterByteCache footerBytes
     ) {
@@ -231,7 +227,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         this.pushedExpressions = pushedExpressions;
         this.dynamicThreshold = dynamicThreshold;
         this.declaredDateFormats = declaredDateFormats;
-        this.declaredTypeColumns = declaredTypeColumns;
         this.parsedFooters = parsedFooters;
         this.footerBytes = footerBytes;
     }
@@ -242,40 +237,13 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             if (this.pushedFilter == null && this.pushedExpressions == null) {
                 return this;
             }
-            return new OrcFormatReader(
-                blockFactory,
-                null,
-                null,
-                dynamicThreshold,
-                declaredDateFormats,
-                declaredTypeColumns,
-                parsedFooters,
-                footerBytes
-            );
+            return new OrcFormatReader(blockFactory, null, null, dynamicThreshold, declaredDateFormats, parsedFooters, footerBytes);
         }
         if (pushedFilter instanceof SearchArgument sarg) {
-            return new OrcFormatReader(
-                this.blockFactory,
-                sarg,
-                null,
-                dynamicThreshold,
-                declaredDateFormats,
-                declaredTypeColumns,
-                parsedFooters,
-                footerBytes
-            );
+            return new OrcFormatReader(this.blockFactory, sarg, null, dynamicThreshold, declaredDateFormats, parsedFooters, footerBytes);
         }
         if (pushedFilter instanceof OrcPushedExpressions exprs) {
-            return new OrcFormatReader(
-                this.blockFactory,
-                null,
-                exprs,
-                dynamicThreshold,
-                declaredDateFormats,
-                declaredTypeColumns,
-                parsedFooters,
-                footerBytes
-            );
+            return new OrcFormatReader(this.blockFactory, null, exprs, dynamicThreshold, declaredDateFormats, parsedFooters, footerBytes);
         }
         return this;
     }
@@ -288,7 +256,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             pushedExpressions,
             threshold,
             declaredDateFormats,
-            declaredTypeColumns,
             parsedFooters,
             footerBytes
         );
@@ -311,31 +278,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             pushedExpressions,
             dynamicThreshold,
             Map.copyOf(physicalNameToPattern),
-            declaredTypeColumns,
-            parsedFooters,
-            footerBytes
-        );
-    }
-
-    /**
-     * The physical names of declared-type columns — the ones whose target type came from an explicit declaration and are
-     * therefore licensed to coerce (including narrow) toward it. {@code validatePlannerTypesAgainstFile} keys its
-     * whole-column incompatibility null-fill on this set: a declared column keeps the {@code DeclaredTypeCoercions}
-     * escape, while an inferred column null-fills whenever the file type is not widening-compatible (a
-     * {@code first_file_wins} cross-file clash must widen-or-null, never downcast).
-     */
-    @Override
-    public FormatReader withDeclaredTypeColumns(Set<String> physicalDeclaredColumns) {
-        if (physicalDeclaredColumns == null || physicalDeclaredColumns.isEmpty()) {
-            return this;
-        }
-        return new OrcFormatReader(
-            blockFactory,
-            pushedFilter,
-            pushedExpressions,
-            dynamicThreshold,
-            declaredDateFormats,
-            Set.copyOf(physicalDeclaredColumns),
             parsedFooters,
             footerBytes
         );
@@ -579,7 +521,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         List<Attribute> projectedAttributes = resolveProjection(attributes, projectedColumns);
         boolean[] include = buildIncludeMask(schema, projectedColumns);
 
-        Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema, counters);
+        Set<String> conversionCanNull = conversionCanNull(schema, projectedAttributes);
+        Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema, conversionCanNull, counters);
         long stripeCount = reader.getStripes().size();
         int totalColumns = schema.getFieldNames().size();
         if (counters != null) {
@@ -598,10 +541,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 projectedAttributes,
                 batchSize,
                 blockFactory,
-                StripeSkipTable.build(reader, schema, dynamicThreshold, 0L, Long.MAX_VALUE, declaredDateFormats, declaredTypeColumns),
+                StripeSkipTable.build(reader, schema, dynamicThreshold, 0L, Long.MAX_VALUE, conversionCanNull),
                 counters,
                 declaredDateFormats,
-                declaredTypeColumns,
                 object.path().objectName(),
                 resolveErrorPolicy(context.errorPolicy()),
                 context.informationalWarningSink(),
@@ -736,7 +678,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         List<Attribute> projectedAttributes = resolveProjection(attributes, projectedColumns);
         boolean[] include = buildIncludeMask(schema, projectedColumns);
 
-        Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema, counters);
+        Set<String> conversionCanNull = conversionCanNull(schema, projectedAttributes);
+        Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema, conversionCanNull, counters);
         readOptions.range(rangeStart, rangeEnd - rangeStart);
         long stripesInRange = countStripesInRange(reader, rangeStart, rangeEnd);
         long stripesInFile = reader.getStripes().size();
@@ -756,10 +699,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 projectedAttributes,
                 batchSize,
                 blockFactory,
-                StripeSkipTable.build(reader, schema, dynamicThreshold, rangeStart, rangeEnd, declaredDateFormats, declaredTypeColumns),
+                StripeSkipTable.build(reader, schema, dynamicThreshold, rangeStart, rangeEnd, conversionCanNull),
                 counters,
                 declaredDateFormats,
-                declaredTypeColumns,
                 object.path().objectName(),
                 resolveErrorPolicy(context.errorPolicy()),
                 context.informationalWarningSink(),
@@ -889,13 +831,14 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         int batchSize,
         boolean[] include,
         TypeDescription schema,
+        Set<String> conversionCanNull,
         @Nullable OrcReaderCounters counters
     ) {
         Reader.Options readOptions = reader.options().rowBatchSize(batchSize);
         if (include != null) {
             readOptions.include(include);
         }
-        SearchArgument resolvedFilter = resolveSearchArgument(schema);
+        SearchArgument resolvedFilter = resolveSearchArgument(schema, conversionCanNull);
         if (resolvedFilter != null) {
             List<PredicateLeaf> leaves = resolvedFilter.getLeaves();
             LinkedHashSet<String> nameSet = new LinkedHashSet<>(leaves.size());
@@ -930,17 +873,54 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      * Resolves the SearchArgument to use for a given file. If deferred expressions are present,
      * builds the SearchArgument using the actual file schema for correct DATE/DECIMAL mapping.
      */
-    private SearchArgument resolveSearchArgument(TypeDescription schema) {
+    private SearchArgument resolveSearchArgument(TypeDescription schema, Set<String> conversionCanNull) {
         if (pushedFilter != null) {
             return pushedFilter;
         }
         if (pushedExpressions != null) {
-            // Columns whose declared coercion can decode a present cell to null — IS NULL must not push over them.
-            Set<String> decodeCanNull = new java.util.HashSet<>(declaredDateFormats.keySet());
-            decodeCanNull.addAll(declaredTypeColumns);
-            return pushedExpressions.toSearchArgument(schema, decodeCanNull);
+            return pushedExpressions.toSearchArgument(schema, conversionCanNull);
         }
         return null;
+    }
+
+    /**
+     * Projected columns whose decode can turn a present cell into a null for this file, which is what makes an
+     * {@code IS NULL} unpushable over them: the stripe statistics describe the stored values, where the cell is
+     * not null. Two causes, and both are facts about this file against the types being read, not about who
+     * supplied those types (esql-planning#2076):
+     * <ul>
+     *     <li>a declared date {@code format}, which parses per value and nulls what it cannot parse;</li>
+     *     <li>a type pair that does not read losslessly - a narrowing nulls an out-of-range value, and a pair
+     *     nothing can convert nulls the column whole.</li>
+     * </ul>
+     * A column absent from the file is not included: it has no stripe statistics to push against either.
+     */
+    private Set<String> conversionCanNull(TypeDescription schema, List<Attribute> attributes) {
+        Set<String> canNull = new HashSet<>(declaredDateFormats.keySet());
+        Map<String, Integer> topLevelToIndex = new HashMap<>();
+        List<String> topLevelNames = schema.getFieldNames();
+        for (int i = 0; i < topLevelNames.size(); i++) {
+            topLevelToIndex.put(topLevelNames.get(i), i);
+        }
+        for (Attribute attr : attributes) {
+            DataType planner = attr.dataType();
+            if (planner == DataType.NULL || planner == DataType.UNSUPPORTED) {
+                continue;
+            }
+            Integer topLevelIdx = topLevelToIndex.get(attr.name());
+            int[] path = topLevelIdx != null ? new int[] { topLevelIdx } : OrcPageIterator.resolveDottedPath(schema, attr.name());
+            if (path == null) {
+                continue;
+            }
+            TypeDescription leaf = OrcPageIterator.leafTypeForPath(schema, path);
+            if (leaf == null) {
+                continue;
+            }
+            if (DeclaredTypeCoercions.readsLossless(convertOrcTypeToEsql(leaf), planner) == false) {
+                canNull.add(attr.name());
+            }
+        }
+        return canNull;
     }
 
     @Override
@@ -1165,19 +1145,18 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             DynamicThreshold threshold,
             long rangeStart,
             long rangeEnd,
-            Map<String, String> declaredDateFormats,
-            Set<String> declaredTypeColumns
+            Set<String> conversionCanNull
         ) throws IOException {
             if (threshold == null) {
                 return null;
             }
-            // A declared format or retype makes the sort column decode into a unit the raw stripe stats are NOT in
-            // (epoch_second scales x1000), so a raw-vs-decoded dominance compare would drop the true extreme. This
-            // rail holds raw stats and does not convert, so decline the skip for such a column — mirroring the
-            // parquet threshold rail (sortColumnIsTemporal ? null : raw). Latent today: OrcFormatReader is not
-            // ColumnExtractorAware, so no dynamic threshold is installed in production; this guards the day it is.
-            String sortCol = threshold.columnName();
-            if (declaredDateFormats.containsKey(sortCol) || declaredTypeColumns.contains(sortCol)) {
+            // A conversion that can null a cell also makes the sort column decode into a unit the raw stripe stats
+            // are NOT in (a declared epoch_second format scales x1000), so a raw-vs-decoded dominance compare would
+            // drop the true extreme. This rail holds raw stats and does not convert, so decline the skip for such a
+            // column — mirroring the parquet threshold rail (sortColumnIsTemporal ? null : raw). Latent today:
+            // OrcFormatReader is not ColumnExtractorAware, so no dynamic threshold is installed in production; this
+            // guards the day it is.
+            if (conversionCanNull.contains(threshold.columnName())) {
                 return null;
             }
             TypeDescription sortType = buildDottedNameToType(schema).get(threshold.columnName());
@@ -1450,7 +1429,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             StripeSkipTable stripeSkipTable,
             OrcReaderCounters counters,
             Map<String, String> declaredDateFormats,
-            Set<String> declaredTypeColumns,
             String fileLocation,
             ErrorPolicy errorPolicy,
             @Nullable Consumer<String> warningSink,
@@ -1502,7 +1480,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     declaredFormatters[col] = DateFormatter.forPattern(pattern);
                 }
             }
-            String dropReason = validatePlannerTypesAgainstFile(fileLocation, declaredTypeColumns);
+            String dropReason = validatePlannerTypesAgainstFile(fileLocation);
             if (dropReason != null) {
                 // Charged once, here, so no stripe of this file is decoded only to be dropped.
                 ColumnarRowDropHelper.dropWholeRead(
@@ -1563,11 +1541,11 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
          * vector class cast. Mirrors the Parquet reader's {@code validatePlannerTypesAgainstFile}: the resolver has
          * already fail-fasted against the anchor footer, but a multi-file glob can drift from the anchor.
          * <p>
-         * The {@code DeclaredTypeCoercions#supports} escape — which admits lossy narrowing — is honored only for a column
-         * in {@code declaredTypeColumns} (target type from an explicit declaration, so a per-value coerce is licensed).
-         * For an INFERRED target the escape does not apply: a cross-file clash must widen-or-null, never downcast.
+         * Whether the pair can be converted is {@code DeclaredTypeCoercions#supports} and nothing else. The escape it
+         * admits, which includes narrowing, used to be reserved for columns the user had declared, so an inferred
+         * column whose file type could not be read was filled with nulls under every error mode (esql-planning#2076).
          * <p>
-         * A declared column that is neither follows the read's error policy
+         * A pair nothing can convert follows the read's error policy
          * ({@link DeclaredTypeCoercions#onUncoercibleColumn}): {@code fail_fast} fails the read, {@code null_field} nulls
          * the column as above, and {@code skip_row} drops every row of the file, which the caller does when this returns
          * non-{@code null}.
@@ -1575,7 +1553,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
          * @return under {@code skip_row}, why every row of the file must be dropped; otherwise {@code null}
          */
         @Nullable
-        private String validatePlannerTypesAgainstFile(String fileLocation, Set<String> declaredTypeColumns) {
+        private String validatePlannerTypesAgainstFile(String fileLocation) {
             // Reported once the loop is done, and only if no declared column drops the file's rows: a column of rows
             // that never reach the page does not read null.
             List<String> nullDetails = null;
@@ -1592,16 +1570,11 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     continue;
                 }
                 DataType actualInFile = convertOrcTypeToEsql(leafType);
-                DataType widened = EsqlDataTypeConverter.commonType(planner, actualInFile);
-                boolean declared = declaredTypeColumns.contains(attr.name());
-                boolean compatible = planner == actualInFile || (widened != null && widened == planner)
-                // Lossy-narrowing coercion escape is reserved for DECLARED columns; an inferred target may only widen.
-                    || (declared && DeclaredTypeCoercions.supports(actualInFile, planner));
-                if (compatible == false) {
+                if (DeclaredTypeCoercions.supports(actualInFile, planner) == false) {
                     String outcome = "returning null";
-                    if (declared && errorPolicy.isStrict()) {
+                    if (errorPolicy.isStrict()) {
                         DeclaredTypeCoercions.onUncoercibleColumn(attr.name(), fileLocation, actualInFile, planner, null);
-                    } else if (declared && errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW) {
+                    } else if (errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW) {
                         if (dropWarnings == null) {
                             dropWarnings = new SkipWarnings(DeclaredTypeCoercions.uncoercibleColumnsDropSummary(fileLocation), warningSink);
                         }

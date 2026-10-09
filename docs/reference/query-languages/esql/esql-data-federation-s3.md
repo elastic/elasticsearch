@@ -49,8 +49,11 @@ To confirm the data source can read a dataset, run a query against the dataset. 
 
 {{es}} doesn't check permissions when you create a dataset. A missing permission shows up as an error the first time you query the dataset:
 
-`Access denied reading [<file>]`
+`Access denied reading [<file>]` {applies_to}`stack: experimental 9.6+`
 :   The identity can't read an object. Allow `s3:GetObject` on the object's path.
 
-`Access denied listing objects in the configured path`
+`Access denied listing objects in the configured path` {applies_to}`stack: experimental 9.6+`
 :   The identity can't list the bucket. Allow `s3:ListBucket` on the bucket, or change the dataset's resource to an exact file path.
+
+`Access denied listing objects in bucket [<bucket>] with prefix [<prefix>]` {applies_to}`stack: experimental =9.5`
+:   The identity can't list the bucket. Allow `s3:ListBucket` on the bucket.

@@ -150,8 +150,7 @@ public final class KeyStoreUtil {
      */
     public static X509ExtendedKeyManager createKeyManager(KeyStore keyStore, char[] password, String algorithm)
         throws GeneralSecurityException {
-        // JDK-8393730: X500Name.x500Principal is published without safe publication, so another thread can observe an
-        // X500Principal whose thisX500Name is still null. Fill the cache here.
+        // JDK-8393730: X500Name caches its X500Principal lazily without safe publication. Fill the cache here.
         populateX500PrincipalCaches(keyStore);
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(algorithm);
         kmf.init(keyStore, password);

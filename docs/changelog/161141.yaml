@@ -1,5 +1,6 @@
 area: TLS
-issues: []
+issues:
+ - 160280
 pr: 161141
-summary: Update `KeyStoreUtil` to avoid race in X500Principal
+summary: Fix intermittent TLS handshake failures on aarch64 caused by a JDK race (JDK-8393730)
 type: bug

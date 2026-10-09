@@ -109,6 +109,23 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
+     * A sub-millisecond interval still bounds reuse. Only an explicit zero removes the clock, so rounding the
+     * configured value to whole milliseconds would turn the shortest interval into no interval at all.
+     */
+    public void testASubMillisecondIntervalStillBounds() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(withSchemaTtl("500micros"))) {
+            SchemaCacheKey key = SchemaCacheKey.build(
+                "s3://bucket/sub-milli.parquet",
+                1000L,
+                TestDatasetIdentities.identity(".parquet", "", Map.of()),
+                false
+            );
+            service.getOrComputeSchema(key, k -> testSchemaEntry());
+            assertBusy(() -> assertNull("a 500micros interval must still expire the entry", service.getSchemaIfPresent(key)));
+        }
+    }
+
+    /**
      * Zero configures no clock at all, so an operator who wants the previous behaviour back sets it rather than
      * guessing at a very large value.
      */
@@ -3733,6 +3750,9 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             assertNotNull("the harvest must be readable to begin with", service.getStatistics(StatisticsKey.of(key, "own")));
 
             assertBusy(() -> assertNull("the schema record expires on its own clock", service.getSchemaIfPresent(key)));
+            // Well past the schema interval, so a clock mistakenly applied to the statistics store would have
+            // taken the measurement with it rather than merely racing this read.
+            safeSleep(200);
 
             Map<String, Object> stats = service.getStatistics(StatisticsKey.of(key, "own"));
             assertNotNull("a measurement has no clock and outlives the record beside it", stats);

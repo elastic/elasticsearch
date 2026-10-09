@@ -189,7 +189,9 @@ public class ExternalSourceCacheService implements Closeable {
         TimeValue listingTtl = ExternalSourceCacheSettings.LISTING_TTL.get(settings);
         // Zero is the documented way to turn the window off, and WeightedStore reads null as "no clock".
         TimeValue schemaTtlSetting = ExternalSourceCacheSettings.SCHEMA_TTL.get(settings);
-        TimeValue schemaTtl = schemaTtlSetting.millis() == 0 ? null : schemaTtlSetting;
+        // Compare nanos, not millis: a sub-millisecond value rounds to zero millis and would silently remove
+        // the clock instead of setting a very short one.
+        TimeValue schemaTtl = schemaTtlSetting.nanos() == 0 ? null : schemaTtlSetting;
 
         // The statistics store is a NEW consumer, not a share of an existing one. Before the split those
         // bytes sat inside the schema record and were charged to the schema slice - but a COLD record never

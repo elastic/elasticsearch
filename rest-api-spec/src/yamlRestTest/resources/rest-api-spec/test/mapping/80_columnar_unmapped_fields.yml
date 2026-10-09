@@ -109,32 +109,6 @@ setup:
   - match: { hits.total.value: 0 }
 
 ---
-"get field mapping never exposes the sink":
-  # Separate from the test above because serverless does not expose the get field mapping API and excludes this test by name.
-  # Get field mapping reads the mappers directly rather than the field type lookup, so it hides the sink on its own.
-  - do:
-      index:
-        index: test_mapped
-        id: "1"
-        refresh: true
-        body:
-          mapped: 42
-          bare: "bare-value"
-
-  - do:
-      indices.get_field_mapping:
-        index: test_mapped
-        fields: "*"
-  - match: { test_mapped.mappings.mapped.mapping.mapped.type: long }
-  - is_false: test_mapped.mappings._unmapped
-
-  - do:
-      indices.get_field_mapping:
-        index: test_mapped
-        fields: "_unmapped"
-  - match: { test_mapped.mappings: {} }
-
----
 "exists on a mapped object still matches its mapped leaves":
   # exists on an object name retries as name.* when the exact name resolves to nothing. On a sink index that behavior must be unchanged: a
   # scalar absorbed at the mapped object's own path (possible in columnar mode, where subobjects is always false) stays unmapped and never

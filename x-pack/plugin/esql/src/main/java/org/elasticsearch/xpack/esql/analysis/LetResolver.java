@@ -21,6 +21,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Substitutes {@link LetBinding} names into the main query plan (and earlier binding bodies)
@@ -79,19 +81,14 @@ public final class LetResolver {
 
         // Left fold: build the resolved map incrementally so binding N sees bindings 1..N-1.
         Map<String, LogicalPlan> resolved = new LinkedHashMap<>(letBindings.size());
+        var letAliases = letBindings.stream().map(LetBinding::name).collect(Collectors.toSet());
         for (LetBinding binding : letBindings) {
             // Substitute earlier bindings into this binding's body (sequential scoping).
-            var current = substitute(binding.plan(), resolved);
+            var current = substitute(binding.plan(), resolved, letAliases);
             resolved.put(binding.name(), current);
-            // After resolving the current binding, it should not contain references to previous ones (or itself). Otherwise we have a cycle
-            checkBindingReferences(current, resolved, "Circular reference detected in LET bindings");
         }
-
         // Substitute the full map into the main query plan.
-        var result = substitute(plan, resolved);
-        // Any remaining binding reference in the query after all substitutions must come from a forward reference
-        // This is because after resolution any binding does not contain references to previous ones
-        checkBindingReferences(result, resolved, "Forward reference in LET bindings: [{}] cannot be referenced before its declaration");
+        var result = substitute(plan, resolved, letAliases);
         return result;
     }
 
@@ -103,11 +100,7 @@ public final class LetResolver {
      * Also substitutes into subquery plans embedded in {@link InSubquery} and
      * {@link MultiColumnInSubquery} expressions.
      */
-    private static LogicalPlan substitute(LogicalPlan plan, Map<String, LogicalPlan> resolved) {
-        if (resolved.isEmpty()) {
-            return plan;
-        }
-
+    private static LogicalPlan substitute(LogicalPlan plan, Map<String, LogicalPlan> resolved, Set<String> letAliases) {
         // transformDownSkipBranch: when a replacement is made, set skipBranch so the replacement
         // subtree is not descended into. This enforces sequential scoping — a binding body that was
         // already evaluated against its own (partial) resolved map is not re-expanded with later
@@ -115,50 +108,42 @@ public final class LetResolver {
         return plan.transformDownSkipBranch((p, skipBranch) -> {
             if (p instanceof UnresolvedRelation ur) {
                 String indexPattern = ur.indexPattern().indexPattern();
-                // A binding is an ordinary subquery plan, so it cannot stand in for a time-series source: the
-                // parser already chose TS-specific planning for the surrounding commands. Mirrors the parser's
-                // rejection of inline subqueries in TS.
-                if (ur.indexMode().isTsdb()) {
-                    for (String token : indexPattern.split(",", -1)) {
-                        if (resolved.containsKey(token.strip())) {
-                            throw new ParsingException(ur.source(), "Subqueries are not supported in TS command");
-                        }
-                    }
-                }
-                LogicalPlan bound = resolved.get(indexPattern);
-                if (bound != null) {
-                    skipBranch.set(true);
-                    return bound;
-                }
                 // Handle comma-joined patterns that contain one or more binding names as individual
                 // tokens, e.g. "FROM top3, real_index" where top3 is a binding.
                 // Split the indexPattern, substitute each token that matches a binding, and union the parts.
-                if (indexPattern.contains(",")) {
-                    String[] patterns = indexPattern.split(",", -1);
-                    boolean anyMatch = false;
-                    for (String pattern : patterns) {
-                        if (resolved.containsKey(pattern.strip())) {
-                            anyMatch = true;
-                            break;
+                String[] patterns = indexPattern.split(",", -1);
+                boolean anyMatch = false;
+                List<LogicalPlan> result = new ArrayList<>();
+                List<String> nonBindingPatterns = new ArrayList<>();
+                for (String pattern : patterns) {
+                    String current = pattern.strip();
+                    LogicalPlan bindingPlan = resolved.get(current);
+
+                    if (bindingPlan != null) {
+                        if (ur.indexMode().isTsdb()) {
+                            // A binding is an ordinary subquery plan, so it cannot stand in for a time-series source: the
+                            // parser already chose TS-specific planning for the surrounding commands. Mirrors the parser's
+                            // rejection of inline subqueries in TS.
+                            throw new ParsingException(ur.source(), "Subqueries are not supported in TS command");
                         }
-                    }
-                    if (anyMatch) {
-                        List<LogicalPlan> result = new ArrayList<>();
-                        List<String> nonBindingPatterns = new ArrayList<>();
-                        for (String pattern : patterns) {
-                            String trimmed = pattern.strip();
-                            LogicalPlan bindingPlan = resolved.get(trimmed);
-                            if (bindingPlan != null) {
-                                flushNonBindingPatterns(result, nonBindingPatterns, ur);
-                                result.add(bindingPlan);
-                            } else {
-                                nonBindingPatterns.add(trimmed);
-                            }
-                        }
+                        anyMatch = true;
                         flushNonBindingPatterns(result, nonBindingPatterns, ur);
-                        skipBranch.set(true);
-                        return result.size() == 1 ? result.get(0) : new UnionAll(ur.source(), result, List.of());
+                        result.add(bindingPlan);
+                    } else {
+                        // the query contained a reference to a binding that has not been resolved yet
+                        if (letAliases.contains(current)) {
+                            throw new VerificationException(
+                                "Forward reference in LET bindings: [{}] cannot be referenced before its declaration",
+                                current
+                            );
+                        }
+                        nonBindingPatterns.add(current);
                     }
+                }
+                if (anyMatch) {
+                    flushNonBindingPatterns(result, nonBindingPatterns, ur);
+                    skipBranch.set(true);
+                    return result.size() == 1 ? result.get(0) : new UnionAll(ur.source(), result, List.of());
                 }
                 return ur;
             }
@@ -166,11 +151,11 @@ public final class LetResolver {
             // plan-node children, so transformDownSkipBranch cannot reach it via the normal child
             // traversal. Substitute into those plans explicitly here.
             LogicalPlan result = p.transformExpressionsOnly(InSubquery.class, inSub -> {
-                LogicalPlan newSubquery = substitute(inSub.subquery(), resolved);
+                LogicalPlan newSubquery = substitute(inSub.subquery(), resolved, letAliases);
                 return newSubquery != inSub.subquery() ? new InSubquery(inSub.source(), inSub.value(), newSubquery) : inSub;
             });
             return result.transformExpressionsOnly(MultiColumnInSubquery.class, mcsub -> {
-                LogicalPlan newSubquery = substitute(mcsub.subquery(), resolved);
+                LogicalPlan newSubquery = substitute(mcsub.subquery(), resolved, letAliases);
                 return newSubquery != mcsub.subquery() ? new MultiColumnInSubquery(mcsub.source(), mcsub.values(), newSubquery) : mcsub;
             });
         });

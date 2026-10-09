@@ -150,7 +150,7 @@ public class LetResolverTests extends ESTestCase {
         LetBinding a = binding("a", withLimit(relation("a")));
         expectThrows(
             VerificationException.class,
-            containsString("Circular reference detected in LET bindings"),
+            containsString("Forward reference in LET bindings: [a] cannot be referenced before its declaration"),
             () -> LetResolver.resolve(relation("a"), List.of(a))
         );
     }
@@ -161,7 +161,7 @@ public class LetResolverTests extends ESTestCase {
         LetBinding a = binding("a", withLimit(relation("a,real_index")));
         expectThrows(
             VerificationException.class,
-            containsString("Circular reference detected in LET bindings"),
+            containsString("Forward reference in LET bindings: [a] cannot be referenced before its declaration"),
             () -> LetResolver.resolve(relation("a"), List.of(a))
         );
     }
@@ -188,7 +188,7 @@ public class LetResolverTests extends ESTestCase {
         LetBinding b = binding("b", withLimit(relation("a")));
         expectThrows(
             VerificationException.class,
-            containsString("Circular reference detected in LET bindings"),
+            containsString("Forward reference in LET bindings: [b] cannot be referenced before its declaration"),
             () -> LetResolver.resolve(relation("a"), List.of(a, b))
         );
     }
@@ -204,7 +204,7 @@ public class LetResolverTests extends ESTestCase {
         LetBinding b = binding("b", withLimit(new Filter(EMPTY, relation("base"), new InSubquery(EMPTY, value, relation("a")))));
         expectThrows(
             VerificationException.class,
-            containsString("Circular reference detected in LET bindings"),
+            containsString("Forward reference in LET bindings: [b] cannot be referenced before its declaration"),
             () -> LetResolver.resolve(relation("a"), List.of(a, b))
         );
     }
@@ -222,7 +222,7 @@ public class LetResolverTests extends ESTestCase {
         );
         expectThrows(
             VerificationException.class,
-            containsString("Circular reference detected in LET bindings"),
+            containsString("Forward reference in LET bindings: [b] cannot be referenced before its declaration"),
             () -> LetResolver.resolve(relation("a"), List.of(a, b))
         );
     }

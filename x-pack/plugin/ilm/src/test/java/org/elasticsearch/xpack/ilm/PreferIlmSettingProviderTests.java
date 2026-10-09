@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -29,6 +30,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -40,7 +42,8 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
     private static final String DATA_STREAM_NAME = "metrics-apache.access-default";
     private static final String INDEX_NAME = ".ds-metrics-apache.access-default-2026.10.06-000001";
 
-    private final PreferIlmSettingProvider provider = new PreferIlmSettingProvider();
+    private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(PreferIlmSettingProvider.ENABLED_SETTING));
+    private final PreferIlmSettingProvider provider = PreferIlmSettingProvider.create(clusterSettings);
 
     public void testPreferIlmDefaultsToFalse() {
         ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1L));
@@ -186,6 +189,48 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
             );
             assertThat(additionalSettings.build(), equalTo(Settings.EMPTY));
         }
+    }
+
+    public void testEnabledByDefault() {
+        assertThat(PreferIlmSettingProvider.ENABLED_SETTING.get(Settings.EMPTY), is(true));
+        assertThat(PreferIlmSettingProvider.ENABLED_SETTING.isDynamic(), is(true));
+    }
+
+    public void testCanBeDisabledAndReEnabledDynamically() {
+        ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1L));
+        assertThat(preferIlmProvided(provider, project), is(true));
+
+        clusterSettings.applySettings(Settings.builder().put(PreferIlmSettingProvider.ENABLED_SETTING.getKey(), false).build());
+        assertThat(preferIlmProvided(provider, project), is(false));
+
+        clusterSettings.applySettings(Settings.builder().put(PreferIlmSettingProvider.ENABLED_SETTING.getKey(), true).build());
+        assertThat(preferIlmProvided(provider, project), is(true));
+    }
+
+    public void testDisabledAtConstruction() {
+        ClusterSettings disabled = new ClusterSettings(
+            Settings.builder().put(PreferIlmSettingProvider.ENABLED_SETTING.getKey(), false).build(),
+            Set.of(PreferIlmSettingProvider.ENABLED_SETTING)
+        );
+        ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1L));
+        assertThat(preferIlmProvided(PreferIlmSettingProvider.create(disabled), project), is(false));
+    }
+
+    private static boolean preferIlmProvided(PreferIlmSettingProvider provider, ProjectMetadata project) {
+        Settings.Builder additionalSettings = Settings.builder();
+        provider.provideAdditionalSettings(
+            INDEX_NAME,
+            DATA_STREAM_NAME,
+            IndexMode.TIME_SERIES,
+            randomBoolean(),
+            project,
+            Instant.now(),
+            resolvedSettings(METRICS_POLICY_NAME, null),
+            List.of(),
+            IndexVersion.current(),
+            additionalSettings
+        );
+        return additionalSettings.keys().contains(IndexSettings.PREFER_ILM);
     }
 
     /**

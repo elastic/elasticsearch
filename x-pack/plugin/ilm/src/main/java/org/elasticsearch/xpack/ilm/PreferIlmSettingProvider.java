@@ -11,6 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
@@ -42,11 +44,37 @@ import java.util.Map;
  * Customising the policy later does not move indices that were already created back under ILM, it only changes what
  * subsequent backing indices get. That is by design: {@code prefer_ilm} is a per-index setting and
  * {@link org.elasticsearch.cluster.metadata.DataStream#lifecycleManagedBy} evaluates it per index.
+ * <p>
+ * The provider can be turned on or off at runtime with {@link #ENABLED_SETTING}. Turning it off only affects indices created
+ * afterwards.
  */
 public class PreferIlmSettingProvider implements IndexSettingProvider {
 
     private static final Logger logger = LogManager.getLogger(PreferIlmSettingProvider.class);
     private static final String METRICS_POLICY_NAME = "metrics";
+
+    /**
+     * Whether new backing indices of data streams managed by the unmodified pre-installed metrics policy default
+     * {@link IndexSettings#PREFER_ILM} to {@code false}. When disabled, this provider supplies no settings.
+     */
+    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
+        "data_streams.lifecycle.prefer_by_default.metrics_enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    private volatile boolean enabled;
+
+    private PreferIlmSettingProvider(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public static PreferIlmSettingProvider create(ClusterSettings clusterSettings) {
+        PreferIlmSettingProvider preferIlmSettingProvider = new PreferIlmSettingProvider(clusterSettings.get(ENABLED_SETTING));
+        clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, preferIlmSettingProvider::setEnabled);
+        return preferIlmSettingProvider;
+    }
 
     @Override
     public void provideAdditionalSettings(
@@ -61,6 +89,9 @@ public class PreferIlmSettingProvider implements IndexSettingProvider {
         IndexVersion indexVersion,
         Settings.Builder additionalSettings
     ) {
+        if (enabled == false) {
+            return;
+        }
         if (dataStreamName == null) {
             return;
         }
@@ -117,5 +148,9 @@ public class PreferIlmSettingProvider implements IndexSettingProvider {
         }
         Phase hotPhase = phases.get(TimeseriesLifecycleType.HOT_PHASE);
         return hotPhase != null && hotPhase.getActions().size() == 1 && hotPhase.getActions().containsKey(RolloverAction.NAME);
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
     }
 }

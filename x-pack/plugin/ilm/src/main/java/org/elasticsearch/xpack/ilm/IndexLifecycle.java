@@ -127,7 +127,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
             IlmHealthIndicatorService.MAX_TIME_ON_ACTION_SETTING,
             IlmHealthIndicatorService.MAX_TIME_ON_STEP_SETTING,
-            IlmHealthIndicatorService.MAX_RETRIES_PER_STEP_SETTING
+            IlmHealthIndicatorService.MAX_RETRIES_PER_STEP_SETTING,
+            PreferIlmSettingProvider.ENABLED_SETTING
         );
     }
 
@@ -304,7 +305,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-        return List.of(new PreferIlmSettingProvider());
+        return List.of(PreferIlmSettingProvider.create(parameters.clusterService().getClusterSettings()));
     }
 
     @Override

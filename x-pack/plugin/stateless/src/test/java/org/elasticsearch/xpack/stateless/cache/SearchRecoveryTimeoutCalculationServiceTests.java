@@ -71,6 +71,15 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
     /// @param cacheSize what the (otherwise unused) shared blob cache reports as its size; only the data volume heuristic reads it, and the
     ///                  real cache service needs a live shared cache file to report one.
     private static SearchRecoveryTimeoutCalculationService newCalculationService(ThreadPool threadPool, Settings settings, long cacheSize) {
+        return newCalculationService(threadPool, settings, cacheSize, Integer.MAX_VALUE);
+    }
+
+    private static SearchRecoveryTimeoutCalculationService newCalculationService(
+        ThreadPool threadPool,
+        Settings settings,
+        long cacheSize,
+        int maxConcurrentRelocationRecoveries
+    ) {
         final var clusterSettings = new ClusterSettings(
             settings,
             Set.of(
@@ -85,7 +94,12 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         );
         final var cacheService = Mockito.mock(StatelessSharedBlobCacheService.class);
         when(cacheService.getCacheSize()).thenReturn(cacheSize);
-        return new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings);
+        return new SearchRecoveryTimeoutCalculationService(
+            cacheService,
+            threadPool,
+            clusterSettings,
+            () -> maxConcurrentRelocationRecoveries
+        );
     }
 
     /// Returns `clusterState` with non-empty [Metadata#nodeShutdowns()] for a node that is NOT in the cluster (stale).
@@ -456,7 +470,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final String targetNodeId = "target-node";
 
             // 3 shards total; only 1 relocates to targetNodeId, 2 to other-node
-            // → shardsOnSource=3, ongoingRelocations=1
+            // so shardsOnSource=3 and relocationsInClusterState=1
             final ClusterState stateUncapped = clusterStateSearchShardsRelocatingFromShuttingDownSource(
                 3,
                 1,
@@ -465,7 +479,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 targetNodeId,
                 startedAtMillis
             );
-            // 3 shards total, all relocating to targetNodeId → ongoingRelocations=3
+            // 3 shards total, all relocating to targetNodeId so relocationsInClusterState=3
             final ClusterState stateCapped = clusterStateSearchShardsRelocatingFromShuttingDownSource(
                 3,
                 3,
@@ -546,7 +560,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final String targetNodeId = "target-node";
 
             // 4 shards total; 1 relocates to targetNodeId, 3 to other-node
-            // → shardsOnSource=4, ongoingRelocations=1
+            // so shardsOnSource=4 and relocationsInClusterState=1
             final ClusterState stateUncapped = clusterStateSearchShardsRelocatingFromShuttingDownSource(
                 4,
                 1,
@@ -556,7 +570,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 startedAtMillis
             );
             // 4 shards total; 3 relocate to targetNodeId, 1 to other-node
-            // → shardsOnSource=4, ongoingRelocations=3
+            // so shardsOnSource=4 and relocationsInClusterState=3
             final ClusterState stateCapped = clusterStateSearchShardsRelocatingFromShuttingDownSource(
                 4,
                 3,
@@ -610,6 +624,108 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 planCapped.timeoutContext(),
                 equalTo("relocation source shutting down (equal share of remaining time to capped grace deadline)")
             );
+        }
+    }
+
+    public void testEqualShareTimeoutScalesWithMaxConcurrentRelocations() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            // grace cap=10s and factor=0.5, which means equal-share per shard = 8000 / 4 x 0.5 = 1000ms
+            // so equalShare * concurrentRelocations (4 * 1000 max). The resulting timeout will get capped by
+            // equalShare * concurrentRelocations and not `remaining`.
+            final var settings = Settings.builder()
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 0.5)
+                .build();
+
+            final int maxConcurrentRelocationRecoveries = randomIntBetween(1, 8);
+            final var service = newCalculationService(threadPool, settings, 1000L, maxConcurrentRelocationRecoveries);
+
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+
+            final var index = new Index("idx", randomUUID());
+            final int relocationsInClusterState = 4;
+            final var state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                relocationsInClusterState,
+                relocationsInClusterState,
+                index,
+                "source-node",
+                "target-node",
+                threadPool.absoluteTimeInMillis()
+            );
+
+            // advance 2000ms into the 10s grace, remaining = 8000ms
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+
+            final var self = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, randomIntBetween(0, relocationsInClusterState - 1)))
+                .shardsWithState(RELOCATING)
+                .getFirst()
+                .getTargetRelocatingShard();
+
+            final var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
+            assertTrue(plan.awaitWarming());
+            assertThat(plan.timeout().millis(), equalTo(1000L * Math.min(relocationsInClusterState, maxConcurrentRelocationRecoveries)));
+        }
+    }
+
+    public void testDataVolumeTimeoutScalesByTargetMaxConcurrentRelocations() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            // grace cap=10s, factor=0.1 keeps equal-share (8000 / 3 × 0.1 ~ 267ms), which will be below data-volume
+            final var settings = Settings.builder()
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 0.1)
+                .build();
+
+            final int maxConcurrentRelocationRecoveries = randomIntBetween(1, 10);
+            // cacheSize=1000, default cacheRatio=0.5 so warmingCacheBytes = 500
+            final var service = newCalculationService(threadPool, settings, 1000L, maxConcurrentRelocationRecoveries);
+
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+
+            final var index = new Index("idx", randomUUID());
+            final int relocationsToTarget = 3;
+            final var state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                relocationsToTarget,
+                relocationsToTarget,
+                index,
+                "source-node",
+                "target-node",
+                threadPool.absoluteTimeInMillis()
+            );
+
+            // advance 2000ms into the 10s grace, remaining = 8000ms
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+
+            // totalBytesToWarm=100, so dataVolume = (100 / 500.0) × 8000 = 1600ms per shard
+            // the computed timeout will be capped by dataVolume and not `remaining`
+            final Map<BlobFile, WarmTarget> endTargetsToWarm = Map.of(
+                new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)),
+                WarmTarget.withUnknownTimestamp(100L, randomLongBetween(100L, 1_000L))
+            );
+            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, randomIntBetween(0, relocationsToTarget - 1)))
+                .shardsWithState(RELOCATING)
+                .getFirst()
+                .getTargetRelocatingShard();
+
+            final var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), totalBytesToWarm(endTargetsToWarm));
+            final long expectedConcurrentRelocations = Math.min(relocationsToTarget, maxConcurrentRelocationRecoveries);
+            assertTrue(plan.awaitWarming());
+            assertThat(plan.timeout().millis(), equalTo(1600L * expectedConcurrentRelocations));
         }
     }
 

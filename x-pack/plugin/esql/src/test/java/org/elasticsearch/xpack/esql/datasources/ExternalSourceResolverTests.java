@@ -9032,6 +9032,53 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * Planning CPU, initial dispatch: {@code resolve} hands the whole resolution to the metadata-read executor, which can
+     * complete it and finish planning while the calling thread's measurement is still open. The CPU the caller spent
+     * before the dispatch must be committed by then, or it is dropped from the frozen total.
+     */
+    public void testPlanningCpuCommittedBeforeInitialDispatch() throws Exception {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(50);
+        PlanningCpuTracker tracker = new PlanningCpuTracker();
+        String path = "s3://bucket/data/file00.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("emp_no", DataType.INTEGER)));
+        String glob = "s3://bucket/data/*.parquet";
+        Map<String, List<StorageEntry>> listingsByPrefix = Map.of(
+            StoragePath.of(glob).patternPrefix().toString(),
+            List.of(entry(path, 100))
+        );
+        ExecutorService resolverExecutor = Executors.newFixedThreadPool(2);
+        CountDownLatch finished = new CountDownLatch(1);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        try {
+            ExternalSourceResolver resolver = createResolverWithAsyncReader(
+                schemasByPath,
+                listingsByPrefix,
+                new StubFormatReader(schemasByPath),
+                resolverExecutor,
+                2
+            );
+            resolver.planningCpu(tracker);
+            Thread caller = new Thread(() -> tracker.meteredCpu(() -> {
+                burnCpu(burnNanos);
+                resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>()), future);
+                // Holds the measurement open, as a slow unwind would, until planning has finished.
+                safeAwait(finished);
+            }));
+            caller.start();
+            try {
+                assertNotNull(future.actionGet(30, TimeUnit.SECONDS).resolvedSource(glob));
+                assertThat(tracker.finish(), greaterThanOrEqualTo(burnNanos));
+            } finally {
+                finished.countDown();
+                safeJoin(caller);
+            }
+        } finally {
+            resolverExecutor.shutdownNow();
+        }
+    }
+
+    /**
      * Planning CPU, foreign-thread path: the reader completes on its own pool, never on the resolver executor. The
      * resolver's continuation (where it collects the metadata warnings) runs there inside the factory listener's
      * measurement, so the probe in {@code warnings()} must see an open measurement on every read-pool thread and the

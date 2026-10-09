@@ -790,6 +790,9 @@ public class ExternalSourceResolver {
             ? listener
             : new ContextPreservingActionListener<>(restorableContext, listener);
         Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());
+        // The dispatched resolution can complete and carry planning on to finish() before this thread's measurement
+        // settles, so commit the planning CPU spent preparing it first.
+        planningCpu.checkpoint();
         metadataReadExecutor.execute(
             () -> resolveNextPath(
                 paths,
@@ -871,6 +874,9 @@ public class ExternalSourceResolver {
             // Dispatch to the executor rather than calling directly: on a cache-hit the callback fires
             // synchronously, so a direct recursive call would stack one frame per path and overflow the
             // JVM stack for large comma-separated path lists.
+            // The dispatched task can resolve the last path and carry planning on to finish() before this thread's
+            // measurement settles, so commit this path's planning CPU first.
+            planningCpu.checkpoint();
             metadataReadExecutor.execute(
                 () -> resolveNextPath(
                     paths,

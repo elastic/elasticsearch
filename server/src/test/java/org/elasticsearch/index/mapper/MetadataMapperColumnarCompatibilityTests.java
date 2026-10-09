@@ -9,12 +9,27 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Columnar ↔ x-content compatibility tests for the metadata mappers implemented on the
@@ -271,5 +286,55 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
                 doc("d3", 3L, "{\"kwd\":[\"ok\",\"toolong\"]}")
             )
         );
+    }
+
+    /**
+     * A document that arrives as a row of a pre-built batch has no source bytes on its request, so {@code _recovery_source_size} has to
+     * come from the batch row; recovery uses it to bound the memory of a batch of operations, and a size of {@code 0} would never
+     * stop it. A document whose request does carry source keeps using the length of those bytes.
+     */
+    public void testRecoverySourceSizeOfRowBackedBatch() throws IOException {
+        final MapperService mapperService = createMapperService(
+            columnarStoredSettings(),
+            mapping(b -> b.startObject("kwd").field("type", "keyword").endObject())
+        );
+        final BytesReference rowBacked = new BytesArray("{\"kwd\":\"row backed value\"}");
+        final BytesReference withSource = new BytesArray("{\"kwd\":\"x\"}");
+        final IndexRequest[] requests = new IndexRequest[] {
+            new IndexRequest("test-index").id("row-backed").source(new BytesArray(new byte[0]), XContentType.JSON),
+            new IndexRequest("test-index").id("with-source").source(withSource, XContentType.JSON) };
+        final BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, requests[0]), new BulkItemRequest(1, requests[1]) };
+
+        try (EscfEncoder encoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, false)) {
+            encoder.addDocument(rowBacked, XContentType.JSON, 0);
+            encoder.addDocument(withSource, XContentType.JSON, 0);
+            try (
+                EscfBatch escfBatch = encoder.buildPartition(0);
+                BatchMappingContext ctx = new BatchMappingContext(
+                    IndexOperationBatch.initFromBulk(items, 0, items.length, escfBatch, Engine.Operation.Origin.PRIMARY, 0L, 0L),
+                    mapperService.mappingLookup(),
+                    mapperService.getIndexSettings(),
+                    new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+                )
+            ) {
+                mapperService.mappingLookup().getMapping().getMetadataMapperByName(SourceFieldMapper.NAME).preColumnarParse(ctx);
+
+                final MappedColumns.RowCursor rows = ctx.columns().rowCursor();
+                final long[] sizes = new long[items.length];
+                for (int d = 0; d < items.length; d++) {
+                    rows.advance();
+                    sizes[d] = rows.fields()
+                        .stream()
+                        .filter(f -> f.name().equals(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME))
+                        .findFirst()
+                        .orElseThrow()
+                        .numericValue()
+                        .longValue();
+                }
+                assertThat(sizes[0], equalTo((long) escfBatch.row(0).sizeInBytes()));
+                assertThat(sizes[0], greaterThan(0L));
+                assertThat(sizes[1], equalTo((long) withSource.length()));
+            }
+        }
     }
 }

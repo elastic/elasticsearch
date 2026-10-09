@@ -650,9 +650,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         final int docCount = context.docCount();
         final byte[] sizes = new byte[docCount * 8];
-        final BytesReference[] sources = context.sources();
         for (int d = 0; d < docCount; d++) {
-            ByteUtils.writeLongLE(sources[d] == null ? 0 : sources[d].length(), sizes, d * 8);
+            ByteUtils.writeLongLE(context.sourceSizeInBytes(d), sizes, d * 8);
         }
         context.addColumn(
             MappedColumns.longColumn(

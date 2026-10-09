@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
@@ -235,6 +236,22 @@ public final class BatchMappingContext implements Releasable {
      */
     public BytesReference[] sources() {
         return batch.sources();
+    }
+
+    /**
+     * Returns the size in bytes of document {@code doc}'s source, for accounting rather than storage.
+     *
+     * <p>A document that arrives as a row of a pre-built {@link SourceBatch} carries no source bytes on its request, so
+     * {@link #sources()} cannot size it; its size is estimated from the batch row instead, which is what the row-major path does
+     * for row-backed sources (see {@code DocumentSource#estimatedSizeInBytes}). A document with neither has size {@code 0}.
+     */
+    public int sourceSizeInBytes(int doc) {
+        final BytesReference source = batch.sources()[doc];
+        if (source != null && source.length() > 0) {
+            return source.length();
+        }
+        final SourceBatch sourceBatch = batch.sourceBatch();
+        return sourceBatch != null ? sourceBatch.row(doc).sizeInBytes() : 0;
     }
 
     /**

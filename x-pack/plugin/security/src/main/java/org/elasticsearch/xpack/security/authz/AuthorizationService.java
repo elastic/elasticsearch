@@ -773,10 +773,12 @@ public class AuthorizationService {
         final IndicesAccessControl indicesAccessControl = indicesAccessControlWrapper.wrap(result.getIndicesAccessControl());
 
         // Templated DLS queries may declare lookups whose values must be known before the action is dispatched, so that every
-        // shard renders the same values and no data node performs the lookup itself. The role-level DLS/FLS flag is a cheap
-        // gate: a role without DLS cannot declare lookups. A custom authorization engine (no RBAC role) falls through to the scan.
+        // shard renders the same values and no data node performs the lookup itself. Lookups are absent when the role has no
+        // DLS, and when this authorization did not decide document permissions. Name-only composite actions, scroll, and
+        // async-search submit are granted with a null IndicesAccessControl. A custom authorization engine (no RBAC role)
+        // falls through to the scan when an access control is present.
         final Role role = RBACEngine.maybeGetRBACEngineRole(authzInfo);
-        final Set<DlsLookup> dlsLookups = role != null && role.hasFieldOrDocumentLevelSecurity() == false
+        final Set<DlsLookup> dlsLookups = indicesAccessControl == null || (role != null && role.hasFieldOrDocumentLevelSecurity() == false)
             ? Set.of()
             : indicesAccessControl.getDlsLookups();
         if (dlsLookups.isEmpty()) {

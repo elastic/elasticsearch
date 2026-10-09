@@ -2842,6 +2842,55 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
+    public void testDlsRoleAuthorizesActionsWithNoIndexAccessControl() {
+        // These actions are granted with a null IndicesAccessControl. A role with DLS still takes the lookup path, which must
+        // treat that null as no lookups rather than failing the request.
+        final RoleDescriptor role = new RoleDescriptor(
+            "dls",
+            null,
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder().indices("index").privileges("all").query("{\"term\":{\"tag\":\"prod\"}}").build() },
+            null
+        );
+        roleMap.put("dls", role);
+        final Authentication authentication = createAuthentication(new User("test user", "dls"));
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        final Tuple<String, TransportRequest> compositeRequest = randomCompositeRequest();
+        authorize(authentication, compositeRequest.v1(), compositeRequest.v2());
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(compositeRequest.v1()),
+            eq(compositeRequest.v2()),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+
+        final IndexRequest indexRequest = new IndexRequest("index").id("1").source(Map.of("tag", "prod"));
+        authorize(authentication, TransportIndexAction.NAME, indexRequest);
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(TransportIndexAction.NAME),
+            eq(indexRequest),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+
+        final ParsedScrollId parsedScrollId = mock(ParsedScrollId.class);
+        when(parsedScrollId.hasLocalIndices()).thenReturn(true);
+        final SearchScrollRequest searchScrollRequest = mock(SearchScrollRequest.class);
+        when(searchScrollRequest.parseScrollId()).thenReturn(parsedScrollId);
+        authorize(authentication, TransportSearchScrollAction.TYPE.name(), searchScrollRequest);
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(TransportSearchScrollAction.TYPE.name()),
+            eq(searchScrollRequest),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
     public void testRemoteFetchExchangeSetupActionIsAuthorizedByName() {
         assertRemoteFetchActionIsAuthorizedByName("indices:data/read/esql/remote_fetch/exchange_setup");
     }

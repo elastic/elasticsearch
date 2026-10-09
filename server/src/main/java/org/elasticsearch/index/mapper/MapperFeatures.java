@@ -43,6 +43,7 @@ public class MapperFeatures implements FeatureSpecification {
     );
     public static final NodeFeature SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX = new NodeFeature("mapper.subobjects_false_mapping_update_fix");
     public static final NodeFeature INVALID_DATE_FIX = new NodeFeature("mapper.range.invalid_date_fix");
+    public static final NodeFeature RANGE_DOCVALUE_FIELDS_FIX = new NodeFeature("mapper.range.docvalue_fields_fix");
     public static final NodeFeature ROUTING_AS_DOC_VALUES = new NodeFeature("mapper.routing_as_doc_values");
     public static final NodeFeature ROUTING_AS_DOC_VALUES_BY_DEFAULT = new NodeFeature("mapper.routing_as_doc_values_by_default");
     public static final NodeFeature ID_FIELD_MODE_MAPPING_ATTRIBUTE = new NodeFeature("mapper.id_field.mode_mapping_attribute");
@@ -116,6 +117,9 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature MV_MAX_FUNCTION_FUSE_TO_LOAD = new NodeFeature("mapper.keyword.mv_max_function_fuse_to_load");
     public static final NodeFeature TDIGEST_TYPE = new NodeFeature("mapper.tdigest_type");
     public static final NodeFeature TEXT_FIELD_DOC_VALUES = new NodeFeature("mapper.text.doc_values");
+    public static final NodeFeature TEXT_FIELD_DOC_VALUES_WITHOUT_FEATURE_FLAG = new NodeFeature(
+        "mapper.text.doc_values_without_feature_flag"
+    );
     public static final NodeFeature TEXT_FIELD_DOC_VALUES_PREFIX_WILDCARD_REGEXP = new NodeFeature(
         "mapper.text.doc_values_prefix_wildcard_regexp"
     );
@@ -287,7 +291,9 @@ public class MapperFeatures implements FeatureSpecification {
             PUT_MAPPING_NO_TYPES_CHECK,
             MAPPING_LIMIT_CHECKS_AT_PARSE_TIME,
             DENSE_VECTOR_UNIFIED_VALUE_FORMATS,
-            FIX_SORTED_NUMERIC_WITH_OFFSETS_EMPTY_ARRAY
+            FIX_SORTED_NUMERIC_WITH_OFFSETS_EMPTY_ARRAY,
+            RANGE_DOCVALUE_FIELDS_FIX,
+            TEXT_FIELD_DOC_VALUES_WITHOUT_FEATURE_FLAG
         );
     }
 }

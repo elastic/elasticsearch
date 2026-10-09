@@ -519,6 +519,7 @@ toc:
         children:
           - file: sql/sql-client-apps-dbeaver.md
           - file: sql/sql-client-apps-dbvis.md
+          - file: sql/sql-client-apps-libredb-studio.md
           - file: sql/sql-client-apps-excel.md
           - file: sql/sql-client-apps-powerbi.md
           - file: sql/sql-client-apps-ps1.md

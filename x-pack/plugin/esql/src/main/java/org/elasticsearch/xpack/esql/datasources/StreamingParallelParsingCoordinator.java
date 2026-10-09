@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
@@ -56,6 +58,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -573,6 +576,9 @@ public final class StreamingParallelParsingCoordinator {
         private static final String GROW_BUFFER_BREAKER_LABEL = "streaming-parse-grow-buffer";
         /** Value of {@code buffersAllocated} once {@link #close()} has refunded it; a count can never be negative. */
         private static final int POOL_CLOSED_MARKER = -1;
+        private static final String RETAINED_SCHEMA_BREAKER_LABEL = "streaming-parse-retained-schema";
+        /** Value of {@link #retainedSchemaBytes} once {@link #close()} has refunded it; a charge can never be negative. */
+        private static final long RETAINED_SCHEMA_CLOSED_MARKER = -1;
         private static final long CLOSE_TIMEOUT_SECONDS = 60;
 
         /**
@@ -637,6 +643,14 @@ public final class StreamingParallelParsingCoordinator {
          * whatever is still here.
          */
         private final Set<GrowBuffer> growBuffers = ConcurrentHashMap.newKeySet();
+        /**
+         * Heap charged to {@link #breaker} for what chunk 0 leaves held for the rest of the read: the schema
+         * {@link #bindInferredSchema} binds and the {@link #fileHeaderColumns}, when the planner bound a schema. Their
+         * builders release their own charge on return, and a declared read is not capped by the file's width, so without
+         * this the breaker would bound them only while they are built. {@link #RETAINED_SCHEMA_CLOSED_MARKER} once
+         * {@link #close()} has refunded it.
+         */
+        private final AtomicLong retainedSchemaBytes = new AtomicLong();
         private final CircuitBreaker breaker;
         /**
          * Node-wide I/O byte tickets. {@code null} in tests. The first pooled buffer is an ungated
@@ -1307,13 +1321,13 @@ public final class StreamingParallelParsingCoordinator {
          * wins on type, so the inference cannot retype a column — it only contributes columns the projection
          * does not name, which some readers need in order to decode the ones it does.
          * <p>
-         * A header-bearing file whose declared schema binds by name additionally has to tell later chunks what
-         * its columns are called, since only chunk 0 can see the header.
+         * A header-bearing file bound against a pinned schema additionally has to tell later chunks what its
+         * columns are called, since only chunk 0 can see the header.
          */
         private void prepareFromFirstChunk(byte[] buffer, int length) throws IOException {
             // Capture before binding: the header names must come from the reader as the planner configured it,
             // not from one already swapped for a schema inferred from this chunk.
-            if (readSchema != null && readSchema.isEmpty() == false) {
+            if (readSchema != null && readSchema.isEmpty() == false && reader.readsHeaderLine()) {
                 captureFileHeaderColumns(buffer, length);
             }
             bindInferredSchema(buffer, length);
@@ -1336,6 +1350,15 @@ public final class StreamingParallelParsingCoordinator {
                 return;
             }
             if (bound instanceof SegmentableFormatReader segBound) {
+                // Only a planner-bound read can be a declared one, whose inference the file's width does not cap.
+                // Per-file inference is held to schema_max_fields, so what it binds is already bounded.
+                if (readSchema != null) {
+                    long bytes = 0;
+                    for (Attribute attribute : schema) {
+                        bytes += HeapEstimates.columnBytes(attribute.name().length());
+                    }
+                    chargeRetainedSchema(bytes);
+                }
                 this.reader = segBound;
             } else {
                 throw new IllegalStateException(
@@ -1345,26 +1368,53 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         /**
-         * Reads the file's column names from chunk 0 so chunks 1..N can bind a declared schema by name.
+         * Charges {@code bytes} to {@link #breaker} for the rest of the read, refunded by {@link #close()}. A charge that
+         * lands after a close that has already refunded (the segmentator racing a close that stopped waiting early)
+         * undoes itself instead of leaking.
+         */
+        private void chargeRetainedSchema(long bytes) {
+            breaker.addEstimateBytesAndMaybeBreak(bytes, RETAINED_SCHEMA_BREAKER_LABEL);
+            long current;
+            do {
+                current = retainedSchemaBytes.get();
+                if (current == RETAINED_SCHEMA_CLOSED_MARKER) {
+                    breaker.addWithoutBreaking(-bytes);
+                    return;
+                }
+            } while (retainedSchemaBytes.compareAndSet(current, current + bytes) == false);
+        }
+
+        /**
+         * Reads the file's header column names from chunk 0 so chunks 1..N can bind the pinned schema by name.
          * <p>
-         * Only a header-bearing format whose declared schema binds by name needs this, and only when the
-         * planner bound a schema — otherwise the reader either has no names to match or reads its own header.
-         * Chunk 0 always reads its own header and ignores what is captured here.
+         * Only when the planner bound a schema; otherwise the reader reads its own header. Chunk 0 always reads its own
+         * header and ignores what is captured here.
          * <p>
          * Runs on the segmentator thread before any chunk is dispatched, so every parser sees a fully
          * populated value. Failure is not fatal: chunks 1..N then find no names and fail loudly rather than
          * binding by position, which would shift every column silently.
          */
         private void captureFileHeaderColumns(byte[] buffer, int length) {
-            if (fileHeaderColumns != null || reader.declaredNameBindingNeedsFileStart() == false) {
+            if (fileHeaderColumns != null) {
                 return;
             }
             try {
-                SourceMetadata metadata = reader.metadata(chunkStorageObject(0, buffer, 0, length));
-                List<Attribute> schema = metadata == null ? null : metadata.schema();
-                if (schema != null && schema.isEmpty() == false) {
-                    fileHeaderColumns = schema.stream().map(Attribute::name).toList();
+                List<String> columns = reader.fileHeaderColumns(chunkStorageObject(0, buffer, 0, length));
+                // An empty list means chunk 0 holds no whole header line (a skip_rows or comment run longer than the chunk, or
+                // a header the chunk's end cut short), which says nothing about the file: it stays unset so later chunks
+                // fail loudly, as the javadoc above promises.
+                if (columns != null && columns.isEmpty() == false) {
+                    long bytes = 0;
+                    for (String name : columns) {
+                        bytes += HeapEstimates.stringBytes(name);
+                    }
+                    chargeRetainedSchema(bytes);
+                    fileHeaderColumns = columns;
                 }
+            } catch (CircuitBreakingException e) {
+                // A breaker trip is the real answer (429); swallowing it would turn it into every later chunk
+                // failing with "no header columns".
+                throw e;
             } catch (IOException | RuntimeException e) {
                 // Every later chunk will now fail with "no header columns", which says nothing about why they
                 // are missing. Log the real cause at WARN so the two can be connected — this is the only place
@@ -2419,6 +2469,10 @@ public final class StreamingParallelParsingCoordinator {
                 while ((extra = extraBufferHolds.poll()) != null) {
                     extra.close();
                 }
+            }
+            long retained = retainedSchemaBytes.getAndSet(RETAINED_SCHEMA_CLOSED_MARKER);
+            if (retained > 0) {
+                breaker.addWithoutBreaking(-retained);
             }
             // Grow buffers still held by the segmentator or a parser when the wait above ended early (timeout or
             // interrupt); queued chunks were already released by drainAllQueues(). GrowBuffer#release() is

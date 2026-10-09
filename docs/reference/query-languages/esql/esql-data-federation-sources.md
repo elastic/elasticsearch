@@ -52,7 +52,7 @@ Click **Connect data source** to open a flyout where you define the connection:
 - **Endpoint**: an optional Amazon S3 endpoint override, given as an absolute `https` URL naming a supported AWS S3 endpoint. Leave it empty to have the endpoint resolved from the region.
 - **Authentication**: select an authentication model from the dropdown, then fill in the credentials it requires.
 
-For the full set of authentication methods and what each one requires, refer to [authentication models](#authentication). For setup walkthroughs, refer to [Amazon S3](esql-data-federation-s3.md).
+For the full set of authentication methods and what each one requires, refer to [authentication models](#authentication). For setup walkthroughs, refer to the [Amazon S3 authentication models](esql-data-federation-s3.md#s3-auth-models).
 
 :::{dropdown} Show the Connect data source flyout
 :::{image} images/data-federation/connect-data-source-static-credentials.png
@@ -127,7 +127,7 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_logs" \
 ::::
 
 :::{tip}
-For step-by-step guides on setting up each authentication model in AWS, refer to [Amazon S3](esql-data-federation-s3.md).
+For step-by-step guides on setting up each authentication model in AWS, refer to the [Amazon S3 authentication models](esql-data-federation-s3.md#s3-auth-models).
 :::
 
 ### Get a data source

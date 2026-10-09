@@ -8,14 +8,16 @@ products:
   - id: elasticsearch
 ---
 
-# Connect Amazon S3 to {{esql}} Data Federation
+# Amazon S3 data sources for {{esql}} Data Federation
 
-An `s3` [data source](esql-data-federation-sources.md) reads files from Amazon S3. To connect one, choose an authentication model, then grant the identity that model uses read access to your data in AWS.
+An `s3` [data source](esql-data-federation-sources.md) reads files from Amazon S3. This page compares the authentication models, lists the IAM permissions {{es}} needs to read your data, and explains how to troubleshoot access errors. For step-by-step setup, follow the guide for your authentication model.
 
 :::{include} _snippets/data-federation/experimental-warning.md
 :::
 
 ## Choose an authentication model [s3-auth-models]
+
+Each authentication model has its own setup guide:
 
 | Model | `auth` value | Setup |
 |---|---|---|

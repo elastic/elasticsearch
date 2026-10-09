@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.ExemplarsSettings;
 
 import java.time.ZoneId;
@@ -464,6 +465,75 @@ public final class QuerySettings {
         SettingsValidationContext ctx
     ) {
         return resolve(all(), clusterState, nodeSettings, requestParams, statement, ctx);
+    }
+
+    /**
+     * {@link #resolve(Settings, Settings, Map, EsqlStatement, SettingsValidationContext)}, then the overrides that the state of
+     * the node resolving the settings forces on its result. This is what a query resolves its settings with; the overload
+     * above is only the fold, without those overrides.
+     *
+     * @param licenseState the license of the cluster, which decides what an operator's default for approximation means
+     * @param loadAllMaxFields the limit on the fields {@code unmapped_fields="LOAD_ALL"} discovers
+     */
+    public static ResolvedSettings resolve(
+        Settings clusterState,
+        Settings nodeSettings,
+        Map<QuerySettingDef<?>, Object> requestParams,
+        @Nullable EsqlStatement statement,
+        SettingsValidationContext ctx,
+        @Nullable XPackLicenseState licenseState,
+        int loadAllMaxFields
+    ) {
+        ResolvedSettings resolved = resolve(clusterState, nodeSettings, requestParams, statement, ctx);
+        return applyLoadAllMaxFields(applyApproximationLicense(resolved, requestParams, statement, licenseState), loadAllMaxFields);
+    }
+
+    /**
+     * Decide what an unlicensed cluster does about approximation, which depends on who asked for it.
+     * <p>
+     * A user who asked - in the request body or with {@code SET} - gets today's licensing error, unchanged: they
+     * requested a paid feature this cluster does not have. An operator's cluster-wide default is different. The
+     * operator is not in the request path, so failing would break every query on the cluster for people who never
+     * asked and cannot turn it off. Instead the default simply does not apply and the query runs exactly.
+     * <p>
+     * The operator learns of it from {@link #watchApproximationLicense}, which logs once when the license transitions.
+     * It cannot be logged here: this runs on every query.
+     * <p>
+     * Licenses change under a running cluster, so this cannot be settled when the setting is written: the value is
+     * valid, and it is the entitlement that comes and goes.
+     */
+    private static ResolvedSettings applyApproximationLicense(
+        ResolvedSettings resolved,
+        Map<QuerySettingDef<?>, Object> requestParams,
+        @Nullable EsqlStatement statement,
+        @Nullable XPackLicenseState licenseState
+    ) {
+        if (ApproximationSettings.isOn(APPROXIMATION.get(resolved)) == false) {
+            return resolved;
+        }
+        boolean userSupplied = requestParams.containsKey(APPROXIMATION)
+            || (statement != null && statement.setting(APPROXIMATION.name()) != null);
+        if (userSupplied) {
+            EsqlLicenseChecker.checkQueryApproximation(licenseState);
+            return resolved;
+        }
+        if (EsqlLicenseChecker.isQueryApproximationAllowed(licenseState)) {
+            return resolved;
+        }
+        return resolved.withOverride(APPROXIMATION, null);
+    }
+
+    /**
+     * A limit of {@code 0} on the fields {@code LOAD_ALL} discovers makes {@code LOAD_ALL} discover nothing, which is what
+     * {@code LOAD} is. Resolve it to {@code LOAD} then, so that every phase of the query sees {@code LOAD}: no
+     * {@code _unmapped_fields} column is planned and shipped from the data nodes only to be dropped, and the restrictions
+     * that only {@code LOAD_ALL} has do not apply.
+     */
+    private static ResolvedSettings applyLoadAllMaxFields(ResolvedSettings resolved, int loadAllMaxFields) {
+        if (loadAllMaxFields == 0 && resolved.get(UNMAPPED_FIELDS) == UnmappedResolution.LOAD_ALL) {
+            return resolved.withOverride(UNMAPPED_FIELDS, UnmappedResolution.LOAD);
+        }
+        return resolved;
     }
 
     /**

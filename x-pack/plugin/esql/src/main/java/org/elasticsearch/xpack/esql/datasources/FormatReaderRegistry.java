@@ -61,6 +61,12 @@ public class FormatReaderRegistry {
         this.nodeByteBudget = nodeByteBudget;
     }
 
+    /** Shared node I/O byte tickets; {@code null} in tests that construct a registry without one. */
+    @Nullable
+    NodeByteBudget nodeByteBudget() {
+        return nodeByteBudget;
+    }
+
     public void setAdmissionTracker(AdmissionTracker admissionTracker) {
         this.admissionTracker = admissionTracker == null ? AdmissionTracker.NOOP : admissionTracker;
     }
@@ -404,6 +410,16 @@ public class FormatReaderRegistry {
             ext = ext.substring(0, fragmentStart);
         }
         return ext.isEmpty() ? null : "." + ext.toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * The configured reader that reads the listed object {@code objectName} of the dataset at {@code location}: the
+     * dataset's format ({@link FormatNameResolver#datasetFormat}) configured with {@code config}, then wrapped for
+     * the object's own compression. The one derivation for both the metadata read and the planner, which keys the
+     * schema it caches by what this reader samples: two derivations could configure two different readers.
+     */
+    public FormatReader readerForListedObject(String location, String objectName, Map<String, Object> config) {
+        return wrapForObject(byName(FormatNameResolver.datasetFormat(config, location, this)).withConfig(config), objectName);
     }
 
     /**

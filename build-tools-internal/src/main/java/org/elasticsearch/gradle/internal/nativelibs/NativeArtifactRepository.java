@@ -63,7 +63,7 @@ class NativeArtifactRepository {
             return Optional.empty();
         }
         if (response.status() != HttpURLConnection.HTTP_OK) {
-            throw new GradleException("Unexpected status " + response.status() + " fetching " + url + explain(response));
+            throw new GradleException("Unexpected status " + response.status() + " fetching " + url + formatServerMessage(response));
         }
         return Optional.of(response.body());
     }
@@ -128,10 +128,9 @@ class NativeArtifactRepository {
         }
     }
 
-    /** What the server said about a status it refused, when it said anything. */
-    private static String explain(HttpUtils.Response response) {
-        String body = new String(response.body(), StandardCharsets.UTF_8).trim();
-        return body.isEmpty() ? "" : ": " + body;
+    private static String formatServerMessage(HttpUtils.Response response) {
+        String message = new String(response.body(), StandardCharsets.UTF_8).trim();
+        return message.isEmpty() ? "" : ": " + message;
     }
 
     private String artifactUrl(String artifactName, String hash, String suffix) {

@@ -12,6 +12,7 @@ package org.elasticsearch.gradle.internal.nativelibs
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
+import org.elasticsearch.gradle.internal.util.HttpUtils
 import org.gradle.api.GradleException
 import spock.lang.Specification
 
@@ -249,8 +250,8 @@ class NativeArtifactRepositorySpec extends Specification {
         }
         server.start()
         String host = server.address.address.hostAddress
-        // Retries here must not spend their backoff: the point under test is how many attempts are made.
-        return new NativeArtifactRepository("http://${host}:${server.address.port}", { })
+        def doNotSleep = { } as HttpUtils.Sleeper
+        return new NativeArtifactRepository("http://${host}:${server.address.port}", doNotSleep)
     }
 
     private static void respond(HttpExchange exchange, int status, byte[] body) {

@@ -21,7 +21,6 @@ public final class HttpUtils {
     private static final int DEFAULT_MAX_ATTEMPTS = 3;
     private static final long DEFAULT_BACKOFF_MILLIS = 1000L;
 
-    /** Retries anything that is not the response the caller came for. */
     private static final IntPredicate RETRY_UNLESS_OK = status -> status != HttpURLConnection.HTTP_OK;
 
     private HttpUtils() {}
@@ -31,10 +30,7 @@ public final class HttpUtils {
         void sleep(long millis) throws InterruptedException;
     }
 
-    /**
-     * A request to send. A timeout of {@code 0} waits indefinitely, which is what
-     * {@link java.net.URLConnection} does by default.
-     */
+    /** A timeout of {@code 0} waits indefinitely. */
     public record Request(String method, String url, byte[] body, Map<String, String> headers, int connectTimeout, int readTimeout) {
 
         public static Request get(String url) {
@@ -50,7 +46,7 @@ public final class HttpUtils {
         }
     }
 
-    /** A completed exchange. {@code body} is whatever the server sent, which for a failure is usually why. */
+    /** The HTTP status, and the response body in case of success, or the error message (or empty) in case of failure. */
     public record Response(int status, byte[] body) {}
 
     public static byte[] readHttpBytesWithRetry(String url) throws IOException {
@@ -65,18 +61,17 @@ public final class HttpUtils {
         return response.body();
     }
 
-    /** Sends the request with the default attempt count and backoff. */
     public static Response sendWithRetry(Request request, Sleeper sleeper, IntPredicate retryableStatus) throws IOException {
         return sendWithRetry(request, DEFAULT_MAX_ATTEMPTS, DEFAULT_BACKOFF_MILLIS, sleeper, retryableStatus);
     }
 
     /**
-     * Sends the request, retrying until it succeeds or the attempts run out. A failure to reach the server
-     * is always retried; {@code retryableStatus} decides which answers from the server are worth asking
-     * again for, so a caller that treats a status as an answer rather than a failure is not delayed by it.
+     * Sends the request, using {@code retryableStatus} to decide whether to retry (transient failure) or not.
+     * In the former case, the request is retried until it succeeds or the attempts run out.
      *
-     * @param retryableStatus given a response status, whether another attempt could do better
-     * @throws IOException if the last attempt failed to reach the server
+     * @param retryableStatus given a response status, whether another send should be attempted
+     * @throws IOException in case of a permanent failure
+     * @return the last attempt's response
      */
     public static Response sendWithRetry(
         Request request,
@@ -117,10 +112,7 @@ public final class HttpUtils {
         throw lastException;
     }
 
-    /**
-     * The response body, which a failing server usually uses to explain itself. Taken from the error stream
-     * for a failure, where there may be none, in which case the body is empty rather than absent.
-     */
+    /** The response body in case of success, or the error message (or empty) in case of failure. */
     private static byte[] readBody(HttpURLConnection connection, int status) throws IOException {
         if (status / 100 == 2) {
             try (InputStream in = connection.getInputStream()) {
@@ -133,6 +125,8 @@ public final class HttpUtils {
         }
         try (InputStream in = errorStream) {
             return in.readAllBytes();
+        } catch (IOException e) {
+            return new byte[0];
         }
     }
 

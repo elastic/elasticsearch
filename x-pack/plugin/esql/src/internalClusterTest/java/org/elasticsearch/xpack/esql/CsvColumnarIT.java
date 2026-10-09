@@ -171,6 +171,9 @@ public class CsvColumnarIT extends CsvIT {
         "unmapped_array_data",
         "unmapped_object_data",
         "synthetic_source_partial_mapping",
+        // nested_paths_mapped nests items.parts in nested items, which strict columnar rejects at creation; both are dynamic:false too.
+        "nested_paths_mapped",
+        "nested_paths_unmapped",
         // unmapped_source_* family: dynamic:false with only id mapped; everything else lives in
         // _source / _ignored_source, which strict columnar drops at ingest. unmapped_source_disabled
         // additionally sets _source: {enabled: false}, which columnar index modes do not permit at all.

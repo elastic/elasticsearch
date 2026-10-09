@@ -1,0 +1,2 @@
+id:keyword,@timestamp:date,items,items_info,meta,tag:keyword
+u1,2024-01-02T00:00:00.000Z,[{"name":"d"\,"qty":"4"\,"parts":[{"pn":"p4"}]},{"name":"e"}],{"total":"2"},{"owner":"cy"\,"events":[{"kind":"close"\,"note":"n4"}]},z

@@ -315,7 +315,6 @@ public class IndexResolver {
                 indexPattern
             );
 
-            // Merge as soon as the main response arrives, overlapping it with the nested paths request that may still be in flight.
             IndexResolution resolution = mergedMappings(indexPattern, allowEmpty, info, trackUnmappedFieldIndices, originalIndexExtractor);
             TransportVersion minTransportVersion = info.minTransportVersion();
             if (nestedPaths == null) {

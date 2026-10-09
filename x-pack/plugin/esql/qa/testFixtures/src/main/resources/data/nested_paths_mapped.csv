@@ -1,0 +1,3 @@
+id:keyword,@timestamp:date,items,items_info,meta,notes,tag:keyword
+m1,2024-01-01T00:00:00.000Z,[{"name":"a"\,"qty":"1"\,"parts":[{"pn":"p1"}]},{"name":"b"}],{"total":"2"},{"owner":"ann"\,"events":[{"kind":"open"\,"note":"n1"}]},{"text":"hi"},x
+m2,2024-01-01T01:00:00.000Z,{"name":"c"},{"total":"1"},{"owner":"bo"},,y

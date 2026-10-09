@@ -20,6 +20,10 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.StringLiteralDeduplicator;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.store.FieldInfoCachingDirectory;
 
@@ -27,22 +31,40 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Like {@link DeduplicatingFieldInfosFormat}, but additionally interns the whole {@link FieldInfo} instance against a
- * per-Directory cache owned by {@link FieldInfoCachingDirectory} so that all segments and DocValues generations of the same
- * shard share canonical instances.
+ * Shares the field infos a segment read produces.
  *
- * <p>Names are interned node-wide via {@link FieldMapper#internFieldName}, and attribute maps are interned node-wide via
- * {@link DeduplicatingFieldInfosFormat#internStringStringMap}. Different shards (and different indices in the same data
- * stream) share the same mapping and therefore the same names and attribute maps, but each shard has its own IndexWriter and
- * so its own field-number assignment -- which means {@code FieldInfo} instances cannot be reference-shared across shards (number
- * is part of the cache key), but the name {@code String} and attribute {@code Map} <em>can</em>, and the node-wide interns
- * collapse those allocations across every shard on the node.
+ * <p>Names and attribute maps are interned node-wide, so shards of one index and indices of one data stream share them. Whole
+ * {@link FieldInfo} instances are shared as well when the segment's directory is a {@link FieldInfoCachingDirectory}, which
+ * holds them for a single shard: field numbers are assigned per IndexWriter and form part of the identity.
  *
- * <p>Selected by {@link ElasticsearchFieldInfosFormat} when
- * {@link FieldInfoCachingDirectory#FEATURE_FLAG} is enabled. When the segment's Directory is not wrapped (e.g. tooling paths
- * like snapshot inspection or checkindex), this format falls through to a per-call read with no FieldInfo retention.
+ * <p>Selected by {@link ElasticsearchFieldInfosFormat}. Directories are only wrapped when
+ * {@link FieldInfoCachingDirectory#FEATURE_FLAG} is enabled, and tooling paths such as snapshot inspection or checkindex do not
+ * wrap them at all, so those reads share names and attribute maps but retain no whole instances.
  */
 public final class CachingFieldInfosFormat extends FieldInfosFormat {
+
+    private static final Map<Map<String, String>, Map<String, String>> attributeDeduplicator = ConcurrentCollections.newConcurrentMap();
+
+    private static final StringLiteralDeduplicator attributesDeduplicator = new StringLiteralDeduplicator();
+
+    private static Map<String, String> internStringStringMap(Map<String, String> m) {
+        if (m.size() > 10) {
+            return m;
+        }
+        var res = attributeDeduplicator.get(m);
+        if (res == null) {
+            if (attributeDeduplicator.size() > 100) {
+                // Unexpected edge case to have more than 100 different attribute maps
+                // Just to be safe, don't retain more than 100 maps to prevent a potential memory leak
+                attributeDeduplicator.clear();
+            }
+            final Map<String, String> interned = Maps.newHashMapWithExpectedSize(m.size());
+            m.forEach((key, value) -> interned.put(attributesDeduplicator.deduplicate(key), attributesDeduplicator.deduplicate(value)));
+            res = Map.copyOf(interned);
+            attributeDeduplicator.put(res, res);
+        }
+        return res;
+    }
 
     private final FieldInfosFormat delegate;
 
@@ -53,32 +75,18 @@ public final class CachingFieldInfosFormat extends FieldInfosFormat {
     @Override
     public FieldInfos read(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, IOContext iocontext) throws IOException {
         final FieldInfos fieldInfos = delegate.read(directory, segmentInfo, segmentSuffix, iocontext);
-        final FieldInfoCachingDirectory cache = FieldInfoCachingDirectory.unwrap(segmentInfo.dir);
-        if (cache == null) {
-            return wrapPassthrough(fieldInfos);
-        }
-        return readWithDirectoryCache(fieldInfos, cache);
+        return share(fieldInfos, FieldInfoCachingDirectory.unwrap(segmentInfo.dir));
     }
 
-    private static FieldInfos wrapPassthrough(FieldInfos fieldInfos) {
-        final FieldInfo[] copy = new FieldInfo[fieldInfos.size()];
-        int i = 0;
-        for (FieldInfo fi : fieldInfos) {
-            copy[i++] = fi;
-        }
-        return new FieldInfosWithUsages(copy);
-    }
-
-    private static FieldInfos readWithDirectoryCache(FieldInfos fieldInfos, FieldInfoCachingDirectory cache) {
+    /**
+     * @param cache holds whole instances for one directory, or null when the segment's directory does not carry one
+     */
+    private static FieldInfos share(FieldInfos fieldInfos, @Nullable FieldInfoCachingDirectory cache) {
         final FieldInfo[] deduplicated = new FieldInfo[fieldInfos.size()];
         int i = 0;
         for (FieldInfo fi : fieldInfos) {
-            // Node-wide intern of names and attribute maps so that data-stream-style workloads (many shards on one node
-            // sharing the same mapping) share canonical String / Map instances across shards. The per-Directory cache
-            // below only handles the FieldInfo object itself, since field numbering is per-IndexWriter and so
-            // FieldInfo identity cannot cross shard boundaries.
             final String name = FieldMapper.internFieldName(fi.getName());
-            final Map<String, String> attrs = DeduplicatingFieldInfosFormat.internStringStringMap(fi.attributes());
+            final Map<String, String> attrs = internStringStringMap(fi.attributes());
             final FieldInfoKey key = new FieldInfoKey(
                 name,
                 fi.number,
@@ -99,7 +107,7 @@ public final class CachingFieldInfosFormat extends FieldInfosFormat {
                 fi.isSoftDeletesField(),
                 fi.isParentField()
             );
-            deduplicated[i++] = cache.internFieldInfo(key, key::toFieldInfo);
+            deduplicated[i++] = cache == null ? key.toFieldInfo() : cache.internFieldInfo(key, key::toFieldInfo);
         }
         return new FieldInfosWithUsages(deduplicated);
     }

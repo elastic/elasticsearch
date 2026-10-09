@@ -17,10 +17,12 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -215,6 +217,15 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
      * subsequent slot is filled via the {@code renderCbe} fast-path without issuing any searches.
      */
     public void testLargeMsearchTemplateDoesNotOom() throws Exception {
+        // The request breaker type is randomized per node (~10% noop), and a noop breaker never trips. Run the request through a
+        // dedicated coordinating-only node so the node that charges the breaker is known, and skip if it happens to be noop.
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assumeFalse(
+            "coordinator uses a noop request breaker, skipping test",
+            internalCluster().getInstance(CircuitBreakerService.class, coordinatorNode)
+                .getBreaker(CircuitBreaker.REQUEST) instanceof NoopCircuitBreaker
+        );
+
         createIndex("large-msearch");
 
         // Build a ~16 KB rendered source (2 000 stored_fields entries, no template variables).
@@ -246,7 +257,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
                 multiRequest.add(req);
             }
 
-            assertResponse(client().execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, multiRequest), response -> {
+            assertResponse(client(coordinatorNode).execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, multiRequest), response -> {
                 assertThat(response.getResponses().length, equalTo(numRequests));
                 // Once the first render trips the breaker, fillRemainingWithCbe fills every
                 // subsequent slot via the renderCbe fast-path. All slots must be CBE failures —
@@ -267,13 +278,10 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
 
     /**
      * Verifies end-to-end wiring of {@link MultiSearchTemplateResponse#mergeDirectoryMetrics()} through
-     * {@code wrapWithSearchMetricsHeader} in the REST action: when directory metrics are enabled (via
-     * {@link Store#DIRECTORY_METRICS_FEATURE_FLAG}), a real {@code _msearch/template} search emits exactly
+     * {@code wrapWithSearchMetricsHeader} in the REST action: a real {@code _msearch/template} search emits exactly
      * one {@code X-Elasticsearch-Search-Metrics} response header.
      */
     public void testSearchMetricsResponseHeader() throws Exception {
-        assumeTrue("directory metrics feature flag must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
-
         createIndex("hdr-test");
         prepareIndex("hdr-test").setId("1").setSource("field", "value").get();
         refresh("hdr-test");

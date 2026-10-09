@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.core.anonymizer;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -31,9 +32,9 @@ import javax.crypto.spec.SecretKeySpec;
  * Two scopes of stability:
  * <ul>
  *   <li>Column, index, enrich and lookup names get a per-cluster-stable token via
- *       {@code HMAC-SHA256(cluster_uuid, name)}. Same name on the same cluster yields the same
- *       token across queries — useful for cross-incident field-usage telemetry. Disjoint across
- *       clusters by construction.</li>
+ *       {@code HMAC-SHA256(SHA-256(cluster_uuid), name)}. Same name on the same cluster yields the
+ *       same token across queries — useful for cross-incident field-usage telemetry. Disjoint
+ *       across clusters by construction.</li>
  *   <li>Literals get a per-submission interning id so identity within one query is preserved
  *       (the two {@code 5}s in {@code f == 5 AND bar == 5} share a token) but the same {@code 5}
  *       gets a fresh token in the next query.</li>
@@ -51,7 +52,6 @@ public final class AnonymizationContext {
      */
     private static final int TOKEN_HEX_LEN = 12;
 
-    private final byte[] clusterKey;
     private final Mac mac;
     private final Map<String, String> columnTokens = new HashMap<>();
     private final Map<String, String> indexTokens = new HashMap<>();
@@ -82,22 +82,28 @@ public final class AnonymizationContext {
 
         @Override
         public String opaque(String text) {
-            // Free-form text (raw query DSL, sort/stats descriptors, external source paths) can embed
-            // identifiers in unpredictable positions; redact the whole fragment rather than risk a
-            // partial leak. The field stays in place so the plan shape is unchanged.
+            // Free-form text (raw query DSL, sort/stats descriptors) can embed identifiers in
+            // unpredictable positions; redact the whole fragment rather than risk a partial leak.
+            return "<redacted>";
+        }
+
+        @Override
+        public String location(String text) {
             return "<redacted>";
         }
     };
 
     private AnonymizationContext(String clusterUuid) {
-        this.clusterKey = (clusterUuid == null ? "" : clusterUuid).getBytes(StandardCharsets.UTF_8);
         // One Mac instance per submission, reused across every token() call. Mac is not
         // thread-safe but AnonymizationContext is constructed per submission and used single-
         // threadedly, so caching saves the Mac.getInstance() + SecretKeySpec allocations per
         // identifier render — non-trivial on wide schemas.
         try {
+            // Digest to a fixed 256-bit key: FIPS approved mode rejects an HMAC key under 112 bits, and both
+            // the empty identifier a null cluster state yields and _na_ are shorter than that.
+            byte[] clusterKey = MessageDigests.sha256().digest((clusterUuid == null ? "" : clusterUuid).getBytes(StandardCharsets.UTF_8));
             this.mac = Mac.getInstance(HMAC_ALGORITHM);
-            mac.init(new SecretKeySpec(clusterKey.length == 0 ? new byte[] { 0 } : clusterKey, HMAC_ALGORITHM));
+            mac.init(new SecretKeySpec(clusterKey, HMAC_ALGORITHM));
         } catch (NoSuchAlgorithmException | InvalidKeyException e) {
             throw new IllegalStateException("HMAC-SHA256 unavailable", e);
         }

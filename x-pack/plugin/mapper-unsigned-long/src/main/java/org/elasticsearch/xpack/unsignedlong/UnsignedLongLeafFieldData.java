@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.LongValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.plain.FormattedSortedNumericDocValues;
@@ -39,6 +41,20 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
     @Override
     public SortedNumericDoubleValues getDoubleValues() {
         final SortedNumericLongValues values = signedLongFD.getLongValues();
+        final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
+        if (singleton != null) {
+            return FieldData.singleton(new DoubleValues() {
+                @Override
+                public double doubleValue() throws IOException {
+                    return convertUnsignedLongToDouble(singleton.longValue());
+                }
+
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    return singleton.advanceExact(doc);
+                }
+            });
+        }
         return new SortedNumericDoubleValues.SortedNumericLongWrapper(values) {
             @Override
             public double nextValue() throws IOException {
@@ -53,7 +69,7 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public SortedBinaryDocValues getBytesValues() {
+    public SortableBinaryDocValues getBytesValues() {
         return FieldData.toString(getDoubleValues());
     }
 

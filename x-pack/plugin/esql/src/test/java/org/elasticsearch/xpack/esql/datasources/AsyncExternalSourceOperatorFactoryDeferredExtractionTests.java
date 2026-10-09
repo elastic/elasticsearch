@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrate
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -72,7 +74,7 @@ import static org.mockito.Mockito.when;
 public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testDeferredExtractionRegistersExtractorPerFileAndEncodesRowPosition() throws Exception {
@@ -568,10 +570,58 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         assertEquals("onClose runs exactly once after registry teardown", 1, onCloseCalls.get());
     }
 
+    /**
+     * {@code createDrivers} builds the source operator before the extract operator, so
+     * {@link AsyncExternalSourceOperatorFactory#sourceExtractorsFor} can run after {@code get()}.
+     * A producer that dies before registering an extractor must not drop the factory's deferred
+     * ref — otherwise the later registry attaches to an already-returned lease.
+     */
+    public void testDeferredExtractionKeepsFactoryRefUntilOperatorCloseWhenGetRunsFirst() throws Exception {
+        FormatReader failOnRead = new FailOnReadExtractorAwareReader();
+        StorageObject storageObject = mock(StorageObject.class);
+        StorageProvider storageProvider = mock(StorageProvider.class);
+        when(storageProvider.newObject(any())).thenReturn(storageObject);
+
+        StoragePath path = StoragePath.of("s3://bucket/data/f.parquet");
+        List<Attribute> attributes = List.of(field("value", DataType.INTEGER), field(ColumnExtractor.ROW_POSITION_COLUMN, DataType.LONG));
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AtomicInteger onCloseCalls = new AtomicInteger();
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            failOnRead,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).deferredExtraction(true).onClose(() -> onCloseCalls.incrementAndGet()).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        try {
+            expectThrows(Exception.class, operator::getOutput);
+            assertEquals("operator hold must keep the factory deferred ref after a failed get()", 0, onCloseCalls.get());
+
+            SourceExtractors registry = factory.sourceExtractorsFor(driverContext);
+            assertEquals("late sourceExtractorsFor must attach to a still-open lease", 0, onCloseCalls.get());
+
+            operator.close();
+            assertEquals("onClose waits for the registry after operator.close()", 0, onCloseCalls.get());
+            registry.close();
+            assertEquals("onClose runs once after operator and registry both close", 1, onCloseCalls.get());
+        } finally {
+            operator.close();
+        }
+    }
+
     public void testNonDeferredExtractionStillClosesOnSourceRelease() throws Exception {
-        // Symmetric guard: when deferred extraction is disabled, the legacy path stays in effect
-        // and onClose runs as soon as the source finishes — there is no late materialization
-        // reading from the budget, so keeping it alive would just delay GC.
+        // Symmetric guard: when deferred extraction is disabled, onClose runs after the last
+        // operator.close() (the producer has also finished by then) — there is no late
+        // materialization reading from the budget, so keeping it alive would just delay GC.
         FormatReader_RowPositionEmitting reader = new FormatReader_RowPositionEmitting(new AtomicInteger(), new AtomicInteger(), 2);
 
         StorageObject storageObject = mock(StorageObject.class);
@@ -609,7 +659,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         } finally {
             operator.close();
         }
-        assertEquals("non-deferred path closes onClose at source release", 1, onCloseCalls.get());
+        assertEquals("non-deferred path closes onClose after last operator.close()", 1, onCloseCalls.get());
     }
 
     public void testDeferredExtractionRequiresColumnExtractorAware() {
@@ -635,11 +685,11 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
 
     public void testNonIdentityMappingPreservesRowPositionWithoutDeferredExtraction() throws Exception {
         // Regression for the adaptSchema row-position slot derivation: the reader appends
-        // _rowPosition to its projection for plain _id composition too (no deferred extraction,
+        // _rowPosition to its projection for plain _file.record_ref composition too (no deferred extraction,
         // no paired extract exec), and the input slot is its position in the per-file projection.
         // Deriving it from the deferred flag dropped the channel on every schema-drifted file
         // (the adapter released the tail block; the downstream block-count check then failed for
-        // any heterogeneous glob + METADATA _id). The drift here: the file stores [b, a], the
+        // any heterogeneous glob + METADATA _file.record_ref). The drift here: the file stores [b, a], the
         // query wants [a, b] — a non-identity mapping with _rowPosition riding at the tail.
         ProjectionEchoReader reader = new ProjectionEchoReader(/* rows = */ 3);
 
@@ -889,6 +939,40 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
     }
 
     /**
+     * {@link ColumnExtractorAware} reader whose {@code read} throws before a producer iterator
+     * exists, so deferred extraction never reaches {@code sourceExtractorsFor} during {@code get()}.
+     */
+    private static final class FailOnReadExtractorAwareReader implements NoConfigFormatReader, ColumnExtractorAware {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            throw new IOException("injected first-read failure");
+        }
+
+        @Override
+        public String formatName() {
+            return "fail-first-aware";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
      * Format reader that implements {@link ColumnExtractorAware}. Each {@code read} returns one
      * page with two columns (value, _rowPosition). The {@code _rowPosition} column carries raw
      * file-local positions ({@code 0..rowsPerFile-1}) — exactly what a real
@@ -1069,6 +1153,11 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
     /** Storage provider that fabricates {@link StorageObject}s for arbitrary paths. */
     private static final class StubStorageProvider implements StorageProvider {
         @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
+        @Override
         public StorageObject newObject(StoragePath path) {
             return new StubStorageObject(path);
         }
@@ -1102,7 +1191,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         public void close() {}
     }
 
-    private static final class StubStorageObject implements StorageObject {
+    private static final class StubStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
 
         StubStorageObject(StoragePath path) {

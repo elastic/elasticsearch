@@ -343,7 +343,7 @@ This configuration is appropriate when full source fidelity is required, such as
 
 ## Automatically quantize vectors for kNN search [dense-vector-quantization]
 
-The `dense_vector` field type supports quantization to reduce the memory footprint required when [searching](docs-content://solutions/search/vector/knn.md#approximate-knn) `float` vectors. The supported vector quantization strategies for `dense_vector` kNN indexing are:
+The `dense_vector` field type supports quantization to reduce the memory footprint required when [searching](docs-content://solutions/search/vector/knn/approximate-knn.md) `float` vectors. The supported vector quantization strategies for `dense_vector` kNN indexing are:
 - [`int8`](#dense-vector-quantization-int8)
 - [`int4`](#dense-vector-quantization-int4)
 - [`bbq`](#dense-vector-quantization-bbq), available as:
@@ -371,7 +371,7 @@ PUT my-bbq-disk-index
 }
 ```
 
-Quantized vectors can use [oversampling and rescoring](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) to improve accuracy on approximate kNN search results.
+Quantized vectors can use [oversampling and rescoring](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#dense-vector-knn-search-rescoring) to improve accuracy on approximate kNN search results.
 
 ::::{note}
 Quantization will continue to keep the raw float vector values on disk for reranking, reindexing, and quantization improvements over the lifetime of the data. This means disk usage will increase by ~25% for `int8`, ~12.5% for `int4`, and ~3.1% for `bbq` due to the overhead of storing the quantized and raw vectors.
@@ -604,11 +604,14 @@ $$$dense-vector-index-options$$$
     :   The higher the value, the more vectors will be gathered and rescored with the raw values per shard.
     :   In case a knn query specifies a `rescore_vector` parameter, the query `rescore_vector` parameter will be used instead.
     :   For `bbq_disk` fields with `auto_calibrate: true`, mapping `oversample` is a fallback when a segment has no calibrated value. When no query-time `rescore_vector` is set, calibrated segments use their per-segment oversample factors. Refer to [Auto-calibration for `bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration) for the full resolution order.
-    :   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
+    :   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#dense-vector-knn-search-rescoring) for details.
 ::::
 
 `on_disk_rescore` {applies_to}`stack: preview 9.3` {applies_to}`serverless: unavailable`
-:   (Optional, boolean) Only applicable to quantized HNSW and `bbq_disk` index types. When `true`, vector rescoring will read the raw vector data directly from disk, and will not copy it in memory. This can improve performance when vector data is larger than the amount of available RAM. This setting only applies to newly-indexed vectors; after changing this setting, the vectors must be reindexed or force-merged to apply the new setting to the whole index. Defaults to `false`.
+:   (Optional, boolean) Only applicable to quantized HNSW and `bbq_disk` index types. When `true`, vector rescoring will read the raw vector data directly from disk, and will not copy it in memory. This can improve performance when vector data is larger than the amount of available RAM. This setting only applies to newly-indexed vectors; after changing this setting, the vectors must be reindexed or force-merged to apply the new setting to the whole index. Defaults to `false`. Merges have their own option, `on_disk_merge`, below.
+
+`on_disk_merge` {applies_to}`stack: preview 9.6` {applies_to}`serverless: unavailable`
+:   (Optional, boolean) When `true`, direct I/O is used where possible while merging the field's vector data, so that a merge does not displace what searches keep in memory. Can be changed with a mapping update, which applies to later merges; a merge reads each source segment with the setting that segment was written with, so segments written before the change keep the old behavior until they are merged away. Defaults to `false`.
 
 `auto_calibrate` {applies_to}`stack: ga 9.5`
 :   (Optional, boolean) Only applicable to `bbq_disk`. When `true`, {{es}} automatically selects the optimal quantization encoding, oversampling factor, and preconditioning for each merged segment based on the actual recall characteristics of the merged corpus. Segments containing fewer than 10,000 vectors after merging are not calibrated and, when not otherwise specified in the mappings, use the default oversampling factor of 3.0x. Defaults to `false`. Cannot be changed after the field is created. Refer to [Auto-calibration for `bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration) for details.
@@ -753,6 +756,12 @@ PUT my-vector-index
   }
 }
 ```
+
+:::{tip}
+:applies_to: {"vectordb": "ga"}
+On [Elasticsearch Vector Database](docs-content://solutions/vector-database.md) projects, new indices use `vectordb_document` automatically. It is the only supported index mode. For details, refer to [when to use this project type](docs-content://solutions/vector-database.md#when-to-use-this-project-type).
+:::
+
 
 When `vectordb_document` mode is active, the following settings are applied automatically unless you explicitly configure them:
 

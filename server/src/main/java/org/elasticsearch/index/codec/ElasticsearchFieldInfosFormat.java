@@ -22,8 +22,8 @@ import java.util.Objects;
 /**
  * Field infos format that shares {@link org.apache.lucene.index.FieldInfo} instances across the segments of a shard, so that a
  * mapping with many fields costs one set of instances per shard rather than one per segment. Whole instances are shared against
- * the per-directory cache when {@link FieldInfoCachingDirectory#FEATURE_FLAG} is enabled, otherwise their names and attribute
- * maps are interned node-wide.
+ * the per-directory cache when {@link FieldInfoCachingDirectory#FEATURE_FLAG} is enabled, otherwise only their names and
+ * attribute maps are interned node-wide.
  *
  * <p>Writes pass through unchanged; only what a read produces differs.
  */
@@ -33,9 +33,7 @@ public final class ElasticsearchFieldInfosFormat extends FieldInfosFormat {
 
     public ElasticsearchFieldInfosFormat(FieldInfosFormat delegate) {
         Objects.requireNonNull(delegate);
-        this.impl = FieldInfoCachingDirectory.FEATURE_FLAG.isEnabled()
-            ? new CachingFieldInfosFormat(delegate)
-            : new DeduplicatingFieldInfosFormat(delegate);
+        this.impl = new CachingFieldInfosFormat(delegate);
     }
 
     @Override

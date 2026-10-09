@@ -37,7 +37,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
-final class BinaryDocValuesLengthQuery extends Query {
+final class BinaryDocValuesLengthQuery extends Query implements BinaryDocValuesScanCost {
 
     final String fieldName;
     final int length;
@@ -47,7 +47,12 @@ final class BinaryDocValuesLengthQuery extends Query {
     BinaryDocValuesLengthQuery(String fieldName, int length, BinaryDocValuesFormat binaryFormat) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.length = length;
-        this.binaryFormat = Objects.requireNonNull(binaryFormat);
+        this.binaryFormat = AbstractBinaryDocValuesQuery.rejectColumnar(binaryFormat, fieldName);
+    }
+
+    @Override
+    public String field() {
+        return fieldName;
     }
 
     @Override
@@ -83,12 +88,8 @@ final class BinaryDocValuesLengthQuery extends Query {
                         Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
                         String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
                         return switch (binaryFormat) {
-                            // The payload carries its own count; its blob is never a bare value, so no fast path applies.
-                            case COLUMNAR_PAYLOAD -> AbstractBinaryDocValuesQuery.columnarPayloadIterator(
-                                values,
-                                lengthPredicate,
-                                matchCost
-                            );
+                            // Refused by the constructor, so a query holding this format does not exist.
+                            case COLUMNAR_PAYLOAD, PLAIN -> throw new AssertionError("columnar field [" + fieldName + "]");
                             case ARRAY_ORDER_INLINE_NULL, SEPARATE_COUNT -> {
                                 final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
                                 DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);

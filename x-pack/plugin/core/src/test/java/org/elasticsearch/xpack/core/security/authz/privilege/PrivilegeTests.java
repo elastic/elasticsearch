@@ -289,6 +289,10 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(predicate.test("indices:admin/seq_no/renew_retention_lease[s]"), is(true));
         assertThat(predicate.test("indices:admin/settings/update"), is(true));
         assertThat(predicate.test("indices:admin/settings/foo"), is(false));
+        assertThat(predicate.test("indices:admin/flush"), is(true));
+        assertThat(predicate.test("indices:admin/flush[s]"), is(true));
+        assertThat(predicate.test("indices:admin/flush[s][p]"), is(true));
+        assertThat(predicate.test("indices:admin/flush[s][r]"), is(true));
     }
 
     public void testManageAutoscalingPrivilege() {

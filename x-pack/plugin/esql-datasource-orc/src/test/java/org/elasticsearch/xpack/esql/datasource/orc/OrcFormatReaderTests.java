@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.Split
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -93,11 +94,13 @@ import static org.hamcrest.Matchers.not;
 
 public class OrcFormatReaderTests extends ESTestCase {
 
+    private static final StorageIdentity NOOP_IDENTITY = new StorageIdentity() {};
+
     private BlockFactory blockFactory;
 
     @Before
     public void initBlockFactory() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -128,7 +131,7 @@ public class OrcFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Verifies {@link OrcFormatReader#statusSnapshot()} reports populated counters after a real
+     * Verifies counters passed via {@link FormatReadContext#readCounters()} are populated after a real
      * read drains an ORC file. Sibling-parity with
      * {@code NdJsonFormatReaderStatusSnapshotTests} / {@code CsvFormatReaderStatusSnapshotTests};
      * lives here to reuse the Hadoop FileSystem test infrastructure rather than duplicate it.
@@ -150,24 +153,51 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        OrcReaderCounters counters = (OrcReaderCounters) reader.newReadCounters();
+        FormatReadContext context = FormatReadContext.builder().batchSize(1024).readCounters(counters).build();
 
-        // Snapshot before drain: format identifier present, row count at zero.
-        var before = reader.statusSnapshot();
-        assertEquals("orc", before.format());
-        assertEquals(0L, before.rowsEmitted());
-        assertEquals(0L, before.readNanos());
-
-        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, context)) {
             while (iterator.hasNext()) {
                 Page page = iterator.next();
                 page.releaseBlocks();
             }
         }
 
-        var after = reader.statusSnapshot();
-        assertEquals("orc", after.format());
-        assertEquals("3 data rows drained from the file", 3L, after.rowsEmitted());
-        assertTrue("read_nanos should be > 0 after at least one batch", after.readNanos() > 0);
+        assertEquals("3 data rows drained from the file", 3L, counters.snapshot().rowsEmitted());
+    }
+
+    /**
+     * Verifies that two separate counter instances do not share state even when using the same reader.
+     */
+    public void testSiblingQueryReadersHaveIsolatedCounters() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("name", TypeDescription.createString());
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            BytesColumnVector nameCol = (BytesColumnVector) batch.cols[1];
+            for (int i = 0; i < 3; i++) {
+                idCol.vector[i] = i;
+                nameCol.setVal(i, ("row-" + i).getBytes(StandardCharsets.UTF_8));
+            }
+        });
+        StorageObject storageObject = createStorageObject(orcData);
+
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        OrcReaderCounters firstCounters = (OrcReaderCounters) reader.newReadCounters();
+        OrcReaderCounters secondCounters = (OrcReaderCounters) reader.newReadCounters();
+
+        FormatReadContext firstContext = FormatReadContext.builder().batchSize(1024).readCounters(firstCounters).build();
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, firstContext)) {
+            while (iterator.hasNext()) {
+                iterator.next().releaseBlocks();
+            }
+        }
+
+        assertTrue("the reader that ran must report its own work", firstCounters.snapshot().rowsEmitted() > 0);
+        assertEquals("the sibling counters must not see it", 0L, secondCounters.snapshot().rowsEmitted());
     }
 
     public void testReadSchemaFromSimpleOrc() throws Exception {
@@ -437,7 +467,7 @@ public class OrcFormatReaderTests extends ESTestCase {
                 assertEquals(3, page.getBlockCount());
                 assertTrue("absent column must be a null block", page.getBlock(2).isNull(0));
                 assertEquals(1, warnings.size());
-                assertEquals(SkipWarnings.absentDeclaredColumnMessage("department"), warnings.get(0));
+                assertEquals(SkipWarnings.absentColumnMessage("department"), warnings.get(0));
             } finally {
                 page.releaseBlocks();
             }
@@ -1736,6 +1766,71 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * An ORC int64 column declared {@code date_nanos} reads a bare number as epoch MILLIS widened to nanos — the same
+     * unit as under {@code datetime} — and, with {@code format: epoch_second}, as epoch seconds. Both name the same
+     * instant here. A bare nanosecond count is out of range as millis and fails the strict read.
+     */
+    public void testLongDeclaredDateNanosReadsMillisOrDeclaredSeconds() throws Exception {
+        long expectedNanos = 1_719_828_000_000_000_000L; // 2024-07-01T10:00:00Z
+        List<Attribute> asDateNanos = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATE_NANOS));
+        TypeDescription schema = TypeDescription.createStruct().addField("ts", TypeDescription.createLong());
+        record Cell(long raw, Map<String, String> formats) {}
+        for (Cell cell : List.of(new Cell(1_719_828_000_000L, Map.of()), new Cell(1_719_828_000L, Map.of("ts", "epoch_second")))) {
+            byte[] orcData = createOrcFile(schema, batch -> {
+                batch.size = 1;
+                ((LongColumnVector) batch.cols[0]).vector[0] = cell.raw();
+            });
+            OrcFormatReader reader = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(cell.formats());
+            try (
+                CloseableIterator<Page> it = reader.readRange(
+                    createStorageObject(orcData),
+                    new RangeReadContext(List.of("ts"), 10, 0, orcData.length, asDateNanos, ErrorPolicy.STRICT)
+                )
+            ) {
+                Page page = it.next();
+                assertEquals("formats " + cell.formats(), expectedNanos, ((LongBlock) page.getBlock(0)).getLong(0));
+                page.releaseBlocks();
+            }
+        }
+
+        byte[] nanosCount = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            LongColumnVector col = (LongColumnVector) batch.cols[0];
+            col.vector[0] = expectedNanos;
+            col.vector[1] = 1_719_828_000_000L;
+        });
+        // null_field: the nanosecond count nulls with a Warning naming the column; the millis row survives.
+        try (
+            CloseableIterator<Page> it = declaredReader("ts").readRange(
+                createStorageObject(nanosCount),
+                new RangeReadContext(List.of("ts"), 10, 0, nanosCount.length, asDateNanos, ErrorPolicy.PERMISSIVE)
+            )
+        ) {
+            Page page = it.next();
+            LongBlock longs = (LongBlock) page.getBlock(0);
+            assertTrue("a nanosecond count is out of range as epoch millis", longs.isNull(0));
+            assertEquals(expectedNanos, longs.getLong(longs.getFirstValueIndex(1)));
+            page.releaseBlocks();
+        }
+        List<String> warnings = drainWarnings();
+        assertThat(warnings.toString(), allOf(containsString("[ts]"), containsString("date_nanos"), containsString("2262")));
+
+        Exception failure = expectThrows(Exception.class, () -> {
+            try (
+                CloseableIterator<Page> it = declaredReader("ts").readRange(
+                    createStorageObject(nanosCount),
+                    new RangeReadContext(List.of("ts"), 10, 0, nanosCount.length, asDateNanos, ErrorPolicy.STRICT)
+                )
+            ) {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(failure.getMessage(), allOf(containsString("[ts]"), containsString("2262")));
+    }
+
     public void testLongDeclaredEpochSecondOverflowHonorsErrorPolicy() throws Exception {
         // The epoch-scaling overflow leg of the unit rule: an int64 declared `date` WITH `format: epoch_second` scales
         // the raw seconds to millis (x1000). A value too large to scale (Long.MAX_VALUE seconds) must FAIL PER CELL and
@@ -1916,7 +2011,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertFalse("inferred incompatibility must emit a structured warning", warnings.isEmpty());
         assertTrue(
             "warning must name the incompatibility, got: " + warnings,
-            warnings.toString().contains("incompatible with planner type")
+            warnings.toString().contains("column [n]: [long] in the file, [integer] in the query")
         );
         assertTrue("the supplied sink must replace ambient response headers", drainWarnings().isEmpty());
     }
@@ -2098,7 +2193,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertTrue("the supplied sink must replace ambient response headers", drainWarnings().isEmpty());
         // 1 summary + 1 detail
         assertEquals("Expected summary + 1 detail, got: " + warnings, 2, warnings.size());
-        assertTrue("Summary should mention coercion, got: " + warnings.get(0), warnings.get(0).contains("coerced"));
+        assertTrue("Summary should mention coercion, got: " + warnings.get(0), warnings.get(0).contains("cannot be read as"));
         assertTrue("Detail should name the column, got: " + warnings.get(1), warnings.get(1).contains("[n]"));
         assertTrue("Detail should name the declared type, got: " + warnings.get(1), warnings.get(1).contains("[long]"));
     }
@@ -2162,8 +2257,8 @@ public class OrcFormatReaderTests extends ESTestCase {
         // to agree with each other AND with what the page actually shows, or the user reads "returning null" next
         // to a row that is gone. Pinned in both readers (ParquetFormatReaderTests.testSkipRowDropsBadRow).
         List<String> warnings = drainWarnings();
-        assertThat(warnings, hasItem(containsString("their entire row is dropped")));
-        assertThat(warnings, hasItem(allOf(containsString("[n]"), containsString("; row will be dropped"))));
+        assertThat(warnings, hasItem(containsString("skipping their rows")));
+        assertThat(warnings, hasItem(allOf(containsString("column [n]"), containsString("cannot read ["))));
         assertThat("no null-fill wording under skip_row", warnings, everyItem(not(containsString("returning null"))));
     }
 
@@ -2264,10 +2359,13 @@ public class OrcFormatReaderTests extends ESTestCase {
             });
             // The thrown message is the one the client actually sees, so it must name the counts and the file.
             assertThat(e.getMessage(), containsString("dropped rows"));
-            assertThat(e.getMessage(), containsString("maximum allowed is [1] errors"));
+            assertThat(e.getMessage(), containsString("over [max_errors] of [1]"));
         }
-        // checkBudget also records the trip into the same collector, ahead of the throw.
-        assertThat(drainWarnings(), hasItem(containsString("Columnar error budget exceeded")));
+        // The trip is not also added as a warning: driver warnings reach the client only when the query succeeds.
+        // The per-cell details prove the list non-empty, so the negative assertion cannot pass vacuously.
+        List<String> warnings = drainWarnings();
+        assertThat(warnings, hasItem(allOf(containsString("column [n]"), containsString("cannot read ["))));
+        assertThat(warnings, everyItem(not(containsString("max_errors"))));
     }
 
     /**
@@ -2378,7 +2476,7 @@ public class OrcFormatReaderTests extends ESTestCase {
                 it.next().releaseBlocks();
             }
         }
-        long coercionDetails = sink.stream().filter(w -> w.contains("cannot coerce value")).count();
+        long coercionDetails = sink.stream().filter(w -> w.contains("cannot read [")).count();
         assertThat("per-value coercion warnings must reach the supplied sink", coercionDetails, greaterThan(0L));
         assertThat(
             "each reader instance caps its per-value coercion details at MAX_ADDED_WARNINGS",
@@ -2388,7 +2486,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         List<String> leaked = drainWarnings();
         assertTrue(
             "no coercion warning may leak to this thread's HeaderWarning context when a sink is supplied, got: " + leaked,
-            leaked.stream().noneMatch(w -> w.contains("cannot coerce value"))
+            leaked.stream().noneMatch(w -> w.contains("cannot read ["))
         );
     }
 
@@ -2439,10 +2537,10 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertTrue("fail_fast must not emit coercion warnings", drainWarnings().isEmpty());
     }
 
-    public void testListStringToDatetimeBadTokenNullsWholePosition() throws Exception {
-        // LIST<string> declared datetime: castBlock's bulk semantics on the fused list arm — a bad
-        // element nulls the WHOLE position + warns under the default policy, the clean row still
-        // decodes; under fail_fast the read fails.
+    public void testListStringToDatetimeBadTokenRemovesElement() throws Exception {
+        // LIST<string> declared datetime on the fused list arm: under null_field a bad element is
+        // removed from its position and the readable one kept, with the multi-value summary; the clean
+        // row still decodes; under fail_fast the read fails.
         TypeDescription schema = TypeDescription.createStruct()
             .addField("vals", TypeDescription.createList(TypeDescription.createString()));
         byte[] orcData = createOrcFile(schema, batch -> {
@@ -2471,11 +2569,13 @@ public class OrcFormatReaderTests extends ESTestCase {
             assertEquals(2, page.getPositionCount());
             LongBlock longs = (LongBlock) page.getBlock(0);
             assertEquals(971211336000L, longs.getLong(longs.getFirstValueIndex(0)));
-            assertTrue("bulk semantics null the whole position, not one element", longs.isNull(1));
+            assertEquals("only the bad element is removed", 1, longs.getValueCount(1));
+            assertEquals(971211338000L, longs.getLong(longs.getFirstValueIndex(1)));
             page.releaseBlocks();
         }
         List<String> warnings = drainWarnings();
         assertEquals("Expected summary + 1 detail, got: " + warnings, 2, warnings.size());
+        assertTrue(warnings.get(0), warnings.get(0).endsWith(SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME));
 
         try (
             CloseableIterator<Page> it = reader.readRange(
@@ -2490,6 +2590,185 @@ public class OrcFormatReaderTests extends ESTestCase {
             });
         }
         assertTrue("fail_fast must not emit coercion warnings", drainWarnings().isEmpty());
+    }
+
+    /**
+     * A DECLARED column whose type in the file cannot be read as declared (int for a declared boolean) is a read
+     * failure of the whole column in that file: {@code fail_fast} fails naming column, file, both types and
+     * {@code [error_mode]}; {@code null_field} nulls the column and warns; {@code skip_row} drops every row of the
+     * file, charged to the budget once from the stripe row counts.
+     */
+    public void testDeclaredUncoercibleColumnFollowsErrorMode() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("flag", TypeDescription.createInt())
+            .addField("id", TypeDescription.createInt());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            LongColumnVector flag = (LongColumnVector) batch.cols[0];
+            LongColumnVector id = (LongColumnVector) batch.cols[1];
+            flag.vector[0] = 1;
+            flag.vector[1] = 0;
+            id.vector[0] = 1;
+            id.vector[1] = 2;
+        });
+        OrcFormatReader reader = declaredReader("flag");
+        List<Attribute> plannerSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, "flag", DataType.BOOLEAN),
+            new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER)
+        );
+        String location = createStorageObject(orcData).path().objectName();
+
+        Exception e = expectThrows(Exception.class, () -> {
+            try (
+                CloseableIterator<Page> it = reader.readRange(
+                    createStorageObject(orcData),
+                    new RangeReadContext(List.of("flag", "id"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.STRICT)
+                )
+            ) {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(
+            e.getMessage(),
+            containsString("column [flag] in [" + location + "] is [integer] in the file and cannot be read as its declared type [boolean]")
+        );
+
+        List<String> warnings = new ArrayList<>();
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                createStorageObject(orcData),
+                new RangeReadContext(List.of("flag", "id"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.PERMISSIVE, warnings::add)
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            assertTrue(page.getBlock(0).isNull(0));
+            assertTrue(page.getBlock(0).isNull(1));
+            assertEquals(2, ((IntBlock) page.getBlock(1)).getInt(1));
+            page.releaseBlocks();
+        }
+        assertEquals(
+            List.of(
+                DeclaredTypeCoercions.uncoercibleColumnsNullSummary(location),
+                "column [flag]: [integer] in the file, [boolean] in the query"
+            ),
+            warnings
+        );
+
+        warnings.clear();
+        ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 0.0, false);
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                createStorageObject(orcData),
+                new RangeReadContext(List.of("flag", "id"), 10, 0, orcData.length, plannerSchema, skipRow, warnings::add)
+            )
+        ) {
+            int rows = 0;
+            while (it.hasNext()) {
+                Page page = it.next();
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+            assertEquals("every row of the file is dropped", 0, rows);
+        }
+        assertEquals(
+            List.of(
+                DeclaredTypeCoercions.uncoercibleColumnsDropSummary(location),
+                "column [flag]: [integer] in the file, [boolean] in the query"
+            ),
+            warnings
+        );
+
+        ErrorPolicy tight = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 1, 0.0, false);
+        Exception budget = expectThrows(Exception.class, () -> {
+            try (
+                CloseableIterator<Page> it = reader.readRange(
+                    createStorageObject(orcData),
+                    new RangeReadContext(List.of("flag", "id"), 10, 0, orcData.length, plannerSchema, tight, warnings::add)
+                )
+            ) {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(budget.getMessage(), containsString("column [flag]: [integer] in the file, [boolean] in the query"));
+    }
+
+    /**
+     * The {@code skip_row} whole-file drop of a declared uncoercible column charges the budget with the rows of the
+     * stripes a split covers, not the whole file's: a split over one 100-row stripe stays within {@code max_errors}
+     * 100 and exceeds 99.
+     */
+    public void testDeclaredUncoercibleColumnSkipRowChargesOnlyTheRangeRows() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("flag", TypeDescription.createInt())
+            .addField("id", TypeDescription.createInt());
+        int rowsPerStripe = 100;
+        byte[] orcData = createMultiStripeOrcFile(schema, 3, stripe -> {
+            VectorizedRowBatch batch = schema.createRowBatch();
+            batch.size = rowsPerStripe;
+            LongColumnVector flag = (LongColumnVector) batch.cols[0];
+            LongColumnVector id = (LongColumnVector) batch.cols[1];
+            for (int i = 0; i < rowsPerStripe; i++) {
+                flag.vector[i] = i % 2;
+                id.vector[i] = stripe * rowsPerStripe + i;
+            }
+            return batch;
+        });
+        OrcFormatReader reader = declaredReader("flag");
+        StorageObject storageObject = createStorageObject(orcData);
+        List<SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertTrue("the fixture must span several stripes", ranges.size() >= 2);
+        SplitRange first = ranges.get(0);
+        List<Attribute> plannerSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, "flag", DataType.BOOLEAN),
+            new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER)
+        );
+        List<String> warnings = new ArrayList<>();
+
+        ErrorPolicy withinBudget = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, rowsPerStripe, 0.0, false);
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                storageObject,
+                new RangeReadContext(
+                    List.of("flag", "id"),
+                    1024,
+                    first.offset(),
+                    first.offset() + first.length(),
+                    plannerSchema,
+                    withinBudget,
+                    warnings::add
+                )
+            )
+        ) {
+            assertFalse("every row of the split is dropped", it.hasNext());
+        }
+
+        ErrorPolicy overBudget = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, rowsPerStripe - 1, 0.0, false);
+        Exception e = expectThrows(Exception.class, () -> {
+            try (
+                CloseableIterator<Page> it = reader.readRange(
+                    storageObject,
+                    new RangeReadContext(
+                        List.of("flag", "id"),
+                        1024,
+                        first.offset(),
+                        first.offset() + first.length(),
+                        plannerSchema,
+                        overBudget,
+                        warnings::add
+                    )
+                )
+            ) {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(e.getMessage(), containsString("[" + rowsPerStripe + "]"));
     }
 
     public void testListDatetimeNullElementSkippedNotEpochZero() throws Exception {
@@ -3140,6 +3419,11 @@ public class OrcFormatReaderTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return NOOP_IDENTITY;
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 return new ByteArrayInputStream(data);

@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify";
+FROM employees, (FROM languages, (FROM sample_data))
+| KEEP emp_no, does_not_exist_field

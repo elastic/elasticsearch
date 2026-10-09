@@ -262,15 +262,30 @@ public class ConstantKeywordFieldMapperColumnarCompatibilityTests extends Abstra
         assertTrue("supportsColumnarParse must be true when value is configured", mapper.supportsColumnarParse(ms.getIndexSettings()));
     }
 
-    public void testGate_configuredValue_standardMode() throws IOException {
-        // constant_keyword has no index-mode-specific behaviour, so it supports columnar parse in any
-        // index mode — the check belongs in mapColumnBatch (via isSourceSynthetic), not here.
-        MapperService ms = createMapperService(
-            Settings.EMPTY,
-            mapping(b -> b.startObject(FIELD).field("type", "constant_keyword").field("value", "hello").endObject())
-        );
-        FieldMapper mapper = (FieldMapper) ms.mappingLookup().getMapper(FIELD);
-        assertTrue("supportsColumnarParse must be true regardless of index mode", mapper.supportsColumnarParse(ms.getIndexSettings()));
+    /**
+     * A {@code constant_keyword} sub-field is driven from its parent's source column like any other multi-field. It accepts the
+     * documents whose value matches its configured constant, and its {@code UnsupportedOperationException} bail-out for a
+     * mismatch still fires from the sub-field position, forcing the batch back to the row path.
+     */
+    public void testAsSubFieldOfKeyword() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("kind").field("type", "constant_keyword").field("value", "hello").endObject();
+            b.endObject();
+            b.endObject();
+        }), columnarSettings(), batch("constant_keyword sub-field", 1L, doc("d1", 1L, "{\"f\":\"hello\"}"), doc("d2", 2L, "{}")));
+    }
+
+    public void testSubFieldValueMismatchBailsOut() throws IOException {
+        MapperService ms = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("kind").field("type", "constant_keyword").field("value", "hello").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(ms, FIELD, "{\"f\":\"not-hello\"}"));
     }
 
     public void testGate_copyTo() throws IOException {

@@ -28,7 +28,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CountGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+public class CountGroupingAggregatorFunctionTests extends PartitionedGroupingAggregatorFunctionTestCase {
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
         return CountAggregatorFunction.supplier();

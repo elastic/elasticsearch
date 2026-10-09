@@ -9,9 +9,9 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -92,6 +92,8 @@ public class RestCatRecoveryAction extends AbstractCatAction {
             .addCell("stage", "alias:st;desc:recovery stage")
             .addCell("local_retries", "alias:lr;desc:count of locally-retryable recovery failures on data node")
             .addCell("priority", "alias:pr;desc:recovery priority")
+            .addCell("gate", "alias:g;desc:recovery gate blocking this recovery")
+            .addCell("blocked_for_millis", "alias:bf;desc:time recovery has been blocked by recovery gates in milliseconds")
             .addCell("source_host", "alias:shost;desc:source host")
             .addCell("source_node", "alias:snode;desc:source node name")
             .addCell("target_host", "alias:thost;desc:target host")
@@ -125,17 +127,19 @@ public class RestCatRecoveryAction extends AbstractCatAction {
 
         Table t = getTableWithHeader(request);
 
-        for (String index : response.shardRecoveryStates().keySet()) {
-
-            List<RecoveryState> shardRecoveryStates = response.shardRecoveryStates().get(index);
-            if (shardRecoveryStates.size() == 0) {
+        for (var entry : response.shardRecoveryInfos().entrySet()) {
+            if (entry.getValue().isEmpty()) {
                 continue;
             }
-
+            String index = entry.getKey();
             // Sort ascending by shard id for readability
-            CollectionUtil.introSort(shardRecoveryStates, Comparator.comparingInt(o -> o.getShardId().id()));
+            List<ShardRecoveryInfo> shardRecoveryInfos = entry.getValue()
+                .stream()
+                .sorted(Comparator.comparingInt(info -> info.recoveryState().getShardId().id()))
+                .toList();
 
-            for (RecoveryState state : shardRecoveryStates) {
+            for (ShardRecoveryInfo recoveryInfo : shardRecoveryInfos) {
+                RecoveryState state = recoveryInfo.recoveryState();
                 t.startRow();
                 t.addCell(index);
                 t.addCell(state.getShardId().id());
@@ -148,6 +152,9 @@ public class RestCatRecoveryAction extends AbstractCatAction {
                 t.addCell(state.getStage().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getLocalRetries());
                 t.addCell(state.getRecoveryPriority().toString().toLowerCase(Locale.ROOT));
+                final String gate = recoveryInfo.blockedByGate();
+                t.addCell(gate == null ? "n/a" : gate);
+                t.addCell(gate == null ? "n/a" : recoveryInfo.blockedForMillis());
                 t.addCell(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName());
                 t.addCell(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName());
                 t.addCell(state.getTargetNode().getHostName());
@@ -164,15 +171,15 @@ public class RestCatRecoveryAction extends AbstractCatAction {
                 );
                 t.addCell(state.getIndex().totalRecoverFiles());
                 t.addCell(state.getIndex().recoveredFileCount());
-                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredFilesPercent()));
+                t.addCell(RestTable.FormattedDouble.formatPercent1Decimal(state.getIndex().recoveredFilesPercent()));
                 t.addCell(state.getIndex().totalFileCount());
                 t.addCell(ByteSizeValue.ofBytes(state.getIndex().totalRecoverBytes()));
                 t.addCell(ByteSizeValue.ofBytes(state.getIndex().recoveredBytes()));
-                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredBytesPercent()));
+                t.addCell(RestTable.FormattedDouble.formatPercent1Decimal(state.getIndex().recoveredBytesPercent()));
                 t.addCell(ByteSizeValue.ofBytes(state.getIndex().totalBytes()));
                 t.addCell(state.getTranslog().totalOperations());
                 t.addCell(state.getTranslog().recoveredOperations());
-                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getTranslog().recoveredPercent()));
+                t.addCell(RestTable.FormattedDouble.formatPercent1Decimal(state.getTranslog().recoveredPercent()));
                 t.endRow();
             }
         }

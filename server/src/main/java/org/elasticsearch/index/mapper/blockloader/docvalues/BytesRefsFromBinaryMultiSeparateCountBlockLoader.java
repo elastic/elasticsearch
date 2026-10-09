@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.core.Releasables;
@@ -85,6 +86,8 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
             // all-null or empty array writes a count but no binary blob.
             case ARRAY_ORDER_INLINE_NULL -> withCounts(breaker, context, ArrayOrderInlineNull::new);
             case SEPARATE_COUNT -> withCounts(breaker, context, BytesRefsFromBinarySeparateCount::new);
+            // PLAIN is a single-valued columnar field — it should have been routed to BytesRefsFromBinaryBlockLoader.
+            case PLAIN -> throw new AssertionError("PLAIN field [" + fieldName + "] should not use the multi-valued block loader");
         };
     }
 
@@ -116,9 +119,27 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
     static class ColumnarPayload extends AbstractBytesRefsFromBinaryReader {
 
         private final MultiValueColumnarPayloadBinaryDocValuesReader reader = new MultiValueColumnarPayloadBinaryDocValuesReader();
+        private final ColumnarStringPageReader pages;
 
         ColumnarPayload(TrackingBinaryDocValues docValues) {
             super(docValues);
+            this.pages = new ColumnarStringPageReader(docValues.breaker());
+        }
+
+        /**
+         * A page read from the column where there is one. A segment that arrives as an overlay rather than as a column
+         * has its payloads decoded a document at a time.
+         */
+        @Override
+        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+            throws IOException {
+            if (docValues.docValues() instanceof StringColumnSource columnar) {
+                final BlockLoader.Block block = pages.read(columnar, factory, docs, offset);
+                if (block != null) {
+                    return block;
+                }
+            }
+            return super.read(factory, docs, offset, nullsFiltered);
         }
 
         @Override
@@ -128,6 +149,11 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
                 return;
             }
             reader.read(docValues.docValues().binaryValue(), builder);
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(pages, super::close);
         }
 
         @Override

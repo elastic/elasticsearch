@@ -14,6 +14,23 @@ FROM tdigest_standard_index
 
 // -------------------------------------------------------------------------------
 
+to_string
+required_capability: fn_to_string_tdigest
+
+FROM tdigest_standard_index
+ | WHERE STARTS_WITH(instance, "hand-rolled")
+ | EVAL string = TO_STRING(responseTime)
+ | KEEP instance, string
+ | SORT instance
+;
+
+instance:keyword  | string:keyword
+hand-rolled       | "{""min"":0.1,""max"":0.5,""sum"":16.4,""centroids"":[0.1,0.2,0.3,0.4,0.5],""counts"":[3,7,23,12,6]}"
+hand-rolled-empty | "{""centroids"":[],""counts"":[]}"
+;
+
+// -------------------------------------------------------------------------------
+
 count_star with bucket
 required_capability: fn_bucket_histogram_types
 

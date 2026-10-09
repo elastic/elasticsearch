@@ -332,6 +332,22 @@ public interface BlockLoader {
     }
 
     /**
+     * Optional capability of a binary doc-values reader: reports the real peak heap bytes one decode of this
+     * field's storage on this segment can allocate, so a caller building a worst-case memory estimate (see
+     * {@code BinaryDocValuesScanCost}) can use the segment's actual bound instead of a fixed, codec-wide constant.
+     */
+    interface OptionalDecodeMemoryUsageEstimator {
+        /**
+         * @return the largest number of bytes a single decode of this reader's storage can allocate, {@code 0} if
+         *         this reader's storage never buffers more than the value's own bytes (e.g. uncompressed storage),
+         *         or {@code -1} if this instance can't provide an estimate.
+         */
+        default long maxDecodeBytes() {
+            return -1;
+        }
+    }
+
+    /**
      * Load the values for one row at a time.
      * <p>
      *     It's <strong>important</strong> that these have a nice {@link #toString()}. It's used
@@ -752,6 +768,31 @@ public interface BlockLoader {
         DoubleRangeBuilder doubleRangeBuilder(int count);
 
         Block buildAggregateMetricDoubleDirect(Block minBlock, Block maxBlock, Block sumBlock, Block countBlock);
+
+        /**
+         * A block of bytes named by ordinals into a dictionary the block carries with it, so a consumer resolves each
+         * distinct value once and compares ints for the rest.
+         *
+         * <p>Unlike the ordinals builders above, which read a column's own ordinals through {@link SortedDocValues} and
+         * remap them to the page, this takes a page that already arrived in that shape - a doc-values format that
+         * stores its values by ordinal internally can hand the page over as it is, with no lookup per distinct value
+         * and no remapping.
+         *
+         * @param ordinals       one entry per value, indexing {@code dictionary}, {@code valueCount} of them
+         * @param valueCount     values across every position
+         * @param valueCounts    values per position, or null when every position holds exactly one; a zero is a
+         *                       position with no value at all
+         * @param positionCount  positions the block covers
+         * @param dictionary     the distinct values, {@code dictionarySize} of them, copied by this call
+         */
+        Block buildOrdinalBytesRefDirect(
+            int[] ordinals,
+            int valueCount,
+            @Nullable int[] valueCounts,
+            int positionCount,
+            BytesRef[] dictionary,
+            int dictionarySize
+        );
 
         ExponentialHistogramBuilder exponentialHistogramBlockBuilder(int count);
 

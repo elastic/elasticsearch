@@ -19,15 +19,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
@@ -48,6 +53,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
@@ -89,6 +95,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Wild
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -100,12 +107,15 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -115,6 +125,8 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
@@ -122,9 +134,14 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -152,24 +169,29 @@ import static org.elasticsearch.web.UriParts.QUERY;
 import static org.elasticsearch.web.UriParts.SCHEME;
 import static org.elasticsearch.web.UriParts.USERNAME;
 import static org.elasticsearch.web.UriParts.USER_INFO;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldNames;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getAttributeByName;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.soleHighlight;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.TestAnalyzer.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.englishFallbackWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.highlightFallbackWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.notReportedFallbackWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInferenceIdOtherThan;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.unresolvedRelation;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -186,9 +208,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -196,6 +221,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
@@ -205,7 +231,11 @@ import static org.hamcrest.Matchers.startsWith;
  * Use this class if you want to test analysis phase
  * and especially if you expect to get a VerificationException during analysis
  */
-public class AnalyzerTests extends ESTestCase {
+public class AnalyzerTests extends AnalyzerTestCase {
+
+    public AnalyzerTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     private static final UnresolvedRelation UNRESOLVED_RELATION = unresolvedRelation("idx");
     private static final int MAX_LIMIT = AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY);
@@ -213,6 +243,14 @@ public class AnalyzerTests extends ESTestCase {
     private static final int DEFAULT_TIMESERIES_LIMIT = AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(
         Settings.EMPTY
     );
+
+    @After
+    public void resetNameIndexThreshold() {
+        // A few tests flip the mutable static Analyzer.ResolveRefs#nameIndexThreshold to force a specific
+        // resolution path. Restore the production default after every test so the setting can never leak across
+        // tests that share this JVM, even if a test were to change it without restoring.
+        Analyzer.ResolveRefs.nameIndexThreshold = Analyzer.ResolveRefs.NAME_INDEX_THRESHOLD_DEFAULT;
+    }
 
     public void testIndexResolution() {
         EsIndex idx = EsIndexGenerator.esIndex("idx");
@@ -1894,7 +1932,7 @@ public class AnalyzerTests extends ESTestCase {
         final String supportedTypes =
             "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or date_range or datetime "
                 + "or dense_vector or double_range or exponential_histogram or flattened or geo_point "
-                + "or geo_shape or geohash or geohex or geotile or histogram or ip or numeric or string or version";
+                + "or geo_shape or geohash or geohex or geotile or histogram or ip or numeric or string or tdigest or version";
         analyzer().error(
             "row period = 1 year | eval to_string(period)",
             containsString(
@@ -2587,7 +2625,7 @@ public class AnalyzerTests extends ESTestCase {
         checkDenseVectorCastingHexKnn("bfloat16_vector");
     }
 
-    private static void checkDenseVectorCastingKnn(String fieldName) {
+    private void checkDenseVectorCastingKnn(String fieldName) {
         var plan = denseVector().query(String.format(Locale.ROOT, """
             from test | where knn(%s, [0, 1, 2])
             """, fieldName));
@@ -2600,7 +2638,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(literal.value(), equalTo(List.of(0, 1, 2)));
     }
 
-    private static void checkDenseVectorCastingHexKnn(String fieldName) {
+    private void checkDenseVectorCastingHexKnn(String fieldName) {
         var plan = denseVector().query(String.format(Locale.ROOT, """
             from test | where knn(%s, "000102")
             """, fieldName));
@@ -2613,7 +2651,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(queryVector.value(), equalTo(List.of(0.0f, 1.0f, 2.0f)));
     }
 
-    private static void checkDenseVectorEvalCastingKnn(String fieldName) {
+    private void checkDenseVectorEvalCastingKnn(String fieldName) {
         var plan = denseVector().query(String.format(Locale.ROOT, """
             from test | eval query = to_dense_vector([0, 1, 2]) | where knn(%s, query)
             """, fieldName));
@@ -2773,7 +2811,7 @@ public class AnalyzerTests extends ESTestCase {
                 avg(rate(network.bytes_in[5m]))""", DEFAULT_TIMESERIES_LIMIT);
     }
 
-    private static void assertDefaultLimitForQuery(String query, int expectedLimit) {
+    private void assertDefaultLimitForQuery(String query, int expectedLimit) {
         var plan = tsdb().query(query);
         var limit = as(plan, Limit.class);
         assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(expectedLimit));
@@ -3388,7 +3426,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false, false, true),
                 false,
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3400,7 +3438,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false, false, true),
                 false,
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3425,7 +3463,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false, false, true),
                 false,
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3440,7 +3478,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, false, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, false, false, true),
                 false,
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3547,8 +3585,8 @@ public class AnalyzerTests extends ESTestCase {
         Map<String, IndexFieldCapabilities> stdFields = Map.of("@timestamp", timestamp, "status", metricField, "bytes_in", counter);
         return new FieldCapabilitiesResponse(
             List.of(
-                new FieldCapabilitiesIndexResponse("ts_index", "hash_a", tsFields, false, IndexMode.TIME_SERIES),
-                new FieldCapabilitiesIndexResponse("std_index", "hash_b", stdFields, false, IndexMode.STANDARD)
+                new FieldCapabilitiesIndexResponse("ts_index", "hash_a", tsFields, false, IndexMode.TIME_SERIES, 0, 0, 0),
+                new FieldCapabilitiesIndexResponse("std_index", "hash_b", stdFields, false, IndexMode.STANDARD, 0, 0, 0)
             ),
             List.of()
         );
@@ -4031,9 +4069,9 @@ public class AnalyzerTests extends ESTestCase {
         return allWarnings;
     }
 
-    private static LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
+    private LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
-            new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
+            new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD, 0, 0, 0)
         );
         IndexResolution resolution = mergedResolution("test*", new FieldCapabilitiesResponse(idxResponses, List.of()));
         return analyzer().addIndex(resolution).query(query);
@@ -4135,6 +4173,358 @@ public class AnalyzerTests extends ESTestCase {
         TextEmbedding textEmbedding = as(knn.query(), TextEmbedding.class);
         assertThat(textEmbedding.inputText(), equalTo(string("italian food recipe")));
         assertThat(textEmbedding.inferenceId(), equalTo(string(TEXT_EMBEDDING_INFERENCE_ID)));
+    }
+
+    public void testKnnInfersSimilarityFromDenseVectorAndTextEmbedding() {
+        assumeKnnRuntimeEnabled();
+        assumeDenseVectorCommandEnabled();
+        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+            .addIndex("books", "mapping-books.json")
+            .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM)
+            .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
+
+        LogicalPlan plan = analyzer.query("""
+            FROM books
+            | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+            | WHERE KNN(vector, TEXT_EMBEDDING("italian food recipe", "query-endpoint"))
+            | LIMIT 10
+            """);
+
+        Knn knn = findKnn(plan);
+        MapExpression options = as(knn.options(), MapExpression.class);
+        assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("l2_norm")));
+    }
+
+    public void testKnnInfersSimilarityFromDenseVectorForRuntimeExpression() {
+        assumeKnnRuntimeEnabled();
+        assumeDenseVectorCommandEnabled();
+        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+            .addIndex("books", "mapping-books.json")
+            .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
+
+        LogicalPlan plan = analyzer.query("""
+            FROM books
+            | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+            | WHERE KNN(vector, [1.0, 0.0, 0.0])
+            | LIMIT 10
+            """);
+
+        Knn knn = findKnn(plan);
+        MapExpression options = as(knn.options(), MapExpression.class);
+        assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("l2_norm")));
+    }
+
+    public void testKnnInfersSimilarityFromTextEmbeddingForRuntimeExpression() {
+        assumeKnnRuntimeEnabled();
+        TestAnalyzer analyzer = denseVector().configuration(knnRuntimeConfiguration())
+            .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.DOT_PRODUCT);
+
+        LogicalPlan plan = analyzer.query("""
+            ROW runtime_vector = TO_DENSE_VECTOR([1.0, 0.0, 0.0])
+            | WHERE KNN(runtime_vector, TEXT_EMBEDDING("italian food recipe", "query-endpoint"))
+            | LIMIT 10
+            """);
+
+        Knn knn = findKnn(plan);
+        MapExpression options = as(knn.options(), MapExpression.class);
+        assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("dot_product")));
+    }
+
+    public void testKnnInfersSimilarityFromEmbeddingForRuntimeExpression() {
+        assumeKnnRuntimeEnabled();
+        TestAnalyzer analyzer = denseVector().configuration(knnRuntimeConfiguration())
+            .addInferenceResolution("query-endpoint", TaskType.EMBEDDING, SimilarityMeasure.L2_NORM);
+
+        LogicalPlan plan = analyzer.query("""
+            ROW runtime_vector = TO_DENSE_VECTOR([1.0, 0.0, 0.0])
+            | WHERE KNN(runtime_vector, EMBEDDING("italian food recipe", "query-endpoint"))
+            | LIMIT 10
+            """);
+
+        Knn knn = findKnn(plan);
+        MapExpression options = as(knn.options(), MapExpression.class);
+        assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("l2_norm")));
+    }
+
+    public void testKnnHonorsSimilarityOverride() {
+        assumeKnnRuntimeEnabled();
+        assumeDenseVectorCommandEnabled();
+        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+            .addIndex("books", "mapping-books.json")
+            .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.DOT_PRODUCT)
+            .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.DOT_PRODUCT);
+
+        LogicalPlan plan = analyzer.query("""
+            FROM books
+            | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+            | WHERE KNN(vector, TEXT_EMBEDDING("italian food recipe", "query-endpoint"), { "similarity_function": "l2_norm" })
+            | LIMIT 10
+            """);
+        Knn knn = findKnn(plan);
+        MapExpression options = as(knn.options(), MapExpression.class);
+        assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("l2_norm")));
+    }
+
+    public void testKnnRejectsConflictingInferredSimilarities() {
+        assumeKnnRuntimeEnabled();
+        assumeDenseVectorCommandEnabled();
+        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+            .addIndex("books", "mapping-books.json")
+            .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM)
+            .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.COSINE);
+
+        analyzer.error(
+            """
+                FROM books
+                | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+                | WHERE KNN(vector, TEXT_EMBEDDING("italian food recipe", "query-endpoint"))
+                | LIMIT 10
+                """,
+            containsString(
+                "KNN field inference endpoint [field-endpoint] uses similarity [l2_norm] "
+                    + "but query inference endpoint [query-endpoint] uses similarity [cosine]"
+            )
+        );
+    }
+
+    public void testInferKnnSimilarityDoesNotRunOnIndexField() {
+        assumeKnnRuntimeEnabled();
+        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .addIndex("index", "mapping-dense_vector.json")
+            .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
+
+        LogicalPlan plan = analyzer.query("""
+            FROM index
+            | WHERE KNN(float_vector, TEXT_EMBEDDING("italian food recipe", "query-endpoint"))
+            | LIMIT 10
+            """);
+        Knn knn = findKnn(plan);
+        assertThat(knn.options(), nullValue());
+    }
+
+    /**
+     * KNN is performed on {@code manipulated_vector}, a field derived from {@code DENSE_VECTOR vector}.
+     * Although the similarity function could be inferred from {@code vector}'s inference endpoint metadata, we don't fold
+     * this into {@code manipulated_vector}'s similarity measure.
+     * The resolved similarity is therefore query embedding endpoint's similarity (L2_NORM).
+     */
+    public void testKnnInfersSimilarityWithDerivedField() {
+        assumeKnnRuntimeEnabled();
+        assumeDenseVectorCommandEnabled();
+        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+            .addIndex("books", "mapping-books.json")
+            .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.DOT_PRODUCT)
+            .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
+
+        LogicalPlan plan = analyzer.query("""
+            FROM books
+            | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+            | EVAL manipulated_vector = vector * 2.0
+            | WHERE KNN(manipulated_vector, TEXT_EMBEDDING("italian food recipe", "query-endpoint"))
+            | LIMIT 10
+            """);
+        Knn knn = findKnn(plan);
+        MapExpression options = as(knn.options(), MapExpression.class);
+        assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("l2_norm")));
+    }
+
+    public void testKnnInfersSimilarityThroughAliases() {
+        assumeKnnRuntimeEnabled();
+        assumeDenseVectorCommandEnabled();
+        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+            .addIndex("books", "mapping-books.json")
+            .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
+
+        for (String aliases : List.of(
+            "RENAME vector AS emb",
+            "EVAL emb = vector",
+            "EVAL intermediate = vector, emb = intermediate",
+            "RENAME vector AS renamed_vector | EVAL copied_vector = renamed_vector | KEEP copied_vector | RENAME copied_vector AS emb",
+            "EVAL emb = vector | EVAL vector = TO_DENSE_VECTOR([0.0, 1.0, 0.0])"
+        )) {
+            LogicalPlan plan = analyzer.query(
+                "FROM books | DENSE_VECTOR vector = title WITH { \"inference_id\": \"field-endpoint\" } | "
+                    + aliases
+                    + " | WHERE KNN(emb, [1.0, 0.0, 0.0]) | LIMIT 10"
+            );
+            MapExpression options = as(findKnn(plan).options(), MapExpression.class);
+            assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("l2_norm")));
+        }
+    }
+
+    /**
+     * Same test as above, except tests similarity function inference works for query vector through aliases.
+     */
+    public void testKnnInfersQuerySimilarityThroughAliases() {
+        assumeKnnRuntimeEnabled();
+        assumeDenseVectorCommandEnabled();
+        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
+
+        for (String aliases : List.of(
+            "RENAME vector AS query_vector",
+            "EVAL query_vector = vector",
+            "EVAL intermediate = vector, query_vector = intermediate",
+            "RENAME vector AS renamed_vector | EVAL copied_vector = renamed_vector "
+                + "| KEEP copied_vector, dense_vector_field | RENAME copied_vector AS query_vector"
+        )) {
+            LogicalPlan plan = analyzer.query(
+                "ROW dense_vector_field = TO_DENSE_VECTOR([1.0, 0.0, 0.0]) | "
+                    + "EVAL vector = TEXT_EMBEDDING(\"italian food recipe\", \"query-endpoint\") | "
+                    + aliases
+                    + " | WHERE KNN(dense_vector_field, query_vector) | LIMIT 10"
+            );
+            MapExpression options = as(findKnn(plan).options(), MapExpression.class);
+            assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("l2_norm")));
+        }
+    }
+
+    public void testKnnAliasSimilarityHonorsOverride() {
+        assumeKnnRuntimeEnabled();
+        assumeDenseVectorCommandEnabled();
+        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+            .addIndex("books", "mapping-books.json")
+            .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM)
+            .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.COSINE);
+
+        LogicalPlan plan = analyzer.query("""
+            FROM books
+            | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+            | RENAME vector AS intermediate
+            | EVAL emb = intermediate
+            | WHERE KNN(emb, [1.0, 0.0, 0.0], { "similarity_function": "dot_product" })
+            | LIMIT 10
+            """);
+        MapExpression options = as(findKnn(plan).options(), MapExpression.class);
+        assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("dot_product")));
+
+        // query_vector is aliased, but similarity is still inferred from the explicit similarity override.
+        plan = analyzer.query("""
+            ROW emb = TO_DENSE_VECTOR([1.0, 0.0, 0.0])
+            | EVAL q_vector = TEXT_EMBEDDING("italian food recipe", "query-endpoint")
+            | RENAME q_vector AS intermediate
+            | EVAL query_vector = intermediate
+            | WHERE KNN(emb, query_vector, { "similarity_function": "dot_product" })
+            | LIMIT 10
+            """);
+        options = as(findKnn(plan).options(), MapExpression.class);
+        assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("dot_product")));
+    }
+
+    public void testKnnDoesNotInferSimilarityThroughModifiedVector() {
+        assumeKnnRuntimeEnabled();
+        assumeDenseVectorCommandEnabled();
+        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+            .addIndex("books", "mapping-books.json")
+            .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
+
+        LogicalPlan plan = analyzer.query("""
+            FROM books
+            | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+            | EVAL modified = vector * 2.0 | RENAME modified AS emb
+            | WHERE KNN(emb, [1.0, 0.0, 0.0]) | LIMIT 10
+            """);
+        assertThat(findKnn(plan).options(), nullValue());
+    }
+
+    public void testKnnAliasSimilarityRejectsConflicts() {
+        assumeKnnRuntimeEnabled();
+        assumeDenseVectorCommandEnabled();
+        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+            .addIndex("books", "mapping-books.json")
+            .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM)
+            .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.COSINE);
+
+        analyzer.error(
+            """
+                FROM books
+                | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+                | RENAME vector AS intermediate
+                | EVAL emb = intermediate
+                | WHERE KNN(emb, TEXT_EMBEDDING("italian food recipe", "query-endpoint"))
+                | LIMIT 10
+                """,
+            containsString(
+                "KNN field inference endpoint [field-endpoint] uses similarity [l2_norm] "
+                    + "but query inference endpoint [query-endpoint] uses similarity [cosine]"
+            )
+        );
+
+        // still error even though similarity is explicitly specified.
+        analyzer.error(
+            """
+                FROM books
+                | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+                | RENAME vector AS intermediate
+                | EVAL emb = intermediate
+                | WHERE KNN(emb, TEXT_EMBEDDING("italian food recipe", "query-endpoint"), { "similarity_function": "dot_product" })
+                | LIMIT 10
+                """,
+            containsString(
+                "KNN field inference endpoint [field-endpoint] uses similarity [l2_norm] "
+                    + "but query inference endpoint [query-endpoint] uses similarity [cosine]"
+            )
+        );
+
+        // conflict detect through aliases for both dense_vector field and query.
+        analyzer.error(
+            """
+                FROM books
+                | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+                | EVAL q_vector = TEXT_EMBEDDING("italian food recipe", "query-endpoint")
+                | RENAME vector AS intermediate
+                | RENAME q_vector AS q_intermediate
+                | EVAL emb = intermediate, query_vector = q_intermediate
+                | WHERE KNN(emb, query_vector)
+                | LIMIT 10
+                """,
+            containsString(
+                "KNN field inference endpoint [field-endpoint] uses similarity [l2_norm] "
+                    + "but query inference endpoint [query-endpoint] uses similarity [cosine]"
+            )
+        );
+
+        // still error even though similarity is explicitly specified.
+        analyzer.error(
+            """
+                FROM books
+                | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+                | EVAL q_vector = TEXT_EMBEDDING("italian food recipe", "query-endpoint")
+                | RENAME vector AS intermediate
+                | RENAME q_vector AS q_intermediate
+                | EVAL emb = intermediate, query_vector = q_intermediate
+                | WHERE KNN(emb, query_vector, { "similarity_function": "dot_product" })
+                | LIMIT 10
+                """,
+            containsString(
+                "KNN field inference endpoint [field-endpoint] uses similarity [l2_norm] "
+                    + "but query inference endpoint [query-endpoint] uses similarity [cosine]"
+            )
+        );
+    }
+
+    private static void assumeKnnRuntimeEnabled() {
+        assumeTrue("Knn on runtime expression requires corresponding capability", EsqlCapabilities.Cap.KNN_RUNTIME_FIELD.isEnabled());
+    }
+
+    private static Configuration knnRuntimeConfiguration() {
+        return EsqlTestUtils.configuration(new QueryPragmas(Settings.builder().put(QueryPragmas.KNN_RUNTIME_FIELD.getKey(), true).build()));
+    }
+
+    private static Knn findKnn(LogicalPlan plan) {
+        List<Knn> functions = new ArrayList<>();
+        plan.forEachDown(LogicalPlan.class, node -> node.forEachExpression(Knn.class, functions::add));
+        assertThat(functions, hasSize(1));
+        return functions.getFirst();
     }
 
     public void testResolveRerankInferenceId() {
@@ -4498,7 +4888,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(completionFunction.prompt(), equalTo(string("Translate this text in French")));
         assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
         assertThat(completionFunction.taskSettings(), equalTo(new MapExpression(Source.EMPTY, List.of())));
-        assertThat(completionFunction.taskType(), equalTo(org.elasticsearch.inference.TaskType.COMPLETION));
+        assertThat(completionFunction.taskType(), equalTo(TaskType.COMPLETION));
     }
 
     public void testFoldableCompletionWithCustomTargetFieldTransformedToEval() {
@@ -4547,9 +4937,17 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
     }
 
+    /**
+     * Books analyzer pinned to a version that supports DENSE_VECTOR (rejected below
+     * {@link DenseVector#ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION}).
+     */
+    private TestAnalyzer denseVectorBooks() {
+        return books().minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION));
+    }
+
     public void testDenseVectorResolvesTextField() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR title WITH {"inference_id" : "text-embedding-inference-id" }
             """);
@@ -4569,7 +4967,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorResolvesMultipleFields() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR title, description WITH { "inference_id" : "text-embedding-inference-id" }
             """);
@@ -4584,10 +4982,13 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorResolvesQualifiedFieldNames() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-multi-field.json").addAnalysisTestsInferenceResolution().query("""
-            FROM test
-            | DENSE_VECTOR text.raw, text.english WITH { "inference_id" : "text-embedding-inference-id" }
-            """);
+        LogicalPlan plan = analyzer().minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+            .addIndex("test", "mapping-multi-field.json")
+            .addAnalysisTestsInferenceResolution()
+            .query("""
+                FROM test
+                | DENSE_VECTOR text.raw, text.english WITH { "inference_id" : "text-embedding-inference-id" }
+                """);
 
         DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
         // One generated column per input field, keyed by the full dotted field name (no collision/shadowing).
@@ -4600,11 +5001,14 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorResolvesNestedAndMixedFields() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-multi-field-variation.json").addAnalysisTestsInferenceResolution().query("""
-            FROM test
-            | DENSE_VECTOR keyword, some.dotted.field, some.string, some.string.typical
-                WITH { "inference_id" : "text-embedding-inference-id" }
-            """);
+        LogicalPlan plan = analyzer().minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+            .addIndex("test", "mapping-multi-field-variation.json")
+            .addAnalysisTestsInferenceResolution()
+            .query("""
+                FROM test
+                | DENSE_VECTOR keyword, some.dotted.field, some.string, some.string.typical
+                    WITH { "inference_id" : "text-embedding-inference-id" }
+                """);
 
         DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
         // A plain root field, a deeply nested field, and a parent text field vs its keyword subfield all
@@ -4622,7 +5026,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorResolvesKeywordField() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR book_no WITH { "inference_id" : "text-embedding-inference-id" }
             """);
@@ -4634,7 +5038,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorNonTextFieldFails() {
         assumeDenseVectorCommandEnabled();
-        books().error(
+        denseVectorBooks().error(
             "FROM books | DENSE_VECTOR year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
             containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
         );
@@ -4642,7 +5046,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorTextAcceptsTextEmbeddingEndpoint() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR title WITH { "inference_id" : "text-embedding-inference-id", "type" : "text" }
             """);
@@ -4652,7 +5056,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorTextAcceptsEmbeddingEndpoint() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR title WITH { "inference_id" : "embedding-inference-id", "type" : "text" }
             """);
@@ -4662,7 +5066,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorImageAcceptsEmbeddingEndpoint() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR title WITH { "inference_id" : "embedding-inference-id", "type" : "image" }
             """);
@@ -4673,7 +5077,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorImageRejectsTextEmbeddingEndpoint() {
         assumeDenseVectorCommandEnabled();
-        books().error(
+        denseVectorBooks().error(
             "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"text-embedding-inference-id\", \"type\" : \"image\" }",
             containsString(
                 "cannot use inference endpoint [text-embedding-inference-id] with task type [text_embedding] within a DENSE_VECTOR "
@@ -4688,7 +5092,7 @@ public class AnalyzerTests extends ESTestCase {
      */
     public void testDenseVectorRejectsCompletionEndpoint() {
         assumeDenseVectorCommandEnabled();
-        books().error(
+        denseVectorBooks().error(
             "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"completion-inference-id\" }",
             containsString(
                 "cannot use inference endpoint [completion-inference-id] with task type [completion] within a DENSE_VECTOR "
@@ -4697,9 +5101,122 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    /**
+     * A query naming no endpoint takes the first candidate this deployment has. The EIS endpoint is preferred over the ML-node
+     * one, so a serverless deployment - which runs no ML nodes - still resolves.
+     */
+    public void testDenseVectorDefaultInferenceIdPrefersEisCandidate() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = denseVectorBooks().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(DenseVector.EIS_JINA_V5_INFERENCE_ID)));
+        assertThat(denseVector.endpointTaskType(), equalTo(TaskType.TEXT_EMBEDDING));
+    }
+
+    /**
+     * Where the EIS endpoint is absent - a stateful deployment that never reached it - the ML-node endpoint is used instead.
+     */
+    public void testDenseVectorDefaultInferenceIdFallsBackToMlCandidate() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = denseVectorBooks().addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(DenseVector.DEFAULT_INFERENCE_ID)));
+    }
+
+    /**
+     * An endpoint the query names is used as given, even when a candidate is available: selecting a candidate over it would move
+     * the query off the endpoint its author chose.
+     */
+    public void testDenseVectorExplicitInferenceIdIsNotReplacedByCandidate() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = denseVectorBooks().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"text-embedding-inference-id\" }");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(TEXT_EMBEDDING_INFERENCE_ID)));
+    }
+
+    /**
+     * Naming the ML-node endpoint explicitly keeps it, even though it is also the last candidate. The id alone cannot tell the
+     * two apart, so this pins the behaviour that distinguishes them.
+     */
+    public void testDenseVectorExplicitMlEndpointIsNotReplacedByCandidate() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = denseVectorBooks().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"" + DenseVector.DEFAULT_INFERENCE_ID + "\" }");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(DenseVector.DEFAULT_INFERENCE_ID)));
+    }
+
+    /**
+     * Where the deployment has no candidate at all, the failure names every candidate tried and the option to set.
+     */
+    public void testDenseVectorNoDefaultInferenceIdAvailable() {
+        assumeDenseVectorCommandEnabled();
+        denseVectorBooks().error(
+            "FROM books | DENSE_VECTOR title",
+            containsString(
+                "no inference endpoint is available for the DENSE_VECTOR command: "
+                    + "["
+                    + DenseVector.EIS_JINA_V5_INFERENCE_ID
+                    + "]: unresolved inference ["
+                    + DenseVector.EIS_JINA_V5_INFERENCE_ID
+                    + "]; ["
+                    + DenseVector.DEFAULT_INFERENCE_ID
+                    + "]: unresolved inference ["
+                    + DenseVector.DEFAULT_INFERENCE_ID
+                    + "]. Specify an endpoint using the [inference_id] option."
+            )
+        );
+    }
+
+    /**
+     * A candidate whose task type the input cannot use is skipped. A sparse EIS endpoint under the candidate id leaves the
+     * ML-node candidate as the only usable one.
+     */
+    public void testDenseVectorSkipsCandidateWithUnusableTaskType() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = denseVectorBooks().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.SPARSE_EMBEDDING)
+            .addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(DenseVector.DEFAULT_INFERENCE_ID)));
+    }
+
+    /**
+     * When no candidate is usable, the failure explains each one: an absent candidate reports its resolution error, and a
+     * present candidate whose task type the input cannot use reports that task type. Here the EIS candidate embeds sparsely and
+     * the ML candidate is absent.
+     */
+    public void testDenseVectorNoDefaultInferenceIdReportsWhyEachCandidateFails() {
+        assumeDenseVectorCommandEnabled();
+        denseVectorBooks().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.SPARSE_EMBEDDING)
+            .error(
+                "FROM books | DENSE_VECTOR title",
+                containsString(
+                    "no inference endpoint is available for the DENSE_VECTOR command: "
+                        + "["
+                        + DenseVector.EIS_JINA_V5_INFERENCE_ID
+                        + "]: task type [sparse_embedding] is not supported; ["
+                        + DenseVector.DEFAULT_INFERENCE_ID
+                        + "]: unresolved inference ["
+                        + DenseVector.DEFAULT_INFERENCE_ID
+                        + "]. Specify an endpoint using the [inference_id] option."
+                )
+            );
+    }
+
     public void testDenseVectorUnknownColumnFails() {
         assumeDenseVectorCommandEnabled();
-        books().error(
+        denseVectorBooks().error(
             "FROM books | DENSE_VECTOR nonexistent WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
             containsString("Unknown column [nonexistent]")
         );
@@ -4707,7 +5224,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorInvalidInferenceIdFails() {
         assumeDenseVectorCommandEnabled();
-        books().error(
+        denseVectorBooks().error(
             "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"unknown-inference-id\" }",
             containsString("unresolved inference [unknown-inference-id]")
         );
@@ -4715,7 +5232,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorDuplicateFieldIsDeduped() {
         assumeDenseVectorCommandEnabled();
-        LogicalPlan plan = books().query("""
+        LogicalPlan plan = denseVectorBooks().query("""
             FROM books
             | DENSE_VECTOR title, title WITH { "inference_id" : "text-embedding-inference-id" }
             """);
@@ -4724,6 +5241,132 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(denseVector.fields(), hasSize(1));
         assertThat(denseVector.generatedAttributes(), hasSize(1));
         assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), notNullValue());
+    }
+
+    private static void assumeDenseVectorNamingEnabled() {
+        assumeTrue("DENSE_VECTOR naming requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND_V3.isEnabled());
+    }
+
+    public void testDenseVectorExplicitOutputNameResolves() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = denseVectorBooks().query("""
+            FROM books
+            | DENSE_VECTOR vec = title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.generatedAttributes(), hasSize(1));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("vec"));
+        Attribute generated = getAttributeByName(denseVector.output(), "vec");
+        assertThat(generated, notNullValue());
+        assertThat(generated.dataType(), equalTo(DataType.DENSE_VECTOR));
+        // The default name is not produced alongside the explicit one.
+        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), nullValue());
+        // The source column survives; DENSE_VECTOR appends rather than replaces.
+        assertThat(getAttributeByName(denseVector.output(), "title"), notNullValue());
+    }
+
+    public void testDenseVectorSuffixResolvesForEachField() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = denseVectorBooks().query("""
+            FROM books
+            | DENSE_VECTOR suffix = "_dv" ON title, description WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.generatedAttributes(), hasSize(2));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("title_dv"));
+        assertThat(denseVector.generatedAttributes().get(1).name(), equalTo("description_dv"));
+        assertThat(getAttributeByName(denseVector.output(), "title_dv"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "description_dv"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), nullValue());
+    }
+
+    /**
+     * An explicit name that collides with an existing column replaces it, the same shadowing rule EVAL follows. The surviving
+     * column carries the generated {@code dense_vector} type rather than the shadowed column's type.
+     */
+    public void testDenseVectorExplicitNameShadowsExistingColumn() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = denseVectorBooks().query("""
+            FROM books
+            | DENSE_VECTOR description = title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        Attribute shadowed = getAttributeByName(denseVector.output(), "description");
+        assertThat(shadowed, notNullValue());
+        assertThat(shadowed.dataType(), equalTo(DataType.DENSE_VECTOR));
+        assertThat(denseVector.output().stream().filter(a -> a.name().equals("description")).count(), equalTo(1L));
+    }
+
+    /**
+     * Naming the output after its own input leaves the embedding in place of the source text, so the source column is no longer
+     * reachable downstream.
+     */
+    public void testDenseVectorOutputNameMatchingInputReplacesIt() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = denseVectorBooks().query("""
+            FROM books
+            | DENSE_VECTOR title = title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        Attribute title = getAttributeByName(denseVector.output(), "title");
+        assertThat(title, notNullValue());
+        assertThat(title.dataType(), equalTo(DataType.DENSE_VECTOR));
+        assertThat(denseVector.output().stream().filter(a -> a.name().equals("title")).count(), equalTo(1L));
+    }
+
+    /** Chained clauses naming the same output column: the later clause shadows the earlier one. */
+    public void testDenseVectorChainedClausesWithSameOutputName() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = denseVectorBooks().query("""
+            FROM books
+            | DENSE_VECTOR vec = title WITH { "inference_id" : "text-embedding-inference-id" }
+            | DENSE_VECTOR vec = description WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector outer = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(outer.fields().get(0).name(), equalTo("description"));
+        assertThat(outer.output().stream().filter(a -> a.name().equals("vec")).count(), equalTo(1L));
+        assertThat(getAttributeByName(outer.output(), "vec").dataType(), equalTo(DataType.DENSE_VECTOR));
+    }
+
+    /** A suffix that reproduces an existing column's name shadows it, exactly as the default suffix would. */
+    public void testDenseVectorSuffixShadowsExistingColumn() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = denseVectorBooks().query("""
+            FROM books
+            | EVAL title_dv = "placeholder"
+            | DENSE_VECTOR suffix = "_dv" ON title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        Attribute shadowed = getAttributeByName(denseVector.output(), "title_dv");
+        assertThat(shadowed, notNullValue());
+        assertThat(shadowed.dataType(), equalTo(DataType.DENSE_VECTOR));
+        assertThat(denseVector.output().stream().filter(a -> a.name().equals("title_dv")).count(), equalTo(1L));
+    }
+
+    public void testDenseVectorNamedOutputOnNonTextFieldFails() {
+        assumeDenseVectorNamingEnabled();
+        denseVectorBooks().error(
+            "FROM books | DENSE_VECTOR vec = year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
+        );
+        denseVectorBooks().error(
+            "FROM books | DENSE_VECTOR suffix = \"_dv\" ON year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
+        );
+    }
+
+    public void testDenseVectorNamedOutputOnUnknownColumnFails() {
+        assumeDenseVectorNamingEnabled();
+        denseVectorBooks().error(
+            "FROM books | DENSE_VECTOR vec = no_such_column WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("Unknown column [no_such_column]")
+        );
     }
 
     public void testResolveGroupingsBeforeResolvingImplicitReferencesToGroupings() {
@@ -4967,7 +5610,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(cleanedParent, instanceOf(KeywordEsField.class));
     }
 
-    private static EsField assertConflictedMultifieldIsCleaned(EsField conflictedMultifield) {
+    private EsField assertConflictedMultifieldIsCleaned(EsField conflictedMultifield) {
         EsField parent = new KeywordEsField(
             "my_field",
             Map.of(CONFLICTED_SUBFIELD, conflictedMultifield),
@@ -5125,7 +5768,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     /** Analyzes {@code query} over a single-field index and returns the last {@code fieldName} attribute's (cleaned) field. */
-    private static EsField shippedFieldAfterAnalysis(String fieldName, EsField field, String query) {
+    private EsField shippedFieldAfterAnalysis(String fieldName, EsField field, String query) {
         EsIndex index = new EsIndex(
             "idx",
             Map.of(fieldName, field),
@@ -5144,6 +5787,229 @@ public class AnalyzerTests extends ESTestCase {
         });
         assertFalse("expected a [" + fieldName + "] field attribute", found.isEmpty());
         return found.get(found.size() - 1);
+    }
+
+    public void testWideOutputResolvesThroughNameIndex() {
+        IndexResolution resolution = keywordFieldsIndex("wide", 200);
+
+        String query = """
+            FROM wide
+            | WHERE f5 == "a"
+            | SORT f10 ASC
+            | KEEP f0, f5, f10, f199
+            """;
+        LogicalPlan plan = analyzer().addIndex(resolution).query(query);
+
+        var output = plan.output();
+        assertThat(Expressions.names(output), contains("f0", "f5", "f10", "f199"));
+        for (Attribute a : output) {
+            assertTrue(a + " should be resolved", a.resolved());
+        }
+
+        // Explicit DROP at the same scale resolves the removals through dropResolver's index path; the
+        // four named columns are removed and every remaining column stays resolved.
+        String dropQuery = "FROM wide | DROP f0, f5, f10, f199";
+        LogicalPlan dropPlan = analyzer().addIndex(resolution).query(dropQuery);
+        var dropOutput = dropPlan.output();
+        assertThat(dropOutput, hasSize(196));
+        assertThat(Expressions.names(dropOutput), not(hasItems("f0", "f5", "f10", "f199")));
+        for (Attribute a : dropOutput) {
+            assertTrue(a + " should be resolved", a.resolved());
+        }
+
+        // Unknown column at the same scale still errors through the shared no-match path, for both KEEP and DROP.
+        String unknown = "FROM wide | KEEP does_not_exist";
+        VerificationException e = expectThrows(VerificationException.class, () -> analyzer().addIndex(resolution).query(unknown));
+        assertThat(e.getMessage(), containsString("Unknown column [does_not_exist]"));
+        VerificationException dropError = expectThrows(
+            VerificationException.class,
+            () -> analyzer().addIndex(resolution).query("FROM wide | DROP does_not_exist")
+        );
+        assertThat(dropError.getMessage(), containsString("Unknown column [does_not_exist]"));
+    }
+
+    public void testWideAndNarrowOutputsResolveIdentically() {
+        IndexResolution narrow = keywordFieldsIndex("narrow", 50);
+        IndexResolution wide = keywordFieldsIndex("wide", 200);
+
+        List<String> narrowKeep = Expressions.names(
+            analyzer().addIndex(narrow).query("FROM narrow | WHERE f5 == \"a\" | SORT f10 ASC | KEEP f0, f5, f10, f40").output()
+        );
+        List<String> wideKeep = Expressions.names(
+            analyzer().addIndex(wide).query("FROM wide | WHERE f5 == \"a\" | SORT f10 ASC | KEEP f0, f5, f10, f40").output()
+        );
+        assertThat(narrowKeep, contains("f0", "f5", "f10", "f40"));
+        assertThat(wideKeep, equalTo(narrowKeep));
+
+        List<String> narrowDrop = Expressions.names(analyzer().addIndex(narrow).query("FROM narrow | DROP f0, f5, f10, f40").output());
+        List<String> wideDrop = Expressions.names(analyzer().addIndex(wide).query("FROM wide | DROP f0, f5, f10, f40").output());
+        assertThat(narrowDrop, hasSize(46));
+        assertThat(wideDrop, hasSize(196));
+        for (int i = 0; i < 50; i++) {
+            String f = "f" + i;
+            assertThat(f + " parity", wideDrop.contains(f), equalTo(narrowDrop.contains(f)));
+        }
+    }
+
+    public void testNameIndexThresholdBoundary() {
+        IndexResolution atThreshold = keywordFieldsIndex("at_threshold", 128);
+        IndexResolution overThreshold = keywordFieldsIndex("over_threshold", 129);
+
+        List<String> atKeep = Expressions.names(
+            analyzer().addIndex(atThreshold).query("FROM at_threshold | WHERE f1 == \"a\" | KEEP f0, f1, f127").output()
+        );
+        List<String> overKeep = Expressions.names(
+            analyzer().addIndex(overThreshold).query("FROM over_threshold | WHERE f1 == \"a\" | KEEP f0, f1, f127").output()
+        );
+        assertThat(atKeep, contains("f0", "f1", "f127"));
+        assertThat(overKeep, equalTo(atKeep));
+
+        assertThat(analyzer().addIndex(atThreshold).query("FROM at_threshold | DROP f0").output(), hasSize(127));
+        assertThat(analyzer().addIndex(overThreshold).query("FROM over_threshold | DROP f0").output(), hasSize(128));
+    }
+
+    public void testIndexAndScanPathsResolveIdenticallyGenerative() {
+        int iterations = 100;
+        for (int iter = 0; iter < iterations; iter++) {
+            int width = randomIntBetween(1, 260);
+            IndexResolution index = keywordFieldsIndex("gen", width);
+            String query = randomResolutionQuery(width, randomInt(4) == 0);
+            String indexPath = resolveToComparable(index, query, 0);
+            String scanPath = resolveToComparable(index, query, Integer.MAX_VALUE);
+            assertEquals("index vs scan path divergence for query:\n" + query, scanPath, indexPath);
+        }
+    }
+
+    private String randomResolutionQuery(int width, boolean injectUnknown) {
+        String known1 = "f" + randomIntBetween(0, width - 1);
+        String known2 = "f" + randomIntBetween(0, width - 1);
+        String known3 = "f" + randomIntBetween(0, width - 1);
+        String absent = "f" + (width + randomIntBetween(1, 100)); // never present in the mapping
+        StringBuilder q = new StringBuilder("FROM gen");
+        q.append("\n| WHERE ").append(injectUnknown && randomBoolean() ? absent : known1).append(" == \"a\"");
+        q.append("\n| SORT ").append(known2).append(" ASC");
+        if (randomBoolean()) {
+            q.append("\n| KEEP ").append(known1).append(", ").append(known3);
+            if (injectUnknown) {
+                q.append(", ").append(absent);
+            }
+        } else {
+            q.append("\n| DROP ").append(known3);
+            if (injectUnknown) {
+                q.append(", ").append(absent);
+            }
+        }
+        return q.toString();
+    }
+
+    private String resolveToComparable(IndexResolution index, String query, int threshold) {
+        int previous = Analyzer.ResolveRefs.nameIndexThreshold;
+        Analyzer.ResolveRefs.nameIndexThreshold = threshold;
+        try {
+            return "names=" + Expressions.names(analyzer().addIndex(index).query(query).output());
+        } catch (VerificationException e) {
+            return "error=" + e.getMessage();
+        } finally {
+            Analyzer.ResolveRefs.nameIndexThreshold = previous;
+        }
+    }
+
+    public void testWideOutputUnknownColumnSuggestsSimilarThroughIndex() {
+        IndexResolution wide = keywordFieldsIndex("wide", 200);
+
+        VerificationException whereErr = expectThrows(
+            VerificationException.class,
+            () -> analyzer().addIndex(wide).query("FROM wide | WHERE f100x == \"a\"")
+        );
+        assertThat(whereErr.getMessage(), containsString("Unknown column [f100x]"));
+        assertThat(whereErr.getMessage(), containsString("f100"));
+
+        VerificationException keepErr = expectThrows(
+            VerificationException.class,
+            () -> analyzer().addIndex(wide).query("FROM wide | KEEP f100x")
+        );
+        assertThat(keepErr.getMessage(), containsString("Unknown column [f100x]"));
+        assertThat(keepErr.getMessage(), containsString("f100"));
+    }
+
+    public void testWideKeepExactAndWildcardCombine() {
+        IndexResolution wide = keywordFieldsIndex("wide", 200);
+        LogicalPlan plan = analyzer().addIndex(wide).query("FROM wide | KEEP f5, f1*");
+        List<String> names = Expressions.names(plan.output());
+        assertThat(names, hasSize(112));
+        assertThat(names, hasItems("f5", "f1", "f10", "f19", "f100", "f199"));
+        assertThat(names, not(hasItem("f0")));
+        for (Attribute a : plan.output()) {
+            assertTrue(a + " should be resolved", a.resolved());
+        }
+    }
+
+    public void testWideDropWildcardAndOverlap() {
+        IndexResolution wide = keywordFieldsIndex("wide", 200);
+
+        List<String> single = Expressions.names(analyzer().addIndex(wide).query("FROM wide | DROP f1*").output());
+        assertThat(single, hasSize(89));
+        assertThat(single, not(hasItems("f1", "f10", "f19", "f100", "f199")));
+        assertThat(single, hasItems("f0", "f2", "f9"));
+
+        List<String> overlap = Expressions.names(analyzer().addIndex(wide).query("FROM wide | DROP f1*, f1*").output());
+        assertThat(overlap, equalTo(single));
+
+        LogicalPlan mixedPlan = analyzer().addIndex(wide).query("FROM wide | DROP f0, f1*");
+        List<String> mixed = Expressions.names(mixedPlan.output());
+        assertThat(mixed, hasSize(88));
+        assertThat(mixed, not(hasItems("f0", "f1", "f10", "f199")));
+        for (Attribute a : mixedPlan.output()) {
+            assertTrue(a + " should be resolved", a.resolved());
+        }
+    }
+
+    public void testWideCustomMessageAttributeIsNotReResolvedToAmbiguity() {
+        List<Attribute> attrs = new ArrayList<>();
+        for (int i = 0; i < 129; i++) {
+            String f = "f" + i;
+            attrs.add(
+                new FieldAttribute(Source.EMPTY, f, new EsField(f, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+            );
+        }
+        EsField dupField = new EsField("dup", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        attrs.add(new FieldAttribute(Source.EMPTY, "dup", dupField));
+        attrs.add(new FieldAttribute(Source.EMPTY, "dup", dupField));
+
+        EsRelation relation = new EsRelation(
+            Source.EMPTY,
+            "wide",
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of("wide", new IndexProperties(IndexMode.STANDARD, 0)),
+            attrs
+        );
+
+        // A reference that already failed to resolve on an earlier pass (customMessage == true), matching the
+        // duplicated name.
+        String customMessage = "Unknown column [dup]";
+        UnresolvedAttribute alreadyFailed = new UnresolvedAttribute(Source.EMPTY, "dup", customMessage);
+        assertTrue(alreadyFailed.customMessage());
+        Filter filter = new Filter(Source.EMPTY, relation, alreadyFailed);
+
+        LogicalPlan resolved = new Analyzer.ResolveRefs().apply(filter, analyzer().buildContext());
+
+        Filter resolvedFilter = as(resolved, Filter.class);
+        UnresolvedAttribute condition = as(resolvedFilter.condition(), UnresolvedAttribute.class);
+        assertTrue("custom message must be preserved, not re-resolved into an ambiguity error", condition.customMessage());
+        assertThat(condition.unresolvedMessage(), equalTo(customMessage));
+    }
+
+    private static IndexResolution keywordFieldsIndex(String name, int fieldCount) {
+        LinkedHashMap<String, EsField> mapping = new LinkedHashMap<>();
+        for (int i = 0; i < fieldCount; i++) {
+            String f = "f" + i;
+            mapping.put(f, new EsField(f, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        }
+        return IndexResolution.valid(
+            new EsIndex(name, mapping, Map.of(name, new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of())
+        );
     }
 
     public void testExplicitRetainOriginalFieldWithCast() {
@@ -5385,6 +6251,25 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(start.toEpochMilli(), fromLiteral.value());
         Literal toLiteral = as(tbucket.to(), Literal.class);
         assertEquals(end.toEpochMilli(), toLiteral.value());
+    }
+
+    public void testTBucketTsWithoutBoundsFailsVerification() {
+        // Regression test for https://github.com/elastic/elasticsearch/issues/159602:
+        // translation runs before verification, so missing bounds must surface as a
+        // VerificationException, not a crash on the surrogate invariant.
+        k8s().error(
+            "TS k8s | STATS SUM(RATE(network.total_bytes_in)) BY TBUCKET(100) | LIMIT 0",
+            containsString("numeric bucket count in [TBUCKET(100)] requires [from] and [to] parameters")
+        );
+    }
+
+    public void testTBucketTsDurationWithoutBoundsSucceeds() {
+        // Duration form needs no bounds: translation must run, not bail out.
+        LogicalPlan plan = k8s().query("TS k8s | STATS s = SUM(RATE(network.total_bytes_in)) BY b = TBUCKET(1 hour)");
+        assertEquals(List.of("s", "b"), Expressions.names(plan.output()));
+        var tsAggs = plan.collect(TimeSeriesAggregate.class);
+        assertFalse(tsAggs.isEmpty());
+        assertNotNull(tsAggs.get(0).timeBucket());
     }
 
     public void testTBucketWithDatePeriodInBothAggregationAndGrouping() {
@@ -6106,50 +6991,1159 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps, boolean hasTimeSeriesAggregation) {
-        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, hasTimeSeriesAggregation, true);
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, hasTimeSeriesAggregation, true, true);
     }
 
-    private static TestAnalyzer basic() {
+    public void testHighlightCombinesImplicitQueriesFromMultipleWhereCommands() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | WHERE MATCH(last_name, "y")
+            | HIGHLIGHT ON first_name
+            """));
+
+        Or query = as(highlight.query(), Or.class);
+        assertThat(Expressions.name(as(query.left(), Match.class).field()), equalTo("last_name"));
+        assertThat(Expressions.name(as(query.right(), Match.class).field()), equalTo("first_name"));
+    }
+
+    public void testHighlightCollectsOnlyPositiveFullTextConjuncts() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x") AND salary > 3 AND NOT MATCH(last_name, "y")
+            | HIGHLIGHT ON first_name
+            """));
+        assertThat(highlight.query(), instanceOf(Match.class));
+
+        supportsHighlight(basic()).error(
+            "FROM test | WHERE NOT MATCH(first_name, \"x\") | HIGHLIGHT ON first_name",
+            containsString("HIGHLIGHT found no borrowable condition in the preceding WHERE")
+        );
+    }
+
+    public void testHighlightImplicitQueryIgnoresNonHighlightableFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x") AND MATCH(salary, 3)
+            | HIGHLIGHT
+            """));
+
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name")));
+        assertTrue(highlight.implicitQuery());
+
+        supportsHighlight(basic()).error(
+            "FROM test | WHERE MATCH(salary, 3) | HIGHLIGHT",
+            allOf(
+                containsString("HIGHLIGHT found no text or keyword fields to highlight"),
+                containsString("salary"),
+                containsString("not a text or keyword column")
+            )
+        );
+    }
+
+    /** LOOKUP JOIN and FORK are not {@code UnaryPlan}; without {@code blockedBy} they would look like a missing WHERE. */
+    public void testHighlightImplicitQueryStopsAtBarriers() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        var blocked = allOf(containsString("HIGHLIGHT cannot borrow the WHERE before"), containsString("does not preserve documents"));
+        supportsHighlight(basic()).error(
+            "FROM test | WHERE MATCH(first_name, \"x\") | STATS c = COUNT(*) BY first_name | HIGHLIGHT ON first_name",
+            allOf(blocked, containsString("STATS c = COUNT(*) BY first_name"))
+        );
+        supportsHighlight(basic().addLanguagesLookup()).error("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | HIGHLIGHT ON first_name
+            """, allOf(blocked, containsString("LOOKUP JOIN languages_lookup ON language_code")));
+        supportsHighlight(basic()).error("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | FORK (WHERE emp_no > 1) (WHERE emp_no > 2)
+            | HIGHLIGHT ON first_name
+            """, allOf(blocked, containsString("FORK (WHERE emp_no > 1) (WHERE emp_no > 2)")));
+    }
+
+    public void testHighlightImplicitQueryDescendsThroughInlineStats() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | INLINE STATS c = COUNT(*)
+            | HIGHLIGHT ON first_name
+            """));
+
+        assertThat(highlight.query(), instanceOf(Match.class));
+        assertTrue(highlight.implicitQuery());
+    }
+
+    /** Both WHEREs are below one HIGHLIGHT, so it ORs them across INLINE STATS and derives both fields. */
+    public void testHighlightImplicitQueryBorrowsWheresOnBothSidesOfInlineStats() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | INLINE STATS c = COUNT(*)
+            | WHERE MATCH(last_name, "y")
+            | HIGHLIGHT
+            """));
+        Or query = as(highlight.query(), Or.class);
+        assertThat(Expressions.name(as(query.left(), Match.class).field()), equalTo("last_name"));
+        assertThat(Expressions.name(as(query.right(), Match.class).field()), equalTo("first_name"));
+        assertThat(fieldNames(highlight.fields()), containsInAnyOrder("first_name", "last_name"));
+    }
+
+    /**
+     * An implicit HIGHLIGHT does not copy a WHERE or mapping analyzer into WITH options.
+     * Mixed leaf analyzers remain query-side and are accepted without synthesizing WITH.
+     */
+    public void testHighlightNeverSynthesizesLeafAnalyzerIntoOptions() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        for (String query : List.of(
+            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"standard\"}) | HIGHLIGHT ON first_name",
+            "FROM test | WHERE MATCH(first_name, \"x\") | HIGHLIGHT"
+        )) {
+            Highlight highlight = soleHighlight(supportsHighlight(basic()).query(query));
+            assertTrue(query, highlight.implicitQuery());
+            assertNull(query, highlight.options());
+        }
+        Highlight mapped = soleHighlight(
+            supportsHighlight(analyzer().addIndex("books_english", "mapping-books_english.json")).query(
+                "FROM books_english | WHERE MATCH(title, \"ring\") | HIGHLIGHT ON title"
+            )
+        );
+        assertTrue(mapped.implicitQuery());
+        assertNull(mapped.options());
+        assertWarnings(englishFallbackWarning("title"));
+    }
+
+    public void testHighlightAnalyzerOnUnsupportedShapeDoesNotBorrow() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x") AND NOT MATCH(last_name, "y", {"analyzer": "whitespace"})
+            | HIGHLIGHT ON first_name
+            """));
+        assertThat(highlight.query(), instanceOf(Match.class));
+        assertTrue(highlight.implicitQuery());
+        assertNull(highlight.options());
+    }
+
+    public void testHighlightCarriesMappingAnalyzerName() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(
+            supportsHighlight(analyzer().addIndex("books_english", "mapping-books_english.json")).query(
+                "FROM books_english | HIGHLIGHT \"ring\" ON title"
+            )
+        );
+        FieldAttribute title = as(highlight.fields().getFirst(), FieldAttribute.class);
+        assertThat(title.field(), instanceOf(TextEsField.class));
+        assertThat(((TextEsField) title.field()).analyzerName(), equalTo("english"));
+        assertNull(highlight.options());
+        assertWarnings(englishFallbackWarning("title"));
+    }
+
+    /**
+     * When the indices disagree on an ON field's analyzer, HIGHLIGHT gets a synthetic alias of each row's {@code _index}
+     * through the projections below it, and emits no fallback warning. The alias stays out of the final output, and a
+     * renamed user {@code _index} appears only under its new name.
+     */
+    public void testHighlightPerIndexAnalyzerThreadsIndexKey() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | WHERE MATCH(title, "ring")
+            | KEEP title, book_no
+            | SORT book_no
+            | HIGHLIGHT
+            """);
+        Highlight highlight = soleHighlight(plan);
+        ReferenceAttribute key = as(highlight.indexKey(), ReferenceAttribute.class);
+        assertThat(key.name(), equalTo(ResolveHighlightIndexKey.INDEX_KEY_NAME));
+        assertTrue(key.synthetic());
+        assertThat(highlight.child().outputSet(), hasItem(key));
+        assertThat(highlight.references(), hasItem(key));
+        assertThat(fieldNames(plan.output()), equalTo(List.of("title", "book_no", "highlight_title")));
+        // The KEEP below HIGHLIGHT projects the key. The alias is in an EVAL right above the relation, over a synthetic _index.
+        Project keep = highlight.child().collect(Project.class).getFirst();
+        assertThat(List.<NamedExpression>copyOf(keep.projections()), hasItem(key));
+        Eval alias = highlight.child().collect(Eval.class).getFirst();
+        MetadataAttribute index = as(as(alias.fields().getFirst(), Alias.class).child(), MetadataAttribute.class);
+        assertThat(index.name(), equalTo(MetadataAttribute.INDEX));
+        assertTrue(index.synthetic());
+        assertThat(as(alias.child(), EsRelation.class).output(), hasItem(index));
+
+        plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books* METADATA _index
+            | RENAME _index AS idx
+            | HIGHLIGHT "ring" ON title
+            """);
+        assertNotNull(soleHighlight(plan).indexKey());
+        assertThat(fieldNames(plan.output()), equalTo(List.of("book_no", "title", "idx", "highlight_title")));
+
+        // A second HIGHLIGHT reuses the first one's key.
+        plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | HIGHLIGHT "ring" ON title
+            | KEEP title, highlight_title
+            | HIGHLIGHT prefix = "again_" "ring" ON title
+            """);
+        List<Highlight> highlights = plan.collect(Highlight.class);
+        assertThat(highlights, hasSize(2));
+        assertNotNull(highlights.getFirst().indexKey());
+        assertThat(highlights.getLast().indexKey(), equalTo(highlights.getFirst().indexKey()));
+        assertThat(fieldNames(plan.output()), equalTo(List.of("title", "highlight_title", "again_title")));
+        // HIGHLIGHT uses each row's own index analyzer, so it emits no warning.
+        assertWarnings();
+    }
+
+    /**
+     * HIGHLIGHT gets no index key when rows have no single source index, when WITH sets the analyzer, or when an older
+     * node is in the cluster. Without the key, indices that disagree fail the query, except with an older node, where
+     * HIGHLIGHT falls back to standard and warns.
+     */
+    public void testHighlightPerIndexAnalyzerFallsBackWithoutIndexKey() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        booksWithConflictingTitleAnalyzer().error(
+            "FROM books* | STATS c = COUNT(*) BY title | HIGHLIGHT \"ring\" ON title",
+            containsString(analyzerConflictError("title"))
+        );
+        assertNull(
+            soleHighlight(booksWithConflictingTitleAnalyzer().query("ROW title = \"ring\" | HIGHLIGHT \"ring\" ON title")).indexKey()
+        );
+        assertWarnings();
+
+        assertNull(
+            soleHighlight(
+                booksWithConflictingTitleAnalyzer().minimumTransportVersion(
+                    TransportVersionUtils.getPreviousVersion(TextEsField.TEXT_FIELD_ANALYZER)
+                ).query("FROM books* | HIGHLIGHT \"ring\" ON title")
+            ).indexKey()
+        );
+        assertWarnings(analyzerConflictFallbackWarning("title"));
+
+        assertNull(
+            soleHighlight(
+                booksWithConflictingTitleAnalyzer().query("FROM books* | HIGHLIGHT \"ring\" ON title WITH {\"analyzer\": \"keyword\"}")
+            ).indexKey()
+        );
+        assertWarnings();
+    }
+
+    /**
+     * DEDUP would group by the key, so HIGHLIGHT after it gets none and fails when the indices disagree. INLINE STATS
+     * keeps every row, so the key goes below it.
+     */
+    public void testHighlightPerIndexAnalyzerThroughDedupAndInlineStats() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        assumeTrue("requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        booksWithConflictingTitleAnalyzer().error(
+            "FROM books* | KEEP title | DEDUP | HIGHLIGHT \"ring\" ON title",
+            containsString(analyzerConflictError("title"))
+        );
+
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query(
+            "FROM books* | INLINE STATS c = COUNT(*) BY book_no | HIGHLIGHT \"ring\" ON title"
+        );
+        Attribute key = soleHighlight(plan).indexKey();
+        assertNotNull(key);
+        InlineStats inlineStats = plan.collect(InlineStats.class).getFirst();
+        assertThat(inlineStats.aggregate().child().outputSet(), hasItem(key));
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertWarnings();
+    }
+
+    /**
+     * The key and the added {@code _index} must not become DEDUP grouping columns, or pass through DEDUP to a later
+     * HIGHLIGHT, which therefore fails because the indices disagree.
+     */
+    public void testHighlightIndexKeyDoesNotAffectFollowingDedup() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        for (String metadata : List.of("", " METADATA _index")) {
+            String query = "FROM books*"
+                + metadata
+                + " | HIGHLIGHT \"ring\" ON title | DEDUP | HIGHLIGHT prefix = \"again_\" \"ring\" ON title";
+            booksWithConflictingTitleAnalyzer().error(query, containsString(analyzerConflictError("title")));
+
+            LogicalPlan plan = booksWithConflictingTitleAnalyzer().query(query + " WITH {\"analyzer\": \"standard\"}");
+            Dedup dedup = plan.collect(Dedup.class).getFirst();
+            assertThat(fieldNames(dedup.child().output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+            assertEquals(metadata.isEmpty() == false, fieldNames(dedup.child().output()).contains(MetadataAttribute.INDEX));
+            assertNotNull(plan.collect(Highlight.class).getLast().indexKey());
+            assertWarnings();
+        }
+    }
+
+    /** A join's rows come from its left side, and a lone FROM subquery is its inner plan, so both carry the key. */
+    public void testHighlightPerIndexAnalyzerThroughLookupJoinAndSubquery() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().addLanguagesLookup().query("""
+            FROM books*
+            | EVAL language_code = 1
+            | LOOKUP JOIN languages_lookup ON language_code
+            | HIGHLIGHT "ring" ON title
+            """);
+        Attribute key = soleHighlight(plan).indexKey();
+        assertNotNull(key);
+        LookupJoin join = plan.collect(LookupJoin.class).getFirst();
+        assertThat(join.left().outputSet(), hasItem(key));
+        assertThat(join.right().outputSet(), not(hasItem(key)));
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+
+        assumeTrue("requires subquery in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        plan = booksWithConflictingTitleAnalyzer().query("FROM (FROM books* | WHERE MATCH(title, \"ring\")) | HIGHLIGHT \"ring\" ON title");
+        assertNotNull(soleHighlight(plan).indexKey());
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertWarnings();
+    }
+
+    /**
+     * A LOOKUP JOIN field's analyzer groups name lookup indices, but the key only holds the indices the rows are read from.
+     * HIGHLIGHT gets no key, so it fails on the lookup field, and on a field next to it that the key could route.
+     */
+    public void testHighlightPerIndexAnalyzerSkipsLookupJoinField() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        TestAnalyzer analyzer = booksWithConflictingTitleAnalyzer().addLookupIndex(reviewsLookup());
+        String query = "FROM books* | LOOKUP JOIN reviews_lookup ON book_no | HIGHLIGHT \"ring\" ON ";
+        analyzer.error(query + "review", containsString(analyzerConflictError("review")));
+        analyzer.error(
+            query + "title, review",
+            allOf(containsString(analyzerConflictError("title")), containsString(analyzerConflictError("review")))
+        );
+    }
+
+    /** A HIGHLIGHT inside a FORK branch gets the key, and the branch's alignment projection keeps it out of FORK's output. */
+    public void testHighlightPerIndexAnalyzerInsideForkBranch() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query(
+            "FROM books* | FORK (HIGHLIGHT \"ring\" ON title) (WHERE book_no == \"2\")"
+        );
+        assertNotNull(soleHighlight(plan).indexKey());
+        assertThat(fieldNames(plan.collect(Fork.class).getFirst().output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertWarnings();
+    }
+
+    /**
+     * After FORK, a LOOKUP JOIN field's merged mapping keeps the conflict but not its groups, which name lookup indices.
+     * HIGHLIGHT gets no key and fails because the indices disagree.
+     */
+    public void testHighlightAfterForkSkipsLookupJoinField() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        booksWithConflictingTitleAnalyzer().addLookupIndex(reviewsLookup()).error("""
+            FROM books*
+            | LOOKUP JOIN reviews_lookup ON book_no
+            | FORK (WHERE book_no == "1") (WHERE book_no == "2")
+            | HIGHLIGHT "ring" ON review
+            """, containsString(analyzerConflictError("review")));
+    }
+
+    /**
+     * FORK outputs reference attributes, which carry no mapping, so a HIGHLIGHT after FORK gets the mapping the branches
+     * agree on, and every branch gets the key. UNION ALL branches get the key the same way.
+     */
+    public void testHighlightPerIndexAnalyzerAndFork() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | FORK (WHERE book_no == "1") (WHERE book_no == "2")
+            | HIGHLIGHT "ring" ON title
+            """);
+        Highlight highlight = soleHighlight(plan);
+        assertThat(as(highlight.fields().getFirst(), ReferenceAttribute.class).name(), equalTo("title"));
+        assertThat(highlight.fieldMappings().get("title").analyzerGroups(), hasSize(2));
+        Attribute key = highlight.indexKey();
+        assertNotNull(key);
+        assertTrue(key.synthetic());
+        Fork fork = plan.collect(Fork.class).getFirst();
+        assertThat(fork.output(), hasItem(key));
+        for (LogicalPlan branch : fork.children()) {
+            assertThat(fieldNames(branch.output()).getLast(), equalTo(ResolveHighlightIndexKey.INDEX_KEY_NAME));
+        }
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertWarnings();
+
+        plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM (FROM books* | WHERE book_no == "1"), (FROM books* | WHERE book_no == "2")
+            | HIGHLIGHT "ring" ON title
+            """);
+        highlight = soleHighlight(plan);
+        assertNotNull(highlight.indexKey());
+        assertThat(plan.collect(UnionAll.class).getFirst().output(), hasItem(highlight.indexKey()));
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertWarnings();
+    }
+
+    /**
+     * FUSE reads each column through FIRST, so a HIGHLIGHT after FORK and FUSE keeps the mapping the branches agree on.
+     * FUSE groups by {@code _index}, so each row still comes from one index and the key passes through FUSE. Without
+     * {@code _index} in KEY BY, one row can merge documents from several indices, so HIGHLIGHT gets no key and fails.
+     */
+    public void testHighlightAfterForkAndFuseKeepsMapping() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        String forkAndFuse = " METADATA _id, _index, _score"
+            + " | FORK (WHERE MATCH(title, \"ring\") | LIMIT 10) (WHERE MATCH(title, \"return\") | LIMIT 10)"
+            + " | FUSE";
+        String highlight = " | HIGHLIGHT \"ring\" ON title";
+        Highlight english = soleHighlight(
+            analyzer().addIndex("books_english", "mapping-books_english.json")
+                .minimumTransportVersion(TextEsField.TEXT_FIELD_ANALYZER)
+                .query("FROM books_english" + forkAndFuse + highlight)
+        );
+        assertThat(english.fieldMappings().get("title").analyzerName(), equalTo("english"));
+        assertWarnings(englishFallbackWarning("title"));
+
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("FROM books*" + forkAndFuse + highlight);
+        Highlight perIndex = soleHighlight(plan);
+        assertThat(perIndex.fieldMappings().get("title").analyzerGroups(), hasSize(2));
+        assertNotNull(perIndex.indexKey());
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertWarnings();
+
+        booksWithConflictingTitleAnalyzer().error(
+            "FROM books*" + forkAndFuse + " KEY BY _id" + highlight,
+            containsString(analyzerConflictError("title"))
+        );
+    }
+
+    /**
+     * A {@code RENAME} or {@code EVAL} copy of {@code _index} in KEY BY still groups each row by its index, below or above
+     * FORK, so the key passes through FUSE. A column that is only named {@code _index}, or that one branch overwrites or
+     * fills with nulls, can merge documents from several indices, so HIGHLIGHT gets no key and fails.
+     */
+    public void testHighlightAfterFuseKeyByCopyOfIndex() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        String fork = " | FORK (WHERE MATCH(title, \"ring\") | LIMIT 10) (WHERE MATCH(title, \"return\") | LIMIT 10)";
+        String highlight = " | HIGHLIGHT \"ring\" ON title";
+        for (String query : List.of(
+            "FROM books* METADATA _id, _index, _score | EVAL new_id = _id, new_index = _index" + fork + " | FUSE KEY BY new_id, new_index",
+            "FROM books* METADATA _id, _index, _score" + fork + " | RENAME _index AS idx | FUSE KEY BY _id, idx",
+            "FROM books* METADATA _id, _index, _score | RENAME _index AS idx" + fork + " | EVAL i = idx | FUSE KEY BY _id, i"
+        )) {
+            LogicalPlan plan = booksWithConflictingTitleAnalyzer().query(query + highlight);
+            assertNotNull(query, soleHighlight(plan).indexKey());
+            assertThat(query, fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+            assertWarnings();
+        }
+
+        for (String query : List.of(
+            "FROM books* METADATA _id, _score | EVAL _index = book_no" + fork + " | FUSE",
+            "FROM books* METADATA _id, _index, _score | FORK (WHERE book_no == \"1\") (EVAL _index = book_no) | FUSE",
+            "FROM books* METADATA _id, _index, _score | FORK (WHERE book_no == \"1\") (DROP _index) | FUSE"
+        )) {
+            booksWithConflictingTitleAnalyzer().error(query + highlight, containsString(analyzerConflictError("title")));
+        }
+    }
+
+    /**
+     * When one branch computes the column and another maps it, no single analyzer fits every row, so HIGHLIGHT rejects the
+     * query. A STATS branch agrees on the mapping but has no source index per row, so HIGHLIGHT gets no key and fails
+     * because the indices disagree.
+     */
+    public void testHighlightAfterForkWithoutSharedAnalyzer() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        booksWithConflictingTitleAnalyzer().error("""
+            FROM books*
+            | FORK (WHERE book_no == "1") (EVAL title = TO_TEXT(CONCAT(title, "")))
+            | HIGHLIGHT "ring" ON title
+            """, containsString(branchConflictError("title")));
+
+        booksWithConflictingTitleAnalyzer().error("""
+            FROM books*
+            | FORK (WHERE book_no == "1") (STATS c = COUNT(*) BY title)
+            | HIGHLIGHT "ring" ON title
+            """, containsString(analyzerConflictError("title")));
+    }
+
+    /**
+     * FORK's merged column keeps the analyzer TO_TEXT declares, so HIGHLIGHT uses it instead of a mapping inferred from
+     * the branches, which compute the column. A mapped ON field next to it still gets the mapping its branches agree on.
+     */
+    public void testHighlightAfterForkKeepsDeclaredAnalyzer() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | EVAL t = TO_TEXT(CONCAT(title, ""), {"analyzer": "whitespace"})
+            | FORK (WHERE book_no == "1") (WHERE book_no == "2")
+            | HIGHLIGHT "ring" ON title, t
+            """);
+        Highlight highlight = soleHighlight(plan);
+        assertThat(as(highlight.fields().getLast(), ReferenceAttribute.class).valuesAnalyzer(), equalTo("whitespace"));
+        assertThat(highlight.fieldMappings().keySet(), equalTo(Set.of("title")));
+        assertWarnings();
+    }
+
+    /**
+     * FUSE reads each column through FIRST, which returns {@code text} as {@code keyword} and drops the analyzer TO_TEXT
+     * declares. HIGHLIGHT follows the column back through FIRST, also after a later RENAME or EVAL copy, and still uses
+     * the declared analyzer.
+     */
+    public void testHighlightAfterFuseKeepsDeclaredAnalyzer() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        String fuse = "FROM books* METADATA _id, _index, _score"
+            + " | EVAL t = TO_TEXT(CONCAT(title, \"\"), {\"analyzer\": \"whitespace\"})"
+            + " | FORK (WHERE MATCH(title, \"ring\") | LIMIT 10) (WHERE MATCH(title, \"return\") | LIMIT 10)"
+            + " | FUSE";
+        for (String query : List.of(
+            fuse + " | HIGHLIGHT \"ring\" ON t",
+            fuse + " | RENAME t AS u | HIGHLIGHT \"ring\" ON u",
+            fuse + " | EVAL u = t | HIGHLIGHT \"ring\" ON u"
+        )) {
+            Highlight highlight = soleHighlight(booksWithConflictingTitleAnalyzer().query(query));
+            NamedExpression column = highlight.fields().getFirst();
+            assertNull(query, AnalyzedTextExpression.valuesAnalyzerOf(column));
+            TextEsField mapping = highlight.fieldMappings().get(column.name());
+            assertNotNull(query, mapping);
+            assertThat(query, mapping.analyzerName(), equalTo("whitespace"));
+            assertThat(query, mapping.unknownAnalyzer(), equalTo(TextEsField.UnknownAnalyzer.NONE));
+            assertNull(query, mapping.analyzerGroups());
+            assertWarnings();
+        }
+    }
+
+    /**
+     * Threading the key through a merge keeps the merge's other columns. A branch that lacks {@code t} has it filled with
+     * nulls, so re-deriving the output would take {@code t} from that branch and drop the analyzer TO_TEXT declares in the
+     * other, which FORK then rejects as a conflict.
+     */
+    public void testHighlightIndexKeyKeepsMergedColumns() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        String t = "EVAL t = TO_TEXT(CONCAT(title, \"\"), {\"analyzer\": \"whitespace\"})";
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query(
+            "FROM books* | FORK (KEEP book_no, title) (" + t + ") | HIGHLIGHT \"ring\" ON title, t"
+        );
+        assertNotNull(soleHighlight(plan).indexKey());
+        assertThat(mergedValuesAnalyzer(plan.collect(Fork.class).getFirst(), "t"), equalTo("whitespace"));
+        assertWarnings();
+
+        plan = booksWithConflictingTitleAnalyzer().query(
+            "FROM (FROM books* | KEEP book_no, title), (FROM books* | " + t + ") | HIGHLIGHT \"ring\" ON title, t"
+        );
+        assertNotNull(soleHighlight(plan).indexKey());
+        assertThat(mergedValuesAnalyzer(plan.collect(UnionAll.class).getFirst(), "t"), equalTo("whitespace"));
+        assertWarnings();
+    }
+
+    private static String mergedValuesAnalyzer(LogicalPlan merge, String name) {
+        Attribute column = merge.output().stream().filter(a -> a.name().equals(name)).findFirst().orElseThrow();
+        return as(column, ReferenceAttribute.class).valuesAnalyzer();
+    }
+
+    /**
+     * A column every branch computes carries no mapping, so HIGHLIGHT analyzes it like any computed column, without a
+     * warning. Branches that declare different TO_TEXT analyzers do disagree. FORK rejects them, and after UNION ALL,
+     * HIGHLIGHT does.
+     */
+    public void testHighlightAfterMergeOfComputedColumn() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | FORK (EVAL t = TO_TEXT(CONCAT(title, ""))) (EVAL t = TO_TEXT(CONCAT(title, "")))
+            | HIGHLIGHT "ring" ON t
+            """);
+        assertThat(soleHighlight(plan).fieldMappings(), equalTo(Map.of()));
+        assertWarnings();
+
+        booksWithConflictingTitleAnalyzer().error("""
+            FROM (FROM books* | EVAL t = TO_TEXT(CONCAT(title, ""), {"analyzer": "whitespace"})),
+                 (FROM books* | EVAL t = TO_TEXT(CONCAT(title, ""), {"analyzer": "stop"}))
+            | HIGHLIGHT "ring" ON t
+            """, containsString(branchConflictError("t")));
+    }
+
+    /**
+     * UNION ALL branches over differently analyzed indices disagree on the column's mapping, but each row still comes from
+     * one index, so HIGHLIGHT gets each index's analyzer and each row's index, and emits no warning. A nested UNION ALL whose
+     * own branches agree, or whose other branch has no values of the column, still names the indices its rows come from.
+     * So do branches that rename the field, also when the RENAME sits above a nested UNION ALL.
+     */
+    public void testHighlightPerIndexAnalyzerAcrossUnionAllBranches() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
+        for (String query : List.of(
+            "FROM (FROM books), (FROM books_english) | HIGHLIGHT \"ring\" ON title",
+            "FROM (FROM (FROM books), (FROM books)), (FROM books_english) | HIGHLIGHT \"ring\" ON title",
+            "FROM (FROM (FROM books | EVAL x = 1 | KEEP x), (FROM books)), (FROM books_english) | HIGHLIGHT \"ring\" ON title",
+            "FROM (FROM books | RENAME title AS t), (FROM books_english | RENAME title AS t) | HIGHLIGHT \"ring\" ON t",
+            "FROM (FROM (FROM books), (FROM books) | RENAME title AS t), (FROM books_english | RENAME title AS t) | HIGHLIGHT \"ring\" ON t"
+        )) {
+            LogicalPlan plan = booksWithConflictingTitleAnalyzer().addIndex(singleBooksIndex("books", "whitespace"))
+                .addIndex(singleBooksIndex("books_english", "stop"))
+                .query(query);
+            Highlight highlight = soleHighlight(plan);
+            assertThat(
+                query,
+                highlight.fieldMappings().get(highlight.fields().getFirst().name()).analyzerGroups(),
+                containsInAnyOrder(
+                    new IndexAnalyzerGroup("whitespace", false, gap, Set.of("books")),
+                    new IndexAnalyzerGroup("stop", false, gap, Set.of("books_english"))
+                )
+            );
+            assertNotNull(query, highlight.indexKey());
+            assertWarnings();
+        }
+    }
+
+    /**
+     * A relation whose indices agree on a field's analyzer does not say which of them map the field. So UNION ALL branches
+     * that both read an index without the field give that index two analyzers. The index has no values for the field, so
+     * the other indices keep their own analyzers, as they would under {@code FROM idx_a,idx_b,idx_c}.
+     */
+    public void testHighlightPerIndexAnalyzerAcrossOverlappingUnionAllBranches() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
+        Highlight highlight = soleHighlight(
+            booksWithConflictingTitleAnalyzer().addIndex(
+                booksIndex("idx_a,idx_c", Map.of("title", textField("title", "whitespace")), "idx_a", "idx_c")
+            )
+                .addIndex(booksIndex("idx_b,idx_c", Map.of("title", textField("title", "stop")), "idx_b", "idx_c"))
+                .query("FROM (FROM idx_a,idx_c), (FROM idx_b,idx_c) | HIGHLIGHT \"ring\" ON title")
+        );
+        assertThat(
+            highlight.fieldMappings().get("title").analyzerGroups(),
+            containsInAnyOrder(
+                new IndexAnalyzerGroup("whitespace", false, gap, Set.of("idx_a")),
+                new IndexAnalyzerGroup("stop", false, gap, Set.of("idx_b"))
+            )
+        );
+        assertNotNull(highlight.indexKey());
+        assertWarnings();
+    }
+
+    /**
+     * Branches that read different fields into one column disagree even over the same index. One case renames another
+     * field to the column. Another renames a LOOKUP JOIN field, whose groups name lookup indices. Index-local and
+     * unreported analyzers have no name, so when they differ on an index both relations read, that index may still map
+     * the field. HIGHLIGHT rejects the query in every case.
+     */
+    public void testHighlightAcrossDisagreeingUnionAllBranchesFails() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        TestAnalyzer analyzer = booksWithConflictingTitleAnalyzer().addLookupIndex(reviewsLookup())
+            .addIndex(booksIndex("books", Map.of("title", textField("title", "whitespace"), "other", textField("other", "stop")), "books"))
+            .addIndex(
+                booksIndex(
+                    "local_a,idx_c",
+                    Map.of("title", textField("title", null, TextEsField.UnknownAnalyzer.INDEX_LOCAL)),
+                    "local_a",
+                    "idx_c"
+                )
+            )
+            .addIndex(
+                booksIndex(
+                    "unreported_b,idx_c",
+                    Map.of("title", textField("title", null, TextEsField.UnknownAnalyzer.NOT_REPORTED)),
+                    "unreported_b",
+                    "idx_c"
+                )
+            );
+        for (String query : List.of(
+            "FROM (FROM books), (FROM books | RENAME other AS title) | HIGHLIGHT \"ring\" ON title",
+            "FROM (FROM books*), (FROM books* | LOOKUP JOIN reviews_lookup ON book_no | RENAME review AS title) "
+                + "| HIGHLIGHT \"ring\" ON title",
+            "FROM (FROM local_a,idx_c), (FROM unreported_b,idx_c) | HIGHLIGHT \"ring\" ON title"
+        )) {
+            analyzer.error(query, containsString(branchConflictError("title")));
+        }
+    }
+
+    /**
+     * An index-local analyzer has no name, but its branch still lists the relation's indices. HIGHLIGHT gets the key, warns
+     * only for the index-local index, and keeps the other branch's analyzer.
+     */
+    public void testHighlightIndexLocalAnalyzerAcrossUnionAllBranches() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
+        TextEsField indexLocal = textField("title", null, TextEsField.UnknownAnalyzer.INDEX_LOCAL);
+        Highlight highlight = soleHighlight(
+            booksWithConflictingTitleAnalyzer().addIndex(booksIndex("books_custom", Map.of("title", indexLocal), "books_custom"))
+                .addIndex(singleBooksIndex("books", "whitespace"))
+                .query("FROM (FROM books_custom), (FROM books) | HIGHLIGHT \"ring\" ON title")
+        );
+        assertThat(
+            highlight.fieldMappings().get("title").analyzerGroups(),
+            containsInAnyOrder(
+                new IndexAnalyzerGroup(null, true, gap, Set.of("books_custom")),
+                new IndexAnalyzerGroup("whitespace", false, gap, Set.of("books"))
+            )
+        );
+        assertNotNull(highlight.indexKey());
+        assertWarnings(
+            "HIGHLIGHT on [title] falls back to [standard] for indices [books_custom]: its analyzer is defined in the index settings, "
+                + "which no node can rebuild by name. Highlights may differ from what matched; "
+                + "specify WITH {\"analyzer\": <registered analyzer>} to control this."
+        );
+    }
+
+    /**
+     * Without the index key every row uses standard, including rows from an index whose analyzer is known. So one known
+     * analyzer next to an index-local one fails the query, like two known analyzers do. With the key, only the
+     * index-local index falls back.
+     */
+    public void testHighlightKnownAndIndexLocalAnalyzerFailsWithoutIndexKey() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
+        TextEsField title = new TextEsField(
+            "title",
+            Map.of(),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE,
+            null,
+            gap,
+            TextEsField.UnknownAnalyzer.CONFLICT,
+            List.of(
+                new IndexAnalyzerGroup("whitespace", false, gap, Set.of("known_whitespace")),
+                new IndexAnalyzerGroup(null, true, gap, Set.of("hidden_custom"))
+            )
+        );
+        TestAnalyzer analyzer = analyzer().addIndex(
+            booksIndex("known_whitespace,hidden_custom", Map.of("title", title), "known_whitespace", "hidden_custom")
+        ).stripErrorPrefix(true).minimumTransportVersion(TextEsField.TEXT_FIELD_ANALYZER);
+        analyzer.error(
+            "FROM known_whitespace,hidden_custom | STATS count = COUNT(*) BY title | HIGHLIGHT \"foo\" ON title",
+            containsString(analyzerConflictError("title"))
+        );
+
+        assertNotNull(soleHighlight(analyzer.query("FROM known_whitespace,hidden_custom | HIGHLIGHT \"foo\" ON title")).indexKey());
+        assertWarnings(
+            "HIGHLIGHT on [title] falls back to [standard] for indices [hidden_custom]: its analyzer is defined in the index settings, "
+                + "which no node can rebuild by name. Highlights may differ from what matched; "
+                + "specify WITH {\"analyzer\": <registered analyzer>} to control this."
+        );
+    }
+
+    /**
+     * A computed branch that declares the analyzer the mapped branches agree on analyzes its rows the same way. The merged
+     * column keeps that mapping, and HIGHLIGHT emits no warning. A computed branch that declares nothing uses standard,
+     * which disagrees with the mapping, so HIGHLIGHT rejects the query.
+     */
+    public void testHighlightAfterUnionAllOfMappedAndComputedColumn() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        TestAnalyzer analyzer = booksWithConflictingTitleAnalyzer().addIndex(singleBooksIndex("books", "whitespace"));
+        TextEsField mapping = soleHighlight(analyzer.query("""
+            FROM (FROM books), (FROM books | EVAL title = TO_TEXT(CONCAT(title, ""), {"analyzer": "whitespace"}))
+            | HIGHLIGHT "ring" ON title
+            """)).fieldMappings().get("title");
+        assertThat(mapping.analyzerName(), equalTo("whitespace"));
+        assertThat(mapping.unknownAnalyzer(), equalTo(TextEsField.UnknownAnalyzer.NONE));
+        assertWarnings();
+
+        analyzer.error("""
+            FROM (FROM books), (FROM books | EVAL title = TO_TEXT(CONCAT(title, "")))
+            | HIGHLIGHT "ring" ON title
+            """, containsString(branchConflictError("title")));
+    }
+
+    /**
+     * A RENAME of a mapped field is analyzed exactly as the field: it gets the field's mapping, and the index key when the
+     * indices disagree, through a chain of RENAMEs and across FORK. A renamed LOOKUP JOIN field fails like the field.
+     */
+    public void testHighlightRenamedFieldKeepsMapping() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(
+            analyzer().addIndex("books_english", "mapping-books_english.json")
+                .minimumTransportVersion(TextEsField.TEXT_FIELD_ANALYZER)
+                .query("FROM books_english | RENAME title AS t | HIGHLIGHT \"ring\" ON t")
+        );
+        assertThat(highlight.fieldMappings().get("t").analyzerName(), equalTo("english"));
+        assertWarnings(englishFallbackWarning("t"));
+
+        for (String query : List.of(
+            "FROM books* | RENAME title AS t | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | RENAME title AS a | RENAME a AS t | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | RENAME title AS t | FORK (WHERE book_no == \"1\") (WHERE book_no == \"2\") | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | FORK (WHERE book_no == \"1\") (WHERE book_no == \"2\") | RENAME title AS t | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | FORK (RENAME title AS t) (RENAME title AS t) | HIGHLIGHT \"ring\" ON t"
+        )) {
+            highlight = soleHighlight(booksWithConflictingTitleAnalyzer().query(query));
+            assertThat(query, highlight.fieldMappings().get("t").analyzerGroups(), hasSize(2));
+            assertNotNull(query, highlight.indexKey());
+        }
+        assertWarnings();
+
+        booksWithConflictingTitleAnalyzer().addLookupIndex(reviewsLookup())
+            .error(
+                "FROM books* | LOOKUP JOIN reviews_lookup ON book_no | RENAME review AS r | HIGHLIGHT \"ring\" ON r",
+                containsString(analyzerConflictError("r"))
+            );
+    }
+
+    /**
+     * {@code EVAL t = title} keeps the field's mapping, and the index key when the indices disagree. That still holds
+     * after a {@code RENAME} of the copy and inside {@code FORK}. An expression over the field gets neither, and
+     * HIGHLIGHT analyzes it like any other computed column, with no warning.
+     */
+    public void testHighlightEvalCopyOfFieldKeepsMapping() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        for (String query : List.of(
+            "FROM books* | EVAL t = title | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | EVAL u = title | RENAME u AS t | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | EVAL t = title | FORK (WHERE book_no == \"1\") (WHERE book_no == \"2\") | HIGHLIGHT \"ring\" ON t",
+            "FROM books* | FORK (EVAL t = title) (EVAL t = title) | HIGHLIGHT \"ring\" ON t"
+        )) {
+            Highlight highlight = soleHighlight(booksWithConflictingTitleAnalyzer().query(query));
+            assertThat(query, highlight.fieldMappings().get("t").analyzerGroups(), hasSize(2));
+            assertNotNull(query, highlight.indexKey());
+        }
+
+        Highlight highlight = soleHighlight(
+            booksWithConflictingTitleAnalyzer().query("FROM books* | EVAL t = TO_TEXT(CONCAT(title, \"\")) | HIGHLIGHT \"ring\" ON t")
+        );
+        assertThat(highlight.fieldMappings(), equalTo(Map.of()));
+        assertNull(highlight.indexKey());
+        assertWarnings();
+    }
+
+    private static String analyzerConflictFallbackWarning(String field) {
+        return highlightFallbackWarning(field, "the queried indices disagree on the analyzer for this field");
+    }
+
+    private static String analyzerConflictError(String field) {
+        return "HIGHLIGHT on ["
+            + field
+            + "] cannot resolve an analyzer across inputs: the queried indices disagree on the analyzer for this field";
+    }
+
+    private static String branchConflictError(String field) {
+        return "HIGHLIGHT on ["
+            + field
+            + "] cannot resolve an analyzer across inputs: the FORK or UNION ALL branches disagree on the analyzer";
+    }
+
+    /**
+     * {@code books} analyzes {@code title} with {@code whitespace}, and {@code books_english} with {@code stop}. The minimum
+     * transport version is {@link TextEsField#TEXT_FIELD_ANALYZER}, the oldest that can read HIGHLIGHT's index key.
+     */
+    public static TestAnalyzer booksWithConflictingTitleAnalyzer() {
+        int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
+        TextEsField title = new TextEsField(
+            "title",
+            Map.of(),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE,
+            null,
+            gap,
+            TextEsField.UnknownAnalyzer.CONFLICT,
+            List.of(
+                new IndexAnalyzerGroup("whitespace", false, gap, Set.of("books")),
+                new IndexAnalyzerGroup("stop", false, gap, Set.of("books_english"))
+            )
+        );
+        EsField bookNo = new KeywordEsField("book_no", Map.of(), true, Short.MAX_VALUE, false, false, EsField.TimeSeriesFieldType.NONE);
+        EsIndex index = new EsIndex(
+            "books*",
+            Map.of("title", title, "book_no", bookNo),
+            Map.of("books", new IndexProperties(IndexMode.STANDARD, 1), "books_english", new IndexProperties(IndexMode.STANDARD, 1)),
+            Map.of(),
+            Map.of()
+        );
+        return EsqlTestUtils.analyzer().addIndex(index).stripErrorPrefix(true).minimumTransportVersion(TextEsField.TEXT_FIELD_ANALYZER);
+    }
+
+    /** A single index named {@code name} that analyzes {@code title} with {@code analyzer}. */
+    private static EsIndex singleBooksIndex(String name, String analyzer) {
+        return booksIndex(name, Map.of("title", textField("title", analyzer)), name);
+    }
+
+    /** {@code pattern}, which resolves to {@code indices} and maps {@code fields}. */
+    private static EsIndex booksIndex(String pattern, Map<String, EsField> fields, String... indices) {
+        Map<String, IndexProperties> properties = Set.of(indices)
+            .stream()
+            .collect(Collectors.toMap(Function.identity(), index -> new IndexProperties(IndexMode.STANDARD, 1)));
+        return new EsIndex(pattern, fields, properties, Map.of(), Map.of());
+    }
+
+    /** A text field that every index analyzes with {@code analyzer}. */
+    private static TextEsField textField(String name, String analyzer) {
+        return textField(name, analyzer, TextEsField.UnknownAnalyzer.NONE);
+    }
+
+    private static TextEsField textField(String name, String analyzer, TextEsField.UnknownAnalyzer unknownAnalyzer) {
+        return new TextEsField(
+            name,
+            Map.of(),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE,
+            analyzer,
+            TextEsField.DEFAULT_POSITION_INCREMENT_GAP,
+            unknownAnalyzer,
+            null
+        );
+    }
+
+    /** {@code reviews_lookup}, whose {@code review} field two remote clusters analyze differently, as CCS can resolve it. */
+    private static IndexResolution reviewsLookup() {
+        int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
+        TextEsField review = new TextEsField(
+            "review",
+            Map.of(),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE,
+            null,
+            gap,
+            TextEsField.UnknownAnalyzer.CONFLICT,
+            List.of(
+                new IndexAnalyzerGroup("whitespace", false, gap, Set.of("remote_a:reviews_lookup")),
+                new IndexAnalyzerGroup("stop", false, gap, Set.of("remote_b:reviews_lookup"))
+            )
+        );
+        EsField bookNo = new KeywordEsField("book_no", Map.of(), true, Short.MAX_VALUE, false, false, EsField.TimeSeriesFieldType.NONE);
+        return IndexResolution.valid(
+            new EsIndex(
+                "reviews_lookup",
+                Map.of("book_no", bookNo, "review", review),
+                Map.of("reviews_lookup", new IndexProperties(IndexMode.LOOKUP, 1)),
+                Map.of(),
+                Map.of()
+            )
+        );
+    }
+
+    public void testHighlightImplicitQueryPassesDocPreservingCommands() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        for (String highlightCommand : List.of("HIGHLIGHT ON first_name", "HIGHLIGHT")) {
+            Highlight highlight = soleHighlight(supportsHighlight(basicWithEnrich()).query("""
+                FROM test
+                | WHERE MATCH(first_name, "x")
+                | EVAL copy = first_name
+                | KEEP first_name, last_name, languages, copy
+                | SORT first_name
+                | LIMIT 10
+                | DISSECT copy "%{part}"
+                | EVAL x = to_string(languages)
+                | ENRICH languages ON x
+                | SAMPLE 0.5
+                """ + "| " + highlightCommand));
+
+            assertThat(highlightCommand, highlight.query(), instanceOf(Match.class));
+            assertTrue(highlightCommand, highlight.implicitQuery());
+            assertThat(highlightCommand, fieldNames(highlight.fields()), equalTo(List.of("first_name")));
+        }
+    }
+
+    public void testHighlightImplicitQueryPassesCommonCommands() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        TestAnalyzer analyzer = supportsHighlight(basic());
+        for (String command : List.of(
+            "EVAL x = emp_no + 1",
+            "DROP last_name",
+            "KEEP first_name, emp_no",
+            "SORT emp_no",
+            "LIMIT 2 BY languages",
+            "SORT emp_no | LIMIT 2 BY languages"
+        )) {
+            Highlight highlight = soleHighlight(analyzer.query("FROM test | WHERE MATCH(first_name, \"x\") | " + command + " | HIGHLIGHT"));
+            assertThat(command, Expressions.name(as(highlight.query(), Match.class).field()), equalTo("first_name"));
+            assertTrue(command, highlight.implicitQuery());
+            assertThat(command, fieldNames(highlight.fields()), equalTo(List.of("first_name")));
+        }
+    }
+
+    /**
+     * IN / NOT IN subqueries keep the outer rows, so HIGHLIGHT borrows through the left side of the join. The subquery's own
+     * WHERE selects other documents and is never borrowed.
+     */
+    public void testHighlightImplicitQueryDescendsThroughInSubqueryJoins() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        TestAnalyzer analyzer = supportsHighlight(basic());
+        String subquery = "(FROM test | WHERE MATCH(last_name, \"y\") | KEEP emp_no)";
+        for (var shape : List.<Map.Entry<String, Class<? extends LogicalPlan>>>of(
+            Map.entry("WHERE MATCH(first_name, \"x\") | WHERE emp_no IN " + subquery, SemiJoin.class),
+            Map.entry("WHERE MATCH(first_name, \"x\") AND emp_no IN " + subquery, SemiJoin.class),
+            Map.entry("WHERE MATCH(first_name, \"x\") | WHERE emp_no NOT IN " + subquery, AntiJoin.class),
+            Map.entry("WHERE MATCH(first_name, \"x\") | WHERE emp_no IN " + subquery + " OR emp_no > 5", MarkJoin.class)
+        )) {
+            Highlight highlight = soleHighlight(analyzer.query("FROM test | " + shape.getKey() + " | HIGHLIGHT"));
+            assertTrue(shape.getKey(), highlight.anyMatch(shape.getValue()::isInstance));
+            assertThat(shape.getKey(), Expressions.name(as(highlight.query(), Match.class).field()), equalTo("first_name"));
+            assertTrue(shape.getKey(), highlight.implicitQuery());
+            assertThat(shape.getKey(), fieldNames(highlight.fields()), equalTo(List.of("first_name")));
+        }
+        analyzer.error(
+            "FROM test | WHERE emp_no IN " + subquery + " | HIGHLIGHT",
+            containsString("HIGHLIGHT requires a query or a preceding full-text WHERE")
+        );
+    }
+
+    public void testBareHighlightDerivesQueryFieldsAndGeneratedOutput() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | HIGHLIGHT
+            """));
+
+        assertThat(highlight.query(), instanceOf(Match.class));
+        assertTrue(highlight.implicitQuery());
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name")));
+        assertThat(highlight.generatedAttributes(), hasSize(1));
+        Attribute generated = highlight.generatedAttributes().getFirst();
+        assertThat(generated.name(), equalTo("highlight_first_name"));
+        assertThat(generated.dataType(), equalTo(KEYWORD));
+        assertTrue(highlight.output().contains(generated));
+    }
+
+    public void testBareHighlightFallsBackToAllStringFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("FROM test | HIGHLIGHT \"fox\""));
+        List<String> expected = highlight.child()
+            .output()
+            .stream()
+            .filter(a -> DataType.isString(a.dataType()) && a instanceof MetadataAttribute == false)
+            .map(Attribute::name)
+            .toList();
+
+        assertThat(fieldNames(highlight.fields()), equalTo(expected));
+    }
+
+    public void testHighlightDerivedFieldsIgnoreNegativeExplicitSubtrees() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(
+            supportsHighlight(basic()).query("FROM test | HIGHLIGHT MATCH(first_name, \"x\") AND NOT MATCH(last_name, \"y\")")
+        );
+
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name")));
+        assertTrue(highlight.derivedFields());
+    }
+
+    public void testHighlightOnStarExcludesSyntheticUnionTypeAttributes() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        // ::keyword plus unresolved timestamp keeps the Filter open until ResolveUnionTypes appends $$title$...;
+        // ON * must not mint highlight_$$....
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("idx1", fieldResponseMap(Map.of("title", "text", "body", "text", "@timestamp", "date"))),
+                fieldCapabilitiesIndexResponse("idx2", fieldResponseMap(Map.of("title", "keyword", "body", "text", "@timestamp", "date")))
+            ),
+            List.of()
+        );
+        Highlight highlight = soleHighlight(supportsHighlight(analyzer().addIndex(mergedResolution("idx1,idx2", caps))).query("""
+            FROM idx1,idx2
+            | WHERE title::keyword == "x" AND @timestamp > "2020-01-01"
+            | HIGHLIGHT "x" ON *
+            """));
+
+        assertThat(fieldNames(highlight.fields()), hasItem("body"));
+        assertThat(fieldNames(highlight.generatedAttributes()), everyItem(not(startsWith("highlight_$$"))));
+        assertThat(fieldNames(highlight.fields()), everyItem(not(startsWith("$$"))));
+        // These caps report no analyzer names.
+        assertWarnings(notReportedFallbackWarning("body"));
+    }
+
+    public void testHighlightExplicitQueryBeatsUpstreamWhere() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | HIGHLIGHT MATCH(last_name, "y") ON last_name
+            """));
+
+        Match match = as(highlight.query(), Match.class);
+        assertThat(Expressions.name(match.field()), equalTo("last_name"));
+        assertFalse(highlight.implicitQuery());
+    }
+
+    public void testHighlightRejectsDerivedQueryTargetingOnlyDroppedField() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlight(basic()).error(
+            "FROM test | WHERE MATCH(first_name, \"x\") | DROP first_name | HIGHLIGHT",
+            allOf(
+                containsString("HIGHLIGHT found no text or keyword fields to highlight"),
+                containsString("first_name"),
+                containsString("renamed or dropped")
+            )
+        );
+    }
+
+    public void testHighlightImplicitQueryFollowsRenamedFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        TestAnalyzer analyzer = supportsHighlight(basic());
+        for (var follow : List.of(Map.entry("RENAME first_name AS fn", "fn"), Map.entry("MV_EXPAND first_name", "first_name"))) {
+            Highlight highlight = soleHighlight(
+                analyzer.query("FROM test | WHERE MATCH(first_name, \"x\") | " + follow.getKey() + " | HIGHLIGHT")
+            );
+            assertThat(Expressions.name(as(highlight.query(), Match.class).field()), equalTo(follow.getValue()));
+            assertTrue(highlight.implicitQuery());
+            assertThat(fieldNames(highlight.fields()), equalTo(List.of(follow.getValue())));
+        }
+        analyzer.error(
+            "FROM test | WHERE MATCH(first_name, \"x\") | EVAL first_name = last_name | HIGHLIGHT",
+            allOf(
+                containsString("HIGHLIGHT cannot borrow the WHERE condition on"),
+                containsString("first_name"),
+                containsString("redefined after the WHERE")
+            )
+        );
+    }
+
+    public void testHighlightAnalysisConverges() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        TestAnalyzer testAnalyzer = supportsHighlight(basic());
+        LogicalPlan analyzed = testAnalyzer.query("FROM test | WHERE MATCH(first_name, \"x\") | HIGHLIGHT");
+        LogicalPlan analyzedAgain = testAnalyzer.buildAnalyzer().analyze(analyzed);
+
+        assertThat(soleHighlight(analyzedAgain), equalTo(soleHighlight(analyzed)));
+    }
+
+    /**
+     * Implicit HIGHLIGHT is rejected below {@link Highlight#ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS}, so these
+     * tests must pin a version that supports the derived query and field flags rather than take the randomized default.
+     */
+    private static TestAnalyzer supportsHighlight(TestAnalyzer analyzer) {
+        return analyzer.minimumTransportVersion(Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS);
+    }
+
+    private TestAnalyzer basic() {
         return analyzer().addEmployees("test").stripErrorPrefix(true);
     }
 
-    private static TestAnalyzer basicWithEnrich() {
+    private TestAnalyzer basicWithEnrich() {
         return basic().addEnrichPolicy("match", "languages", "language_code", "languages_idx", "mapping-languages.json");
     }
 
-    private static TestAnalyzer denseVector() {
+    private TestAnalyzer denseVector() {
         return analyzer().addIndex("test", "mapping-dense_vector-all_element_types.json");
     }
 
-    private static TestAnalyzer tsdb() {
+    private TestAnalyzer tsdb() {
         return analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES);
     }
 
-    private static TestAnalyzer k8s() {
+    private TestAnalyzer k8s() {
         return analyzer().addK8sDownsampled();
     }
 
-    private static TestAnalyzer allTypes() {
+    private TestAnalyzer allTypes() {
         return analyzer().addIndex("books", "mapping-all-types.json").addAnalysisTestsInferenceResolution();
     }
 
-    private static TestAnalyzer sampleData() {
+    private TestAnalyzer sampleData() {
         return analyzer().addSampleData();
     }
 
-    private static TestAnalyzer books() {
+    private TestAnalyzer books() {
         return analyzer().addIndex("books", "mapping-books.json").addAnalysisTestsInferenceResolution();
     }
 
-    private static TestAnalyzer defaultMapping() {
+    private TestAnalyzer defaultMapping() {
         return analyzer().addDefaultIndex();
     }
 
-    private static TestAnalyzer multiFieldVariation() {
+    private TestAnalyzer multiFieldVariation() {
         return analyzer().addIndex("test", "mapping-multi-field-variation.json");
     }
 
-    private static TestAnalyzer multiFieldWithNested() {
+    private TestAnalyzer multiFieldWithNested() {
         return analyzer().addIndex("test", "mapping-multi-field-with-nested.json");
     }
 }

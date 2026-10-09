@@ -10,10 +10,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
@@ -24,9 +23,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.esql.EsqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
-import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
-import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
-import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
+import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryCounters;
 import org.elasticsearch.xpack.esql.plugin.EsqlStatsAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlStatsRequest;
 import org.elasticsearch.xpack.esql.plugin.EsqlStatsResponse;
@@ -39,8 +36,8 @@ public class EsqlUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     private final Client client;
     private final ProjectResolver projectResolver;
+    private final DataSourceInventoryCounters inventoryCounters;
 
-    @Inject
     public EsqlUsageTransportAction(
         TransportService transportService,
         ClusterService clusterService,
@@ -49,9 +46,23 @@ public class EsqlUsageTransportAction extends XPackUsageFeatureTransportAction {
         Client client,
         ProjectResolver projectResolver
     ) {
+        this(transportService, clusterService, threadPool, actionFilters, client, projectResolver, null);
+    }
+
+    @Inject
+    public EsqlUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        Client client,
+        ProjectResolver projectResolver,
+        @Nullable DataSourceInventoryCounters inventoryCounters
+    ) {
         super(XPackUsageFeatureAction.ESQL.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
         this.projectResolver = projectResolver;
+        this.inventoryCounters = inventoryCounters == null ? new DataSourceInventoryCounters() : inventoryCounters;
     }
 
     @Override
@@ -72,27 +83,10 @@ public class EsqlUsageTransportAction extends XPackUsageFeatureTransportAction {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
             Counters mergedCounters = Counters.merge(countersPerNode);
-            addInventory(state, mergedCounters);
+            inventoryCounters.populate(projectResolver.getProjectMetadata(state), mergedCounters);
             EsqlFeatureSetUsage usage = new EsqlFeatureSetUsage(mergedCounters.toNestedMap());
             l.onResponse(new XPackUsageFeatureResponse(usage));
         }));
     }
 
-    private void addInventory(ClusterState state, Counters counters) {
-        ProjectMetadata project = projectResolver.getProjectMetadata(state);
-        DataSourceMetadata dsMetadata = DataSourceMetadata.get(project);
-        DatasetMetadata datasetMetadata = DatasetMetadata.get(project);
-
-        counters.inc("datasources.config.datasources.count", dsMetadata.dataSources().size());
-        for (DataSource ds : dsMetadata.dataSources().values()) {
-            counters.inc("datasources.config.datasources.by_type." + Type.fromTypeId(ds.type()).key(), 1);
-        }
-
-        counters.inc("datasources.config.datasets.count", datasetMetadata.datasets().size());
-        datasetMetadata.datasets().values().forEach(dataset -> {
-            DataSource parent = dsMetadata.get(dataset.dataSource().getName());
-            String type = parent != null ? Type.fromTypeId(parent.type()).key() : Type.UNKNOWN.key();
-            counters.inc("datasources.config.datasets.by_datasource_type." + type, 1);
-        });
-    }
 }

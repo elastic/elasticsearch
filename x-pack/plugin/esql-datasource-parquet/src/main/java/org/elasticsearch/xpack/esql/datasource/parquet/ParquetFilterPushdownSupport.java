@@ -13,8 +13,13 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -93,11 +98,14 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
         // motivation: avoiding double LIKE evaluation on every surviving row).
         List<Expression> remainder = new ArrayList<>();
         for (Expression filter : filters) {
-            Pushability p = canPush(filter);
+            // Rewrite only the pushed side so late-mat / FilterPredicate see column-typed bounds.
+            // Remainder keeps the original expression — FilterExec re-checks the user's predicate.
+            Expression rewritten = PushdownLiteralConversion.rewrite(filter);
+            Pushability p = pushabilityOfRewritten(rewritten);
             if (p == Pushability.YES) {
-                pushed.add(filter);
+                pushed.add(rewritten);
             } else if (p == Pushability.RECHECK) {
-                pushed.add(filter);
+                pushed.add(rewritten);
                 remainder.add(filter);
             } else {
                 remainder.add(filter);
@@ -119,6 +127,11 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
 
     @Override
     public Pushability canPush(Expression expr) {
+        return pushabilityOfRewritten(PushdownLiteralConversion.rewrite(expr));
+    }
+
+    /** Pushability for an expression that has already been through {@link PushdownLiteralConversion#rewrite}. */
+    private static Pushability pushabilityOfRewritten(Expression expr) {
         if (canConvert(expr) == false) {
             return Pushability.NO;
         }
@@ -205,16 +218,52 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
         return false;
     }
 
+    /**
+     * Returns {@code true} when {@code e} is a LIKE-family expression ({@link WildcardLike},
+     * {@link StartsWith}, {@link Contains}, or {@link EndsWith}) whose field is a non-virtual
+     * {@link NamedExpression}.
+     *
+     * <p>The virtual-column guard mirrors the equivalent check in {@link #canConvert}: virtual
+     * columns ({@code _file.*}) are materialized downstream by {@code VirtualColumnIterator} with
+     * real values, not nulls. They never receive a predicate block in the late-mat evaluator, so a
+     * conjunct on such a column must not be promoted to
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport.Pushability#YES}
+     * — doing so drops the {@code FilterExec} while the evaluator silently passes all rows.
+     * {@link #canConvert}'s {@code And} arm is disjunctive ({@code left || right}), so
+     * {@code And(realColLike, virtualColLike)} passes {@code canConvert} via the left arm even
+     * though the right arm fails it; {@code isFullyEvaluable}'s {@code And} arm is conjunctive
+     * ({@code left && right}), so without this guard the whole {@code And} would reach YES and
+     * drop {@code FilterExec} for the virtual-column conjunct. See elastic/esql-planning#2052.
+     */
     private static boolean isLikeFamily(Expression e) {
-        return e instanceof WildcardLike || e instanceof StartsWith || e instanceof Contains || e instanceof EndsWith;
+        Expression field;
+        if (e instanceof WildcardLike wl) {
+            field = wl.field();
+        } else if (e instanceof StartsWith sw) {
+            field = sw.singleValueField();
+        } else if (e instanceof Contains c) {
+            field = c.singleValueField();
+        } else if (e instanceof EndsWith ew) {
+            field = ew.singleValueField();
+        } else {
+            return false;
+        }
+        return field instanceof NamedExpression ne && PushdownPredicates.isVirtualColumn(ne) == false;
     }
 
     /**
      * Validates whether an expression can be converted to a Parquet FilterPredicate.
      * For AND, partial pushdown is safe (at least one side convertible).
      * For OR and NOT, all children must be convertible.
+     * <p>
+     * Structural convertibility for an expression that is already column-typed on every
+     * convertible mixed leaf (see {@link PushdownLiteralConversion#rewrite}). Callers that hold
+     * a raw plan expression must rewrite first.
      */
     static boolean canConvert(Expression expr) {
+        if (PushdownPredicates.allPushdownLiteralsAgree(expr) == false) {
+            return false;
+        }
         if (expr instanceof EsqlBinaryComparison bc) {
             if (PushdownPredicates.isComparison(bc, TYPE_SUPPORTED) == false) {
                 return false;
@@ -244,6 +293,31 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
                 return false;
             }
             return PushdownPredicates.isRange(range, TYPE_SUPPORTED);
+        }
+        // The multivalue comparison functions are any-value existentials, so each carries the same statistics bound as
+        // its scalar sibling and pushes as RECHECK. isFullyEvaluable accepts only the LIKE family, Not over it and And
+        // of those, so it rejects these and canPush answers RECHECK. The exact predicate stays in the retained
+        // FilterExec.
+        if (expr instanceof MvContains mvContains) {
+            return PushdownPredicates.isMvContains(mvContains, TYPE_SUPPORTED);
+        }
+        if (expr instanceof MvIntersects mvIntersects) {
+            return PushdownPredicates.isMvIntersects(mvIntersects, TYPE_SUPPORTED);
+        }
+        if (expr instanceof MvInRange mvInRange) {
+            // BooleanColumn doesn't implement SupportsLtGt, so an ordered bound on one cannot be built. Unreachable
+            // through the analyzer — MvInRange.isSupportedRangeType already excludes BOOLEAN — and kept for the same
+            // reason the Range arm above keeps its own boolean check.
+            if (declinesOrderedBoolean(mvInRange.field())) {
+                return false;
+            }
+            return PushdownPredicates.isMvInRange(mvInRange, TYPE_SUPPORTED);
+        }
+        if (expr instanceof MvCompare mvCompare) {
+            if (declinesOrderedBoolean(mvCompare.field())) {
+                return false;
+            }
+            return PushdownPredicates.isMvCompare(mvCompare, TYPE_SUPPORTED);
         }
         if (expr instanceof And and) {
             return canConvert(and.left()) || canConvert(and.right());
@@ -282,5 +356,10 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
                 && wl.pattern() != null;
         }
         return false;
+    }
+
+    /** BooleanColumn implements SupportsEqNotEq but not SupportsLtGt, so an ordered bound on it cannot be built. */
+    private static boolean declinesOrderedBoolean(Expression field) {
+        return field instanceof NamedExpression ne && ne.dataType() == DataType.BOOLEAN;
     }
 }

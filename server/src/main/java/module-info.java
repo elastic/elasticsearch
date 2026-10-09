@@ -35,8 +35,10 @@ module org.elasticsearch.server {
     requires org.elasticsearch.exponentialhistogram;
     requires org.elasticsearch.lucene.store;
     requires org.elasticsearch.simdvec;
+    requires org.elasticsearch.simdjson;
     requires org.elasticsearch.columnar;
     requires org.elasticsearch.entitlement;
+    requires org.elasticsearch.zstd;
 
     requires hppc;
     requires HdrHistogram;
@@ -248,6 +250,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.cache.query;
     exports org.elasticsearch.index.cache.request;
     exports org.elasticsearch.index.codec;
+    exports org.elasticsearch.index.codec.columnar;
     exports org.elasticsearch.index.codec.tsdb;
     exports org.elasticsearch.index.codec.bloomfilter;
     exports org.elasticsearch.index.codec.storedfields;
@@ -440,6 +443,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.internal.BuildExtension;
     uses org.elasticsearch.features.FeatureSpecification;
     uses org.elasticsearch.plugins.internal.LoggingDataProvider;
+    uses org.elasticsearch.common.UUIDSource;
 
     provides org.elasticsearch.features.FeatureSpecification
         with

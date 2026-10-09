@@ -415,31 +415,8 @@ public final class MappingLookup {
     }
 
     void checkLimits(IndexSettings settings) {
-        checkFieldLimit(settings.getMappingTotalFieldsLimit());
-        checkObjectDepthLimit(settings.getMappingDepthLimit());
-        checkFieldNameLengthLimit(settings.getMappingFieldNameLengthLimit());
-        checkNestedFieldsLimit(settings.getMappingNestedFieldsLimit());
         checkNestedParentsLimit(settings.getMappingNestedParentsLimit());
         checkDimensionFieldLimit(settings.getMappingDimensionFieldsLimit());
-    }
-
-    private void checkFieldLimit(long limit) {
-        checkFieldLimit(limit, 0);
-    }
-
-    void checkFieldLimit(long limit, int additionalFieldsToAdd) {
-        if (exceedsLimit(limit, additionalFieldsToAdd)) {
-            throw new IllegalArgumentException(
-                "Limit of total fields ["
-                    + limit
-                    + "] has been exceeded"
-                    + (additionalFieldsToAdd > 0 ? " while adding new fields [" + additionalFieldsToAdd + "]" : "")
-            );
-        }
-    }
-
-    boolean exceedsLimit(long limit, int additionalFieldsToAdd) {
-        return remainingFieldsUntilLimit(limit) < additionalFieldsToAdd;
     }
 
     long remainingFieldsUntilLimit(long mappingTotalFieldsLimit) {
@@ -449,47 +426,6 @@ public final class MappingLookup {
     private void checkDimensionFieldLimit(long limit) {
         if (dimensionFieldMappers.size() > limit) {
             throw new IllegalArgumentException("Limit of total dimension fields [" + limit + "] has been exceeded");
-        }
-    }
-
-    private void checkObjectDepthLimit(long limit) {
-        for (String objectPath : objectMappers.keySet()) {
-            checkObjectDepthLimit(limit, objectPath);
-        }
-    }
-
-    static void checkObjectDepthLimit(long limit, String objectPath) {
-        int numDots = 0;
-        for (int i = 0; i < objectPath.length(); ++i) {
-            if (objectPath.charAt(i) == '.') {
-                numDots += 1;
-            }
-        }
-        final int depth = numDots + 2;
-        if (depth > limit) {
-            throw new IllegalArgumentException(
-                "Limit of mapping depth [" + limit + "] has been exceeded due to object field [" + objectPath + "]"
-            );
-        }
-    }
-
-    void checkFieldNameLengthLimit(long limit) {
-        validateMapperNameIn(objectMappers.values(), limit);
-        validateMapperNameIn(fieldMappers.values(), limit);
-    }
-
-    private static void validateMapperNameIn(Collection<? extends Mapper> mappers, long limit) {
-        for (Mapper mapper : mappers) {
-            String name = mapper.leafName();
-            if (name.length() > limit) {
-                throw new IllegalArgumentException("Field name [" + name + "] is longer than the limit of [" + limit + "] characters");
-            }
-        }
-    }
-
-    private void checkNestedFieldsLimit(long limit) {
-        if (nestedLookup.getNestedMappers().size() > limit) {
-            throw new IllegalArgumentException("Limit of nested fields [" + limit + "] has been exceeded");
         }
     }
 
@@ -822,6 +758,35 @@ public final class MappingLookup {
      */
     public Mapping getMapping() {
         return mapping;
+    }
+
+    /**
+     * Returns the passthrough status for {@code field}. Mapper-backed passthrough sources are resolved directly;
+     * auto-flattened objects in strict columnar index modes are resolved from the root mapping's prefix properties.
+     *
+     * @return {@code true} for an enabled passthrough source, {@code false} for a field that could be a passthrough
+     *         source but is not, or {@code null} when passthrough is not applicable to the field
+     */
+    @Nullable
+    public Boolean isPassthrough(String field) {
+        ObjectMapper objectMapper = objectMappers.get(field);
+        if (objectMapper != null) {
+            if (objectMapper instanceof PassThroughFieldSource passThroughFieldSource) {
+                return passThroughFieldSource.isPassthrough();
+            }
+            return objectMapper instanceof NestedObjectMapper ? null : false;
+        }
+
+        Mapper fieldMapper = fieldMappers.get(field);
+        if (fieldMapper != null) {
+            return fieldMapper instanceof PassThroughFieldSource passThroughFieldSource ? passThroughFieldSource.isPassthrough() : null;
+        }
+
+        PrefixProperties properties = mapping.getRoot().getPrefixProperties().get(field);
+        if (properties != null) {
+            return properties.passthrough() != null;
+        }
+        return null;
     }
 
     /**

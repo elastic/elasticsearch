@@ -25,7 +25,6 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
@@ -33,7 +32,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -45,14 +44,11 @@ import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NestedLookup;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.DirectoryMetrics;
@@ -90,7 +86,6 @@ import org.elasticsearch.tasks.CancellableTask;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -217,7 +212,7 @@ final class DefaultSearchContext extends SearchContext {
                     lowLevelCancellation
                 );
             } else {
-                // Always wrap: cache metrics must be collected on worker threads regardless of the directory_metrics flag.
+                // Always wrap: cache and directory metrics must be collected on worker threads.
                 this.metricsAwareExecutor = new DirectoryMetricsAwareExecutor(executor, currentThreadDirectoryMetricsCapture);
                 executor = this.metricsAwareExecutor;
 
@@ -250,8 +245,9 @@ final class DefaultSearchContext extends SearchContext {
             );
             searchExecutionContext = circuitBreaker != null ? new SearchExecutionContext(baseContext, circuitBreaker) : baseContext;
             if (searchExecutionContext != null) {
-                final String requestSliceRouting = request.sliceRouting();
-                searchExecutionContext.setSliceRouting(SliceIndexing.SLICE_ALL.equals(requestSliceRouting) ? null : requestSliceRouting);
+                final SliceSelection slices = SliceSelection.fromSearchSlice(request.sliceRouting());
+                // a search request that names no slice reads every slice
+                searchExecutionContext.setSliceSelection(slices.isSpecified() ? slices : SliceSelection.ALL);
             }
             queryBoost = request.indexBoost();
             this.lowLevelCancellation = lowLevelCancellation;
@@ -521,9 +517,9 @@ final class DefaultSearchContext extends SearchContext {
                 filters.add(slicedQuery);
             }
         }
-        final Query sliceRoutingFilter = buildSliceRoutingFilter(searchExecutionContext.getSliceRouting());
-        if (sliceRoutingFilter != null) {
-            filters.add(sliceRoutingFilter);
+        final Query sliceFilter = searchExecutionContext.sliceFilter();
+        if (sliceFilter != null) {
+            filters.add(sliceFilter);
         }
 
         if (filters.isEmpty()) {
@@ -535,28 +531,6 @@ final class DefaultSearchContext extends SearchContext {
                 builder.add(filter, Occur.FILTER);
             }
             return builder.build();
-        }
-    }
-
-    @Nullable
-    private Query buildSliceRoutingFilter(@Nullable String sliceRouting) {
-        if (sliceRouting == null) {
-            return null;
-        }
-        final List<String> sliceTerms = Arrays.stream(Strings.splitStringByCommaToArray(sliceRouting))
-            .map(String::trim)
-            .filter(value -> value.isEmpty() == false)
-            .toList();
-        if (sliceTerms.isEmpty()) {
-            return new MatchNoDocsQuery("empty [slice] routing");
-        }
-        final QueryBuilder sliceFilterQuery = sliceTerms.size() == 1
-            ? new TermQueryBuilder(RoutingFieldMapper.NAME, sliceTerms.get(0))
-            : new TermsQueryBuilder(RoutingFieldMapper.NAME, sliceTerms);
-        try {
-            return sliceFilterQuery.toQuery(searchExecutionContext);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
     }
 

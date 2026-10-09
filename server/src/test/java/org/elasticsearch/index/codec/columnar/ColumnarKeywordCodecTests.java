@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -27,7 +28,11 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -151,8 +156,8 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
 
     /**
      * A {@code multi_value: false} field is stored by the codec like any other, but it records no {@code .offsets} sidecar and so is not
-     * array-ordered. It still writes a payload, so every reader of it has to decode one — this pins that against the same field with the
-     * codec off.
+     * array-ordered. It writes each document's value as its own bytes rather than a payload, so every reader of it has to take the blob
+     * as the value — this pins that against the same field with the codec off.
      */
     public void testSingleValuedFieldRendersAsItDoesWithoutTheCodec() throws IOException {
         assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
@@ -187,6 +192,102 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
             final Map<String, Object> codec = client().prepareGet(withCodec, Integer.toString(i)).get().getSourceAsMap();
             final Map<String, Object> plain = client().prepareGet(withoutCodec, Integer.toString(i)).get().getSourceAsMap();
             assertEquals(values.get(i), plain.get("kw"), codec.get("kw"));
+        }
+    }
+
+    /**
+     * An index sorted by a {@code multi_value: false} field, whose sort key is each document's value as its own bytes. The flushed
+     * segment is sorted by what the indexing buffer holds and the merged one by what the column holds, so both are checked: one batch,
+     * and several batches force-merged. Documents without the field sort to whichever end {@code missing} names.
+     */
+    public void testIndexSortedBySingleValuedField() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+
+        final boolean descending = randomBoolean();
+        final boolean missingFirst = randomBoolean();
+        final String mapping = """
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","doc_values":{"multi_value":false}}}}""";
+        final List<String> values = new ArrayList<>();
+        final int numDocs = between(50, 200);
+        for (int i = 0; i < numDocs; i++) {
+            values.add(switch (i % 6) {
+                case 0 -> null;
+                case 1 -> "";
+                case 2 -> "term-" + (i % 5);
+                default -> "value-" + randomAlphaOfLength(between(1, 8));
+            });
+        }
+        final List<String> shuffled = new ArrayList<>(values);
+        Collections.shuffle(shuffled, random());
+
+        final List<String> expected = new ArrayList<>();
+        values.stream()
+            .filter(v -> v != null)
+            .sorted(descending ? Comparator.reverseOrder() : Comparator.naturalOrder())
+            .forEach(expected::add);
+        final long nulls = values.stream().filter(v -> v == null).count();
+        for (long n = 0; n < nulls; n++) {
+            if (missingFirst) {
+                expected.addFirst(null);
+            } else {
+                expected.add(null);
+            }
+        }
+
+        for (boolean codecEnabled : new boolean[] { true, false }) {
+            for (int batches : new int[] { 1, 3 }) {
+                final String index = INDEX + "-sorted-" + codecEnabled + "-" + batches;
+                final Settings settings = Settings.builder()
+                    .put(columnarSettings(IndexMode.COLUMNAR, codecEnabled))
+                    .put("index.sort.field", "kw")
+                    .put("index.sort.order", descending ? "desc" : "asc")
+                    .put("index.sort.missing", missingFirst ? "_first" : "_last")
+                    .build();
+                indicesAdmin().prepareCreate(index).setSettings(settings).setMapping(mapping).get();
+                final int perBatch = (shuffled.size() + batches - 1) / batches;
+                for (int from = 0; from < shuffled.size(); from += perBatch) {
+                    final BulkRequestBuilder bulk = client().prepareBulk();
+                    for (int i = from; i < Math.min(from + perBatch, shuffled.size()); i++) {
+                        final Map<String, Object> source = new LinkedHashMap<>();
+                        source.put("@timestamp", "2024-01-01T00:00:00Z");
+                        if (shuffled.get(i) != null) {
+                            source.put("kw", shuffled.get(i));
+                        }
+                        bulk.add(prepareIndex(index).setSource(source));
+                    }
+                    final var response = bulk.get();
+                    assertFalse(response.buildFailureMessage(), response.hasFailures());
+                    indicesAdmin().prepareRefresh(index).get();
+                }
+                if (batches > 1) {
+                    indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
+                    indicesAdmin().prepareRefresh(index).get();
+                }
+                if (codecEnabled) {
+                    assertKeywordFieldUsesColumnarFormat(index);
+                } else {
+                    assertKeywordFieldAvoidsColumnarFormat(index);
+                }
+                assertEquals(
+                    "index order of [" + index + "] desc=" + descending + " missingFirst=" + missingFirst,
+                    expected,
+                    valuesInIndexOrder(index)
+                );
+            }
+        }
+    }
+
+    /** Each document's {@code kw} in the order the one segment of {@code index} holds them, {@code null} where it has none. */
+    private List<String> valuesInIndexOrder(String index) {
+        final var response = client().prepareSearch(index).addSort("_doc", org.elasticsearch.search.sort.SortOrder.ASC).setSize(1000).get();
+        try {
+            final List<String> ordered = new ArrayList<>();
+            for (var hit : response.getHits().getHits()) {
+                ordered.add((String) hit.getSourceAsMap().get("kw"));
+            }
+            return ordered;
+        } finally {
+            response.decRef();
         }
     }
 
@@ -256,6 +357,107 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "")), 1);
         // A pattern that accepts the empty string still must not accept a null.
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.regexpQuery("kw", "[ab]*")), 3);
+    }
+
+    /**
+     * Every query shape the mapper can build, answered by the column and by the format it replaces, over the same
+     * documents. The columnar path bisects, matches over ordinals and tests a term once for every value naming it,
+     * which is a different implementation of every one of these - so the only thing that says it is right is that it
+     * agrees with the path it is standing in for, on documents holding several values, nulls, and the empty string.
+     */
+    public void testEveryQueryShapeAgreesWithTheFormatItReplaces() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        final String mapping = """
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","index":false}}}""";
+        final List<String> docs = List.of(
+            "\"alpha\"",
+            "[\"alpha\", \"beta\"]",
+            "[\"gamma\", null, \"alpha\"]",
+            "null",
+            "[null]",
+            "\"\"",
+            "[\"\", null]",
+            "\"ALPHA\"",
+            "\"alphabet\"",
+            "[\"delta\", \"delta\"]",
+            "\"zeta\"",
+            "[]"
+        );
+
+        final String withCodec = INDEX + "-codec";
+        final String withoutCodec = INDEX + "-no-codec";
+        for (boolean on : new boolean[] { true, false }) {
+            final String index = on ? withCodec : withoutCodec;
+            indicesAdmin().prepareCreate(index).setSettings(columnarSettings(mode, on)).setMapping(mapping).get();
+            for (int i = 0; i < docs.size(); i++) {
+                prepareIndex(index).setId(Integer.toString(i))
+                    .setSource("{\"@timestamp\":\"2024-01-01T00:00:0" + (i % 10) + "Z\",\"kw\":" + docs.get(i) + "}", XContentType.JSON)
+                    .get();
+            }
+            indicesAdmin().prepareRefresh(index).get();
+        }
+        // Without these the two agreeing would prove nothing, since neither would have reached the codec.
+        assertKeywordFieldUsesColumnarFormat(withCodec);
+        assertKeywordFieldAvoidsColumnarFormat(withoutCodec);
+
+        final Map<String, QueryBuilder> shapes = new LinkedHashMap<>();
+        shapes.put("term", QueryBuilders.termQuery("kw", "alpha"));
+        shapes.put("term empty", QueryBuilders.termQuery("kw", ""));
+        shapes.put("term absent", QueryBuilders.termQuery("kw", "nothing"));
+        shapes.put("terms", QueryBuilders.termsQuery("kw", "alpha", "zeta", "nothing"));
+        shapes.put("terms with empty", QueryBuilders.termsQuery("kw", "", "delta"));
+        shapes.put("prefix", QueryBuilders.prefixQuery("kw", "alph"));
+        shapes.put("prefix empty", QueryBuilders.prefixQuery("kw", ""));
+        shapes.put("prefix ci", QueryBuilders.prefixQuery("kw", "ALPH").caseInsensitive(true));
+        shapes.put("range", QueryBuilders.rangeQuery("kw").gte("alpha").lte("delta"));
+        shapes.put("range open lower", QueryBuilders.rangeQuery("kw").lt("beta"));
+        shapes.put("range open upper", QueryBuilders.rangeQuery("kw").gt("delta"));
+        shapes.put("range exclusive", QueryBuilders.rangeQuery("kw").gt("alpha").lt("zeta"));
+        shapes.put("wildcard", QueryBuilders.wildcardQuery("kw", "al*a"));
+        shapes.put("wildcard contains", QueryBuilders.wildcardQuery("kw", "*lph*"));
+        shapes.put("wildcard ci", QueryBuilders.wildcardQuery("kw", "al*A").caseInsensitive(true));
+        shapes.put("regexp", QueryBuilders.regexpQuery("kw", "[ad].*a"));
+        shapes.put("regexp accepting empty", QueryBuilders.regexpQuery("kw", "[a-z]*"));
+        shapes.put("fuzzy", QueryBuilders.fuzzyQuery("kw", "alpxa"));
+        shapes.put("term ci", QueryBuilders.termQuery("kw", "ALPHA").caseInsensitive(true));
+
+        for (var shape : shapes.entrySet()) {
+            final List<String> columnar = hits(withCodec, shape.getValue());
+            final List<String> plain = hits(withoutCodec, shape.getValue());
+            assertEquals(shape.getKey(), plain, columnar);
+        }
+
+        // exists agrees too, though the two reach it differently: the codec writes a payload for a document whose slots are all
+        // null and answers from that, while the format it replaces writes only the companion count and answers from ".counts".
+        // Document 4 ("[null]") is the case that tells them apart, and both find it. A bare null (document 3) is dropped outright
+        // under both, since there is no array position to keep it for, and so is the empty array of document 11.
+        final List<String> existsColumnar = hits(withCodec, QueryBuilders.existsQuery("kw"));
+        final List<String> existsPlain = hits(withoutCodec, QueryBuilders.existsQuery("kw"));
+        assertTrue("an all-null array is present with the codec", existsColumnar.contains("4"));
+        assertTrue("and without it", existsPlain.contains("4"));
+        assertFalse("a bare null is absent either way", existsColumnar.contains("3") || existsPlain.contains("3"));
+        assertFalse("an empty array is absent either way", existsColumnar.contains("11") || existsPlain.contains("11"));
+        assertEquals("and the two agree on every document", existsPlain, existsColumnar);
+    }
+
+    /** The ids a query matches, in order, so a disagreement names the documents rather than just a count. */
+    private List<String> hits(String index, QueryBuilder query) {
+        final var response = client().prepareSearch(index)
+            .setQuery(query)
+            .addSort("_id", org.elasticsearch.search.sort.SortOrder.ASC)
+            .setSize(100)
+            .get();
+        try {
+            final List<String> ids = new ArrayList<>();
+            for (var hit : response.getHits().getHits()) {
+                ids.add(hit.getId());
+            }
+            return ids;
+        } finally {
+            response.decRef();
+        }
     }
 
     private static Settings columnarSettings(IndexMode mode) {

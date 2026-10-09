@@ -54,6 +54,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 /**
  * Shared base for {@link MvGreater} and {@link MvLess}: any-value one-sided comparison, two-valued
  * (null/empty → {@code false}), Lucene range pushdown.
+ *
+ * <p>Each subclass holds its own {@code TransportVersion}, consulted by {@code QueryDslTranslator.gated}. Both
+ * reference {@code esql_mv_compare}, having arrived in one change; they sit on the leaves so a future subclass
+ * cannot inherit a pin that predates it.
  */
 public abstract class MvCompare extends EsqlScalarFunction implements OptionalArgument, TranslationAware {
 
@@ -293,8 +297,12 @@ public abstract class MvCompare extends EsqlScalarFunction implements OptionalAr
         };
     }
 
-    /** Defaults to strict ({@code false}). */
-    private boolean includeBound() {
+    /**
+     * Whether the bound itself satisfies the comparison, resolved from {@code include_bound} (strict when absent). Public so
+     * a caller evaluating this function by other means reads the same answer the evaluator does rather than re-parsing the
+     * options.
+     */
+    public boolean includeBound() {
         return (boolean) optionsMap().getOrDefault(INCLUDE_BOUND, Boolean.FALSE);
     }
 

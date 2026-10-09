@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.ExternalReadCounters;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -25,7 +26,7 @@ import java.util.concurrent.Executor;
  * <p>
  * Simple formats: implement only {@link #read(StorageObject, FormatReadContext)} (sync) -
  * async wrapping is automatic.
- * Async-capable formats: override {@link #readAsync(StorageObject, FormatReadContext, Executor, ActionListener)}
+ * Async-capable formats: override {@link #readAsync(StorageObject, FormatReadContext, Executor, ExternalReadCounters, ActionListener)}
  * for native async behavior.
  * <p>
  * The output is ESQL's native Page format rather than Arrow to avoid
@@ -57,9 +58,17 @@ public interface FormatReader extends Closeable {
         UNION_BY_NAME;
 
         /**
+         * Stored / query {@code schema_resolution} token for this strategy
+         * ({@code first_file_wins}, {@code union_by_name}, {@code strict}).
+         */
+        public String configName() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        /**
          * Case-insensitive parse of a {@code schema_resolution} option value. This is the single
          * definition of valid strategy names, shared by the query path
-         * ({@code ExternalSourceResolver.parseSchemaResolution}) and the dataset CRUD validator so
+         * ({@code ExternalSourceResolver.effectiveSchemaResolution}) and the dataset CRUD validator so
          * the two cannot diverge.
          *
          * @throws IllegalArgumentException if {@code value} is not a recognised strategy
@@ -77,28 +86,21 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Cluster-wide default schema resolution strategy when a query does not specify one.
+     * Cluster-wide default schema resolution when a query or new dataset PUT omits the key.
      * <p>
-     * This is the single source of truth: it is consulted both by this SPI's
-     * {@link #defaultSchemaResolution()} and by {@code ExternalSourceResolver.parseSchemaResolution}
-     * when no {@code schema_resolution} key is present in the per-query config. The format
-     * detected at glob-expansion time is not yet known when the resolver decides whether to
-     * take the read-all-and-reconcile path versus the FFW fast path, so there is no format
-     * dispatch here today; if per-format defaults become desirable in the future the resolver
-     * will need to peek at the first listed file's format first, and this constant becomes the
-     * fallback only.
+     * This is the single source of truth for <em>omitted</em> config: {@code ExternalSourceResolver}
+     * {@code effectiveSchemaResolution}, listing order, and a new PUT that materializes the stored
+     * key all consult it. {@code first_file_wins} is the default so homogeneous Parquet lakes take
+     * the O(1) footer path without a setting. A cluster-state document that predates this default
+     * still hydrates as {@link SchemaResolution#UNION_BY_NAME} at query time
+     * ({@code ExternalSourceResolver.effectivePersistedSchemaResolution}); that fallback is not this
+     * constant.
+     * <p>
+     * The format detected at glob-expansion time is not yet known when the resolver decides whether
+     * to take the read-all-and-reconcile path versus the FFW fast path, so there is no per-format
+     * dispatch here.
      */
-    SchemaResolution DEFAULT_SCHEMA_RESOLUTION = SchemaResolution.UNION_BY_NAME;
-
-    /**
-     * Returns the cluster-wide default schema resolution for this reader. Format implementations
-     * may override this to advertise a different preferred default, but the resolver does not
-     * consult it today (see {@link #DEFAULT_SCHEMA_RESOLUTION} for the rationale). Override is
-     * effectively informational until that wiring exists.
-     */
-    default SchemaResolution defaultSchemaResolution() {
-        return DEFAULT_SCHEMA_RESOLUTION;
-    }
+    SchemaResolution DEFAULT_SCHEMA_RESOLUTION = SchemaResolution.FIRST_FILE_WINS;
 
     /**
      * Returns the default error policy for this format. The base default is {@link ErrorPolicy#STRICT}
@@ -159,17 +161,22 @@ public interface FormatReader extends Closeable {
      * Asynchronously reads data from the given storage object using the provided context.
      * <p>
      * The default wraps the synchronous {@link #read(StorageObject, FormatReadContext)} in the
-     * provided executor. Formats with native async support should override this.
+     * provided executor and records off-thread CPU in {@code readCounters}. Formats with native
+     * async support should override this and call {@code readCounters.meteredCpu()}
+     * on their async thread wrapping the read but before calling {@code listener.onResponse()}, or
+     * use {@code readCounters.add()} to account for the CPU time spent in the async read off-thread.
      */
     default void readAsync(
         StorageObject object,
         FormatReadContext context,
         Executor executor,
+        ExternalReadCounters readCounters,
         ActionListener<CloseableIterator<Page>> listener
     ) {
         executor.execute(() -> {
             try {
-                listener.onResponse(read(object, context));
+                CloseableIterator<Page> pages = readCounters.meteredCpu(() -> read(object, context), false);
+                listener.onResponse(pages);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -207,6 +214,17 @@ public interface FormatReader extends Closeable {
      * for unknown-key rejection at planning time.
      */
     Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config);
+
+    /**
+     * Notices about the configuration itself, decided while {@link #withConfigTrackingConsumedKeys(Map)} parsed it (a
+     * CSV {@code mode} that a {@code quote} override silently undoes). They describe the dataset's options, not any
+     * file, so the resolver raises them once per path rather than per file; a file's own notices ride
+     * {@link SourceMetadata#warnings()} instead. Empty on the unconfigured prototype and for readers with nothing to
+     * say.
+     */
+    default List<String> configWarnings() {
+        return List.of();
+    }
 
     /**
      * Returns a format reader configured with the given pushed filter from the optimizer.
@@ -302,26 +320,45 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Whether the pinned schema this reader was handed is a DECLARED claim (bind its columns to the file BY NAME) as
-     * opposed to an INFERRED description (bind by position). Keyed on the schema's provenance, not on whether any
-     * column declared a {@code path}: a declaration whose order merely differs from the file, with no {@code path} at
-     * all, must still bind by name.
+     * Tells a text reader whether the pinned schema it was handed is a DECLARED claim (provenance DECLARED) or an
+     * INFERRED description. The bit matters only for a headerless file, which has no header to bind against:
+     * <ul>
+     * <li>a declared schema binds each column to the field its {@code col<N>} physical name says, and states no row
+     * width to bound rows by;</li>
+     * <li>an inferred schema binds by position and bounds rows by its own width.</li>
+     * </ul>
+     * A headered file binds every column by its own header name whatever the provenance, so for it this bit changes
+     * nothing: the schema's positions need not be the file's, and a file whose header orders or sizes its columns
+     * differently from the schema still reads each column under its own name. A name the file does not supply reads
+     * null (CSV/TSV emit a warning), never a silent positional fallback.
      * <p>
-     * {@code dynamic} controls only whether a schema is inferred; it must not leak into how columns bind. Under
-     * {@code dynamic:true} the schema is inferred from the file, so its positions already are the file's — bind by
-     * position. Under {@code dynamic:false} the declaration itself is pinned as the schema; a reader that consumed it
-     * positionally would never look at the physical names it was handed, so the same mapping could read a different
-     * column. This bit makes such a reader bind by name, so the two modes agree (esql-planning#1307).
+     * Keyed on provenance, not on whether any column declared a {@code path}. {@code dynamic} controls only whether a
+     * schema is inferred; it does not leak into how columns bind (esql-planning#1307).
      * <p>
-     * Only the text readers need it: they alone bind a pinned schema positionally. Parquet/ORC bind by footer name and
-     * NDJSON by object key, so they bind a declared schema by name under either mode already and keep the no-op default.
-     * A declared name the file does not supply reads null (CSV/TSV emit a warning; NDJSON and columnar formats read
-     * null silently), never a silent positional fallback.
+     * Only the text readers need it to bind. Parquet/ORC bind by footer name and NDJSON by object key under either
+     * provenance. NDJSON and Parquet still override it, to lift the file-width cap ({@code schema_max_fields}) on a
+     * declared read, since only the declared columns are read; the text readers lift it the same way. ORC does not
+     * enforce the cap yet, pending a follow-up, and keeps the no-op default.
      *
      * @param declaredProvenanceBinding true when the pinned schema is a DECLARED claim (provenance DECLARED)
      * @return a new reader honoring the binding mode, or {@code this} when it does not apply
      */
     default FormatReader withDeclaredProvenanceBinding(boolean declaredProvenanceBinding) {
+        return this;
+    }
+
+    /**
+     * Returns a reader that binds a header-bearing file as a node before {@code esql_external_text_header_every_split}
+     * does: a pinned schema of DECLARED provenance by the header's names, an INFERRED one by position. Set while such a
+     * node is in the cluster, so that one query never binds splits of a glob both ways and mixes their rows into one
+     * result that neither version returns.
+     * <p>
+     * Only the text readers that read a header line need it; every other reader keeps the no-op default.
+     *
+     * @param byProvenance true while a node of an earlier version may read part of the query
+     * @return a new reader honoring the binding mode, or {@code this} when it does not apply
+     */
+    default FormatReader withHeaderBindingByProvenance(boolean byProvenance) {
         return this;
     }
 
@@ -342,16 +379,80 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Whether this reader can only bind its declared columns when it sees the start of the file, which makes the file
-     * unsplittable: every split past the first would have no way to resolve the binding.
-     *
-     * <p>True only for a headered text reader binding a DECLARED schema by name: the binding is resolved against the
-     * file's header line, and only the first split carries it. A headerless file's physical names encode their own
-     * positions ({@code col4} -> field 4), so it binds on any split and stays fully splittable — which is the file shape the
-     * throughput-sensitive reads actually use.
+     * Fewest rows (lines) a shared schema sample still takes from each file (see {@link #sharedSchemaSampleSize}), so
+     * that every file of a listing contributes type evidence, and a headerless file its width.
      */
-    default boolean declaredNameBindingNeedsFileStart() {
+    int MIN_SHARED_SCHEMA_SAMPLE_SIZE = 100;
+
+    /**
+     * Returns a reader whose schema inference treats its sample size as a budget shared by {@code files} files rather
+     * than spent on each one: it samples {@link #sharedSchemaSampleSize} rows (lines) from the file it reads.
+     * <p>
+     * The planner calls this when it must infer the schema of every file in a listing ({@code union_by_name},
+     * {@code strict}). Without it, planning reads {@code files x sample} rows, which for a listing of many small files
+     * is the whole dataset. With it, planning reads about one sample's worth, or {@link #MIN_SHARED_SCHEMA_SAMPLE_SIZE}
+     * rows from every file once there are more files than the sample has such shares (for the default CSV sample,
+     * from a few hundred files on). The total still grows with the file count, by a floor's worth per file rather than
+     * a sample's. The cost is the one any sample has: a column or a value that only appears past a file's share is not
+     * seen at planning.
+     * <p>
+     * The narrower sample decides only how much of a file planning reads, so it must not change
+     * {@link Configured#identity()}: that string is also the fingerprint a data node stamps on the statistics it
+     * harvests, and the data node reads with the unshared configuration.
+     * <p>
+     * Returns {@code this} when sharing changes nothing, which callers rely on to tell whether it applies. Default
+     * no-op: formats that read a file's schema from its own metadata (Parquet, ORC) sample no rows.
+     *
+     * @param files how many files share the sample; {@code 1} for the whole sample
+     */
+    default FormatReader withSchemaSampleShare(int files) {
+        return this;
+    }
+
+    /**
+     * The maximum rows (lines) this configured reader samples for schema inference, or {@code 0} when it does not
+     * sample. A reader that overrides {@link #withSchemaSampleShare} must override this too: the planner keys a shared
+     * inference by the effective sample size, so two file-count shares that both hit the per-file floor reuse one
+     * cache entry.
+     */
+    default int schemaSampleSize() {
+        return 0;
+    }
+
+    /**
+     * Rows (lines) each of {@code files} files samples out of a {@code sampleSize} budget: an even share, but at least
+     * {@link #MIN_SHARED_SCHEMA_SAMPLE_SIZE}, and never more than {@code sampleSize}.
+     */
+    static int sharedSchemaSampleSize(int sampleSize, int files) {
+        if (files <= 1) {
+            return sampleSize;
+        }
+        return Math.min(sampleSize, Math.max(MIN_SHARED_SCHEMA_SAMPLE_SIZE, Math.ceilDiv(sampleSize, files)));
+    }
+
+    /**
+     * Whether every file this reader reads begins with a header line naming its columns (CSV/TSV with
+     * {@code header_row}). Split planning keeps such files whole while a node that cannot receive
+     * {@link #fileHeaderColumns} may read one of their splits.
+     */
+    default boolean readsHeaderLine() {
         return false;
+    }
+
+    /**
+     * The names a headered text file gives its columns, in file order, read from its leading bytes. An empty list for a
+     * file with no header line (empty, or only blank and comment lines): it has no columns, which is an answer, and
+     * distinct from {@code null}, which is reserved for a reader that does not read a header line ({@link
+     * #readsHeaderLine} is false: headerless text, NDJSON, columnar formats). Passed to the splits of a file through
+     * {@link FormatReadContext#fileHeaderColumns}, so that none reads it from its own bytes.
+     * <p>
+     * Must abort its stream ({@link StorageObject#abortStream}) rather than close it: a provider that drains the
+     * remaining bytes on close would transfer the whole object.
+     *
+     * @param file the whole file, positioned at its first byte (not a range of it)
+     */
+    default List<String> fileHeaderColumns(StorageObject file) throws IOException {
+        return null;
     }
 
     /**
@@ -399,6 +500,20 @@ public interface FormatReader extends Closeable {
     }
 
     /**
+     * Returns a fresh, zeroed counter struct for one operator driver, or {@code null} when this
+     * reader tracks no format-specific counters. Called once per {@code get(DriverContext)} by
+     * {@code AsyncExternalSourceOperatorFactory}; the returned struct is passed to every
+     * {@link #read} / {@link RangeAwareFormatReader#readRange} call via
+     * {@link FormatReadContext#readCounters()} / {@link RangeReadContext#readCounters()}.
+     * <p>
+     * The default returns {@code null}. Readers that track format-specific counters override this
+     * and return an instance of their format-specific {@link FormatReadCounters} implementation.
+     */
+    default FormatReadCounters newReadCounters() {
+        return null;
+    }
+
+    /**
      * Whether this format supports being wrapped in a whole-file, stream-only decompressor
      * (e.g. {@code .parquet.zst} or {@code .orc.gz}). Sequential formats (CSV, NDJSON) return
      * the default {@code true}. Tail/footer-based formats (Parquet, ORC) must override to
@@ -410,13 +525,10 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Returns a typed snapshot of format-reader I/O counters, or {@code null} when the reader
-     * tracks none. The snapshot is folded into the {@code format_reader} field of the
-     * external-source operator status.
+     * Binds this reader to the node's admission stall tracker. The registry calls this once on
+     * the lazily created singleton. Default is a no-op; Parquet forwards it to the byte watermark.
      */
-    default FormatReaderStatus statusSnapshot() {
-        return null;
-    }
+    default void bindAdmissionTracker(AdmissionTracker tracker) {}
 
     /**
      * Returns this reader's {@link RowPositionStrategy} — the dispatcher applies it polymorphically

@@ -9,6 +9,7 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
@@ -17,8 +18,6 @@ import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.Weight;
@@ -27,6 +26,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.LongSupplier;
 
 /**
@@ -48,9 +48,8 @@ final class IVFSlicedSearchHelper {
     }
 
     /**
-     * Executes the sliced IVF search: validates the index sort, resolves slice ordinals,
-     * iterates slices, and collects results. The actual per-slice vector search is delegated
-     * to {@code sliceSearcher}.
+     * Executes the sliced IVF search: resolves slice ordinals, iterates slices, and collects results.
+     * The actual per-slice vector search is delegated to {@code sliceSearcher}.
      */
     static TopDocs getLeafResults(
         LeafReaderContext ctx,
@@ -70,14 +69,6 @@ final class IVFSlicedSearchHelper {
         }
         final Bits liveDocs = reader.getLiveDocs();
         final int maxDoc = reader.maxDoc();
-        final Sort sort = reader.getMetaData().sort();
-        if (sort == null
-            || sort.getSort().length == 0
-            || sort.getSort()[0].getField().equals(sliceField) == false
-            || sort.getSort()[0].getType() != SortField.Type.STRING) {
-            throw new IllegalArgumentException("sliceField must be the first field of the index sort and of type STRING");
-        }
-
         final IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, k, knnCollectorManager.longAccumulator);
         final AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(Integer.MAX_VALUE, strategy, ctx);
         if (knnCollector == null) {
@@ -104,12 +95,6 @@ final class IVFSlicedSearchHelper {
         if (skipper == null) {
             throw new IllegalArgumentException("sliceField [" + sliceField + "] must be indexed as a DocValuesSkipper field");
         }
-        if (skipper.docCount() != maxDoc) {
-            throw new IllegalArgumentException(
-                "DocValuesSkipper for sliceField [" + sliceField + "] must have a doc count equal to maxDoc"
-            );
-        }
-
         final IOSupplier<DocIdSetIterator> docIdIteratorSupplier;
         final LongSupplier costSupplier;
         if (filterWeight != null) {
@@ -174,6 +159,78 @@ final class IVFSlicedSearchHelper {
         return results != null ? results : AbstractIVFKnnVectorQuery.NO_RESULTS;
     }
 
+    /**
+     * Slice-restricted version of {@link KnnQueryUtils#computeSelectivity}: a sliced query only ever visits
+     * the requested slices, so estimating its filter selectivity against the whole reader measures a corpus
+     * it will not touch.
+     */
+    static float estimateSliceFilterSelectivity(
+        List<LeafReaderContext> leaves,
+        Weight filterWeight,
+        String vectorField,
+        boolean byteEncoded,
+        String sliceField,
+        BytesRef[] sliceIds
+    ) throws IOException {
+        double filterCost = 0;
+        long sliceVectors = 0;
+        for (LeafReaderContext ctx : leaves) {
+            LeafReader reader = ctx.reader();
+            int maxDoc = reader.maxDoc();
+            if (maxDoc == 0) {
+                continue;
+            }
+            KnnVectorValues values = byteEncoded ? reader.getByteVectorValues(vectorField) : reader.getFloatVectorValues(vectorField);
+            if (values == null || values.size() == 0) {
+                continue;
+            }
+            long sliceDocs = sliceDocCount(ctx, sliceField, sliceIds);
+            if (sliceDocs <= 0) {
+                continue;
+            }
+            double sliceShare = Math.min(1.0, (double) sliceDocs / maxDoc);
+            // Vectors are not necessarily dense over the slice, so cap by the leaf's actual vector count.
+            sliceVectors += Math.min(values.size(), (long) Math.ceil(values.size() * sliceShare));
+            ScorerSupplier supplier = filterWeight.scorerSupplier(ctx);
+            if (supplier != null) {
+                filterCost += supplier.cost() * sliceShare;
+            }
+        }
+        if (sliceVectors <= 0) {
+            return 0f;
+        }
+        return (float) Math.min(1.0, filterCost / sliceVectors);
+    }
+
+    /**
+     * Number of docs in {@code ctx} that belong to the requested slices, or {@code maxDoc} when no slice ids
+     * were given (the query searches every slice). Uses the {@code sliceField} skipper, so this is O(number
+     * of requested slices) rather than a doc walk.
+     */
+    private static long sliceDocCount(LeafReaderContext ctx, String sliceField, BytesRef[] sliceIds) throws IOException {
+        int maxDoc = ctx.reader().maxDoc();
+        if (sliceIds.length == 0) {
+            return maxDoc;
+        }
+        SortedDocValues sortedDocValues = ctx.reader().getSortedDocValues(sliceField);
+        DocValuesSkipper skipper = ctx.reader().getDocValuesSkipper(sliceField);
+        if (sortedDocValues == null || skipper == null || skipper.docCount() != maxDoc) {
+            // Not a sliced leaf in the shape getLeafResults requires; fall back to the whole leaf rather
+            // than reporting a bogus zero. getLeafResults will raise the real error at search time.
+            return maxDoc;
+        }
+        long docs = 0;
+        for (int ord : sliceToSortedOrds(sortedDocValues, sliceIds)) {
+            ESAcceptDocs.SliceAcceptDocs range = getSliceAcceptDocsSupplier(sortedDocValues, skipper, ord);
+            // [startDoc, endDoc) is the contiguous doc-id span the slice occupies, so its width is an upper-bound
+            // estimate rather than an exact count: the span may also cover deleted docs or docs with no value for
+            // the vector field. The caller only needs this to size the slice's share of the leaf, so an estimate
+            // is fine.
+            docs += Math.max(0, range.endDoc() - range.startDoc());
+        }
+        return docs;
+    }
+
     private static void searchOneSlice(
         SortedDocValues sortedDocValues,
         DocValuesSkipper skipper,
@@ -236,6 +293,8 @@ final class IVFSlicedSearchHelper {
         }
         int maxDocID;
         if (skipper.maxValue() == ord) {
+            // docCount() may be smaller than maxDoc when tombstones are present: they carry no slice value and,
+            // under the ascending missing-last sort, form a trailing suffix after the last slice.
             maxDocID = skipper.docCount();
         } else {
             int nextOrd = ord + 1;

@@ -19,12 +19,17 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
@@ -46,6 +51,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -57,6 +63,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -71,12 +78,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 
 public abstract class ESAllocationTestCase extends ESTestCase {
@@ -547,4 +556,66 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 return Map.of();
             }
         };
+
+    /**
+     * Builds a cluster state containing the given single-shard indices on {@code nodeNames}.
+     * Each shard is either started or left unassigned, chosen at random.
+     */
+    protected static ClusterState createStateWithIndices(
+        List<String> nodeNames,
+        Function<ShardId, String> shardAllocator,
+        IndexMetadata.Builder... indexMetadataBuilders
+    ) {
+        return createStateWithIndices(nodeNames, shardAllocator, randomBoolean(), indexMetadataBuilders);
+    }
+
+    /**
+     * Builds a cluster state containing the given single-shard indices on {@code nodeNames}.
+     * When {@code allocateShards} is false, every shard is left unassigned.
+     * When it is true, shard 0 of each index is started on the node chosen by {@code shardAllocator}.
+     */
+    protected static ClusterState createStateWithIndices(
+        List<String> nodeNames,
+        Function<ShardId, String> shardAllocator,
+        boolean allocateShards,
+        IndexMetadata.Builder... indexMetadataBuilders
+    ) {
+        var metadataBuilder = Metadata.builder();
+        var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+        if (allocateShards == false) {
+            // leave every shard unassigned
+            for (var index : indexMetadataBuilders) {
+                var indexMetadata = index.build();
+                metadataBuilder.put(indexMetadata, false);
+                routingTableBuilder.addAsNew(indexMetadata);
+            }
+        } else {
+            // start shard 0 of each index on the node chosen by shardAllocator
+            for (var index : indexMetadataBuilders) {
+                var inSyncId = UUIDs.randomBase64UUID();
+                var indexMetadata = index.putInSyncAllocationIds(0, Set.of(inSyncId)).build();
+                metadataBuilder.put(indexMetadata, false);
+                ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
+                routingTableBuilder.add(
+                    IndexRoutingTable.builder(indexMetadata.getIndex())
+                        .addShard(
+                            shardRoutingBuilder(shardId, shardAllocator.apply(shardId), true, ShardRoutingState.STARTED).withAllocationId(
+                                AllocationId.newInitializing(inSyncId)
+                            ).build()
+                        )
+                );
+            }
+        }
+
+        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder();
+        for (String nodeName : nodeNames) {
+            discoveryNodesBuilder.add(newNode(nodeName));
+        }
+
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodesBuilder)
+            .metadata(metadataBuilder)
+            .routingTable(routingTableBuilder)
+            .build();
+    }
 }

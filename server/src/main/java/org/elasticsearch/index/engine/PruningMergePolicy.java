@@ -33,6 +33,7 @@ import org.elasticsearch.index.codec.FilterDocValuesProducer;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SyntheticIdField;
 import org.elasticsearch.search.internal.FilterStoredFieldVisitor;
 
 import java.io.IOException;
@@ -87,9 +88,10 @@ public final class PruningMergePolicy extends OneMergeWrappingMergePolicy {
         final boolean hasSeqNo = pruneSeqNo && seqNoDocValues != null && seqNoDocValues.nextDoc() != DocIdSetIterator.NO_MORE_DOCS;
         if (hasRecoverySource == false && hasSeqNo == false) {
             if (useSyntheticId) {
+                // The _id is synthesized rather than stored, so only the reader materializing it has to go.
                 return unwrapSyntheticIdStoredFieldsReader(reader);
             }
-            return reader;  // early terminate - nothing to do here
+            return reader; // early terminate - nothing to do here
         }
         IndexSearcher s = new IndexSearcher(reader);
         s.setQueryCache(null);
@@ -162,18 +164,23 @@ public final class PruningMergePolicy extends OneMergeWrappingMergePolicy {
         @Override
         public StoredFieldsReader getFieldsReader() {
             StoredFieldsReader fieldsReader = super.getFieldsReader();
-            // Track whether we successfully unwrapped the TSDBStoredFieldsReader. If the reader is hidden behind
-            // an intermediate wrapper (e.g., MismatchedStoredFieldsReader in tests), we cannot unwrap and must use
-            // PruningStoredFieldsReader to filter out the synthetic _id during merges.
-            boolean unwrappedSyntheticId = false;
-            if (useSyntheticId && fieldsReader instanceof TSDBStoredFieldsFormat.TSDBStoredFieldsReader tsdbReader) {
+            // The codec wraps the reader only for a segment that has a synthetic id. Unwrap it where it is there, and fall back
+            // to filtering the _id out where an intermediate wrapper hides it.
+            boolean materializesSyntheticId = useSyntheticId && SyntheticIdField.hasSyntheticId(getFieldInfos());
+            if (materializesSyntheticId && fieldsReader instanceof TSDBStoredFieldsFormat.TSDBStoredFieldsReader tsdbReader) {
                 fieldsReader = tsdbReader.getStoredFieldsReader();
-                unwrappedSyntheticId = true;
+                materializesSyntheticId = false;
             }
-            if (pruneStoredFieldName == null && pruneIdField == false && (useSyntheticId == false || unwrappedSyntheticId)) {
+            if (pruneStoredFieldName == null && pruneIdField == false && materializesSyntheticId == false) {
                 return fieldsReader;
             }
-            return new PruningStoredFieldsReader(fieldsReader, recoverySourceToKeep, pruneStoredFieldName, pruneIdField, useSyntheticId);
+            return new PruningStoredFieldsReader(
+                fieldsReader,
+                recoverySourceToKeep,
+                pruneStoredFieldName,
+                pruneIdField,
+                materializesSyntheticId
+            );
         }
 
         @Override
@@ -359,6 +366,9 @@ public final class PruningMergePolicy extends OneMergeWrappingMergePolicy {
                 StoredFieldsReader fieldsReader = super.getFieldsReader();
                 if (fieldsReader instanceof TSDBStoredFieldsFormat.TSDBStoredFieldsReader tsdbReader) {
                     return tsdbReader.getStoredFieldsReader();
+                }
+                if (SyntheticIdField.hasSyntheticId(getFieldInfos()) == false) {
+                    return fieldsReader; // nothing to skip
                 }
                 // The TSDBStoredFieldsReader is hidden behind an intermediate wrapper: bulk merging is already impossible in this case so
                 // we fall back to skipping _id via a visitor filter.

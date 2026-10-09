@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.inference.services.deepseek.request.DeepSeekChatC
 import org.elasticsearch.xpack.inference.services.openai.OpenAiCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionResponseEntity;
 
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -79,7 +80,10 @@ public class DeepSeekRequestManager extends BaseRequestManager {
     }
 
     private static ResponseHandler createChatCompletionHandler() {
-        return new OpenAiUnifiedChatCompletionResponseHandler("deepseek chat completion", OpenAiCompletionResponseEntity::fromResponse);
+        return new OpenAiUnifiedChatCompletionResponseHandler(
+            "deepseek chat completion",
+            OpenAiUnifiedChatCompletionResponseEntity::fromResponse
+        );
     }
 
     private static ResponseHandler createCompletionHandler() {

@@ -457,7 +457,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
                 ? backingIndices.get(1)
                 : backingIndices.getFirst();
             assertBusy(() -> {
-                ErrorEntry error = dlmErrorStore.getError(projectId.get(), throttledIndex.getName());
+                ErrorEntry error = dlmErrorStore.getError(projectId.get(), throttledIndex);
                 assertThat(error, notNullValue());
                 assertThat(error.error(), containsString("has reached the maximum number of downsampling operations"));
             });
@@ -470,7 +470,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
                 return activelyDownsampledIndexNames.contains(throttledIndex)
                     || projectMetadata.hasIndex("downsample-5m-" + throttledIndex.getName());
             });
-            assertThat(dlmErrorStore.getError(projectId.get(), throttledIndex.getName()), nullValue());
+            assertThat(dlmErrorStore.getError(projectId.get(), throttledIndex), nullValue());
             // Verify both tasks are finished and cleared
             awaitClusterState(clusterState -> {
                 ProjectMetadata projectMetadata = clusterState.metadata().getProject();

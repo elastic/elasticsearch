@@ -8,6 +8,7 @@
  */
 
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+import org.elasticsearch.gradle.internal.test.TestUtil
 
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
@@ -15,6 +16,7 @@ apply plugin: 'elasticsearch.foreign-library'
 apply plugin: 'elasticsearch.foreign-api'
 apply plugin: 'java-test-fixtures'
 apply plugin: 'elasticsearch.native-library-build'
+apply plugin: 'elasticsearch.benchmark'
 
 dependencies {
   implementation project(':libs:lucene-store')
@@ -22,9 +24,7 @@ dependencies {
   implementation project(':libs:logging')
   implementation "org.apache.lucene:lucene-core:${versions.lucene}"
 
-  // PosixGuardPageAllocator (test fixture) reaches into PosixCLibrary from libs:native.
-  testFixturesImplementation project(':libs:native')
-
+  testImplementation project(':libs:foreign-library:testing')
   testImplementation(testArtifact(project(':x-pack:plugin:searchable-snapshots')))
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'native'
@@ -32,6 +32,21 @@ dependencies {
   testFixturesImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'native'
   }
+
+  // JMH benchmark source set. jmh-core, jopt-simple, commons-math3, :benchmarks:common,
+  // :benchmarks:processor and :test:framework (the latter for benchmarkTest only) are
+  // added by elasticsearch.benchmark; everything below is what this module needs on top.
+  benchmarkImplementation testFixtures(project(':libs:simdvec'))
+  benchmarkImplementation project(':server')
+  // VectorTestUtils lives in :test:framework main and is used from benchmark bodies, not
+  // only from correctness tests, so :test:framework must also be on `benchmark`.
+  benchmarkImplementation(project(':test:framework')) {
+    exclude group: 'org.elasticsearch', module: 'native'
+  }
+  // Consumed via DirectoryFactory in this source set.
+  benchmarkImplementation(testArtifact(project(':x-pack:plugin:searchable-snapshots')))
+  benchmarkImplementation(testArtifact(project(':x-pack:plugin:stateless')))
+  benchmarkTestImplementation project(':x-pack:plugin:blob-cache')
 }
 
 tasks.named('compileJava').configure {
@@ -72,6 +87,22 @@ tasks.named('test').configure {
   systemProperty "tests.system_call_filter", "false"
 }
 
+tasks.named('benchmark').configure {
+  dependsOn ':libs:native:native-libraries:extractLibs'
+  // No `--add-modules=jdk.incubator.vector` here. Benchmarks that want the module ask for it themselves via @Fork(jvmArgsPrepend).
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+  // The benchmark bodies run in JMH's forked VMs; `es.nativelibs.path` needs to be passed as
+  // a system property so it get passed down to the fork.
+  systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file('../native/libraries/build/platform/').toString())
+}
+
+tasks.named('benchmarkTest').configure {
+  dependsOn ':libs:native:native-libraries:extractLibs'
+  jvmArgs '--add-modules=jdk.incubator.vector'
+
+  systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file('../native/libraries/build/platform/').toString())
+}
+
 tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }
@@ -81,16 +112,31 @@ tasks.withType(CheckForbiddenApisTask).configureEach {
 // VEC_NATIVE_BUILD=host to build the current platform only. Unset, the published artifact is used.
 nativeLibraryBuild {
   modeEnvironmentVariable = 'VEC_NATIVE_BUILD'
-  sourceDir = layout.projectDirectory.dir('native')
-  sources = ['src/vec/**', 'Makefile']
-  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:6'
+  workingDir = layout.projectDirectory.dir('native')
+  sources = ['native/src/vec/**', 'native/Makefile']
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:8'
   forwardedEnvironment = ['CLANG_CXX']
+  // The platforms libvec is built for. Other hosts (Intel Mac) still consume the artifact but
+  // fall back to the Panama implementation when they don't have a platform-specific implementation.
+  supportedPlatforms = ['darwin-aarch64', 'linux-aarch64', 'linux-x64', 'windows-x64']
+
+  // Reuse the published artifact whenever these sources already have one, addressed by their hash.
+  artifactRepositoryUrl = 'https://artifactory.elastic.dev/artifactory/elasticsearch-native'
+  artifactName = 'vec'
+  publishCredentialEnvironmentVariable = 'ARTIFACTORY_API_KEY'
 
   dockerCommand = ['make', 'all']
   collect = [
-    'build/libs/vec/shared/aarch64/libvec.dylib': 'darwin-aarch64/libvec.dylib',
-    'build/libs/vec/shared/aarch64/libvec.so'   : 'linux-aarch64/libvec.so',
-    'build/libs/vec/shared/amd64/libvec.so'     : 'linux-x64/libvec.so',
+    'build/libs/vec/shared/aarch64/libvec.dylib' : 'darwin-aarch64/libvec.dylib',
+    'build/libs/vec/shared/aarch64/libvec.so'    : 'linux-aarch64/libvec.so',
+    'build/libs/vec/shared/amd64/libvec.so'      : 'linux-x64/libvec.so',
+    'build/libs/vec/shared/windows-x64/vec.dll'  : 'windows-x64/vec.dll',
+  ]
+  debugInfoCollect = [
+    'build/libs/vec/shared/aarch64/libvec.dylib.dSYM' : 'darwin-aarch64/libvec.dylib.dSYM',
+    'build/libs/vec/shared/aarch64/libvec.so.debug'   : 'linux-aarch64/libvec.so.debug',
+    'build/libs/vec/shared/amd64/libvec.so.debug'     : 'linux-x64/libvec.so.debug',
+    'build/libs/vec/shared/windows-x64/vec.pdb'       : 'windows-x64/vec.pdb',
   ]
 
   hostCommand { outputDir -> ['make', 'local-install', "DEST=${outputDir.asFile}"] }

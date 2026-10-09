@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -70,7 +70,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
 
     private final IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
     private final SystemIndices systemIndices = new SystemIndices(List.of());
-    private final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
         ClusterSettings.createBuiltInClusterSettings()
     );
     private final DataStreamFailureStoreSettings emptyDataStreamFailureStoreSettings = DataStreamFailureStoreSettings.create(
@@ -87,7 +87,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         metadataDataStreamsService = new MetadataDataStreamsService(
             clusterService,
             indicesService,
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+            DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
             IndexSettingProviders.EMPTY
         );
     }
@@ -215,7 +215,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -249,7 +249,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -304,7 +304,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -345,7 +345,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -382,7 +382,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -393,14 +393,14 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             TimeValue.timeValueDays(randomIntBetween(1, 5)),
             TimeValue.timeValueDays(randomIntBetween(5, 10))
         );
-        DataStreamGlobalRetentionSettings withGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
+        DataStreamLifecycleSettings withGlobalRetentionSettings = DataStreamLifecycleSettings.create(
             ClusterSettings.createBuiltInClusterSettings(
                 Settings.builder()
                     .put(
-                        DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(),
+                        DataStreamLifecycleSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(),
                         dataGlobalRetention.defaultRetention()
                     )
-                    .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), dataGlobalRetention.maxRetention())
+                    .put(DataStreamLifecycleSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), dataGlobalRetention.maxRetention())
                     .build()
             )
         );
@@ -439,7 +439,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -467,7 +467,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -495,7 +495,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             DataStreamFailureStoreSettings.create(
                 ClusterSettings.createBuiltInClusterSettings(
                     Settings.builder()
@@ -529,7 +529,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             IndexSettingProviders.of((additionalSettings) -> additionalSettings.put("index.mode", IndexMode.LOOKUP)),
             null,
@@ -561,7 +561,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 .put(IndexSettings.MODE.getKey(), templateIndexMode)
                 .build(),
             Settings.EMPTY,
-            Settings.EMPTY
+            Settings.EMPTY,
+            IndexMode.STANDARD
         );
 
         GetDataStreamAction.Response response = TransportGetDataStreamsAction.innerOperation(
@@ -570,7 +571,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -594,7 +595,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 .put(IndexMetadata.LIFECYCLE_NAME, templatePolicy)
                 .put(IndexSettings.MODE.getKey(), templateIndexMode)
                 .build(),
-            Settings.EMPTY
+            Settings.EMPTY,
+            IndexMode.STANDARD
         );
 
         GetDataStreamAction.Response response = TransportGetDataStreamsAction.innerOperation(
@@ -603,7 +605,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -634,7 +636,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             Settings.builder()
                 .put(IndexMetadata.LIFECYCLE_NAME, dataStreamPolicy)
                 .put(IndexSettings.MODE.getKey(), dataStreamIndexMode)
-                .build()
+                .build(),
+            IndexMode.STANDARD
         );
         GetDataStreamAction.Response response = TransportGetDataStreamsAction.innerOperation(
             projectStateFromProject(project),
@@ -642,7 +645,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             resolver,
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
-            dataStreamGlobalRetentionSettings,
+            dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
             null,
@@ -657,7 +660,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     private static ProjectMetadata getProjectWithDataStreamWithSettings(
         Settings templateSettings,
         Settings componentTemplateSettings,
-        Settings dataStreamSettings
+        Settings dataStreamSettings,
+        IndexMode dsIndexMode
     ) {
         String dataStreamName = "data-stream-1";
         int numberOfBackingIndices = randomIntBetween(1, 5);
@@ -700,7 +704,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         DataStream ds = DataStream.builder(
             dataStreamName,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
-        ).setGeneration(numberOfBackingIndices).setSettings(dataStreamSettings).setReplicated(replicated).build();
+        ).setGeneration(numberOfBackingIndices).setSettings(dataStreamSettings).setIndexMode(dsIndexMode).setReplicated(replicated).build();
         builder.put(ds);
 
         for (IndexMetadata index : allIndices) {

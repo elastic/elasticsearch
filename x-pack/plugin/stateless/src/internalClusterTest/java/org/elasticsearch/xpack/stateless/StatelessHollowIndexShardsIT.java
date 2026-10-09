@@ -826,7 +826,6 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         assertHitCount(client().prepareSearch(clusterInfo.indexName).setSize(0).setTrackTotalHits(true), clusterInfo.numDocs + moreDocs);
     }
 
-
     public void testCloseHollowShardsServiceBeforeShardEnginesClose() throws Exception {
         final var clusterInfo = startNodesAndHollowShards();
         final var indicesService = internalCluster().getInstance(IndicesService.class, clusterInfo.indexNodeB);

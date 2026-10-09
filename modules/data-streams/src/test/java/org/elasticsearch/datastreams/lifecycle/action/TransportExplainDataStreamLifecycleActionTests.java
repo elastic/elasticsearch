@@ -67,7 +67,7 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings());
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        dataStreamLifecycleSettings = DataStreamLifecycleFixtures.createDataStreamLifecycleSettings(randomBoolean(), null, null);
+        dataStreamLifecycleSettings = DataStreamLifecycleFixtures.createDataStreamLifecycleSettings(false, null, null);
         testAction = new TransportExplainDataStreamLifecycleAction(
             mock(TransportService.class),
             clusterService,

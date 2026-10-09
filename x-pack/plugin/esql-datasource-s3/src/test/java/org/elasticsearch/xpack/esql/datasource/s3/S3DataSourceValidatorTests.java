@@ -766,6 +766,33 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
                 Map.of("partition_detection", "template", "partition_path", "{year}/{month}", "partition_spec", "year(ts)")
             ).get("partition_spec")
         );
+        assertEquals(
+            "year(ts), month(ts), day(ts), hour(ts), lag(ts, 15m)",
+            validator.validateDataset(
+                Map.of(),
+                "s3://b/p",
+                Map.of("partition_detection", "hive", "partition_spec", "year(ts), month(ts), day(ts), hour(ts), lag(ts, 15m)")
+            ).get("partition_spec")
+        );
+    }
+
+    public void testValidateDatasetPartitionSpecRejectsLagWithoutBind() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "partition_spec", "lag(nope, 15m)"))
+        );
+        assertThat(e.getMessage(), containsString("partition_spec"));
+        assertThat(e.getMessage(), containsString("nope"));
+        e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://b/p",
+                Map.of("partition_detection", "hive", "partition_spec", "year(ts), key=lag(ts, 15m)")
+            )
+        );
+        assertThat(e.getMessage(), containsString("partition_spec"));
+        assertThat(e.getMessage(), containsString("lag"));
     }
 
     public void testValidateDatasetPartitionSpecRejectsUnknownTransform() {

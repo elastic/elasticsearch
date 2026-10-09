@@ -19,10 +19,12 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -271,11 +273,14 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
     }
 
     /**
-     * Values dropped by {@code ignore_above} keep their fallback column out of the batch, as {@code postParse} prunes it on the row
-     * path.
+     * Values dropped by {@code ignore_above} are kept in a fallback column that the whole-document blob subsumes, so the batch has to
+     * leave that column out as {@code postParse} does on the row path. Strict-columnar indices make {@code ignore_above} inert from
+     * {@link IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR}, so this runs on the last version before it; at the current version no value
+     * is ever dropped and there is no fallback column to prune.
      */
     public void testColumnarStoredSourceWithIgnoredValues() throws IOException {
         assertColumnarMatchesXContent(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR),
             mapping(b -> b.startObject("kwd").field("type", "keyword").field("ignore_above", 5).endObject()),
             columnarStoredSettings(),
             batch(

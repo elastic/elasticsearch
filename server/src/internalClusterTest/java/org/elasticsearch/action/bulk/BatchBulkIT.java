@@ -254,7 +254,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                 mapping.startObject("properties");
                 {
                     mapping.startObject("host").field("type", "keyword").endObject();
-                    mapping.startObject("service").field("type", "keyword").field("ignore_above", 5).endObject();
+                    mapping.startObject("service").field("type", "keyword").endObject();
                     mapping.startObject("count").field("type", "long").endObject();
                 }
                 mapping.endObject();
@@ -283,16 +283,7 @@ public class BatchBulkIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             bulkRequest.add(
                 new IndexRequest(index).id("doc-" + i)
-                    // Every third service value exceeds ignore_above, so its source has to come from the blob rather than an indexed field.
-                    .source(
-                        XContentType.JSON,
-                        "host",
-                        "host-" + (i % 5),
-                        "service",
-                        i % 3 == 0 ? "service-" + i : "s" + (i % 3),
-                        "count",
-                        i
-                    )
+                    .source(XContentType.JSON, "host", "host-" + (i % 5), "service", "svc-" + (i % 3), "count", i)
                     .opType(DocWriteRequest.OpType.CREATE)
             );
         }
@@ -324,10 +315,7 @@ public class BatchBulkIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             var getResponse = client().get(new GetRequest(index).id("doc-" + i).realtime(false)).actionGet();
             assertTrue(getResponse.isExists());
-            assertThat(
-                getResponse.getSourceAsMap(),
-                equalTo(Map.of("host", "host-" + (i % 5), "service", i % 3 == 0 ? "service-" + i : "s" + (i % 3), "count", i))
-            );
+            assertThat(getResponse.getSourceAsMap(), equalTo(Map.of("host", "host-" + (i % 5), "service", "svc-" + (i % 3), "count", i)));
         }
     }
 

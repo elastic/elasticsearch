@@ -72,7 +72,6 @@ Use the REST API to create, update, delete, and list views:
 * [Get or list views](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-get-view)
 
 ### Reserved views [esql-views-reserved]
-
 Some views are reserved. {{es}} or its components create them, not users. A reserved view is marked with `"reserved": true` in the [get view](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-get-view) response.
 
 You cannot modify or delete a reserved view through the REST API:

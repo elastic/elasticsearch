@@ -151,6 +151,7 @@ class ConcurrencyLimiter implements AdmissionGate {
         if (semaphore.tryAcquire(0, TimeUnit.NANOSECONDS)) {
             return;
         }
+        assert InlineCompletionDrain.draining() == false : "sync acquire from a grant continuation; wait on the ticket instead";
         long startNanos = System.nanoTime();
         AdmissionTracker.Wait wait = tracker.waitStarted(name(), Thread.currentThread().getName());
         boolean acquired;
@@ -254,6 +255,10 @@ class ConcurrencyLimiter implements AdmissionGate {
      * the releaser so delivery cannot queue behind synchronous {@link #acquire} waiters on
      * {@code esql_external_io}. Fair FIFO among ticket waiters. Leftover sync
      * {@link #acquire} can time out while tickets are queued.
+     * <p>
+     * When called from a grant continuation, an uncontended grant may complete after this
+     * method returns ({@link InlineCompletionDrain} defers nested deliveries). Do not block
+     * on the ticket from a grant callback.
      */
     SubscribableListener<Void> acquireAsync(BooleanSupplier cancelSignal, Executor executor) {
         SubscribableListener<Void> listener = new SubscribableListener<>();
@@ -451,7 +456,7 @@ class ConcurrencyLimiter implements AdmissionGate {
     }
 
     private List<Runnable> takePendingCompletions() {
-        if (pauseGrantDelivery || pendingCompletions.isEmpty()) {
+        if (pauseGrantDelivery || pendingCompletions.isEmpty()) { // test-only seam
             return List.of();
         }
         List<Runnable> batch = new ArrayList<>(pendingCompletions);
@@ -485,13 +490,8 @@ class ConcurrencyLimiter implements AdmissionGate {
             if (completed.compareAndSet(false, true) == false) {
                 return;
             }
-            asyncLock.lock();
-            try {
-                int left = undelivered.decrementAndGet();
-                assert left >= 0 : "undelivered=" + left;
-            } finally {
-                asyncLock.unlock();
-            }
+            int left = undelivered.decrementAndGet();
+            assert left >= 0 : "undelivered=" + left;
             if (cancel.getAsBoolean()) {
                 tracked.finished();
                 release();

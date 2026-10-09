@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -252,6 +253,29 @@ public class AsyncQueryConcurrencyBudgetTests extends ESTestCase {
         assertEquals(0, budget.inFlight());
         assertEquals(0, budget.holders());
         assertThat(maxDepth.get(), lessThan(200));
+    }
+
+    public void testSyncAcquireFromGrantContinuationAsserts() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        budget.acquire();
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<AssertionError> asserted = new AtomicReference<>();
+        budget.acquireAsync(null, false, () -> false, Runnable::run).addListener(ActionListener.wrap(unused -> {
+            try {
+                budget.acquire();
+            } catch (AssertionError e) {
+                asserted.set(e);
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            } finally {
+                budget.release();
+                done.countDown();
+            }
+        }, e -> { throw new AssertionError(e); }));
+        budget.release();
+        assertTrue(done.await(5, TimeUnit.SECONDS));
+        assertNotNull(asserted.get());
+        assertThat(asserted.get().getMessage(), containsString("grant continuation"));
     }
 
     public void testCloseFailsAsyncWaiters() throws Exception {

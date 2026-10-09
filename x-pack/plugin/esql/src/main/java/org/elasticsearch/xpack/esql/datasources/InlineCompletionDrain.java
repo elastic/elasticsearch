@@ -15,12 +15,17 @@ import java.util.List;
  * grants the next waiter enqueues that delivery on this thread's drain instead of
  * recursing, so a chain of cancelled heads cannot blow the stack.
  */
-final class InlineCompletionDrain {
+public final class InlineCompletionDrain {
 
     private static final ThreadLocal<ArrayDeque<Runnable>> QUEUE = ThreadLocal.withInitial(ArrayDeque::new);
     private static final ThreadLocal<Boolean> RUNNING = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     private InlineCompletionDrain() {}
+
+    /** {@code true} while this thread is draining grant completions. */
+    public static boolean draining() {
+        return Boolean.TRUE.equals(RUNNING.get());
+    }
 
     static void run(List<Runnable> completions) {
         if (completions.isEmpty()) {
@@ -33,7 +38,6 @@ final class InlineCompletionDrain {
         }
         RUNNING.set(Boolean.TRUE);
         RuntimeException firstException = null;
-        Error firstError = null;
         try {
             Runnable next;
             while ((next = queue.pollFirst()) != null) {
@@ -45,21 +49,12 @@ final class InlineCompletionDrain {
                     } else {
                         firstException.addSuppressed(e);
                     }
-                } catch (Error e) {
-                    if (firstError == null) {
-                        firstError = e;
-                    } else {
-                        firstError.addSuppressed(e);
-                    }
                 }
             }
         } finally {
             RUNNING.set(Boolean.FALSE);
             QUEUE.remove();
             RUNNING.remove();
-        }
-        if (firstError != null) {
-            throw firstError;
         }
         if (firstException != null) {
             throw firstException;

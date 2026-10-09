@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -234,6 +235,29 @@ public class AsyncConcurrencyLimiterTests extends ESTestCase {
         assertTrue(failed.await(5, TimeUnit.SECONDS));
         assertEquals(1, limiter.availablePermits());
         assertEquals(0, limiter.asyncWaiterCount());
+    }
+
+    public void testSyncAcquireFromGrantContinuationAsserts() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false));
+        limiter.acquire();
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<AssertionError> asserted = new AtomicReference<>();
+        limiter.acquireAsync(() -> false, Runnable::run).addListener(ActionListener.wrap(unused -> {
+            try {
+                limiter.acquire();
+            } catch (AssertionError e) {
+                asserted.set(e);
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            } finally {
+                limiter.release();
+                done.countDown();
+            }
+        }, e -> { throw new AssertionError(e); }));
+        limiter.release();
+        assertTrue(done.await(5, TimeUnit.SECONDS));
+        assertNotNull(asserted.get());
+        assertThat(asserted.get().getMessage(), containsString("grant continuation"));
     }
 
     public void testUnlimitedAcquireAsyncCompletes() throws Exception {

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.Releasable;
@@ -29,6 +28,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -380,49 +381,61 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
         verify(delegate, never()).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(), anyBoolean());
     }
 
-    @SuppressWarnings("unchecked")
-    public void testStartDelegateReturnsBeforeNativeAsyncGetCompletes() throws Exception {
-        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+    public void testStackedGrantsProgressWhenIoPoolBlocked() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(2, false), 5_000L);
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(2, 5_000L, null);
+        limiter.acquire();
+        limiter.acquire();
         budget.acquire();
-        CountDownLatch getStarted = new CountDownLatch(1);
-        CountDownLatch allowComplete = new CountDownLatch(1);
-        CountDownLatch listenerDone = new CountDownLatch(1);
-        AtomicReference<Thread> completer = new AtomicReference<>();
-        StorageObject delegate = mock(StorageObject.class);
-        doAnswer(inv -> {
-            ActionListener<DirectReadBuffer> listener = inv.getArgument(4);
-            getStarted.countDown();
-            Thread runner = new Thread(() -> {
-                try {
-                    assertTrue(allowComplete.await(5, TimeUnit.SECONDS));
-                    listener.onResponse(new DirectReadBuffer(ByteBuffer.wrap("data".getBytes(StandardCharsets.UTF_8)), () -> {}));
-                } catch (Exception e) {
-                    listener.onFailure(ExceptionsHelper.convertToRuntime(e));
-                }
-            }, "qcb-get");
-            completer.set(runner);
-            runner.start();
-            return (Releasable) () -> {};
-        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class), anyBoolean());
-
-        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
-        obj.startReadBytesAsync(
-            0,
-            4,
-            FACTORY,
-            Runnable::run,
-            ActionListener.wrap(r -> listenerDone.countDown(), e -> listenerDone.countDown())
+        budget.acquire();
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(
+            new ConcurrencyLimitedStorageObject(TestStorageObjects.nativeAsync("data".getBytes(StandardCharsets.UTF_8)), limiter),
+            budget
         );
-        assertBusy(() -> assertEquals(1, budget.waiterCount()));
-        budget.release();
-        assertTrue("startDelegate must return without waiting for the GET", getStarted.await(5, TimeUnit.SECONDS));
-        assertEquals(1, listenerDone.getCount());
-        allowComplete.countDown();
-        assertTrue(listenerDone.await(5, TimeUnit.SECONDS));
-        assertEquals(0, budget.inFlight());
-        Thread runner = completer.get();
-        if (runner != null) {
-            runner.join(5_000);
+        ExecutorService pool = Executors.newFixedThreadPool(2, r -> new Thread(r, "io-pool"));
+        try {
+            CountDownLatch gets = new CountDownLatch(2);
+            AtomicReference<Exception> getError = new AtomicReference<>();
+            for (int i = 0; i < 2; i++) {
+                obj.startReadBytesAsync(0, 4, FACTORY, pool, ActionListener.wrap(buf -> {
+                    buf.close();
+                    gets.countDown();
+                }, e -> {
+                    getError.set(e);
+                    gets.countDown();
+                }));
+            }
+            assertBusy(() -> assertEquals(2, budget.waiterCount()));
+
+            CountDownLatch entered = new CountDownLatch(2);
+            CountDownLatch syncDone = new CountDownLatch(2);
+            for (int i = 0; i < 2; i++) {
+                pool.execute(() -> {
+                    entered.countDown();
+                    try {
+                        limiter.acquire();
+                        limiter.release();
+                    } catch (Exception e) {
+                        getError.compareAndSet(null, e);
+                    } finally {
+                        syncDone.countDown();
+                    }
+                });
+            }
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+
+            budget.release();
+            budget.release();
+            limiter.release();
+            limiter.release();
+            assertTrue("GETs must finish without the pool", gets.await(1, TimeUnit.SECONDS));
+            assertNull(getError.get());
+            assertTrue(syncDone.await(5, TimeUnit.SECONDS));
+        } finally {
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS));
         }
+        assertEquals(2, limiter.availablePermits());
+        assertEquals(0, budget.inFlight());
     }
 }

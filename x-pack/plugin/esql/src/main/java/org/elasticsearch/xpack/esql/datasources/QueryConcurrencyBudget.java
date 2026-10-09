@@ -161,6 +161,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
                 takePermit(lease, countGets);
                 return;
             }
+            assert InlineCompletionDrain.draining() == false : "sync acquire from a grant continuation; wait on the ticket instead";
             Waiter waiter = new Waiter(lease, countGets);
             waiters.add(waiter);
             AdmissionTracker.Wait tracked = tracker.waitStarted(budgetGate(), budgetWaiterLabel(lease));
@@ -222,6 +223,10 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
      * Grants complete inline on the releaser so delivery cannot queue behind synchronous
      * {@link #acquire} waiters on {@code esql_external_io}. A wait ends on grant, cancel,
      * or query close.
+     * <p>
+     * When called from a grant continuation, an uncontended grant may complete after this
+     * method returns ({@link InlineCompletionDrain} defers nested deliveries). Do not block
+     * on the ticket from a grant callback.
      */
     SubscribableListener<Void> acquireAsync(RowGroupIo lease, boolean countGets, BooleanSupplier cancelSignal, Executor executor) {
         SubscribableListener<Void> listener = new SubscribableListener<>();
@@ -579,7 +584,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
     }
 
     private List<Runnable> takePendingCompletions() {
-        if (pauseGrantDelivery || pendingCompletions.isEmpty()) {
+        if (pauseGrantDelivery || pendingCompletions.isEmpty()) { // test-only seam
             return List.of();
         }
         List<Runnable> batch = new ArrayList<>(pendingCompletions);
@@ -849,13 +854,8 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
             if (completed.compareAndSet(false, true) == false) {
                 return;
             }
-            lock.lock();
-            try {
-                int left = undelivered.decrementAndGet();
-                assert left >= 0 : "undelivered=" + left;
-            } finally {
-                lock.unlock();
-            }
+            int left = undelivered.decrementAndGet();
+            assert left >= 0 : "undelivered=" + left;
             if (cancel.getAsBoolean() || (lease != null && lease.isCancelled())) {
                 tracked.finished();
                 release(lease, countGets);

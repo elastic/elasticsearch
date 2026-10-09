@@ -308,12 +308,13 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
 
     /**
      * Starts the delegated GET on the grant releaser (SDK completion thread or
-     * {@code esql_worker}). Must return without blocking this thread.
-     * Native-async storage (S3, HTTP, Azure with {@code blobAsyncClient}) queues SDK I/O
-     * and returns. Executor-wrapped storage (GCS; Azure/S3 without an async client;
-     * {@link StorageObject} default) submits a blocking read on {@code executor} — that
-     * executor must be a real pool, not {@code Runnable::run}. Wrapped GETs that still
-     * occupy {@code esql_external_io} are a later fix.
+     * {@code esql_worker}). Native-async storage (S3, HTTP, Azure with
+     * {@code blobAsyncClient}) queues SDK I/O and returns without blocking.
+     * Executor-wrapped storage (GCS; Azure/S3 without an async client;
+     * {@link StorageObject} default) submits a blocking read on {@code executor}.
+     * Prefetch passes {@code Runnable::run}, so those reads run on this thread;
+     * forking them onto {@code esql_external_io} would recreate Bug C. That
+     * occupancy is a later fix.
      */
     private void startDelegate(
         long position,

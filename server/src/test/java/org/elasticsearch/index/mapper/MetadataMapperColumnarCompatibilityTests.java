@@ -255,7 +255,10 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
         );
     }
 
-    /** Values dropped by {@code ignore_above} keep their fallback column out of the batch, as {@code postParse} prunes it on the row path. */
+    /**
+     * Values dropped by {@code ignore_above} keep their fallback column out of the batch, as {@code postParse} prunes it on the row
+     * path.
+     */
     public void testColumnarStoredSourceWithIgnoredValues() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject("kwd").field("type", "keyword").field("ignore_above", 5).endObject()),

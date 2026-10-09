@@ -45,7 +45,7 @@ public class DataStreamFeatures implements FeatureSpecification {
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.of(DATA_STREAM_LIFECYCLE, Version.V_8_11_0);
     }
-    
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(

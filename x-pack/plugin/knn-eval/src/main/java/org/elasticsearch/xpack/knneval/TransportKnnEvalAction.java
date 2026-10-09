@@ -231,10 +231,13 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
     private ElasticsearchException unreadMappingCause(List<String> unread) {
         ClusterState state = clusterService.state();
         ProjectId projectId = projectResolver.getProjectId();
-        String[] named = unread.subList(0, Math.min(unread.size(), MAX_INDICES_NAMED)).toArray(String[]::new);
-        ClusterBlockException blocked = state.blocks().indicesBlockedException(projectId, ClusterBlockLevel.METADATA_READ, named);
-        if (blocked != null) {
-            return blocked;
+        // filtered before capping, since the exception's message names every index it is given
+        String[] blocked = unread.stream()
+            .filter(index -> state.blocks().indexBlocked(projectId, ClusterBlockLevel.METADATA_READ, index))
+            .limit(MAX_INDICES_NAMED)
+            .toArray(String[]::new);
+        if (blocked.length > 0) {
+            return state.blocks().indicesBlockedException(projectId, ClusterBlockLevel.METADATA_READ, blocked);
         }
         RoutingTable routing = state.routingTable(projectId);
         for (String index : unread) {
@@ -310,6 +313,13 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
                     "[" + field + "] resolves differently across indices; evaluate one vector space at a time"
                 );
             }
+        }
+        // otherwise fromFieldMapping reports a missing [index_options] in mapping [null]
+        if (response.mappings().isEmpty()) {
+            throw new IllegalArgumentException("[" + RestKnnEvalAction.ENDPOINT + "] found no indices to evaluate");
+        }
+        if (fieldMapping == null) {
+            throw new IllegalArgumentException("field [" + field + "] is not mapped in any of the target indices");
         }
         KnnEvalRescore rescore = KnnEvalRescore.fromFieldMapping(field, fieldMapping);
         validateQueryDimensions(field, firstResolution.dims(), spec.getQueries());

@@ -39,6 +39,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -100,6 +102,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -125,8 +128,20 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         return clusterService(allowExpensiveQueries, knnEvalEnabled, Map.of("index", indexEnabled));
     }
 
-    /** {@code indexEnabled} maps each index in cluster state to its {@code index.knn_eval.enabled}. */
     private static ClusterService clusterService(boolean allowExpensiveQueries, boolean knnEvalEnabled, Map<String, Boolean> indexEnabled) {
+        return clusterService(allowExpensiveQueries, knnEvalEnabled, indexEnabled, Set.of());
+    }
+
+    /**
+     * {@code indexEnabled} maps each index in cluster state to its {@code index.knn_eval.enabled}; {@code metadataBlocked} carry
+     * an {@code index.blocks.metadata} block.
+     */
+    private static ClusterService clusterService(
+        boolean allowExpensiveQueries,
+        boolean knnEvalEnabled,
+        Map<String, Boolean> indexEnabled,
+        Set<String> metadataBlocked
+    ) {
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.builder()
                 .put(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey(), allowExpensiveQueries)
@@ -147,9 +162,12 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             project.put(index, false);
             routing.addAsNew(index);
         });
+        ClusterBlocks.Builder blocks = ClusterBlocks.builder();
+        metadataBlocked.forEach(index -> blocks.addIndexBlock(Metadata.DEFAULT_PROJECT_ID, index, IndexMetadata.INDEX_METADATA_BLOCK));
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(project))
             .routingTable(Metadata.DEFAULT_PROJECT_ID, routing.build())
+            .blocks(blocks)
             .build();
         when(clusterService.state()).thenReturn(state);
         return clusterService;
@@ -545,6 +563,60 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertEquals("other-index", ((NoShardAvailableActionException) e.getCause()).getShardId().getIndexName());
         assertTrue(client.fieldMappingsRequested);
         assertFalse(client.pointInTimeOpened);
+    }
+
+    /** A block on an unread index past the first few named is still found, and only the first few blocked are named. */
+    public void testUnreadMappingCauseFindsBlocksPastTheNamedIndices() {
+        Map<String, Boolean> enabled = new HashMap<>();
+        for (String index : List.of("index", "a", "b", "c", "d", "e", "f", "g")) {
+            enabled.put(index, true);
+        }
+        Exception e = evaluationFailure(
+            new RecordingClient(),
+            clusterService(true, true, enabled, Set.of("d", "e", "f", "g")),
+            enabled.keySet().toArray(String[]::new)
+        );
+        ElasticsearchStatusException status = asInstanceOf(ElasticsearchStatusException.class, e);
+        assertEquals(RestStatus.FORBIDDEN, status.status());
+        assertThat(status.getMessage(), containsString("on 7 indices [a, b, c, ...]"));
+        ClusterBlockException cause = asInstanceOf(ClusterBlockException.class, status.getCause());
+        assertThat(cause.getMessage(), containsString("index [d]"));
+        assertThat(cause.getMessage(), containsString("index [f]"));
+        assertThat(cause.getMessage(), not(containsString("index [g]")));
+    }
+
+    public void testFieldMappedInNoIndexIsNamed() {
+        RecordingClient client = new RecordingClient();
+        client.mappingsOverride = Map.of("index", Map.of());
+        Exception e = evaluationFailure(client, clusterService(true), "index");
+        assertThat(e, instanceOf(IllegalArgumentException.class));
+        assertThat(e.getMessage(), equalTo("field [emb] is not mapped in any of the target indices"));
+    }
+
+    public void testPatternMatchingNoIndexIsNamed() {
+        RecordingClient client = new RecordingClient();
+        client.mappingsOverride = Map.of();
+        Exception e = evaluationFailure(client, clusterService(true), "missing-*");
+        assertThat(e, instanceOf(IllegalArgumentException.class));
+        assertThat(e.getMessage(), equalTo("[_knn_eval] found no indices to evaluate"));
+        assertFalse(client.pointInTimeOpened);
+    }
+
+    /** Runs an evaluation that must fail before any search, and returns its failure. */
+    private static Exception evaluationFailure(RecordingClient client, ClusterService clusterService, String... indices) {
+        TransportKnnEvalAction action = new TransportKnnEvalAction(
+            ActionFilters.EMPTY,
+            client,
+            MockUtils.setupTransportServiceWithThreadpoolExecutor(),
+            clusterService,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            TestIndexNameExpressionResolver.newInstance()
+        );
+        PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
+        action.doExecute(null, new KnnEvalRequest(specWithBaseline(new KnnEvalSettings(100.0f, null, null, false)), indices), future);
+        Exception e = expectThrows(Exception.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        assertFalse(client.pointInTimeOpened);
+        return e;
     }
 
     /**
@@ -1043,6 +1115,9 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         private boolean failFieldMappings = false;
         private Exception fieldMappingsFailure;
         private boolean mismatchedFieldMappings = false;
+        /** Replaces the field-mappings response's per-index map. */
+        @Nullable
+        private Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappingsOverride;
         private boolean pointInTimeOpened = false;
         private boolean pointInTimeClosed = false;
         private boolean failSearch = false;
@@ -1115,6 +1190,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
                         "other-index",
                         Map.of(field, new GetFieldMappingsResponse.FieldMappingMetadata(field, otherMapping))
                     );
+                } else if (mappingsOverride != null) {
+                    mappings = mappingsOverride;
                 } else {
                     mappings = Map.of("index", indexMapping);
                 }

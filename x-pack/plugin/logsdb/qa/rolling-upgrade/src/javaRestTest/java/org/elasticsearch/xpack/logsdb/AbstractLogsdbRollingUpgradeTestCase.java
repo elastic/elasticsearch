@@ -173,8 +173,14 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
     /**
      * Asserts that every node is on the old version, or that none are. A rolling upgrade must start from a fully old cluster
      * and end on a fully upgraded one.
+     * <p>
+     * Skipped when the old cluster version is unknown, as when these tests run in serverless. There the old and new nodes can
+     * report the same version and build hash, so they cannot be told apart.
      */
     private static void assertAllNodesVersion(boolean oldVersion) throws IOException {
+        if (RollingUpgradePerformer.getOldClusterVersion() == null && isOldClusterDetachedVersion() == false) {
+            return;
+        }
         Map<String, Object> nodes = ObjectPath.evaluate(entityAsMap(client().performRequest(new Request("GET", "/_nodes"))), "nodes");
         for (Object node : nodes.values()) {
             Map<?, ?> nodeInfo = (Map<?, ?>) node;

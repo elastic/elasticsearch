@@ -50,6 +50,7 @@ public class QueryFailureTelemetryTests extends ESTestCase {
     static {
         EXPECTED_BY_CONDITION.put(Condition.STORE_UNAVAILABLE, "storage_unavailable");
         EXPECTED_BY_CONDITION.put(Condition.LOCAL_CAPACITY, "resource_limit");
+        EXPECTED_BY_CONDITION.put(Condition.SCHEMA_TOO_WIDE, "resource_limit");
         EXPECTED_BY_CONDITION.put(Condition.STORE_THROTTLED, "storage_throttled");
         EXPECTED_BY_CONDITION.put(Condition.OBJECT_CHANGED, "storage_unavailable");
         EXPECTED_BY_CONDITION.put(Condition.ACCESS_DENIED, "storage_auth");

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.cluster.coordination;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -52,6 +53,7 @@ import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.security.CodeSource;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -246,9 +248,40 @@ public class StatelessPersistedStateTests extends ESTestCase {
         }
     }
 
-    public void testReadsUnderFailure() throws Exception {
-        final boolean failReadingSegmentsFile = randomBoolean();
-        final boolean failReadingOtherFiles = failReadingSegmentsFile == false || randomBoolean();
+    public void testReadsUnderFailureSegmentInfosFile() throws Exception {
+        // skip this when running under the lucene snapshot, waits for
+        // https://github.com/apache/lucene/pull/16788
+        // ocne that is solved, we can have a single test calling
+
+        // final boolean failReadingSegmentsFile = randomBoolean();
+        // final boolean failReadingOtherFiles = failReadingSegmentsFile == false || randomBoolean();
+        // testReadsUnderFailure(failReadingSegmentsFile, failReadingOtherFiles);
+        boolean isLuceneSnapshotArtifact = isLuceneSnapshotArtifact();
+        assumeFalse("This functionality was broken in the snapshot, but needs to be fixed in a release", isLuceneSnapshotArtifact);
+        testReadsUnderFailure(false, true);
+    }
+
+    /**
+     * True when the Lucene dependency is a snapshot jar ({@code 10.6.0-snapshot-…})
+     */
+    private static boolean isLuceneSnapshotArtifact() {
+        Package lucenePackage = Version.class.getPackage();
+        if (containsSnapshot(lucenePackage == null ? null : lucenePackage.getImplementationVersion())) {
+            return true;
+        }
+        CodeSource codeSource = Version.class.getProtectionDomain().getCodeSource();
+        return codeSource != null && containsSnapshot(String.valueOf(codeSource.getLocation()));
+    }
+
+    private static boolean containsSnapshot(String value) {
+        return value != null && value.contains("-snapshot");
+    }
+
+    public void testReadsUnderFailureOtherFiles() throws Exception {
+        testReadsUnderFailure(true, false);
+    }
+
+    private void testReadsUnderFailure(boolean failReadingSegmentsFile, boolean failReadingOtherFiles) throws Exception {
         Function<BlobContainer, BlobContainer> wrapper = blobContainer -> new FilterBlobContainer(blobContainer) {
             @Override
             protected BlobContainer wrapChild(BlobContainer child) {

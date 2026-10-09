@@ -39,7 +39,7 @@ $$$endpoint$$$
     $$$s3-endpoint-requirements$$$
     ::::{dropdown} S3 endpoint requirements
     :applies_to: stack: experimental 9.6+
-    The `endpoint` value must be an absolute `https` URL naming a supported AWS S3 endpoint. {{es}} accepts the following endpoint forms. Every AWS partition supports the first three, and only the commercial partition supports the global form:
+    The `endpoint` value must be an absolute `https` URL naming a supported AWS S3 endpoint. {{es}} accepts the following endpoint forms. Every AWS partition supports the regional, historical, and VPC interface forms, and only the commercial partition supports the global form:
 
     - Regional: `https://s3.us-east-1.amazonaws.com`
     - Historical: `https://s3-us-west-2.amazonaws.com`

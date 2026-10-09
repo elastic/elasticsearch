@@ -93,7 +93,8 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
 
     public void testUsesTotalHeapAndJvmCapacity() {
         final var decider = createEstimatedHeapUsageAllocationDecider(true, 85, 90);
-        final var metrics = new NodeHeapMetrics(NODE_ID, 1000, new NodeHeapEstimates(900, 100));
+        // Non shard heap usage is not used by the decider so setting to 0
+        final var metrics = new NodeHeapMetrics(NODE_ID, 1000, new NodeHeapEstimates(900, 100, 0));
         final var shard = createShardRouting();
         final var allocation = createRoutingAllocation(
             decider,
@@ -629,7 +630,8 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
     private NodeHeapMetrics createNodeHeapMetrics(String nodeId, long usagePercent, ByteSizeValue totalHeapSize) {
         final var totalInBytes = totalHeapSize.getBytes();
         final var usedInBytes = (long) Math.floor(totalInBytes * usagePercent / 100.0d);
-        return new NodeHeapMetrics(nodeId, totalInBytes, new NodeHeapEstimates(usedInBytes, randomLongBetween(0, usedInBytes)));
+        // Non shard heap usage is not used by the decider so setting to 0
+        return new NodeHeapMetrics(nodeId, totalInBytes, new NodeHeapEstimates(usedInBytes, randomLongBetween(0, usedInBytes), 0L));
     }
 
     private Map<ShardId, ShardAndIndexHeapUsage> createShardAndIndexHeapUsageMap(ShardId shardId, long additionalBytes) {

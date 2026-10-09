@@ -9,12 +9,36 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class NodeHeapMetricsTests extends ESTestCase {
+
+    public void testShardHeapUsageIsTransportVersionGated() throws IOException {
+        final long totalBytes = randomNonNegativeLong();
+        final long totalHeapUsage = randomNonNegativeLong();
+        final long hostedShardsHeapUsage = randomLongBetween(1, 10_000_000);
+        final long nonShardHeapUsage = randomLongBetween(1, 10_000_000);
+        final var metrics = new NodeHeapMetrics(
+            randomUUID(),
+            totalBytes,
+            new NodeHeapEstimates(totalHeapUsage, hostedShardsHeapUsage, nonShardHeapUsage)
+        );
+
+        final var currentVersionCopy = copyWriteable(metrics, writableRegistry(), NodeHeapMetrics::readFrom, TransportVersion.current());
+        assertThat(currentVersionCopy, equalTo(metrics));
+
+        final var legacyVersion = TransportVersionUtils.getPreviousVersion(NodeHeapMetrics.SHARD_HEAP_USAGE_IN_ESTIMATED_HEAP_USAGE);
+        final var legacyCopy = copyWriteable(metrics, writableRegistry(), NodeHeapMetrics::readFrom, legacyVersion);
+        assertThat(legacyCopy, equalTo(new NodeHeapMetrics(metrics.nodeId(), totalBytes, new NodeHeapEstimates(totalHeapUsage, 0L, 0L))));
+    }
 
     public void testEstimatedUsageAsPercentage() {
         final long totalBytes = randomNonNegativeLong();
@@ -22,7 +46,7 @@ public class NodeHeapMetricsTests extends ESTestCase {
         final NodeHeapMetrics nodeHeapMetrics = new NodeHeapMetrics(
             randomUUID(),
             totalBytes,
-            new NodeHeapEstimates(estimatedUsageBytes, randomLongBetween(0, estimatedUsageBytes))
+            new NodeHeapEstimates(estimatedUsageBytes, randomLongBetween(0, estimatedUsageBytes), 0L)
         );
         assertThat(nodeHeapMetrics.estimatedFreeBytesAsPercentage(), greaterThanOrEqualTo(0.0));
         assertThat(nodeHeapMetrics.estimatedFreeBytesAsPercentage(), lessThanOrEqualTo(100.0));
@@ -36,7 +60,7 @@ public class NodeHeapMetricsTests extends ESTestCase {
         final NodeHeapMetrics nodeHeapMetrics = new NodeHeapMetrics(
             randomUUID(),
             totalBytes,
-            new NodeHeapEstimates(estimatedUsageBytes, randomLongBetween(0, estimatedUsageBytes))
+            new NodeHeapEstimates(estimatedUsageBytes, randomLongBetween(0, estimatedUsageBytes), 0L)
         );
         assertThat(nodeHeapMetrics.estimatedFreeBytesAsPercentage(), greaterThanOrEqualTo(0.0));
         assertThat(nodeHeapMetrics.estimatedFreeBytesAsPercentage(), lessThanOrEqualTo(100.0));

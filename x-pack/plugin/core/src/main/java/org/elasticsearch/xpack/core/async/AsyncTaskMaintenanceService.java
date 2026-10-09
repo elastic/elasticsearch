@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.EXPIRATION_TIME_FIELD;
@@ -66,9 +67,9 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
     private final AtomicBoolean isPaused = new AtomicBoolean(false); // allow tests to simulate restarts
     private boolean isCleanupRunning;
     private volatile Scheduler.Cancellable cancellable;
-    // Rounds of delete-by-query that have been submitted and whose listener has not yet run.
-    // pause() waits for this to hit zero; node shutdown does not.
-    private int inFlightCleanups;
+    // The delete-by-query round whose listener has not yet run. pause() waits it out;
+    // node shutdown does not.
+    private CountDownLatch inFlightCleanup;
 
     public AsyncTaskMaintenanceService(
         ClusterService clusterService,
@@ -111,14 +112,16 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
     }
 
     private void awaitInFlightCleanups() {
+        final CountDownLatch inFlight;
         synchronized (this) {
-            while (inFlightCleanups > 0) {
-                try {
-                    wait();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException("interrupted while waiting for async search cleanup", e);
-                }
+            inFlight = inFlightCleanup;
+        }
+        if (inFlight != null) {
+            try {
+                inFlight.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("interrupted while waiting for async search cleanup", e);
             }
         }
     }
@@ -171,29 +174,26 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
 
     synchronized void executeNextCleanup() {
         if (isCleanupRunning) {
-            inFlightCleanups++;
+            final CountDownLatch inFlight = new CountDownLatch(1);
+            inFlightCleanup = inFlight;
             long nowInMillis = System.currentTimeMillis();
             DeleteByQueryRequest toDelete = new DeleteByQueryRequest(index).setQuery(
                 QueryBuilders.rangeQuery(EXPIRATION_TIME_FIELD).lte(nowInMillis)
             );
             try {
-                clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.running(this::finishCleanup));
+                clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.running(() -> finishCleanup(inFlight)));
             } catch (RuntimeException e) {
-                inFlightCleanups--;
-                notifyAll();
+                inFlight.countDown();
                 throw e;
             }
         }
     }
 
-    private void finishCleanup() {
+    private void finishCleanup(CountDownLatch inFlight) {
         try {
             scheduleNextCleanup();
         } finally {
-            synchronized (this) {
-                inFlightCleanups--;
-                notifyAll();
-            }
+            inFlight.countDown();
         }
     }
 

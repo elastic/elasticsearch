@@ -45,7 +45,7 @@
           "parts": {
             "index": {
               "type": "string",
-              "description": "Index name to search; path slice search supports a single index only"
+              "description": "Index name(s) to search; a single index or a comma-separated list is supported"
             },
             "_slice": {
               "type": "string",

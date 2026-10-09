@@ -152,7 +152,6 @@ public final class SliceIndexing {
      * <p>
      * Slice is encoded in the path as {@code /{index}/{_slice}/_search}. The {@code {_slice}} segment may be a single slice,
      * a comma-separated list (for example {@code tenant-a,tenant-b}), or the reserved token {@code _all}.
-     * The {@code _slice} query parameter is not supported for search.
      */
     public static ParsedRouting parseSearchRoutingOrSliceWithProvenance(RestRequest request) {
         final String routing = request.param("routing");
@@ -167,10 +166,6 @@ public final class SliceIndexing {
             }
             if (routing != null) {
                 throw new IllegalArgumentException("[routing] is not allowed together with [" + FIELD_NAME + "]");
-            }
-            final String index = request.param("index");
-            if (index != null && index.contains(",")) {
-                throw new IllegalArgumentException("path slice search supports a single index only");
             }
             final String pathSlice = request.param(FIELD_NAME);
             assert pathSlice != null : "path slice search must capture [" + FIELD_NAME + "] from the path";

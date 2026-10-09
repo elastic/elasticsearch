@@ -11,9 +11,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -25,7 +27,9 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
+import org.elasticsearch.xpack.esql.view.ViewService;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -146,10 +150,58 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         assertThat(List.of(indices), contains("my-index"));
     }
 
+    public void testReservedViewCannotBeUpdatedOrDeletedByUser() {
+        String viewName = "reserved-view";
+        assertAcked(createView(viewName, "FROM some-index", null, true));
+
+        expectThrows(
+            IllegalArgumentException.class,
+            containsString("cannot modify reserved view [" + viewName + "]"),
+            () -> createView(viewName, "FROM something-else")
+        );
+
+        // but can update definition of reserved view with another reserved view
+        assertAcked(createView(viewName, "FROM some-other-index", null, true));
+
+        expectThrows(
+            IllegalArgumentException.class,
+            containsString("cannot delete reserved view [" + viewName + "]"),
+            () -> client().execute(
+                DeleteViewAction.INSTANCE,
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewName })
+            ).actionGet(30, TimeUnit.SECONDS)
+        );
+
+        // but can be deleted when explicitly asked for
+        assertAcked(
+            client().execute(
+                DeleteViewAction.INSTANCE,
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewName }, true)
+            )
+        );
+    }
+
+    public void testEnsureReservedViewExists() {
+        var viewService = internalCluster().getCurrentMasterNodeInstance(ViewService.class);
+
+        var future = new PlainActionFuture<AcknowledgedResponse>();
+        viewService.ensureReservedViewExists(ProjectId.DEFAULT, new View("reserved", "ROW f1=1", null, true), future);
+        // the view is created in response to a cluster state change
+        assertAcked(indicesAdmin().prepareCreate("trigger-index"));
+        assertAcked(future.actionGet(30, TimeUnit.SECONDS));
+
+        View view = viewService.get(ProjectId.DEFAULT, "reserved");
+        assertThat(view, equalTo(new View("reserved", "ROW f1=1", null, true)));
+    }
+
     private AcknowledgedResponse createView(String viewName, String query) {
+        return createView(viewName, query, null, false);
+    }
+
+    private AcknowledgedResponse createView(String viewName, String query, String description, boolean reserved) {
         return client().execute(
             PutViewAction.INSTANCE,
-            new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(viewName, query))
+            new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(viewName, query, description, reserved))
         ).actionGet(30, TimeUnit.SECONDS);
     }
 }

@@ -611,14 +611,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * Phase 2 of view compaction. Runs in the Initialize batch after index, view-shadow, and dataset-shadow resolution. Dataset shadows
      * must be resolved or stripped while they remain in the plain {@code UnionAll} built by the dataset rewriter; view compaction may
      * otherwise lift them into a {@code ViewUnionAll}. Strips remaining unresolved view shadows, flattens nested {@code ViewUnionAll}
-     * structures, and unwraps remaining {@code NamedSubquery} wrappers. See {@link ViewCompaction} for the rationale behind splitting
-     * compaction across the analyzer boundary.
+     * structures when the flat width is within {@link AnalyzerContext#maxBranchCount()}, and unwraps remaining {@code NamedSubquery}
+     * wrappers. See {@link ViewCompaction} for the rationale behind splitting compaction across the analyzer boundary.
      */
     private static class ViewCompactionPostIndexResolution extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            return ViewCompaction.postIndexResolution(plan, context.preserveViewBoundaries());
+            return ViewCompaction.postIndexResolution(plan, context.preserveViewBoundaries(), context.maxBranchCount());
         }
     }
 
@@ -1123,7 +1123,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (plan instanceof PromqlCommand promql) {
                 return resolvePromql(promql, childrenOutput).transformDown(PromqlCommand.class, p -> {
                     Failures failures = new Failures();
-                    p.verify(failures);
+                    p.verify(failures, context.maxBranchCountPerMerge(), context.maxBranchCountPerMergeLimitSource());
                     if (failures.hasFailures()) {
                         throw new VerificationException(failures);
                     }

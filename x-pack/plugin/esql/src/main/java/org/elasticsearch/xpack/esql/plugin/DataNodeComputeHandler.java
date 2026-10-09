@@ -37,6 +37,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
@@ -151,6 +152,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             parentTask,
             originalIndices,
             PlannerUtils.canMatchFilter(flags, configuration, clusterService.state().getMinTransportVersion(), dataNodePlan),
+            PlannerUtils.sliceSelection(dataNodePlan),
             clusterAlias,
             configuration.allowPartialResults(),
             maxConcurrentNodesPerCluster == null ? -1 : maxConcurrentNodesPerCluster,
@@ -733,6 +735,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 shards,
                 configuration,
                 request.aliasFilters(),
+                PlannerUtils.sliceSelection(request.plan()),
                 ActionListener.wrap(acquiredSearchContexts -> {
                     assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
                     if (acquiredSearchContexts.isEmpty()) {
@@ -770,6 +773,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             List<DataNodeRequest.Shard> shards,
             Configuration configuration,
             Map<Index, AliasFilter> aliasFilters,
+            SliceSelection slices,
             ActionListener<IndexedByShardId<ComputeSearchContext>> listener
         ) {
             final List<Tuple<IndexShard, SplitShardCountSummary>> targetShards = new ArrayList<>();
@@ -803,6 +807,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         // TODO: `searchService.createSearchContext` allows opening search contexts without limits,
                         // we need to limit the number of active search contexts here or in SearchService
                         context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
+                        // The slices the plan reads, for the field mappers that build its queries. A plan that selects none
+                        // says so: unlike a search request, it does not read every slice by default.
+                        context.getSearchExecutionContext().setSliceSelection(slices);
                         context.preProcess();
                         newContexts.add(context);
                     } catch (RuntimeException e) {

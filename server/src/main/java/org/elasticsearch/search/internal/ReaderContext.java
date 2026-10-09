@@ -20,6 +20,7 @@ import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.util.HashMap;
@@ -123,12 +124,12 @@ public class ReaderContext implements Releasable {
     }
 
     /**
-     * Cancels phases registered with {@link #addInFlightSearch}. The reader stays open until those
-     * phases release it, so they must be cancelled before {@link #close()}.
+     * Cancels phases registered with {@link #addInFlightSearch} through {@link TaskManager}. The reader stays open
+     * until those phases release it, so they must be cancelled before {@link #close()}.
      */
-    public void cancelInFlightSearches(String reason) {
+    public void cancelInFlightSearches(TaskManager taskManager, String reason) {
         for (CancellableTask task : inFlightSearches) {
-            task.cancel(reason);
+            taskManager.cancel(task, reason, () -> {});
         }
     }
 

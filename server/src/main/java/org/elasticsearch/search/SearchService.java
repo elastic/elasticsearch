@@ -146,6 +146,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
@@ -486,6 +487,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final Tracer tracer;
 
+    private final TaskManager taskManager;
+
     public SearchService(
         ClusterService clusterService,
         IndicesService indicesService,
@@ -496,7 +499,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
         Tracer tracer,
-        OnlinePrewarmingService onlinePrewarmingService
+        OnlinePrewarmingService onlinePrewarmingService,
+        TaskManager taskManager
     ) {
         Settings settings = clusterService.getSettings();
         this.sessionId = UUIDs.randomBase64UUID();
@@ -511,6 +515,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings, circuitBreaker);
         this.executorSelector = executorSelector;
         this.tracer = tracer;
+        this.taskManager = taskManager;
         this.onlinePrewarmingService = onlinePrewarmingService;
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
@@ -2037,7 +2042,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // A phase blocked in its SearchContext only exits once its task is cancelled. Cancel only
                 // for index removal: freeReaderContext and freeAllContextsForShard must not, or routine
                 // shard closes (BWC, restore, relocation) cancel live searches.
-                ctx.cancelInFlightSearches("index removed: " + index.getName());
+                ctx.cancelInFlightSearches(taskManager, "index removed: " + index.getName());
                 freeReaderContext(ctx.id(), "index removed: " + index.getName());
             }
         }

@@ -153,8 +153,9 @@ import java.util.function.IntFunction;
  *       re-check {@link #supports} per file for a <b>declared</b> column, since a multi-file glob
  *       can drift from the anchor footer; a declared column a file cannot supply is a read failure
  *       of the whole column in that file and follows the {@link ErrorPolicy} through
- *       {@link #onUncoercibleColumn}. An <b>inferred</b> column may only widen, so a drifted
- *       inferred type null-fills rather than taking this lossy escape (never narrows).</li>
+ *       {@link #onUncoercibleColumn}. Nothing about this turns on whether the type was declared or
+ *       inferred: a column whose file type {@link #supports} admits is converted per value either way,
+ *       and one it refuses follows the policy either way (esql-planning#2076).</li>
  *   <li><b>Text formats</b> (CSV/TSV, NDJSON) have no physical schema — every value is a string,
  *       so the parse into the declared type <i>is</i> the coercion and a bad token follows the
  *       reader's own per-value error policy. Their declared date {@code format} parse goes
@@ -179,30 +180,10 @@ public final class DeclaredTypeCoercions {
      * {@code NULL} and {@code UNSUPPORTED} always return {@code false} (the readers cannot
      * decode such a column, so there is no value to coerce). This is THE castability predicate:
      * resolution-time rejects consult it directly; the reader-side per-file null-fill validation
-     * consults it only for a <b>declared</b> column (an inferred cross-file clash widens-or-nulls,
-     * never narrows — see {@code ParquetFormatReader.validatePlannerTypesAgainstFile}), so a lossy
-     * narrowing is admitted exactly where a declaration licenses it.
+     * consults it for every column, so a lossy narrowing is admitted wherever the two types permit it. It used
+     * to be consulted only for a declared column, which left an inferred one null-filled whole however
+     * convertible its values were — see {@code ParquetFormatReader.validatePlannerTypesAgainstFile}.
      */
-    /**
-     * Whether a value of {@code from} reads as {@code to} with nothing lost, so the read needs no
-     * per-value conversion that can fail. The four pairs this admits are the lossless numeric and
-     * temporal widenings; everything else either narrows, changes representation, or cannot convert.
-     * <p>
-     * One predicate for all three readers and for the planner: a read's filter pushdown, its deferred
-     * extraction and its column decode must agree about whether a value can fail, and they agreed only
-     * by coincidence while each asked its own question.
-     */
-    public static boolean readsLossless(DataType from, DataType to) {
-        if (from == null || to == null) {
-            return false;
-        }
-        if (from == to) {
-            return true;
-        }
-        DataType unified = EsqlDataTypeConverter.commonType(to, from);
-        return unified != null && unified.equals(to);
-    }
-
     public static boolean supports(DataType from, DataType to) {
         if (from == to) {
             return true;
@@ -248,6 +229,32 @@ public final class DeclaredTypeCoercions {
             case IP -> fromString;
             default -> false;
         };
+    }
+
+    /**
+     * Whether every value of {@code from} reads as {@code to} without the read being able to fail, so no
+     * per-value conversion can produce a null or an error. One predicate for the readers and for the
+     * planner: a read's filter pushdown, its deferred extraction and its column decode must agree about
+     * whether a value can fail, and they agreed only by coincidence while each asked its own question.
+     * <p>
+     * {@link EsqlDataTypeConverter#commonType} naming {@code to} as the supertype is necessary but not
+     * sufficient, and {@code unsigned_long} is why: it is the common type of itself and any signed whole
+     * number, yet {@link #exactToUnsignedLong} refuses a negative value, so a {@code long} column read as
+     * {@code unsigned_long} fails on the first negative. A caller using this to decide that nothing can
+     * fail would push a filter over such a column and keep the row with the cell nulled.
+     */
+    public static boolean readsLossless(DataType from, DataType to) {
+        if (from == null || to == null) {
+            return false;
+        }
+        if (from == to) {
+            return true;
+        }
+        if (to == DataType.UNSIGNED_LONG) {
+            return false;
+        }
+        DataType unified = EsqlDataTypeConverter.commonType(to, from);
+        return unified != null && unified.equals(to);
     }
 
     private static boolean isDecodable(DataType type) {
@@ -501,12 +508,16 @@ public final class DeclaredTypeCoercions {
     }
 
     /**
-     * The whole-column sibling of {@link #onCoercionFailure}: a <b>declared</b> column whose type in
-     * {@code fileLocation} cannot be read as the declared type is a read failure of every value of that column in
-     * that file, so the read's {@link ErrorPolicy} decides it the same way. With a {@code null} {@code warnings}
-     * sink ({@code fail_fast}) the read fails, naming the column, the file, both types and the {@code [error_mode]}
-     * pointer; with a live sink the detail is recorded once and the caller nulls the column for the file (or, under
-     * {@code skip_row}, drops the file's rows). An inferred column never comes here: it widens or nulls.
+     * The whole-column sibling of {@link #onCoercionFailure}: a column whose type in {@code fileLocation} cannot be
+     * read as the type the query wants is a read failure of every value of that column in that file, so the read's
+     * {@link ErrorPolicy} decides it the same way. With a {@code null} {@code warnings} sink ({@code fail_fast}) the
+     * read fails, naming the column, the file, both types and the {@code [error_mode]} pointer; with a live sink the
+     * detail is recorded once and the caller nulls the column for the file (or, under {@code skip_row}, drops the
+     * file's rows).
+     * <p>
+     * Reached for a column whose type was inferred as readily as for a declared one. It used to be declared-only,
+     * which is why an inferred column was null-filled under every mode including {@code fail_fast}
+     * (esql-planning#2076).
      */
     public static void onUncoercibleColumn(
         String columnName,

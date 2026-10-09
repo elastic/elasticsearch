@@ -931,13 +931,6 @@ public class OrcFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Pins CURRENT behaviour for esql-planning#2076: {@code resolveSearchArgument} withholds an {@code IS NULL} pushdown
-     * over every declared-type column without comparing the declared type to the file's. Here {@code ts} is declared
-     * yet read at its own {@code bigint}, where decode can never mint a null, and the predicate is still withheld; the
-     * same predicate pushes over an undeclared {@code ts}. Once the withhold is keyed on an actual coercion, the
-     * declared arm is expected to push like the plain one.
-     */
-    /**
      * {@code IS NULL} pushes to ORC's stripe statistics, which describe the stored values, so it must be withheld
      * exactly where the decode can turn a stored value into a null. A declared date {@code format} does that; being
      * named in a declaration does not.

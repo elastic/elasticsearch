@@ -59,6 +59,27 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     private final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
     /**
+     * The types {@link DeclaredTypeCoercions#supports} is closed over, taken from its own class javadoc: the
+     * sources a reader can decode a block of. Quantifying the guard below over all of {@link DataType} instead
+     * sweeps in types no reader produces and no query asks for ({@code SHORT}, {@code FLOAT},
+     * {@code DENSE_VECTOR}, {@code DATE_PERIOD} and the rest), where {@code commonType} widens but
+     * {@code supports} has no arm - 83 such pairs, none reachable, all noise. A reader that starts producing a
+     * new type belongs in this list, and the guard then holds it to the same rule.
+     */
+    private static final List<DataType> DECODABLE_TYPES = List.of(
+        DataType.KEYWORD,
+        DataType.TEXT,
+        DataType.INTEGER,
+        DataType.LONG,
+        DataType.UNSIGNED_LONG,
+        DataType.DOUBLE,
+        DataType.BOOLEAN,
+        DataType.DATETIME,
+        DataType.DATE_NANOS,
+        DataType.IP
+    );
+
+    /**
      * The licence an inferred column has today is {@link TypeWidening}'s lossless promotion; the licence a declared
      * column has is {@link DeclaredTypeCoercions#supports}. esql-planning#2076 collapses the two so a file's column
      * type is read the same way whatever produced the schema, and that collapse is only safe in one direction: every
@@ -70,13 +91,13 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
      */
     public void testEveryLosslessWideningIsAlsoACoerciblePair() {
         List<String> gaps = new ArrayList<>();
-        for (DataType from : DataType.values()) {
-            for (DataType to : DataType.values()) {
+        for (DataType from : DECODABLE_TYPES) {
+            for (DataType to : DECODABLE_TYPES) {
                 if (from == to) {
                     continue;
                 }
-                // "from widens to to" is widenLossless naming `to` as the common supertype.
-                if (to.equals(TypeWidening.widenLossless(from, to)) == false) {
+                DataType unified = EsqlDataTypeConverter.commonType(to, from);
+                if (unified == null || unified.equals(to) == false) {
                     continue;
                 }
                 if (DeclaredTypeCoercions.supports(from, to) == false) {
@@ -85,6 +106,36 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             }
         }
         assertThat("a lossless widening that supports() does not admit would be refused after the collapse", gaps, empty());
+    }
+
+    /**
+     * {@link DeclaredTypeCoercions#readsLossless} promises that no value can fail, and three callers act on it by
+     * skipping a guard. Every pair it admits must therefore have a coercion that cannot throw for any value the
+     * readers deliver. {@code unsigned_long} is the pair that broke this: it is the common type of itself and any
+     * signed whole number, so a supertype test alone called {@code long -> unsigned_long} lossless, while
+     * {@link DeclaredTypeCoercions#exactToUnsignedLong} refuses a negative.
+     */
+    public void testReadsLosslessAdmitsNoPairThatCanFailAValue() {
+        List<String> admitted = new ArrayList<>();
+        for (DataType from : DataType.values()) {
+            for (DataType to : DataType.values()) {
+                if (DeclaredTypeCoercions.readsLossless(from, to) && to == DataType.UNSIGNED_LONG && from != to) {
+                    admitted.add(from + " -> " + to);
+                }
+            }
+        }
+        assertThat("a signed value read as unsigned_long fails on the first negative", admitted, empty());
+    }
+
+    /**
+     * The negative that makes the pair above unsafe, so the exclusion is not merely asserted. A non-negative value
+     * converts, which is what makes the failure a per-value one rather than a property of the type pair - and so
+     * what makes it invisible to a supertype test. The return is the sign-flip block encoding, not the value.
+     */
+    public void testSignedValueReadAsUnsignedLongFailsOnlyWhenNegative() {
+        expectThrows(Exception.class, () -> DeclaredTypeCoercions.exactToUnsignedLong(-1L));
+        assertEquals(NumericUtils.asLongUnsigned(BigInteger.ZERO), DeclaredTypeCoercions.exactToUnsignedLong(0L));
+        assertEquals(NumericUtils.asLongUnsigned(BigInteger.valueOf(7L)), DeclaredTypeCoercions.exactToUnsignedLong(7L));
     }
 
     /**

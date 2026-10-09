@@ -6811,10 +6811,6 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * An extensionless object with {@code format: parquet} still applies the footer rewrite;
-     * implicit-nulls come from the configured reader, not the filename extension.
-     */
-    /**
      * The all-null contract survives for a pair the scan cannot convert at all: an {@code INTEGER} column
      * read as {@code BOOLEAN} is null-filled whole by the footer reader, so the stamp says zero values and
      * every row null rather than withholding the counts.

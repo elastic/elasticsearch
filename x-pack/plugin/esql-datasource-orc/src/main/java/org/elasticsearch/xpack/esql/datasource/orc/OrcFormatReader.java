@@ -516,7 +516,14 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         long footerStartNanos = System.nanoTime();
         Reader reader = openReaderCached(fs, path, counters);
         TypeDescription schema = reader.getSchema();
-        List<Attribute> attributes = convertOrcSchemaToAttributes(schema);
+        // Prefer the schema the plan is reading these columns AS, falling back to the file's own types when the
+        // caller supplied none - the same precedence readRange uses, and ParquetFormatReader.read. Without it this
+        // path compares every column against itself, so conversionCanNull below could only ever see the declared
+        // date formats and an IS NULL would push over a column whose decode can null.
+        List<Attribute> readSchema = context.readSchema();
+        List<Attribute> attributes = readSchema != null && readSchema.isEmpty() == false
+            ? readSchema
+            : convertOrcSchemaToAttributes(schema);
 
         List<Attribute> projectedAttributes = resolveProjection(attributes, projectedColumns);
         boolean[] include = buildIncludeMask(schema, projectedColumns);

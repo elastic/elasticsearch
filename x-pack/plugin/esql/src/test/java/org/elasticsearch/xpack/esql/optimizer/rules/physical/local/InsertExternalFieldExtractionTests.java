@@ -142,13 +142,6 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
     }
 
     /**
-     * {@code skip_row} + declared column types is the one combination where the columnar reader has to drop rows
-     * at the page emit point. An {@link ExternalFieldExtractExec} runs after the page shape is fixed and cannot
-     * participate, so the operator factory turns deferred extraction off for such a read — and a plan that still
-     * carried the extract exec would ask a {@code SourceExtractors} registry nobody filled for extractor 0,
-     * failing with "extractor id [0] is out of range [0, 0)". The rule must bail out instead.
-     */
-    /**
      * {@code skip_row} over files whose values the scan may have to convert drops rows at emit time, which the
      * extract operator cannot do, so no extract exec is inserted. Both arms carry the same files; the declared
      * column set differs, and used to be what decided this on its own (esql-planning#2076).

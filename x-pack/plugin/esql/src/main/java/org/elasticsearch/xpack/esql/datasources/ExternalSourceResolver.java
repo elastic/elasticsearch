@@ -837,7 +837,7 @@ public class ExternalSourceResolver {
                 finalSource = resolvedSource;
                 effectiveReadSpec = declaredReadSpec;
             }
-            resolved.put(path, stampConversionMayNarrow(finalSource).withDeclaredReadSpec(effectiveReadSpec));
+            resolved.put(path, stampConversionMayNarrow(finalSource, config).withDeclaredReadSpec(effectiveReadSpec));
             LOGGER.debug("Successfully resolved external source: {}", path);
             // Dispatch to the executor rather than calling directly: on a cache-hit the callback fires
             // synchronously, so a direct recursive call would stack one frame per path and overflow the
@@ -1691,8 +1691,11 @@ public class ExternalSourceResolver {
      * The stamp is written only when true: absent reads as false, which is how an older coordinator's plan
      * arrives.
      */
-    static ExternalSourceResolution.ResolvedSource stampConversionMayNarrow(ExternalSourceResolution.ResolvedSource source) {
-        if (conversionMayNarrow(source) == false) {
+    static ExternalSourceResolution.ResolvedSource stampConversionMayNarrow(
+        ExternalSourceResolution.ResolvedSource source,
+        @Nullable Map<String, Object> config
+    ) {
+        if (conversionMayNarrow(source, config) == false) {
             return source;
         }
         Map<String, Object> current = source.metadata().sourceMetadata();
@@ -1706,19 +1709,32 @@ public class ExternalSourceResolver {
         );
     }
 
-    private static boolean conversionMayNarrow(ExternalSourceResolution.ResolvedSource source) {
+    private static boolean conversionMayNarrow(ExternalSourceResolution.ResolvedSource source, @Nullable Map<String, Object> config) {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = source.schemaMap();
         if (schemaMap == null || schemaMap.isEmpty()) {
             // Nothing was examined, so nothing rules out a value that fails to convert.
             return true;
         }
+        // When the schema is pinned from one file, a file with no type snapshot was never examined and may hold
+        // anything. When it is not, each file's own schema IS its types, so a missing snapshot says nothing is
+        // being converted - the same reading applyNonStrictOverlay takes of the same two cases.
+        boolean schemaPinnedFromAnchorFile = isSchemaPinnedFromAnchorFile(
+            source.fileList() == null ? null : source.fileList().originalPattern(),
+            config
+        );
+        Map<String, String> renames = source.declaredReadSpec() == null ? Map.of() : source.declaredReadSpec().renames();
         for (SchemaReconciliation.FileSchemaInfo info : schemaMap.values()) {
-            if (nativeTypesUnknown(info)) {
+            Map<String, DataType> nativeTypes = info.inferredTypes();
+            if (nativeTypes == null && schemaPinnedFromAnchorFile) {
                 return true;
             }
-            Map<String, DataType> nativeTypes = info.inferredTypes();
             for (Attribute attr : info.fileSchema().attributes()) {
-                DataType nativeType = nativeTypes == null ? null : nativeTypes.get(attr.name());
+                // fileSchema carries LOGICAL names (a declaration's path rename is already applied to it) while
+                // inferredTypes is keyed PHYSICALLY, so the rename has to be undone to find the file's own type -
+                // the same translation normalizeSplitStats and fileBackedPhysicalColumns perform. Reading the
+                // logical name out of the physical map silently found nothing and called the column safe.
+                String physical = PhysicalNames.translate(attr.name(), renames);
+                DataType nativeType = nativeTypes == null ? attr.dataType() : nativeTypes.get(physical);
                 if (nativeType != null && DeclaredTypeCoercions.readsLossless(nativeType, attr.dataType()) == false) {
                     return true;
                 }
@@ -3814,7 +3830,7 @@ public class ExternalSourceResolver {
      * {@code SourceStatisticsSerializer#overlayPinnedColumnsOnStats} calls what they strip "wrong VALUES",
      * so a strict read that skips the strip can commit a value a narrow read then serves. They are left
      * because moving them changes what a cache entry holds rather than what one read returns, and that is
-     * worth landing on its own. Removed with the last provenance reader.
+     * worth doing on its own. Removed with the last provenance reader.
      */
     public static boolean isAnchorPinnedFirstFileWins(
         @Nullable String sourcePath,

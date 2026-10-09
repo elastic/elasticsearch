@@ -116,14 +116,6 @@ public final class SourceStatisticsSerializer {
      * nondeterministic and divergent across nodes. Ordering a handful of strings once per plan costs nothing and
      * removes the failure mode.
      */
-    /**
-     * Whether reading this source may convert a value and fail, read from the {@link #CONVERSION_MAY_NARROW_KEY}
-     * stamp. False when the stamp is absent: see the key for why that is the safe reading of an older plan.
-     */
-    public static boolean conversionMayNarrow(Map<String, Object> sourceMetadata) {
-        return sourceMetadata != null && Boolean.TRUE.equals(sourceMetadata.get(CONVERSION_MAY_NARROW_KEY));
-    }
-
     @SuppressWarnings("unchecked")
     public static Set<String> partitionColumnNames(Map<String, Object> sourceMetadata) {
         if (sourceMetadata == null) {
@@ -135,6 +127,14 @@ public final class SourceStatisticsSerializer {
             return Collections.unmodifiableSet(new LinkedHashSet<>((Collection<String>) collection));
         }
         return Set.of();
+    }
+
+    /**
+     * Whether reading this source may convert a value and fail, read from the {@link #CONVERSION_MAY_NARROW_KEY}
+     * stamp. False when the stamp is absent: see the key for why that is the safe reading of an older plan.
+     */
+    public static boolean conversionMayNarrow(Map<String, Object> sourceMetadata) {
+        return sourceMetadata != null && Boolean.TRUE.equals(sourceMetadata.get(CONVERSION_MAY_NARROW_KEY));
     }
 
     /**

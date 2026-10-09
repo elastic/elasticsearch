@@ -115,18 +115,16 @@ public class PushFiltersToSourceTests extends ESTestCase {
 
     /**
      * A pushed filter is the only signal Parquet keys late materialization off, and that path emits pages without
-     * the row-drop compaction — so a coercion failure there would null the cell and keep the row, silently serving
-     * {@code null_field} semantics for a {@code skip_row} read. The rule must leave the predicate in the FilterExec.
+     * the row-drop compaction — so a value that fails to convert there would null the cell and keep the row,
+     * silently serving {@code null_field} semantics for a {@code skip_row} read. A reader that cannot drop rows
+     * once a filter reaches it must therefore not be given one, and the predicate stays in the FilterExec.
      * <p>
      * This has to be decided here, at the mint. The operator factory cannot undo it later: for a
      * {@code Pushability.YES} conjunct the FilterExec is already gone, so suppressing the filter downstream would
      * leak unfiltered rows instead.
-     */
-    /**
-     * A reader that cannot drop rows once a filter reaches it must not be given one when the read is
-     * {@code skip_row} over files whose values the scan may have to convert - the filtered decode path would
-     * null the failing cell and keep the row. Both arms read the same files; the declared column set differs,
-     * and used to decide this on its own (esql-planning#2076).
+     * <p>
+     * Both arms below read the same files; only the declared column set differs, and it used to decide this on its
+     * own (esql-planning#2076).
      */
     public void testDoesNotPushWhenReaderCannotDropRowsUnderPushedFilter() {
         for (Set<String> declaredTypeColumns : List.of(Set.of("salary"), Set.<String>of())) {

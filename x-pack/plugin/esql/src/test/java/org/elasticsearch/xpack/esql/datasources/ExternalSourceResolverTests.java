@@ -7184,8 +7184,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * A metadata read that cannot be performed is not an answer, so it must not be reported as a refusal. The
-     * point is that it never fails open: an outage propagates as an outage rather than being swallowed into a
-     * serve of what the stores still hold.
+     * point is that it never fails open: an outage propagates as an outage instead of a serve from what the
+     * stores still hold.
      */
     public void testAnOutageDuringTheProbeFailsTheResolveRatherThanServing() throws Exception {
         List<Attribute> schema = List.of(attr("id", DataType.INTEGER));

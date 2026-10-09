@@ -19,6 +19,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
@@ -1578,7 +1579,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null, // RemoteFetchService - not needed for these tests
             null, // parallelWorkerExecutor - not needed for these tests
             0,    // esqlWorkerPoolSize - not needed for these tests
-            MatcherWatchdog.noop()
+            MatcherWatchdog.noop(),
+            TransportVersion.current()
         );
     }
 

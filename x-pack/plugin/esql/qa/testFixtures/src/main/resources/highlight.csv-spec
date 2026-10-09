@@ -518,6 +518,24 @@ book_no:keyword | title:keyword                                                 
 ;
 
 
+# The EVAL moves below HIGHLIGHT so only the top row is highlighted; columns keep their query order.
+highlightEvalSortLimit
+required_capability: highlight_v6
+
+FROM books
+| WHERE MATCH(title, "Return")
+| KEEP book_no, title
+| HIGHLIGHT "return" ON title
+| EVAL title_length = LENGTH(title)
+| SORT title_length DESC
+| LIMIT 1
+;
+
+book_no:keyword | title:text                                                        | highlight_title:keyword                                                    | title_length:integer
+2714            | Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings | 64
+;
+
+
 # The original field is preserved alongside the appended highlight_<field> column.
 highlightKeepsOriginalColumn
 required_capability: highlight_v6

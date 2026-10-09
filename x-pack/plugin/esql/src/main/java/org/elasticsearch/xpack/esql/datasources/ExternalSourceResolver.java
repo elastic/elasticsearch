@@ -2545,7 +2545,12 @@ public class ExternalSourceResolver {
                     if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
                         result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata, schemaInterner);
                     } else {
-                        result = SchemaReconciliation.reconcileUnionByName(allMetadata, pendingSchemaWarnings::add, schemaInterner);
+                        result = SchemaReconciliation.reconcileUnionByName(
+                            allMetadata,
+                            pendingSchemaWarnings::add,
+                            schemaInterner,
+                            schemaMaxFields(config)
+                        );
                     }
 
                     // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
@@ -2651,6 +2656,19 @@ public class ExternalSourceResolver {
                 listener.onFailure(e);
             }
         });
+    }
+
+    /**
+     * The most columns a dataset's schema may have: its {@code schema_max_fields} key when set, otherwise the
+     * {@code esql.external.schema_max_fields} node setting. Held to the declared mapping and to the merged
+     * {@code union_by_name} schema, as the format readers hold each file's own schema to it.
+     */
+    private int schemaMaxFields(Map<String, Object> config) {
+        return ExternalSourceSettings.parseDatasetSchemaMaxFields(
+            config == null ? null : config.get("schema_max_fields"),
+            "schema_max_fields",
+            ExternalSourceSettings.SCHEMA_MAX_FIELDS.get(settings)
+        );
     }
 
     /**
@@ -4447,6 +4465,7 @@ public class ExternalSourceResolver {
         pendingListingWarnings.addAll(singletonList.listingWarnings());
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
         // operator (and file schema) work purely in logical names.
+        DeclaredSchemaResolver.checkDeclaredWidth(declaredMapping, schemaMaxFields(config));
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
         FormatNameResolver.rejectConflictingObjectFormat(storagePath, sourceType, dataSourceModule.formatReaderRegistry());
         // Cheap no-I/O guard first (partition collision), then the columnar coercibility check which reads
@@ -4530,16 +4549,16 @@ public class ExternalSourceResolver {
      * number the shared entry serves — and the file+config-shared entry is exact for the one statistic it serves.
      * <p>
      * The direction that IS open runs the other way, and is a pre-existing property of the {@code FAIL_FAST}
-     * licence rather than anything this identity introduces. A read bound POSITIONALLY — a pinned-inferred read —
-     * carries a row-width tripwire set by the PINNED schema's width, so a file whose later rows are wider than that
-     * aborts on {@code COUNT(*)} when read that way. A declared read of the same file+config can still complete where
-     * the positional one aborts, commit the physical count, and stamp it read-configuration-independent; the entry
-     * matches on path, mtime and config fingerprint, so the licence carries that count back to the positional reader,
-     * which then answers where its own scan errors. A masked abort, not a wrong number, and it flaps with cache
-     * state. The gap is narrower than it was: a headered declared read now aborts on any row wider than that file's
-     * own header, so the two diverge only where the pinned width differs from the file's header (a glob whose later
-     * files are wider than the first), or for a HEADERLESS declared read, which carries no width bound at all. Withdrawing the licence
-     * would close it and stop every strict dataset warming; scoping it to the binding mode that produced the count
+     * licence rather than anything this identity introduces. It exists only for HEADERLESS files. A headered file binds
+     * by its own header whatever the schema's provenance, and bounds rows by that header's width, so a declared and an
+     * inferred read of it abort on the same rows. A headerless file binds differently by provenance: an inferred read is
+     * bound positionally and carries a row-width tripwire set by the PINNED schema's width, so a file whose later rows
+     * are wider than that aborts on {@code COUNT(*)} when read that way, while a declared read of the same file+config
+     * carries no width bound at all and completes, commits the physical count, and stamps it
+     * read-configuration-independent; the entry matches on path, mtime and config fingerprint, so the licence carries
+     * that count back to the positional reader, which then answers where its own scan errors. A masked abort, not a
+     * wrong number, and it flaps with cache state. Withdrawing the licence would close it and stop every strict dataset
+     * warming; scoping it to the binding mode that produced the count
      * would close it without that cost, and is the shape of the fix if this is ever worth closing.
      * File-typed (columnar) formats are excluded: they already warm via split-discovery per-split stats, and the strict
      * columnar coercibility check seeds a physical-schema entry under the inferred key. The non-cacheable branch (e.g.
@@ -4774,6 +4793,7 @@ public class ExternalSourceResolver {
 
             // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
             // operator (and file schema) work purely in logical names.
+            DeclaredSchemaResolver.checkDeclaredWidth(declaredMapping, schemaMaxFields(config));
             List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
             FormatNameResolver.rejectConflictingListedFormats(listing, sourceType, dataSourceModule.formatReaderRegistry());
 
@@ -4998,10 +5018,11 @@ public class ExternalSourceResolver {
             rejectUncoercibleFileTypedRetypes(metadata.schema(), sourceType, declaredMapping);
             listener.onResponse(null);
         }, listener::onFailure);
+        Map<String, Object> probeConfig = declaredProbeConfig(sourceType, config);
         if (isCacheable(provider)) {
-            cachedResolveSingleSourceAsync(anchor, anchorHint, storageIdentity, config, null, checked);
+            cachedResolveSingleSourceAsync(anchor, anchorHint, storageIdentity, probeConfig, null, checked);
         } else {
-            resolveSingleSourceAsync(anchor.toString(), anchorHint, config, checked);
+            resolveSingleSourceAsync(anchor.toString(), anchorHint, probeConfig, checked);
         }
     }
 
@@ -5031,10 +5052,27 @@ public class ExternalSourceResolver {
         if (sourceType == null || FILE_TYPED_FORMATS.contains(sourceType) == false || declaredMapping.mappings() == null) {
             return;
         }
+        Map<String, Object> probeConfig = declaredProbeConfig(sourceType, config);
         List<Attribute> physicalSchema = (isCacheable(provider)
-            ? cachedResolveSingleSource(anchor, anchorMtime, storageIdentity, config)
-            : resolveSingleSource(anchor.toString(), config)).schema();
+            ? cachedResolveSingleSource(anchor, anchorMtime, storageIdentity, probeConfig)
+            : resolveSingleSource(anchor.toString(), probeConfig)).schema();
         rejectUncoercibleFileTypedRetypes(physicalSchema, sourceType, declaredMapping);
+    }
+
+    /**
+     * The config the strict declared probe reads the anchor's footer with. A declared dataset is not capped by how many
+     * columns its files have, so for Parquet, the only file-typed reader that enforces {@code schema_max_fields}, the
+     * probe raises the cap to its ceiling; the reader charges the schema it flattens to the breaker instead. The key is
+     * part of the reader's config identity, so the probe's schema cache entry is kept apart from the inferred one, which
+     * stays capped.
+     */
+    private static Map<String, Object> declaredProbeConfig(String sourceType, Map<String, Object> config) {
+        if ("parquet".equals(sourceType) == false) {
+            return config;
+        }
+        Map<String, Object> probeConfig = config == null ? new HashMap<>() : new HashMap<>(config);
+        probeConfig.put("schema_max_fields", ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS);
+        return probeConfig;
     }
 
     /**
@@ -5195,6 +5233,7 @@ public class ExternalSourceResolver {
         if (fileTyped) {
             rejectUncoercibleFileTypedRetypes(inferred.schema(), inferred.sourceType(), declaredMapping);
         }
+        DeclaredSchemaResolver.checkDeclaredWidth(declaredMapping, schemaMaxFields(inferred.config()));
         DeclaredSchemaResolver.Overlaid unified = DeclaredSchemaResolver.overlayNonStrict(inferred.schema(), declaredMapping, false);
         if (unified.absent().isEmpty() == false && isSchemaComplete(inferred.sourceType(), inferred.config())) {
             // The schema lists every column of the file(s) it was built from, so these columns are not there. The
@@ -5205,7 +5244,7 @@ public class ExternalSourceResolver {
             for (Attribute a : unified.absent()) {
                 DatasetFieldMapping field = declaredMapping.mappings().properties().get(a.name());
                 String physical = field != null && field.path() != null ? field.path() : a.name();
-                pendingSchemaWarnings.add(SkipWarnings.absentDeclaredColumnMessage(physical));
+                pendingSchemaWarnings.add(SkipWarnings.absentColumnMessage(physical));
             }
         }
         DeclaredReadSpec declaredReadSpec = declaredReadSpecOf(declaredMapping);

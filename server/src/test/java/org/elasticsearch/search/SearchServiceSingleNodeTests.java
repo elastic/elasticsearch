@@ -338,11 +338,48 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Stuck scroll fetch + index removal only. A scroll continuation builds its {@link SearchContext} inside
-     * {@code executeFetchPhase} and closes it only when that runnable returns. {@link SearchService#afterIndexRemoved}
-     * cancels that in-flight task so the context can close. Shard-close / {@code freeReaderContext} paths must not
-     * cancel (they share {@code freeAllContextsForShard} / {@code freeReaderContext} without
-     * {@code cancelInFlightSearches}).
+     * {@link SearchService#freeReaderContext} must not cancel a stuck scroll fetch. The query phase frees
+     * single-session readers itself, and {@link SearchService#freeAllContextsForShard} is also used when a shard
+     * is reassigned.
+     */
+    public void testFreeReaderContextDoesNotCancelInFlightScroll() throws Exception {
+        ParkedScrollQueryBuilder.reset();
+        createIndex("index");
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchResponse opened = client().prepareSearch("index")
+            .setSize(1)
+            .setScroll(TimeValue.timeValueMinutes(2))
+            .setTimeout(TimeValue.timeValueMinutes(2))
+            .setQuery(new ParkedScrollQueryBuilder())
+            .get();
+        PlainActionFuture<SearchResponse> scrollFuture = new PlainActionFuture<>();
+        try {
+            ParkedScrollQueryBuilder.arm.set(true);
+            client().prepareSearchScroll(opened.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute(scrollFuture);
+            assertTrue("scroll fetch did not reach the open SearchContext", ParkedScrollQueryBuilder.parked.await(10, TimeUnit.SECONDS));
+
+            SearchService service = getInstanceFromNode(SearchService.class);
+            ShardSearchContextId contextId = new SearchScrollRequest(opened.getScrollId()).parseScrollId()
+                .getContext()[0].getSearchContextId();
+            assertTrue(service.freeReaderContext(contextId));
+            assertFalse("freeReaderContext cancelled an in-flight scroll fetch", ParkedScrollQueryBuilder.cancelled.get());
+        } finally {
+            ParkedScrollQueryBuilder.release.set(true);
+            opened.decRef();
+            try {
+                scrollFuture.actionGet(10, TimeUnit.SECONDS).decRef();
+            } catch (Exception | AssertionError e) {
+                // The reader was freed while the fetch was parked. A delivered response may already be closed.
+            }
+            ParkedScrollQueryBuilder.reset();
+        }
+    }
+
+    /**
+     * A scroll fetch holds its {@link SearchContext} until {@code executeFetchPhase} returns, and engine close waits
+     * on that searcher. Deleting the index must cancel the in-flight task from {@link SearchService#beforeIndexShardClosed}
+     * so shard close can finish and the context is released.
      */
     public void testScrollFetchContextClosedWhenIndexRemoved() throws Exception {
         ParkedScrollQueryBuilder.reset();
@@ -356,7 +393,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             .setQuery(new ParkedScrollQueryBuilder())
             .get();
         PlainActionFuture<SearchResponse> scrollFuture = new PlainActionFuture<>();
-        Thread remover = null;
         try {
             ParkedScrollQueryBuilder.arm.set(true);
             client().prepareSearchScroll(opened.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute(scrollFuture);
@@ -364,34 +400,25 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
             SearchService service = getInstanceFromNode(SearchService.class);
             assertEquals(1, service.getActiveContexts());
-            assertFalse("scroll fetch cancelled before index removal", ParkedScrollQueryBuilder.cancelled.get());
+            assertFalse("scroll fetch cancelled before index deletion", ParkedScrollQueryBuilder.cancelled.get());
 
-            IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-            IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
-            // Drive only the index-removal listener path — not beforeIndexShardClosed / freeReaderContext.
-            remover = new Thread(
-                () -> service.afterIndexRemoved(indexService.index(), indexService.getIndexSettings(), DELETED),
-                "index-removal"
-            );
-            remover.start();
-            // Shorter than the search timeout, so a timeout cannot count as index removal cancelling the fetch.
+            assertAcked(indicesAdmin().prepareDelete("index"));
+            // Delete is acked before the shard close task runs. The parked fetch polls cancellation.
+            awaitIndexShardCloseAsyncTasks();
             assertBusy(
                 () -> assertTrue(
-                    "in-flight scroll SearchContext was not cancelled by index removal",
+                    "in-flight scroll SearchContext was not cancelled by shard close",
                     ParkedScrollQueryBuilder.cancelled.get()
                 ),
                 2,
                 TimeUnit.SECONDS
             );
-            assertBusy(() -> assertEquals("scroll reader context leaked after index removal", 0, service.getActiveContexts()));
+            assertEquals(0, service.getActiveContexts());
         } finally {
             ParkedScrollQueryBuilder.release.set(true);
-            if (remover != null) {
-                remover.join(10_000);
-            }
             opened.decRef();
             try {
-                // Wait until the parked fetch observes release and closes its SearchContext, before reset() clears the flag.
+                // Wait until the parked fetch exits and closes its SearchContext, before reset() clears the flag.
                 // The transport may already have released the response.
                 scrollFuture.actionGet(10, TimeUnit.SECONDS).decRef();
             } catch (Exception | AssertionError e) {

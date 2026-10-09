@@ -15,7 +15,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -672,6 +671,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     @Override
+    public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+        // engine.close waits on searchers held by in-flight SearchContexts. Cancel here, before that close,
+        // so a phase blocked inside its SearchContext can exit and release its searcher.
+        // freeAllContextsForShard must not cancel: beforeIndexShardCreated uses it for reassignment.
+        assert shardId != null;
+        for (ReaderContext ctx : activeReaders.values()) {
+            if (shardId.equals(ctx.indexShard().shardId())) {
+                ctx.cancelInFlightSearches(taskManager, "shard closed: " + shardId);
+            }
+        }
+    }
+
+    @Override
     public void afterIndexRemoved(Index index, IndexSettings indexSettings, IndexRemovalReason reason) {
         // once an index is removed due to deletion or closing, we can just clean up all the pending search context information
         // if we then close all the contexts we can get some search failures along the way which are not expected.
@@ -783,8 +795,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Lifecycle lifecycle
     ) {
         final boolean header = threadPool.getThreadContext() == null || getErrorTraceHeader(threadPool);
-        return listener.delegateResponse((l, original) -> {
-            final Exception e = badRequestIfPatternTooComplex(original);
+        return listener.delegateResponse((l, e) -> {
             org.apache.logging.log4j.util.Supplier<String> messageSupplier = () -> format(
                 "[%s]%s: failed to execute search request for task [%d]",
                 nodeId,
@@ -811,21 +822,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             l.onFailure(e);
         });
-    }
-
-    /**
-     * Search only compiles automata from patterns in the request, so failing to determinize one is a client error
-     * regardless of which phase or component compiled it.
-     */
-    static Exception badRequestIfPatternTooComplex(Exception e) {
-        if (ExceptionsHelper.status(e).getStatus() >= 500 && ExceptionsHelper.unwrap(e, TooComplexToDeterminizeException.class) != null) {
-            return new IllegalArgumentException("Pattern was too complex to determinize", e);
-        }
-        return e;
-    }
-
-    private static <T> ActionListener<T> badRequestIfPatternTooComplex(ActionListener<T> listener) {
-        return listener.delegateResponse((l, e) -> l.onFailure(badRequestIfPatternTooComplex(e)));
     }
 
     private static boolean getErrorTraceHeader(ThreadPool threadPool) {
@@ -1269,10 +1265,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         FetchPhaseResponseChunk.Writer writer,
         ActionListener<FetchSearchResult> listener
     ) {
-        final ActionListener<FetchSearchResult> releaseListener = releaseCircuitBreakerOnResponse(
-            badRequestIfPatternTooComplex(listener),
-            result -> result
-        );
+        final ActionListener<FetchSearchResult> releaseListener = releaseCircuitBreakerOnResponse(listener, result -> result);
         final ShardSearchRequest suppliedShardSearchRequest = request.getShardSearchRequest();
         final ReaderContext readerContext = findReaderContext(
             request.contextId(),
@@ -1597,7 +1590,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         },
             wrapFailureListener(
-                releaseCircuitBreakerOnResponse(badRequestIfPatternTooComplex(listener), result -> result.result().fetchResult()),
+                releaseCircuitBreakerOnResponse(listener, result -> result.result().fetchResult()),
                 markAsUsed,
                 e -> processScrollContinuationFailure(readerContext, e)
             )
@@ -2039,10 +2032,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert index != null;
         for (ReaderContext ctx : activeReaders.values()) {
             if (index.equals(ctx.indexShard().shardId().getIndex())) {
-                // A phase blocked in its SearchContext only exits once its task is cancelled. Cancel only
-                // for index removal: freeReaderContext and freeAllContextsForShard must not, or routine
-                // shard closes (BWC, restore, relocation) cancel live searches.
-                ctx.cancelInFlightSearches(taskManager, "index removed: " + index.getName());
                 freeReaderContext(ctx.id(), "index removed: " + index.getName());
             }
         }

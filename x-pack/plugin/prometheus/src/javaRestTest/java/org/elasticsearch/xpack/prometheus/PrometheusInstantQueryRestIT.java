@@ -516,6 +516,19 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
     }
 
     /**
+     * {@code vector(s)} in an {@code or} fills what the other side lacks: its steps are its own, so the instant query's range
+     * filter still drops the sample exactly one lookback before the query time, and the range query keeps one step per row.
+     */
+    public void testInstantOrConstantVector() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME.minusSeconds(300));
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("tx or vector(0)", 10, 30, 12, 0);
+        assertBinopInstantValues("vector(0) or tx", 0, 10, 30, 12);
+        assertBinopInstantValues("sum(tx) or vector(0)", 52);
+        assertBinopInstantValues("sum(tx{host=~\"nope\"}) or vector(0)", 0);
+    }
+
+    /**
      * Prometheus treats a label with an empty value as absent: a label function that empties a label drops it from the series,
      * so {@code label_replace(tx, "host", "", "host", "a")} leaves host a with no {@code host} label and its own group.
      */

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.knneval;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -37,11 +38,13 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -60,6 +63,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
@@ -134,15 +138,19 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create("knn-eval-test-node"));
         ProjectMetadata.Builder project = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID);
-        indexEnabled.forEach(
-            (name, enabled) -> project.put(
-                IndexMetadata.builder(name)
-                    .settings(indexSettings(IndexVersion.current(), 1, 0).put(KnnEvalPlugin.INDEX_ENABLED.getKey(), enabled))
-                    .build(),
-                false
-            )
-        );
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(project)).build();
+        // new, so unassigned: no shard copy is active, which only a failed mapping lookup consults
+        RoutingTable.Builder routing = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+        indexEnabled.forEach((name, enabled) -> {
+            IndexMetadata index = IndexMetadata.builder(name)
+                .settings(indexSettings(IndexVersion.current(), 1, 0).put(KnnEvalPlugin.INDEX_ENABLED.getKey(), enabled))
+                .build();
+            project.put(index, false);
+            routing.addAsNew(index);
+        });
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(project))
+            .routingTable(Metadata.DEFAULT_PROJECT_ID, routing.build())
+            .build();
         when(clusterService.state()).thenReturn(state);
         return clusterService;
     }
@@ -453,7 +461,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             client,
             MockUtils.setupTransportServiceWithThreadpoolExecutor(),
             clusterService(true, false),
-            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            TestIndexNameExpressionResolver.newInstance()
         );
         PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
         disabled.doExecute(
@@ -472,7 +481,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             client,
             MockUtils.setupTransportServiceWithThreadpoolExecutor(),
             clusterService(true, true, false),
-            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            TestIndexNameExpressionResolver.newInstance()
         );
         PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
         action.doExecute(
@@ -486,14 +496,41 @@ public class TransportKnnEvalActionTests extends ESTestCase {
 
     /** One disabled index refuses a multi-index evaluation, and the error names that index. */
     public void testIndexSettingNamesTheDisabledIndex() {
+        assertThat(
+            disabledIndicesFailure(List.of("other-index")),
+            equalTo("[_knn_eval] is disabled on index [other-index] by [index.knn_eval.enabled]")
+        );
+    }
+
+    public void testIndexSettingNamesEveryDisabledIndexUpToTheCap() {
+        assertThat(
+            disabledIndicesFailure(List.of("c", "a", "b")),
+            equalTo("[_knn_eval] is disabled on 3 indices [a, b, c] by [index.knn_eval.enabled]")
+        );
+    }
+
+    /** A pattern matching thousands of disabled indices must not produce a thousands-of-names error. */
+    public void testIndexSettingCapsTheNamedDisabledIndices() {
+        assertThat(
+            disabledIndicesFailure(List.of("e", "d", "c", "b", "a")),
+            equalTo("[_knn_eval] is disabled on 5 indices [a, b, c, ...] by [index.knn_eval.enabled]")
+        );
+    }
+
+    /**
+     * The mappings action drops an index whose lookup failed; searching it unvalidated could mix vector spaces. Here no shard copy
+     * is active, so the lookup's own failure, and its 503, is passed through.
+     */
+    public void testUnreadMappingFailsTheWholeRequest() {
         RecordingClient client = new RecordingClient();
-        client.secondIndex = true;
         TransportKnnEvalAction action = new TransportKnnEvalAction(
             ActionFilters.EMPTY,
             client,
             MockUtils.setupTransportServiceWithThreadpoolExecutor(),
-            clusterService(true, true, Map.of("index", true, "other-index", false)),
-            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+            // the stub maps only "index"
+            clusterService(true, true, Map.of("index", true, "other-index", true)),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            TestIndexNameExpressionResolver.newInstance()
         );
         PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
         action.doExecute(
@@ -501,9 +538,42 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             new KnnEvalRequest(specWithBaseline(new KnnEvalSettings(100.0f, null, null, false)), new String[] { "index", "other-index" }),
             future
         );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
-        assertThat(e.getMessage(), equalTo("[_knn_eval] is disabled on index [other-index] by [index.knn_eval.enabled]"));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, e.status());
+        assertThat(e.getMessage(), equalTo("[_knn_eval] could not read the mapping of [emb] on index [other-index] to validate it"));
+        assertThat(e.getCause(), instanceOf(NoShardAvailableActionException.class));
+        assertEquals("other-index", ((NoShardAvailableActionException) e.getCause()).getShardId().getIndexName());
+        assertTrue(client.fieldMappingsRequested);
         assertFalse(client.pointInTimeOpened);
+    }
+
+    /**
+     * Evaluates "index" (enabled) plus {@code disabled}, and returns the refusal message. The stub maps only "index", as the
+     * mappings action does when the other indices' lookups fail, so the check must not rely on that response.
+     */
+    private static String disabledIndicesFailure(List<String> disabled) {
+        RecordingClient client = new RecordingClient();
+        Map<String, Boolean> enabled = new HashMap<>();
+        enabled.put("index", true);
+        disabled.forEach(index -> enabled.put(index, false));
+        TransportKnnEvalAction action = new TransportKnnEvalAction(
+            ActionFilters.EMPTY,
+            client,
+            MockUtils.setupTransportServiceWithThreadpoolExecutor(),
+            clusterService(true, true, enabled),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            TestIndexNameExpressionResolver.newInstance()
+        );
+        PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
+        action.doExecute(
+            null,
+            new KnnEvalRequest(specWithBaseline(new KnnEvalSettings(100.0f, null, null, false)), enabled.keySet().toArray(String[]::new)),
+            future
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        assertFalse(client.fieldMappingsRequested);
+        assertFalse(client.pointInTimeOpened);
+        return e.getMessage();
     }
 
     /** Index admins, including serverless project users, must be able to flip it on a live index. */
@@ -525,7 +595,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             client,
             MockUtils.setupTransportServiceWithThreadpoolExecutor(),
             clusterService(false),
-            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            TestIndexNameExpressionResolver.newInstance()
         );
         PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
         action.doExecute(null, new KnnEvalRequest(exactBaseline, new String[] { "index" }), future);
@@ -570,7 +641,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             client,
             transportService,
             clusterService(true),
-            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            TestIndexNameExpressionResolver.newInstance()
         );
         KnnEvalSettings settings = new KnnEvalSettings(100.0f, null, null, false);
         KnnEvalSpec spec = new KnnEvalSpec(
@@ -625,7 +697,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             client,
             transportService,
             clusterService(true),
-            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            TestIndexNameExpressionResolver.newInstance()
         );
         KnnEvalRequest request = new KnnEvalRequest(
             specWithBaseline(new KnnEvalSettings(20.0f, null, 100.0f, false)),
@@ -657,7 +730,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             client,
             transportService,
             clusterService,
-            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            TestIndexNameExpressionResolver.newInstance()
         );
         KnnEvalRequest request = new KnnEvalRequest(
             specWithBaseline(new KnnEvalSettings(20.0f, null, null, false)),
@@ -709,7 +783,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             client,
             transportService,
             clusterService(allowExpensiveQueries),
-            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            TestIndexNameExpressionResolver.newInstance()
         );
         PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
         action.doExecute(null, new KnnEvalRequest(spec, new String[] { "index" }), future);
@@ -935,7 +1010,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             client,
             transportService,
             clusterService(allowExpensiveQueries),
-            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            TestIndexNameExpressionResolver.newInstance()
         );
         PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
         action.doExecute(null, new KnnEvalRequest(spec, new String[] { "index" }), future);
@@ -967,8 +1043,6 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         private boolean failFieldMappings = false;
         private Exception fieldMappingsFailure;
         private boolean mismatchedFieldMappings = false;
-        /** Adds "other-index" with the same mapping as "index". */
-        private boolean secondIndex = false;
         private boolean pointInTimeOpened = false;
         private boolean pointInTimeClosed = false;
         private boolean failSearch = false;
@@ -1041,8 +1115,6 @@ public class TransportKnnEvalActionTests extends ESTestCase {
                         "other-index",
                         Map.of(field, new GetFieldMappingsResponse.FieldMappingMetadata(field, otherMapping))
                     );
-                } else if (secondIndex) {
-                    mappings = Map.of("index", indexMapping, "other-index", indexMapping);
                 } else {
                     mappings = Map.of("index", indexMapping);
                 }

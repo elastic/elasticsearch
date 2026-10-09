@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.knneval;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -32,10 +33,16 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -63,6 +70,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 /** Compares each candidate's top-k with the baseline's, using one PIT and sequential passes to keep changes and contention out. */
@@ -73,6 +81,8 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
     /** Idle gap between searches, not the sweep length: each PIT search renews it. */
     static final TimeValue POINT_IN_TIME_KEEP_ALIVE = TimeValue.timeValueMinutes(5);
     static final long MAX_EXACT_VECTOR_COMPARISONS = 100_000_000L;
+    /** Keeps an error short when a pattern matches many indices; the count is reported in full. */
+    static final int MAX_INDICES_NAMED = 3;
 
     /** Cluster or evaluation failures, not one query's: every remaining search would fail alike. */
     private static final Class<?>[] EVALUATION_FAILURES = {
@@ -90,6 +100,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
     private final Client client;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportKnnEvalAction(
@@ -97,7 +108,8 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         Client client,
         TransportService transportService,
         ClusterService clusterService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             KnnEvalPlugin.KNN_EVAL_ACTION.name(),
@@ -109,6 +121,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         this.client = client;
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -122,9 +135,20 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             );
             return;
         }
+        Set<String> indices;
+        try {
+            ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
+            // data streams included, as the PIT includes them
+            indices = Set.of(indexNameExpressionResolver.concreteIndexNames(project, request.indicesOptions(), true, request.indices()));
+            rejectDisabledIndices(project, indices);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         resolveField(
             task,
             request,
+            indices,
             listener.delegateFailureAndWrap((delegate, rescore) -> rejectNestedField(task, request, rescore, delegate))
         );
     }
@@ -165,8 +189,8 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         return null;
     }
 
-    /** Checks the field maps to one supported DiskBBQ config across all indices. */
-    private void resolveField(Task task, KnnEvalRequest request, ActionListener<KnnEvalRescore> listener) {
+    /** Checks the field maps to one supported DiskBBQ config across all of {@code indices}. */
+    private void resolveField(Task task, KnnEvalRequest request, Set<String> indices, ActionListener<KnnEvalRescore> listener) {
         KnnEvalSpec spec = request.getKnnEvalSpec();
         String field = spec.getField();
         GetFieldMappingsRequest mappingsRequest = new GetFieldMappingsRequest().indices(request.indices())
@@ -174,27 +198,78 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             .fields(field);
         setParentTask(task, mappingsRequest);
         client.execute(GetFieldMappingsAction.INSTANCE, mappingsRequest, listener.<GetFieldMappingsResponse>map(response -> {
-            rejectDisabledIndices(response.mappings().keySet());
+            rejectUnreadMappings(field, indices, response.mappings().keySet());
             return rescoreOf(spec, response);
         }).delegateResponse((delegate, e) -> delegate.onFailure(mappingLookupFailure(field, e))));
     }
 
-    private void rejectDisabledIndices(Iterable<String> indices) {
-        ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
-        for (String index : indices) {
-            IndexMetadata metadata = project.index(index);
-            // a missing index fails at PIT open
-            if (metadata != null && KnnEvalPlugin.INDEX_ENABLED.get(metadata.getSettings()) == false) {
-                throw new IllegalArgumentException(
-                    Strings.format(
-                        "[%s] is disabled on index [%s] by [%s]",
-                        RestKnnEvalAction.ENDPOINT,
-                        index,
-                        KnnEvalPlugin.INDEX_ENABLED.getKey()
-                    )
-                );
+    /**
+     * The mappings action drops an index whose lookup failed instead of failing, but the PIT still searches it; evaluating it
+     * unvalidated could mix vector spaces, so the whole request fails. An index without the field is still present, with no
+     * mappings.
+     */
+    private void rejectUnreadMappings(String field, Set<String> indices, Set<String> read) {
+        List<String> unread = indices.stream().filter(index -> read.contains(index) == false).sorted().toList();
+        if (unread.isEmpty() == false) {
+            ElasticsearchException cause = unreadMappingCause(unread);
+            throw new ElasticsearchStatusException(
+                "[{}] could not read the mapping of [{}] on {} to validate it",
+                cause == null ? RestStatus.INTERNAL_SERVER_ERROR : cause.status(),
+                cause,
+                RestKnnEvalAction.ENDPOINT,
+                field,
+                describe(unread)
+            );
+        }
+    }
+
+    /**
+     * The mappings action discards per-index failures, so this rebuilds the failure its per-index lookup throws for the known
+     * causes, from current cluster state; {@code null} if neither applies.
+     */
+    @Nullable
+    private ElasticsearchException unreadMappingCause(List<String> unread) {
+        ClusterState state = clusterService.state();
+        ProjectId projectId = projectResolver.getProjectId();
+        String[] named = unread.subList(0, Math.min(unread.size(), MAX_INDICES_NAMED)).toArray(String[]::new);
+        ClusterBlockException blocked = state.blocks().indicesBlockedException(projectId, ClusterBlockLevel.METADATA_READ, named);
+        if (blocked != null) {
+            return blocked;
+        }
+        RoutingTable routing = state.routingTable(projectId);
+        for (String index : unread) {
+            IndexRoutingTable indexRouting = routing.index(index);
+            if (indexRouting != null && indexRouting.randomAllActiveShardsIt().sizeActive() == 0) {
+                return new NoShardAvailableActionException(indexRouting.shard(0).shardId());
             }
         }
+        return null;
+    }
+
+    private static void rejectDisabledIndices(ProjectMetadata project, Set<String> indices) {
+        List<String> disabled = indices.stream().filter(index -> {
+            IndexMetadata metadata = project.index(index);
+            return metadata != null && KnnEvalPlugin.INDEX_ENABLED.get(metadata.getSettings()) == false;
+        }).sorted().toList();
+        if (disabled.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "[%s] is disabled on %s by [%s]",
+                    RestKnnEvalAction.ENDPOINT,
+                    describe(disabled),
+                    KnnEvalPlugin.INDEX_ENABLED.getKey()
+                )
+            );
+        }
+    }
+
+    /** "index [a]", or "5 indices [a, b, c, ...]": a pattern can match thousands. */
+    private static String describe(List<String> sortedIndices) {
+        if (sortedIndices.size() == 1) {
+            return "index [" + sortedIndices.getFirst() + "]";
+        }
+        String names = String.join(", ", sortedIndices.subList(0, Math.min(sortedIndices.size(), MAX_INDICES_NAMED)));
+        return sortedIndices.size() + " indices [" + names + (sortedIndices.size() > MAX_INDICES_NAMED ? ", ...]" : "]");
     }
 
     /** A [read]-only caller is refused by an action they never invoked; name this one. */

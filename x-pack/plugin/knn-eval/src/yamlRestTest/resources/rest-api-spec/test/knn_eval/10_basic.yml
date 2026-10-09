@@ -97,6 +97,12 @@ teardown:
           persistent:
             search.allow_expensive_queries: null
             search.knn_eval.enabled: null
+  # a metadata block would stop the index being wiped after the test
+  - do:
+      indices.put_settings:
+        index: knn_eval_*
+        body:
+          index.blocks.metadata: null
 
 ---
 "The corpus the other sections sample from is fully indexed":
@@ -622,6 +628,90 @@ teardown:
             size: 5
           knn_settings:
             - visit_percentage: 100
+
+---
+"A disabled index whose mapping can't be read is still refused":
+  # a metadata block fails that index's mapping lookup but still lets it be searched
+  - do:
+      indices.create:
+        index: knn_eval_blocked
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              knn_eval.enabled: false
+          mappings:
+            properties:
+              emb:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_disk
+
+  - do:
+      indices.put_settings:
+        index: knn_eval_blocked
+        body:
+          index.blocks.metadata: true
+
+  - do:
+      catch: /\[_knn_eval\] is disabled on index \[knn_eval_blocked\] by \[index.knn_eval.enabled\]/
+      knn_eval:
+        index: knn_eval_test,knn_eval_blocked
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 5
+          knn_settings:
+            - visit_percentage: 100
+
+---
+"A metadata-blocked index fails the whole request":
+  # unblocked, this mixed pair is refused; blocked, its mapping lookup would be dropped but the index is still searchable
+  - do:
+      indices.create:
+        index: knn_eval_blocked
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              emb:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: cosine
+                index_options:
+                  type: hnsw
+
+  - do:
+      indices.put_settings:
+        index: knn_eval_blocked
+        body:
+          index.blocks.metadata: true
+
+  - do:
+      catch: forbidden
+      knn_eval:
+        index: knn_eval_test,knn_eval_blocked
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 5
+          knn_settings:
+            - visit_percentage: 100
+
+  - match: { error.reason: "[_knn_eval] could not read the mapping of [emb] on index [knn_eval_blocked] to validate it" }
+  # the lookup's own failure is passed through
+  - match: { error.caused_by.type: cluster_block_exception }
+  - match: { error.caused_by.reason: "index [knn_eval_blocked] blocked by: [FORBIDDEN/9/index metadata (api)];" }
 
 ---
 "A capped rescore window is reported per settings entry":

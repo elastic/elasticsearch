@@ -22,6 +22,7 @@ import org.junit.runners.model.Statement;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -155,7 +156,7 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
     }
 
     public void testJvmMetrics() throws Exception {
-        Map<String, Predicate<Number>> valueAssertions = new HashMap<>(
+        Map<String, Predicate<Number>> valueAssertions = new ConcurrentHashMap<>(
             Map.ofEntries(
                 entry("system.cpu.total.norm.pct", n -> closeTo(0.0, 1.0).matches(n.doubleValue())),
                 entry("system.process.cpu.total.norm.pct", n -> closeTo(0.0, 1.0).matches(n.doubleValue())),
@@ -208,10 +209,13 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
 
         recordingApmServer.addMessageConsumer(messageConsumer);
 
-        client().performRequest(new Request("GET", "/_flush_telemetry"));
-        logger.debug("About to wait for telemetry");
-        var completed = finished.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
-        var remaining = valueAssertions.keySet().stream().collect(Collectors.joining(", "));
-        assertTrue("Timeout waiting for JVM metrics. Missing: " + remaining, completed);
+        // Retry the flush: async gauges such as system.process.cpu.total.norm.pct omit their sample when the underlying
+        // probe returns a negative value (e.g. a transient -1 from getProcessCpuLoad() on Windows), so a single
+        // collection is not guaranteed to contain every metric.
+        assertBusy(() -> {
+            client().performRequest(new Request("GET", "/_flush_telemetry"));
+            var remaining = valueAssertions.keySet().stream().collect(Collectors.joining(", "));
+            assertTrue("Timeout waiting for JVM metrics. Missing: " + remaining, finished.await(1, TimeUnit.SECONDS));
+        }, TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
     }
 }

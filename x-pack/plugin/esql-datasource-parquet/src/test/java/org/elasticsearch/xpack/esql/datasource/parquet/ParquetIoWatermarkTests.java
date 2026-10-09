@@ -179,6 +179,20 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertEquals(0, breaker.getUsed());
     }
 
+    public void testRetargetGrowsAndDropsRemaining() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(100);
+        ParquetIoWatermark.AdmitHold hold = watermark.tryAdmit(50);
+        assertNotNull(hold);
+        hold.retarget(10);
+        assertEquals(10, watermark.used());
+        assertEquals(10, hold.remaining());
+        hold.retarget(40);
+        assertEquals(40, watermark.used());
+        assertEquals(40, hold.remaining());
+        hold.drop();
+        assertEquals(0, watermark.used());
+    }
+
     public void testDropIoRemainderKeepsDecodeSliceUntilDrop() {
         ParquetIoWatermark watermark = new ParquetIoWatermark(200);
         ParquetIoWatermark.AdmitHold hold = watermark.tryAdmit(100);

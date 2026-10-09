@@ -50,6 +50,7 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
     /**
      * When removing the last shard of an index from a node, and the cumulative heap delta (shard + index) exceeds
      * the initial heap values, both totalHeapUsage and hostedShardsHeapUsage are clamped to 0.
+     * {@code nonShardHeapUsage} is not a function of placement, so the published value is copied through.
      */
     public void testNegativeHeapUsageClampsToZeroForBothMetrics() {
         var nodeA = "node-a";
@@ -67,8 +68,9 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         );
 
         long shardHeap = randomLongBetween(51, 100), indexHeap = randomLongBetween(31, 50), postingsHeap = randomLongBetween(0, shardHeap);
+        long nonShard = randomLongBetween(1, 500);
         // nodeA initial heap values are less than the shard+index heap that will be removed
-        var initialMetrics = Map.of(nodeA, nodeHeapMetrics(nodeA, 50, 30), nodeB, nodeHeapMetrics(nodeB, 0, 0));
+        var initialMetrics = Map.of(nodeA, nodeHeapMetrics(nodeA, 50, 30, nonShard), nodeB, nodeHeapMetrics(nodeB, 0, 0, nonShard));
         var simulator = newSimulator(
             initialMetrics,
             Map.of(startedShard.shardId(), new ShardAndIndexHeapUsage(shardHeap, indexHeap, postingsHeap)),
@@ -87,6 +89,8 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         assertThat(result.get(nodeB).nodeHeapEstimates().totalHeapUsage(), equalTo(shardHeap + indexHeap));
         // nodeB: add shardHeap + indexHeap; initial hosted=0 → shardHeap + indexHeap
         assertThat(result.get(nodeB).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(shardHeap + indexHeap));
+        assertThat(result.get(nodeA).nodeHeapEstimates().nonShardHeapUsage(), equalTo(nonShard));
+        assertThat(result.get(nodeB).nodeHeapEstimates().nonShardHeapUsage(), equalTo(nonShard));
     }
 
     /**
@@ -213,8 +217,10 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         var result = simulator.getSimulatedHeapMetrics();
         assertThat(result.get(searchNodeId).nodeHeapEstimates().totalHeapUsage(), equalTo(0L));
         assertThat(result.get(searchNodeId).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(searchInitialHosted + expectedDelta));
+        assertThat(result.get(searchNodeId).nodeHeapEstimates().nonShardHeapUsage(), equalTo(0L));
         assertThat(result.get(indexingNodeId).nodeHeapEstimates().totalHeapUsage(), equalTo(indexingInitialTotal + expectedDelta));
         assertThat(result.get(indexingNodeId).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(indexingInitialHosted + expectedDelta));
+        assertThat(result.get(indexingNodeId).nodeHeapEstimates().nonShardHeapUsage(), equalTo(0L));
     }
 
     /** Nodes not present in the initial metrics map are silently skipped; results for known nodes are unaffected. */
@@ -313,7 +319,11 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
     // --- helpers ---
 
     private static NodeHeapMetrics nodeHeapMetrics(String nodeId, long totalHeap, long hostedShardsHeap) {
-        return new NodeHeapMetrics(nodeId, TOTAL_HEAP_BYTES, new NodeHeapEstimates(totalHeap, hostedShardsHeap));
+        return nodeHeapMetrics(nodeId, totalHeap, hostedShardsHeap, 0L);
+    }
+
+    private static NodeHeapMetrics nodeHeapMetrics(String nodeId, long totalHeap, long hostedShardsHeap, long nonShardHeapUsage) {
+        return new NodeHeapMetrics(nodeId, TOTAL_HEAP_BYTES, new NodeHeapEstimates(totalHeap, hostedShardsHeap, nonShardHeapUsage));
     }
 
     private static NodeHeapMemoryShardMovementSimulator newSimulator(

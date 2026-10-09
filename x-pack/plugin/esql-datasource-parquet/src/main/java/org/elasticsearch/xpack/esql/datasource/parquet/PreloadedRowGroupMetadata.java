@@ -25,6 +25,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.InlineCompletionDrain;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -785,6 +786,9 @@ final class PreloadedRowGroupMetadata implements Releasable {
     }
 
     static <T> T awaitCoalesced(PlainActionFuture<T> future, long timeoutMs) {
+        if (InlineCompletionDrain.draining()) {
+            throw new ElasticsearchTimeoutException("awaitCoalesced from a grant continuation; the nested ticket is not done yet");
+        }
         try {
             return future.actionGet(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (ElasticsearchTimeoutException e) {

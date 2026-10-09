@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -455,6 +456,48 @@ public class AdmissionStallWatchdogTests extends ESTestCase {
             watchdog.inspect();
             mockLog.assertAllExpectationsMatched();
         }
+        watchdog.close();
+    }
+
+    public void testUndeliveredGrantWithQueuedWaiterWarns() throws Exception {
+        AtomicLong clock = new AtomicLong();
+        AdmissionStallWatchdog watchdog = watchdog(clock, TimeValue.timeValueSeconds(15), TimeValue.timeValueSeconds(30));
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter(
+            "s3",
+            new ExternalSourceSettings.BlobStoreConcurrency(1, false),
+            60_000L,
+            watchdog
+        );
+        limiter.acquire();
+        limiter.pauseGrantDelivery();
+        CountDownLatch grants = new CountDownLatch(2);
+        limiter.acquireAsync(() -> false, Runnable::run).addListener(ActionListener.wrap(unused -> {
+            grants.countDown();
+            limiter.release();
+        }, e -> grants.countDown()));
+        assertBusy(() -> assertEquals(1, limiter.asyncWaiterCount()));
+        limiter.release();
+        assertEquals(0, limiter.holders());
+        limiter.acquireAsync(() -> false, Runnable::run).addListener(ActionListener.wrap(unused -> {
+            grants.countDown();
+            limiter.release();
+        }, e -> grants.countDown()));
+        assertBusy(() -> assertEquals(1, limiter.asyncWaiterCount()));
+        clock.addAndGet(TimeUnit.SECONDS.toNanos(16));
+        try (MockLog mockLog = MockLog.capture(AdmissionStallWatchdog.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "undelivered grant",
+                    AdmissionStallWatchdog.class.getCanonicalName(),
+                    Level.WARN,
+                    "*possible admission stall*permits/s3*"
+                )
+            );
+            watchdog.inspect();
+            mockLog.assertAllExpectationsMatched();
+        }
+        limiter.resumeGrantDelivery();
+        assertTrue(grants.await(5, TimeUnit.SECONDS));
         watchdog.close();
     }
 

@@ -15,6 +15,10 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -50,6 +54,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -70,6 +75,10 @@ import java.util.stream.Collectors;
  * <p>
  * Repositories that are read-only are not tracked. Every other registered repository is, whether or not a snapshot of the node's shards
  * is going to target it. Nothing is tracked, requested, read, reported or logged unless {@link #BACKLOG_TRACKING_ENABLED_SETTING} is on.
+ * <p>
+ * All the state of the tracker is changed on one task queue, one task at a time: the periodic evaluation, the processing of a cluster
+ * state change, what is done with an answer of the master or with a read of the repository, and turning the tracking off. What the
+ * evaluation computes is published as one immutable result, which {@link #getBacklog()} and the metrics only read.
  */
 public class SnapshotBacklogTracker implements ClusterStateListener {
 
@@ -82,16 +91,21 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
         Setting.Property.NodeScope
     );
 
+    /**
+     * How often the backlog is evaluated, logged and made available to the metrics. A snapshot into a repository normally takes minutes,
+     * so a more frequent evaluation would add cost without adding information. Tests make it shorter.
+     */
+    public static final Setting<TimeValue> EVALUATION_INTERVAL_SETTING = Setting.timeSetting(
+        "stateless.snapshot.backlog_tracking.evaluation_interval",
+        TimeValue.timeValueSeconds(30),
+        TimeValue.timeValueMillis(100),
+        Setting.Property.NodeScope
+    );
+
     // The metric names end in a suffix that the APM metric validator accepts, the attribute in the namespaced form it asks for.
     static final String BACKLOG_BYTES_METRIC = "es.repositories.snapshots.backlog.bytes.current";
     static final String BACKLOG_UNKNOWN_SHARDS_METRIC = "es.repositories.snapshots.backlog.unknown_shards.current";
     static final String REPOSITORY_NAME_ATTRIBUTE = "es_repository_name";
-
-    /**
-     * How often the backlog is evaluated, logged and made available to the metrics. A snapshot into a repository normally takes minutes,
-     * so a more frequent evaluation would add cost without adding information.
-     */
-    static final TimeValue EVALUATION_INTERVAL = TimeValue.timeValueSeconds(30);
 
     /**
      * How many reads of repository metadata (the shard-level metadata of shards) may run at the same time on this node. When a node
@@ -121,6 +135,21 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
      */
     record LocalShard(ShardId shardId, ProjectId projectId, @Nullable Map<String, Long> commitFiles) {}
 
+    /**
+     * The started primary shards on this node
+     */
+    interface LocalShards {
+        /**
+         * @return the shards with their commit files, which is more work than {@link #getShardIds()}
+         */
+        List<LocalShard> getShards();
+
+        /**
+         * @return the ids of the shards of each project
+         */
+        Map<ProjectId, Set<ShardId>> getShardIds();
+    }
+
     private record TrackedRepository(BlobStoreRepository repository, RepositoryFilesCache cache, ShardGenerationsRefresher refresher) {
 
         void close() {
@@ -131,17 +160,26 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
 
     private final ClusterService clusterService;
     private final Client client;
-    private final IndicesService indicesService;
+    private final LocalShards localShards;
     private final RepositoriesService repositoriesService;
     private final ThreadPool threadPool;
+    private final TimeValue evaluationInterval;
     private final Executor repositoryReadExecutor;
+    // Runs everything that changes the state of the tracker, one task at a time
+    private final Executor stateExecutor;
+    private final AtomicBoolean evaluationQueued = new AtomicBoolean();
+    private final AtomicBoolean clusterStateRefreshQueued = new AtomicBoolean();
 
-    private final Map<ProjectRepo, TrackedRepository> trackedRepositories = new ConcurrentHashMap<>();
-    // The statuses of the shard snapshots running on this node, to take the progress of an upload into account
+    // The state of the tracker, only used on the state executor
+    private final Map<ProjectRepo, TrackedRepository> trackedRepositories = new HashMap<>();
+
+    // The statuses of the shard snapshots running on this node, to take the progress of an upload into account. Shard snapshots add to
+    // it from their own threads, and the state executor takes the finished ones off.
     private final Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> runningShardSnapshots = new ConcurrentHashMap<>();
 
-    // The result of the latest periodic evaluation, which the metrics report
-    private volatile Map<ProjectRepo, RepositoryBacklog> latestBacklog = Map.of();
+    // The result of the latest evaluation, which is all that the metrics and getBacklog() read, or null if there is none
+    @Nullable
+    private volatile Map<ProjectRepo, RepositoryBacklog> latestBacklog;
     private volatile Scheduler.Cancellable evaluationTask;
     private volatile boolean enabled;
 
@@ -153,11 +191,31 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
         ThreadPool threadPool,
         MeterRegistry meterRegistry
     ) {
+        this(
+            clusterService,
+            client,
+            new IndicesLocalShards(clusterService, indicesService),
+            repositoriesService,
+            threadPool,
+            meterRegistry
+        );
+    }
+
+    SnapshotBacklogTracker(
+        ClusterService clusterService,
+        Client client,
+        LocalShards localShards,
+        RepositoriesService repositoriesService,
+        ThreadPool threadPool,
+        MeterRegistry meterRegistry
+    ) {
         this.clusterService = clusterService;
         this.client = client;
-        this.indicesService = indicesService;
+        this.localShards = localShards;
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
+        this.evaluationInterval = EVALUATION_INTERVAL_SETTING.get(clusterService.getSettings());
+        this.stateExecutor = new ThrottledTaskRunner("snapshot-backlog-state", 1, threadPool.generic()).asExecutor();
         // Shard-level metadata is read on the snapshot_meta pool, which is meant for that and is allowed to do repository I/O.
         this.repositoryReadExecutor = new ThrottledTaskRunner(
             "snapshot-backlog-repository-reads",
@@ -169,7 +227,7 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
             BACKLOG_BYTES_METRIC,
             "Bytes of this node's primary shards that a snapshot into the repository has yet to upload",
             "bytes",
-            measurement -> latestBacklog.forEach(
+            measurement -> getBacklog().forEach(
                 (repo, backlog) -> measurement.record(backlog.bytes(), Map.of(REPOSITORY_NAME_ATTRIBUTE, repo.name()))
             )
         );
@@ -177,34 +235,50 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
             BACKLOG_UNKNOWN_SHARDS_METRIC,
             "Primary shards on this node whose snapshot backlog for the repository is not known yet",
             "unit",
-            measurement -> latestBacklog.forEach(
+            measurement -> getBacklog().forEach(
                 (repo, backlog) -> measurement.record(backlog.unknownShards(), Map.of(REPOSITORY_NAME_ATTRIBUTE, repo.name()))
             )
         );
     }
 
     private void setEnabled(boolean enabled) {
+        final boolean wasEnabled = this.enabled;
         this.enabled = enabled;
-        if (enabled == false) {
-            // forget everything, so that nothing is reported or kept, and tracking starts from scratch if it is turned on again
-            latestBacklog = Map.of();
-            runningShardSnapshots.clear();
-            trackedRepositories.values().forEach(TrackedRepository::close);
-            trackedRepositories.clear();
+        if (wasEnabled && enabled == false) {
+            // Forget everything, so that nothing is reported or kept, and tracking starts from scratch if it is turned on again. This
+            // comes after whatever is running at the moment, which then does not publish its result (see evaluate).
+            stateExecutor.execute(this::clear);
         }
+    }
+
+    private void clear() {
+        latestBacklog = null;
+        runningShardSnapshots.clear();
+        trackedRepositories.values().forEach(TrackedRepository::close);
+        trackedRepositories.clear();
     }
 
     /**
      * Starts evaluating the backlog periodically.
      */
     public void start() {
-        evaluationTask = threadPool.scheduleWithFixedDelay(this::evaluate, EVALUATION_INTERVAL, threadPool.generic());
+        evaluationTask = threadPool.scheduleWithFixedDelay(this::scheduleEvaluation, evaluationInterval, threadPool.generic());
     }
 
     public void stop() {
         final var task = evaluationTask;
         if (task != null) {
             task.cancel();
+        }
+    }
+
+    // an evaluation that takes longer than the interval must not pile up more of them
+    private void scheduleEvaluation() {
+        if (enabled && evaluationQueued.compareAndSet(false, true)) {
+            stateExecutor.execute(() -> {
+                evaluationQueued.set(false);
+                evaluate();
+            });
         }
     }
 
@@ -219,12 +293,20 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
         runningShardSnapshots.computeIfAbsent(snapshot, s -> new ConcurrentHashMap<>()).put(shardId, status);
     }
 
+    /**
+     * Computes the backlog of every tracked repository from what is cached, publishes it, and starts reading what is missing from the
+     * repositories. It does not wait for those reads: the shards they are for are reported as unknown until they are done.
+     */
     private void evaluate() {
         if (enabled == false) {
             return;
         }
         try {
-            final var backlog = getBacklog();
+            updateTrackedRepositories();
+            final Map<ProjectRepo, RepositoryBacklog> backlog = trackedRepositories.isEmpty() ? Map.of() : computeBacklog();
+            if (enabled == false) {
+                return; // turned off while evaluating: the task that clears everything is next, and nothing is published after it
+            }
             latestBacklog = backlog;
             backlog.forEach((repo, repoBacklog) -> {
                 if (repoBacklog.isEmpty() == false) {
@@ -243,25 +325,14 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
         }
     }
 
-    /**
-     * Computes the current backlog of every tracked repository from what is cached, and starts reading what is missing from the
-     * repositories. It does not wait for those reads: the shards they are for are reported as unknown until they are done.
-     */
-    public Map<ProjectRepo, RepositoryBacklog> getBacklog() {
-        if (enabled == false) {
-            return Map.of();
-        }
-        updateTrackedRepositories();
-        if (trackedRepositories.isEmpty()) {
-            return Map.of();
-        }
-        final List<LocalShard> localShards = getLocalShards();
+    private Map<ProjectRepo, RepositoryBacklog> computeBacklog() {
+        final List<LocalShard> shards = localShards.getShards();
         final var snapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
         runningShardSnapshots.keySet().removeIf(snapshot -> snapshotsInProgress.snapshot(snapshot) == null);
 
         final Map<ProjectRepo, RepositoryBacklog> backlogs = new HashMap<>();
         trackedRepositories.forEach((projectRepo, tracked) -> {
-            final var shardsOfProject = localShards.stream().filter(shard -> shard.projectId().equals(projectRepo.projectId())).toList();
+            final var shardsOfProject = shards.stream().filter(shard -> shard.projectId().equals(projectRepo.projectId())).toList();
             final Set<ShardId> shardIdsOfProject = shardsOfProject.stream().map(LocalShard::shardId).collect(Collectors.toSet());
             tracked.cache().retainShards(shardIdsOfProject);
             tracked.refresher().refresh(Trigger.TICK, tracked.repository().getMetadata().generation(), shardIdsOfProject);
@@ -271,6 +342,15 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
             );
         });
         return Map.copyOf(backlogs);
+    }
+
+    /**
+     * @return the backlog of every tracked repository as of the latest evaluation, which is empty if there is none, e.g. because the
+     *         tracking is off
+     */
+    public final Map<ProjectRepo, RepositoryBacklog> getBacklog() {
+        final var backlog = latestBacklog;
+        return backlog == null ? Map.of() : backlog;
     }
 
     static RepositoryBacklog computeRepositoryBacklog(
@@ -318,12 +398,13 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
                 final var projectRepo = blobStoreRepository.getProjectRepo();
                 current.add(projectRepo);
                 // a repository whose settings changed is a new instance, and may well point somewhere else
-                trackedRepositories.compute(
-                    projectRepo,
-                    (key, tracked) -> tracked != null && tracked.repository() == blobStoreRepository
-                        ? tracked
-                        : newTrackedRepository(projectRepo, blobStoreRepository)
-                );
+                final var tracked = trackedRepositories.get(projectRepo);
+                if (tracked == null || tracked.repository() != blobStoreRepository) {
+                    if (tracked != null) {
+                        tracked.close();
+                    }
+                    trackedRepositories.put(projectRepo, newTrackedRepository(projectRepo, blobStoreRepository));
+                }
             }
         }
         trackedRepositories.entrySet().removeIf(entry -> {
@@ -336,18 +417,23 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
     }
 
     private TrackedRepository newTrackedRepository(ProjectRepo projectRepo, BlobStoreRepository repository) {
-        final var cache = new RepositoryFilesCache(projectRepo.name(), newReader(repository), repositoryReadExecutor);
+        final var cache = new RepositoryFilesCache(
+            projectRepo.name(),
+            repository::getBlobStoreIndexShardSnapshots,
+            repositoryReadExecutor,
+            stateExecutor
+        );
         final var refresher = new ShardGenerationsRefresher(
             projectRepo.name(),
-            (observedGeneration, shardIds, listener) -> getShardGenerationsFromMaster(projectRepo, observedGeneration, shardIds, listener),
-            cache
+            (shardIds, listener) -> getShardGenerationsFromMaster(projectRepo, shardIds, listener),
+            cache,
+            stateExecutor
         );
         return new TrackedRepository(repository, cache, refresher);
     }
 
     private void getShardGenerationsFromMaster(
         ProjectRepo projectRepo,
-        long observedGeneration,
         List<ShardId> shardIds,
         ActionListener<GetShardGenerationsResponse> listener
     ) {
@@ -358,47 +444,137 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
             client.execute(
                 TransportGetShardGenerationsAction.TYPE,
                 // a request that waits for a master for longer than an evaluation is not wanted: the next evaluation asks again
-                new GetShardGenerationsRequest(EVALUATION_INTERVAL, projectRepo, observedGeneration, shardIds),
+                new GetShardGenerationsRequest(evaluationInterval, projectRepo, shardIds),
                 listener
             );
         }
     }
 
-    private static RepositoryFilesCache.Reader newReader(BlobStoreRepository repository) {
-        return repository::getBlobStoreIndexShardSnapshots;
-    }
-
-    private List<LocalShard> getLocalShards() {
-        final List<LocalShard> shards = new ArrayList<>();
-        forEachStartedPrimary((shard, projectId) -> shards.add(new LocalShard(shard.shardId(), projectId, getCommitFiles(shard))));
-        return shards;
-    }
-
-    private void forEachStartedPrimary(BiConsumer<IndexShard, ProjectId> consumer) {
-        final var metadata = clusterService.state().metadata();
-        for (IndexService indexService : indicesService) {
-            for (IndexShard shard : indexService) {
-                if (shard.routingEntry().primary() == false || shard.state() != IndexShardState.STARTED) {
-                    continue;
-                }
-                final Optional<ProjectMetadata> project = metadata.lookupProject(shard.shardId().getIndex());
-                project.ifPresent(projectMetadata -> consumer.accept(shard, projectMetadata.id()));
+    /**
+     * Picks up a new repository generation (a snapshot finished, or was deleted) and the shards that started on this node without
+     * waiting for the next evaluation, but only if the repositories or the routing of this node changed. The work is not done on the
+     * thread that applies the cluster state.
+     */
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (enabled && (hasRepositoryMetadataChanged(event) || hasLocalPrimaryChanged(event))) {
+            if (clusterStateRefreshQueued.compareAndSet(false, true)) {
+                stateExecutor.execute(() -> {
+                    clusterStateRefreshQueued.set(false);
+                    refreshShardGenerations();
+                });
             }
         }
     }
 
+    private static boolean hasRepositoryMetadataChanged(ClusterChangedEvent event) {
+        for (ProjectId projectId : event.state().metadata().projects().keySet()) {
+            if (event.customMetadataChanged(projectId, RepositoriesMetadata.TYPE)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
-     * @return the names and lengths of the files of the latest commit of the shard, without flushing the shard as a snapshot would, or
-     *         {@code null} if they are not available at the moment.
+     * @return whether a primary shard started on this node, or arrived with a new routing
      */
-    @Nullable
-    private Map<String, Long> getCommitFiles(IndexShard shard) {
-        try (var commitRef = shard.acquireLastIndexCommit(false)) {
-            return getCommitFiles(commitRef.getIndexCommit());
+    private static boolean hasLocalPrimaryChanged(ClusterChangedEvent event) {
+        if (event.routingTableChanged() == false) {
+            return false;
+        }
+        final String localNodeId = event.state().nodes().getLocalNodeId();
+        final RoutingNode localNode = event.state().getRoutingNodes().node(localNodeId);
+        if (localNode == null) {
+            return false;
+        }
+        final RoutingNode previousLocalNode = event.previousState().getRoutingNodes().node(localNodeId);
+        for (ShardRouting shardRouting : localNode) {
+            if (shardRouting.primary() && shardRouting.state() == ShardRoutingState.STARTED) {
+                if (previousLocalNode == null || shardRouting.equals(previousLocalNode.getByShardId(shardRouting.shardId())) == false) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void refreshShardGenerations() {
+        if (enabled == false) {
+            return;
+        }
+        try {
+            updateTrackedRepositories();
+            if (trackedRepositories.isEmpty()) {
+                return;
+            }
+            final Map<ProjectId, Set<ShardId>> shardIds = localShards.getShardIds();
+            trackedRepositories.forEach(
+                (projectRepo, tracked) -> tracked.refresher()
+                    .refresh(
+                        Trigger.CLUSTER_STATE,
+                        tracked.repository().getMetadata().generation(),
+                        shardIds.getOrDefault(projectRepo.projectId(), Set.of())
+                    )
+            );
         } catch (Exception e) {
-            // e.g. the shard is closing
-            logger.debug(() -> "cannot get the commit files of " + shard.shardId(), e);
-            return null;
+            logger.warn("failed to refresh the shard generations for the snapshot backlog", e);
+        }
+    }
+
+    /**
+     * The started primary shards of the {@link IndicesService}
+     */
+    private static class IndicesLocalShards implements LocalShards {
+
+        private final ClusterService clusterService;
+        private final IndicesService indicesService;
+
+        IndicesLocalShards(ClusterService clusterService, IndicesService indicesService) {
+            this.clusterService = clusterService;
+            this.indicesService = indicesService;
+        }
+
+        @Override
+        public List<LocalShard> getShards() {
+            final List<LocalShard> shards = new ArrayList<>();
+            forEachStartedPrimary((shard, projectId) -> shards.add(new LocalShard(shard.shardId(), projectId, getCommitFiles(shard))));
+            return shards;
+        }
+
+        @Override
+        public Map<ProjectId, Set<ShardId>> getShardIds() {
+            final Map<ProjectId, Set<ShardId>> shardIds = new HashMap<>();
+            forEachStartedPrimary((shard, projectId) -> shardIds.computeIfAbsent(projectId, id -> new HashSet<>()).add(shard.shardId()));
+            return shardIds;
+        }
+
+        private void forEachStartedPrimary(BiConsumer<IndexShard, ProjectId> consumer) {
+            final var metadata = clusterService.state().metadata();
+            for (IndexService indexService : indicesService) {
+                for (IndexShard shard : indexService) {
+                    if (shard.routingEntry().primary() == false || shard.state() != IndexShardState.STARTED) {
+                        continue;
+                    }
+                    final Optional<ProjectMetadata> project = metadata.lookupProject(shard.shardId().getIndex());
+                    project.ifPresent(projectMetadata -> consumer.accept(shard, projectMetadata.id()));
+                }
+            }
+        }
+
+        /**
+         * @return the names and lengths of the files of the latest commit of the shard, without flushing the shard as a snapshot would,
+         *         or {@code null} if they are not available at the moment.
+         */
+        @Nullable
+        private static Map<String, Long> getCommitFiles(IndexShard shard) {
+            try (var commitRef = shard.acquireLastIndexCommit(false)) {
+                return SnapshotBacklogTracker.getCommitFiles(commitRef.getIndexCommit());
+            } catch (Exception e) {
+                // e.g. the shard is closing
+                logger.debug(() -> "cannot get the commit files of " + shard.shardId(), e);
+                return null;
+            }
         }
     }
 
@@ -413,30 +589,5 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
             commitFiles.put(fileName, commit.getDirectory().fileLength(fileName));
         }
         return commitFiles;
-    }
-
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (enabled == false || trackedRepositories.isEmpty()) {
-            return;
-        }
-        // Pick up a new repository generation (a snapshot finished, or was deleted), and the shards that started on this node, without
-        // waiting for the next evaluation. Looking at the shards is only worth it if one of those may have happened.
-        final boolean repositoryGenerationChanged = trackedRepositories.values()
-            .stream()
-            .anyMatch(tracked -> tracked.repository().getMetadata().generation() > tracked.cache().getRepositoryGeneration());
-        if (repositoryGenerationChanged == false && event.routingTableChanged() == false) {
-            return;
-        }
-        final Map<ProjectId, Set<ShardId>> shardsByProject = new HashMap<>();
-        forEachStartedPrimary((shard, projectId) -> shardsByProject.computeIfAbsent(projectId, id -> new HashSet<>()).add(shard.shardId()));
-        trackedRepositories.forEach(
-            (projectRepo, tracked) -> tracked.refresher()
-                .refresh(
-                    Trigger.CLUSTER_STATE,
-                    tracked.repository().getMetadata().generation(),
-                    shardsByProject.getOrDefault(projectRepo.projectId(), Set.of())
-                )
-        );
     }
 }

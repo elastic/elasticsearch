@@ -1556,6 +1556,7 @@ public class StatelessPlugin extends Plugin
             ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_INTERVAL_SETTING,
             SearchShardInformationIndexListener.QUERY_SEARCH_SHARD_INFORMATION_SETTING,
             SnapshotBacklogTracker.BACKLOG_TRACKING_ENABLED_SETTING,
+            SnapshotBacklogTracker.EVALUATION_INTERVAL_SETTING,
             StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING,
             StatelessSnapshotSettings.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING,
             StatelessSnapshotSettings.STATELESS_SNAPSHOT_WAIT_FOR_ACTIVE_PRIMARY_TIMEOUT_SETTING,

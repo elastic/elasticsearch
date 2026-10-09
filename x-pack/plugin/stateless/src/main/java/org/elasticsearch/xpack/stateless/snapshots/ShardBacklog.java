@@ -72,7 +72,9 @@ record ShardBacklog(long bytes, long inlinedBytes) {
                 processedBytes += status.asCopy().getProcessedSize();
             }
         }
-        // The processed size also contains the files that go into the shard-level metadata, which are not in this backlog.
+        // The processed size also contains the files that go into the shard-level metadata, which are not in this backlog. All of them are
+        // taken off, although a running snapshot may not have processed all of them yet. Then the uploaded bytes are understated, and the
+        // backlog overstated, by at most the length of these files, which are a few KB, until the snapshot has processed them.
         final long uploadedBytes = Math.max(0, processedBytes - inlinedBytes);
         return new ShardBacklog(Math.max(0, bytes - uploadedBytes), inlinedBytes);
     }

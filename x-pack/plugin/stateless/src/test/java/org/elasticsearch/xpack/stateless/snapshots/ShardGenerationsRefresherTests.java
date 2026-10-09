@@ -35,7 +35,7 @@ public class ShardGenerationsRefresherTests extends ESTestCase {
 
     private static final IndexId INDEX = new IndexId("index", "index-id");
 
-    private record Request(long observedGeneration, List<ShardId> shardIds, ActionListener<GetShardGenerationsResponse> listener) {}
+    private record Request(List<ShardId> shardIds, ActionListener<GetShardGenerationsResponse> listener) {}
 
     /**
      * A master that does not answer until the test says so
@@ -45,13 +45,17 @@ public class ShardGenerationsRefresherTests extends ESTestCase {
     private final ShardId shard1 = new ShardId(new Index("index", "index-uuid"), 1);
     private final ShardGeneration gen0 = new ShardGeneration("gen0");
     private final ShardGeneration gen1 = new ShardGeneration("gen1");
-    private final RepositoryFilesCache cache = new RepositoryFilesCache("repo", (indexId, shardId, shardGeneration) -> {
-        return BlobStoreIndexShardSnapshots.EMPTY;
-    }, command -> {});
+    private final RepositoryFilesCache cache = new RepositoryFilesCache(
+        "repo",
+        (indexId, shardId, shardGeneration) -> BlobStoreIndexShardSnapshots.EMPTY,
+        command -> {},
+        Runnable::run
+    );
     private final ShardGenerationsRefresher refresher = new ShardGenerationsRefresher(
         "repo",
-        (observedGeneration, shardIds, listener) -> requests.add(new Request(observedGeneration, shardIds, listener)),
-        cache
+        (shardIds, listener) -> requests.add(new Request(shardIds, listener)),
+        cache,
+        Runnable::run
     );
 
     private static GetShardGenerationsResponse response(long repositoryGeneration, Map<ShardId, ShardGeneration> generations) {
@@ -63,7 +67,6 @@ public class ShardGenerationsRefresherTests extends ESTestCase {
     public void testAskingForAllShardsAndKeepingTheAnswer() {
         refresher.refresh(Trigger.TICK, 3, Set.of(shard0, shard1));
         assertThat(requests, hasSize(1));
-        assertThat(requests.get(0).observedGeneration(), equalTo(3L));
         assertThat(requests.get(0).shardIds(), containsInAnyOrder(shard0, shard1));
 
         requests.get(0).listener().onResponse(response(3, Map.of(shard0, gen0, shard1, gen1)));
@@ -89,7 +92,6 @@ public class ShardGenerationsRefresherTests extends ESTestCase {
 
         refresher.refresh(Trigger.CLUSTER_STATE, 4, Set.of(shard0));
         assertThat(requests, hasSize(2));
-        assertThat(requests.get(1).observedGeneration(), equalTo(4L));
     }
 
     public void testANewShardAsksAgainWithoutANewRepositoryGeneration() {
@@ -115,7 +117,6 @@ public class ShardGenerationsRefresherTests extends ESTestCase {
         // the answer is accepted, and the one more request is for what the triggers asked
         requests.get(0).listener().onResponse(response(3, Map.of(shard0, gen0)));
         assertThat(requests, hasSize(2));
-        assertThat(requests.get(1).observedGeneration(), equalTo(5L));
         assertThat(requests.get(1).shardIds(), containsInAnyOrder(shard0, shard1));
         requests.get(1).listener().onResponse(response(5, Map.of(shard0, gen0, shard1, gen1)));
         assertThat(requests, hasSize(2));
@@ -179,10 +180,10 @@ public class ShardGenerationsRefresherTests extends ESTestCase {
 
     public void testAFailureToSendIsAFailureOfTheRequest() {
         final var attempts = new int[1];
-        final var failing = new ShardGenerationsRefresher("repo", (observedGeneration, shardIds, listener) -> {
+        final var failing = new ShardGenerationsRefresher("repo", (shardIds, listener) -> {
             attempts[0]++;
             throw new IllegalStateException("simulated");
-        }, cache);
+        }, cache, Runnable::run);
         failing.refresh(Trigger.TICK, 3, Set.of(shard0));
         assertThat(attempts[0], equalTo(1));
         // it is not stuck as in flight: the next tick asks again
@@ -194,5 +195,23 @@ public class ShardGenerationsRefresherTests extends ESTestCase {
         refresher.close();
         refresher.refresh(Trigger.TICK, 3, Set.of(shard0));
         assertThat(requests, empty());
+    }
+
+    public void testTheAnswerIsHandledOnTheStateExecutor() {
+        final var stateTasks = new ArrayList<Runnable>();
+        final var onStateExecutor = new ShardGenerationsRefresher(
+            "repo",
+            (shardIds, listener) -> requests.add(new Request(shardIds, listener)),
+            cache,
+            stateTasks::add
+        );
+        onStateExecutor.refresh(Trigger.TICK, 3, Set.of(shard0));
+        requests.get(0).listener().onResponse(response(3, Map.of(shard0, gen0)));
+
+        // whichever thread the answer arrives on, it is not used until the state executor runs it
+        assertFalse(cache.hasShardGeneration(shard0));
+        assertThat(stateTasks, hasSize(1));
+        stateTasks.get(0).run();
+        assertTrue(cache.hasShardGeneration(shard0));
     }
 }

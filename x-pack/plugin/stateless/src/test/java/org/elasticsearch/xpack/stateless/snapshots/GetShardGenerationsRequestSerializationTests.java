@@ -39,7 +39,6 @@ public class GetShardGenerationsRequestSerializationTests extends AbstractWireSe
         return new GetShardGenerationsRequest(
             TimeValue.timeValueSeconds(between(1, 60)),
             new ProjectRepo(ProjectId.DEFAULT, randomIdentifier()),
-            randomLongBetween(-1, 100),
             shardIds
         );
     }
@@ -47,28 +46,14 @@ public class GetShardGenerationsRequestSerializationTests extends AbstractWireSe
     @Override
     protected GetShardGenerationsRequest mutateInstance(GetShardGenerationsRequest instance) throws IOException {
         final var shardIds = new ArrayList<>(instance.getShardIds());
-        return switch (between(0, 2)) {
-            case 0 -> new GetShardGenerationsRequest(
+        if (randomBoolean()) {
+            return new GetShardGenerationsRequest(
                 instance.masterNodeTimeout(),
                 new ProjectRepo(instance.getProjectRepo().projectId(), instance.getProjectRepo().name() + "x"),
-                instance.getRepositoryGeneration(),
                 shardIds
             );
-            case 1 -> new GetShardGenerationsRequest(
-                instance.masterNodeTimeout(),
-                instance.getProjectRepo(),
-                instance.getRepositoryGeneration() + 1,
-                shardIds
-            );
-            default -> {
-                shardIds.add(randomValueOtherThanMany(shardIds::contains, GetShardGenerationsRequestSerializationTests::randomShardId));
-                yield new GetShardGenerationsRequest(
-                    instance.masterNodeTimeout(),
-                    instance.getProjectRepo(),
-                    instance.getRepositoryGeneration(),
-                    shardIds
-                );
-            }
-        };
+        }
+        shardIds.add(randomValueOtherThanMany(shardIds::contains, GetShardGenerationsRequestSerializationTests::randomShardId));
+        return new GetShardGenerationsRequest(instance.masterNodeTimeout(), instance.getProjectRepo(), shardIds);
     }
 }

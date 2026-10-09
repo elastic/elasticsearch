@@ -18,6 +18,7 @@ import org.elasticsearch.transport.ActionNotFoundTransportException;
 
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 /**
  * Keeps the shard generations in a {@link RepositoryFilesCache} current by asking the master for them, see
@@ -31,6 +32,9 @@ import java.util.Set;
  * master may not have caught up with the cluster state yet. A request that fails (e.g. because the master does not have the action
  * during a rolling upgrade) or whose answer is not accepted is not repeated because of cluster state changes, which are too frequent for
  * that: it is repeated by the next periodic {@link Trigger#TICK}.
+ * <p>
+ * Everything here, including what is done with an answer, runs on the state executor given to the constructor, one task at a time, so
+ * that the refresher needs no synchronization and shares no state with another thread.
  */
 class ShardGenerationsRefresher {
 
@@ -51,15 +55,13 @@ class ShardGenerationsRefresher {
      * Sends the request to the master
      */
     interface MasterClient {
-        /**
-         * @param observedRepositoryGeneration the repository generation in the cluster state of this node
-         */
-        void getShardGenerations(long observedRepositoryGeneration, List<ShardId> shardIds, ActionListener<GetShardGenerationsResponse> l);
+        void getShardGenerations(List<ShardId> shardIds, ActionListener<GetShardGenerationsResponse> listener);
     }
 
     private final String repositoryName;
     private final MasterClient master;
     private final RepositoryFilesCache cache;
+    private final Executor stateExecutor;
 
     private boolean requestInFlight;
     // set while a request is in flight and a trigger came that the request may not cover, for the latest such trigger
@@ -71,10 +73,11 @@ class ShardGenerationsRefresher {
     private boolean waitForTick;
     private boolean closed;
 
-    ShardGenerationsRefresher(String repositoryName, MasterClient master, RepositoryFilesCache cache) {
+    ShardGenerationsRefresher(String repositoryName, MasterClient master, RepositoryFilesCache cache, Executor stateExecutor) {
         this.repositoryName = repositoryName;
         this.master = master;
         this.cache = cache;
+        this.stateExecutor = stateExecutor;
     }
 
     /**
@@ -87,24 +90,22 @@ class ShardGenerationsRefresher {
         if (observedRepositoryGeneration < RepositoryData.EMPTY_REPO_GEN || shards.isEmpty()) {
             return; // the repository generation is not known (yet), or there is nothing to ask for
         }
-        synchronized (this) {
-            if (closed || (trigger == Trigger.CLUSTER_STATE && waitForTick)) {
-                return;
-            }
-            if (trigger == Trigger.TICK) {
-                waitForTick = false;
-            }
-            if (isCurrent(observedRepositoryGeneration, shards)) {
-                return;
-            }
-            if (requestInFlight) {
-                triggerPending = true;
-                pendingObservedGeneration = Math.max(pendingObservedGeneration, observedRepositoryGeneration);
-                pendingShards = Set.copyOf(shards);
-                return;
-            }
-            requestInFlight = true;
+        if (closed || (trigger == Trigger.CLUSTER_STATE && waitForTick)) {
+            return;
         }
+        if (trigger == Trigger.TICK) {
+            waitForTick = false;
+        }
+        if (isCurrent(observedRepositoryGeneration, shards)) {
+            return;
+        }
+        if (requestInFlight) {
+            triggerPending = true;
+            pendingObservedGeneration = Math.max(pendingObservedGeneration, observedRepositoryGeneration);
+            pendingShards = Set.copyOf(shards);
+            return;
+        }
+        requestInFlight = true;
         sendRequest(observedRepositoryGeneration, shards);
     }
 
@@ -113,12 +114,13 @@ class ShardGenerationsRefresher {
     }
 
     private void sendRequest(long observedRepositoryGeneration, Set<ShardId> shards) {
+        // the answer is handled on the state executor, whichever thread it arrives on
         final ActionListener<GetShardGenerationsResponse> listener = ActionListener.wrap(
-            response -> onResponse(observedRepositoryGeneration, response),
-            this::onFailure
+            response -> stateExecutor.execute(() -> onResponse(observedRepositoryGeneration, response)),
+            e -> stateExecutor.execute(() -> onFailure(e))
         );
         try {
-            master.getShardGenerations(observedRepositoryGeneration, List.copyOf(shards), listener);
+            master.getShardGenerations(List.copyOf(shards), listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -150,30 +152,23 @@ class ShardGenerationsRefresher {
     }
 
     private void completeRequest(boolean accepted) {
-        final long observedGeneration;
-        final Set<ShardId> shards;
-        synchronized (this) {
-            requestInFlight = false;
-            waitForTick = accepted == false;
-            if (accepted == false || triggerPending == false) {
-                triggerPending = false;
-                pendingObservedGeneration = RepositoryData.UNKNOWN_REPO_GEN;
-                pendingShards = null;
-                return;
-            }
-            observedGeneration = pendingObservedGeneration;
-            shards = pendingShards;
-            triggerPending = false;
-            pendingObservedGeneration = RepositoryData.UNKNOWN_REPO_GEN;
-            pendingShards = null;
+        requestInFlight = false;
+        waitForTick = accepted == false;
+        final boolean refreshAgain = accepted && triggerPending;
+        final long observedGeneration = pendingObservedGeneration;
+        final Set<ShardId> shards = pendingShards;
+        triggerPending = false;
+        pendingObservedGeneration = RepositoryData.UNKNOWN_REPO_GEN;
+        pendingShards = null;
+        if (refreshAgain) {
+            refresh(Trigger.CLUSTER_STATE, observedGeneration, shards);
         }
-        refresh(Trigger.CLUSTER_STATE, observedGeneration, shards);
     }
 
     /**
      * Stops asking, e.g. because the tracking of the repository was turned off. An answer that is still due is ignored.
      */
-    synchronized void close() {
+    void close() {
         closed = true;
     }
 }

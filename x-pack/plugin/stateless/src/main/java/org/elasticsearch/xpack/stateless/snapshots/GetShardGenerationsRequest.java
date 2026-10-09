@@ -27,28 +27,17 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class GetShardGenerationsRequest extends MasterNodeRequest<GetShardGenerationsRequest> {
 
     private final ProjectRepo projectRepo;
-    private final long repositoryGeneration;
     private final List<ShardId> shardIds;
 
-    /**
-     * @param repositoryGeneration the generation of the repository in the cluster state of the node asking
-     */
-    public GetShardGenerationsRequest(
-        TimeValue masterNodeTimeout,
-        ProjectRepo projectRepo,
-        long repositoryGeneration,
-        List<ShardId> shardIds
-    ) {
+    public GetShardGenerationsRequest(TimeValue masterNodeTimeout, ProjectRepo projectRepo, List<ShardId> shardIds) {
         super(masterNodeTimeout);
         this.projectRepo = projectRepo;
-        this.repositoryGeneration = repositoryGeneration;
         this.shardIds = List.copyOf(shardIds);
     }
 
     public GetShardGenerationsRequest(StreamInput in) throws IOException {
         super(in);
         this.projectRepo = new ProjectRepo(in);
-        this.repositoryGeneration = in.readLong();
         this.shardIds = in.readCollectionAsImmutableList(ShardId::new);
     }
 
@@ -56,7 +45,6 @@ public class GetShardGenerationsRequest extends MasterNodeRequest<GetShardGenera
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         projectRepo.writeTo(out);
-        out.writeLong(repositoryGeneration);
         out.writeCollection(shardIds);
     }
 
@@ -69,10 +57,6 @@ public class GetShardGenerationsRequest extends MasterNodeRequest<GetShardGenera
         return projectRepo;
     }
 
-    public long getRepositoryGeneration() {
-        return repositoryGeneration;
-    }
-
     public List<ShardId> getShardIds() {
         return shardIds;
     }
@@ -82,25 +66,18 @@ public class GetShardGenerationsRequest extends MasterNodeRequest<GetShardGenera
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetShardGenerationsRequest that = (GetShardGenerationsRequest) o;
-        return repositoryGeneration == that.repositoryGeneration
-            && projectRepo.equals(that.projectRepo)
+        return projectRepo.equals(that.projectRepo)
             && shardIds.equals(that.shardIds)
             && Objects.equals(masterNodeTimeout(), that.masterNodeTimeout());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(projectRepo, repositoryGeneration, shardIds, masterNodeTimeout());
+        return Objects.hash(projectRepo, shardIds, masterNodeTimeout());
     }
 
     @Override
     public String toString() {
-        return "GetShardGenerationsRequest{"
-            + projectRepo
-            + ", repositoryGeneration="
-            + repositoryGeneration
-            + ", shards="
-            + shardIds.size()
-            + '}';
+        return "GetShardGenerationsRequest{" + projectRepo + ", shards=" + shardIds.size() + '}';
     }
 }

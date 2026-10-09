@@ -7,42 +7,42 @@
 
 package org.elasticsearch.xpack.stateless.snapshots;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
-import org.elasticsearch.xpack.stateless.StatelessMockRepository;
-import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
-import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotBacklogTracker.RepositoryBacklog;
+import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings.StatelessSnapshotEnabledStatus;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -59,7 +59,7 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(StatelessMockRepositoryPlugin.class);
+        plugins.add(MockRepository.Plugin.class); // to block the reads of a node
         plugins.add(InternalSettingsPlugin.class); // for the setting that turns merging off
         return List.copyOf(plugins);
     }
@@ -73,6 +73,10 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
         return Settings.builder()
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
             .put(SnapshotBacklogTracker.BACKLOG_TRACKING_ENABLED_SETTING.getKey(), true)
+            .put(SnapshotBacklogTracker.EVALUATION_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200))
+            // snapshots as in serverless, where the shard is read through the commit that the snapshots commit service holds
+            .put(StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), StatelessSnapshotEnabledStatus.ENABLED)
+            .put(StatelessSnapshotSettings.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING.getKey(), true)
             // no background flushes, so that the commits are only the ones the test makes
             .put(disableIndexingDiskAndMemoryControllersNodeSettings());
     }
@@ -110,12 +114,42 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
         return backlog[0].bytes();
     }
 
+    /**
+     * @return the files of the latest commit of the only shard of the index, with their lengths
+     */
+    private Map<String, Long> getCommitFiles(String indexName) throws IOException {
+        final var shard = findIndexShard(resolveIndex(indexName), 0);
+        try (var commitRef = shard.acquireLastIndexCommit(false)) {
+            return SnapshotBacklogTracker.getCommitFiles(commitRef.getIndexCommit());
+        }
+    }
+
+    /**
+     * What a snapshot of a shard with the given commit has to upload to a repository that holds the files of another commit, worked out
+     * without the tracker. Right after a snapshot the tracker can briefly report something else, because it is not up to date yet with
+     * what the repository holds now, so the tests wait for this value instead of for the first one that is positive.
+     */
+    private static long expectedBacklog(Map<String, Long> commitFiles, Map<String, Long> repositoryFiles) {
+        long bytes = 0;
+        for (var commitFile : commitFiles.entrySet()) {
+            final boolean inRepository = commitFile.getValue().equals(repositoryFiles.get(commitFile.getKey()));
+            if (inRepository == false && Store.MetadataSnapshot.isReadAsHash(commitFile.getKey()) == false) {
+                bytes += commitFile.getValue();
+            }
+        }
+        return bytes;
+    }
+
     private RepositoryBacklog getBacklog(String node, ProjectRepo repo) {
         final var backlog = internalCluster().getInstance(SnapshotBacklogTracker.class, node).getBacklog().get(repo);
         assertThat(backlog, notNullValue());
         return backlog;
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotShardContextFactory:DEBUG",
+        reason = "to see which way the shard is read for a snapshot"
+    )
     public void testBacklogFollowsSnapshotsAndTheirDeletion() throws Exception {
         final var node = startMasterAndIndexNode(snapshotNodeSettings().build());
         final var indexName = randomIdentifier();
@@ -127,21 +161,35 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
         final var repo = new ProjectRepo(ProjectId.DEFAULT, repoName);
 
         // nothing is in the repository: everything has to be uploaded
-        final long initialBacklog = awaitPositiveKnownBacklog(node, repo);
+        final var firstCommit = getCommitFiles(indexName);
+        final long initialBacklog = expectedBacklog(firstCommit, Map.of());
+        assertThat(initialBacklog, greaterThan(0L));
+        awaitKnownBacklog(node, repo, initialBacklog);
         assertThat(getBacklog(node, repo).countedShards(), equalTo(1));
         assertThat(getBacklog(node, repo).largestShardBytes(), equalTo(initialBacklog));
 
-        // after a snapshot there is nothing left to upload
-        createSnapshot(repoName, "snap", List.of(indexName), List.of());
+        // after a snapshot there is nothing left to upload, whichever way the shard is read for it. That is the way of serverless: the
+        // commit info comes from the snapshots commit service, which logs it
+        MockLog.assertThatLogger(
+            () -> createSnapshot(repoName, "snap", List.of(indexName), List.of()),
+            StatelessSnapshotShardContextFactory.class,
+            new MockLog.SeenEventExpectation(
+                "the stateless snapshot path",
+                StatelessSnapshotShardContextFactory.class.getCanonicalName(),
+                Level.DEBUG,
+                "*acquiring commit info for snapshot*enabled status [ENABLED*"
+            )
+        );
         awaitKnownBacklog(node, repo, 0);
 
         // new data in a new commit is a backlog again, and it is only the new files
         indexAndFlush(indexName);
-        final long newBacklog = awaitPositiveKnownBacklog(node, repo);
+        final var secondCommit = getCommitFiles(indexName);
+        awaitKnownBacklog(node, repo, expectedBacklog(secondCommit, firstCommit));
 
         // without the snapshot, the repository holds nothing again
         assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").get());
-        awaitKnownBacklog(node, repo, initialBacklog + newBacklog);
+        awaitKnownBacklog(node, repo, expectedBacklog(secondCommit, Map.of()));
     }
 
     public void testBacklogOfAShardThatMovedIsUnknownUntilItsFilesAreRead() throws Exception {
@@ -155,19 +203,21 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
         indexAndFlush(indexName);
 
         final var repoName = randomIdentifier();
-        createRepository(repoName, StatelessMockRepositoryPlugin.TYPE);
+        createRepository(repoName, "mock");
         final var repo = new ProjectRepo(ProjectId.DEFAULT, repoName);
 
+        final var firstCommit = getCommitFiles(indexName);
         createSnapshot(repoName, "snap", List.of(indexName), List.of());
         indexAndFlush(indexName);
-        final long backlog = awaitPositiveKnownBacklog(sourceNode, repo);
+        final long backlog = expectedBacklog(getCommitFiles(indexName), firstCommit);
+        assertThat(backlog, greaterThan(0L));
+        awaitKnownBacklog(sourceNode, repo, backlog);
 
         // the target node cannot read anything from the repository for now
-        final var blockedReads = new BlockMetadataReads();
+        final var targetRepository = (MockRepository) internalCluster().getInstance(RepositoriesService.class, targetNode)
+            .repository(ProjectId.DEFAULT, repoName);
+        targetRepository.setBlockOnAnyFiles();
         try {
-            ((StatelessMockRepository) internalCluster().getInstance(RepositoriesService.class, targetNode)
-                .repository(ProjectId.DEFAULT, repoName)).setStrategy(blockedReads);
-
             updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", sourceNode));
             ensureGreen(indexName);
             assertThat(internalCluster().nodesInclude(indexName), equalTo(Set.of(targetNode)));
@@ -180,9 +230,9 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
                 assertThat(unknown.bytes(), equalTo(0L));
             });
             // and the source node does not report it any more
-            assertThat(getBacklog(sourceNode, repo), equalTo(new RepositoryBacklog(0, 0, 0, 0)));
+            assertBusy(() -> assertThat(getBacklog(sourceNode, repo), equalTo(new RepositoryBacklog(0, 0, 0, 0))));
         } finally {
-            blockedReads.proceed.countDown();
+            targetRepository.unblock();
         }
 
         // once the target node has read it, the shard has the backlog it had before it moved
@@ -198,7 +248,6 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
         createIndexWithOneShard(indexName, Settings.builder());
         indexAndFlush(indexName);
         final var repoName = randomIdentifier();
-        createRepository(repoName, "fs");
         final var repo = new ProjectRepo(ProjectId.DEFAULT, repoName);
 
         // a master that does not have the action yet, as during a rolling upgrade
@@ -208,6 +257,7 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
             denied.incrementAndGet();
             channel.sendResponse(new ActionNotFoundTransportException(TransportGetShardGenerationsAction.NAME));
         });
+        createRepository(repoName, "fs");
         try {
             // every evaluation asks again, and the shard stays unknown, never zero
             assertBusy(() -> {
@@ -236,19 +286,24 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
         createRepository(repoName, "fs");
         final var repo = new ProjectRepo(ProjectId.DEFAULT, repoName);
 
-        final long initialBacklog = awaitPositiveKnownBacklog(node, repo);
+        final var firstCommit = getCommitFiles(indexName);
+        awaitKnownBacklog(node, repo, expectedBacklog(firstCommit, Map.of()));
         createSnapshot(repoName, "snap", List.of(indexName), List.of());
-        awaitKnownBacklog(node, repo, 0);
 
-        // the new master has not loaded the repository data yet, and answers from what it reads
+        // The new master has not loaded the repository data yet. The index node forgets what it knows by restarting, before anything is
+        // done with the repository, so that the first thing the new master does with it is to answer the index node
         shutdownMasterNodeGracefully();
         ensureStableCluster(2);
+        internalCluster().restartNode(node);
+        ensureStableCluster(2);
+        ensureGreen(indexName);
         awaitKnownBacklog(node, repo, 0);
 
         indexAndFlush(indexName);
-        final long newBacklog = awaitPositiveKnownBacklog(node, repo);
+        final var secondCommit = getCommitFiles(indexName);
+        awaitKnownBacklog(node, repo, expectedBacklog(secondCommit, firstCommit));
         assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").get());
-        awaitKnownBacklog(node, repo, initialBacklog + newBacklog);
+        awaitKnownBacklog(node, repo, expectedBacklog(secondCommit, Map.of()));
     }
 
     public void testTheMasterTellsTheShardGenerationsOfAllTheShardsAskedFor() {
@@ -305,7 +360,7 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
             GetShardGenerationsResponse.class,
             listener -> client().execute(
                 TransportGetShardGenerationsAction.TYPE,
-                new GetShardGenerationsRequest(TEST_REQUEST_TIMEOUT, missing, RepositoryData.EMPTY_REPO_GEN, shards),
+                new GetShardGenerationsRequest(TEST_REQUEST_TIMEOUT, missing, shards),
                 listener
             )
         );
@@ -316,7 +371,7 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
         return safeGet(
             client().execute(
                 TransportGetShardGenerationsAction.TYPE,
-                new GetShardGenerationsRequest(TEST_REQUEST_TIMEOUT, projectRepo, RepositoryData.EMPTY_REPO_GEN, shards)
+                new GetShardGenerationsRequest(TEST_REQUEST_TIMEOUT, projectRepo, shards)
             )
         );
     }
@@ -368,44 +423,18 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
         createRepository(repoName, "fs");
         final var repo = new ProjectRepo(ProjectId.DEFAULT, repoName);
 
-        // the shard moves to the other node, where it is hollow
+        // the repository has the first commit, and the shard has a backlog of a second one
+        final var firstCommit = getCommitFiles(indexName);
+        createSnapshot(repoName, "snap", List.of(indexName), List.of());
+        indexAndFlush(indexName);
+        final long backlog = expectedBacklog(getCommitFiles(indexName), firstCommit);
+        assertThat(backlog, greaterThan(0L));
+        awaitKnownBacklog(nodeA, repo, backlog);
+
+        // the shard moves to the other node, where it is hollow, and has the same backlog as before
         hollowShards(indexName, 1, nodeA, nodeB);
         assertThat(findIndexShard(resolveIndex(indexName), 0).getEngineOrNull(), instanceOf(HollowIndexEngine.class));
-
-        // it has a backlog like any other shard, and is not unknown
-        awaitPositiveKnownBacklog(nodeB, repo);
+        awaitKnownBacklog(nodeB, repo, backlog);
         assertThat(getBacklog(nodeB, repo).countedShards(), equalTo(1));
-    }
-
-    private static class BlockMetadataReads extends StatelessMockRepositoryStrategy {
-        final CountDownLatch proceed = new CountDownLatch(1);
-
-        @Override
-        public InputStream blobContainerReadBlob(
-            CheckedSupplier<InputStream, IOException> originalSupplier,
-            OperationPurpose purpose,
-            String blobName
-        ) throws IOException {
-            maybeBlock(purpose);
-            return super.blobContainerReadBlob(originalSupplier, purpose, blobName);
-        }
-
-        @Override
-        public InputStream blobContainerReadBlob(
-            CheckedSupplier<InputStream, IOException> originalSupplier,
-            OperationPurpose purpose,
-            String blobName,
-            long position,
-            long length
-        ) throws IOException {
-            maybeBlock(purpose);
-            return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
-        }
-
-        private void maybeBlock(OperationPurpose purpose) {
-            if (purpose == OperationPurpose.SNAPSHOT_METADATA) {
-                safeAwait(proceed);
-            }
-        }
     }
 }

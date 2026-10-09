@@ -82,7 +82,7 @@ public class RepositoryFilesCacheTests extends ESTestCase {
 
     private final FakeRepository repository = new FakeRepository();
     private final ManualExecutor executor = new ManualExecutor();
-    private final RepositoryFilesCache cache = new RepositoryFilesCache("repo", repository, executor);
+    private final RepositoryFilesCache cache = new RepositoryFilesCache("repo", repository, executor, Runnable::run);
     private final ShardId shard0 = new ShardId(new Index("index", "index-uuid"), 0);
     private final ShardId shard1 = new ShardId(new Index("index", "index-uuid"), 1);
     private final ShardGeneration gen0 = new ShardGeneration("gen0");
@@ -253,5 +253,36 @@ public class RepositoryFilesCacheTests extends ESTestCase {
 
         cache.onShardGenerations(2, generations(gen1));
         assertThat(cache.getRepositoryGeneration(), equalTo(1L));
+    }
+
+    public void testTheResultOfAReadIsHandedBackToTheStateExecutor() {
+        final var stateExecutor = new ManualExecutor();
+        final var cache = new RepositoryFilesCache("repo", repository, executor, stateExecutor);
+        repository.shardFiles.put(gen0, shardSnapshots("_0.cfs", 10L));
+        cache.onShardGenerations(1, generations(gen0));
+        assertThat(cache.getShardFiles(shard0), nullValue());
+
+        // the read ran, but its result is only there once the state executor has it
+        executor.runAll();
+        assertThat(repository.shardReads, contains(gen0));
+        assertThat(cache.getShardFiles(shard0), nullValue());
+        stateExecutor.runAll();
+        assertTrue(holds(cache.getShardFiles(shard0), "_0.cfs", 10));
+    }
+
+    public void testTheResultOfAReadOfAShardThatLeftMeanwhileIsDropped() {
+        final var stateExecutor = new ManualExecutor();
+        final var cache = new RepositoryFilesCache("repo", repository, executor, stateExecutor);
+        repository.shardFiles.put(gen0, shardSnapshots("_0.cfs", 10L));
+        cache.onShardGenerations(1, generations(gen0));
+        cache.getShardFiles(shard0);
+        executor.runAll();
+        cache.retainShards(Set.of());
+        stateExecutor.runAll();
+
+        repository.shardReads.clear();
+        cache.onShardGenerations(2, generations(gen0));
+        assertThat(cache.getShardFiles(shard0), nullValue()); // not the result of the read for the shard that had left
+        assertThat(executor.runAll(), equalTo(1));
     }
 }

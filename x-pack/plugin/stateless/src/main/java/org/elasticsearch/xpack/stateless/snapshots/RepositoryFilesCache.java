@@ -17,12 +17,11 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGeneration;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 
 /**
@@ -36,7 +35,9 @@ import java.util.concurrent.Executor;
  * {@link #getShardFiles} returns {@code null} for it and starts the read, instead of pretending the repository holds nothing or
  * everything.
  * <p>
- * All repository reads run on the executor given to the constructor, which is what limits how many run at the same time.
+ * All repository reads run on the read executor given to the constructor, which is what limits how many run at the same time. The state
+ * of the cache is only ever changed, and read, on the state executor: a single thread at a time, which the results of reads are handed
+ * back to, so that the cache needs no synchronization and an update cannot be lost to a concurrent one.
  */
 class RepositoryFilesCache {
 
@@ -57,23 +58,30 @@ class RepositoryFilesCache {
     private final String repositoryName;
     private final Reader reader;
     private final Executor readExecutor;
+    private final Executor stateExecutor;
 
     // The repository generation the shard generations are from, and the shard generations: a shard that is a key has been answered by the
     // master, and has the generation of its value, or none (null) if the repository holds no shard-level metadata for it. A shard that is
     // not a key is unknown. Replaced as a whole, so that all of them are from the same repository generation.
-    private volatile long repositoryGeneration = RepositoryData.UNKNOWN_REPO_GEN;
-    private volatile Map<ShardId, RepositoryShardGeneration> shardGenerations = Map.of();
+    private long repositoryGeneration = RepositoryData.UNKNOWN_REPO_GEN;
+    private Map<ShardId, RepositoryShardGeneration> shardGenerations = new HashMap<>();
 
     // Every local shard we have been asked about, and the file lists we have read so far
-    private final Set<ShardId> knownShards = ConcurrentHashMap.newKeySet();
-    private final Map<ShardId, RepositoryShardFiles> shardFiles = new ConcurrentHashMap<>();
-    private final Set<ShardRead> readsInFlight = ConcurrentHashMap.newKeySet();
+    private final Set<ShardId> knownShards = new HashSet<>();
+    private final Map<ShardId, RepositoryShardFiles> shardFiles = new HashMap<>();
+    private final Set<ShardRead> readsInFlight = new HashSet<>();
+    // read by the reads that have been queued, which run on other threads
     private volatile boolean closed;
 
-    RepositoryFilesCache(String repositoryName, Reader reader, Executor readExecutor) {
+    /**
+     * @param readExecutor  runs the reads of the repository, and limits how many of them run at the same time
+     * @param stateExecutor runs everything that uses or changes the state of the cache, one task at a time
+     */
+    RepositoryFilesCache(String repositoryName, Reader reader, Executor readExecutor, Executor stateExecutor) {
         this.repositoryName = repositoryName;
         this.reader = reader;
         this.readExecutor = readExecutor;
+        this.stateExecutor = stateExecutor;
     }
 
     /**
@@ -88,7 +96,7 @@ class RepositoryFilesCache {
         if (closed) {
             return;
         }
-        this.shardGenerations = Collections.unmodifiableMap(new HashMap<>(latest));
+        this.shardGenerations = new HashMap<>(latest);
         this.repositoryGeneration = repositoryGeneration;
         // read the new file lists of the shards we know about right away, rather than when they are next asked for
         List.copyOf(knownShards).forEach(this::getShardFiles);
@@ -115,11 +123,10 @@ class RepositoryFilesCache {
     @Nullable
     RepositoryShardFiles getShardFiles(ShardId shardId) {
         knownShards.add(shardId);
-        final Map<ShardId, RepositoryShardGeneration> generations = shardGenerations;
-        if (generations.containsKey(shardId) == false) {
+        if (shardGenerations.containsKey(shardId) == false) {
             return null; // not even the shard generation is known yet
         }
-        final RepositoryShardGeneration latest = generations.get(shardId);
+        final RepositoryShardGeneration latest = shardGenerations.get(shardId);
         if (latest == null) {
             // The repository has no shard-level metadata for this shard, so it holds none of its files
             return RepositoryShardFiles.NONE;
@@ -138,27 +145,36 @@ class RepositoryFilesCache {
         }
         try {
             readExecutor.execute(() -> {
-                try {
-                    if (closed) {
-                        return;
+                RepositoryShardFiles files = null;
+                if (closed == false) {
+                    try {
+                        files = RepositoryShardFiles.of(
+                            latest.generation(),
+                            reader.readShardSnapshots(latest.indexId(), shardId.id(), latest.generation())
+                        );
+                    } catch (Exception e) {
+                        // e.g. a NoSuchFileException because the generation has been replaced by a newer one: the next evaluation asks
+                        // again
+                        logger.debug(
+                            () -> "[" + repositoryName + "] failed to read the files of shard " + shardId + " at " + latest.generation(),
+                            e
+                        );
                     }
-                    final var snapshots = reader.readShardSnapshots(latest.indexId(), shardId.id(), latest.generation());
-                    if (knownShards.contains(shardId)) {
-                        shardFiles.put(shardId, RepositoryShardFiles.of(latest.generation(), snapshots));
-                    }
-                } catch (Exception e) {
-                    // e.g. a NoSuchFileException because the generation has been replaced by a newer one: the next evaluation asks again
-                    logger.debug(
-                        () -> "[" + repositoryName + "] failed to read the files of shard " + shardId + " at " + latest.generation(),
-                        e
-                    );
-                } finally {
-                    readsInFlight.remove(read);
                 }
+                final var readFiles = files;
+                stateExecutor.execute(() -> onShardFilesRead(read, readFiles));
             });
         } catch (Exception e) {
             readsInFlight.remove(read);
             logger.debug(() -> "[" + repositoryName + "] failed to start reading the files of shard " + shardId, e);
+        }
+    }
+
+    private void onShardFilesRead(ShardRead read, @Nullable RepositoryShardFiles files) {
+        readsInFlight.remove(read);
+        // a shard that left this node meanwhile is not kept
+        if (files != null && closed == false && knownShards.contains(read.shardId())) {
+            shardFiles.put(read.shardId(), files);
         }
     }
 
@@ -168,12 +184,7 @@ class RepositoryFilesCache {
     void retainShards(Set<ShardId> shardsOnThisNode) {
         knownShards.retainAll(shardsOnThisNode);
         shardFiles.keySet().retainAll(shardsOnThisNode);
-        final var generations = shardGenerations;
-        if (shardsOnThisNode.containsAll(generations.keySet()) == false) {
-            final Map<ShardId, RepositoryShardGeneration> retained = new HashMap<>(generations);
-            retained.keySet().retainAll(shardsOnThisNode);
-            shardGenerations = Collections.unmodifiableMap(retained);
-        }
+        shardGenerations.keySet().retainAll(shardsOnThisNode);
     }
 
     /**

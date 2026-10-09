@@ -344,6 +344,19 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         return maps.current.isUnsafe() || maps.old.isUnsafe() || archive.isUnsafe();
     }
 
+    /**
+     * Returns the committed segment generation that contains every unsafe operation this map has no record of,
+     * or -1 if the live maps are unsafe (their operations are not committed yet) or no committed generation
+     * covers the archive's unsafe operations. See {@link LiveVersionMapArchive#safeGenerationForGets}.
+     */
+    long safeGenerationForGets(long lastCommittedGeneration) {
+        Maps maps = this.maps;
+        if (maps.current.isUnsafe() || maps.old.isUnsafe()) {
+            return -1;
+        }
+        return archive.safeGenerationForGets(lastCommittedGeneration);
+    }
+
     void enforceSafeAccess() {
         maps.needsSafeAccess = true;
     }

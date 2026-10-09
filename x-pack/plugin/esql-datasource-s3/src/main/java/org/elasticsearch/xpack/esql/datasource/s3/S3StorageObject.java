@@ -812,6 +812,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 throw archived;
             }
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
+                // Only reachable after the first range GET already failed for some OTHER reason, so this retries
+                // that transient failure rather than a denial. A denied first GET never arrives here: probeObject
+                // throws on its own 403 instead of trying HEAD.
                 probeObjectViaRangeGet();
             } else {
                 throw throwReadFailure("HeadObject request failed for", e);

@@ -2534,9 +2534,11 @@ public class ExternalSourceResolver {
      *   <li><b>Per-file merge succeeded</b> — write-through on the FIRST such merge for this file set
      *   (i.e. the prefetch missed): memoize its row count under the dataset key so the NEXT warm query
      *   survives per-file entry loss (LRU pressure) without re-merging. A later warm resolve whose
-     *   prefetch already hit skips the re-put (the entry is current and was just revived).</li>
+     *   prefetch already hit skips the re-put (the entry is already there, and reading it does not
+     *   extend its expiry).</li>
      *   <li><b>Per-file merge failed, prefetch hit</b> — serve the memoized aggregate. The prefetch was
-     *   read (and TTL/LRU-revived) BEFORE the per-file gather on purpose: under cache pressure the
+     *   read BEFORE the per-file gather on purpose (a read promotes it in the LRU; it does not extend
+     *   its expiry): under cache pressure the
      *   gather's own {@code putSchema} calls can evict the dataset entry, so reading it after the gather
      *   would lose exactly the entry this fallback exists to serve. The served map is row-count-only
      *   ({@code _stats.row_count}), so only COUNT(*) warms from it — MIN/MAX keep re-scanning until the

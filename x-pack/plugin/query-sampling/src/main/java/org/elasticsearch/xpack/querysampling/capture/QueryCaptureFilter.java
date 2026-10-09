@@ -31,9 +31,11 @@ import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Stage 1 of the pipeline: picks kNN searches on the coordinating node and hands a copy of them to the
@@ -50,6 +52,7 @@ public final class QueryCaptureFilter implements MappedActionFilter {
     private static final Logger logger = LogManager.getLogger(QueryCaptureFilter.class);
 
     private final Consumer<CapturedSearch> consumer;
+    private final Supplier<Random> random;
     private volatile boolean enabled;
     private final CaptureRate captureRate = new CaptureRate(0, 0);
     private long knnSearchesAtLastUpdate;
@@ -57,7 +60,15 @@ public final class QueryCaptureFilter implements MappedActionFilter {
     private final LongAdder captured = new LongAdder();
 
     public QueryCaptureFilter(ClusterSettings clusterSettings, Consumer<CapturedSearch> consumer) {
+        this(clusterSettings, consumer, Randomness::get);
+    }
+
+    /**
+     * @param random the source of the coin flip of the gate, which is looked up for every search
+     */
+    public QueryCaptureFilter(ClusterSettings clusterSettings, Consumer<CapturedSearch> consumer, Supplier<Random> random) {
         this.consumer = consumer;
+        this.random = random;
         clusterSettings.initializeAndWatch(QuerySamplingSettings.ENABLED, value -> this.enabled = value);
         clusterSettings.initializeAndWatch(QuerySamplingSettings.CAPTURE_RATE, captureRate::configured);
         clusterSettings.initializeAndWatch(QuerySamplingSettings.MIN_CAPTURES_PER_HOUR, captureRate::minPerHour);
@@ -119,7 +130,7 @@ public final class QueryCaptureFilter implements MappedActionFilter {
             }
             // read once: the draw and the rate recorded with the search must be the same value
             double rate = captureRate.effective();
-            if (knn != null && Randomness.get().nextDouble() < rate) {
+            if (knn != null && random.get().nextDouble() < rate) {
                 captured.increment();
                 try {
                     searchListener = withResults(listener, capture(task, searchRequest, knn), rate);

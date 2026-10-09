@@ -18,6 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.DocumentExtractionRequest;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -33,6 +34,7 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -55,12 +57,14 @@ import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedNonStreamingChatCompletionException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveInferenceTimeout;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedCacheControlUnifiedCompletionOperation;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedDocumentExtractionOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedReasoningUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedSessionIdUnifiedCompletionOperation;
@@ -100,6 +104,10 @@ public abstract class SenderService<M extends Model> implements InferenceService
         return serviceComponents;
     }
 
+    protected int getRegexReadLimitFactor() {
+        return clusterService.getClusterSettings().get(RecursiveChunkingSettings.REGEX_READ_LIMIT_FACTOR_SETTING);
+    }
+
     @Override
     public void infer(
         Model model,
@@ -133,7 +141,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
             ChunkingSettings chunkingSettings = null;
             if (CHUNKING_TASK_TYPES.contains(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS),
+                    true,
+                    true
                 );
             }
 
@@ -252,16 +262,20 @@ public abstract class SenderService<M extends Model> implements InferenceService
     ) {
         try {
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, CHAT_COMPLETION);
-            if (supportsChatCompletionReasoning() == false && request.containsChatCompletionReasoning()) {
+            var body = request.body();
+            if (supportsChatCompletionReasoning() == false && body.containsChatCompletionReasoning()) {
                 throwUnsupportedReasoningUnifiedCompletionOperation(name());
             }
-            if (supportsChatCompletionCacheControl() == false && request.containsChatCompletionCacheControl()) {
+            if (supportsChatCompletionCacheControl() == false && body.containsChatCompletionCacheControl()) {
                 throwUnsupportedCacheControlUnifiedCompletionOperation(name());
             }
-            if (supportsChatCompletionSessionId() == false && request.containsSessionId()) {
+            if (supportsChatCompletionSessionId() == false && body.containsSessionId()) {
                 throwUnsupportedSessionIdUnifiedCompletionOperation(name());
             }
-            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), resolvedInferenceTimeout, listener);
+            if (request.stream() == false && supportsNonStreamingChatCompletion() == false) {
+                throw createUnsupportedNonStreamingChatCompletionException(name());
+            }
+            doUnifiedCompletionInfer(model, new UnifiedChatInput(request), resolvedInferenceTimeout, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -356,6 +370,21 @@ public abstract class SenderService<M extends Model> implements InferenceService
     }
 
     @Override
+    public void documentExtractionInfer(
+        Model model,
+        DocumentExtractionRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        try {
+            var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, model.getTaskType());
+            doDocumentExtractionInfer(model, request, resolvedInferenceTimeout, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    @Override
     public void chunkedInfer(
         Model model,
         List<ChunkInferenceInput> input,
@@ -421,6 +450,15 @@ public abstract class SenderService<M extends Model> implements InferenceService
 
     protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         throw new IllegalStateException(Strings.format("New rerank code path invoked for %s service that does not support it", name()));
+    }
+
+    protected void doDocumentExtractionInfer(
+        Model model,
+        DocumentExtractionRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throwUnsupportedDocumentExtractionOperation(name());
     }
 
     protected abstract void doChunkedInfer(

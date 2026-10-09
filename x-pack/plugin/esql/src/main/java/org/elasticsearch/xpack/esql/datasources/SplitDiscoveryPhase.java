@@ -8,21 +8,35 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Streaming;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -31,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
 
@@ -60,6 +75,8 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.split
  */
 public final class SplitDiscoveryPhase {
 
+    private static final Logger LOGGER = LogManager.getLogger(SplitDiscoveryPhase.class);
+
     private SplitDiscoveryPhase() {}
 
     /**
@@ -67,9 +84,14 @@ public final class SplitDiscoveryPhase {
      * that guard it — the seed for its partition pruning. Empty {@code filters} means the relation is unfiltered and
      * every file must be read.
      */
-    public record GuardedRelation(ExternalRelation relation, List<Expression> filters) {
+    public record GuardedRelation(ExternalRelation relation, List<Expression> filters, int rowLimit) {
         public GuardedRelation {
             filters = List.copyOf(filters);
+        }
+
+        /** A relation with no limit above it, or one the commands in between make no promise about. */
+        public GuardedRelation(ExternalRelation relation, List<Expression> filters) {
+            this(relation, filters, FormatReader.NO_LIMIT);
         }
     }
 
@@ -89,16 +111,26 @@ public final class SplitDiscoveryPhase {
      */
     public static List<GuardedRelation> guardedRelations(LogicalPlan fragment) {
         List<GuardedRelation> guarded = new ArrayList<>();
-        collectGuardedRelations(fragment, List.of(), guarded);
+        collectGuardedRelations(fragment, List.of(), FormatReader.NO_LIMIT, guarded);
         return guarded;
     }
 
-    private static void collectGuardedRelations(LogicalPlan plan, List<Expression> ancestorFilters, List<GuardedRelation> guarded) {
+    private static void collectGuardedRelations(
+        LogicalPlan plan,
+        List<Expression> ancestorFilters,
+        int rowLimit,
+        List<GuardedRelation> guarded
+    ) {
         if (plan instanceof ExternalRelation external) {
-            guarded.add(new GuardedRelation(external, ancestorFilters));
+            guarded.add(new GuardedRelation(external, ancestorFilters, rowLimit));
             return;
         }
 
+        // How many rows the relation below is asked for, carried only through commands that promise not to change
+        // that count: {@link Streaming} is the marker for exactly that promise, so LIMIT X | CMD and CMD | LIMIT X
+        // agree. Anything else - a filter, a sort, an aggregate, an expansion - and the count below stops being
+        // knowable from the limit above, so nothing is carried.
+        int limitForChildren = limitForChildren(plan, rowLimit);
         List<Expression> filtersForChildren = PartitionPruningRule.rowPreserving(plan) ? ancestorFilters : List.of();
         if (plan instanceof Filter filter) {
             List<Expression> extended = new ArrayList<>(filtersForChildren);
@@ -107,8 +139,22 @@ public final class SplitDiscoveryPhase {
         }
 
         for (LogicalPlan child : plan.children()) {
-            collectGuardedRelations(child, filtersForChildren, guarded);
+            collectGuardedRelations(child, filtersForChildren, limitForChildren, guarded);
         }
+    }
+
+    /**
+     * The row demand to carry past {@code plan}. A {@link Limit} sets it, and the smaller of two nested limits wins
+     * because the outer one cannot ask for more than the inner one produced. A {@link Streaming} command passes it
+     * through by contract. Everything else discards it.
+     */
+    private static int limitForChildren(LogicalPlan plan, int rowLimit) {
+        // A parsed LIMIT is an INTEGER literal, which is a Java Integer; anything else is not a limit this can read
+        // and leaves the demand unset rather than guessing at it.
+        if (plan instanceof Limit limit && limit.limit() instanceof Literal literal && literal.value() instanceof Integer value) {
+            return rowLimit == FormatReader.NO_LIMIT ? value : Math.min(rowLimit, value);
+        }
+        return plan instanceof Streaming ? rowLimit : FormatReader.NO_LIMIT;
     }
 
     /**
@@ -126,22 +172,46 @@ public final class SplitDiscoveryPhase {
      *                      listed file sizes for a whole-list fall-through; either way only positive sizes are
      *                      summed
      */
-    public record Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned, long cpuNanos) {
+    public record Result(
+        PhysicalPlan plan,
+        int filesScanned,
+        int splitsScanned,
+        long bytesScanned,
+        long cpuNanos,
+        // What discovery has to tell the query's author, gathered from every relation it resolved. The caller
+        // raises these on the request's own thread context; nothing here can.
+        List<String> warnings,
+        int splitDiscoveryProbes
+    ) {
         /** Backwards-compatible constructor without cpuNanos (defaults to 0). */
         public Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned) {
             this(plan, filesScanned, splitsScanned, bytesScanned, 0L);
+        }
+
+        public Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned, long cpuNanos) {
+            this(plan, filesScanned, splitsScanned, bytesScanned, cpuNanos, List.of(), 0);
+        }
+
+        public Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned, long cpuNanos, List<String> warnings) {
+            this(plan, filesScanned, splitsScanned, bytesScanned, cpuNanos, warnings, 0);
         }
     }
 
     /** Mutable accumulator threaded through the recursive walk. */
     private static final class ScanStats {
+        private final List<String> warnings = new ArrayList<>();
         private int filesScanned;
         private int splitsScanned;
         private long bytesScanned;
         private long cpuNanos;
+        private int splitDiscoveryProbes;
     }
 
-    public static PhysicalPlan resolveExternalSplits(PhysicalPlan plan, Map<String, ExternalSourceFactory> sourceFactories) {
+    /**
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
+     */
+    static PhysicalPlan resolveExternalSplits(PhysicalPlan plan, Map<String, ExternalSourceFactory> sourceFactories) {
         return resolveExternalSplits(
             plan,
             sourceFactories,
@@ -149,19 +219,22 @@ public final class SplitDiscoveryPhase {
         );
     }
 
-    public static PhysicalPlan resolveExternalSplits(
-        PhysicalPlan plan,
-        Map<String, ExternalSourceFactory> sourceFactories,
-        int maxRecordBytes
-    ) {
+    /**
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
+     */
+    static PhysicalPlan resolveExternalSplits(PhysicalPlan plan, Map<String, ExternalSourceFactory> sourceFactories, int maxRecordBytes) {
         return resolveExternalSplitsWithStats(plan, sourceFactories, maxRecordBytes).plan();
     }
 
     /**
      * Like {@link #resolveExternalSplits}, but also returns the post-prune scanned counts aggregated
      * across every {@link ExternalSourceExec} in the plan.
+     * <p>
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
      */
-    public static Result resolveExternalSplitsWithStats(
+    static Result resolveExternalSplitsWithStats(
         PhysicalPlan plan,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes
@@ -172,8 +245,11 @@ public final class SplitDiscoveryPhase {
     /**
      * Like {@link #resolveExternalSplitsWithStats(PhysicalPlan, Map, int)}, but threads a cancellation
      * signal into each {@link SplitDiscoveryContext} so a long-running discovery aborts promptly on cancel.
+     * <p>
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
      */
-    public static Result resolveExternalSplitsWithStats(
+    static Result resolveExternalSplitsWithStats(
         PhysicalPlan plan,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
@@ -195,25 +271,141 @@ public final class SplitDiscoveryPhase {
      * <p>The seed is not blindly trusted: {@link #resolveExternalSource} binds each conjunct to the relation's output by
      * {@link NameId} before it may prune, so a filter over a downstream-generated column that merely shares a partition
      * column's name cannot mis-prune.
+     * <p>
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
      */
-    public static Result resolveExternalSplitsWithStats(
+    static Result resolveExternalSplitsWithStats(
         PhysicalPlan plan,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
         BooleanSupplier isCancelled,
         List<Expression> seedFilters
     ) {
+        return resolveExternalSplitsWithStats(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            FormatReader.NO_LIMIT,
+            PlanningMemory.NONE
+        );
+    }
+
+    /**
+     * As above, and seeds the row demand the same way the filters are seeded: how many rows the query needs from the
+     * relation below, as {@link #guardedRelations} recovered it from the fragment before the relation was lowered.
+     * <p>
+     * The seed reaches only a relation that is {@code plan} itself. The physical walk below never carries it into a
+     * child, because it has no rule for which nodes preserve a row count - {@link #guardedRelations} does, on the
+     * logical plan, and that is where the demand is decided. A demand carried through a filter would stop the scan
+     * once the unfiltered rows covered it and answer the filtered LIMIT short, with nothing to say so.
+     * <p>
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
+     */
+    static Result resolveExternalSplitsWithStats(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        PlanningMemory listingMemory
+    ) {
+        return resolveExternalSplitsWithStats(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            seedRowLimit,
+            listingMemory,
+            0
+        );
+    }
+
+    /** As above, carrying {@code task_concurrency} so discovery sizes LIMIT cuts to the planner's drivers.
+     * <p>
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
+     */
+    static Result resolveExternalSplitsWithStats(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        PlanningMemory listingMemory,
+        int taskConcurrency
+    ) {
+        return resolveExternalSplitsWithStats(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            seedRowLimit,
+            listingMemory,
+            taskConcurrency,
+            TransportVersion.current()
+        );
+    }
+
+    /**
+     * As above, carrying the minimum transport version of the nodes that will read the splits, so a split provider never
+     * emits a split shape an older node cannot read. Production callers must use this overload and pass the cluster's
+     * minimum transport version: the narrower overloads assume every node runs this build, and are for tests only.
+     */
+    public static Result resolveExternalSplitsWithStats(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        PlanningMemory listingMemory,
+        int taskConcurrency,
+        TransportVersion minTransportVersion
+    ) {
         ScanStats stats = new ScanStats();
-        PhysicalPlan resolved = resolveRecursive(plan, seedFilters, sourceFactories, maxRecordBytes, stats, isCancelled);
-        return new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned, stats.cpuNanos);
+        Traversal traversal = new Traversal(
+            sourceFactories,
+            maxRecordBytes,
+            stats,
+            isCancelled,
+            listingMemory,
+            taskConcurrency,
+            minTransportVersion
+        );
+        ExternalPlanningIo planningIo = ExternalPlanningIo.current();
+        PhysicalPlan resolved;
+        try (Releasable ignored = ExternalPlanningIo.activate(planningIo)) {
+            resolved = resolveRecursive(plan, seedFilters, seedRowLimit, traversal);
+        }
+        return new Result(
+            resolved,
+            stats.filesScanned,
+            stats.splitsScanned,
+            stats.bytesScanned,
+            stats.cpuNanos,
+            List.copyOf(stats.warnings),
+            stats.splitDiscoveryProbes
+        );
     }
 
     /**
      * Async counterpart of {@link #resolveExternalSplitsWithStats(PhysicalPlan, Map, int, BooleanSupplier, List)}.
-     * Used by {@code ComputeService} so the inbound {@code SEARCH}/{@code esql_external_io} thread is not
-     * held in a gather latch. Sync {@link #resolveExternalSplits} remains for unit tests on the test thread.
+     * {@code ComputeService} uses the async form (through the overload taking the minimum transport version) so the
+     * inbound {@code SEARCH}/{@code esql_external_io} thread is not held in a gather latch. Sync
+     * {@link #resolveExternalSplits} remains for unit tests on the test thread.
+     * <p>
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
      */
-    public static void resolveExternalSplitsWithStatsAsync(
+    static void resolveExternalSplitsWithStatsAsync(
         PhysicalPlan plan,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
@@ -222,33 +414,164 @@ public final class SplitDiscoveryPhase {
         Executor executor,
         ActionListener<Result> listener
     ) {
+        resolveExternalSplitsWithStatsAsync(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            FormatReader.NO_LIMIT,
+            PlanningMemory.NONE,
+            executor,
+            listener
+        );
+    }
+
+    /** As above, carrying the row demand {@link #guardedRelations} recovered for the relation below.
+     * <p>
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
+     */
+    static void resolveExternalSplitsWithStatsAsync(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        PlanningMemory listingMemory,
+        Executor executor,
+        ActionListener<Result> listener
+    ) {
+        resolveExternalSplitsWithStatsAsync(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            seedRowLimit,
+            listingMemory,
+            0,
+            executor,
+            listener
+        );
+    }
+
+    /** As above, carrying {@code task_concurrency} so discovery sizes LIMIT cuts to the planner's drivers.
+     * <p>
+     * Tests only: plans for a cluster where every node runs this build. Production callers must pass the minimum transport
+     * version through the overload that takes it.
+     */
+    static void resolveExternalSplitsWithStatsAsync(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        PlanningMemory listingMemory,
+        int taskConcurrency,
+        Executor executor,
+        ActionListener<Result> listener
+    ) {
+        resolveExternalSplitsWithStatsAsync(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            seedRowLimit,
+            listingMemory,
+            taskConcurrency,
+            TransportVersion.current(),
+            executor,
+            listener
+        );
+    }
+
+    /**
+     * As above, carrying the minimum transport version of the nodes that will read the splits, so a split provider never
+     * emits a split shape an older node cannot read. Production callers must use this overload and pass the cluster's
+     * minimum transport version: the narrower overloads assume every node runs this build, and are for tests only.
+     */
+    public static void resolveExternalSplitsWithStatsAsync(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        PlanningMemory listingMemory,
+        int taskConcurrency,
+        TransportVersion minTransportVersion,
+        Executor executor,
+        ActionListener<Result> listener
+    ) {
         ActionListener.run(listener, l -> {
             ScanStats stats = new ScanStats();
+            ExternalPlanningIo planningIo = ExternalPlanningIo.current();
             resolveRecursiveAsync(
                 plan,
                 seedFilters,
-                sourceFactories,
-                maxRecordBytes,
-                stats,
-                isCancelled,
-                executor,
-                l.map(resolved -> new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned, stats.cpuNanos))
+                seedRowLimit,
+                new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory, taskConcurrency, minTransportVersion),
+                wrapPlanningIo(executor, planningIo),
+                l.map(
+                    resolved -> new Result(
+                        resolved,
+                        stats.filesScanned,
+                        stats.splitsScanned,
+                        stats.bytesScanned,
+                        stats.cpuNanos,
+                        List.copyOf(stats.warnings),
+                        stats.splitDiscoveryProbes
+                    )
+                )
             );
         });
     }
 
-    private static void resolveRecursiveAsync(
-        PhysicalPlan plan,
-        List<Expression> ancestorFilters,
+    /**
+     * What one call to this phase holds constant across every relation in the plan. The per-node values - the
+     * plan node, the filters standing above it, the row demand reaching it - stay parameters, because those are
+     * what the recursion varies. These do not vary, and threading them one by one grew every signature in the
+     * recursion each time one was added.
+     * <p>
+     * {@code stats} is an accumulator the traversal writes as it goes, not a value: this carries the reference
+     * the whole traversal shares. The executor is deliberately absent - only the async path has one, and a
+     * nullable field here would fuse "which way we traverse" into the values being traversed with.
+     */
+    private static Executor wrapPlanningIo(Executor executor, ExternalPlanningIo planningIo) {
+        if (planningIo == null) {
+            return executor;
+        }
+        return ExternalIoExecutors.preserving(executor, command -> {
+            try (var ignored = ExternalPlanningIo.activate(planningIo)) {
+                command.run();
+            }
+        });
+    }
+
+    private record Traversal(
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
         ScanStats stats,
         BooleanSupplier isCancelled,
+        PlanningMemory listingMemory,
+        int taskConcurrency,
+        TransportVersion minTransportVersion
+    ) {}
+
+    private static void resolveRecursiveAsync(
+        PhysicalPlan plan,
+        List<Expression> ancestorFilters,
+        int rowLimit,
+        Traversal traversal,
         Executor executor,
         ActionListener<PhysicalPlan> listener
     ) {
         if (plan instanceof ExternalSourceExec exec) {
-            resolveExternalSourceAsync(exec, ancestorFilters, sourceFactories, maxRecordBytes, stats, isCancelled, executor, listener);
+            resolveExternalSourceAsync(exec, ancestorFilters, rowLimit, traversal, executor, listener);
             return;
         }
 
@@ -273,10 +596,8 @@ public final class SplitDiscoveryPhase {
             0,
             new ArrayList<>(children.size()),
             filtersForChildren,
-            sourceFactories,
-            maxRecordBytes,
-            stats,
-            isCancelled,
+            FormatReader.NO_LIMIT,
+            traversal,
             executor,
             listener
         );
@@ -288,10 +609,8 @@ public final class SplitDiscoveryPhase {
         int index,
         List<PhysicalPlan> newChildren,
         List<Expression> filtersForChildren,
-        Map<String, ExternalSourceFactory> sourceFactories,
-        int maxRecordBytes,
-        ScanStats stats,
-        BooleanSupplier isCancelled,
+        int rowLimit,
+        Traversal traversal,
         Executor executor,
         ActionListener<PhysicalPlan> listener
     ) {
@@ -317,40 +636,19 @@ public final class SplitDiscoveryPhase {
         resolveRecursiveAsync(
             children.get(index),
             filtersForChildren,
-            sourceFactories,
-            maxRecordBytes,
-            stats,
-            isCancelled,
+            rowLimit,
+            traversal,
             executor,
             listener.delegateFailureAndWrap((l, resolved) -> {
                 newChildren.add(resolved);
-                resolveChildrenAsync(
-                    plan,
-                    children,
-                    index + 1,
-                    newChildren,
-                    filtersForChildren,
-                    sourceFactories,
-                    maxRecordBytes,
-                    stats,
-                    isCancelled,
-                    executor,
-                    l
-                );
+                resolveChildrenAsync(plan, children, index + 1, newChildren, filtersForChildren, rowLimit, traversal, executor, l);
             })
         );
     }
 
-    private static PhysicalPlan resolveRecursive(
-        PhysicalPlan plan,
-        List<Expression> ancestorFilters,
-        Map<String, ExternalSourceFactory> sourceFactories,
-        int maxRecordBytes,
-        ScanStats stats,
-        BooleanSupplier isCancelled
-    ) {
+    private static PhysicalPlan resolveRecursive(PhysicalPlan plan, List<Expression> ancestorFilters, int rowLimit, Traversal traversal) {
         if (plan instanceof ExternalSourceExec exec) {
-            return resolveExternalSource(exec, ancestorFilters, sourceFactories, maxRecordBytes, stats, isCancelled);
+            return resolveExternalSource(exec, ancestorFilters, rowLimit, traversal);
         }
 
         List<Expression> filtersForChildren = PartitionPruningRule.rowPreserving(plan) ? ancestorFilters : List.of();
@@ -370,7 +668,7 @@ public final class SplitDiscoveryPhase {
         boolean changed = false;
         List<PhysicalPlan> newChildren = new ArrayList<>(children.size());
         for (PhysicalPlan child : children) {
-            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, sourceFactories, maxRecordBytes, stats, isCancelled);
+            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, FormatReader.NO_LIMIT, traversal);
             if (resolved != child) {
                 changed = true;
             }
@@ -390,24 +688,17 @@ public final class SplitDiscoveryPhase {
     private static PhysicalPlan resolveExternalSource(
         ExternalSourceExec exec,
         List<Expression> ancestorFilters,
-        Map<String, ExternalSourceFactory> sourceFactories,
-        int maxRecordBytes,
-        ScanStats stats,
-        BooleanSupplier isCancelled
+        int rowLimit,
+        Traversal traversal
     ) {
-        ExternalSourceFactory factory = sourceFactories.get(exec.sourceType());
+        ExternalSourceFactory factory = traversal.sourceFactories().get(exec.sourceType());
         SplitProvider splitProvider = factory != null ? factory.splitProvider() : SplitProvider.SINGLE;
 
         FileList fileList = exec.fileList();
         PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
 
-        List<Attribute> queryDataAttributes = new ArrayList<>(exec.output().size());
-        for (Attribute attr : exec.output()) {
-            if (attr instanceof MetadataAttribute == false) {
-                queryDataAttributes.add(attr);
-            }
-        }
-        ExternalSchema querySchema = new ExternalSchema(queryDataAttributes);
+        // Partition columns must survive: FileSplitProvider.buildSurvivors strips them via stripPartitionColumns.
+        ExternalSchema querySchema = ExternalSchema.dataAttributesOf(exec.output());
 
         // Bind filter hints to the relation's output by NameId, not by name. A downstream EVAL/DISSECT/GROK/ENRICH can
         // introduce an attribute that SHARES A NAME with a partition column (e.g. `EVAL year = ...`) whose filter
@@ -416,9 +707,18 @@ public final class SplitDiscoveryPhase {
         // whose every attribute reference resolves by id into exec.output() drops those shadowing filters; the split
         // provider's per-file matcher then sees only genuine partition/data-column predicates.
         List<Expression> boundFilters = filtersBoundToOutput(ancestorFilters, exec.output());
+        Set<String> metadataColumnNames = ExternalMetadataColumns.metadataNames(exec.output());
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(
-            null,
+            new SimpleSourceMetadata(
+                querySchema.attributes(),
+                exec.sourceType(),
+                exec.sourcePath(),
+                null,
+                null,
+                exec.sourceMetadata(),
+                exec.config()
+            ),
             fileList != null ? fileList : FileList.UNRESOLVED,
             exec.schemaMap(),
             exec.config(),
@@ -426,9 +726,15 @@ public final class SplitDiscoveryPhase {
             boundFilters,
             querySchema,
             exec.unifiedSchema(),
-            maxRecordBytes,
-            isCancelled,
-            exec.declaredReadSpec()
+            traversal.maxRecordBytes(),
+            traversal.isCancelled(),
+            exec.declaredReadSpec(),
+            metadataColumnNames,
+            PartitionValueLayout.retainedKeys(querySchema, partitionInfo, metadataColumnNames),
+            rowLimit,
+            traversal.listingMemory(),
+            traversal.taskConcurrency(),
+            traversal.minTransportVersion()
         );
 
         SplitDiscoveryResult result;
@@ -437,36 +743,38 @@ public final class SplitDiscoveryPhase {
         } catch (Exception e) {
             throw wrapDiscoveryFailure(exec, e);
         }
-        return applyDiscoveryResult(exec, result, stats, fileList);
+        return applyDiscoveryResult(exec, result, traversal.stats(), fileList);
     }
 
     private static void resolveExternalSourceAsync(
         ExternalSourceExec exec,
         List<Expression> ancestorFilters,
-        Map<String, ExternalSourceFactory> sourceFactories,
-        int maxRecordBytes,
-        ScanStats stats,
-        BooleanSupplier isCancelled,
+        int rowLimit,
+        Traversal traversal,
         Executor executor,
         ActionListener<PhysicalPlan> listener
     ) {
-        ExternalSourceFactory factory = sourceFactories.get(exec.sourceType());
+        ExternalSourceFactory factory = traversal.sourceFactories().get(exec.sourceType());
         SplitProvider splitProvider = factory != null ? factory.splitProvider() : SplitProvider.SINGLE;
 
         FileList fileList = exec.fileList();
         PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
 
-        List<Attribute> queryDataAttributes = new ArrayList<>(exec.output().size());
-        for (Attribute attr : exec.output()) {
-            if (attr instanceof MetadataAttribute == false) {
-                queryDataAttributes.add(attr);
-            }
-        }
-        ExternalSchema querySchema = new ExternalSchema(queryDataAttributes);
+        // Partition columns must survive: FileSplitProvider.buildSurvivors strips them via stripPartitionColumns.
+        ExternalSchema querySchema = ExternalSchema.dataAttributesOf(exec.output());
         List<Expression> boundFilters = filtersBoundToOutput(ancestorFilters, exec.output());
+        Set<String> metadataColumnNames = ExternalMetadataColumns.metadataNames(exec.output());
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(
-            null,
+            new SimpleSourceMetadata(
+                querySchema.attributes(),
+                exec.sourceType(),
+                exec.sourcePath(),
+                null,
+                null,
+                exec.sourceMetadata(),
+                exec.config()
+            ),
             fileList != null ? fileList : FileList.UNRESOLVED,
             exec.schemaMap(),
             exec.config(),
@@ -474,43 +782,55 @@ public final class SplitDiscoveryPhase {
             boundFilters,
             querySchema,
             exec.unifiedSchema(),
-            maxRecordBytes,
-            isCancelled,
-            exec.declaredReadSpec()
+            traversal.maxRecordBytes(),
+            traversal.isCancelled(),
+            exec.declaredReadSpec(),
+            metadataColumnNames,
+            PartitionValueLayout.retainedKeys(querySchema, partitionInfo, metadataColumnNames),
+            rowLimit,
+            traversal.listingMemory(),
+            traversal.taskConcurrency(),
+            traversal.minTransportVersion()
         );
 
         splitProvider.discoverSplitsAsync(context, executor, ActionListener.wrap(result -> {
             try {
-                listener.onResponse(applyDiscoveryResult(exec, result, stats, fileList));
+                listener.onResponse(applyDiscoveryResult(exec, result, traversal.stats(), fileList));
             } catch (Exception e) {
                 listener.onFailure(wrapDiscoveryFailure(exec, e));
             }
         }, e -> listener.onFailure(wrapDiscoveryFailure(exec, e))));
     }
 
+    /**
+     * No {@link ExternalFailures#classify} runs between split discovery and the REST response, so this is where a
+     * discovery failure is detached from storage-client causes, whose messages name the bucket and key.
+     */
     private static RuntimeException wrapDiscoveryFailure(ExternalSourceExec exec, Exception e) {
+        if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) instanceof TaskCancelledException cancelled) {
+            return ExternalFailures.detach(cancelled);
+        }
         if (e instanceof ElasticsearchException ee) {
-            return ee;
+            return ExternalFailures.detach(ee);
         }
+        String context = "failed to discover splits for external source [" + sourceLabel(exec) + "] of type [" + exec.sourceType() + "]";
         if (e instanceof IllegalArgumentException) {
-            return new IllegalArgumentException(
-                "failed to discover splits for external source [" + exec.sourcePath() + "] of type [" + exec.sourceType() + "]",
-                e
-            );
+            String forwardable = ExternalFailures.forwardableDetail(e);
+            ExternalFailures.logClientFailure(e);
+            return new IllegalArgumentException(forwardable != null ? context + ": " + forwardable : context);
         }
-        RuntimeException surfaced = ExternalFailures.surface(
-            e,
-            "failed to discover splits for external source [" + exec.sourcePath() + "] of type [" + exec.sourceType() + "]"
-        );
+        RuntimeException surfaced = ExternalFailures.surface(e, context);
         if (surfaced != e) {
             return surfaced;
         }
-        return new ElasticsearchException(
-            "failed to discover splits for external source [{}] of type [{}]",
-            e,
-            exec.sourcePath(),
-            exec.sourceType()
-        );
+        LOGGER.warn("Split discovery failed (cause logged, not forwarded)", e);
+        String forwardable = ExternalFailures.forwardableDetail(e);
+        String detail = forwardable != null ? forwardable : ExternalFailures.rootCause(e).getClass().getSimpleName();
+        return new ElasticsearchException("{}: {}", context, detail);
+    }
+
+    private static String sourceLabel(ExternalSourceExec exec) {
+        return StoragePath.objectName(exec.sourcePath());
     }
 
     private static PhysicalPlan applyDiscoveryResult(
@@ -519,15 +839,38 @@ public final class SplitDiscoveryPhase {
         ScanStats stats,
         FileList fileList
     ) {
+        // A provider that discovered its own files says so here. Until this is applied the plan still holds the
+        // listing resolution had - a prefix - and the fall-through below reads it as though it were the dataset.
+        if (result.fileSet() != null) {
+            exec = exec.withFileList(result.fileSet());
+            fileList = result.fileSet();
+            if (result.schemaMap() != null) {
+                exec = exec.withSchemaMap(result.schemaMap());
+            }
+        }
+        // Before the branches, because what discovery warns about does not depend on whether it produced splits.
+        // A partition value the dataset's own type cannot hold reads null in the answer, and that is as true of a
+        // relation that was pruned or fell through as of one that was read - collecting these only where splits
+        // exist dropped the warning on exactly the queries with nothing else to signal with.
+        stats.warnings.addAll(result.warnings());
         List<ExternalSplit> splits = result.splits();
         if (splits.isEmpty()) {
             // No splits because every file was eliminated by a row-count-preserving filter contradiction (see
-            // SplitDiscoveryResult#exhaustivelyPruned). Swap in FileList.EMPTY so the read path scans nothing; a row
-            // filter still runs downstream, so the answer is unchanged (0 rows) and the scanned counts stay an
-            // honest zero. An empty result that is NOT an exhaustive prune (unresolved glob, SINGLE source, empty
-            // file list, or a provider that could not certify its prune) falls through to the whole read.
-            if (result.exhaustivelyPruned()) {
-                return exec.withFileList(FileList.EMPTY);
+            // SplitDiscoveryResult#exhaustivelyPruned). Swap in FileList.EMPTY so the read path scans nothing, and
+            // drop schemaMap: nothing left to read still held the per-file schema on the coordinator. A row filter
+            // still runs downstream, so the answer is unchanged (0 rows) and the scanned counts stay an honest
+            // zero. An empty result that is NOT an exhaustive prune (unresolved glob, SINGLE source, empty file
+            // list, or a provider that could not certify its prune) falls through to the whole read.
+            // Only over a complete listing. "Every file was pruned" is a claim about the dataset, and a prefix
+            // cannot make it: swapping in EMPTY there would drop matching files past the prefix and report the
+            // query as reading nothing.
+            // What this guards is a provider that certifies a prune while returning no file set of its own -
+            // fileList is then still the exec's, which may be a prefix. It cannot fire for FileSplitProvider,
+            // which always names its discovered set, so fileList was reassigned above to that complete listing
+            // and the prune verdict was reached over it. An absent listing is treated as complete, which keeps
+            // the behaviour this guard was added to: it narrows the shortcut, it does not widen it.
+            if (result.exhaustivelyPruned() && (fileList == null || fileList.isTruncated() == false)) {
+                return exec.withFileList(FileList.EMPTY).withSchemaMap(Map.of());
             }
             // The fall-through reads every file in the resolved list, each as one unit, so the accounting must say
             // that: reporting zeros here would describe a full-dataset read as no work at all. An unresolved list
@@ -549,6 +892,7 @@ public final class SplitDiscoveryPhase {
         stats.filesScanned += result.filesScanned();
         stats.splitsScanned += splits.size();
         stats.cpuNanos += result.cpuNanos();
+        stats.splitDiscoveryProbes += result.splitDiscoveryProbes();
         for (ExternalSplit split : splits) {
             long sizeInBytes = split.estimatedSizeInBytes();
             if (sizeInBytes > 0) {

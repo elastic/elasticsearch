@@ -330,7 +330,7 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         assertEquals(1, objectTypeField.size());
         assertThat(objectTypeField, Matchers.hasKey("object"));
         assertEquals(
-            new FieldCapabilitiesBuilder("object", "object").isSearchable(false).isAggregatable(false).build(),
+            new FieldCapabilitiesBuilder("object", "object").isSearchable(false).isAggregatable(false).isPassthrough(false).build(),
             objectTypeField.get("object")
         );
         // Check the capabilities for the 'object.sub_field' field.

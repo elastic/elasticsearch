@@ -47,6 +47,9 @@ public class BatchedRerouteService implements RerouteService {
     private List<ActionListener<Void>> pendingRerouteListeners;
     private Priority pendingTaskPriority = Priority.LANGUID;
 
+    /// allow tests to exercise the production exception path even though we assert this never happens
+    static boolean allowRerouteExceptions = false;
+
     public interface RerouteAction {
         ClusterState reroute(ClusterState state, String reason, ActionListener<Void> listener);
     }
@@ -137,18 +140,11 @@ public class BatchedRerouteService implements RerouteService {
                         }
                     }
                     if (MasterService.isPublishFailureException(e)) {
-                        logger.debug(() -> format("unexpected failure during [%s]", source), e);
+                        logger.debug(() -> format("publication failure during [%s]", source), e);
                         // no big deal, the new master will reroute again
                     } else {
-                        final ClusterState state = clusterService.state();
-                        if (logger.isTraceEnabled()) {
-                            logger.error(() -> format("unexpected failure during [%s], current state:\n%s", source, state), e);
-                        } else {
-                            logger.error(
-                                () -> format("unexpected failure during [%s], current state version [%s]", source, state.version()),
-                                e
-                            );
-                        }
+                        logger.error(() -> format("unexpected failure during [%s]", source), e);
+                        assert allowRerouteExceptions : e;
                     }
                     ActionListener.onFailure(currentListeners, e);
                 }

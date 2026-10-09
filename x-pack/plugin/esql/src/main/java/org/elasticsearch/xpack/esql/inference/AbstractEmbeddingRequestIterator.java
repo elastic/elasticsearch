@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
@@ -28,6 +29,14 @@ import java.util.NoSuchElementException;
  */
 public abstract class AbstractEmbeddingRequestIterator implements BulkInferenceRequestItemIterator {
 
+    /**
+     * Emitted once per query when any input position holds more than one value. Constant because
+     * {@link Warnings#registerWarning(String)} caches on the message to emit it a single time; naming the field or the number of
+     * discarded values would defeat that and produce one warning per distinct field or count.
+     */
+    static final String MULTIVALUE_NOTICE = "embedding input is multi-valued; only the first value is embedded. "
+        + "Reduce the field first, for example with MV_FIRST, to choose the value explicitly.";
+
     protected final String inferenceId;
     protected final TaskType taskType;
     private final InputTextReader textReader;
@@ -42,12 +51,22 @@ public abstract class AbstractEmbeddingRequestIterator implements BulkInferenceR
 
     private final PositionValueCountsBuilder positionValueCountsBuilder;
 
-    protected AbstractEmbeddingRequestIterator(String inferenceId, TaskType taskType, BytesRefBlock textBlock, int batchSize) {
+    /** Collects the notice emitted when a multi-valued position is reduced to its first value. */
+    private final Warnings warnings;
+
+    protected AbstractEmbeddingRequestIterator(
+        String inferenceId,
+        TaskType taskType,
+        BytesRefBlock textBlock,
+        int batchSize,
+        Warnings warnings
+    ) {
         if (batchSize < 1) {
             throw new IllegalArgumentException("batchSize must be at least 1 but was [" + batchSize + "]");
         }
         this.inferenceId = inferenceId;
         this.taskType = taskType;
+        this.warnings = warnings;
         this.textReader = new InputTextReader(textBlock);
         this.size = textBlock.getPositionCount();
         this.batchSize = batchSize;
@@ -79,13 +98,19 @@ public abstract class AbstractEmbeddingRequestIterator implements BulkInferenceR
     /**
      * Fills the current batch with up to {@link #batchSize} embeddable texts.
      * <p>
-     * Each input position contributes at most one value: for multi-valued fields only the first value is embedded.
+     * Each input position contributes at most one value: for multi-valued fields only the first value is embedded, and a
+     * warning records that the remaining values were discarded. Which value is "first" depends on how the field was loaded
+     * (doc values return sorted order, stored fields return source order), so the discarded values are not predictable and
+     * the caller has to reduce the field explicitly to get a defined result.
      * A null position contributes no text but is still recorded as a zero count so the results can be realigned back to
      * the original rows.
      * </p>
      */
     private void fillBatchUpToBatchSize() {
         while (inputBuffer.size() < batchSize && hasNext()) {
+            if (textReader.isNull(currentPos) == false && textReader.valueCount(currentPos) > 1) {
+                warnings.registerWarning(MULTIVALUE_NOTICE);
+            }
             // For multi-valued fields, only the first value is considered to do the embedding.
             String text = textReader.readText(currentPos++, 1);
             if (text == null) {

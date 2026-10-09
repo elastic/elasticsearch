@@ -58,7 +58,6 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING;
-import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING;
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -67,7 +66,7 @@ import static org.hamcrest.Matchers.is;
 
 public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
 
-    /// The cache maintenance settings, all of which fall back to the cache boost preference setting.
+    /// The cache maintenance settings, all of which default to true on their own.
     private static final List<Setting<Boolean>> CACHE_MAINTENANCE_SETTINGS = List.of(
         StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
         StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
@@ -131,7 +130,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 clusterService.getClusterSettings(),
                 taskQueue.getThreadPool(),
-                new BlobCacheMetrics(new RecordingMeterRegistry()),
+                new BlobCacheMetrics(new RecordingMeterRegistry(), TestUtils.NOOP_TIME_PROVIDER),
                 neverEvict,
                 () -> 0L,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -190,7 +189,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 clusterService.getClusterSettings(),
                 taskQueue.getThreadPool(),
-                new BlobCacheMetrics(new RecordingMeterRegistry()),
+                new BlobCacheMetrics(new RecordingMeterRegistry(), TestUtils.NOOP_TIME_PROVIDER),
                 neverEvict,
                 () -> 0L,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -266,7 +265,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 clusterService.getClusterSettings(),
                 taskQueue.getThreadPool(),
-                new BlobCacheMetrics(new RecordingMeterRegistry()),
+                new BlobCacheMetrics(new RecordingMeterRegistry(), TestUtils.NOOP_TIME_PROVIDER),
                 neverEvict,
                 () -> 0L,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -399,135 +398,70 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testEvictionPolicyOnIndexNodeIsAlwaysDefault() throws IOException {
-        final var settings = Settings.builder()
-            .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.INDEX_ROLE.roleName())
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheRegionSizeInBytes(1)).getStringRep())
-            .put(
-                SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
-                ByteSizeValue.ofBytes(cacheRegionSizeInBytes(1)).getStringRep()
-            )
-            .put("path.home", createTempDir())
-            .build();
-        final var taskQueue = new DeterministicTaskQueue();
-        final var clusterSettings = createClusterSettings(settings);
-        final var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), clusterSettings);
-        try (
-            var environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = newCacheService(environment, settings, taskQueue.getThreadPool(), null, clusterService)
-        ) {
-            assertThat(getEvictionPolicy(cacheService), instanceOf(DefaultEvictionPolicy.class));
-
-            clusterSettings.applySettings(
-                Settings.builder()
-                    .put(
-                        STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
-                        StatelessCacheEvictionPolicyType.INDEX_AGE
-                    )
-                    .build()
-            );
-
-            assertThat(getEvictionPolicy(cacheService), instanceOf(DefaultEvictionPolicy.class));
+    public void testDefaultFactoryUsesDefaultEvictionPolicy() throws IOException {
+        for (DiscoveryNodeRole role : List.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE)) {
+            final var settings = Settings.builder()
+                .put(NODE_NAME_SETTING.getKey(), "node")
+                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), role.roleName())
+                .put(
+                    SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
+                    ByteSizeValue.ofBytes(cacheRegionSizeInBytes(1)).getStringRep()
+                )
+                .put(
+                    SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
+                    ByteSizeValue.ofBytes(cacheRegionSizeInBytes(1)).getStringRep()
+                )
+                // The default factory ignores boost preference and always returns DefaultEvictionPolicy,
+                // including when the preference is enabled (previously that selected another policy).
+                .put(STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), randomBoolean())
+                .put("path.home", createTempDir())
+                .build();
+            final var taskQueue = new DeterministicTaskQueue();
+            final var clusterSettings = createClusterSettings(settings);
+            final var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), clusterSettings);
+            try (
+                var environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+                var cacheService = newCacheService(environment, settings, taskQueue.getThreadPool(), null, clusterService)
+            ) {
+                assertThat(getEvictionPolicy(cacheService), instanceOf(DefaultEvictionPolicy.class));
+            }
         }
     }
 
-    public void testEvictionPolicyOnSearchNodeCanBeChangedDynamically() throws IOException {
-        final var settings = Settings.builder()
-            .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheRegionSizeInBytes(1)).getStringRep())
-            .put(
-                SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
-                ByteSizeValue.ofBytes(cacheRegionSizeInBytes(1)).getStringRep()
-            )
-            .put(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(), StatelessCacheEvictionPolicyType.ALWAYS)
-            .put("path.home", createTempDir())
-            .build();
-        final var taskQueue = new DeterministicTaskQueue();
-        final var clusterSettings = createClusterSettings(settings);
-        final var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), clusterSettings);
-        try (
-            var environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = newCacheService(environment, settings, taskQueue.getThreadPool(), null, clusterService)
-        ) {
-            assertThat(getDelegatePolicy(getEvictionPolicy(cacheService)), instanceOf(DefaultEvictionPolicy.class));
-
-            clusterSettings.applySettings(
-                Settings.builder()
-                    .put(
-                        STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
-                        StatelessCacheEvictionPolicyType.INDEX_AGE
-                    )
-                    .build()
-            );
-
-            assertThat(getDelegatePolicy(getEvictionPolicy(cacheService)), instanceOf(IndexAgeEvictionPolicy.class));
-        }
-    }
-
-    public void testCacheMaintenanceSettingsFallBackToCacheBoostPreference() {
+    public void testCacheMaintenanceSettingsDefaultToTrueIndependentlyOfCacheBoostPreference() {
         for (boolean cacheBoostPreferenceEnabled : new boolean[] { true, false }) {
             final var settings = Settings.builder()
                 .put(STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), cacheBoostPreferenceEnabled)
                 .build();
             for (Setting<Boolean> maintenanceSetting : CACHE_MAINTENANCE_SETTINGS) {
-                assertThat(maintenanceSetting.get(settings), equalTo(cacheBoostPreferenceEnabled));
+                assertThat(maintenanceSetting.get(settings), is(true));
             }
         }
         for (Setting<Boolean> maintenanceSetting : CACHE_MAINTENANCE_SETTINGS) {
-            assertThat("unset boost preference leaves the maintenance settings off", maintenanceSetting.get(Settings.EMPTY), is(false));
+            assertThat(
+                "maintenance settings default to true regardless of boost preference",
+                maintenanceSetting.get(Settings.EMPTY),
+                is(true)
+            );
         }
     }
 
-    public void testExplicitCacheMaintenanceSettingOverridesCacheBoostPreference() {
-        for (boolean cacheBoostPreferenceEnabled : new boolean[] { true, false }) {
-            for (Setting<Boolean> overriddenSetting : CACHE_MAINTENANCE_SETTINGS) {
-                final var settings = Settings.builder()
-                    .put(STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), cacheBoostPreferenceEnabled)
-                    .put(overriddenSetting.getKey(), cacheBoostPreferenceEnabled == false)
-                    .build();
-                assertThat(overriddenSetting.get(settings), equalTo(cacheBoostPreferenceEnabled == false));
-                for (Setting<Boolean> otherSetting : CACHE_MAINTENANCE_SETTINGS) {
-                    if (otherSetting.getKey().equals(overriddenSetting.getKey()) == false) {
-                        assertThat(otherSetting.get(settings), equalTo(cacheBoostPreferenceEnabled));
-                    }
+    public void testExplicitCacheMaintenanceSettingOverride() {
+        for (Setting<Boolean> overriddenSetting : CACHE_MAINTENANCE_SETTINGS) {
+            final var settings = Settings.builder().put(overriddenSetting.getKey(), false).build();
+            assertThat(overriddenSetting.get(settings), is(false));
+            for (Setting<Boolean> otherSetting : CACHE_MAINTENANCE_SETTINGS) {
+                if (otherSetting.getKey().equals(overriddenSetting.getKey()) == false) {
+                    assertThat(otherSetting.get(settings), is(true));
                 }
             }
         }
     }
 
-    /// Removing a cluster-level override must return the setting to the value derived from the node's boost preference, not to `false`.
-    public void testCacheMaintenanceSettingResetsToCacheBoostPreferenceDerivedValue() {
-        final var nodeSettings = Settings.builder().put(STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true).build();
-        for (Setting<Boolean> maintenanceSetting : CACHE_MAINTENANCE_SETTINGS) {
-            final var clusterSettings = createClusterSettings(nodeSettings);
-            final var enabled = new AtomicBoolean();
-            clusterSettings.initializeAndWatch(maintenanceSetting, enabled::set);
-            assertTrue(enabled.get());
-
-            clusterSettings.applySettings(Settings.builder().put(maintenanceSetting.getKey(), false).build());
-            assertFalse(enabled.get());
-
-            clusterSettings.applySettings(Settings.EMPTY);
-            assertTrue(enabled.get());
-        }
-    }
-
-    EvictionPolicy<FileCacheKey> getDelegatePolicy(EvictionPolicy<FileCacheKey> evictionPolicy) {
-        if (evictionPolicy instanceof SwitchingEvictionPolicy switchingEvictionPolicy) {
-            return switchingEvictionPolicy.getDelegate();
-        }
-        throw new AssertionError("Not a SwitchingEvictionPolicy: " + evictionPolicy);
-    }
-
     private static ClusterSettings createClusterSettings(Settings settings) {
         var settingSet = Sets.newHashSet(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settingSet.add(PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING);
-        settingSet.add(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING);
         settingSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING);
         settingSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING);
-        settingSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING);
         settingSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING);
         return new ClusterSettings(settings, settingSet);
     }

@@ -21,14 +21,19 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.DocumentExtractionRequest;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
@@ -45,6 +50,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage;
 import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage.ContentObjectImageUrl;
@@ -64,6 +70,7 @@ import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
@@ -84,6 +91,9 @@ import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInfe
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModel;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
@@ -110,6 +120,7 @@ import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.inference.InferenceStringTests.inferenceStringToMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.xpack.core.inference.results.CompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
@@ -240,6 +251,49 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(ElasticInferenceServiceRerankModel.class));
             ElasticInferenceServiceRerankModel rerankModel = (ElasticInferenceServiceRerankModel) model;
             assertThat(rerankModel.getServiceSettings().modelId(), is("my-rerank-model-id"));
+        }
+    }
+
+    public void testParseRequestConfig_CreatesADocumentExtractionModel() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            var modelListener = new TestPlainActionFuture<Model>();
+
+            service.parseRequestConfig(
+                INFERENCE_ENTITY_ID,
+                TaskType.DOCUMENT_EXTRACTION,
+                getRequestConfigMap(Map.of(ServiceFields.MODEL_ID, "my-document-extraction-model-id"), Map.of(), Map.of()),
+                modelListener
+            );
+
+            var model = modelListener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+
+            assertThat(model, instanceOf(ElasticInferenceServiceDocumentExtractionModel.class));
+            ElasticInferenceServiceDocumentExtractionModel documentExtractionModel = (ElasticInferenceServiceDocumentExtractionModel) model;
+            assertThat(documentExtractionModel.getServiceSettings().modelId(), is("my-document-extraction-model-id"));
+            assertThat(documentExtractionModel.getTaskSettings(), is(ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS));
+        }
+    }
+
+    public void testParseRequestConfig_CreatesADocumentExtractionModel_WithTaskSettings() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            var modelListener = new TestPlainActionFuture<Model>();
+
+            service.parseRequestConfig(
+                INFERENCE_ENTITY_ID,
+                TaskType.DOCUMENT_EXTRACTION,
+                getRequestConfigMap(
+                    Map.of(ServiceFields.MODEL_ID, "my-document-extraction-model-id"),
+                    new HashMap<>(Map.of(ElasticInferenceServiceDocumentExtractionTaskSettings.OUTPUT_FORMAT, "markdown")),
+                    Map.of()
+                ),
+                modelListener
+            );
+
+            var model = modelListener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+
+            assertThat(model, instanceOf(ElasticInferenceServiceDocumentExtractionModel.class));
+            ElasticInferenceServiceDocumentExtractionModel documentExtractionModel = (ElasticInferenceServiceDocumentExtractionModel) model;
+            assertThat(documentExtractionModel.getTaskSettings().outputFormat(), is("markdown"));
         }
     }
 
@@ -665,6 +719,55 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         }
     }
 
+    /**
+     * Covers the seam that {@link org.elasticsearch.xpack.inference.services.elastic.action.ModelStrategyFactoryTests} cannot: that
+     * {@code doInfer} accepts a {@link TaskType#COMPLETION} model, converts the {@code CompletionInput} into a non-streaming
+     * {@code UnifiedChatInput}, and returns {@link CompletionResults} rather than the unified chat-completion shape.
+     */
+    public void testInfer_SendsCompletionRequest() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var elasticInferenceServiceURL = getUrl(webServer);
+
+        try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
+            String responseJson = """
+                {
+                    "id": "chatcmpl-123",
+                    "object": "chat.completion",
+                    "created": 1677652288,
+                    "model": "my-model-id",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": "Hello there, how may I assist you today?"
+                            },
+                            "finish_reason": "stop"
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(
+                elasticInferenceServiceURL,
+                MODEL_ID_VALUE,
+                TaskType.COMPLETION
+            );
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.infer(model, List.of("input text"), false, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            assertThat(result, instanceOf(CompletionResults.class));
+            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("Hello there, how may I assist you today?"))));
+
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            assertThat(requestMap.get("model"), is(MODEL_ID_VALUE));
+            assertFalse((Boolean) requestMap.get("stream"));
+        }
+    }
+
     public void testInfer_SendsTextEmbeddingsRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var elasticInferenceServiceURL = getUrl(webServer);
@@ -768,6 +871,137 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             if (topN != null) {
                 expectedRequestMap.put("top_n", topN);
             }
+            assertThat(requestMap, is(expectedRequestMap));
+        }
+    }
+
+    public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithoutTaskSettings() throws IOException {
+        assertDocumentExtractionInferSendsRequest(ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS, Map.of(), null);
+    }
+
+    public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithStoredTaskSettings() throws IOException {
+        assertDocumentExtractionInferSendsRequest(
+            new ElasticInferenceServiceDocumentExtractionTaskSettings(
+                "markdown",
+                new ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings(List.of(".main-content"), null)
+            ),
+            Map.of(),
+            Map.of("output_format", "markdown", "css", Map.of("extract_only", List.of(".main-content")))
+        );
+    }
+
+    public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithRequestTaskSettings() throws IOException {
+        assertDocumentExtractionInferSendsRequest(
+            ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS,
+            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"), "remove", List.of("nav"))),
+            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"), "remove", List.of("nav")))
+        );
+    }
+
+    public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_RequestTaskSettingsOverrideStoredOnesPerField()
+        throws IOException {
+        assertDocumentExtractionInferSendsRequest(
+            new ElasticInferenceServiceDocumentExtractionTaskSettings(
+                "markdown",
+                new ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings(List.of(".main-content"), List.of("nav"))
+            ),
+            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"))),
+            // output_format and css.extract_only come from the request, css.remove is kept from the stored settings
+            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"), "remove", List.of("nav")))
+        );
+    }
+
+    public void testDocumentExtractionInfer_WithUnknownRequestTaskSetting_Fails() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var elasticInferenceServiceURL = getUrl(webServer);
+
+        try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
+            var model = ElasticInferenceServiceDocumentExtractionModelTests.createModel(elasticInferenceServiceURL, randomAlphaOfLength(8));
+            var documents = List.of(
+                new InferenceString(DataType.PDF, DataFormat.BASE64, "data:application/pdf;base64," + randomAlphanumericOfLength(16))
+            );
+            var documentExtractionRequest = new DocumentExtractionRequest(documents, Map.of("unknown_field", "value"));
+
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.documentExtractionInfer(model, documentExtractionRequest, null, listener);
+
+            var exception = expectThrows(XContentParseException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(exception.getMessage(), containsString("[task_settings] unknown field [unknown_field]"));
+            assertThat(webServer.requests(), empty());
+        }
+    }
+
+    /**
+     * Runs a document extraction inference against a model carrying {@code storedTaskSettings} with {@code requestTaskSettings} in the
+     * request body and asserts that the request sent to the Elastic Inference Service carries each entry of
+     * {@code expectedTaskSettings} as a top-level field (or no such fields at all when null), as the settings are not forwarded as a
+     * nested {@code task_settings} object.
+     */
+    @SuppressWarnings("unchecked")
+    private void assertDocumentExtractionInferSendsRequest(
+        ElasticInferenceServiceDocumentExtractionTaskSettings storedTaskSettings,
+        Map<String, Object> requestTaskSettings,
+        @Nullable Map<String, Object> expectedTaskSettings
+    ) throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var elasticInferenceServiceURL = getUrl(webServer);
+
+        try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
+            String responseJson = """
+                {
+                    "results": [
+                        {
+                            "content": "# Annual Report 2025",
+                            "format": "markdown",
+                            "metadata": {"title": "Annual Report 2025"}
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var modelId = randomAlphaOfLength(8);
+            var model = ElasticInferenceServiceDocumentExtractionModelTests.createModel(
+                elasticInferenceServiceURL,
+                modelId,
+                storedTaskSettings
+            );
+
+            var documents = List.of(
+                new InferenceString(DataType.PDF, DataFormat.BASE64, "data:application/pdf;base64," + randomAlphanumericOfLength(16))
+            );
+            var documentExtractionRequest = new DocumentExtractionRequest(documents, requestTaskSettings);
+
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.documentExtractionInfer(model, documentExtractionRequest, null, listener);
+
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            var resultMap = result.asMap();
+            var documentExtractionResults = (List<Map<String, Object>>) resultMap.get("document_extraction");
+            assertThat(documentExtractionResults.size(), Matchers.is(1));
+            assertThat(documentExtractionResults.getFirst().get("content"), is("# Annual Report 2025"));
+            assertThat(documentExtractionResults.getFirst().get("format"), is("markdown"));
+            assertThat(documentExtractionResults.getFirst().get("metadata"), is(Map.of("title", "Annual Report 2025")));
+
+            // The per-request model copy must not leak the request task settings into the stored model
+            assertThat(model.getTaskSettings(), is(storedTaskSettings));
+
+            // Verify the outgoing HTTP request
+            var request = webServer.requests().getFirst();
+            assertNull(request.getUri().getQuery());
+            assertThat(request.getUri().getPath(), is("/api/v1/document-extraction"));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+
+            // Verify the outgoing request body
+            var expectedRequestMap = new HashMap<String, Object>();
+            expectedRequestMap.put("model", modelId);
+            expectedRequestMap.put("input", documents.stream().map(document -> Map.of("content", inferenceStringToMap(document))).toList());
+            if (expectedTaskSettings != null) {
+                expectedRequestMap.putAll(expectedTaskSettings);
+            }
+            Map<String, Object> requestMap = entityAsMap(request.getBody());
             assertThat(requestMap, is(expectedRequestMap));
         }
     }
@@ -991,11 +1225,11 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
             );
 
-            var request = UnifiedCompletionRequest.of(List.of(new Message(new ContentString("Hello"), "user", null, null)));
+            var request = UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("Hello"), "user", null, null)));
 
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
-            service.unifiedCompletionInfer(model, request, null, listener);
+            service.unifiedCompletionInfer(model, UnifiedCompletionRequest.streaming(request), null, listener);
 
             // We don't need to check the actual response as we're only testing header propagation
             listener.actionGet(TEST_REQUEST_TIMEOUT);
@@ -1039,7 +1273,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
             );
 
-            var request = UnifiedCompletionRequest.of(
+            var request = UnifiedCompletionRequestBody.of(
                 List.of(
                     new Message(
                         new ContentObjects(List.of(new ContentObjectImage(new ContentObjectImageUrl("image data", null)))),
@@ -1052,7 +1286,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
-            service.unifiedCompletionInfer(model, request, null, listener);
+            service.unifiedCompletionInfer(model, UnifiedCompletionRequest.streaming(request), null, listener);
 
             // We don't need to check the actual response as we're only testing header propagation
             listener.actionGet(TEST_REQUEST_TIMEOUT);
@@ -1174,7 +1408,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
             );
 
-            var request = new UnifiedCompletionRequest(
+            var request = new UnifiedCompletionRequestBody(
                 List.of(
                     new Message(
                         new ContentString("Say `Hello world!`"),
@@ -1219,7 +1453,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
-            service.unifiedCompletionInfer(model, request, null, listener);
+            service.unifiedCompletionInfer(model, UnifiedCompletionRequest.streaming(request), null, listener);
 
             // Receiving results for validation
             InferenceServiceResults inferenceServiceResults = listener.actionGet(TEST_REQUEST_TIMEOUT);
@@ -1754,6 +1988,11 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                    "service": "elastic",
                    "name": "Elastic",
                    "task_types": ["sparse_embedding", "chat_completion", "text_embedding", "embedding"],
+                   "features": {
+                       "non_streaming_chat": {
+                           "supported": true
+                       }
+                   },
                    "configurations": {
                        "model_id": {
                            "description": "The name of the model to use for the inference task.",
@@ -1762,7 +2001,8 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                            "sensitive": false,
                            "updatable": false,
                            "type": "str",
-                           "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding"]
+                           "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding",
+                           "document_extraction"]
                        },
                        "max_input_tokens": {
                            "description": "Allows you to specify the maximum number of tokens per input.",
@@ -1785,7 +2025,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                    }
                }
             """);
-        InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+        InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
             new BytesArray(content),
             XContentType.JSON
         );
@@ -1803,6 +2043,11 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                    "service": "elastic",
                    "name": "Elastic",
                    "task_types": [],
+                   "features": {
+                       "non_streaming_chat": {
+                           "supported": true
+                       }
+                   },
                    "configurations": {
                        "model_id": {
                            "description": "The name of the model to use for the inference task.",
@@ -1811,7 +2056,8 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                            "sensitive": false,
                            "updatable": false,
                            "type": "str",
-                           "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding"]
+                           "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion", "embedding",
+                           "document_extraction"]
                        },
                        "max_input_tokens": {
                            "description": "Allows you to specify the maximum number of tokens per input.",
@@ -1834,7 +2080,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                    }
                }
             """);
-        InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+        InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
             new BytesArray(content),
             XContentType.JSON
         );
@@ -1942,7 +2188,9 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                UnifiedCompletionRequest.streaming(
+                    UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("hello"), "user", null, null)))
+                ),
                 null,
                 listener
             );
@@ -2036,6 +2284,11 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         validateModelBuilding(model);
     }
 
+    public void testBuildModelFromConfigAndSecrets_DocumentExtraction() throws IOException {
+        var model = createTestModel(TaskType.DOCUMENT_EXTRACTION);
+        validateModelBuilding(model);
+    }
+
     public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
         // Need to use a mock here because ModelConfigurations does not accept TaskType.ANY as a valid argument
         var modelConfigurationsMock = mock(ModelConfigurations.class);
@@ -2070,6 +2323,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 TaskType.CHAT_COMPLETION
             );
             case RERANK -> ElasticInferenceServiceRerankModelTests.createModel(URL_VALUE, MODEL_ID_VALUE);
+            case DOCUMENT_EXTRACTION -> ElasticInferenceServiceDocumentExtractionModelTests.createModel(URL_VALUE, MODEL_ID_VALUE);
             default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
         };
     }
@@ -2100,7 +2354,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
     @Override
     public EnumSet<TaskType> expectedStreamingTasks() {
-        return EnumSet.of(TaskType.CHAT_COMPLETION);
+        return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
     }
 
     @Override

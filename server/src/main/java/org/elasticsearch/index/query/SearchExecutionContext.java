@@ -27,6 +27,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.SharedAutomaton;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -54,6 +55,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.logging.LogManager;
@@ -88,6 +90,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.IndexService.parseRuntimeMappings;
 
@@ -144,6 +147,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final AtomicLong queryConstructionMemoryUsed = new AtomicLong(0);
     private final ConcurrentMap<String, AtomicLong> queryConstructionMemoryByLabel = new ConcurrentHashMap<>();
     private final Set<Query> preChargedQueries = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+    private final ConcurrentMap<AutomatonKey, SharedAutomaton> sharedAutomata = new ConcurrentHashMap<>();
 
     public SearchExecutionContext(
         int shardId,
@@ -237,6 +241,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.shardSearchStats,
             circuitBreaker
         );
+        this.fieldVisibilityPredicate = source.fieldVisibilityPredicate;
     }
 
     private SearchExecutionContext(
@@ -361,6 +366,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
             return indexedFields;
         }
         return fields;
+    }
+
+    /**
+     * Whether {@code index.query.default_field} is configured as the all-fields wildcard, answered from
+     * the setting rather than from the possibly expanded {@link #defaultFields()}. Query builders force
+     * leniency on all-fields queries so that one field failing to parse the value does not fail the whole
+     * query, and that decision has to reflect what the user asked for.
+     */
+    public boolean hasAllFieldsWildcardDefaultField() {
+        return QueryParserHelper.hasAllFieldsWildcard(indexSettings.getDefaultFields());
     }
 
     public boolean queryStringLenient() {
@@ -866,6 +881,21 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
+     * Returns the automaton {@code key} identifies, building it with {@code builder} on first use and charging its
+     * retained size once. Every later clause of this request that resolves to the same key reuses the instance, so a
+     * pattern expanded over many fields costs one automaton rather than one per field.
+     * <p>
+     * {@code builder} is responsible for guarding its own construction peak.
+     */
+    public SharedAutomaton computeAutomatonIfAbsent(AutomatonKey key, Supplier<SharedAutomaton> builder) {
+        return sharedAutomata.computeIfAbsent(key, k -> {
+            SharedAutomaton built = builder.get();
+            addCircuitBreakerMemory(built.ramBytesUsed(), k.category());
+            return built;
+        });
+    }
+
+    /**
      * Marks that {@code query}'s memory was already charged to the breaker at construction time, so the visitor walk skips it.
      */
     public void markQueryMemoryPreCharged(Query query) {
@@ -882,10 +912,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Drops all pre-charge markers.
+     * Drops all pre-charge markers and shared automata. An override of {@link #releaseQueryConstructionMemory()} must call
+     * this, or it keeps automata alive that the breaker no longer accounts for.
      */
-    protected final void clearPreChargedQueries() {
+    protected final void clearQueryConstructionState() {
         preChargedQueries.clear();
+        sharedAutomata.clear();
     }
 
     /**
@@ -893,7 +925,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * call multiple times; subsequent calls after the pool is drained are no-ops.
      */
     public void releaseQueryConstructionMemory() {
-        clearPreChargedQueries();
+        clearQueryConstructionState();
         if (circuitBreaker == null) {
             return;
         }

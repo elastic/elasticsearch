@@ -16,6 +16,7 @@ import org.apache.parquet.internal.column.columnindex.ColumnIndex;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.internal.hadoop.metadata.IndexReference;
 import org.apache.parquet.schema.MessageType;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.UninitializedArrays;
@@ -24,6 +25,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.ByteArrayInputStream;
@@ -37,6 +40,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -171,7 +175,28 @@ final class PreloadedRowGroupMetadata implements Releasable {
         Set<String> predicateColumnPaths,
         CircuitBreaker breaker
     ) {
-        return preload(reader, storageObject, predicateColumnPaths, null, null, Integer.MAX_VALUE, breaker);
+        return preload(reader, storageObject, predicateColumnPaths, breaker, QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS);
+    }
+
+    static PreloadedRowGroupMetadata preload(
+        ParquetFileReader reader,
+        StorageObject storageObject,
+        Set<String> predicateColumnPaths,
+        CircuitBreaker breaker,
+        long coalescedJoinTimeoutMs
+    ) {
+        return preload(
+            reader,
+            storageObject,
+            predicateColumnPaths,
+            null,
+            null,
+            Integer.MAX_VALUE,
+            breaker,
+            null,
+            null,
+            coalescedJoinTimeoutMs
+        );
     }
 
     /**
@@ -230,6 +255,56 @@ final class PreloadedRowGroupMetadata implements Releasable {
         CircuitBreaker breaker,
         @Nullable ParquetIoWatermark ioWatermark
     ) {
+        return preload(
+            reader,
+            storageObject,
+            predicateColumnPaths,
+            columnIndexPaths,
+            offsetIndexPaths,
+            offsetIndexRowGroupLimit,
+            breaker,
+            ioWatermark,
+            null
+        );
+    }
+
+    static PreloadedRowGroupMetadata preload(
+        ParquetFileReader reader,
+        StorageObject storageObject,
+        Set<String> predicateColumnPaths,
+        Set<String> columnIndexPaths,
+        Set<String> offsetIndexPaths,
+        int offsetIndexRowGroupLimit,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes
+    ) {
+        return preload(
+            reader,
+            storageObject,
+            predicateColumnPaths,
+            columnIndexPaths,
+            offsetIndexPaths,
+            offsetIndexRowGroupLimit,
+            breaker,
+            ioWatermark,
+            footerBytes,
+            QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS
+        );
+    }
+
+    static PreloadedRowGroupMetadata preload(
+        ParquetFileReader reader,
+        StorageObject storageObject,
+        Set<String> predicateColumnPaths,
+        Set<String> columnIndexPaths,
+        Set<String> offsetIndexPaths,
+        int offsetIndexRowGroupLimit,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes,
+        long coalescedJoinTimeoutMs
+    ) {
         List<BlockMetaData> rowGroups = reader.getRowGroups();
         if (rowGroups.isEmpty()) {
             return empty();
@@ -246,8 +321,12 @@ final class PreloadedRowGroupMetadata implements Releasable {
                     offsetIndexPaths,
                     offsetIndexRowGroupLimit,
                     breaker,
-                    ioWatermark
+                    ioWatermark,
+                    footerBytes,
+                    coalescedJoinTimeoutMs
                 );
+            } catch (ElasticsearchTimeoutException e) {
+                throw e;
             } catch (Exception e) {
                 logger.debug("Coalesced metadata preload failed, falling back to sequential: {}", e.getMessage());
             }
@@ -280,7 +359,9 @@ final class PreloadedRowGroupMetadata implements Releasable {
         Set<String> offsetIndexPaths,
         int offsetIndexRowGroupLimit,
         CircuitBreaker breaker,
-        @Nullable ParquetIoWatermark ioWatermark
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes,
+        long coalescedJoinTimeoutMs
     ) {
         List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
         List<RangeMeta> rangeMetas = new ArrayList<>();
@@ -327,17 +408,14 @@ final class PreloadedRowGroupMetadata implements Releasable {
 
         logger.debug("Coalesced metadata preload: [{}] ranges across [{}] row groups", ranges.size(), rowGroups.size());
 
-        PlainActionFuture<CoalescedRangeReader.CoalescedRangeResult> future = new PlainActionFuture<>();
-        CoalescedRangeReader.readCoalesced(
+        CoalescedRangeReader.CoalescedRangeResult fetchedResult = awaitCoalescedRead(
             storageObject,
             ranges,
-            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
             breaker,
             ioWatermark,
-            Runnable::run,
-            future
+            footerBytes,
+            coalescedJoinTimeoutMs
         );
-        CoalescedRangeReader.CoalescedRangeResult fetchedResult = future.actionGet();
         Map<CoalescedRangeReader.ByteRange, ByteBuffer> fetched = fetchedResult.ranges();
         Releasable readRelease = fetchedResult.release();
 
@@ -406,7 +484,9 @@ final class PreloadedRowGroupMetadata implements Releasable {
                     preWarmedChunks,
                     storageObject,
                     breaker,
-                    ioWatermark
+                    ioWatermark,
+                    footerBytes,
+                    coalescedJoinTimeoutMs
                 );
             } catch (Throwable e) {
                 try {
@@ -513,7 +593,9 @@ final class PreloadedRowGroupMetadata implements Releasable {
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks,
         StorageObject storageObject,
         CircuitBreaker breaker,
-        @Nullable ParquetIoWatermark ioWatermark
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes,
+        long coalescedJoinTimeoutMs
     ) {
         List<CoalescedRangeReader.ByteRange> ranges = omittedDictionaryRanges(
             rowGroups,
@@ -525,17 +607,14 @@ final class PreloadedRowGroupMetadata implements Releasable {
             return () -> {};
         }
         logger.debug("Fetching [{}] omitted-offset dictionary pages after OffsetIndex parse", ranges.size());
-        PlainActionFuture<CoalescedRangeReader.CoalescedRangeResult> future = new PlainActionFuture<>();
-        CoalescedRangeReader.readCoalesced(
+        CoalescedRangeReader.CoalescedRangeResult fetchedResult = awaitCoalescedRead(
             storageObject,
             ranges,
-            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
             breaker,
             ioWatermark,
-            Runnable::run,
-            future
+            footerBytes,
+            coalescedJoinTimeoutMs
         );
-        CoalescedRangeReader.CoalescedRangeResult fetchedResult = future.actionGet();
         try {
             for (CoalescedRangeReader.ByteRange range : ranges) {
                 ByteBuffer buf = fetchedResult.ranges().get(range);
@@ -675,5 +754,41 @@ final class PreloadedRowGroupMetadata implements Releasable {
 
     static String key(int rowGroupOrdinal, ColumnChunkMetaData column) {
         return key(rowGroupOrdinal, column.getPath().toDotString());
+    }
+
+    private static CoalescedRangeReader.CoalescedRangeResult awaitCoalescedRead(
+        StorageObject storageObject,
+        List<CoalescedRangeReader.ByteRange> ranges,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes,
+        long timeoutMs
+    ) {
+        PlainActionFuture<CoalescedRangeReader.CoalescedRangeResult> future = new PlainActionFuture<>();
+        Releasable cancel = CoalescedRangeReader.readCoalesced(
+            storageObject,
+            ranges,
+            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
+            breaker,
+            ioWatermark,
+            null,
+            footerBytes,
+            Runnable::run,
+            future
+        );
+        try {
+            return awaitCoalesced(future, timeoutMs);
+        } catch (Exception e) {
+            Releasables.close(cancel);
+            throw e;
+        }
+    }
+
+    static <T> T awaitCoalesced(PlainActionFuture<T> future, long timeoutMs) {
+        try {
+            return future.actionGet(timeoutMs, TimeUnit.MILLISECONDS);
+        } catch (ElasticsearchTimeoutException e) {
+            throw new ElasticsearchTimeoutException("timed out after [{}]ms waiting for coalesced parquet metadata", e, timeoutMs);
+        }
     }
 }

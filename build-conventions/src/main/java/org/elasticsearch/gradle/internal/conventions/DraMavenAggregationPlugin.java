@@ -20,8 +20,8 @@ import org.gradle.api.tasks.bundling.Zip;
  * {@code com.gradleup.nmcp.aggregation}.
  *
  * <p>The applying project is expected to have {@code com.gradleup.nmcp.aggregation}
- * applied so the upstream {@code zipAggregation} task exists. This plugin
- * intentionally does not touch {@code zipAggregation}; that task's output must
+ * applied so the upstream {@code nmcpZipAggregation} task exists. This plugin
+ * intentionally does not touch {@code nmcpZipAggregation}; that task's output must
  * remain Sonatype Central Portal compliant.
  *
  * <p>The task emits an <em>exploded</em> maven tree under
@@ -31,7 +31,7 @@ import org.gradle.api.tasks.bundling.Zip;
  * unzip it again there would be wasted work.
  *
  * <p>To avoid zipping on the DRA path entirely, the task consumes
- * {@code zipAggregation}'s copy-spec source (the already-extracted per-project
+ * {@code nmcpZipAggregation}'s copy-spec source (the already-extracted per-project
  * publications) instead of the {@code aggregation.zip} archive, so that zip is
  * never built for DRA. See {@link PrepareDraSnapshotMavenAggregation}.
  */
@@ -51,21 +51,21 @@ public class DraMavenAggregationPlugin implements Plugin<Project> {
                         + "renames Maven-timestamped snapshot filenames back to -SNAPSHOT "
                         + "and generates per-version maven-metadata.xml."
                 );
-                // Reuse zipAggregation's copy-spec source (the extracted
+                // Reuse nmcpZipAggregation's copy-spec source (the extracted
                 // per-project publications) rather than its archive output, so
                 // the aggregation zip is never built on the DRA path. The
                 // lookup is deferred inside a plain provider (rather than
                 // resolved eagerly here, or mapped off the TaskProvider):
-                //  - TaskProvider.map would add a dependency on zipAggregation
+                //  - TaskProvider.map would add a dependency on nmcpZipAggregation
                 //    itself, forcing the zip to build;
-                //  - resolving named("zipAggregation") eagerly at apply() time
+                //  - resolving named("nmcpZipAggregation") eagerly at apply() time
                 //    would couple this plugin to being applied *after*
                 //    nmcp.aggregation.
                 // getSource()'s FileTree already carries the build dependencies
                 // of the underlying publication tasks, so @InputFiles
                 // establishes the correct task ordering on its own.
                 task.getSource().from(
-                    project.provider(() -> project.getTasks().named("zipAggregation", Zip.class).get().getSource())
+                    project.provider(() -> project.getTasks().named("nmcpZipAggregation", Zip.class).get().getSource())
                 );
                 task.getVersion().set(version);
                 task.getOutputDir().set(project.getLayout().getBuildDirectory().dir("dra-maven-aggregation"));

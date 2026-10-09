@@ -87,6 +87,7 @@ import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
@@ -146,6 +147,7 @@ import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
@@ -166,7 +168,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -208,6 +209,7 @@ import static org.elasticsearch.index.IndexService.IndexCreationContext.METADATA
 import static org.elasticsearch.index.IndexVersions.MINIMUM_COMPATIBLE;
 import static org.elasticsearch.index.IndexVersions.MINIMUM_READONLY_COMPATIBLE;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
+import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public class IndicesService extends AbstractLifecycleComponent
@@ -256,6 +258,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
+    private final FeatureService featureService;
     private final ProjectResolver projectResolver;
     private final Client client;
     private volatile Map<String, IndexService> indices = Map.of();
@@ -333,6 +336,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.bigArrays = builder.bigArrays;
         this.scriptService = builder.scriptService;
         this.clusterService = builder.clusterService;
+        this.featureService = builder.featureService;
         this.threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,
             clusterService.getClusterSettings(),
@@ -858,6 +862,7 @@ public class IndicesService extends AbstractLifecycleComponent
             threadPoolMergeExecutorService,
             scriptService,
             clusterService,
+            featureService,
             client,
             indicesQueryCache,
             mapperRegistry,
@@ -951,7 +956,14 @@ public class IndicesService extends AbstractLifecycleComponent
             // optimization, we only do so when we are sure they are the same.
             .filter(dm -> indexMetadata.mapping() != null && dm.mappingSource() == indexMetadata.mapping().source())
             .orElse(null);
-        return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService, documentMapper);
+        return indexModule.newIndexMapperService(
+            clusterService,
+            featureService,
+            parserConfig,
+            mapperRegistry,
+            scriptService,
+            documentMapper
+        );
     }
 
     /**
@@ -1011,55 +1023,51 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexShard indexShard = indexService.createShard(shardRouting, localNode, sourceNode, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
 
-        throttlingRecoveryService.enqueue(
-            projectId,
-            recoveryListener,
-            indexShard.recoveryState(),
-            indexService.getMetadata(),
-            shardRouting.allocationId().getId(),
-            indexShard.recoveryStats(),
-            listener -> {
-                // Take a store ref when the recovery task actually runs, and release it before invoking the recovery listener
-                // to avoid conflicting with a concurrent shard closure. If the shard is already closed when the task runs,
-                // recovery is aborted early and no ref is taken. If the shard has already closed, abort early.
-                final var store = indexShard.store();
-                if (store.tryIncRef() == false) {
-                    assert indexShard.state() == IndexShardState.CLOSED : indexShard.state();
-                    listener.onRecoveryAborted();
-                    return;
-                }
-                final var releaseStoreRef = Releasables.assertOnce(Releasables.releaseOnce(store::decRef));
-                try {
-                    indexShard.startRecovery(
-                        recoveryTargetService,
-                        postRecoveryMerger.maybeMergeAfterRecovery(
-                            indexService.getMetadata(),
-                            shardRouting,
-                            RecoveryListener.runBefore(listener, releaseStoreRef::close)
-                        ),
-                        repositoriesService,
-                        (mapping, l) -> {
-                            assert indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                                : "mapping update consumer only required by local shards recovery";
-                            AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
-                                // concrete index - no name clash, it uses uuid
-                                .setConcreteIndex(shardRouting.index())
-                                .source(mapping.source().string(), XContentType.JSON);
-                            client.execute(
-                                TransportAutoPutMappingAction.TYPE,
-                                putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
-                                new RefCountAwareThreadedActionListener<>(threadPool.generic(), l.map(ignored -> null))
-                            );
-                        },
-                        this,
-                        clusterStateVersion
-                    );
-                } catch (Exception e) {
-                    releaseStoreRef.close();
-                    throw e;
-                }
+        throttlingRecoveryService.enqueue(projectId, recoveryListener, indexShard, indexService.getMetadata(), listener -> {
+            // Take a store ref when the recovery task actually runs, and release it before invoking the recovery listener
+            // to avoid conflicting with a concurrent shard closure. If the shard is already closed when the task runs,
+            // recovery is aborted early and no ref is taken. If the shard has already closed, abort early.
+            final var store = indexShard.store();
+            if (store.tryIncRef() == false) {
+                assert indexShard.state() == IndexShardState.CLOSED : indexShard.state();
+                listener.onRecoveryFailure(
+                    indexShard.recoveryState(),
+                    new RecoveryFailedException(indexShard.recoveryState(), "index shard closed", null),
+                    ABORT
+                );
+                return;
             }
-        );
+            final var releaseStoreRef = Releasables.assertOnce(Releasables.releaseOnce(store::decRef));
+            try {
+                indexShard.startRecovery(
+                    recoveryTargetService,
+                    postRecoveryMerger.maybeMergeAfterRecovery(
+                        indexService.getMetadata(),
+                        shardRouting,
+                        RecoveryListener.runBefore(listener, releaseStoreRef::close)
+                    ),
+                    repositoriesService,
+                    (mapping, l) -> {
+                        assert indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                            : "mapping update consumer only required by local shards recovery";
+                        AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
+                            // concrete index - no name clash, it uses uuid
+                            .setConcreteIndex(shardRouting.index())
+                            .source(mapping.source().string());
+                        client.execute(
+                            TransportAutoPutMappingAction.TYPE,
+                            putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
+                            new RefCountAwareThreadedActionListener<>(threadPool.generic(), l.map(ignored -> null))
+                        );
+                    },
+                    this,
+                    clusterStateVersion
+                );
+            } catch (Exception e) {
+                releaseStoreRef.close();
+                throw e;
+            }
+        });
     }
 
     @Override

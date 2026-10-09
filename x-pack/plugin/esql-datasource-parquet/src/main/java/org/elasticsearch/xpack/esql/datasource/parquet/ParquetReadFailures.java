@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

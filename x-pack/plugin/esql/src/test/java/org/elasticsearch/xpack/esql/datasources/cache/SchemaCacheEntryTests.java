@@ -15,8 +15,10 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
+import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 
 import java.util.HashMap;
 import java.util.List;
@@ -185,7 +187,9 @@ public class SchemaCacheEntryTests extends ESTestCase {
                 "p",
                 Map.of(),
                 Map.of(),
-                0L
+                0L,
+                List.of(),
+                List.of()
             )
         );
         assertTrue(ex.getMessage().contains("same length"));
@@ -272,4 +276,38 @@ public class SchemaCacheEntryTests extends ESTestCase {
             }
         };
     }
+
+    /** Resolve-time notices are part of the cached entry, so a warm resolve replays them exactly like a cold one. */
+    public void testFromPreservesWarningsThroughCopies() {
+        SimpleSourceMetadata meta = new SimpleSourceMetadata(List.of(attr("id", DataType.INTEGER)), "csv", "file:///a.csv").withWarnings(
+            List.of("first notice", "second notice")
+        );
+
+        SchemaCacheEntry entry = SchemaCacheEntry.from(meta);
+
+        assertEquals(List.of("first notice", "second notice"), entry.warnings());
+        assertEquals(List.of("first notice", "second notice"), entry.withSafeMetadata(Map.of("k", "v")).warnings());
+        assertEquals(List.of(), SchemaCacheEntry.from(new SimpleSourceMetadata(meta.schema(), "csv", "file:///a.csv")).warnings());
+        SchemaCacheEntry bare = SchemaCacheEntry.from(new SimpleSourceMetadata(meta.schema(), "csv", "file:///a.csv"));
+        assertTrue("cached notices must count against the cache budget", entry.estimatedBytes() > bare.estimatedBytes());
+    }
+
+    /**
+     * A within-file widening record is part of the cached entry too, so a warm resolve still lets
+     * {@code schema_resolution: strict} refuse it exactly like a cold one.
+     */
+    public void testFromPreservesWidenedColumnsThroughCopies() {
+        WidenedColumn widened = new WidenedColumn("a", DataType.INTEGER, DataType.KEYWORD, "oops", 3);
+        SimpleSourceMetadata meta = new SimpleSourceMetadata(List.of(attr("a", DataType.KEYWORD)), "csv", "file:///a.csv")
+            .withWidenedColumns(List.of(widened));
+
+        SchemaCacheEntry entry = SchemaCacheEntry.from(meta);
+
+        assertEquals(List.of(widened), entry.widenedColumns());
+        assertEquals(List.of(widened), entry.withSafeMetadata(Map.of("k", "v")).widenedColumns());
+        assertEquals(List.of(), SchemaCacheEntry.from(new SimpleSourceMetadata(meta.schema(), "csv", "file:///a.csv")).widenedColumns());
+        SchemaCacheEntry bare = SchemaCacheEntry.from(new SimpleSourceMetadata(meta.schema(), "csv", "file:///a.csv"));
+        assertTrue("a cached widening record must count against the cache budget", entry.estimatedBytes() > bare.estimatedBytes());
+    }
+
 }

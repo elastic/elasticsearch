@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchHandle;
 
 import java.util.List;
 import java.util.Map;
@@ -122,7 +123,8 @@ public class DataNodeComputeHandlerTests extends ESTestCase {
             IndicesOptions.STRICT_EXPAND_OPEN,
             true,
             true,
-            true
+            true,
+            randomBoolean()
         );
     }
 }

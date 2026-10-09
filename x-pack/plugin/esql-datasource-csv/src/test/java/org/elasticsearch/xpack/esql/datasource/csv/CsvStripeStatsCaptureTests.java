@@ -25,11 +25,13 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
@@ -64,7 +66,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     // The CSV reader emits response warning headers (escaped-mode config + null-marker) via
@@ -169,6 +171,27 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         frags.addAll(captureRaw(slice(full, cut, full.length), cut, false, true, 1000, stripe, true, schema));
 
         assertFoldsTo(frags, total);
+    }
+
+    /**
+     * BOM regression: a leading UTF-8 BOM (EF BB BF) must NOT disable stripe capture. Before the fix the
+     * BOM bytes were consumed before {@link org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream},
+     * so {@code byteCounter.getBytesRead()} returned N-3 while {@code recordReader.bytesRead()} returned N;
+     * the tripwire saw N != N-3 and set {@code stripeCaptureDisabled = true}, causing every warm COUNT(*) to
+     * re-read the file.
+     *
+     * <p>This asserts stripe fragments ARE emitted and form a complete cover of ALL N file bytes (BOM + data)
+     * — verifying that both the tripwire invariant and the byte-range geometry are correct.
+     */
+    public void testLeadingBomDoesNotDisableStripeCapture() throws Exception {
+        byte[] bom = new byte[] { (byte) 0xEF, (byte) 0xBB, (byte) 0xBF };
+        int total = 8;
+        byte[] data = asciiCsv(0, total);
+        byte[] full = concat(bom, data);
+        long stripe = 7;
+
+        List<Frag> frags = captureStripes(full, 0, true, true, 1000, stripe);
+        assertDenseFileFinalCover(frags, total, full.length);
     }
 
     // ---- Stripe-boundary page geometry (mirrors NdJsonStripeStatsCaptureTests) ----------------------
@@ -619,7 +642,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of());
             service.getOrComputeSchema(
                 key,
                 k -> SchemaCacheEntry.from(schema, "csv", path, Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint), Map.of())
@@ -689,6 +712,11 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             .firstSplit(firstSplit)
             .lastSplit(true)
             .readSchema(readSchema)
+            // A later split of a headered file binds the schema by the header columns the planner hands it; the
+            // schema here names the file's columns in file order.
+            .fileHeaderColumns(
+                headerRow && firstSplit == false && readSchema != null ? readSchema.stream().map(Attribute::name).toList() : null
+            )
             .splitStartByte(baseOffset)
             .stats(baseOffset, stripeSize, fileFinal)
             .build();
@@ -1420,7 +1448,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", "", Map.of());
             List<Attribute> schema = List.of(
                 new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.KEYWORD, Nullability.TRUE, null, false)
             );
@@ -1456,6 +1484,11 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
     private StorageObject memoryObject(byte[] bytes, Instant fixedMtime) {
         String uniquePath = "memory://" + UUID.randomUUID() + ".csv";
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(bytes);

@@ -13,7 +13,7 @@ import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ai21.Ai21Model;
@@ -63,7 +63,7 @@ public class Ai21ChatCompletionModel extends Ai21Model {
      * @param request The UnifiedCompletionRequest containing the model override.
      * @return A new Ai21ChatCompletionModel with the overridden model ID.
      */
-    public static Ai21ChatCompletionModel of(Ai21ChatCompletionModel model, UnifiedCompletionRequest request) {
+    public static Ai21ChatCompletionModel of(Ai21ChatCompletionModel model, UnifiedCompletionRequestBody request) {
         if (request.model() == null) {
             // If no model is specified in the request, return the original model
             return model;

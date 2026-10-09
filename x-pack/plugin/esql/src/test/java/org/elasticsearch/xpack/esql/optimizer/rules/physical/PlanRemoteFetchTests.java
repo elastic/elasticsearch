@@ -48,7 +48,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.plugin.RemoteFetchHandle;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchHandle;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
@@ -268,6 +268,29 @@ public class PlanRemoteFetchTests extends ESTestCase {
         );
 
         assertThat(optimized.collect(RemoteFetchBoundaryExec.class), hasSize(0));
+    }
+
+    public void testPlansDeferredSource() {
+        PhysicalPlan optimized = distributedPlan(
+            configuration(true, MappedFieldType.FieldExtractPreference.NONE),
+            TransportVersion.current(),
+            "FROM employees METADATA _source | SORT hire_date | LIMIT 20 | KEEP _source"
+        );
+
+        assertThat(optimized.toString(), optimized.collect(RemoteFetchBoundaryExec.class), hasSize(1));
+        List<RemoteFetchExec> fetches = optimized.collect(RemoteFetchExec.class);
+        assertThat(fetches, hasSize(1));
+        assertThat(fetches.getFirst().attributesToFetch().stream().map(Attribute::name).toList(), equalTo(List.of("_source")));
+    }
+
+    public void testDoesNotPlanArbitrarySourceTypedField() {
+        assertDeferredAttributeIsRejected(
+            new FieldAttribute(
+                Source.EMPTY,
+                "source_typed_field",
+                new EsField("source_typed_field", DataType.SOURCE, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
     }
 
     public void testPlansNormalMappedFieldImplementations() {

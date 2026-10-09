@@ -40,6 +40,23 @@ public interface StorageObject {
      */
     int TRANSFER_BUFFER_SIZE = 8192;
 
+    /**
+     * Identifies the storage configuration (endpoint, credential identity) this object was obtained
+     * from. Two objects with the same identity, path, and length may share a footer cache entry;
+     * objects with different identities must not.
+     * <p>
+     * Credential-scoped providers (S3, GCS, Azure, HTTP) must return an identity derived from their
+     * endpoint and credential settings. Providers with no per-data-source configuration (local files,
+     * Arrow Flight) declare their own private singleton, never one shared with another provider type.
+     * Objects whose content is not addressable by path (in-memory chunks, single-use streams) return an
+     * identity equal only to itself.
+     * <p>
+     * <b>Decorator implementations must explicitly override this and return
+     * {@code delegate.storageIdentity()}</b>; there is deliberately no default, so a new decorator
+     * cannot silently fall back to an identity that bypasses its delegate's credential scope.
+     */
+    StorageIdentity storageIdentity();
+
     // === SYNC API (required) ===
 
     /**
@@ -76,6 +93,39 @@ public interface StorageObject {
     long length() throws IOException;
 
     /**
+     * Object size in bytes if already known without performing I/O (a listing hint, a prior GET's
+     * {@code Content-Length} / {@code Content-Range} total, or a constructor-supplied size).
+     * Returns {@link #READ_TO_END} when the size is not known. Implementations must not issue a
+     * HEAD or GET to serve this; use {@link #length()} when a definitive size is required.
+     * <p>
+     * A successful GET should refresh this to the size of the generation that was actually opened,
+     * so a listing size that has gone stale after a rewrite is not treated as the expected byte count.
+     */
+    default long knownLength() {
+        return READ_TO_END;
+    }
+
+    /**
+     * Opaque identifier of the object generation this instance's reads are <em>pinned</em> to
+     * (S3/HTTP/Azure ETag, GCS generation number, ...). Implementations normally send this as
+     * {@code If-Match} / {@code generationMatch}; a compatibility store that does not implement the
+     * conditional header must instead validate the generation returned by every successful response.
+     * {@code null} when no pin has been acquired: before the first read, or when the store cannot
+     * supply one (metadata access denied, weak ETag only).
+     * <p>
+     * This is deliberately <em>not</em> "the last generation seen anywhere". A metadata-only request
+     * (HEAD, {@code getProperties}, {@code objects.get}) may well see a newer generation than the one
+     * the open readers are pinned to, and reporting that here would make a perfectly valid resume
+     * look like a mid-read rewrite. Implementations must therefore acquire the pin only from a
+     * request that transfers object bytes (or, for GCS, the metadata GET issued specifically to
+     * acquire the pin), never from a metadata-only request, and must not move it once set. Pin
+     * acquisition must be atomic: concurrent first reads from different generations cannot both succeed.
+     */
+    default String contentGeneration() {
+        return null;
+    }
+
+    /**
      * File length for {@link org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache} and
      * {@link org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache} keys. Range views
      * ({@code offset}/{@code length} splits) must return the underlying object's full size, not
@@ -83,6 +133,16 @@ public interface StorageObject {
      */
     default long lengthForFooterCacheKey() throws IOException {
         return length();
+    }
+
+    /**
+     * Maps a read position in this object's coordinate space to an offset in the object identified
+     * by {@link #lengthForFooterCacheKey()}. Identity by default. Range views add their start so a
+     * {@code FooterByteCache} suffix check uses file-absolute coordinates, matching
+     * {@link #startReadBytesAsync} which also translates before the backend GET.
+     */
+    default long offsetForFooterCache(long position) {
+        return position;
     }
 
     /** Returns the last modification time, or null if not available. */
@@ -240,6 +300,23 @@ public interface StorageObject {
     }
 
     /**
+     * Async start with optional permit barge. Default ignores {@code barge} and delegates to
+     * {@link #startReadBytesAsync(long, long, DirectBufferFactory, Executor, ActionListener)}.
+     * Limiters honor {@code barge}: untimed try-acquire so a retry continuation never parks.
+     * Wrappers that sit between retry and the limiter must forward {@code barge}.
+     */
+    default Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        boolean barge
+    ) {
+        return startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    /**
      * Async byte read into a caller-provided ByteBuffer.
      * <p>
      * Avoids per-call allocation by reading directly into the target buffer.
@@ -392,4 +469,20 @@ public interface StorageObject {
      * to the wrapped object so the metrics attach to the underlying store, not the wrapper layer.
      */
     default void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+    /**
+     * Binds {@code io} to the query-budget scheduler that will grant this object's GETs.
+     * The default is a no-op for objects with no query budget.
+     */
+    default void bindRowGroup(RowGroupIo io) {}
+
+    /**
+     * Timeout in milliseconds exposed by query-budget decorators for permit-acquire waits.
+     * Parquet coalesced PER_GET byte admission no longer reads this; that path uses tickets.
+     * Decorators that wrap a query budget still return {@link QueryAdmission#DEFAULT_ACQUIRE_TIMEOUT_MS}
+     * (or the budget acquire timeout) so tests and any remaining permit-wait callers can observe it.
+     */
+    default long admissionWaitTimeoutMs() {
+        return QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS;
+    }
 }

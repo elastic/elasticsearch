@@ -11,11 +11,16 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -42,9 +47,40 @@ public class FormatReaderRegistry {
     private final Map<String, Supplier<FormatReader>> byName = new ConcurrentHashMap<>();
     private final Map<String, Supplier<FormatReader>> byExtension = new ConcurrentHashMap<>();
     private final DecompressionCodecRegistry codecRegistry;
+    private volatile AdmissionTracker admissionTracker = AdmissionTracker.NOOP;
+    private final NodeByteBudget nodeByteBudget;
+    private volatile int maxDecompressionRatio = ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getDefault(Settings.EMPTY);
+    private volatile int maxDecompressionRatioZstd = ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD.getDefault(Settings.EMPTY);
 
     public FormatReaderRegistry(DecompressionCodecRegistry codecRegistry) {
+        this(codecRegistry, null);
+    }
+
+    public FormatReaderRegistry(DecompressionCodecRegistry codecRegistry, @Nullable NodeByteBudget nodeByteBudget) {
         this.codecRegistry = codecRegistry;
+        this.nodeByteBudget = nodeByteBudget;
+    }
+
+    /** Shared node I/O byte tickets; {@code null} in tests that construct a registry without one. */
+    @Nullable
+    NodeByteBudget nodeByteBudget() {
+        return nodeByteBudget;
+    }
+
+    public void setAdmissionTracker(AdmissionTracker admissionTracker) {
+        this.admissionTracker = admissionTracker == null ? AdmissionTracker.NOOP : admissionTracker;
+    }
+
+    public void setMaxDecompressionRatio(int ratio) {
+        this.maxDecompressionRatio = ratio;
+    }
+
+    public void setMaxDecompressionRatioZstd(int ratio) {
+        this.maxDecompressionRatioZstd = ratio;
+    }
+
+    private int maxDecompressionRatio(DecompressionCodec codec) {
+        return "zstd".equals(codec.name()) ? maxDecompressionRatioZstd : maxDecompressionRatio;
     }
 
     public void registerLazy(String formatName, FormatReaderFactory factory, Settings settings, BlockFactory blockFactory) {
@@ -62,17 +98,32 @@ public class FormatReaderRegistry {
                 if (instance == null) {
                     synchronized (this) {
                         if (instance == null) {
-                            instance = factory.create(settings, blockFactory);
-                            // Register extension mappings now that the reader is created
-                            for (String ext : instance.fileExtensions()) {
-                                if (Strings.isNullOrEmpty(ext) == false) {
-                                    String normalizedExt = ext.toLowerCase(Locale.ROOT);
-                                    if (normalizedExt.startsWith(".") == false) {
-                                        normalizedExt = "." + normalizedExt;
+                            FormatReader created = factory.create(settings, blockFactory, nodeByteBudget);
+                            created.bindAdmissionTracker(admissionTracker);
+                            // Claim extension mappings before publishing the instance, under the same
+                            // conflict rule as registerExtension: a reader-declared extension already
+                            // owned by another format fails loudly instead of silently stealing the
+                            // mapping. Claims are idempotent for this supplier (an extension the
+                            // FormatSpec registered eagerly maps to this same supplier), so a retry
+                            // after a conflict re-claims its own extensions harmlessly. On failure,
+                            // the claims this attempt newly made are rolled back — a conflict on a
+                            // later extension must not leave an earlier one owned by a reader that
+                            // never published. Eager spec-declared claims predate this attempt and
+                            // are left intact.
+                            List<String> newlyClaimed = new ArrayList<>();
+                            try {
+                                for (String ext : created.fileExtensions()) {
+                                    if (Strings.isNullOrEmpty(ext) == false && claimExtension(ext, this, formatName)) {
+                                        newlyClaimed.add(normalizeExtension(ext));
                                     }
-                                    byExtension.put(normalizedExt, this);
                                 }
+                            } catch (RuntimeException e) {
+                                for (String claimed : newlyClaimed) {
+                                    byExtension.remove(claimed, this);
+                                }
+                                throw e;
                             }
+                            instance = created;
                         }
                     }
                 }
@@ -126,17 +177,77 @@ public class FormatReaderRegistry {
     }
 
     public void registerExtension(String extension, String formatName) {
-        String normalizedExt = extension.toLowerCase(Locale.ROOT);
-        if (normalizedExt.startsWith(".") == false) {
-            normalizedExt = "." + normalizedExt;
-        }
         Supplier<FormatReader> supplier = byName.get(formatName.toLowerCase(Locale.ROOT));
         Check.notNull(supplier, "Cannot register extension [{}] -- format [{}] not registered", extension, formatName);
-        byExtension.put(normalizedExt, supplier);
+        claimExtension(extension, supplier, formatName);
+    }
+
+    /**
+     * Claims {@code extension} for {@code supplier}, throwing if a different supplier already owns it.
+     * The single write path to {@link #byExtension}: both the eager spec-declared registration
+     * ({@link #registerExtension}) and the lazy reader-declared one (inside {@link #registerLazy}'s
+     * supplier) go through it, so neither can silently overwrite the other's claim — an extension
+     * claimed by two formats would otherwise validate against one format at PUT and read as the other
+     * at query time. Re-claiming with the same supplier is a no-op.
+     *
+     * @return {@code true} when this call inserted the mapping, {@code false} for an idempotent
+     *         re-claim — so {@code registerLazy}'s supplier can roll back exactly the claims a
+     *         failed materialization attempt made, and no others.
+     */
+    private boolean claimExtension(String extension, Supplier<FormatReader> supplier, String formatName) {
+        String normalizedExt = normalizeExtension(extension);
+        Supplier<FormatReader> existing = byExtension.putIfAbsent(normalizedExt, supplier);
+        if (existing != null && existing != supplier) {
+            // Find the name of the format that already owns this extension for a clear error message.
+            String existingFormat = byName.entrySet()
+                .stream()
+                .filter(e -> e.getValue() == existing)
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse("unknown");
+            throw new IllegalStateException(
+                "conflicting formats for extension [" + normalizedExt + "]: [" + existingFormat + "] vs [" + formatName + "]"
+            );
+        }
+        return existing == null;
+    }
+
+    /** Lower-cases {@code extension} and ensures a leading dot — the canonical key form of {@link #byExtension}. */
+    private static String normalizeExtension(String extension) {
+        String normalized = extension.toLowerCase(Locale.ROOT);
+        return normalized.startsWith(".") ? normalized : "." + normalized;
     }
 
     public FormatReader byExtension(String objectName) {
         return byExtension(objectName, objectName);
+    }
+
+    /**
+     * Format name claimed by {@code objectName}'s inner extension, with a compression suffix stripped.
+     * Does not wrap a codec or instantiate the reader, so a whole-file-compression veto cannot throw.
+     * Returns {@code null} when the name is empty or the inner extension is unregistered.
+     */
+    @Nullable
+    public String formatNameForObject(String objectName) {
+        if (Strings.isNullOrEmpty(objectName)) {
+            return null;
+        }
+        String name = objectName;
+        if (codecRegistry != null) {
+            String stripped = codecRegistry.stripCompressionSuffix(name);
+            if (stripped != null) {
+                name = stripped;
+            }
+        }
+        String extension = trailingExtension(name);
+        if (extension == null) {
+            return null;
+        }
+        Supplier<FormatReader> supplier = byExtension.get(extension);
+        if (supplier == null) {
+            return null;
+        }
+        return byName.entrySet().stream().filter(e -> e.getValue() == supplier).map(Map.Entry::getKey).findFirst().orElse(null);
     }
 
     /**
@@ -177,23 +288,6 @@ public class FormatReaderRegistry {
     }
 
     /**
-     * The single builder for "we cannot work out how to read this". Both the resolver's factory-selection
-     * failure and this registry's own extension lookup raise it, so one condition cannot produce two
-     * differently-worded answers depending on which layer caught it.
-     * <p>
-     * It lives here because this registry owns the vocabulary AND the claiming decision: {@code canHandle}
-     * consults {@link #hasExtension}/{@link #hasFormat}, i.e. these very maps. Sourcing the message from
-     * {@link DataSourceCapabilities} instead would let it disagree with what actually claims — capabilities is
-     * built from {@code FormatSpec} declarations alone, so an extension a reader declares only via
-     * {@code FormatReader#fileExtensions()} would be absent from it while this registry, and therefore
-     * {@code canHandle}, honours it. Sourcing the message from the claiming maps means such a reader
-     * cannot make the advice lie.
-     *
-     * @param displayPath what the user asked for, quoted back to them — the full location on the resolver
-     *                    path, the object name here
-     * @param objectName  the object name to diagnose the extension from
-     */
-    /**
      * Raised when {@link #byExtension} cannot map an object name to a reader (no extension, or an
      * extension the registry does not claim). Distinct from {@link #wrapWithCodec} vetoes, which are
      * also {@link IllegalArgumentException} but name a real format/codec incompatibility rather than
@@ -206,6 +300,22 @@ public class FormatReaderRegistry {
         }
     }
 
+    /**
+     * The single builder for "we cannot work out how to read this". Both the resolver's factory-selection
+     * failure and this registry's own extension lookup raise it, so one condition cannot produce two
+     * differently-worded answers depending on which layer caught it.
+     * <p>
+     * It lives here because this registry owns the vocabulary AND the claiming decision: {@code canHandle}
+     * consults {@link #hasExtension}/{@link #hasFormat}, i.e. these very maps. Sourcing the message from
+     * {@link DataSourceCapabilities} instead would let it disagree with what actually claims — capabilities is
+     * built from {@code FormatSpec} declarations alone, so an extension a reader declares only via
+     * {@code FormatReader#fileExtensions()} would be absent from it while this registry, and therefore
+     * {@code canHandle}, honours it. Sourcing the message from the claiming maps means such a reader
+     * cannot make the advice lie.
+     *
+     * @param displayPath quoted back to the user; never the full location, which the user may not be allowed to see
+     * @param objectName  the object name to diagnose the extension from
+     */
     UnreadableObjectException unreadableObject(String displayPath, String objectName) {
         return new UnreadableObjectException(
             "Cannot determine how to read ["
@@ -303,12 +413,34 @@ public class FormatReaderRegistry {
     }
 
     /**
+     * Wraps an already-configured reader with the compression codec implied by {@code objectName}, applying
+     * the same whole-file-compression veto and GA-codec gate as {@link #byNameForObject}. Returns {@code configured}
+     * unchanged when the name has no compression suffix. Unlike {@link #byNameForObject}, this does not allocate a
+     * fresh unconfigured inner — the caller must pass the configured instance the scan will actually use.
+     */
+    public FormatReader wrapForObject(FormatReader configured, String objectName) {
+        if (configured == null || codecRegistry == null || Strings.isNullOrEmpty(objectName)) {
+            return configured;
+        }
+        String extension = trailingExtension(objectName);
+        if (extension == null) {
+            return configured;
+        }
+        DecompressionCodec codec = codecRegistry.byExtension(extension);
+        if (codec == null) {
+            return configured;
+        }
+        return wrapWithCodec(configured, codec, extension, objectName);
+    }
+
+    /**
      * Applies the whole-file-compression veto and the release-build GA-codec gate, then wraps {@code inner}
      * in a {@link CompressionDelegatingFormatReader} for {@code codec}. Shared by {@link #byExtension(String)}
-     * (compound-extension inference) and {@link #byNameForObject(String, String)} (explicit format/reader
-     * override), so the two paths cannot diverge on which codecs/formats are compatible.
+     * (compound-extension inference), {@link #byNameForObject(String, String)} (explicit format/reader
+     * override), and {@link #wrapForObject(FormatReader, String)} (configured reader, per-file wrap),
+     * so the three paths cannot diverge on which codecs/formats are compatible.
      */
-    private static FormatReader wrapWithCodec(FormatReader inner, DecompressionCodec codec, String extension, String objectName) {
+    private FormatReader wrapWithCodec(FormatReader inner, DecompressionCodec codec, String extension, String objectName) {
         if (inner.supportsWholeFileCompression() == false) {
             throw new IllegalArgumentException(
                 "Format ["
@@ -328,7 +460,7 @@ public class FormatReaderRegistry {
                 "compression codec [" + codec.name() + "] is not supported; supported: uncompressed, gzip, zstd"
             );
         }
-        return new CompressionDelegatingFormatReader(inner, codec);
+        return new CompressionDelegatingFormatReader(inner, codec, () -> maxDecompressionRatio(codec));
     }
 
     /**
@@ -371,10 +503,6 @@ public class FormatReaderRegistry {
         if (Strings.isNullOrEmpty(extension)) {
             return false;
         }
-        String normalizedExt = extension.toLowerCase(Locale.ROOT);
-        if (normalizedExt.startsWith(".") == false) {
-            normalizedExt = "." + normalizedExt;
-        }
-        return byExtension.containsKey(normalizedExt);
+        return byExtension.containsKey(normalizeExtension(extension));
     }
 }

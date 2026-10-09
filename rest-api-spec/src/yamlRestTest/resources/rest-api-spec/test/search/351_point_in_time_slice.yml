@@ -1,8 +1,12 @@
 setup:
   - requires:
       test_runner_features: [capabilities]
-      cluster_features: ["index.slice_indexing", "search.point_in_time_slice", "gte_v7.13.0"]
-      reason: needs slice indexing, point-in-time slice support, and point in time support
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [slice_indexing]
+      cluster_features: ["gte_v7.13.0"]
+      reason: needs slice indexing, point-in-time support, and point-in-time slice APIs
   - do:
       indices.create:
         index: slice_pit_index

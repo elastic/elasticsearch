@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -23,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
@@ -32,6 +32,10 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
+
+    public PromqlPlanTopKTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     @Before
     public void assumeTopkEnabled() {
@@ -59,6 +63,20 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(topNBy.order(), hasSize(1));
         assertThat(topNBy.order().get(0).direction(), equalTo(Order.OrderDirection.ASC));
         assertThat(((Number) topNBy.limitPerGroup().fold(FoldContext.small())).intValue(), equalTo(2));
+    }
+
+    /** Prometheus converts k with an integer cast: {@code topk(1.5, v)} keeps one series and {@code topk(0.5, v)} none. */
+    public void testFractionalKIsTruncated() {
+        for (var kAndLimit : List.of(Map.entry("1.5", 1), Map.entry("2.9", 2), Map.entry("0.5", 0), Map.entry("2", 2))) {
+            for (String function : List.of("topk", "bottomk", "limitk")) {
+                String promql = function + "(" + kAndLimit.getKey() + ", network.bytes_in)";
+                var plan = logicalOptimizerWithLatestVersion.optimize(
+                    planPromql("PROMQL index=k8s step=1h result=(" + promql + ")", false)
+                );
+                var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
+                assertThat(promql, ((Number) topNBy.limitPerGroup().fold(FoldContext.small())).intValue(), equalTo(kAndLimit.getValue()));
+            }
+        }
     }
 
     /**
@@ -102,9 +120,7 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
 
         var dimensions = plan.collect(TimeSeriesAggregate.class)
             .stream()
-            .flatMap(aggregate -> aggregate.aggregates().stream())
-            .flatMap(aggregate -> aggregate.collect(DimensionValues.class).stream())
-            .map(DimensionValues::field)
+            .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .map(e -> e instanceof Attribute attribute ? attribute.name() : e.toString())
             .toList();
         assertThat(dimensions, equalTo(List.of(MetadataAttribute.TIMESERIES, "pod")));

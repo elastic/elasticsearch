@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -55,6 +56,11 @@ class QueryBudgetedStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+        return delegate.listChildren(prefix, limit);
+    }
+
+    @Override
     public boolean exists(StoragePath path) throws IOException {
         return delegate.exists(path);
     }
@@ -62,6 +68,11 @@ class QueryBudgetedStorageProvider implements StorageProvider {
     @Override
     public List<String> supportedSchemes() {
         return delegate.supportedSchemes();
+    }
+
+    @Override
+    public boolean listsInKeyOrder() {
+        return delegate.listsInKeyOrder();
     }
 
     /**

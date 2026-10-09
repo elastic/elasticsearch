@@ -299,6 +299,29 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
         );
     }
 
+    public void testTooManyVectorsIsRejected() throws Exception {
+        // covers both the static-dims path and the dynamic-dims path (dims inferred from the first document)
+        XContentBuilder mapping = randomBoolean()
+            ? fieldMapping(b -> b.field("type", "rank_vectors").field("dims", 3))
+            : fieldMapping(b -> b.field("type", "rank_vectors"));
+        DocumentMapper mapper = createDocumentMapper(mapping);
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("field");
+            for (int i = 0; i < RankVectorsFieldMapper.MAX_VECTORS + 1; i++) {
+                b.startArray().value(1.0f).value(2.0f).value(3.0f).endArray();
+            }
+            b.endArray();
+        })));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "Field [field] of type [rank_vectors] cannot be indexed with more than ["
+                    + RankVectorsFieldMapper.MAX_VECTORS
+                    + "] vectors in a single document"
+            )
+        );
+    }
+
     public void testNonIndexedVector() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "rank_vectors").field("dims", 3)));
 

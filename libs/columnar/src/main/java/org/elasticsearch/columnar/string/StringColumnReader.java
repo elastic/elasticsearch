@@ -11,20 +11,24 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.columnar.numeric.NumericColumnReader;
+import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
-import org.elasticsearch.columnar.substrate.MonotonicReader;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.NavigableSet;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -38,8 +42,7 @@ import java.util.function.Predicate;
  * <p>A null slot holds an address like any other, and {@link #isNullSlot} says whether one does — but the two
  * layouts answer it differently, which is why it is theirs to answer. A dictionary column names a null with a
  * reserved ordinal, so the ordinal already read to resolve the value settles it. A plain column has no spare
- * byte string to mean null with, so it stores one as a zero-length value and keeps a table of the addresses
- * that hold one.
+ * byte string to mean null with, so it stores a null as a code of its own in its lengths.
  *
  * <p>A column either stores its values or names them with ordinals into a dictionary, and the two answer
  * every read and every filter differently. This holds what does not depend on that choice: how documents map
@@ -57,10 +60,14 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * Where each document's slots begin, and one past the last; null when every document holds exactly one
      * slot and a document's value address is therefore its rank.
      */
-    private final LongValues valueAddresses;
+    /** Null when the slots are in step with the documents, so a rank is its own value address. */
+    private final SlotAddressReader addresses;
 
     /** Held so a summary can be read on demand; a merge reads it, an ordinary search never does. */
-    protected final IndexInput data;
+    protected final ColumnInputs inputs;
+
+    /** Whether the page last resolved holds a document with no value; see {@link #ranksOfAll}. */
+    protected boolean pageHasAbsent;
 
     /** Carried across page reads, which arrive in document order; see {@link #ranksOfAll}. */
     private ColumnIterator pageIterator;
@@ -105,27 +112,19 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     private int slotGeneration;
     private int slotMask;
 
-    StringColumnReader(StringColumnMetadata meta, IndexInput data, int blockSize) throws IOException {
+    StringColumnReader(StringColumnMetadata meta, ColumnInputs inputs, int blockSize) throws IOException {
         this.meta = meta;
-        this.data = data;
+        this.inputs = inputs;
         this.blockSize = blockSize;
-        this.iteratorReader = new ColumnIteratorReader(meta.iterator(), data);
-        this.valueAddresses = meta.hasValueAddresses()
-            ? MonotonicReader.open(
-                data,
-                meta.valueAddresses().meta(),
-                meta.numDocsWithField() + 1L,
-                meta.valueAddresses().dataOffset(),
-                meta.valueAddresses().dataLength()
-            )
-            : null;
+        this.iteratorReader = new ColumnIteratorReader(meta.iterator(), inputs.addressing());
+        this.addresses = meta.hasValueAddresses() ? new SlotAddressReader(meta.addressing(), meta.numDocsWithField(), inputs) : null;
     }
 
     /** A reader for {@code meta}, which decides whether the column has a dictionary to read through. */
-    public static StringColumnReader open(StringColumnMetadata meta, IndexInput data) throws IOException {
+    public static StringColumnReader open(StringColumnMetadata meta, ColumnInputs inputs) throws IOException {
         return switch (meta) {
-            case StringColumnMetadata.Dictionary column -> new DictionaryStringColumnReader(column, data);
-            case StringColumnMetadata.Plain column -> new PlainStringColumnReader(column, data);
+            case StringColumnMetadata.Dictionary column -> new DictionaryStringColumnReader(column, inputs);
+            case StringColumnMetadata.Plain column -> new PlainStringColumnReader(column, inputs);
         };
     }
 
@@ -139,7 +138,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * column holds exactly one slot per document.
      */
     public boolean hasValueAddresses() {
-        return valueAddresses != null;
+        return addresses != null;
     }
 
     /**
@@ -157,6 +156,30 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         return meta.hasValueAddresses() == false && meta.hasNullSlots() == false;
     }
 
+    /** Whether every document of the page just resolved holds exactly one value. */
+    protected boolean pageOfOneApiece() {
+        return pageable() && pageHasAbsent == false;
+    }
+
+    /**
+     * For a column holding one value a document, moves the page's present ranks to its front and marks each document
+     * holding one or none in {@link #pageValueCounts}, so the page keeps the single-valued read and its documents
+     * without a value arrive holding none. Answers how many documents hold a value.
+     */
+    protected int compactPresentRanks(int docCount) {
+        int present = 0;
+        for (int i = 0; i < docCount; i++) {
+            final int rank = pageRanks[i];
+            if (rank == ColumnIterator.NO_RANK) {
+                pageValueCounts[i] = 0;
+            } else {
+                pageValueCounts[i] = 1;
+                pageRanks[present++] = rank;
+            }
+        }
+        return present;
+    }
+
     /**
      * How many values each document of the page holds, filling {@link #pageValueCounts} and answering the total. A
      * document's nulls are not among them: a null is not a value a page can carry, so it is dropped and a document
@@ -166,6 +189,11 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         int total = 0;
         for (int i = 0; i < docCount; i++) {
             final int rank = pageRanks[i];
+            if (rank == ColumnIterator.NO_RANK) {
+                // No value for this document, so it holds none.
+                pageValueCounts[i] = 0;
+                continue;
+            }
             final long first = firstValueAddress(rank);
             final long slots = valueCount(rank);
             int values = 0;
@@ -181,13 +209,13 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     }
 
     /** The value address of a document's first slot, given its rank. */
-    public long firstValueAddress(int rank) {
-        return valueAddresses == null ? rank : valueAddresses.get(rank);
+    public long firstValueAddress(int rank) throws IOException {
+        return addresses == null ? rank : addresses.firstValueAddress(rank);
     }
 
     /** The number of slots a document has, given its rank; null slots are counted. */
-    public long valueCount(int rank) {
-        return valueAddresses == null ? 1 : valueAddresses.get(rank + 1) - valueAddresses.get(rank);
+    public long valueCount(int rank) throws IOException {
+        return addresses == null ? 1 : addresses.valueCount(rank);
     }
 
     /**
@@ -196,6 +224,24 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      */
     protected void charge(long bytes) {
         budget.charge(bytes);
+    }
+
+    /**
+     * The length in bytes of the value at {@code valueAddress}, which must not be null. Read off the value
+     * unless the column keeps its lengths apart.
+     */
+    public int byteLengthAt(long valueAddress) throws IOException {
+        return valueAt(valueAddress).length;
+    }
+
+    /** The shortest value the column holds, in bytes, or {@code -1} when it holds none. */
+    public int minLength() {
+        return meta.minLength();
+    }
+
+    /** The longest value the column holds, in bytes, or {@code -1} when it holds none. */
+    public int maxLength() {
+        return meta.maxLength();
     }
 
     /**
@@ -226,26 +272,29 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         return meta.hasSummary() ? meta.summary().numValues() : 0;
     }
 
+    /** Whether the summary carries terms of its own, or only the numbers bounding what one could name. */
+    public boolean hasSummaryTerms() {
+        return meta.hasSummary() && meta.summary().hasTerms();
+    }
+
+    /** What this column recorded about the most a dictionary could name on it, if it recorded anything. */
+    public BestCoverage bestCoverage() {
+        return meta.hasSummary() ? meta.summary().bestCoverage() : BestCoverage.UNKNOWN;
+    }
+
     /**
      * The summarised terms and how often each was seen. The counts are the survey's and so are lower
      * bounds, which is what makes a vocabulary combined from several of them under-state its coverage
-     * rather than over-state it.
+     * rather than over-state it. A column that recorded only the numbers leaves both lists untouched.
      */
     public void readSummary(List<BytesRef> terms, List<Long> counts) throws IOException {
         final StringColumnMetadata.Summary summary = meta.summary();
-        final ValueStream.Reader source = summary.terms() == null ? summarisedTerms() : summary.terms().open(data);
+        if (summary.hasTerms() == false) {
+            return;
+        }
+        final ValueStream.Reader source = summary.terms() == null ? summarisedTerms() : summary.terms().open(inputs);
         final int size = summary.terms() == null ? summarisedTermCount() : Math.toIntExact(summary.terms().numValues());
-        final BytesRef term = new BytesRef();
-        for (int ordinal = 0; ordinal < size; ordinal++) {
-            source.get(ordinal, term);
-            terms.add(BytesRef.deepCopyOf(term));
-        }
-        // Cloned rather than read in place: the caller's own reads are interleaved with these.
-        final IndexInput in = data.clone();
-        in.seek(summary.countsOffset());
-        for (int ordinal = 0; ordinal < size; ordinal++) {
-            counts.add(in.readVLong());
-        }
+        SummaryFormat.read(summary, inputs, source, size, terms, counts);
     }
 
     /** What a summary that stored no terms of its own is read from, which only a dictionary column has. */
@@ -337,13 +386,73 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     }
 
     /**
+     * Documents holding a value in the byte range defined by {@code lower} and {@code upper}, with each
+     * bound optionally inclusive or exclusive. A null bound is open: a null {@code lower} matches any
+     * value down to the minimum, a null {@code upper} matches any value up to the maximum.
+     *
+     * <p>Answered as {@link #matchTerm} is: a {@link TwoPhaseIterator} for unordered columns, and a
+     * rank-range iterator for a column whose values arrive in term order.
+     */
+    public DocIdSetIterator matchRange(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper) throws IOException {
+        if (numDocsWithField() == 0) {
+            return DocIdSetIterator.empty();
+        }
+        if (valuesSorted() && hasValueAddresses() == false) {
+            return documents(sortedRangeByBounds(lower, includeLower, upper, includeUpper));
+        }
+        return unorderedRangeMatches(lower, includeLower, upper, includeUpper);
+    }
+
+    /**
+     * Documents holding a value that is a member of {@code terms}.
+     *
+     * <p>On a column whose values arrive in term order each term is one run of ranks, found by bisection, and
+     * the answer is those runs; no value outside the bisections is read.
+     *
+     * <p>On a {@code DICTIONARY} column the terms are resolved to ordinals, either by bisecting the dictionary
+     * once per term or by reading every term once, and the ordinals then drive the bulk ordinal path. Where
+     * nothing escaped and the ordinals form few runs, those runs answer the documents outright; otherwise a
+     * bitset of them is probed per value. Escaped values are compared by bytes. When no term appears in the
+     * dictionary and the column has no escapes, the result is empty without visiting any document.
+     *
+     * <p>On a {@code PLAIN} column the values are compared directly, which is what {@link #match} would do
+     * with a set membership predicate.
+     *
+     * <p>The set's own comparator cannot change the answer. A set iterating in byte order costs less, since
+     * each term is then resolved from where the one before it stopped, but any order is answered the same.
+     *
+     * <p>{@code membership} holds the same terms, for the paths that decide a value by lookup rather than by
+     * order. The caller owns it so that a query builds it once rather than once a segment.
+     */
+    public DocIdSetIterator matchAnyOf(NavigableSet<BytesRef> terms, Set<BytesRef> membership) throws IOException {
+        if (numDocsWithField() == 0 || terms.isEmpty()) {
+            return DocIdSetIterator.empty();
+        }
+        if (valuesSorted() && hasValueAddresses() == false) {
+            return documents(sortedRangesOfTerms(terms));
+        }
+        return unorderedAnyOfMatches(terms, membership);
+    }
+
+    /** Documents whose value is in {@code terms}, for a column that knows how its values are reached. */
+    protected abstract DocIdSetIterator unorderedAnyOfMatches(NavigableSet<BytesRef> terms, Set<BytesRef> membership) throws IOException;
+
+    /**
      * Documents holding a value that has {@code term} somewhere inside it.
      *
      * <p>Order says nothing about what a value contains, so a column in term order is no help here and the
      * values are looked at either way.
      */
     public DocIdSetIterator matchContains(BytesRef term) throws IOException {
-        return match(value -> ESVectorUtil.contains(value.bytes, value.offset, value.length, term.bytes, term.offset, term.length));
+        if (meta.numDocsWithField() == 0) {
+            return DocIdSetIterator.empty();
+        }
+        return containsMatches(term);
+    }
+
+    /** Documents holding a value with {@code term} inside it; by default every distinct value is tested. */
+    protected DocIdSetIterator containsMatches(BytesRef term) throws IOException {
+        return valueMatches(value -> ESVectorUtil.contains(value.bytes, value.offset, value.length, term.bytes, term.offset, term.length));
     }
 
     /**
@@ -385,7 +494,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         // multiValued() is still false. A column holding a null is never sorted, so the bisection also never
         // meets a slot with no value to compare.
         if (meta.valuesSorted() && meta.hasValueAddresses() == false) {
-            return documents(sortedRange(prefix, exact));
+            return documents(sortedRange(prefix, exact, 0));
         }
         return unorderedMatches(prefix, exact);
     }
@@ -393,33 +502,49 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     /** The match a column with no order to bisect answers with: over ordinals, or over the values. */
     protected abstract DocIdSetIterator unorderedMatches(BytesRef prefix, BytesRef exact) throws IOException;
 
+    /** Documents in the byte range, for a column with no order to bisect directly. */
+    protected abstract DocIdSetIterator unorderedRangeMatches(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper)
+        throws IOException;
+
     /**
      * The ranks holding the term, or the prefix, in a column whose values arrive in order. Their ends are
      * found by bisection over the values, which needs only the order and no ordinals: a term costs a couple
      * of dozen block reads instead of a comparison per document.
      */
-    private RankRange sortedRange(BytesRef prefix, BytesRef exact) throws IOException {
+    private RankRange sortedRange(BytesRef prefix, BytesRef exact, int from) throws IOException {
         final int count = meta.numDocsWithField();
         final BytesRef target = exact != null ? exact : prefix;
-        final int first = firstAtLeast(target, count);
-        if (first == count) {
-            return RankRange.EMPTY;
+        final int first = firstAtLeast(target, from, count);
+        // NOTE: an empty range still reports where the search stopped, which bounds the next target below.
+        if (first == count || matches(valueAt(first), prefix, exact) == false) {
+            return new RankRange(first, first);
         }
-        if (matches(valueAt(first), prefix, exact) == false) {
-            return RankRange.EMPTY;
+        return new RankRange(first, runEnd(first, prefix, exact, count));
+    }
+
+    /**
+     * The rank one past the run starting at {@code first}, whose value is known to match. Doubling the step
+     * before bisecting the bracket keeps the reads next to {@code first}, where a short run ends, rather
+     * than bisecting the whole column above it.
+     */
+    private int runEnd(int first, BytesRef prefix, BytesRef exact, int count) throws IOException {
+        int lo = first;
+        long step = 1;
+        int hi = (int) Math.min(first + step, count);
+        while (hi < count && matches(valueAt(hi), prefix, exact)) {
+            lo = hi;
+            step <<= 1;
+            hi = (int) Math.min(first + step, count);
         }
-        // The run ends where the values stop carrying it, which is again a boundary in value order.
-        int low = first;
-        int high = count;
-        while (low < high) {
-            final int mid = (low + high) >>> 1;
+        while (lo + 1 < hi) {
+            final int mid = lo + ((hi - lo) >>> 1);
             if (matches(valueAt(mid), prefix, exact)) {
-                low = mid + 1;
+                lo = mid;
             } else {
-                high = mid;
+                hi = mid;
             }
         }
-        return new RankRange(first, low);
+        return hi;
     }
 
     /**
@@ -433,19 +558,128 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         }
     }
 
-    /** The first rank whose value sorts at or after {@code target}, by bisection over ordered values. */
-    private int firstAtLeast(BytesRef target, int count) throws IOException {
-        int low = 0;
-        int high = count;
-        while (low < high) {
-            final int mid = (low + high) >>> 1;
-            if (valueAt(mid).compareTo(target) < 0) {
-                low = mid + 1;
-            } else {
-                high = mid;
+    /**
+     * The ranks whose values fall in the byte range, for a column whose values arrive in term order.
+     * Both bisections run over the column's sorted values and cost a handful of block reads each.
+     */
+    private RankRange sortedRangeByBounds(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper) throws IOException {
+        final int count = numDocsWithField();
+
+        int from;
+        if (lower == null) {
+            from = 0;
+        } else {
+            from = firstAtLeast(lower, 0, count);
+            if (includeLower == false && from < count && valueAt(from).compareTo(lower) == 0) {
+                int lo = from;
+                int hi = count;
+                while (lo < hi) {
+                    final int mid = (lo + hi) >>> 1;
+                    if (valueAt(mid).compareTo(lower) <= 0) {
+                        lo = mid + 1;
+                    } else {
+                        hi = mid;
+                    }
+                }
+                from = lo;
             }
         }
-        return low;
+        if (from >= count) {
+            return RankRange.EMPTY;
+        }
+
+        int to;
+        if (upper == null) {
+            to = count;
+        } else {
+            int lo = from;
+            int hi = count;
+            while (lo < hi) {
+                final int mid = (lo + hi) >>> 1;
+                final int cmp = valueAt(mid).compareTo(upper);
+                if (includeUpper ? cmp <= 0 : cmp < 0) {
+                    lo = mid + 1;
+                } else {
+                    hi = mid;
+                }
+            }
+            to = lo;
+        }
+        return new RankRange(from, to);
+    }
+
+    /**
+     * The runs of ranks holding each of {@code terms}, for a column whose values arrive in term order, ascending
+     * and disjoint. Terms the column does not hold contribute nothing.
+     *
+     * <p>Each search starts where the one before it stopped, so an ascending set costs one forward pass over
+     * the values rather than one bisection of the column per term. A term that does not follow its
+     * predecessor drops that bound, and the runs are ordered afterwards, so any order is answered correctly.
+     */
+    private List<RankRange> sortedRangesOfTerms(NavigableSet<BytesRef> terms) throws IOException {
+        final List<RankRange> ranges = new ArrayList<>();
+        BytesRef previous = null;
+        int from = 0;
+        for (BytesRef term : terms) {
+            if (previous != null && previous.compareTo(term) >= 0) {
+                from = 0;
+            }
+            previous = term;
+            final RankRange range = sortedRange(term, term, from);
+            from = range.to();
+            if (range.isEmpty() == false) {
+                ranges.add(range);
+            }
+        }
+        ranges.sort(Comparator.comparingInt(RankRange::from));
+        return ranges;
+    }
+
+    /** Whether {@code value} falls within the byte range defined by the given bounds. */
+    static boolean inRange(BytesRef value, BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper) {
+        if (lower != null) {
+            final int cmp = value.compareTo(lower);
+            if (cmp < 0 || (cmp == 0 && includeLower == false)) {
+                return false;
+            }
+        }
+        if (upper != null) {
+            final int cmp = value.compareTo(upper);
+            if (cmp > 0 || (cmp == 0 && includeUpper == false)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * The first rank at or after {@code from} whose value sorts at or after {@code target}. Doubling the step
+     * before bisecting the bracket costs reads proportional to the distance rather than to the column, and
+     * keeps them close enough together to share a decoded block.
+     */
+    private int firstAtLeast(BytesRef target, int from, int count) throws IOException {
+        int lo = from;
+        int hi = count;
+        // NOTE: doubling only pays while the target is near `from`, which is so for a cursor carried across
+        // ascending targets and not for a lone bound that can sit anywhere.
+        if (from > 0) {
+            long step = 1;
+            hi = (int) Math.min(from + step, count);
+            while (hi < count && valueAt(hi).compareTo(target) < 0) {
+                lo = hi;
+                step <<= 1;
+                hi = (int) Math.min(from + step, count);
+            }
+        }
+        while (lo < hi) {
+            final int mid = (lo + hi) >>> 1;
+            if (valueAt(mid).compareTo(target) < 0) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
     }
 
     /** A value of the wrong length cannot be the term, and cannot be shorter than the prefix. */
@@ -464,6 +698,391 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
             prefix.offset,
             prefix.offset + prefix.length
         );
+    }
+
+    /** A number kept a block at a time for every slot, such as an ordinal or a stored length. */
+    protected interface SlotBlocks {
+        /** Slots a block, a power of two. */
+        int blockSize();
+
+        long numValues();
+
+        /** The numbers of block {@code index}; the buffer is reused and valid until the next call. */
+        long[] block(long index) throws IOException;
+
+        static SlotBlocks of(NumericColumnReader column) {
+            return new SlotBlocks() {
+                @Override
+                public int blockSize() {
+                    return column.blockSize();
+                }
+
+                @Override
+                public long numValues() {
+                    return column.numValues();
+                }
+
+                @Override
+                public long[] block(long index) throws IOException {
+                    return column.block(index);
+                }
+            };
+        }
+    }
+
+    /**
+     * The slots whose number lies in any of a few inclusive ranges, as bits, a block at a time. The block is compared
+     * against each range in one vectorized pass.
+     */
+    protected static class SlotWindow {
+        private final SlotBlocks blocks;
+        /** Inclusive {@code [min, max]} pairs. */
+        private final long[] ranges;
+        private final int shift;
+        private final int mask;
+        private final FixedBitSet bits;
+        private long loaded = -1;
+        /** The last run of held slots {@link #runEnd} found, {@code [runStart, runStop)}. */
+        private long runStart = -1;
+        private long runStop = -1;
+
+        protected SlotWindow(SlotBlocks blocks, long... ranges) {
+            assert ranges.length % 2 == 0 : "ranges come in pairs";
+            this.blocks = blocks;
+            this.ranges = ranges;
+            final int blockSize = blocks.blockSize();
+            this.shift = Integer.numberOfTrailingZeros(blockSize);
+            this.mask = blockSize - 1;
+            this.bits = new FixedBitSet(blockSize);
+        }
+
+        /** Corrects the bits of the loaded block for numbers the ranges alone misjudge; {@code bits[i]} is {@code block[i]}. */
+        protected void adjust(long[] block, int count, long[] bits) {}
+
+        final boolean holds(long slot) throws IOException {
+            load(slot >>> shift);
+            return bits.get((int) (slot & mask));
+        }
+
+        /** The first slot in {@code [from, to)} the window holds, or {@code -1}. */
+        final long next(long from, long to) throws IOException {
+            final long end = Math.min(to, blocks.numValues());
+            while (from < end) {
+                final long window = from >>> shift;
+                load(window);
+                final int at = bits.nextSetBit((int) (from & mask));
+                if (at != DocIdSetIterator.NO_MORE_DOCS) {
+                    final long slot = (window << shift) + at;
+                    return slot < end ? slot : -1;
+                }
+                from = (window + 1) << shift;
+            }
+            return -1;
+        }
+
+        /**
+         * The first slot in {@code [from, to)} the window does not hold, or {@code to}. A run ends where it ends from
+         * anywhere inside it, so the last run found is kept and asking again from inside it costs nothing.
+         */
+        final long runEnd(long from, long to) throws IOException {
+            if (from >= runStart && from < runStop) {
+                return Math.min(runStop, to);
+            }
+            final long end = Math.min(to, blocks.numValues());
+            long at = from;
+            while (at < end) {
+                final long window = at >>> shift;
+                load(window);
+                final int clear = bits.nextClearBit((int) (at & mask));
+                if (clear != DocIdSetIterator.NO_MORE_DOCS) {
+                    at = Math.min((window << shift) + clear, end);
+                    break;
+                }
+                at = (window + 1) << shift;
+            }
+            at = Math.min(at, end);
+            if (at > from) {
+                runStart = from;
+                runStop = at;
+            }
+            return at;
+        }
+
+        /** Sets the bits of every held slot in {@code [from, to)} into {@code dest} at {@code slot - offset}. */
+        final void into(long from, long to, FixedBitSet dest, long offset) throws IOException {
+            while (from < to) {
+                final long window = from >>> shift;
+                load(window);
+                final long windowStart = window << shift;
+                final long upTo = Math.min(to, windowStart + mask + 1);
+                FixedBitSet.orRange(bits, (int) (from - windowStart), dest, (int) (from - offset), (int) (upTo - from));
+                from = upTo;
+            }
+        }
+
+        private void load(long window) throws IOException {
+            if (window == loaded) {
+                return;
+            }
+            final long[] block = blocks.block(window);
+            final long[] words = bits.getBits();
+            Arrays.fill(words, 0L);
+            for (int r = 0; r < ranges.length; r += 2) {
+                ESVectorUtil.inRangeBitmask(block, ranges[r], ranges[r + 1], words);
+            }
+            final long first = window << shift;
+            final int count = (int) Math.min(mask + 1L, blocks.numValues() - first);
+            // The last block is short, and what its buffer holds past the end is left over from another.
+            if (count <= mask) {
+                bits.clear(count, mask + 1);
+            }
+            adjust(block, count, words);
+            loaded = window;
+        }
+    }
+
+    /** Sets the bit {@code slot - offset} in {@code dest} of every slot in {@code [from, to)} a filter holds. */
+    protected interface SlotFill {
+        void into(long from, long to, FixedBitSet dest, long offset) throws IOException;
+    }
+
+    /**
+     * Collects documents from what a filter decides a stretch of slots at a time. A run of present documents holds a
+     * contiguous stretch of slots however many each has, so the stretch is filled at once: on a column of one slot a
+     * document the slot bits are the document bits, and otherwise they are filled into a scratch set and folded onto
+     * the documents holding them through their slot counts. Held per iterator, since the scratch is.
+     */
+    protected final class SlotFold {
+        /** Documents folded at a time, which bounds the scratch a stretch of slots is filled into. */
+        private static final int DOCS_A_STRETCH = 1024;
+        private FixedBitSet scratch = new FixedBitSet(0);
+
+        /**
+         * Sets the bit {@code doc - offset} of every document in {@code [presence.docID(), upTo)} holding a slot
+         * {@code fill} holds, and leaves {@code presence} on its first document at or after {@code upTo}.
+         */
+        void collect(ColumnIterator presence, SlotFill fill, int upTo, FixedBitSet bitSet, int offset) throws IOException {
+            int doc = presence.docID();
+            while (doc < upTo) {
+                int rank = presence.rank();
+                final int runEnd = Math.min(presence.docIDRunEnd(), upTo);
+                if (hasValueAddresses() == false) {
+                    // A slot's bit is its document's: slot - (offset - (doc - rank)) = doc + (slot - rank) - offset.
+                    fill.into(rank, rank + (runEnd - doc), bitSet, offset - (doc - (long) rank));
+                } else {
+                    for (int at = doc; at < runEnd;) {
+                        final int stretchEnd = Math.min(runEnd, at + DOCS_A_STRETCH);
+                        final int endRank = rank + (stretchEnd - at);
+                        final long firstSlot = firstValueAddress(rank);
+                        final long endSlot = firstValueAddress(endRank - 1) + valueCount(endRank - 1);
+                        final int slots = (int) (endSlot - firstSlot);
+                        if (slots > 0) {
+                            if (scratch.length() < slots) {
+                                scratch = new FixedBitSet(slots);
+                            } else {
+                                scratch.clear(0, slots);
+                            }
+                            fill.into(firstSlot, endSlot, scratch, firstSlot);
+                            for (int r = rank; r < endRank; r++) {
+                                final long count = valueCount(r);
+                                if (count == 0) {
+                                    continue;
+                                }
+                                final int first = (int) (firstValueAddress(r) - firstSlot);
+                                final int held = scratch.nextSetBit(first);
+                                if (held != DocIdSetIterator.NO_MORE_DOCS && held < first + count) {
+                                    bitSet.set(at + (r - rank) - offset);
+                                }
+                            }
+                        }
+                        rank = endRank;
+                        at = stretchEnd;
+                    }
+                }
+                doc = presence.advance(runEnd);
+            }
+        }
+    }
+
+    /** Documents, positioned with the current document's slots. */
+    protected abstract static class Slots extends DocIdSetIterator {
+        /** The current document's first slot. */
+        abstract long firstSlot() throws IOException;
+
+        /** How many slots the current document has. */
+        abstract long slotCount() throws IOException;
+    }
+
+    /**
+     * The documents holding a value: one with a slot that is not null. On a column of one slot a document these are the
+     * documents holding exactly one value.
+     */
+    public DocIdSetIterator documentsWithValue() throws IOException {
+        return meta.hasNullSlots() ? slotsHeld(nonNullSlots()) : iterator();
+    }
+
+    /** The slots that are not null, on a column that has null slots. */
+    protected abstract SlotWindow nonNullSlots();
+
+    /** The documents holding a slot {@code window} holds. */
+    protected final Slots slotsHeld(SlotWindow window) throws IOException {
+        final ColumnIterator presence = iterator();
+        if (hasValueAddresses() == false) {
+            // One slot a document, the document's rank. Within a run of present documents the slot advances with
+            // the document, so a stretch of the window maps onto a stretch of documents by a constant offset; a
+            // dense column is one run.
+            return new Slots() {
+                private int doc = -1;
+
+                @Override
+                long firstSlot() {
+                    return presence.rank();
+                }
+
+                @Override
+                long slotCount() {
+                    return 1;
+                }
+
+                @Override
+                public int docID() {
+                    return doc;
+                }
+
+                @Override
+                public int nextDoc() throws IOException {
+                    return advance(doc + 1);
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    int at = presence.docID() < target ? presence.advance(target) : presence.docID();
+                    while (at != NO_MORE_DOCS) {
+                        final long rank = presence.rank();
+                        final int runEnd = presence.docIDRunEnd();
+                        final long slot = window.next(rank, rank + (runEnd - at));
+                        if (slot >= 0) {
+                            final int found = at + (int) (slot - rank);
+                            return doc = found == at ? at : presence.advance(found);
+                        }
+                        at = presence.advance(runEnd);
+                    }
+                    return doc = NO_MORE_DOCS;
+                }
+
+                @Override
+                public int docIDRunEnd() throws IOException {
+                    final long rank = presence.rank();
+                    final int runEnd = presence.docIDRunEnd();
+                    return doc + (int) (window.runEnd(rank, rank + (runEnd - doc)) - rank);
+                }
+
+                @Override
+                public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                    if (doc >= upTo) {
+                        return;
+                    }
+                    int at = doc;
+                    while (at < upTo) {
+                        final long rank = presence.rank();
+                        final int runEnd = Math.min(presence.docIDRunEnd(), upTo);
+                        // A slot's bit is its document's: slot - (offset - (at - rank)) = at + (slot - rank) - offset.
+                        window.into(rank, rank + (runEnd - at), bitSet, offset - (at - (int) rank));
+                        at = presence.advance(runEnd);
+                    }
+                    advance(upTo);
+                }
+
+                @Override
+                public long cost() {
+                    return presence.cost();
+                }
+            };
+        }
+        return new Slots() {
+            private long first;
+            private long count;
+
+            @Override
+            long firstSlot() {
+                return first;
+            }
+
+            @Override
+            long slotCount() {
+                return count;
+            }
+
+            @Override
+            public int docID() {
+                return presence.docID();
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                return advance(presence.docID() + 1);
+            }
+
+            private final SlotFold fold = new SlotFold();
+
+            @Override
+            public int advance(int target) throws IOException {
+                // A run of present documents holds a contiguous stretch of slots, so the next held slot is found
+                // across the stretch at once and walked back to the document holding it through the slot counts.
+                int at = presence.docID() < target ? presence.advance(target) : presence.docID();
+                while (at != NO_MORE_DOCS) {
+                    final int rank = presence.rank();
+                    final int runEnd = presence.docIDRunEnd();
+                    final int endRank = rank + (runEnd - at);
+                    final long held = window.next(firstValueAddress(rank), firstValueAddress(endRank - 1) + valueCount(endRank - 1));
+                    if (held >= 0) {
+                        int r = rank;
+                        while (firstValueAddress(r) + valueCount(r) <= held) {
+                            r++;
+                        }
+                        first = firstValueAddress(r);
+                        count = valueCount(r);
+                        final int found = at + (r - rank);
+                        return found == at ? at : presence.advance(found);
+                    }
+                    at = presence.advance(runEnd);
+                }
+                return NO_MORE_DOCS;
+            }
+
+            @Override
+            public int docIDRunEnd() throws IOException {
+                // The documents from this one on that each hold a held slot, within its run of present documents.
+                final int doc = presence.docID();
+                final int rank = presence.rank();
+                final int runEnd = presence.docIDRunEnd();
+                int end = doc + 1;
+                while (end < runEnd) {
+                    final int r = rank + (end - doc);
+                    final long from = firstValueAddress(r);
+                    final long slots = valueCount(r);
+                    if (slots == 0 || window.next(from, from + slots) < 0) {
+                        break;
+                    }
+                    end++;
+                }
+                return end;
+            }
+
+            @Override
+            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                if (presence.docID() >= upTo) {
+                    return;
+                }
+                fold.collect(presence, window::into, upTo, bitSet, offset);
+                advance(upTo);
+            }
+
+            @Override
+            public long cost() {
+                return presence.cost();
+            }
+        };
     }
 
     /**
@@ -496,13 +1115,124 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
                 return 1f;
             }
 
+            @Override
+            public int docIDRunEnd() throws IOException {
+                // Asked of any document the approximation is on, matching or not: one outside the range starts no run.
+                final int doc = presence.docID();
+                final int rank = presence.rank();
+                if (rank < firstRank || rank >= endRank) {
+                    return doc;
+                }
+                // Present documents in a run take consecutive ranks, and the range holds them up to its end.
+                return Math.min(presence.docIDRunEnd(), doc + (endRank - rank));
+            }
+
+            @Override
+            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                int doc = presence.docID();
+                while (doc < upTo) {
+                    final int rank = presence.rank();
+                    if (rank >= endRank) {
+                        break;
+                    }
+                    final int runEnd = Math.min(presence.docIDRunEnd(), upTo);
+                    final int from = Math.max(rank, firstRank);
+                    final int to = Math.min(rank + (runEnd - doc), endRank);
+                    if (from < to) {
+                        bitSet.set(doc + (from - rank) - offset, doc + (to - rank) - offset);
+                    }
+                    doc = presence.advance(runEnd);
+                }
+                if (presence.docID() < upTo) {
+                    presence.advance(upTo);
+                }
+            }
+
         });
     }
 
     /**
-     * Resolves the requested documents to their ranks, answering false when any of them has no value. A page
-     * carries one entry a document and has no way to say a document has nothing, so a caller asking about
-     * documents a sparse column skips is told to read them itself rather than handed a neighbour's value.
+     * The documents holding any of several ascending, disjoint ranges of ranks. As with a single range, a dense
+     * column's ranks are its documents, so the runs are walked directly; a sparse one drives its presence
+     * iterator and tests each rank against the run it has reached, which only ever moves forward.
+     */
+    private DocIdSetIterator documents(List<RankRange> ranges) throws IOException {
+        if (ranges.isEmpty()) {
+            return DocIdSetIterator.empty();
+        }
+        if (ranges.size() == 1) {
+            return documents(ranges.getFirst());
+        }
+        if (meta.iterator().isDense()) {
+            return new RankRangesIterator(ranges);
+        }
+        final ColumnIterator presence = iterator();
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
+            private int run;
+
+            @Override
+            public boolean matches() {
+                final int rank = presence.rank();
+                while (run < ranges.size() && ranges.get(run).to() <= rank) {
+                    run++;
+                }
+                return run < ranges.size() && rank >= ranges.get(run).from();
+            }
+
+            @Override
+            public float matchCost() {
+                return 1f;
+            }
+        });
+    }
+
+    /** The documents of a dense column covered by ascending, disjoint rank ranges, where a rank is a document id. */
+    private static final class RankRangesIterator extends DocIdSetIterator {
+        private final List<RankRange> ranges;
+        private final long cost;
+        private int run;
+        private int doc = -1;
+
+        RankRangesIterator(List<RankRange> ranges) {
+            this.ranges = ranges;
+            long total = 0;
+            for (RankRange range : ranges) {
+                total += range.to() - range.from();
+            }
+            this.cost = total;
+        }
+
+        @Override
+        public int docID() {
+            return doc;
+        }
+
+        @Override
+        public int nextDoc() {
+            return advance(doc + 1);
+        }
+
+        @Override
+        public int advance(int target) {
+            while (run < ranges.size() && ranges.get(run).to() <= target) {
+                run++;
+            }
+            if (run == ranges.size()) {
+                return doc = NO_MORE_DOCS;
+            }
+            return doc = Math.max(target, ranges.get(run).from());
+        }
+
+        @Override
+        public long cost() {
+            return cost;
+        }
+    }
+
+    /**
+     * Resolves the requested documents to their ranks, {@link ColumnIterator#NO_RANK} for a document with no value,
+     * and records whether the page holds one in {@link #pageHasAbsent}. Answers false when any document has no
+     * value, for a caller that needs one a document.
      */
     protected boolean ranksOfAll(int[] docs, int offset, int count) throws IOException {
         if (count == 0) {
@@ -516,8 +1246,10 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         }
         pageIteratorThrough = docs[offset + count - 1];
         pageIterator.ranks(docs, offset, count, pageRanks);
+        pageHasAbsent = false;
         for (int i = 0; i < count; i++) {
             if (pageRanks[i] == ColumnIterator.NO_RANK) {
+                pageHasAbsent = true;
                 return false;
             }
         }
@@ -570,14 +1302,61 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         this.budgetBound = true;
         this.budget = budget;
         if (count == 0) {
-            sink.appendValues(pageValues, 0, null, 0);
+            appendGathered(sink, 0, null, 0);
             return true;
         }
         growPageDocs(count);
-        if (ranksOfAll(docs, offset, count) == false) {
-            return false;
-        }
+        // A document with no value arrives holding none.
+        ranksOfAll(docs, offset, count);
         return appendPage(count, sink);
+    }
+
+    /**
+     * For each of {@code docs[offset..offset+count)}, in ascending order: how many non-null values the document holds,
+     * capped at two, into {@code counts}, and where it holds exactly one, that value's length in bytes into
+     * {@code lengths}. The documents are resolved a page at a time and no value is decoded where the column keeps its
+     * lengths apart.
+     */
+    public void readByteLengths(int[] docs, int offset, int count, int[] counts, int[] lengths, PageBudget budget) throws IOException {
+        assert budgetBound == false || this.budget == budget
+            : "a reader's page storage outlives the call that grew it, so it answers to one budget for its life";
+        this.budgetBound = true;
+        this.budget = budget;
+        if (count == 0) {
+            return;
+        }
+        growPageDocs(count);
+        ranksOfAll(docs, offset, count);
+        final boolean oneApiece = pageable();
+        for (int i = 0; i < count; i++) {
+            final int rank = pageRanks[i];
+            if (rank == ColumnIterator.NO_RANK) {
+                counts[i] = 0;
+            } else if (oneApiece) {
+                counts[i] = 1;
+                lengths[i] = byteLengthAt(rank);
+            } else {
+                final long first = firstValueAddress(rank);
+                final long slots = valueCount(rank);
+                int found = 0;
+                for (long s = 0; s < slots && found < 2; s++) {
+                    if (isNullSlot(first + s) == false && found++ == 0) {
+                        lengths[i] = byteLengthAt(first + s);
+                    }
+                }
+                counts[i] = found;
+            }
+        }
+    }
+
+    /** Hands the sink the first {@code count} of {@link #pageValues}, for a page that was gathered before it proved to be values. */
+    protected final void appendGathered(StringBlockSink sink, int count, int[] counts, int docCount) throws IOException {
+        try (StringBlockSink.Values out = sink.values(count, counts, docCount)) {
+            for (int i = 0; i < count; i++) {
+                out.append(pageValues[i]);
+            }
+            out.finish();
+        }
     }
 
     /** Hands {@code count} resolved ranks to the sink, in whichever form the column's values take. */

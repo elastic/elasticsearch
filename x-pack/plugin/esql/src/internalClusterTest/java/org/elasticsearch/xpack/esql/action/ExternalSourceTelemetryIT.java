@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
@@ -55,6 +56,7 @@ import java.util.zip.GZIPOutputStream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -85,6 +87,12 @@ import static org.hamcrest.Matchers.not;
 public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
 
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
+
+    /** What a dataset pointing at a file that does not exist is categorised as. */
+    private static final String EXPECTED_MISSING_FILE_ERROR_TYPE = "discovery";
+    private static final int EXPECTED_MISSING_FILE_ERROR_TYPE_INDEX = DataSourceUsageAccumulator.ERROR_TYPE_NAMES.indexOf(
+        EXPECTED_MISSING_FILE_ERROR_TYPE
+    );
 
     /** Minimal pass-through validator registered for type {@code test}; accepts any resource scheme (mirrors {@link FromDatasetIT}). */
     public static final class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
@@ -151,8 +159,27 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
     }
 
     /** SUITE-scoped cluster: names every dataset/data source a test body PUTs so {@link #cleanup} can drop them between methods. */
-    private static final Set<String> CREATED_DATASETS = Set.of("emp_glob", "emp_missing", "emp_gz", "emp_crud", "emp_dep", "emp_iae");
-    private static final Set<String> CREATED_DATASOURCES = Set.of("ds", "ds_crud", "ds_max", "ds_dep", "ds_iae");
+    private static final Set<String> CREATED_DATASETS = Set.of(
+        "emp_glob",
+        "emp_missing",
+        "emp_gz",
+        "emp_crud",
+        "emp_dep",
+        "emp_iae",
+        "emp_cpu",
+        "emp_bad_row",
+        "emp_dup_header"
+    );
+    private static final Set<String> CREATED_DATASOURCES = Set.of(
+        "ds",
+        "ds_cpu",
+        "ds_crud",
+        "ds_max",
+        "ds_dep",
+        "ds_iae",
+        "ds_bad_row",
+        "ds_dup_header"
+    );
 
     @After
     public void cleanup() throws Exception {
@@ -384,6 +411,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
 
         // Snapshot before so delta assertions are order-independent.
         long discoveryFailuresBefore = clusterTotal(DataSourceUsageAccumulator::discoveryFailures);
+        long discoveryFailuresOfTypeBefore = clusterTotal(a -> a.discoveryFailures(EXPECTED_MISSING_FILE_ERROR_TYPE_INDEX));
         long queriesSuccessBefore = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS));
 
         resetAllMeters();
@@ -401,6 +429,14 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             counterTotal(ExternalSourceMetrics.DISCOVERY_FAILURES_TOTAL),
             greaterThanOrEqualTo(1L)
         );
+        // The failure says why, not just that: the missing file is a client error, categorised as such, on the local type.
+        List<Measurement> discoveryFailures = counters(ExternalSourceMetrics.DISCOVERY_FAILURES_TOTAL);
+        assertThat(discoveryFailures, not(empty()));
+        for (Measurement failure : discoveryFailures) {
+            assertThat(failure.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("local"));
+            assertThat(failure.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo(EXPECTED_MISSING_FILE_ERROR_TYPE));
+            assertThat(failure.attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("400"));
+        }
         // The resolution never reached execution with a resolved external source, so the coordinator's
         // per-query success counter must stay untouched.
         assertThat(
@@ -416,11 +452,130 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             greaterThanOrEqualTo(1L)
         );
         assertThat(
+            "phone-home: discovery.failures.by_error_type must increase for the category of the failure",
+            clusterTotal(a -> a.discoveryFailures(EXPECTED_MISSING_FILE_ERROR_TYPE_INDEX)) - discoveryFailuresOfTypeBefore,
+            greaterThanOrEqualTo(1L)
+        );
+        assertThat(
             "phone-home: queries.total (success) must not increase for a resolution failure",
             clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS)) - queriesSuccessBefore,
             equalTo(0L)
         );
     }
+
+    /**
+     * A query that resolves fine but fails while scanning says why it failed: the failure series of
+     * {@code queries.total} / {@code query.duration.histogram} carries {@code error_type} and the HTTP status, and the
+     * phone-home failures-by-error-type counters add up to the failure outcome.
+     */
+    public void testFailingExternalQueryCarriesErrorTypeAndStatus() throws Exception {
+        Path dir = createTempDir();
+        // The header declares an integer column, the second row is not an integer.
+        Files.writeString(dir.resolve("bad.csv"), "emp_no:integer\n1\nnot_a_number\n3\n");
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_bad_row", "test", null, new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_bad_row",
+                    "ds_bad_row",
+                    dir.resolve("bad.csv").toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv"))
+                )
+            )
+        );
+        long failuresBefore = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE));
+        long byTypeBefore = clusterTotal(IT_SUM_OF_QUERY_FAILURES);
+        resetAllMeters();
+
+        expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM emp_bad_row | STATS s = SUM(emp_no)"), TIMEOUT)) {
+                // the scan must fail on the malformed row
+            }
+        });
+        collectAllMeters();
+
+        List<Measurement> failed = counters(ExternalSourceMetrics.QUERIES_TOTAL).stream()
+            .filter(m -> ExternalSourceMetrics.OUTCOME_FAILURE.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE)))
+            .toList();
+        assertThat(failed, hasSize(1));
+        // KNOWN GAP: the CSV reader reports a malformed data row as a plain IllegalArgumentException, which carries no typed
+        // condition, so it is counted as "other" rather than "format" (see testMalformedHeaderIsADiscoveryFailureOfTypeFormat for
+        // a failure that is typed). Pinned on purpose: when the reader starts tagging row failures as malformed data this
+        // assertion has to move to "format".
+        assertThat(failed.get(0).attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("other"));
+        assertThat(failed.get(0).attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("400"));
+        List<Measurement> failedDurations = histograms(ExternalSourceMetrics.QUERY_DURATION).stream()
+            .filter(m -> ExternalSourceMetrics.OUTCOME_FAILURE.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE)))
+            .toList();
+        assertThat(failedDurations, hasSize(1));
+        assertThat(failedDurations.get(0).attributes(), equalTo(failed.get(0).attributes()));
+        long failuresAfter = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE));
+        assertThat(failuresAfter - failuresBefore, equalTo(1L));
+        assertThat(clusterTotal(IT_SUM_OF_QUERY_FAILURES) - byTypeBefore, equalTo(1L));
+    }
+
+    /**
+     * A failure that carries a typed condition keeps its category: a CSV whose header repeats a column name is rejected as
+     * malformed data while the schema is resolved, so it is a discovery failure of type {@code format} (400), on both the
+     * APM counter and the phone-home counters.
+     */
+    public void testMalformedHeaderIsADiscoveryFailureOfTypeFormat() throws Exception {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("dup.csv"), "emp_no:integer,emp_no:integer\n1,2\n");
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_dup_header", "test", null, new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_dup_header",
+                    "ds_dup_header",
+                    dir.resolve("dup.csv").toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv"))
+                )
+            )
+        );
+        int formatIndex = DataSourceUsageAccumulator.ERROR_TYPE_NAMES.indexOf("format");
+        long formatBefore = clusterTotal(a -> a.discoveryFailures(formatIndex));
+        resetAllMeters();
+
+        expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM emp_dup_header | LIMIT 10"), TIMEOUT)) {
+                // the duplicate header must be rejected before any rows are produced
+            }
+        });
+        collectAllMeters();
+
+        List<Measurement> discoveryFailures = counters(ExternalSourceMetrics.DISCOVERY_FAILURES_TOTAL);
+        assertThat(discoveryFailures, hasSize(1));
+        assertThat(discoveryFailures.get(0).attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("format"));
+        assertThat(discoveryFailures.get(0).attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("400"));
+        assertThat(clusterTotal(a -> a.discoveryFailures(formatIndex)) - formatBefore, equalTo(1L));
+    }
+
+    private static final ToLongFunction<DataSourceUsageAccumulator> IT_SUM_OF_QUERY_FAILURES = a -> {
+        long sum = 0;
+        for (int i = 0; i < DataSourceUsageAccumulator.ERROR_TYPE_COUNT; i++) {
+            sum += a.queryFailures(i);
+        }
+        return sum;
+    };
 
     /**
      * A {@code local} dataset whose format is inferred from a compound {@code .csv.gz} extension (no
@@ -517,6 +672,9 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         long setRejectedBefore = clusterTotal(
             a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_REJECTED)
         );
+        int unknownTypeReason = DataSourceUsageAccumulator.REJECT_REASON_NAMES.indexOf("unknown_type");
+        long dsUnknownTypeBefore = clusterTotal(a -> a.configRejected(DataSourceUsageAccumulator.KIND_DATASOURCE, unknownTypeReason));
+        long dsUnknownTypeChangesBefore = clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, Type.UNKNOWN));
 
         resetAllMeters();
 
@@ -657,14 +815,27 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
                     m -> "rejected".equals(m.attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE))
                         && "unknown".equals(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE))
                         && "unknown_type".equals(m.attributes().get(ExternalSourceMetrics.REASON_ATTRIBUTE))
+                        && "400".equals(m.attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE))
                 ),
             equalTo(true)
+        );
+        assertThat(
+            "phone-home: the rejection is counted by reason",
+            clusterTotal(a -> a.configRejected(DataSourceUsageAccumulator.KIND_DATASOURCE, unknownTypeReason)) - dsUnknownTypeBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            // The "test" data source type of this IT is not in the telemetry vocabulary, so every change of it (created,
+            // updated, deleted) and the rejected unknown-type PUT land on the clamped type.
+            "phone-home: the changes are counted on the clamped type",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, Type.UNKNOWN)) - dsUnknownTypeChangesBefore,
+            equalTo(4L)
         );
     }
 
     /**
-     * Unknown-type PUT dies in the coord {@code doExecute} pre-check. Max-count is thrown from the
-     * CAS task body and is the path that reaches {@code recordingListener.onFailure}.
+     * Unknown-type PUT is refused in {@code putDataSource} before the task is submitted. Max-count
+     * is thrown from the CAS task body and is the path that reaches {@code recordingListener.onFailure}.
      */
     public void testConfigChangesRecordMaxCountFromTaskBody() throws Exception {
         long rejectedBefore = clusterTotal(
@@ -811,6 +982,94 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    /**
+     * Verifies that per-component CPU counters fire for a successful external-source query even when
+     * no {@link org.elasticsearch.xpack.core.esql.QueryMetricsListener} is installed (the NOOP case,
+     * i.e. a non-Serverless deployment). This is the primary goal of the cpu_telemetry feature: APM
+     * and phone-home counters must populate regardless of the billing listener.
+     *
+     * <p>Both the APM counter ({@link ExternalSourceMetrics#QUERY_CPU_TOTAL} broken down by
+     * {@link ExternalSourceMetrics#CPU_COMPONENT_ATTRIBUTE}) and the phone-home accumulator
+     * ({@link DataSourceUsageAccumulator#queryCpuNanos}) must increase after a scan.
+     */
+    public void testQueryCpuMetricsFireWithoutListener() throws Exception {
+        assumeFalse("Windows has unreliable timer resolution; CPU counters may be zero", Constants.WINDOWS);
+        Path dir = createTempDir();
+        // 1000 rows: ensures measurable CPU time even on coarse-timer CI environments.
+        StringBuilder csv = new StringBuilder("emp_no:integer,first_name:keyword\n");
+        for (int i = 0; i < 1000; i++) {
+            csv.append(i).append(",name_").append(i).append('\n');
+        }
+        Files.writeString(dir.resolve("cpu_test.csv"), csv.toString());
+
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_cpu", "test", null, new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_cpu",
+                    "ds_cpu",
+                    dir.resolve("cpu_test.csv").toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv"))
+                )
+            )
+        );
+
+        // snapshot before so delta assertions are order-independent (SUITE-scoped cluster)
+        long execBefore = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_EXECUTION));
+        long readBefore = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_READ));
+        long planBefore = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_PLANNING));
+        long splitBefore = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_SPLIT_DISCOVERY));
+
+        resetAllMeters();
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM emp_cpu | LIMIT 2000"), TIMEOUT)) {}
+
+        collectAllMeters();
+
+        // APM: all four components must fire (planning is wall time so it is always > 0; execution,
+        // read, and split_discovery are real CPU time and must be > 0 for any non-trivial scan)
+        assertThat("cpu.total{component=execution} > 0", cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_EXECUTION), greaterThan(0L));
+        assertThat("cpu.total{component=read} > 0", cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_READ), greaterThan(0L));
+        assertThat(
+            "cpu.total{component=planning} > 0 (wall time)",
+            cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_PLANNING),
+            greaterThan(0L)
+        );
+        assertThat(
+            "cpu.total{component=split_discovery} > 0",
+            cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_SPLIT_DISCOVERY),
+            greaterThan(0L)
+        );
+
+        // phone-home: accumulator deltas must all be positive
+        long execDelta = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_EXECUTION)) - execBefore;
+        long readDelta = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_READ)) - readBefore;
+        long planDelta = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_PLANNING)) - planBefore;
+        long splitDelta = clusterTotal(a -> a.queryCpuNanos(DataSourceUsageAccumulator.CPU_SPLIT_DISCOVERY)) - splitBefore;
+
+        assertThat("phone-home: cpu_nanos.execution > 0", execDelta, greaterThan(0L));
+        assertThat("phone-home: cpu_nanos.read > 0", readDelta, greaterThan(0L));
+        assertThat("phone-home: cpu_nanos.planning > 0", planDelta, greaterThan(0L));
+        assertThat("phone-home: cpu_nanos.split_discovery > 0", splitDelta, greaterThan(0L));
+
+        // APM and phone-home must agree: both sinks receive the same planning value from
+        // ExternalSourceMetrics.recordQueryCpu, so their totals should match exactly.
+        assertThat(
+            "APM planning equals phone-home planning",
+            cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_PLANNING),
+            equalTo(planDelta)
+        );
+    }
+
     // ---- cross-node measurement helpers ----
 
     private List<TestTelemetryPlugin> telemetryPlugins(String node) {
@@ -885,6 +1144,13 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
     private long counterTotalForOutcome(String name, String outcome) {
         return counters(name).stream()
             .filter(m -> outcome.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE)))
+            .mapToLong(Measurement::getLong)
+            .sum();
+    }
+
+    private long cpuComponentTotal(String component) {
+        return counters(ExternalSourceMetrics.QUERY_CPU_TOTAL).stream()
+            .filter(m -> component.equals(m.attributes().get(ExternalSourceMetrics.CPU_COMPONENT_ATTRIBUTE)))
             .mapToLong(Measurement::getLong)
             .sum();
     }

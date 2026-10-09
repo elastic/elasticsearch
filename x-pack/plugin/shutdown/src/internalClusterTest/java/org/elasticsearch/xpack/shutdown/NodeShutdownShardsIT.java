@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.shutdown;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -649,9 +650,10 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         return admin().indices()
             .prepareRecoveries(index)
             .get()
-            .shardRecoveryStates()
+            .shardRecoveryInfos()
             .get(index)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .filter(state -> state.getShardId().id() == id)
             .collect(Collectors.toMap(shard -> shard.getTargetNode().getName(), RecoveryState::getRecoveryPriority));
     }

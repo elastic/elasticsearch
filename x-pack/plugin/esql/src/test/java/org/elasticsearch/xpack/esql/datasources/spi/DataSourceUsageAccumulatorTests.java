@@ -30,6 +30,18 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(acc.storageRequests(Type.UNKNOWN), equalTo(0L));
     }
 
+    public void testRecordBytesAddsBytesWithoutMintingRequest() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordRequest(Type.S3, 9L, 0L);
+        acc.recordBytes(Type.S3, 2048L);
+        acc.recordBytes(Type.S3, 0L);
+
+        assertThat(acc.storageRequests(Type.S3), equalTo(1L));
+        assertThat(acc.storageBytesRead(Type.S3), equalTo(2048L));
+        assertThat(acc.storageRequests(Type.GCS), equalTo(0L));
+        assertThat(acc.storageBytesRead(Type.GCS), equalTo(0L));
+    }
+
     public void testRecordRequestZeroBytesDoesNotIncrementBytesRead() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
         acc.recordRequest(Type.LOCAL, 5L, 0L);
@@ -251,12 +263,152 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(counters.get("datasources.config.datasets.changes.by_op.rejected"), equalTo(1L));
     }
 
+    public void testRecordQueryFailureByErrorType() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordQuery("failure", 10L, false, DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_AUTH);
+        acc.recordQuery("failure", 10L, false, DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_AUTH);
+        acc.recordQuery("failure", 10L, false, DataSourceUsageAccumulator.ERROR_TYPE_FORMAT);
+        // No detail: counted as "other" so the per-type counters always add up to the failure outcome.
+        acc.recordQuery("failure", 10L, false);
+        // Only failures are classified.
+        acc.recordQuery("success", 10L, false, DataSourceUsageAccumulator.ERROR_TYPE_FORMAT);
+        acc.recordQuery("cancelled", 10L, false, DataSourceUsageAccumulator.ERROR_TYPE_FORMAT);
+
+        assertThat(acc.queryFailures(errorTypeIndex(DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_AUTH)), equalTo(2L));
+        assertThat(acc.queryFailures(errorTypeIndex(DataSourceUsageAccumulator.ERROR_TYPE_FORMAT)), equalTo(1L));
+        assertThat(acc.queryFailures(errorTypeIndex(DataSourceUsageAccumulator.ERROR_TYPE_OTHER)), equalTo(1L));
+        long total = 0;
+        for (int i = 0; i < DataSourceUsageAccumulator.ERROR_TYPE_COUNT; i++) {
+            total += acc.queryFailures(i);
+        }
+        assertThat(total, equalTo(acc.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE)));
+
+        Counters counters = new Counters();
+        DataSourceCounters.populate(acc, counters);
+        assertThat(counters.get("datasources.queries.failures.by_error_type.storage_auth"), equalTo(2L));
+        assertThat(counters.get("datasources.queries.failures.by_error_type.format"), equalTo(1L));
+        assertThat(counters.get("datasources.queries.failures.by_error_type.other"), equalTo(1L));
+        assertThat(counters.get("datasources.queries.failures.by_error_type.timeout"), equalTo(0L));
+        assertThat(counters.get("datasources.queries.by_outcome.failure"), equalTo(4L));
+    }
+
+    public void testRecordDiscoveryFailureByErrorType() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordDiscoveryFailure(DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_NOT_FOUND);
+        acc.recordDiscoveryFailure(DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_NOT_FOUND);
+        acc.recordDiscoveryFailure();
+
+        assertThat(acc.discoveryFailures(), equalTo(3L));
+        assertThat(acc.discoveryFailures(errorTypeIndex(DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_NOT_FOUND)), equalTo(2L));
+        assertThat(acc.discoveryFailures(errorTypeIndex(DataSourceUsageAccumulator.ERROR_TYPE_OTHER)), equalTo(1L));
+
+        Counters counters = new Counters();
+        DataSourceCounters.populate(acc, counters);
+        assertThat(counters.get("datasources.discovery.failures.total"), equalTo(3L));
+        assertThat(counters.get("datasources.discovery.failures.by_error_type.storage_not_found"), equalTo(2L));
+        assertThat(counters.get("datasources.discovery.failures.by_error_type.other"), equalTo(1L));
+        assertThat(counters.get("datasources.discovery.failures.by_error_type.format"), equalTo(0L));
+    }
+
+    public void testUnknownErrorTypeIsAProgrammingError() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        expectThrows(IllegalArgumentException.class, () -> acc.recordQuery("failure", 1L, false, "SomeException"));
+        expectThrows(IllegalArgumentException.class, () -> acc.recordDiscoveryFailure("SomeException"));
+        expectThrows(IllegalArgumentException.class, () -> acc.queryFailures(DataSourceUsageAccumulator.ERROR_TYPE_COUNT));
+        expectThrows(IllegalArgumentException.class, () -> acc.discoveryFailures(-1));
+    }
+
+    /** A rejected value must not leave the totals counted without their breakdown. */
+    public void testRejectedValuesLeaveNoCounterIncremented() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        expectThrows(IllegalArgumentException.class, () -> acc.recordDiscoveryFailure("SomeException"));
+        assertThat(acc.discoveryFailures(), equalTo(0L));
+
+        expectThrows(IllegalArgumentException.class, () -> acc.recordConfigChange("datasources", "rejected", Type.UNKNOWN, "not_a_reason"));
+        assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_REJECTED), equalTo(0L));
+        assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, Type.UNKNOWN), equalTo(0L));
+
+        expectThrows(IllegalArgumentException.class, () -> acc.recordQuery("failure", 1L, false, "SomeException"));
+        assertThat(acc.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE), equalTo(0L));
+    }
+
+    public void testRecordConfigChangeRejectedByReasonAndTypeByKind() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordConfigChange("datasource", "rejected", Type.S3, "validation");
+        acc.recordConfigChange("datasource", "rejected", Type.S3, "validation");
+        acc.recordConfigChange("datasource", "rejected", Type.UNKNOWN, "unknown_type");
+        acc.recordConfigChange("dataset", "rejected", Type.GCS, "not_found");
+        // A rejection without a reason is counted as "other" so the reasons always add up to the rejected op.
+        acc.recordConfigChange("dataset", "rejected", Type.GCS, null);
+        acc.recordConfigChange("datasource", "created", Type.S3, null);
+        // The reason is ignored when the op is not "rejected".
+        acc.recordConfigChange("datasource", "updated", Type.AZURE, "validation");
+
+        int ds = DataSourceUsageAccumulator.KIND_DATASOURCE;
+        int dset = DataSourceUsageAccumulator.KIND_DATASET;
+        assertThat(acc.configRejected(ds, rejectReasonIndex("validation")), equalTo(2L));
+        assertThat(acc.configRejected(ds, rejectReasonIndex("unknown_type")), equalTo(1L));
+        assertThat(acc.configRejected(dset, rejectReasonIndex("not_found")), equalTo(1L));
+        assertThat(acc.configRejected(dset, rejectReasonIndex("other")), equalTo(1L));
+        assertThat(acc.configChanges(ds, DataSourceUsageAccumulator.OP_REJECTED), equalTo(3L));
+        assertThat(acc.configChanges(ds, Type.S3), equalTo(3L));
+        assertThat(acc.configChanges(ds, Type.AZURE), equalTo(1L));
+        assertThat(acc.configChanges(dset, Type.GCS), equalTo(2L));
+
+        Counters counters = new Counters();
+        DataSourceCounters.populate(acc, counters);
+        assertThat(counters.get("datasources.config.datasources.changes.rejected.by_reason.validation"), equalTo(2L));
+        assertThat(counters.get("datasources.config.datasources.changes.rejected.by_reason.unknown_type"), equalTo(1L));
+        assertThat(counters.get("datasources.config.datasets.changes.rejected.by_reason.not_found"), equalTo(1L));
+        assertThat(counters.get("datasources.config.datasets.changes.rejected.by_reason.other"), equalTo(1L));
+        assertThat(counters.get("datasources.config.datasources.changes.rejected.by_reason.has_dependents"), equalTo(0L));
+        assertThat(counters.get("datasources.config.datasources.changes.by_type.s3"), equalTo(3L));
+        assertThat(counters.get("datasources.config.datasources.changes.by_type.azure"), equalTo(1L));
+        assertThat(counters.get("datasources.config.datasources.changes.by_type.unknown"), equalTo(1L));
+        assertThat(counters.get("datasources.config.datasets.changes.by_type.gcs"), equalTo(2L));
+        assertThat(counters.get("datasources.config.datasets.changes.by_type.s3"), equalTo(0L));
+    }
+
+    public void testUnknownRejectionReasonIsAProgrammingError() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        expectThrows(IllegalArgumentException.class, () -> acc.recordConfigChange("datasource", "rejected", Type.S3, "SomeException"));
+        expectThrows(IllegalArgumentException.class, () -> acc.configRejected(DataSourceUsageAccumulator.KIND_DATASOURCE, 99));
+    }
+
+    /** Every key the usage payload promises exists even before anything was recorded. */
+    public void testFailureReasonKeysAreAlwaysEmitted() {
+        Counters counters = new Counters();
+        DataSourceCounters.populate(new DataSourceUsageAccumulator(), counters);
+        for (String errorType : DataSourceUsageAccumulator.ERROR_TYPE_NAMES) {
+            assertThat(counters.get("datasources.queries.failures.by_error_type." + errorType), equalTo(0L));
+            assertThat(counters.get("datasources.discovery.failures.by_error_type." + errorType), equalTo(0L));
+        }
+        for (String kind : DataSourceUsageAccumulator.KIND_NAMES) {
+            for (String reason : DataSourceUsageAccumulator.REJECT_REASON_NAMES) {
+                assertThat(counters.get("datasources.config." + kind + ".changes.rejected.by_reason." + reason), equalTo(0L));
+            }
+            for (Type type : Type.values()) {
+                assertThat(counters.get("datasources.config." + kind + ".changes.by_type." + type.key()), equalTo(0L));
+            }
+        }
+    }
+
+    private static int errorTypeIndex(String errorType) {
+        return DataSourceUsageAccumulator.ERROR_TYPE_NAMES.indexOf(errorType);
+    }
+
+    private static int rejectReasonIndex(String reason) {
+        return DataSourceUsageAccumulator.REJECT_REASON_NAMES.indexOf(reason);
+    }
+
     public void testExternalSourceMetricsDualSink() {
         // Verify that ExternalSourceMetrics with an attached accumulator forwards all events
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
         ExternalSourceMetrics metrics = new ExternalSourceMetrics(MeterRegistry.NOOP, acc);
 
-        metrics.recordRequest(50L, 2048L, "s3");
+        metrics.recordRequest(50L, 0L, "s3");
+        metrics.recordBytes(2048L, "s3");
+        metrics.recordRequest(25L, 512L, "azure");
         metrics.recordRetry("gcs");
         metrics.recordError("azure");
         metrics.recordThrottled("http");
@@ -267,9 +419,9 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         metrics.recordQuery(ExternalSourceMetrics.OUTCOME_CANCELLED, 10L, false);
         metrics.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 50L, true);
         metrics.recordTimeToFirstRow(30L, "s3", "parquet");
-        metrics.recordDiscovery(20L, 3L, 4096L, "s3");
-        metrics.recordDiscoveryFailure();
-        metrics.recordParse(100L, 40L, "gcs", "csv");
+        metrics.recordDiscovery(20L, 3L, 4096L, "s3", FormatReader.SchemaResolution.STRICT, false);
+        metrics.recordDiscoveryFailure("s3", DataSourceUsageAccumulator.ERROR_TYPE_DISCOVERY, "400");
+        metrics.recordParse(100L, 40L, 28L, "gcs", "csv");
         metrics.recordSplitsScanned(2L, "s3", "parquet");
         metrics.recordPoolRejected();
         metrics.recordBreakerTripped();
@@ -278,6 +430,8 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
 
         assertThat(acc.storageRequests(Type.S3), equalTo(1L));
         assertThat(acc.storageBytesRead(Type.S3), equalTo(2048L));
+        assertThat(acc.storageRequests(Type.AZURE), equalTo(1L));
+        assertThat(acc.storageBytesRead(Type.AZURE), equalTo(512L));
         assertThat(acc.storageRetries(), equalTo(1L));
         assertThat(acc.storageErrors(Type.AZURE), equalTo(1L));
         assertThat(acc.storageThrottled(Type.HTTP), equalTo(1L));
@@ -288,12 +442,52 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(acc.queriesCancelled(), equalTo(1L));
         assertThat(acc.queriesPartial(), equalTo(1L));
         assertThat(acc.discoveryFailures(), equalTo(1L));
+        assertThat(acc.discoveryFailures(errorTypeIndex(DataSourceUsageAccumulator.ERROR_TYPE_DISCOVERY)), equalTo(1L));
         assertThat(acc.parseRows(), equalTo(100L));
         assertThat(acc.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_CSV), equalTo(100L));
         assertThat(acc.readerPoolRejected(), equalTo(1L));
         assertThat(acc.breakerTripped(), equalTo(1L));
         assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CREATED), equalTo(1L));
         assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_REJECTED), equalTo(1L));
+    }
+
+    public void testRecordQueryCpuAccumulatesPerComponent() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordQueryCpu(1_000L, 2_000L, 3_000L, 4_000L);
+
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_EXECUTION), equalTo(1_000L));
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_READ), equalTo(2_000L));
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_PLANNING), equalTo(3_000L));
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_SPLIT_DISCOVERY), equalTo(4_000L));
+    }
+
+    public void testRecordQueryCpuIsAdditive() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordQueryCpu(100L, 200L, 300L, 400L);
+        acc.recordQueryCpu(100L, 200L, 300L, 400L);
+
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_EXECUTION), equalTo(200L));
+        assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_PLANNING), equalTo(600L));
+    }
+
+    public void testQueryCpuComponentIndexOutOfRangeThrows() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        expectThrows(IllegalArgumentException.class, () -> acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_COMPONENT_COUNT));
+        expectThrows(IllegalArgumentException.class, () -> acc.queryCpuNanos(-1));
+    }
+
+    public void testDataSourceCountersPopulatesCpuNanosKeys() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordQueryCpu(1_000L, 2_000L, 3_000L, 4_000L);
+
+        Counters counters = new Counters();
+        DataSourceCounters.populate(acc, counters);
+
+        assertThat(counters.get("datasources.queries.cpu_nanos.execution"), equalTo(1_000L));
+        assertThat(counters.get("datasources.queries.cpu_nanos.read"), equalTo(2_000L));
+        assertThat(counters.get("datasources.queries.cpu_nanos.planning"), equalTo(3_000L));
+        assertThat(counters.get("datasources.queries.cpu_nanos.split_discovery"), equalTo(4_000L));
+        assertThat(counters.get("datasources.queries.cpu_nanos.total"), equalTo(10_000L));
     }
 
     public void testNoopHasNullAccumulator() {

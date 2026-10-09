@@ -50,7 +50,8 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
         PostAnalysisVerificationAware,
         Streaming,
         SortAgnostic,
-        SortPreserving {
+        SortPreserving,
+        DocPreserving {
 
     /**
      * The input by which the evaluation is performed.
@@ -73,6 +74,8 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
      * See {@link #computeOutputAttributes} for the conversion from function output fields to output attributes.
      */
     private final List<Attribute> outputFieldAttributes;
+
+    private List<Attribute> lazyOutput;
 
     /**
      * This constructor directly accepts the output fields. It should be used for deserialization, regeneration with new names,
@@ -237,7 +240,10 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
 
     @Override
     public List<Attribute> output() {
-        return mergeOutputAttributes(generatedAttributes(), child().output());
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(generatedAttributes(), child().output());
+        }
+        return lazyOutput;
     }
 
     @Override

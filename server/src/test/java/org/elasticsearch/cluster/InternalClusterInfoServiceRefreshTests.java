@@ -58,8 +58,8 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
             final Map<String, NodeHeapEstimates> nodeHeapEstimates = Map.of("node-id", new NodeHeapEstimates(100L, 20L));
             final ShardId shardId = new ShardId("index", "uuid", 0);
             final ShardHeapUsageEstimates shardHeapUsageEstimates = new ShardHeapUsageEstimates(
-                Map.of(shardId, new ShardAndIndexHeapUsage(10L, 5L)),
-                new ShardAndIndexHeapUsage(1L, 2L)
+                Map.of(shardId, new ShardAndIndexHeapUsage(10L, 5L, 3L)),
+                new ShardAndIndexHeapUsage(1L, 2L, 0L)
             );
             final EstimatedHeapUsageStats estimatedHeapUsageStats = new EstimatedHeapUsageStats(nodeHeapEstimates, shardHeapUsageEstimates);
             final AtomicBoolean failEstimatedHeapUsage = new AtomicBoolean();

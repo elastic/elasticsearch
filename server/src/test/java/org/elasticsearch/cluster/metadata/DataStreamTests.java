@@ -1282,6 +1282,66 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())));
     }
 
+    public void testSelectTimeSeriesWriteIndices() {
+        Instant currentTime = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+
+        Instant start1 = currentTime.minus(6, ChronoUnit.HOURS);
+        Instant end1 = currentTime.minus(2, ChronoUnit.HOURS);
+        Instant start2 = currentTime.minus(2, ChronoUnit.HOURS);
+        Instant end2 = currentTime.plus(2, ChronoUnit.HOURS);
+
+        String dataStreamName = "logs_my-app_prod";
+        ClusterState clusterState = DataStreamTestHelper.getClusterStateWithDataStream(
+            dataStreamName,
+            List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
+        );
+        ProjectMetadata project = clusterState.getMetadata().getProject();
+        DataStream dataStream = project.dataStreams().get(dataStreamName);
+        Index index1 = dataStream.getIndices().get(0);
+        Index index2 = dataStream.getIndices().get(1);
+
+        // empty array → empty set
+        assertThat(dataStream.selectTimeSeriesWriteIndices(new long[0], project), equalTo(Set.of()));
+
+        // all timestamps in the same index → singleton set (min==max index fast path)
+        long tsInIndex2 = currentTime.toEpochMilli() * 1_000_000L;
+        assertThat(dataStream.selectTimeSeriesWriteIndices(new long[] { tsInIndex2, tsInIndex2 }, project), equalTo(Set.of(index2)));
+
+        // single distinct timestamp
+        long tsInIndex1 = currentTime.minus(4, ChronoUnit.HOURS).toEpochMilli() * 1_000_000L;
+        assertThat(dataStream.selectTimeSeriesWriteIndices(new long[] { tsInIndex1 }, project), equalTo(Set.of(index1)));
+
+        // min==max (all timestamps identical) → one lookup, singleton
+        assertThat(
+            dataStream.selectTimeSeriesWriteIndices(new long[] { tsInIndex1, tsInIndex1, tsInIndex1 }, project),
+            equalTo(Set.of(index1))
+        );
+
+        // timestamps spanning both indices → both returned in encounter order
+        assertThat(
+            dataStream.selectTimeSeriesWriteIndices(new long[] { tsInIndex1, tsInIndex2 }, project),
+            equalTo(Set.of(index1, index2))
+        );
+
+        // reversed order still returns both
+        assertThat(
+            dataStream.selectTimeSeriesWriteIndices(new long[] { tsInIndex2, tsInIndex1 }, project),
+            equalTo(Set.of(index2, index1))
+        );
+
+        // out-of-range timestamp falls back to write index (index2)
+        long outOfRange = currentTime.plus(10, ChronoUnit.HOURS).toEpochMilli() * 1_000_000L;
+        assertThat(dataStream.selectTimeSeriesWriteIndices(new long[] { outOfRange }, project), equalTo(Set.of(index2)));
+
+        // Both min and max out of range (fall back to write index) but the middle timestamp lands in index1.
+        // The minIndex==maxIndex shortcut must NOT fire here (both raw lookups returned null), so index1
+        // must still be included in the result.
+        assertThat(
+            dataStream.selectTimeSeriesWriteIndices(new long[] { outOfRange, tsInIndex1, outOfRange }, project),
+            equalTo(Set.of(index2, index1))
+        );
+    }
+
     public void testValidate() {
         {
             // Valid cases:
@@ -2074,29 +2134,32 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             settings(IndexVersion.current()),
             DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build()
         );
-        dataStream.unsafeAddBackingIndex(lookupIndex);
+        dataStream = dataStream.unsafeAddBackingIndex(lookupIndex);
         Metadata metadata = builder.build();
 
         {
             // false for indices not part of the data stream
-            assertThat(
-                dataStream.isIndexManagedByDataStreamLifecycle(new Index("standalone_index", "uuid"), metadata.getProject()::index),
-                is(false)
+            assertIsIndexManagedByDataStreamLifecycle(
+                dataStream,
+                new Index("standalone_index", "uuid"),
+                metadata.getProject()::index,
+                false,
+                false
             );
         }
 
         {
             // false for lookup indices even when part of the data stream
-            assertThat(dataStream.isIndexManagedByDataStreamLifecycle(lookupIndex, metadata.getProject()::index), is(false));
+            assertIsIndexManagedByDataStreamLifecycle(dataStream, lookupIndex, metadata.getProject()::index, false, false);
         }
 
         {
             // false for indices that were deleted
-            assertThat(dataStream.isIndexManagedByDataStreamLifecycle(dataStream.getIndices().get(1), (index) -> null), is(false));
+            assertIsIndexManagedByDataStreamLifecycle(dataStream, dataStream.getIndices().get(1), (index) -> null, false, false);
         }
 
         {
-            // false if data stream doesn't have a lifecycle
+            // false if a non-time series data stream doesn't have a lifecycle, regardless of the minimum lifecycle for time series
             Metadata.Builder newBuilder = Metadata.builder();
             DataStream unmanagedDataStream = createDataStream(
                 newBuilder,
@@ -2106,13 +2169,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 null
             );
             Metadata newMetadata = newBuilder.build();
-            assertThat(
-                unmanagedDataStream.isIndexManagedByDataStreamLifecycle(
-                    unmanagedDataStream.getIndices().get(1),
-                    newMetadata.getProject()::index
-                ),
-                is(false)
-            );
+            for (Index index : unmanagedDataStream.getIndices()) {
+                assertIsIndexManagedByDataStreamLifecycle(unmanagedDataStream, index, newMetadata.getProject()::index, false, false);
+            }
         }
 
         {
@@ -2129,36 +2188,182 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadataIlm = builderWithIlm.build();
             for (Index index : ds.getIndices()) {
-                assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm.getProject()::index), is(false));
+                assertIsIndexManagedByDataStreamLifecycle(ds, index, metadataIlm.getProject()::index, false, false);
             }
         }
 
         {
             // true for indices that have an ILM policy configured AND the prefer_ilm setting configured to false
-            {
-                // false for indices that have an ILM policy configured
-                Metadata.Builder builderWithIlm = Metadata.builder();
-                DataStream ds = createDataStream(
-                    builderWithIlm,
-                    dataStreamName,
-                    creationAndRolloverTimes,
-                    Settings.builder()
-                        .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                        .put(IndexSettings.PREFER_ILM, false),
-                    DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
-                );
-                Metadata metadataIlm = builderWithIlm.build();
-                for (Index index : ds.getIndices()) {
-                    assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm.getProject()::index), is(true));
-                }
+            Metadata.Builder builderWithIlm = Metadata.builder();
+            DataStream ds = createDataStream(
+                builderWithIlm,
+                dataStreamName,
+                creationAndRolloverTimes,
+                Settings.builder()
+                    .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexSettings.PREFER_ILM, false),
+                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
+            );
+            Metadata metadataIlm = builderWithIlm.build();
+            for (Index index : ds.getIndices()) {
+                assertIsIndexManagedByDataStreamLifecycle(ds, index, metadataIlm.getProject()::index, true, true);
             }
         }
 
         {
             // true otherwise
             for (Index index : dataStream.getIndices()) {
-                assertThat(dataStream.isIndexManagedByDataStreamLifecycle(index, metadata.getProject()::index), is(true));
+                if (index.equals(lookupIndex) == false) {
+                    assertIsIndexManagedByDataStreamLifecycle(dataStream, index, metadata.getProject()::index, true, true);
+                }
+            }
+        }
+
+        // Time series data streams without a configured lifecycle are managed by the default lifecycle only when it is enabled
+        Settings.Builder timeSeriesSettings = settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put("index.routing_path", "@timestamp");
+
+        {
+            // true for a time series data stream without a lifecycle only when the default lifecycle is enabled
+            Metadata.Builder tsBuilder = Metadata.builder();
+            DataStream tsds = createDataStream(tsBuilder, dataStreamName, creationAndRolloverTimes, timeSeriesSettings, null).copy()
+                .setIndexMode(IndexMode.TIME_SERIES)
+                .build();
+            Metadata tsMetadata = tsBuilder.build();
+            for (Index index : tsds.getIndices()) {
+                assertIsIndexManagedByDataStreamLifecycle(tsds, index, tsMetadata.getProject()::index, false, true);
+            }
+            // the failure indices are managed by the failures lifecycle, which is unaffected by the default for time series
+            for (Index index : tsds.getFailureIndices()) {
+                assertIsIndexManagedByDataStreamLifecycle(tsds, index, tsMetadata.getProject()::index, true, true);
+            }
+            // false for indices that are not part of the data stream or were deleted
+            assertIsIndexManagedByDataStreamLifecycle(
+                tsds,
+                new Index("standalone_index", "uuid"),
+                tsMetadata.getProject()::index,
+                false,
+                false
+            );
+            assertIsIndexManagedByDataStreamLifecycle(tsds, tsds.getIndices().get(1), (index) -> null, false, false);
+        }
+
+        {
+            // false for lookup indices of a time series data stream without a lifecycle
+            Metadata.Builder tsBuilder = Metadata.builder().put(lookupIndexMetadata, true);
+            DataStream tsds = createDataStream(tsBuilder, dataStreamName, creationAndRolloverTimes, timeSeriesSettings, null).copy()
+                .setIndexMode(IndexMode.TIME_SERIES)
+                .build();
+            tsds = tsds.unsafeAddBackingIndex(lookupIndex);
+            Metadata tsMetadata = tsBuilder.build();
+            assertIsIndexManagedByDataStreamLifecycle(tsds, lookupIndex, tsMetadata.getProject()::index, false, false);
+        }
+
+        {
+            // false for a time series data stream with a disabled lifecycle, the configured lifecycle takes precedence over the default
+            Metadata.Builder tsBuilder = Metadata.builder();
+            DataStream tsds = createDataStream(
+                tsBuilder,
+                dataStreamName,
+                creationAndRolloverTimes,
+                timeSeriesSettings,
+                DataStreamLifecycle.dataLifecycleBuilder().enabled(false).build()
+            ).copy().setIndexMode(IndexMode.TIME_SERIES).build();
+            Metadata tsMetadata = tsBuilder.build();
+            for (Index index : tsds.getIndices()) {
+                assertIsIndexManagedByDataStreamLifecycle(tsds, index, tsMetadata.getProject()::index, false, false);
+            }
+        }
+
+        {
+            // false for indices of a time series data stream without a lifecycle that have an ILM policy configured
+            Metadata.Builder tsBuilder = Metadata.builder();
+            DataStream tsds = createDataStream(
+                tsBuilder,
+                dataStreamName,
+                creationAndRolloverTimes,
+                settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                    .put("index.routing_path", "@timestamp")
+                    .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy"),
+                null
+            ).copy().setIndexMode(IndexMode.TIME_SERIES).build();
+            Metadata tsMetadata = tsBuilder.build();
+            for (Index index : tsds.getIndices()) {
+                assertIsIndexManagedByDataStreamLifecycle(tsds, index, tsMetadata.getProject()::index, false, false);
+            }
+        }
+
+        {
+            // true for indices of a time series data stream without a lifecycle that have an ILM policy configured AND the prefer_ilm
+            // setting configured to false, only when the default lifecycle is enabled
+            Metadata.Builder tsBuilder = Metadata.builder();
+            DataStream tsds = createDataStream(
+                tsBuilder,
+                dataStreamName,
+                creationAndRolloverTimes,
+                settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                    .put("index.routing_path", "@timestamp")
+                    .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
+                    .put(IndexSettings.PREFER_ILM, false),
+                null
+            ).copy().setIndexMode(IndexMode.TIME_SERIES).build();
+            Metadata tsMetadata = tsBuilder.build();
+            for (Index index : tsds.getIndices()) {
+                assertIsIndexManagedByDataStreamLifecycle(tsds, index, tsMetadata.getProject()::index, false, true);
+            }
+        }
+    }
+
+    private static void assertIsIndexManagedByDataStreamLifecycle(
+        DataStream dataStream,
+        Index index,
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        boolean expectedWithMinimumLifecycleDisabled,
+        boolean expectedWithMinimumLifecycleEnabled
+    ) {
+        assertThat(
+            dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier, false),
+            is(expectedWithMinimumLifecycleDisabled)
+        );
+        assertThat(
+            dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier, true),
+            is(expectedWithMinimumLifecycleEnabled)
+        );
+    }
+
+    public void testLifecycleManagedBy() {
+        DataStreamLifecycle enabled = DataStreamLifecycle.dataLifecycleBuilder().enabled(true).build();
+        DataStreamLifecycle disabled = DataStreamLifecycle.dataLifecycleBuilder().enabled(false).build();
+        Settings preferIlm = Settings.builder().put(IndexSettings.PREFER_ILM, true).build();
+        Settings preferDlm = Settings.builder().put(IndexSettings.PREFER_ILM, false).build();
+        IndexMode mode = randomValueOtherThan(IndexMode.LOOKUP, () -> randomFrom(IndexMode.values()));
+
+        // both configured, prefer_ilm decides (it defaults to true)
+        assertThat(DataStream.lifecycleManagedBy("policy", enabled, preferIlm, mode), is(DataStream.LifecycleManagedBy.ILM));
+        assertThat(DataStream.lifecycleManagedBy("policy", enabled, Settings.EMPTY, mode), is(DataStream.LifecycleManagedBy.ILM));
+        assertThat(DataStream.lifecycleManagedBy("policy", enabled, preferDlm, mode), is(DataStream.LifecycleManagedBy.DLM));
+
+        // a disabled data stream lifecycle never manages the resource, so prefer_ilm is irrelevant
+        for (Settings settings : List.of(Settings.EMPTY, preferIlm, preferDlm)) {
+            assertThat(DataStream.lifecycleManagedBy("policy", disabled, settings, mode), is(DataStream.LifecycleManagedBy.ILM));
+            assertThat(DataStream.lifecycleManagedBy(null, disabled, settings, mode), is(DataStream.LifecycleManagedBy.UNMANAGED));
+        }
+
+        // only one feature configured, prefer_ilm is irrelevant
+        for (Settings settings : List.of(Settings.EMPTY, preferIlm, preferDlm)) {
+            assertThat(DataStream.lifecycleManagedBy("policy", null, settings, mode), is(DataStream.LifecycleManagedBy.ILM));
+            assertThat(DataStream.lifecycleManagedBy(null, enabled, settings, mode), is(DataStream.LifecycleManagedBy.DLM));
+            assertThat(DataStream.lifecycleManagedBy(null, null, settings, mode), is(DataStream.LifecycleManagedBy.UNMANAGED));
+        }
+
+        // lookup resources are unmanaged by definition
+        for (DataStreamLifecycle lifecycle : new DataStreamLifecycle[] { enabled, disabled, null }) {
+            for (String policy : new String[] { "policy", null }) {
+                assertThat(
+                    DataStream.lifecycleManagedBy(policy, lifecycle, preferDlm, IndexMode.LOOKUP),
+                    is(DataStream.LifecycleManagedBy.UNMANAGED)
+                );
             }
         }
     }
@@ -2182,6 +2387,71 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .setDataStreamOptions(new DataStreamOptions(new DataStreamFailureStore(randomBoolean(), lifecycle)))
             .build();
         assertThat(withFailuresLifecycle.getFailuresLifecycle(), equalTo(lifecycle));
+    }
+
+    public void testEffectiveLifecycleForIndex() {
+        Index backingIndex = new Index(randomAlphaOfLength(10), randomUUID());
+        Index failureIndex = new Index(randomAlphaOfLength(10), randomUUID());
+        Index unrelatedIndex = new Index(randomAlphaOfLength(10), randomUUID());
+        DataStream.DataStreamIndices failureIndices = DataStream.DataStreamIndices.failureIndicesBuilder(List.of(failureIndex)).build();
+
+        // Time series data stream without a lifecycle: backing indices get the minimum lifecycle only when enabled
+        DataStream timeSeries = DataStream.builder("tsds", List.of(backingIndex))
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .setFailureIndices(failureIndices)
+            .build();
+        assertThat(timeSeries.getEffectiveLifecycleForIndex(backingIndex, true), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
+        assertThat(timeSeries.getEffectiveLifecycleForIndex(backingIndex, false), nullValue());
+
+        // Non time series data stream without a lifecycle never gets the minimum lifecycle
+        DataStream standard = DataStream.builder("ds", List.of(backingIndex))
+            .setIndexMode(randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB, null))
+            .build();
+        assertThat(standard.getEffectiveLifecycleForIndex(backingIndex, randomBoolean()), nullValue());
+
+        // A configured lifecycle is returned as is for backing indices
+        DataStreamLifecycle lifecycle = DataStreamLifecycleTests.randomDataLifecycle();
+        DataStream withLifecycle = DataStream.builder("ds-with-lifecycle", List.of(backingIndex))
+            .setIndexMode(randomFrom(IndexMode.TIME_SERIES, IndexMode.STANDARD, null))
+            .setLifecycle(lifecycle)
+            .build();
+        assertThat(withLifecycle.getEffectiveLifecycleForIndex(backingIndex, randomBoolean()), equalTo(lifecycle));
+
+        // Failure indices use the failures lifecycle and are unaffected by the flag
+        assertThat(
+            timeSeries.getEffectiveLifecycleForIndex(failureIndex, randomBoolean()),
+            equalTo(DataStreamLifecycle.DEFAULT_FAILURE_LIFECYCLE)
+        );
+
+        // Indices that do not belong to the data stream have no lifecycle
+        assertThat(timeSeries.getEffectiveLifecycleForIndex(unrelatedIndex, randomBoolean()), nullValue());
+        assertThat(withLifecycle.getEffectiveLifecycleForIndex(unrelatedIndex, randomBoolean()), nullValue());
+    }
+
+    public void testEffectiveDataLifecycle() {
+        List<Index> indices = List.of(new Index(randomAlphaOfLength(10), randomUUID()));
+        IndexMode nonTimeSeriesIndexMode = randomFrom(
+            Arrays.stream(IndexMode.values()).filter(mode -> mode != IndexMode.TIME_SERIES).toArray(IndexMode[]::new)
+        );
+
+        // A time series data stream without a lifecycle gets the minimum lifecycle only when enabled
+        DataStream timeSeriesWithoutLifecycle = DataStream.builder("tsds", indices).setIndexMode(IndexMode.TIME_SERIES).build();
+        assertThat(timeSeriesWithoutLifecycle.getEffectiveDataLifecycle(true), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
+        assertThat(timeSeriesWithoutLifecycle.getEffectiveDataLifecycle(false), nullValue());
+
+        // A non time series data stream without a lifecycle never gets the minimum lifecycle
+        DataStream nonTimeSeriesWithoutLifecycle = DataStream.builder("ds", indices)
+            .setIndexMode(randomBoolean() ? nonTimeSeriesIndexMode : null)
+            .build();
+        assertThat(nonTimeSeriesWithoutLifecycle.getEffectiveDataLifecycle(randomBoolean()), nullValue());
+
+        // A configured lifecycle is always returned as is
+        DataStreamLifecycle lifecycle = DataStreamLifecycleTests.randomDataLifecycle();
+        DataStream withLifecycle = DataStream.builder("ds-with-lifecycle", indices)
+            .setIndexMode(randomBoolean() ? IndexMode.TIME_SERIES : nonTimeSeriesIndexMode)
+            .setLifecycle(lifecycle)
+            .build();
+        assertThat(withLifecycle.getEffectiveDataLifecycle(randomBoolean()), equalTo(lifecycle));
     }
 
     private DataStream createDataStream(

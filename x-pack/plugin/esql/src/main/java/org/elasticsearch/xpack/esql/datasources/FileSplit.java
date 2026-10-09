@@ -27,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Represents a byte range within a file for a file-based external source.
@@ -43,6 +44,26 @@ public class FileSplit implements ExternalSplit {
 
     static final TransportVersion ESQL_SPLIT_STATS_COMPACT = TransportVersion.fromName("esql_split_stats_compact");
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_READ_SCHEMA = TransportVersion.fromName("esql_external_source_read_schema");
+    /**
+     * Survivor maps no longer store {@code _file.path}, {@code _file.name}, or {@code _file.directory}.
+     * Readers at this version derive them from {@link #path}. Older nodes still read those keys from the map.
+     */
+    static final TransportVersion ESQL_DERIVE_FILE_LOCATION = TransportVersion.fromName("esql_derive_file_location");
+
+    /**
+     * {@link Collections#unmodifiableMap} wrapper class. Discovery freezes each survivor's partition
+     * map once; the constructor keeps that instance. {@code Map.copyOf} is not used: {@code _file.directory}
+     * and {@code _file.modified} are null for some files.
+     */
+    private static final Class<?> UNMODIFIABLE_MAP_CLASS = Collections.unmodifiableMap(new LinkedHashMap<String, Object>()).getClass();
+
+    /** LinkedHashMap copies made for a caller that did not pass an already-frozen partition map. */
+    private static final AtomicLong DEFENSIVE_PARTITION_MAP_COPIES = new AtomicLong();
+
+    /** Test hook: how many defensive partition-map copies the constructor has made. */
+    static long defensivePartitionMapCopies() {
+        return DEFENSIVE_PARTITION_MAP_COPIES.get();
+    }
 
     private final String sourceType;
     private final StoragePath path;
@@ -232,9 +253,7 @@ public class FileSplit implements ExternalSplit {
         this.length = length;
         this.format = format;
         this.config = config != null ? Map.copyOf(config) : Map.of();
-        this.partitionValues = partitionValues != null && partitionValues.isEmpty() == false
-            ? Collections.unmodifiableMap(new LinkedHashMap<>(partitionValues))
-            : Map.of();
+        this.partitionValues = freezePartitionValues(partitionValues);
         this.columnMapping = columnMapping;
         // Empty list and null mean the same thing at this layer: "no schema pin." Collapse so the reader
         // does exactly one null-check downstream (mirrors FormatReadContext.readSchema's compact ctor).
@@ -257,6 +276,22 @@ public class FileSplit implements ExternalSplit {
             this.splitStats = null;
             this.statistics = null;
         }
+    }
+
+    /**
+     * Reuses a map already wrapped by {@link Collections#unmodifiableMap}, and a {@link LayeredPartitionMap}
+     * whose directory tuple is shared across files. Copying either would drop that sharing. Any other map is
+     * copied so a caller cannot mutate the split after construction. Empty stays {@link Map#of()}.
+     */
+    private static Map<String, Object> freezePartitionValues(@Nullable Map<String, Object> partitionValues) {
+        if (partitionValues == null || partitionValues.isEmpty()) {
+            return Map.of();
+        }
+        if (partitionValues.getClass() == UNMODIFIABLE_MAP_CLASS || partitionValues instanceof LayeredPartitionMap) {
+            return partitionValues;
+        }
+        DEFENSIVE_PARTITION_MAP_COPIES.incrementAndGet();
+        return Collections.unmodifiableMap(new LinkedHashMap<>(partitionValues));
     }
 
     public FileSplit(StreamInput in) throws IOException {
@@ -317,7 +352,7 @@ public class FileSplit implements ExternalSplit {
         out.writeVLong(length);
         out.writeOptionalString(format);
         out.writeGenericMap(config);
-        out.writeGenericMap(partitionValues);
+        out.writeGenericMap(partitionValuesToWrite(out.getTransportVersion()));
         if (columnMapping != null) {
             out.writeBoolean(true);
             columnMapping.writeTo(out);
@@ -401,6 +436,30 @@ public class FileSplit implements ExternalSplit {
 
     public Map<String, Object> partitionValues() {
         return partitionValues;
+    }
+
+    /**
+     * Interned directory-constant keys, or {@link #partitionValues()} when per-file keys are not layered over a
+     * shared tuple. Siblings in one directory return the same instance.
+     */
+    public Map<String, Object> directoryTuple() {
+        if (partitionValues instanceof LayeredPartitionMap layered) {
+            return layered.sharedTuple();
+        }
+        return partitionValues;
+    }
+
+    /**
+     * Current versions write the stored map unchanged. An older node still fills location columns from
+     * the map, so the outbound copy includes {@code _file.path}, {@code _file.name}, and
+     * {@code _file.directory} derived from {@link #path} when they are absent. Keys already present,
+     * including an explicit null, are left as stored.
+     */
+    private Map<String, Object> partitionValuesToWrite(TransportVersion version) {
+        if (version.supports(ESQL_DERIVE_FILE_LOCATION)) {
+            return partitionValues;
+        }
+        return FileMetadataColumns.overlayLocation(partitionValues, path, FileMetadataColumns.LOCATION_NAMES);
     }
 
     @Nullable

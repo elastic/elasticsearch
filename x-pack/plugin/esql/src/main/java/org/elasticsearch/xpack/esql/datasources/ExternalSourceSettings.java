@@ -14,6 +14,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 
 import java.util.List;
 import java.util.function.Function;
@@ -28,8 +29,8 @@ import java.util.function.Function;
  * Covers three areas: the external-read concurrency bound (the single {@link #MAX_CONCURRENT_REQUESTS} knob, which
  * sizes the in-flight-read permit semaphore and the SDK connection pools below it); reactive throttle handling for
  * object stores (the retry duration budget — throttling is handled by backoff, not a concurrency cap); and
- * glob/listing safety limits (max discovered files, max brace expansion) to prevent degenerate queries from
- * overwhelming storage backends.
+ * glob/listing safety limits (max listed objects, max discovered files, max brace expansion) to prevent
+ * degenerate queries from overwhelming storage backends.
  */
 public final class ExternalSourceSettings {
 
@@ -61,8 +62,31 @@ public final class ExternalSourceSettings {
      * value so in-flight GET size and the concurrency formula stay in lockstep. This is not a bound on bytes
      * retained after a GET completes (unread prefetch, current row group) and is not the NDJSON whole-object
      * byte-array fast-path cap.
+     *
+     * <p>Just under 8 MiB so the GET's {@code byte[]}, header included, fits in exactly 8 MiB of heap at every G1
+     * region size. The previous 10 MiB occupied 12 MiB at 4 MiB regions and 16 MiB at 8 MiB regions, and an exact
+     * 8 MiB would too. Do not round it back up; see {@link HeapFootprint#regionFriendlyLength(int)}.
      */
-    public static final int BLOB_STORE_GET_SIZE_BYTES = 10 * 1024 * 1024;
+    public static final int BLOB_STORE_GET_SIZE_BYTES = HeapFootprint.regionFriendlyLength(8 * 1024 * 1024);
+
+    /**
+     * Heap bytes to allocate for a fill or sliding-window buffer. {@code requestedMax} is the format ceiling
+     * (NDJSON {@code minimumSegmentSize}, Parquet window) and must be non-negative. When
+     * {@code knownObjectBytes} is a real object size, tiny objects pay that size instead of the ceiling
+     * (at least one byte when the ceiling is at least one). Negative {@code knownObjectBytes} — including
+     * {@code StorageObject.READ_TO_END} — means unknown, so the result is {@code requestedMax} capped at
+     * {@link Integer#MAX_VALUE}. The returned value always fits a {@code byte[]} length.
+     */
+    public static int ioFillBytes(long requestedMax, long knownObjectBytes) {
+        if (requestedMax < 0) {
+            throw new IllegalArgumentException("requestedMax must be non-negative [" + requestedMax + "]");
+        }
+        long max = Math.min(requestedMax, Integer.MAX_VALUE);
+        if (knownObjectBytes < 0) {
+            return (int) max;
+        }
+        return (int) Math.min(max, Math.max(1L, knownObjectBytes));
+    }
 
     /** Heap share reserved for in-flight blob-store buffers: {@code M = min(heap / this, half the request breaker)}. */
     static final int BLOB_STORE_MEMORY_HEAP_DIVISOR = 4;
@@ -71,12 +95,12 @@ public final class ExternalSourceSettings {
      * The default per-node concurrency for accessing an external blob store. CPU slope is {@code processors * 3}
      * clamped to {@code [}{@value #BLOB_STORE_CONCURRENCY_FLOOR}{@code , }{@value #BLOB_STORE_CONCURRENCY_CEILING}{@code ]}.
      * A byte budget {@code M = min(heap/4, half of indices.breaker.request.limit)} then caps that at
-     * {@code floor(M / 10 MiB)}, so small heaps cut connections instead of also taking a latency-hiding
+     * {@code floor(M / 8 MiB)}, so small heaps cut connections instead of also taking a latency-hiding
      * floor of 16. Tightening the request breaker in node-start settings ({@code elasticsearch.yml}) binds
      * first; {@code indices.breaker.request.limit} is Dynamic, but this default is resolved for the NodeScope
      * concurrency knob at startup, so a live REQUEST update does not resize permits, SDK pools, or
      * {@code esql_external_io}. Leftover {@code M} is left unused rather than shrinking the GET size. The parse
-     * floor of {@value #BLOB_STORE_CONCURRENCY_FLOOR} still wins when {@code M / 10 MiB} is smaller, so gzip/zstd
+     * floor of {@value #BLOB_STORE_CONCURRENCY_FLOOR} still wins when {@code M / 8 MiB} is smaller, so gzip/zstd
      * streaming keeps a parser thread.
      */
     public static int defaultBlobStoreConcurrency(Settings settings) {
@@ -96,14 +120,17 @@ public final class ExternalSourceSettings {
 
     // visible for testing
     /**
-     * Upper bound on in-flight 10 MiB GET slots from {@code M = min(heap/4, REQUEST/2)}. Never below the parse
+     * Upper bound on in-flight 8 MiB GET slots from {@code M = min(heap/4, REQUEST/2)}. Never below the parse
      * floor, so gzip/zstd still has a parser thread when {@code M / B} would be 2.
      */
     static int memoryBoundConcurrency(long heapBytes, long requestBreakerLimitBytes) {
+        return Math.max(BLOB_STORE_CONCURRENCY_FLOOR, memorySlots(heapBytes, requestBreakerLimitBytes));
+    }
+
+    private static int memorySlots(long heapBytes, long requestBreakerLimitBytes) {
         long memoryBudget = Math.min(heapBytes / BLOB_STORE_MEMORY_HEAP_DIVISOR, requestBreakerLimitBytes / 2);
         long memorySlots = Math.max(0L, memoryBudget / BLOB_STORE_GET_SIZE_BYTES);
-        int slots = (int) Math.min(Integer.MAX_VALUE, memorySlots);
-        return Math.max(BLOB_STORE_CONCURRENCY_FLOOR, slots);
+        return (int) Math.min(Integer.MAX_VALUE, memorySlots);
     }
 
     /**
@@ -126,10 +153,35 @@ public final class ExternalSourceSettings {
 
     // visible for testing
     static int blobStoreConcurrency(int configured, long heapBytes, long requestBreakerLimitBytes) {
+        return effectivePermits(configured, memoryBoundConcurrency(heapBytes, requestBreakerLimitBytes));
+    }
+
+    private static int effectivePermits(int configured, int memoryBound) {
         if (configured == 0) {
             return 0;
         }
-        return Math.min(configured, memoryBoundConcurrency(heapBytes, requestBreakerLimitBytes));
+        return Math.min(configured, memoryBound);
+    }
+
+    static BlobStoreConcurrency blobStoreConcurrencyInfo(Settings settings) {
+        return blobStoreConcurrencyInfo(
+            MAX_CONCURRENT_REQUESTS.get(settings),
+            JvmInfo.jvmInfo().getMem().getHeapMax().getBytes(),
+            HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes()
+        );
+    }
+
+    // visible for testing
+    static BlobStoreConcurrency blobStoreConcurrencyInfo(int configured, long heapBytes, long requestBreakerLimitBytes) {
+        int slots = memorySlots(heapBytes, requestBreakerLimitBytes);
+        int memoryBound = Math.max(BLOB_STORE_CONCURRENCY_FLOOR, slots);
+        int effective = effectivePermits(configured, memoryBound);
+        if (effective == 0) {
+            return new BlobStoreConcurrency(0, false);
+        }
+        int ceiling = Math.min(memoryBound, MAX_CONCURRENT_REQUESTS_UPPER_BOUND);
+        boolean parseFloorBinds = slots < BLOB_STORE_CONCURRENCY_FLOOR && effective == ceiling;
+        return new BlobStoreConcurrency(effective, effective < ceiling, parseFloorBinds);
     }
 
     /**
@@ -149,6 +201,8 @@ public final class ExternalSourceSettings {
         return concurrency > 0 ? concurrency : defaultBlobStoreConcurrency(settings);
     }
 
+    static final int MAX_CONCURRENT_REQUESTS_UPPER_BOUND = 500;
+
     /**
      * The single external-read concurrency knob, per scheme, per node. It sizes both the per-scheme permit semaphore
      * that bounds in-flight data reads ({@code StorageProviderRegistry}) and the backend SDK HTTP connection pools
@@ -159,7 +213,7 @@ public final class ExternalSourceSettings {
      * The default is {@link #defaultBlobStoreConcurrency(Settings)} rather than a fixed literal: CPU slope
      * {@code allocatedProcessors * 3} clamped to
      * {@code [}{@value #BLOB_STORE_CONCURRENCY_FLOOR}{@code , }{@value #BLOB_STORE_CONCURRENCY_CEILING}{@code ]},
-     * then further limited so concurrent 10 MiB reads stay within a quarter of heap (or half the request breaker
+     * then further limited so concurrent 8 MiB reads stay within a quarter of heap (or half the request breaker
      * when that is tighter). A positive operator override is capped by that same memory term, so a leftover
      * {@code 16} (the old floor) cannot skip the budget; {@code 0} still disables permit limiting. Operators can
      * raise it up to the memory cap (setting range 0–500) for high-throughput clusters or lower it when a store
@@ -174,9 +228,22 @@ public final class ExternalSourceSettings {
         "esql.external.max_concurrent_requests",
         s -> Integer.toString(defaultBlobStoreConcurrency(s)),
         0,
-        500,
+        MAX_CONCURRENT_REQUESTS_UPPER_BOUND,
         Setting.Property.NodeScope
     );
+
+    /**
+     * Effective per-scheme blob-store permit count for this node, whether a higher
+     * {@link #MAX_CONCURRENT_REQUESTS} value in the node's configuration would raise that count after a
+     * restart, and whether the parse-floor is the binding constraint: raw memory slots sit below
+     * {@link #BLOB_STORE_CONCURRENCY_FLOOR}, so the setting cannot raise the limit. Zero permits is
+     * unraisable because there is no timeout path.
+     */
+    record BlobStoreConcurrency(int permits, boolean settingCanRaiseLimit, boolean parseFloorBinds) {
+        BlobStoreConcurrency(int permits, boolean settingCanRaiseLimit) {
+            this(permits, settingCanRaiseLimit, false);
+        }
+    }
 
     /**
      * Upper bound on how many stream-only-compressed (gzip/zstd) segmentators may occupy the
@@ -250,15 +317,58 @@ public final class ExternalSourceSettings {
     );
 
     /**
-     * Hard cap on the number of files that glob expansion will collect before aborting.
-     * Protects against degenerate globs (e.g. {@code s3://bucket/*}) on large buckets.
-     * Default: 10,000 — generous for legitimate use, catches truly degenerate cases.
+     * How many files split discovery lists on its first attempt when the query's row demand can be covered by a
+     * prefix of the dataset. Default: 1,000 - one page of keys on the object stores this reads, so the attempt costs
+     * one request where listing the dataset costs one per page, and far more files than a small LIMIT needs.
+     * <p>
+     * Not a cap and not a correctness setting: how many rows a file holds is only known from its footer, after the
+     * listing, so a prefix that turns out to hold too few rows is discarded and the dataset is listed in full. Lower
+     * it and a query whose demand the prefix cannot cover pays two listings; raise it and the first attempt costs more
+     * pages. Either way the answer is the same.
+     * <p>
+     * Not dynamic, unlike the caps below. They are read live because a cap lowered at runtime has to start refusing;
+     * this is read from the settings the split provider was built with, so marking it dynamic would accept a change
+     * that then did nothing.
+     */
+    public static final Setting<Integer> FIRST_ATTEMPT_LISTING_FILES = Setting.intSetting(
+        "esql.external.first_attempt_listing_files",
+        1000,
+        1,
+        1000000,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Hard cap on the number of files glob expansion keeps after listing filters ({@code _file.*})
+     * before aborting. Protects against degenerate globs (e.g. {@code s3://bucket/*}) on large buckets.
+     * Default: 25,000 — generous for legitimate use, catches truly degenerate cases. Planning memory for
+     * the kept files is charged to the request breaker, so raising this cap fails a query that does not
+     * fit with a circuit-breaking exception instead of exhausting the heap.
      */
     public static final Setting<Integer> MAX_DISCOVERED_FILES = Setting.intSetting(
         "esql.external.max_discovered_files",
-        10000,
+        25_000,
         1,
         1000000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Hard cap on objects visited while listing a glob, including keys that do not match the pattern
+     * and keys dropped by exclusion. Protects the LIST-page cost of a prefix that holds far more
+     * objects than the query will keep. Applied independently to each glob listing, not to the query
+     * as a whole: a comma-separated resource of {@code N} globs does {@code N} listings, each against
+     * this cap. A rewrite-empty fallback can list the same glob a second time. The kept-files cap
+     * ({@link #MAX_DISCOVERED_FILES}) is shared across that comma list. Default: 1,000,000 — about
+     * 1,000 S3 {@code ListObjectsV2} pages at the default page size of 1,000 keys. Operators can
+     * raise it; the default is not the max.
+     */
+    public static final Setting<Integer> MAX_LISTED_OBJECTS = Setting.intSetting(
+        "esql.external.max_listed_objects",
+        1_000_000,
+        1,
+        10_000_000,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -277,6 +387,88 @@ public final class ExternalSourceSettings {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    /**
+     * Default maximum decompression ratio for stream-only compressed text objects (CSV, TSV, NDJSON with gzip
+     * or zstd). A read fails with {@code 400} once the decompressed bytes exceed this multiple of the
+     * object's compressed size (checked from 1 MiB on). {@code 0} disables the check. The actual limit is the
+     * per-codec setting ({@link #MAX_DECOMPRESSION_RATIO_ZSTD} for zstd), falling back to this value.
+     * <p>
+     * Default 200 sits above the 65:1 that DuckDB's 3 GB genome CSV reaches with gzip, while typical
+     * highly compressible repeated input reaches 515:1 or more. Upper bound 100,000 keeps a hostile
+     * near-{@link Integer#MAX_VALUE} ratio from overflowing the limit multiplication.
+     */
+    public static final Setting<Integer> MAX_DECOMPRESSION_RATIO = Setting.intSetting(
+        "esql.external.max_decompression_ratio",
+        200,
+        0,
+        100_000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Maximum decompression ratio for zstd-compressed objects; overrides {@link #MAX_DECOMPRESSION_RATIO}
+     * for zstd. Default 2000: zstd can legitimately reach 583:1 on the DuckDB genome CSV at ultra compression,
+     * while highly compressible repeated input reaches 11,915:1 or more. {@code 0} disables the check for zstd only.
+     * Same upper bound as {@link #MAX_DECOMPRESSION_RATIO}.
+     */
+    public static final Setting<Integer> MAX_DECOMPRESSION_RATIO_ZSTD = Setting.intSetting(
+        "esql.external.max_decompression_ratio.zstd",
+        2000,
+        0,
+        100_000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /** Default for {@link #SCHEMA_MAX_FIELDS}, matching the default of {@code index.mapping.total_fields.limit}. */
+    public static final int DEFAULT_SCHEMA_MAX_FIELDS = 1000;
+
+    /**
+     * Ceiling for {@link #SCHEMA_MAX_FIELDS} and for a dataset's {@code schema_max_fields}. Unlike a mapping, which
+     * grows a few fields at a time, a resolved schema is built in one go on the coordinating node from bytes the
+     * caller controls, so neither the node nor a dataset may lift the cap without bound. 100,000 sits well above any
+     * legitimate schema while staying far below the widths that exhaust a small heap. Long names are still bounded
+     * only by the circuit breaker charge.
+     */
+    public static final int MAX_SCHEMA_MAX_FIELDS = 100_000;
+
+    /**
+     * Fields a format reader may materialise while resolving a file's schema before it refuses the file, counting
+     * every object and leaf field the way {@code index.mapping.total_fields.limit} does. A small file can describe a
+     * schema far larger than itself, and schema resolution runs on the coordinating node during planning. This is
+     * the node-wide default for schema inference, read by the NDJSON, CSV, TSV and Parquet readers (ORC does not
+     * enforce it yet); a dataset overrides it with its {@code schema_max_fields} key, as an index overrides its
+     * mapping limit. Readers capture it from the node settings, so a change needs a restart.
+     */
+    public static final Setting<Integer> SCHEMA_MAX_FIELDS = Setting.intSetting(
+        "esql.external.schema_max_fields",
+        DEFAULT_SCHEMA_MAX_FIELDS,
+        1,
+        MAX_SCHEMA_MAX_FIELDS,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Parses a dataset's {@code schema_max_fields} under the same bounds as {@link #SCHEMA_MAX_FIELDS}. The dataset key
+     * reaches a format reader as a raw config value rather than through the setting, so the setting's own bounds never
+     * see it. Returns {@code defaultValue} when the dataset does not set the key.
+     */
+    public static int parseDatasetSchemaMaxFields(Object value, String key, int defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        try {
+            return Setting.parseInt(value.toString(), 1, MAX_SCHEMA_MAX_FIELDS, key);
+        } catch (NumberFormatException e) {
+            // Setting.parseInt rethrows the JDK's message, which does not name the key, when the value is not a number.
+            throw new IllegalArgumentException(
+                "[" + key + "] must be an integer between 1 and " + MAX_SCHEMA_MAX_FIELDS + ", got [" + value + "]",
+                e
+            );
+        }
+    }
 
     /**
      * Deprecated pre-rename key for {@link #WORKLOAD_IDENTITY_ENABLED}, from before the external-dataset settings
@@ -404,13 +596,74 @@ public final class ExternalSourceSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * {@code host:port} glob patterns an external data source's endpoint may name beyond the AWS endpoints, as
+     * {@code reindex.remote.whitelist} does for remote clusters. Empty by default. A listed host may be reached
+     * over plain {@code http} for {@code endpoint}; {@code sts_endpoint} always requires {@code https}, because
+     * that host receives the node's OIDC token.
+     */
+    public static final String ALLOWED_ENDPOINT_HOSTS_KEY = "esql.external.allowed_endpoint_hosts";
+
+    public static final Setting<List<String>> ALLOWED_ENDPOINT_HOSTS = Setting.stringListSetting(
+        ALLOWED_ENDPOINT_HOSTS_KEY,
+        (Setting.Validator<List<String>>) entries -> entries.forEach(ExternalSourceSettings::validateEndpointHostEntry),
+        Setting.Property.NodeScope
+    );
+
+    /** Refuses an entry that cannot match anything: a bare host, a bare port, or a whole URL. */
+    private static void validateEndpointHostEntry(String entry) {
+        if (entry.contains("://")) {
+            throw new IllegalArgumentException(
+                "["
+                    + ALLOWED_ENDPOINT_HOSTS_KEY
+                    + "] entry ["
+                    + entry
+                    + "] is a URL. Entries are matched against host:port, so drop the scheme and any path."
+            );
+        }
+        // The port separator is the last colon, after the closing bracket of an IPv6 literal.
+        int afterHost = entry.startsWith("[") ? entry.indexOf(']') : 0;
+        int portSeparator = afterHost < 0 ? -1 : entry.lastIndexOf(':');
+        if (portSeparator < afterHost) {
+            portSeparator = -1;
+        }
+        if (portSeparator < 0 || portSeparator == entry.length() - 1) {
+            throw new IllegalArgumentException(
+                "["
+                    + ALLOWED_ENDPOINT_HOSTS_KEY
+                    + "] entry ["
+                    + entry
+                    + "] names no port. Entries are matched against host:port, so write for example ["
+                    + (entry.isEmpty() ? "minio.internal" : entry)
+                    + ":443]."
+            );
+        }
+        if (portSeparator == 0) {
+            throw new IllegalArgumentException(
+                "["
+                    + ALLOWED_ENDPOINT_HOSTS_KEY
+                    + "] entry ["
+                    + entry
+                    + "] names no host. Entries are matched against host:port, so write for example "
+                    + "[minio.internal"
+                    + entry
+                    + "]; an entry without a host matches nothing."
+            );
+        }
+    }
+
     public static List<Setting<?>> settings() {
         return List.of(
             MAX_CONCURRENT_REQUESTS,
             MAX_CONCURRENT_SEGMENTATORS,
             THROTTLE_MAX_RETRY_DURATION,
+            FIRST_ATTEMPT_LISTING_FILES,
             MAX_DISCOVERED_FILES,
+            MAX_LISTED_OBJECTS,
             MAX_GLOB_EXPANSION,
+            MAX_DECOMPRESSION_RATIO,
+            MAX_DECOMPRESSION_RATIO_ZSTD,
+            SCHEMA_MAX_FIELDS,
             WORKLOAD_IDENTITY_ENABLED,
             WORKLOAD_IDENTITY_ENABLED_OLD,
             MANAGED_IDENTITY_ENABLED,
@@ -418,7 +671,8 @@ public final class ExternalSourceSettings {
             FEDERATED_IDENTITY_ENABLED,
             FEDERATED_IDENTITY_ENABLED_OLD,
             LOCAL_ALLOWED_PATHS,
-            LOCAL_ALLOWED_PATHS_OLD
+            LOCAL_ALLOWED_PATHS_OLD,
+            ALLOWED_ENDPOINT_HOSTS
         );
     }
 }

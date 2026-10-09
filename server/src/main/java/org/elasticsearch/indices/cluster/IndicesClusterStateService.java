@@ -138,6 +138,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         Setting.Property.NodeScope
     );
 
+    /**
+     * Enable / disable local retry functionality on recovery failure.
+     */
+    public static final Setting<Boolean> INDICES_RECOVERY_LOCAL_RETRY_SETTING = Setting.boolSetting(
+        "indices.recovery.local_retry",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     final AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>> indicesService;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -167,6 +177,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final NodeClient client;
     private final TimeValue shardLockRetryInterval;
     private final TimeValue shardLockRetryTimeout;
+    private volatile boolean localRecoveryRetryEnabled;
 
     private final Executor shardCloseExecutor;
 
@@ -242,6 +253,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.shardLockRetryInterval = SHARD_LOCK_RETRY_INTERVAL_SETTING.get(settings);
         this.shardLockRetryTimeout = SHARD_LOCK_RETRY_TIMEOUT_SETTING.get(settings);
         this.shardCloseExecutor = new ShardCloseExecutor(settings, threadPool.generic());
+        // setting only registered in tests today
+        clusterService.getClusterSettings()
+            .initializeAndWatchIfRegistered(INDICES_RECOVERY_LOCAL_RETRY_SETTING, b -> localRecoveryRetryEnabled = b);
     }
 
     @Override
@@ -287,6 +301,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             closingMoreShards = true;
             return currentClusterStateShardsClosedListeners.acquire();
         }
+    }
+
+    // package private for tests
+    boolean getLocalRecoveryRetryEnabled() {
+        return localRecoveryRetryEnabled;
     }
 
     /**
@@ -1287,7 +1306,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
+            if (failureStrategy == FailureStrategy.ABORT) {
+                // We don't need to notify master of anything here because recovery abortion is a
+                // symptom of a shard that is closing and this is communicated to master through other
+                // means (or the master already knows because the master initiated it, e.g. by moving the shard)
+                return;
+            }
             RecoveryClusterStateDelay.ensureClusterStateVersion(
                 creationClusterStateVersion,
                 clusterService,
@@ -1299,13 +1324,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     listener.onResponse(null);
                 }
             );
-        }
-
-        @Override
-        public void onRecoveryAborted() {
-            // We don't need to notify master of anything here because recovery abortion is a
-            // symptom of a shard that is closing and this is communicated to master through other
-            // means (or the master already knows because the master initiated it, e.g. by moving the shard)
         }
     }
 

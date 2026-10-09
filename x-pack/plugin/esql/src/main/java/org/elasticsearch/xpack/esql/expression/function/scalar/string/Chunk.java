@@ -286,6 +286,6 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument, AnyNu
             }
             return value;
         }));
-        return ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
+        return ChunkingSettingsBuilder.fromMap(chunkingSettingsMap, true, true);
     }
 }

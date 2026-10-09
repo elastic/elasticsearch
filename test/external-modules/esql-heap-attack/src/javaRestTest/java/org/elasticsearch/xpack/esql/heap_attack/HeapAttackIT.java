@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -47,6 +48,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.any;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -312,6 +314,22 @@ public class HeapAttackIT extends HeapAttackTestCase {
         return query(query.toString(), null);
     }
 
+    public void testSmallJsonString() throws IOException {
+        jsonString(5);
+    }
+
+    public void testHugeJsonString() throws IOException {
+        assertFoldCircuitBreaks(attempt -> jsonString(attempt * 50));
+    }
+
+    private Map<String, Object> jsonString(int evals) throws IOException {
+        StringBuilder query = startQuery();
+        query.append("ROW field = TO_STRING(42)");
+        query.repeat(" | EVAL field = JSON_STRING(field, field)", evals);
+        query.append("\"}");
+        return responseAsMap(query(query.toString(), null));
+    }
+
     /**
      * Returns many moderately long strings.
      */
@@ -336,6 +354,26 @@ public class HeapAttackIT extends HeapAttackTestCase {
     public void testManyConcatFromRow() throws IOException {
         int strings = 2000;
         assertManyStrings(manyConcat("ROW a=9999, b=9999, c=9999, d=9999, e=9999", strings), strings);
+    }
+
+    /**
+     * A wide ROW followed by many DISSECTs. Planning used to rebuild every node's output on each call,
+     * making it quadratic in the number of DISSECTs.
+     */
+    public void testManyDissectFromRow() throws IOException {
+        int columns = 2500;
+        int dissects = 450;
+        StringBuilder query = startQuery();
+        query.append("ROW s=\\\"a\\\"");
+        for (int c = 0; c < columns; c++) {
+            query.append(", c").append(c).append("=1");
+        }
+        for (int d = 0; d < dissects; d++) {
+            query.append("\n| DISSECT s \\\"%{k").append(d).append("}\\\"");
+        }
+        query.append("\n| LIMIT 1\"}");
+        Map<String, Object> response = responseAsMap(query(query.toString(), "columns"));
+        assertThat((List<?>) response.get("columns"), hasSize(1 + columns + dissects));
     }
 
     /**
@@ -459,6 +497,42 @@ public class HeapAttackIT extends HeapAttackTestCase {
         }
         MapMatcher mapMatcher = matchesMap();
         assertMap(resp, mapMatcher.entry("columns", columns));
+    }
+
+    /**
+     * Joins a large multivalued field into a single enormous string.
+     */
+    public void testHugeMvConcat() throws IOException {
+        // One doc whose f00 holds 300k values; joined with a ~1kb delimiter that is one huge string.
+        initMvLongsIndex(1, 1, 300000, false);
+        assertCircuitBreaks(attempt -> mvConcat(attempt * 999));
+    }
+
+    private Map<String, Object> mvConcat(int delimiterLength) throws IOException {
+        StringBuilder query = startQuery();
+        query.append("FROM mv_longs | EVAL str = MV_CONCAT(TO_STRING(f00), REPEAT(\\\"x\\\", ")
+            .append(delimiterLength)
+            .append(")) | EVAL len = LENGTH(str) | KEEP len\"}");
+        return responseAsMap(query(query.toString(), null));
+    }
+
+    /**
+     * Chains many TO_BASE64 calls so the encoded value grows ~1.33x per level into a single huge
+     * string.
+     */
+    public void testHugeToBase64() throws IOException {
+        initGiantTextField(1, false, 5);
+        assertCircuitBreaks(attempt -> toBase64Chain(10 + attempt * 4));
+    }
+
+    private Map<String, Object> toBase64Chain(int levels) throws IOException {
+        StringBuilder query = startQuery();
+        query.append("FROM bigtext | EVAL b = ");
+        query.append("TO_BASE64(".repeat(levels));
+        query.append("f");
+        query.append(")".repeat(levels));
+        query.append(" | EVAL len = LENGTH(b) | KEEP len\"}");
+        return responseAsMap(query(query.toString(), null));
     }
 
     public void testManyEval() throws IOException {
@@ -1067,6 +1141,33 @@ public class HeapAttackIT extends HeapAttackTestCase {
     enum TDigestFieldType {
         TDIGEST,
         HISTOGRAM
+    }
+
+    public void testStreamingApiAvoidsCircuitBreak() throws IOException {
+        assumeTrue("ES|QL streaming is not available in release builds yet", Build.current().isSnapshot());
+        int docs = 256;
+        String esqlQuery = "FROM bigtext | KEEP f";
+        initGiantTextField(docs, false, 1);
+        try {
+            setRequestBreakerLimit("20%");
+            assertCircuitBreaks(attempt -> fetchBigText(esqlQuery));
+
+            var s = streamQuery(esqlQuery, 1);
+            assertThat("streaming must not surface an error", s.errors(), empty());
+            assertThat(s.columns(), hasSize(1));
+            assertMap(s.columns().get(0), matchesMap().entry("name", "f").entry("type", "text"));
+            assertThat(s.rowCount(), equalTo((long) docs));
+            assertMap(s.footer(), matchesMap().extraOk().entry("is_partial", false));
+            assertFalse("footer must not contain an error key", s.footer().containsKey("error"));
+        } finally {
+            setRequestBreakerLimit(null);
+        }
+    }
+
+    private Map<String, Object> fetchBigText(String esqlQuery) throws IOException {
+        StringBuilder query = startQuery();
+        query.append(esqlQuery).append("\"}");
+        return responseAsMap(query(query.toString(), "columns"));
     }
 
     private void initManyTDigests(int numHistograms, int numCentroidsPerHistogram, TDigestFieldType fieldType) throws IOException {

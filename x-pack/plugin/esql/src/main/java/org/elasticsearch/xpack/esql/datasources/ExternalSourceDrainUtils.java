@@ -9,11 +9,16 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * Utility for draining pages from a {@link CloseableIterator} into an {@link AsyncExternalSourceBuffer}
@@ -51,6 +56,8 @@ public final class ExternalSourceDrainUtils {
      * boundary. To also abort a page pull ({@code hasNext()}/{@code next()}) parked in storage retry/throttle
      * backoff, {@code readCancelled} is installed as the ambient {@link StorageRetryCancellation} signal around
      * every drain step (initial and executor-resumed) — mirroring the {@code runProducerLoop} read path.
+     * The hot loop parks on {@link CloseableIterator#waitForReady()} rather than blocking
+     * {@code hasNext()}, so an async iterator can yield the executor slot while I/O is in flight.
      */
     public static void drainPagesAsync(
         CloseableIterator<Page> pages,
@@ -59,7 +66,7 @@ public final class ExternalSourceDrainUtils {
         BooleanSupplier readCancelled,
         ActionListener<Void> listener
     ) {
-        drainBatch(pages, buffer, executor, readCancelled, listener);
+        drainPagesAsync(pages, buffer, executor, readCancelled, () -> false, defaultPageSink(buffer), listener);
     }
 
     /**
@@ -73,7 +80,33 @@ public final class ExternalSourceDrainUtils {
         Executor executor,
         ActionListener<Void> listener
     ) {
-        drainBatch(pages, buffer, executor, () -> false, listener);
+        drainPagesAsync(pages, buffer, executor, () -> false, listener);
+    }
+
+    /**
+     * Like {@link #drainPagesAsync(CloseableIterator, AsyncExternalSourceBuffer, Executor, BooleanSupplier, ActionListener)}
+     * but stops pulling when {@code stop} is true and delivers each page through {@code pageSink}
+     * (typically the factory {@code deliverPage} that charges a pushed limiter). {@code pageSink}
+     * takes ownership of the page; a page pulled after {@code stop} or {@code noMoreInputs} is
+     * released rather than sunk.
+     */
+    public static void drainPagesAsync(
+        CloseableIterator<Page> pages,
+        AsyncExternalSourceBuffer buffer,
+        Executor executor,
+        BooleanSupplier readCancelled,
+        BooleanSupplier stop,
+        Consumer<Page> pageSink,
+        ActionListener<Void> listener
+    ) {
+        drainBatch(pages, buffer, executor, readCancelled, stop, pageSink, listener, new ResumeMailbox());
+    }
+
+    private static Consumer<Page> defaultPageSink(AsyncExternalSourceBuffer buffer) {
+        return page -> {
+            page.allowPassingToDifferentDriver();
+            buffer.addPage(page);
+        };
     }
 
     private static void drainBatch(
@@ -81,33 +114,177 @@ public final class ExternalSourceDrainUtils {
         AsyncExternalSourceBuffer buffer,
         Executor executor,
         BooleanSupplier readCancelled,
-        ActionListener<Void> listener
+        BooleanSupplier stop,
+        Consumer<Page> pageSink,
+        ActionListener<Void> listener,
+        ResumeMailbox resume
     ) {
         try {
             StorageRetryCancellation.runWithCancellation(readCancelled, () -> {
-                while (pages.hasNext() && buffer.noMoreInputs() == false) {
-                    SubscribableListener<Void> space = buffer.waitForSpace();
-                    if (space.isDone()) {
-                        if (buffer.noMoreInputs()) break;
-                        Page page = pages.next();
-                        page.allowPassingToDifferentDriver();
-                        buffer.addPage(page);
-                    } else {
-                        space.addListener(ActionListener.wrap(v -> {
-                            try {
-                                executor.execute(() -> drainBatch(pages, buffer, executor, readCancelled, listener));
-                            } catch (Exception e) {
-                                listener.onFailure(e);
-                            }
-                        }, listener::onFailure));
+                while (buffer.noMoreInputs() == false && stop.getAsBoolean() == false) {
+                    SubscribableListener<Void> ready = pages.waitForReady();
+                    if (ready.isDone() == false) {
+                        park(ready, null, pages, buffer, executor, readCancelled, stop, pageSink, listener, resume);
                         return;
                     }
+
+                    Holder<SubscribableListener<Void>> blockedOn = new Holder<>();
+                    Page page = buffer.readCounters().meteredCpu(() -> {
+                        Page tryPage = pages.tryAdvance();
+                        if (tryPage == null) {
+                            SubscribableListener<Void> recheck = pages.waitForReady();
+                            if (recheck.isDone()) {
+                                if (pages.hasNext() == false) {
+                                    return null;
+                                }
+                                tryPage = pages.next();
+                            } else {
+                                blockedOn.set(recheck);
+                                return null;
+                            }
+                        }
+                        return tryPage;
+                    });
+                    if (blockedOn.get() != null) {
+                        park(blockedOn.get(), null, pages, buffer, executor, readCancelled, stop, pageSink, listener, resume);
+                        return;
+                    }
+                    if (page == null) {
+                        completeDrain(resume, listener);
+                        return;
+                    }
+
+                    SubscribableListener<Void> space = buffer.waitForSpace();
+                    if (space.isDone() == false) {
+                        pages.revokeOvershootOnPark();
+                        park(space, page, pages, buffer, executor, readCancelled, stop, pageSink, listener, resume);
+                        return;
+                    }
+                    if (buffer.noMoreInputs() || stop.getAsBoolean()) {
+                        page.releaseBlocks();
+                        break;
+                    }
+                    pageSink.accept(page);
                 }
-                listener.onResponse(null);
+                completeDrain(resume, listener);
             });
         } catch (Exception e) {
-            listener.onFailure(e);
+            failDrain(resume, listener, e);
         }
+    }
+
+    /**
+     * Parks the drain until {@code signal} fires, then force-resubmits at most one continuation
+     * on {@code executor}. {@code heldPage} is a page already pulled from the iterator; it is
+     * sunk on resume or released if the drain has stopped. A second signal while a resume is
+     * queued or running sets the dirty bit so it is not dropped.
+     */
+    private static void park(
+        SubscribableListener<Void> signal,
+        @Nullable Page heldPage,
+        CloseableIterator<Page> pages,
+        AsyncExternalSourceBuffer buffer,
+        Executor executor,
+        BooleanSupplier readCancelled,
+        BooleanSupplier stop,
+        Consumer<Page> pageSink,
+        ActionListener<Void> listener,
+        ResumeMailbox resume
+    ) {
+        signal.addListener(ActionListener.wrap(v -> {
+            boolean consumed = heldPage == null;
+            try {
+                if (heldPage != null) {
+                    if (buffer.noMoreInputs() || stop.getAsBoolean()) {
+                        consumed = true;
+                        heldPage.releaseBlocks();
+                        completeDrain(resume, listener);
+                        return;
+                    }
+                    consumed = true;
+                    pageSink.accept(heldPage);
+                }
+                submitResume(pages, buffer, executor, readCancelled, stop, pageSink, listener, resume);
+            } catch (Exception e) {
+                if (consumed == false) {
+                    heldPage.releaseBlocks();
+                }
+                failDrain(resume, listener, e);
+            }
+        }, e -> {
+            if (heldPage != null) {
+                heldPage.releaseBlocks();
+            }
+            failDrain(resume, listener, e);
+        }));
+    }
+
+    private static void submitResume(
+        CloseableIterator<Page> pages,
+        AsyncExternalSourceBuffer buffer,
+        Executor executor,
+        BooleanSupplier readCancelled,
+        BooleanSupplier stop,
+        Consumer<Page> pageSink,
+        ActionListener<Void> listener,
+        ResumeMailbox resume
+    ) {
+        if (resume.queued.compareAndSet(false, true) == false) {
+            resume.dirty.set(true);
+            if (resume.queued.compareAndSet(false, true) == false) {
+                return;
+            }
+            resume.dirty.set(false);
+        }
+        AbstractRunnable task = new AbstractRunnable() {
+            @Override
+            public boolean isForceExecution() {
+                return true;
+            }
+
+            @Override
+            protected void doRun() {
+                drainBatch(pages, buffer, executor, readCancelled, stop, pageSink, listener, resume);
+                resume.queued.set(false);
+                if (resume.completed == false && resume.dirty.compareAndSet(true, false)) {
+                    submitResume(pages, buffer, executor, readCancelled, stop, pageSink, listener, resume);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                resume.queued.set(false);
+                resume.dirty.set(false);
+                failDrain(resume, listener, e);
+            }
+        };
+        try {
+            executor.execute(task);
+        } catch (Exception e) {
+            resume.queued.set(false);
+            resume.dirty.set(false);
+            failDrain(resume, listener, e);
+        }
+    }
+
+    private static void completeDrain(ResumeMailbox resume, ActionListener<Void> listener) {
+        resume.completed = true;
+        listener.onResponse(null);
+    }
+
+    private static void failDrain(ResumeMailbox resume, ActionListener<Void> listener, Exception e) {
+        resume.completed = true;
+        listener.onFailure(e);
+    }
+
+    /**
+     * At most one force-execution resume is queued. A second {@code waitForReady}/{@code waitForSpace}
+     * signal while that resume is running is remembered and replayed after it returns.
+     */
+    private static final class ResumeMailbox {
+        final AtomicBoolean queued = new AtomicBoolean();
+        final AtomicBoolean dirty = new AtomicBoolean();
+        volatile boolean completed;
     }
 
 }

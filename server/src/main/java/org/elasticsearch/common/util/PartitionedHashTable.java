@@ -16,6 +16,12 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
  * partition via {@link #splitPartition} and {@link #combinePartition} instead of all at once. A key always falls into the
  * same partition regardless of which table it came from, so partitions can be combined independently, concurrently and
  * released as soon as they have been combined.
+ * <p>
+ * The same partitioning can support spilling large aggregations to disk without sorting keys. Once the split partitions
+ * held in memory exceed the memory budget, they are written to disk partition by partition. The combine then loads the
+ * slices of one partition at a time and merges them via {@link #combinePartition}, so peak memory is bounded by the
+ * partitions being merged rather than by the whole aggregation. Spilled slices are append-only writes and sequential reads,
+ * and only the partitioned keys and their per-key state need serializing; the split and combine steps stay the same.
  */
 public interface PartitionedHashTable {
     /**
@@ -98,6 +104,23 @@ public interface PartitionedHashTable {
          * Releases the state held by this splitter.
          */
         void release(CircuitBreaker breaker);
+
+        /**
+         * Returns a splitter that forwards every call to {@code base} but adds {@code offset} to {@code firstId}.
+         * Useful when the caller's id space is shifted relative to the hash table's internal ordinals.
+         * The returned splitter holds no resources, so its {@link #release} is a no-op.
+         */
+        static PartitionSplitter withOffset(PartitionSplitter base, int offset) {
+            return new PartitionSplitter() {
+                @Override
+                public void split(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {
+                    base.split(firstId + offset, shiftedIds, batchSize, batchPartitionCounts, partitionOffsets);
+                }
+
+                @Override
+                public void release(CircuitBreaker b) {}
+            };
+        }
     }
 
     /**

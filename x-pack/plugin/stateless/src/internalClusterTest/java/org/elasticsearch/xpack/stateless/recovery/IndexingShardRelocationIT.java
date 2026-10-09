@@ -54,6 +54,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
@@ -76,18 +77,22 @@ import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.TestStatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TestStatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -118,6 +123,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
@@ -143,6 +149,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -473,6 +480,90 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         // scratch on the correct node
         ensureGreen(indexName);
         assertEquals(Set.of(indexNodes.get(1)), internalCluster().nodesInclude(indexName));
+    }
+
+    /// A primary relocation can fail after [StatelessCommitService#installUploadBoundListener] has installed the upload bound
+    /// listener but before `markRelocating` pins the bound. Here `markRelocating` throws on the first attempt, which fails the
+    /// relocation but not the source shard, so the handoff consumer fails the upload bound listener before `IndexShard#relocated`
+    /// releases the operation permits. The listener must then be cleared from the same shard commit state, so that the retried
+    /// relocation of the same shard instance can install its own listener and succeed.
+    public void testRelocationFailureBeforeMarkRelocating() throws Exception {
+        final Settings nodeSettings = disableIndexingDiskAndMemoryControllersNodeSettings();
+        startMasterOnlyNode(nodeSettings);
+        final String indexNode = startIndexNode(nodeSettings);
+        startSearchNode(nodeSettings);
+        ensureStableCluster(3);
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        final int docCount = randomIntBetween(10, 100);
+        indexDocs(indexName, docCount);
+        flush(indexName);
+
+        final IndexShard indexShard = findIndexShard(indexName);
+        final var commitService = (TestStatelessCommitService) ((IndexEngine) indexShard.getEngineOrNull()).getStatelessCommitService();
+
+        // Fail markRelocating on the first attempt only, before it completes the upload bound listener. The allocator then retries
+        // the relocation, and its installUploadBoundListener checks the state left behind by the first attempt.
+        final var simulatedFailure = new ElasticsearchException("simulated markRelocating failure");
+        final var firstUploadBoundListener = new SubscribableListener<Long>();
+        final var retriedOnSameShard = new SubscribableListener<Boolean>();
+        final var installUploadBoundAttempts = new AtomicInteger();
+        final var firstMarkRelocatingAttempt = new AtomicBoolean(true);
+        commitService.setStrategy(new TestStatelessCommitService.Strategy() {
+            @Override
+            public void installUploadBoundListener(
+                Runnable originalRunnable,
+                ShardId shardId,
+                SubscribableListener<Long> uploadBoundListener
+            ) {
+                if (installUploadBoundAttempts.incrementAndGet() == 1) {
+                    uploadBoundListener.addListener(firstUploadBoundListener);
+                } else {
+                    retriedOnSameShard.onResponse(indexShard.state() != IndexShardState.CLOSED);
+                    assertFalse(
+                        "the failed upload bound listener must be cleared before the retry",
+                        commitService.relocationUploadBoundIsInstalled(shardId)
+                    );
+                }
+                originalRunnable.run();
+            }
+
+            @Override
+            public ActionListener<Void> markRelocating(
+                Supplier<ActionListener<Void>> originalSupplier,
+                ShardId shardId,
+                long minRelocatedGeneration,
+                ActionListener<Void> listener
+            ) {
+                if (firstMarkRelocatingAttempt.compareAndSet(true, false)) {
+                    throw simulatedFailure;
+                }
+                return originalSupplier.get();
+            }
+        });
+
+        final String newIndexNode = startIndexNode(nodeSettings);
+        ensureStableCluster(4);
+
+        try {
+            ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNode, newIndexNode));
+            assertThat(safeAwaitFailure(firstUploadBoundListener), sameInstance(simulatedFailure));
+
+            assertTrue("the relocation is retried from the same shard instance", safeAwait(retriedOnSameShard));
+
+            ensureGreen(indexName);
+            assertThat(findIndexShard(indexName).routingEntry().currentNodeId(), equalTo(getNodeId(newIndexNode)));
+        } finally {
+            commitService.setStrategy(new TestStatelessCommitService.Strategy());
+        }
+
+        // A search shard recovering from the new primary still sees every document.
+        setReplicaCount(1, indexName);
+        ensureGreen(indexName);
+        assertHitCount(prepareSearch(indexName).setSize(0).setTrackTotalHits(true), docCount);
     }
 
     public void testCommitGenerationOnRelocatingShardNeverGoesBackward() throws Exception {
@@ -807,72 +898,11 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         }
     }
 
-    @TestLogging(reason = "testing WARN logging", value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:WARN")
-    public void testPrimaryRelocationWhileLocallyFailedLogging() {
-        startMasterOnlyNode();
-        final var indexNodeA = startIndexNode();
-        startSearchNode();
-        final var indexName = randomIdentifier();
-        createIndex(indexName, 1, 0);
-        ensureGreen(indexName);
-        indexDocs(indexName, randomIntBetween(10, 50));
-
-        startIndexNode();
-        final var indexNodeATransportService = MockTransportService.getInstance(indexNodeA);
-
-        final var countDownLatch = new CountDownLatch(1);
-
-        indexNodeATransportService.addRequestHandlingBehavior(START_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
-            for (final var indexService : internalCluster().getInstance(IndicesService.class, indexNodeA)) {
-                if (indexService.index().getName().equals(indexName)) {
-                    for (final var indexShard : indexService) {
-                        indexShard.failShard("simulated", null);
-                    }
-                }
-            }
-            handler.messageReceived(
-                request,
-                new TestTransportChannel(ActionListener.runAfter(new ChannelActionListener<>(channel), countDownLatch::countDown)),
-                task
-            );
-        });
-
-        try (var mockLog = MockLog.capture(IndicesClusterStateService.class)) {
-            mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation(
-                    "warnings",
-                    IndicesClusterStateService.class.getCanonicalName(),
-                    Level.WARN,
-                    "marking and sending shard failed due to [failed recovery]"
-                )
-            );
-
-            assertAcked(
-                admin().indices()
-                    .prepareUpdateSettings(indexName)
-                    .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexNodeA))
-            );
-
-            safeAwait(countDownLatch);
-
-            assertAcked(
-                admin().indices()
-                    .prepareUpdateSettings(indexName)
-                    .setSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"))
-            );
-
-            ensureGreen(indexName);
-            mockLog.assertAllExpectationsMatched();
-        } finally {
-            indexNodeATransportService.clearAllRules();
-        }
-    }
-
     @TestLogging(
         reason = "verifying INFO logging of repeated hot threads dumps",
         value = "org.elasticsearch.xpack.stateless.recovery.SlowRelocationLogger:INFO"
     )
-    public void testSlowRelocationLogsRepeatedHotThreadsDumps() throws Exception {
+    public void testSlowRelocationLogsRepeatedHotThreadsDumps() {
         final var nodeSettings = Settings.builder().put(SLOW_RELOCATION_THRESHOLD_SETTING.getKey(), TimeValue.timeValueMillis(100)).build();
         final var indexNodeA = startMasterAndIndexNode(nodeSettings);
         final var indexName = randomIdentifier();
@@ -1212,7 +1242,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         assertThat(StatelessTestPlugin.timFilePrefetchCount.longValue(), equalTo(prefetchCountBeforeSecondRelocation));
     }
 
-    public static class StatelessTestPlugin extends TestUtils.StatelessPluginWithTrialLicense {
+    public static class StatelessTestPlugin extends TestStatelessPlugin {
 
         static final LongAdder timFilePrefetchCount = new LongAdder();
 
@@ -1243,7 +1273,8 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider
+            WarmingRatioProvider warmingRatioProvider,
+            SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             if (clusterSettings.get(ENABLED_WARMING)) {
                 return super.createSharedBlobCacheWarmingService(
@@ -1251,10 +1282,18 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     threadPool,
                     telemetryProvider,
                     clusterSettings,
-                    warmingRatioProvider
+                    warmingRatioProvider,
+                    searchRecoveryTimeoutCalculationService
                 );
             }
-            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider) {
+            return new SharedBlobCacheWarmingService(
+                cacheService,
+                threadPool,
+                telemetryProvider,
+                clusterSettings,
+                warmingRatioProvider,
+                searchRecoveryTimeoutCalculationService
+            ) {
                 @Override
                 protected void warmCache(
                     Type type,
@@ -1456,7 +1495,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
      * Returns the length of the blob stored in the object store.
      */
     private static long getBlobLength(IndexDirectory indexDirectory, PrimaryTermAndGeneration primaryTermAndGeneration) throws IOException {
-        var blobName = StatelessCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation());
+        var blobName = BatchedCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation());
         var blobs = IndexBlobStoreCacheDirectory.unwrapDirectory(indexDirectory)
             .getBlobContainer(primaryTermAndGeneration.primaryTerm())
             .listBlobsByPrefix(OperationPurpose.INDICES, blobName);

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -30,6 +31,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.LocalExchange;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -62,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchService;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -75,6 +78,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 /**
  * Handles computes within a single cluster by dispatching {@link DataNodeRequest} to data nodes
@@ -249,7 +253,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 // work as the final driver.
                                 queryPragmas.nodeLevelReduction() && sameNodeAsCoordinator == false,
                                 queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization,
-                                retainSearchContexts
+                                retainSearchContexts,
+                                sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias)
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             transportService.sendChildRequest(
@@ -295,72 +300,44 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     ) {
         var queryPragmas = configuration.pragmas();
         boolean allowPartial = configuration.allowPartialResults();
-        boolean sentAny = false;
-        int nodesWithSplits = 0;
-        AtomicInteger failedNodes = new AtomicInteger(0);
 
         final var keepAlive = new ExchangeSourceLinkKeepAlive(exchangeSource);
         try {
-            for (Map.Entry<String, List<ExternalSplit>> entry : distributionPlan.nodeAssignments().entrySet()) {
-                String nodeId = entry.getKey();
-                List<ExternalSplit> nodeSplits = entry.getValue();
-                if (nodeSplits.isEmpty()) {
-                    continue;
-                }
-                nodesWithSplits++;
-
-                DiscoveryNode node = clusterService.state().nodes().get(nodeId);
-                if (node == null) {
-                    var nodeError = new IllegalStateException(
-                        "node [" + nodeId + "] assigned [" + nodeSplits.size() + "] external splits not found in cluster state"
-                    );
-                    if (allowPartial) {
-                        LOGGER.warn(
-                            "node [{}] assigned {} external splits is no longer in the cluster state; skipping (partial results enabled)",
-                            nodeId,
-                            nodeSplits.size()
-                        );
-                        failedNodes.incrementAndGet();
-                        parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
-                        continue;
-                    }
+            ExternalDispatchResolution beforeReassign = resolveExternalAssignments(
+                distributionPlan.nodeAssignments(),
+                nodeId -> clusterService.state().nodes().get(nodeId),
+                transportService::getConnection
+            );
+            ExternalDispatchResolution resolution = reassignUnreachableSplits(beforeReassign);
+            if (resolution.resolved().isEmpty()) {
+                if (resolution.unresolved().isEmpty() == false) {
                     LOGGER.warn(
-                        "node [{}] assigned {} external splits is no longer in the cluster state; failing external distribution",
-                        nodeId,
-                        nodeSplits.size()
+                        "external splits on [{}] unreachable nodes (0 reachable): [{}]",
+                        resolution.unresolved().size(),
+                        unresolvedNodeSummary(resolution.unresolved())
                     );
-                    parentComputeListener.acquireCompute().onFailure(nodeError);
-                    return;
+                    parentComputeListener.acquireCompute().onFailure(allExternalWorkersFailed(resolution.unresolved()));
+                } else {
+                    parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
                 }
+                return;
+            }
+            if (beforeReassign.unresolved().isEmpty() == false) {
+                LOGGER.debug(
+                    () -> Strings.format(
+                        "reassigned external splits from [%s] unreachable nodes onto [%s] reachable nodes: [%s]",
+                        beforeReassign.unresolved().size(),
+                        resolution.resolved().size(),
+                        unresolvedNodeSummary(beforeReassign.unresolved())
+                    )
+                );
+            }
 
-                final Transport.Connection connection;
-                try {
-                    connection = transportService.getConnection(node);
-                } catch (Exception e) {
-                    if (allowPartial) {
-                        LOGGER.warn(
-                            "failed to connect to node [{}] ({}) for external source execution with {} splits; skipping (partial results)",
-                            nodeId,
-                            node.getName(),
-                            nodeSplits.size(),
-                            e
-                        );
-                        failedNodes.incrementAndGet();
-                        parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
-                        continue;
-                    }
-                    LOGGER.warn(
-                        "failed to connect to node [{}] ({}) for external source execution with {} splits",
-                        nodeId,
-                        node.getName(),
-                        nodeSplits.size(),
-                        e
-                    );
-                    parentComputeListener.acquireCompute().onFailure(e);
-                    return;
-                }
+            for (ExternalDispatchResolution.ResolvedExternalNode target : resolution.resolved()) {
+                DiscoveryNode node = target.node();
+                Transport.Connection connection = target.connection();
+                List<ExternalSplit> nodeSplits = target.splits();
 
-                sentAny = true;
                 var childSessionId = computeService.newChildSession(sessionId);
                 keepAlive.track();
                 final AtomicBoolean nodeDone = new AtomicBoolean(false);
@@ -419,6 +396,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             queryPragmas.nodeLevelReduction(),
                             false,
                             false,
+                            false,
                             nodeSplits
                         );
                         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
@@ -475,21 +453,145 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     return;
                 }
             }
-            if (sentAny == false) {
-                if (failedNodes.get() > 0 && failedNodes.get() >= nodesWithSplits) {
-                    parentComputeListener.acquireCompute()
-                        .onFailure(
-                            new IllegalStateException(
-                                "all [" + failedNodes.get() + "] nodes assigned external splits failed; cannot serve partial results"
-                            )
-                        );
-                } else {
-                    parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
-                }
-            }
         } finally {
             keepAlive.done();
         }
+    }
+
+    /**
+     * Result of looking up each assigned worker at dispatch. {@code unresolved} is every
+     * assignment whose node is gone from cluster state or whose connection cannot be opened.
+     */
+    record ExternalDispatchResolution(List<ResolvedExternalNode> resolved, List<UnresolvedExternalNode> unresolved) {
+        record ResolvedExternalNode(DiscoveryNode node, Transport.Connection connection, List<ExternalSplit> splits) {}
+
+        record UnresolvedExternalNode(String nodeId, List<ExternalSplit> splits, Exception error) {}
+    }
+
+    /**
+     * Looks up a transport connection for a resolved worker. Exists so
+     * {@link TransportService#getConnection} can throw and so tests can inject failures.
+     */
+    @FunctionalInterface
+    interface ExternalNodeConnectionLookup {
+        Transport.Connection get(DiscoveryNode node) throws Exception;
+    }
+
+    /**
+     * Resolves each assignment to a live node and connection. An empty assignment that
+     * connects is kept as a target so later reassignment can place orphans on it. An
+     * empty assignment that fails to resolve is dropped: it has no splits to move.
+     * Non-empty failures stay on {@code unresolved}; this step does not move splits.
+     */
+    static ExternalDispatchResolution resolveExternalAssignments(
+        Map<String, List<ExternalSplit>> nodeAssignments,
+        Function<String, DiscoveryNode> nodes,
+        ExternalNodeConnectionLookup connections
+    ) {
+        List<ExternalDispatchResolution.ResolvedExternalNode> resolved = new ArrayList<>();
+        List<ExternalDispatchResolution.UnresolvedExternalNode> unresolved = new ArrayList<>();
+        for (Map.Entry<String, List<ExternalSplit>> entry : nodeAssignments.entrySet()) {
+            String nodeId = entry.getKey();
+            List<ExternalSplit> nodeSplits = entry.getValue();
+            DiscoveryNode node = nodes.apply(nodeId);
+            if (node == null) {
+                if (nodeSplits.isEmpty() == false) {
+                    unresolved.add(
+                        new ExternalDispatchResolution.UnresolvedExternalNode(
+                            nodeId,
+                            nodeSplits,
+                            new IllegalStateException(
+                                "node [" + nodeId + "] assigned [" + nodeSplits.size() + "] external splits not found in cluster state"
+                            )
+                        )
+                    );
+                }
+                continue;
+            }
+            try {
+                resolved.add(new ExternalDispatchResolution.ResolvedExternalNode(node, connections.get(node), nodeSplits));
+            } catch (Exception e) {
+                if (nodeSplits.isEmpty() == false) {
+                    unresolved.add(new ExternalDispatchResolution.UnresolvedExternalNode(nodeId, nodeSplits, e));
+                }
+            }
+        }
+        return new ExternalDispatchResolution(List.copyOf(resolved), List.copyOf(unresolved));
+    }
+
+    /**
+     * Moves splits from unresolved workers onto resolved workers, appending round-robin
+     * in resolved-node order. Resolved workers that still have no splits after that are
+     * dropped so the dispatcher only sends work. When no worker resolved, the input is
+     * returned unchanged so the dispatcher can fail the query.
+     */
+    static ExternalDispatchResolution reassignUnreachableSplits(ExternalDispatchResolution resolution) {
+        if (resolution.resolved().isEmpty()) {
+            return resolution;
+        }
+        if (resolution.unresolved().isEmpty()) {
+            return withoutEmptyResolved(resolution);
+        }
+        List<List<ExternalSplit>> expanded = new ArrayList<>(resolution.resolved().size());
+        for (ExternalDispatchResolution.ResolvedExternalNode resolved : resolution.resolved()) {
+            expanded.add(new ArrayList<>(resolved.splits()));
+        }
+        int next = 0;
+        for (ExternalDispatchResolution.UnresolvedExternalNode unresolved : resolution.unresolved()) {
+            for (ExternalSplit split : unresolved.splits()) {
+                expanded.get(next % expanded.size()).add(split);
+                next++;
+            }
+        }
+        List<ExternalDispatchResolution.ResolvedExternalNode> reassigned = new ArrayList<>(resolution.resolved().size());
+        for (int i = 0; i < resolution.resolved().size(); i++) {
+            ExternalDispatchResolution.ResolvedExternalNode original = resolution.resolved().get(i);
+            reassigned.add(
+                new ExternalDispatchResolution.ResolvedExternalNode(original.node(), original.connection(), List.copyOf(expanded.get(i)))
+            );
+        }
+        return withoutEmptyResolved(new ExternalDispatchResolution(List.copyOf(reassigned), List.of()));
+    }
+
+    private static ExternalDispatchResolution withoutEmptyResolved(ExternalDispatchResolution resolution) {
+        List<ExternalDispatchResolution.ResolvedExternalNode> kept = new ArrayList<>(resolution.resolved().size());
+        for (ExternalDispatchResolution.ResolvedExternalNode resolved : resolution.resolved()) {
+            if (resolved.splits().isEmpty() == false) {
+                kept.add(resolved);
+            }
+        }
+        if (kept.size() == resolution.resolved().size()) {
+            return resolution;
+        }
+        return new ExternalDispatchResolution(List.copyOf(kept), resolution.unresolved());
+    }
+
+    /**
+     * Failure when every assigned worker with splits was unreachable. The first
+     * per-node error is the cause; the rest are suppressed. The message does not
+     * mention partial results: none of the work can run.
+     */
+    static IllegalStateException allExternalWorkersFailed(List<ExternalDispatchResolution.UnresolvedExternalNode> unresolved) {
+        ExternalDispatchResolution.UnresolvedExternalNode first = unresolved.getFirst();
+        IllegalStateException failure = new IllegalStateException(
+            "all [" + unresolved.size() + "] nodes assigned external splits failed",
+            first.error()
+        );
+        for (int i = 1; i < unresolved.size(); i++) {
+            failure.addSuppressed(unresolved.get(i).error());
+        }
+        return failure;
+    }
+
+    private static String unresolvedNodeSummary(List<ExternalDispatchResolution.UnresolvedExternalNode> unresolved) {
+        StringBuilder summary = new StringBuilder();
+        for (ExternalDispatchResolution.UnresolvedExternalNode node : unresolved) {
+            if (summary.isEmpty() == false) {
+                summary.append(',');
+            }
+            summary.append(node.nodeId()).append('=').append(node.splits().size());
+        }
+        return summary.toString();
     }
 
     private static final Logger LOGGER = LogManager.getLogger(DataNodeComputeHandler.class);
@@ -531,11 +633,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final EsqlFlags flags;
         private final DataNodeRequest request;
         private final CancellableTask parentTask;
-        private final ExchangeSinkHandler exchangeSink;
+        private final LocalExchange internalExchange;
+        private final ExchangeSinkHandler externalSink;
+        private final String externalId;
         private final ComputeListener computeListener;
         private final int maxConcurrentShards;
         private final ExchangeSink blockingSink; // block until we have completed on all shards or the coordinator has enough data
         private final boolean failFastOnShardFailure;
+        private final boolean singleNodeOptimizations;
         private final Map<ShardId, Exception> shardLevelFailures;
         private final AcquiredSearchContexts searchContexts;
         private final PlanTimeProfile planTimeProfile;
@@ -544,28 +649,43 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             EsqlFlags flags,
             DataNodeRequest request,
             CancellableTask parentTask,
-            ExchangeSinkHandler exchangeSink,
+            LocalExchange internalExchange,
+            ExchangeSinkHandler externalSink,
+            String externalId,
             int maxConcurrentShards,
             boolean failFastOnShardFailure,
+            boolean singleNodeOptimizations,
             Map<ShardId, Exception> shardLevelFailures,
             ComputeListener computeListener,
             AcquiredSearchContexts searchContexts
         ) {
+            assert (internalExchange == null) != (externalSink == null) : "exactly one exchange must be provided";
             this.flags = flags;
             this.request = request;
             this.parentTask = parentTask;
-            this.exchangeSink = exchangeSink;
+            this.internalExchange = internalExchange;
+            this.externalSink = externalSink;
+            this.externalId = externalId;
             this.computeListener = computeListener;
             this.maxConcurrentShards = maxConcurrentShards;
             this.failFastOnShardFailure = failFastOnShardFailure;
+            this.singleNodeOptimizations = singleNodeOptimizations;
             this.shardLevelFailures = shardLevelFailures;
-            this.blockingSink = exchangeSink.createExchangeSink(() -> {});
+            this.blockingSink = exchangeSink(() -> {});
             this.searchContexts = searchContexts;
             this.planTimeProfile = new PlanTimeProfile();
         }
 
         void start() {
             runBatch(0);
+        }
+
+        private ExchangeSink exchangeSink(Runnable onPageAdded) {
+            return internalExchange != null ? internalExchange.exchangeSink(onPageAdded) : externalSink.createExchangeSink(onPageAdded);
+        }
+
+        private boolean exchangeFinished() {
+            return internalExchange != null ? internalExchange.isFinished() : externalSink.isFinished();
         }
 
         private void runBatch(int startBatchIndex) {
@@ -597,7 +717,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     } else {
                         // TODO: add these to fatal failures so we can continue processing other shards.
                         try {
-                            exchangeService.finishSinkHandler(request.sessionId(), e);
+                            if (internalExchange != null) {
+                                internalExchange.finish(true);
+                            } else {
+                                exchangeService.finishSinkHandler(externalId, e);
+                            }
                         } finally {
                             ref.onFailure(e);
                         }
@@ -624,8 +748,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         configuration,
                         configuration.newFoldContext(),
                         null,
-                        () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet),
-                        request.retainSearchContexts()
+                        () -> exchangeSink(pagesProduced::incrementAndGet),
+                        request.retainSearchContexts(),
+                        singleNodeOptimizations
                     );
                     computeService.runCompute(
                         parentTask,
@@ -712,14 +837,17 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
 
         private void onBatchCompleted(int lastBatchIndex) {
-            if (lastBatchIndex < request.shards().size() && exchangeSink.isFinished() == false) {
+            if (lastBatchIndex < request.shards().size() && exchangeFinished() == false) {
                 runBatch(lastBatchIndex);
             } else {
-                // don't return until all pages are fetched
-                var completionListener = computeListener.acquireAvoid();
-                exchangeSink.addCompletionListener(
-                    ActionListener.runAfter(completionListener, () -> exchangeService.finishSinkHandler(request.sessionId(), null))
-                );
+                // don't return until all pages have been consumed
+                if (internalExchange != null) {
+                    internalExchange.addCompletionListener(computeListener.acquireAvoid());
+                } else {
+                    externalSink.addCompletionListener(
+                        ActionListener.runBefore(computeListener.acquireAvoid(), () -> exchangeService.finishSinkHandler(externalId, null))
+                    );
+                }
                 blockingSink.finish();
             }
         }
@@ -737,7 +865,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     private void runComputeOnDataNode(
         CancellableTask task,
         String externalId,
-        PhysicalPlan reducePlan,
+        ReductionPlan reductionPlan,
         DataNodeRequest request,
         boolean failFastOnShardFailure,
         AcquiredSearchContexts searchContexts,
@@ -753,13 +881,19 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             )
         ) {
             var parentListener = computeListener.acquireAvoid();
+            final boolean runNodeReduce = reductionPlan.isPassThrough() == false;
+            final LocalExchange internalExchange = runNodeReduce ? new LocalExchange(request.pragmas().exchangeBufferSize()) : null;
             try {
+                assert request.singleNodeOptimizations() == false
+                    || task.getParentTaskId().getNodeId().equals(transportService.getLocalNode().getId())
+                    : "single node optimizations enabled but wrong parent task: " + task + " vs " + transportService.getLocalNode().getId();
                 // run compute with target shards
                 var externalSink = exchangeService.getSinkHandler(externalId);
-                var internalSink = exchangeService.createSinkHandler(request.sessionId(), request.pragmas().exchangeBufferSize());
                 task.addListener(() -> {
                     exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()));
-                    exchangeService.finishSinkHandler(request.sessionId(), new TaskCancelledException(task.getReasonCancelled()));
+                    if (internalExchange != null) {
+                        internalExchange.finish(true);
+                    }
                 });
                 EsqlFlags flags = computeService.createFlags();
                 int maxConcurrentShards = request.pragmas().maxConcurrentShardsPerNode();
@@ -767,17 +901,22 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     flags,
                     request,
                     task,
-                    internalSink,
+                    internalExchange,
+                    runNodeReduce ? null : externalSink,
+                    externalId,
                     maxConcurrentShards,
                     failFastOnShardFailure,
+                    request.singleNodeOptimizations(),
                     shardLevelFailures,
                     computeListener,
                     searchContexts
                 );
                 dataNodeRequestExecutor.start();
+                if (runNodeReduce == false) {
+                    parentListener.onResponse(null);
+                    return;
+                }
                 // run the node-level reduction
-                var exchangeSource = new ExchangeSourceHandler(1, searchExecutor);
-                exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
                 var reductionListener = computeListener.acquireCompute();
                 computeService.runCompute(
                     task,
@@ -789,11 +928,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         searchContexts.globalView(),
                         request.configuration(),
                         new FoldContext(request.pragmas().foldLimit().getBytes()),
-                        exchangeSource::createExchangeSource,
+                        internalExchange::exchangeSource,
                         () -> externalSink.createExchangeSink(() -> {}),
-                        request.retainSearchContexts()
+                        request.retainSearchContexts(),
+                        request.singleNodeOptimizations()
                     ),
-                    reducePlan,
+                    reductionPlan.nodeReducePlan(),
                     plannerSettings,
                     // Local physical optimization is aimed at data nodes. For node-reduce-level reduction we precompute the final physical
                     // plan and pass it in reducePlan. We don't need any additional optimizations.
@@ -814,7 +954,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 parentListener.onResponse(null);
             } catch (Exception e) {
                 exchangeService.finishSinkHandler(externalId, e);
-                exchangeService.finishSinkHandler(request.sessionId(), e);
+                if (internalExchange != null) {
+                    internalExchange.finish(true);
+                }
                 parentListener.onFailure(e);
             }
         }
@@ -893,6 +1035,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.runNodeLevelReduction(),
             request.reductionLateMaterialization(),
             request.retainSearchContexts(),
+            request.singleNodeOptimizations(),
             request.externalSplits()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
@@ -950,7 +1093,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         runComputeOnDataNode(
             (CancellableTask) task,
             sessionId,
-            reductionPlan.nodeReducePlan(),
+            reductionPlan,
             request.withPlan(reductionPlan.dataNodePlan()),
             failFastOnShardFailures,
             computeSearchContexts,
@@ -1098,6 +1241,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     configuration.newFoldContext(),
                     null,
                     () -> externalSink.createExchangeSink(() -> {}),
+                    false,
                     false
                 );
                 computeService.runCompute(

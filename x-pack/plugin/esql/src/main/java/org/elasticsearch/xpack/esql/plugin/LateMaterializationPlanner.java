@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -85,15 +84,6 @@ import java.util.function.Function;
 *  Note the above does not project the {@code x} field anymore (this was an enhancement made by #137920)
 */
 class LateMaterializationPlanner {
-    /**
-     * Gates late materialization on the node-reduce driver for {@link TopNBy} and {@link LimitBy} queries.
-     * Enabled automatically in snapshot builds; override in release with
-     * {@code -Des.esql_node_late_materialization_limit_by_feature_flag_enabled=true}.
-     */
-    public static final FeatureFlag ESQL_LATE_MATERIALIZATION_LIMIT_BY_FEATURE_FLAG = new FeatureFlag(
-        "esql_node_late_materialization_limit_by"
-    );
-
     public static Optional<ReductionPlan> planReduceDriverTopN(
         Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory,
         ExchangeSinkExec originalPlan

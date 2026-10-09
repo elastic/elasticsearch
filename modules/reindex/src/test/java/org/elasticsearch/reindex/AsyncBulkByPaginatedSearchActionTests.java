@@ -715,6 +715,60 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     }
 
     /**
+     * Verifies that {@code buildBulk} passes the action-specific label to {@code CircuitBreaker.addEstimateBytesAndMaybeBreak}.
+     * This covers the coverage gap left by the three integration circuit-breaker tests whose limits were raised above
+     * the fetch-phase charge: those tests now verify fetch-phase protection, but no longer exercise the bulk-batch
+     * label wiring. The real labels are {@code reindex_bulk_batch} (set by {@code Reindexer}),
+     * {@code update_by_query_bulk_batch} (set by {@code TransportUpdateByQueryAction}), and
+     * {@code delete_by_query_bulk_batch} (set by {@code AsyncDeleteByQueryAction}).
+     */
+    public void testBuildBulkPassesActionSpecificLabelToCircuitBreaker() throws Exception {
+        boolean usePit = configurePitOrScroll();
+        String actionLabel = randomFrom("reindex_bulk_batch", "update_by_query_bulk_batch", "delete_by_query_bulk_batch");
+
+        AtomicReference<String> capturedLabel = new AtomicReference<>();
+        CircuitBreaker capturingBreaker = new NoopCircuitBreaker("test") {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                if (bytes > 0) {
+                    capturedLabel.set(label);
+                    throw new CircuitBreakingException(
+                        "breaker tripped [label=" + label + "]",
+                        bytes,
+                        1L,
+                        CircuitBreaker.Durability.TRANSIENT
+                    );
+                }
+            }
+
+            @Override
+            public void addWithoutBreaking(long bytes) {}
+        };
+
+        DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction(
+            testTask,
+            TimeValue.ZERO,
+            capturingBreaker,
+            actionLabel
+        ) {
+            @Override
+            protected RequestWrapper<?> buildRequest(Hit doc) {
+                return wrap(new IndexRequest("test").id(doc.getId()).source(doc.getSource(), doc.getXContentType()));
+            }
+        };
+
+        List<PaginatedHitSource.BasicHit> hits = List.of(
+            new PaginatedHitSource.BasicHit("idx", "1", -1).setSource(new BytesArray(new byte[64]), XContentType.JSON)
+        );
+        PaginatedHitSource.Response response = createPaginatedResponse(usePit, false, emptyList(), hits.size(), hits, null, null);
+        simulatePaginatedResponse(action, System.nanoTime(), 0, response, usePit);
+
+        ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
+        assertThat(ExceptionsHelper.unwrap(e, CircuitBreakingException.class), notNullValue());
+        assertThat("buildBulk must pass the action-specific label to the circuit breaker", capturedLabel.get(), equalTo(actionLabel));
+    }
+
+    /**
      * Verifies the per-batch reservation lifecycle: the circuit breaker accumulates bytes equal to
      * {@code BulkRequest.estimatedSizeInBytes()} during {@code buildBulk}, and the reservation is fully
      * released when the bulk listener completes.
@@ -1417,8 +1471,13 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     public void testCopyRoutingPropagatesSliceRoutingProvenanceToWriteRequests() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction();
-        testRequest.getSearchRequest().searchSlice("slice-1");
 
+        IndexRequest routingRequest = new IndexRequest().index("test").id("2");
+        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(routingRequest), "routing-value");
+        assertThat(routingRequest.routing(), equalTo("routing-value"));
+        assertFalse(routingRequest.isRoutingFromSlice());
+
+        testRequest.getSearchRequest().searchSlice("slice-1");
         IndexRequest indexRequest = new IndexRequest().index("test").id("1");
         DeleteRequest deleteRequest = new DeleteRequest("test", "1");
         action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(indexRequest), "slice-1");
@@ -1428,12 +1487,6 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         assertTrue(indexRequest.isRoutingFromSlice());
         assertThat(deleteRequest.routing(), equalTo("slice-1"));
         assertTrue(deleteRequest.isRoutingFromSlice());
-
-        testRequest.getSearchRequest().searchSlice(null);
-        IndexRequest routingRequest = new IndexRequest().index("test").id("2");
-        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(routingRequest), "routing-value");
-        assertThat(routingRequest.routing(), equalTo("routing-value"));
-        assertFalse(routingRequest.isRoutingFromSlice());
     }
 
     /**
@@ -2307,7 +2360,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         }
 
         DummyAsyncBulkByPaginatedSearchAction(BulkByPaginatedSearchTask task, TimeValue maxTaskShutdownGracePeriod) {
-            this(task, maxTaskShutdownGracePeriod, new NoopCircuitBreaker("test"), "test_bulk_batch");
+            this(task, maxTaskShutdownGracePeriod, NoopCircuitBreaker.INSTANCE, "test_bulk_batch");
         }
 
         DummyAsyncBulkByPaginatedSearchAction(

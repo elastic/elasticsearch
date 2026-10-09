@@ -35,17 +35,17 @@ public final class NumberColumnTransform {
     private NumberColumnTransform() {}
 
     /**
-     * Converts a LONG {@link EscfColumn} whose values are
+     * Converts a LONG or ARRAY {@link EscfColumn} whose values are
      * {@link HalfFloatPoint#halfFloatToSortableShort} encoded sortable shorts into a BINARY
      * {@link EscfColumnData} containing the 2-byte {@link HalfFloatPoint} BKD point encoding for
      * each value. Use the result with a {@link org.elasticsearch.escf.LuceneBinaryColumn} to emit
-     * the points column for an indexed {@code half_float} field.
+     * the points column for an indexed {@code half_float} field. An ARRAY source yields an ARRAY of
+     * BINARY, one element per source element.
      */
     public static EscfColumnData toHalfFloatPointBinaryColumn(EscfColumn source, Recycler<BytesRef> recycler) {
-        assert source.kind() == EscfColumnKind.LONG : "expected LONG, got " + EscfColumnKind.name(source.kind());
-        EscfColumnBuilder builder = newBytesBuilder(recycler);
-        boolean success = false;
-        try {
+        assert source.kind() == EscfColumnKind.LONG || source.kind() == EscfColumnKind.ARRAY
+            : "expected LONG or ARRAY, got " + EscfColumnKind.name(source.kind());
+        try (EscfColumnBuilder builder = newBytesBuilder(recycler)) {
             final byte[] buf = new byte[Short.BYTES];
             final BytesRef ref = new BytesRef(buf);
             LongTupleCursor cursor = source.longCursor();
@@ -53,41 +53,7 @@ public final class NumberColumnTransform {
                 HalfFloatPoint.encodeDimension(HalfFloatPoint.sortableShortToHalfFloat((short) cursor.longValue()), buf, 0);
                 builder.setBinary(doc, ref);
             }
-            EscfColumnData result = builder.finish(source.docCount());
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                builder.discard();
-            }
-        }
-    }
-
-    /**
-     * Converts a LONG {@link EscfColumn} whose values are
-     * {@link HalfFloatPoint#halfFloatToSortableShort} encoded sortable shorts into a LONG
-     * {@link EscfColumnData} containing {@link NumericUtils#floatToSortableInt} encoded sortable ints
-     * (widened to long). Use the result with a {@link org.elasticsearch.escf.LuceneLongColumn} and
-     * {@link org.apache.lucene.document.column.LongColumn.NumericKind#FLOAT} to emit the stored-fields
-     * column for a {@code half_float} field.
-     */
-    public static EscfColumnData toHalfFloatStoredLongColumn(EscfColumn source, Recycler<BytesRef> recycler) {
-        assert source.kind() == EscfColumnKind.LONG : "expected LONG, got " + EscfColumnKind.name(source.kind());
-        EscfColumnBuilder builder = newLongBuilder(recycler);
-        boolean success = false;
-        try {
-            LongTupleCursor cursor = source.longCursor();
-            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-                float f = HalfFloatPoint.sortableShortToHalfFloat((short) cursor.longValue());
-                builder.setLong(doc, NumericUtils.floatToSortableInt(f));
-            }
-            EscfColumnData result = builder.finish(source.docCount());
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                builder.discard();
-            }
+            return builder.finish(source.docCount());
         }
     }
 
@@ -97,17 +63,7 @@ public final class NumberColumnTransform {
         boolean coerce,
         Recycler<BytesRef> recycler
     ) {
-        return toSortableLongColumn(source, type, coerce, recycler, null);
-    }
-
-    public static EscfColumnData toSortableLongColumn(
-        EscfColumn source,
-        NumberFieldMapper.NumberType type,
-        boolean coerce,
-        Recycler<BytesRef> recycler,
-        Long nullReplacement
-    ) {
-        return toSortableLongColumn(source, type, coerce, recycler, nullReplacement, data -> {});
+        return toSortableLongColumn(source, type, coerce, recycler, null, false);
     }
 
     public static EscfColumnData toSortableLongColumn(
@@ -116,6 +72,23 @@ public final class NumberColumnTransform {
         boolean coerce,
         Recycler<BytesRef> recycler,
         Long nullReplacement,
+        boolean rejectDroppedValues
+    ) {
+        return toSortableLongColumn(source, type, coerce, recycler, nullReplacement, rejectDroppedValues, data -> {});
+    }
+
+    /**
+     * @param rejectDroppedValues whether to throw rather than let a source slot produce no output value. The
+     *     row path records such a slot in the offsets sidecar as a null ordinal, which {@link ColumnarOffsetsBuilder}
+     *     does not emit. Callers that record a sidecar pass {@code true} to fall the chunk back to the row path instead.
+     */
+    public static EscfColumnData toSortableLongColumn(
+        EscfColumn source,
+        NumberFieldMapper.NumberType type,
+        boolean coerce,
+        Recycler<BytesRef> recycler,
+        Long nullReplacement,
+        boolean rejectDroppedValues,
         Consumer<EscfColumnData> ownedSink
     ) {
         return switch (source.kind()) {
@@ -126,11 +99,11 @@ public final class NumberColumnTransform {
                 yield result;
             }
             case EscfColumnKind.STRING -> {
-                EscfColumnData result = fromString(source, type, coerce, recycler, nullReplacement);
+                EscfColumnData result = fromString(source, type, coerce, recycler, nullReplacement, rejectDroppedValues);
                 ownedSink.accept(result);
                 yield result;
             }
-            case EscfColumnKind.ARRAY -> fromArray(source, type, coerce, recycler, nullReplacement, ownedSink);
+            case EscfColumnKind.ARRAY -> fromArray(source, type, coerce, recycler, nullReplacement, rejectDroppedValues, ownedSink);
             default -> throw new UnsupportedOperationException(
                 "toSortableLongColumn: unsupported ESCF column kind ["
                     + EscfColumnKind.name(source.kind())
@@ -145,6 +118,7 @@ public final class NumberColumnTransform {
         boolean coerce,
         Recycler<BytesRef> recycler,
         Long nullReplacement,
+        boolean rejectDroppedValues,
         Consumer<EscfColumnData> ownedSink
     ) {
         // Materialize the array structure: offsets + child data. The child is always dense (all
@@ -154,7 +128,7 @@ public final class NumberColumnTransform {
         EscfColumn child = EscfColumn.from(childData);
         return switch (child.kind()) {
             case EscfColumnKind.STRING -> {
-                EscfColumnData result = fromString(source, type, coerce, recycler, nullReplacement);
+                EscfColumnData result = fromString(source, type, coerce, recycler, nullReplacement, rejectDroppedValues);
                 ownedSink.accept(result);
                 yield result;
             }
@@ -183,12 +157,11 @@ public final class NumberColumnTransform {
         NumberFieldMapper.NumberType type,
         boolean coerce,
         Recycler<BytesRef> recycler,
-        Long nullReplacement
+        Long nullReplacement,
+        boolean rejectDroppedValues
     ) {
         AbstractXContentParser.checkCoerceString(coerce, classForType(type));
-        EscfColumnBuilder builder = newLongBuilder(recycler);
-        boolean success = false;
-        try {
+        try (EscfColumnBuilder builder = newLongBuilder(recycler)) {
             // retainValues=false: each value is parsed inside the loop body, before the cursor advances.
             ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
             final long min = integerMinForType(type);
@@ -199,18 +172,17 @@ public final class NumberColumnTransform {
                 if (coerce && value.length == 0) {
                     if (nullReplacement != null) {
                         builder.setLong(doc, nullReplacement);
+                    } else if (rejectDroppedValues) {
+                        throw new UnsupportedOperationException(
+                            "toSortableLongColumn: an empty string with no null_value records a null offsets slot, which the columnar "
+                                + "offsets sidecar does not emit"
+                        );
                     }
                     continue;
                 }
                 builder.setLong(doc, stringToSortableLong(value, type, min, max, scratch));
             }
-            EscfColumnData result = builder.finish(source.docCount());
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                builder.discard();
-            }
+            return builder.finish(source.docCount());
         }
     }
 
@@ -395,20 +367,12 @@ public final class NumberColumnTransform {
     }
 
     private static EscfColumnData copyLong(EscfColumn source, LongUnaryOperator convert, Recycler<BytesRef> recycler) {
-        EscfColumnBuilder builder = newLongBuilder(recycler);
-        boolean success = false;
-        try {
+        try (EscfColumnBuilder builder = newLongBuilder(recycler)) {
             LongTupleCursor cursor = source.longCursor();
             for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
                 builder.setLong(doc, convert.applyAsLong(cursor.longValue()));
             }
-            EscfColumnData result = builder.finish(source.docCount());
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                builder.discard();
-            }
+            return builder.finish(source.docCount());
         }
     }
 
@@ -430,39 +394,23 @@ public final class NumberColumnTransform {
     }
 
     private static EscfColumnData copyDoubleBits(EscfColumn source, Recycler<BytesRef> recycler) {
-        EscfColumnBuilder builder = newLongBuilder(recycler);
-        boolean success = false;
-        try {
+        try (EscfColumnBuilder builder = newLongBuilder(recycler)) {
             LongTupleCursor cursor = source.longCursor();
             for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
                 builder.setLong(doc, NumericUtils.sortableDoubleBits(cursor.longValue()));
             }
-            EscfColumnData result = builder.finish(source.docCount());
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                builder.discard();
-            }
+            return builder.finish(source.docCount());
         }
     }
 
     private static EscfColumnData copyDouble(EscfColumn source, DoubleToLongFunction convert, Recycler<BytesRef> recycler) {
-        EscfColumnBuilder builder = newLongBuilder(recycler);
-        boolean success = false;
-        try {
+        try (EscfColumnBuilder builder = newLongBuilder(recycler)) {
             LongTupleCursor cursor = source.longCursor();
             for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
                 double d = Double.longBitsToDouble(cursor.longValue());
                 builder.setLong(doc, convert.applyAsLong(d));
             }
-            EscfColumnData result = builder.finish(source.docCount());
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                builder.discard();
-            }
+            return builder.finish(source.docCount());
         }
     }
 
@@ -486,9 +434,7 @@ public final class NumberColumnTransform {
         boolean coerce,
         Recycler<BytesRef> recycler
     ) {
-        EscfColumnBuilder builder = newLongBuilder(recycler);
-        boolean success = false;
-        try {
+        try (EscfColumnBuilder builder = newLongBuilder(recycler)) {
             LongTupleCursor cursor = source.longCursor();
             for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
                 double d = Double.longBitsToDouble(cursor.longValue());
@@ -500,13 +446,7 @@ public final class NumberColumnTransform {
                 }
                 builder.setLong(doc, (long) d);
             }
-            EscfColumnData result = builder.finish(source.docCount());
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                builder.discard();
-            }
+            return builder.finish(source.docCount());
         }
     }
 

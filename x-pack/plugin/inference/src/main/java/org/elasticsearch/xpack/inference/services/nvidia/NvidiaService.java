@@ -25,6 +25,8 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
+import org.elasticsearch.inference.configuration.NonStreamingChatFeature;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
@@ -48,7 +50,7 @@ import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbedd
 import org.elasticsearch.xpack.inference.services.nvidia.request.completion.NvidiaChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModel;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModelCreator;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -93,7 +95,7 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
     );
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new NvidiaChatCompletionResponseHandler(
         "NVIDIA chat completion",
-        OpenAiCompletionResponseEntity::fromResponse
+        OpenAiUnifiedChatCompletionResponseEntity::fromResponse
     );
     private static final NvidiaChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new NvidiaChatCompletionModelCreator();
     private static final Map<TaskType, ModelCreator<? extends NvidiaModel>> MODEL_CREATORS = Map.of(
@@ -227,6 +229,7 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             EMBEDDING_MAX_BATCH_SIZE,
+            getRegexReadLimitFactor(),
             nvidiaEmbeddingsModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
@@ -243,6 +246,11 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return EnumSet.of(COMPLETION, CHAT_COMPLETION);
+    }
+
+    @Override
+    public boolean supportsNonStreamingChatCompletion() {
+        return true;
     }
 
     @Override
@@ -321,6 +329,7 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
                     .setName(SERVICE_NAME)
                     .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
+                    .setFeatures(InferenceServiceFeatures.of(NonStreamingChatFeature.SUPPORTED_INSTANCE))
                     .build();
             }
         );

@@ -18,9 +18,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
@@ -28,8 +30,10 @@ import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
@@ -40,8 +44,14 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -60,6 +70,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.alias;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
@@ -562,7 +573,7 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         SplitStats split1 = buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
         SplitStats split2 = buildSplitStatsWithMinMax("age", 60L, 80L, 500L, 0L);
         ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1, split2);
-        Expression filterCondition = new Or(Source.EMPTY, greaterThanOf(AGE, of(20L)), lessThanOrEqualOf(AGE, of(90L)));
+        Expression filterCondition = new Or(Source.EMPTY, greaterThanOf(AGE, of(20)), lessThanOrEqualOf(AGE, of(90)));
         var agg = aggregateExec(new FilterExec(Source.EMPTY, ext, filterCondition), countStarAlias());
 
         LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
@@ -573,7 +584,7 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         SplitStats split1 = buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
         SplitStats split2 = buildSplitStatsWithMinMax("age", 60L, 80L, 500L, 0L);
         ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1, split2);
-        Expression filterCondition = new Not(Source.EMPTY, greaterThanOf(AGE, of(20L)));
+        Expression filterCondition = new Not(Source.EMPTY, greaterThanOf(AGE, of(20)));
         var agg = aggregateExec(new FilterExec(Source.EMPTY, ext, filterCondition), countStarAlias());
 
         LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
@@ -585,17 +596,194 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         // child collapsed splitStats() to null), a FILTERED count falls back to the whole-file cache stats. If
         // those are STATS_PARTIAL, it must safe-miss exactly as the unfiltered path (resolveEffectiveStats) does
         // — serving the partial row_count would emit a wrong COUNT. Pushes the partial 1000 without the guard.
-        Map<String, Object> partial = new HashMap<>();
-        partial.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
-        partial.put(SourceStatisticsSerializer.columnMinKey("age"), 30L);
-        partial.put(SourceStatisticsSerializer.columnMaxKey("age"), 50L);
-        partial.put(SourceStatisticsSerializer.columnNullCountKey("age"), 0L); // no nulls -> the filter can classify MATCH
-        partial.put(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.TRUE);
-        Expression filterCondition = greaterThanOf(AGE, of(20L)); // MATCH against min=30/nc=0, so it would push absent the guard
-        var agg = aggregateExec(new FilterExec(Source.EMPTY, externalSource(partial), filterCondition), countStarAlias());
+        Map<String, Object> complete = new HashMap<>();
+        complete.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
+        complete.put(SourceStatisticsSerializer.columnMinKey("age"), 30L);
+        complete.put(SourceStatisticsSerializer.columnMaxKey("age"), 50L);
+        complete.put(SourceStatisticsSerializer.columnNullCountKey("age"), 0L);
+        // value_count == rowCount is required for MATCH (SplitFilterClassifier.matchableColumn)
+        complete.put(SourceStatisticsSerializer.columnValueCountKey("age"), 1000L);
+        Expression filterCondition = greaterThanOf(AGE, of(20));
 
-        // Must NOT push — a partial whole-file row_count cannot answer a filtered count. AggregateExec stays.
+        LocalSourceExec local = as(
+            applyRule(aggregateExec(new FilterExec(Source.EMPTY, externalSource(complete), filterCondition), countStarAlias())),
+            LocalSourceExec.class
+        );
+        assertEquals(1000L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+
+        Map<String, Object> partial = new HashMap<>(complete);
+        partial.put(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.TRUE);
+        as(
+            applyRule(aggregateExec(new FilterExec(Source.EMPTY, externalSource(partial), filterCondition), countStarAlias())),
+            AggregateExec.class
+        );
+    }
+
+    public void testCountDoesNotFoldOnVirtualIndexIsNotNull() {
+        SplitStats split1 = buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
+        ExternalMetadataAttribute index = new ExternalMetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+        ExternalSourceExec ext = externalSourceWithVirtualIndex(index, split1);
+        Expression filterCondition = new IsNotNull(Source.EMPTY, index);
+        var agg = aggregateExec(new FilterExec(Source.EMPTY, ext, filterCondition), countStarAlias());
+
         as(applyRule(agg), AggregateExec.class);
+    }
+
+    public void testCountDoesNotFoldOnAliasedVirtualIndexIsNotNull() {
+        SplitStats split1 = buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
+        ExternalMetadataAttribute index = new ExternalMetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+        ExternalSourceExec ext = externalSourceWithVirtualIndex(index, split1);
+        Alias idxAlias = alias("idx", index);
+        EvalExec eval = new EvalExec(Source.EMPTY, ext, List.of(idxAlias));
+        Expression filterCondition = new IsNotNull(Source.EMPTY, idxAlias.toAttribute());
+        var agg = aggregateExec(new FilterExec(Source.EMPTY, eval, filterCondition), countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
+    public void testCountDoesNotFoldOnComputedVirtualIndexFilter() {
+        SplitStats split = buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
+        ExternalMetadataAttribute index = new ExternalMetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+        ExternalSourceExec ext = externalSourceWithVirtualIndex(index, split);
+        Alias idxAlias = alias("idx", new ToLower(Source.EMPTY, index, TEST_CFG));
+        assertComputedFilterNotFolded(ext, idxAlias);
+    }
+
+    public void testCountDoesNotFoldOnComputedDataColumnFilter() {
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L));
+        assertComputedFilterNotFolded(ext, alias("computed_age", new Abs(Source.EMPTY, AGE)));
+    }
+
+    public void testCountFoldsThroughRecheckPushedComparison() {
+        // RECHECK attach + FilterExec remainder: classify the filter even though expressions are pushed.
+        SplitStats split1 = buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
+        SplitStats split2 = buildSplitStatsWithMinMax("age", 60L, 80L, 500L, 0L);
+        Expression filterCondition = greaterThanOf(AGE, of(20));
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1, split2).withPushedFilterAndExpressions(
+            "opaque-recheck",
+            List.of(filterCondition)
+        );
+        var agg = aggregateExec(new FilterExec(Source.EMPTY, ext, filterCondition), countStarAlias());
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(1000L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+    }
+
+    public void testCountFoldsThroughMixedRecheckWithRewrittenPushedBound() {
+        // #1950 headline: FilterExec keeps mixed i < 5.5; pushed side is rewritten i <= 5.
+        // Classifier rewrites the FilterExec condition — MATCH only via conversion.
+        SplitStats inRange = buildSplitStatsWithMinMax("age", 1L, 5L, 100L, 0L);
+        Expression mixedFilter = new LessThan(Source.EMPTY, AGE, new Literal(Source.EMPTY, 5.5, DataType.DOUBLE), null);
+        // Production push stores rewrite(mixed); gate requires that ∈ rewrite(FilterExec).
+        Expression rewrittenPushed = PushdownLiteralConversion.rewrite(mixedFilter);
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), inRange).withPushedFilterAndExpressions(
+            "opaque-mixed-recheck",
+            List.of(rewrittenPushed)
+        );
+        var agg = aggregateExec(new FilterExec(Source.EMPTY, ext, mixedFilter), countStarAlias());
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(100L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+    }
+
+    public void testCountFoldsMissThroughMixedRecheckWithRewrittenPushedBound() {
+        // Same mixed shape; split stats lie entirely above the converted bound → MISS → COUNT(*) = 0.
+        SplitStats outOfRange = buildSplitStatsWithMinMax("age", 10L, 20L, 100L, 0L);
+        Expression mixedFilter = new LessThan(Source.EMPTY, AGE, new Literal(Source.EMPTY, 5.5, DataType.DOUBLE), null);
+        Expression rewrittenPushed = PushdownLiteralConversion.rewrite(mixedFilter);
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), outOfRange).withPushedFilterAndExpressions(
+            "opaque-mixed-recheck-miss",
+            List.of(rewrittenPushed)
+        );
+        var agg = aggregateExec(new FilterExec(Source.EMPTY, ext, mixedFilter), countStarAlias());
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(0L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+    }
+
+    public void testCountDoesNotFoldWhenPushedNotCoveredByFilterExec() {
+        // RECHECK alone is not enough: pushed must appear in rewrite(FilterExec). A lying push that
+        // omits the conjunct from the remainder must not fold.
+        SplitStats split1 = buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
+        Expression filterCondition = greaterThanOf(AGE, of(20));
+        Expression otherPushed = greaterThanOf(AGE, of(10));
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1).withPushedFilterAndExpressions(
+            "opaque-uncovered-recheck",
+            List.of(otherPushed)
+        );
+        var agg = aggregateExec(new FilterExec(Source.EMPTY, ext, filterCondition), countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
+    public void testCountDoesNotFoldWhenYesPushedAlongsideFilter() {
+        // YES (LIKE) is dropped from FilterExec; classifying remainder alone would overcount.
+        SplitStats split1 = buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
+        Expression ageFilter = greaterThanOf(AGE, of(20));
+        Expression like = new WildcardLike(Source.EMPTY, referenceAttribute("x", DataType.KEYWORD), new WildcardPattern("A*"), false);
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1).withPushedFilterAndExpressions(
+            "opaque-yes-recheck",
+            List.of(like, ageFilter)
+        );
+        var agg = aggregateExec(new FilterExec(Source.EMPTY, ext, ageFilter), countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
+    public void testCountDoesNotFoldWhenPushedExpressionIsNo() {
+        // Fail-closed: a pushed expression the stub marks NO must not fold even when FilterExec remains.
+        // Abs is unambiguously NO here; IsNull would be RECHECK on real Parquet, so it is a bad NO stand-in.
+        SplitStats split1 = buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
+        Expression ageFilter = greaterThanOf(AGE, of(20));
+        Expression notPushable = new Abs(Source.EMPTY, AGE);
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1).withPushedFilterAndExpressions(
+            "opaque-no",
+            List.of(notPushable)
+        );
+        var agg = aggregateExec(new FilterExec(Source.EMPTY, ext, ageFilter), countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
+    public void testCountDoesNotFoldWhenPushedWithoutFilterExec() {
+        // filterCondition == null: no FilterExec to classify (typical of pure YES push).
+        // pushedFilter is null so extractExternalSource still reaches the scan-only gate.
+        SplitStats split1 = buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
+        Expression like = new WildcardLike(Source.EMPTY, referenceAttribute("x", DataType.KEYWORD), new WildcardPattern("A*"), false);
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1).withPushedFilterAndExpressions(null, List.of(like));
+        var agg = aggregateExec(ext, countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
+    public void testCountDoesNotFoldOnComputedFilterShadowingSourceColumn() {
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L));
+        assertComputedFilterNotFolded(ext, alias("age", new Abs(Source.EMPTY, AGE)));
+    }
+
+    private static void assertComputedFilterNotFolded(ExternalSourceExec ext, Alias computedAlias) {
+        Alias indirectAlias = alias("indirect", computedAlias.toAttribute());
+        EvalExec eval = new EvalExec(Source.EMPTY, ext, List.of(computedAlias, indirectAlias));
+        for (Attribute target : List.of(computedAlias.toAttribute(), indirectAlias.toAttribute())) {
+            for (Expression condition : List.of(new IsNull(Source.EMPTY, target), new IsNotNull(Source.EMPTY, target))) {
+                for (AggregatorMode mode : List.of(AggregatorMode.SINGLE, AggregatorMode.INITIAL)) {
+                    var agg = aggregateExec(mode, new FilterExec(Source.EMPTY, eval, condition), countStarAlias());
+                    assertSame(agg, applyRule(agg));
+                }
+            }
+        }
+    }
+
+    public void testCountPushedThroughAliasedDataColumnFilter() {
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L));
+        Alias ageAlias = alias("age_years", AGE);
+        Alias indirectAlias = alias("indirect", ageAlias.toAttribute());
+        EvalExec eval = new EvalExec(Source.EMPTY, ext, List.of(ageAlias, indirectAlias));
+        for (Attribute target : List.of(ageAlias.toAttribute(), indirectAlias.toAttribute())) {
+            var agg = aggregateExec(new FilterExec(Source.EMPTY, eval, new IsNotNull(Source.EMPTY, target)), countStarAlias());
+            LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+            assertEquals(500L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+        }
     }
 
     // --- helpers ---
@@ -618,6 +806,18 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
 
     private static ExternalSourceExec externalSource(Map<String, Object> sourceMetadata) {
         return new ExternalSourceExec(Source.EMPTY, "file:///test.parquet", "parquet", defaultAttrs(), Map.of(), sourceMetadata, null);
+    }
+
+    private static ExternalSourceExec externalSourceWithVirtualIndex(ExternalMetadataAttribute index, SplitStats... perSplitStats) {
+        List<Attribute> attrs = new ArrayList<>(defaultAttrs());
+        attrs.add(index);
+        List<ExternalSplit> splits = new ArrayList<>(perSplitStats.length);
+        for (int i = 0; i < perSplitStats.length; i++) {
+            splits.add(fileSplit(i, perSplitStats[i]));
+        }
+        return new ExternalSourceExec(Source.EMPTY, "file:///test.parquet", "parquet", attrs, Map.of(), Map.of(), null, null).withSplits(
+            splits
+        );
     }
 
     private static List<Attribute> defaultAttrs() {
@@ -738,7 +938,32 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
             }
             return AggregatePushdownSupport.Pushability.YES;
         };
-        registry.registerLazy("parquet", (settings, blockFactory) -> new StubFormatReader(parquetSupport), null, null);
+        // Minimal stub for the fold gate: field-vs-literal binary comparisons are RECHECK; LIKE-family is YES;
+        // everything else NO. Narrower than real Parquet (which also RECHECKs IsNull, And/Or, IN, Range, …);
+        // those shapes are pinned on the reader by
+        // ParquetFilterPushdownSupportTests#testPushFiltersOutputMatchesStatsFoldGateAssumptions.
+        FilterPushdownSupport filterSupport = new FilterPushdownSupport() {
+            @Override
+            public PushdownResult pushFilters(List<Expression> filters) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Pushability canPush(Expression expr) {
+                if (expr instanceof WildcardLike) {
+                    return Pushability.YES;
+                }
+                if (expr instanceof Not not && not.field() instanceof WildcardLike) {
+                    return Pushability.YES;
+                }
+                // Only direct field comparisons — Abs(age) > 0 is EsqlBinaryComparison but must stay NO.
+                if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof ReferenceAttribute) {
+                    return Pushability.RECHECK;
+                }
+                return Pushability.NO;
+            }
+        };
+        registry.registerLazy("parquet", (settings, blockFactory) -> new StubFormatReader(parquetSupport, filterSupport), null, null);
         return registry;
     }
 
@@ -751,7 +976,7 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
     private static FormatReaderRegistry buildTextRegistry() {
         FormatReaderRegistry registry = new FormatReaderRegistry(null);
         AggregatePushdownSupport textSupport = new TextAggregatePushdownSupport();
-        registry.registerLazy("parquet", (settings, blockFactory) -> new StubFormatReader(textSupport), null, null);
+        registry.registerLazy("parquet", (settings, blockFactory) -> new StubFormatReader(textSupport, null), null, null);
         return registry;
     }
 
@@ -764,13 +989,15 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
     }
 
     /**
-     * Minimal FormatReader stub that only provides aggregate pushdown support.
+     * Minimal FormatReader stub that provides aggregate pushdown support and optional filter pushability.
      */
     private static class StubFormatReader implements NoConfigFormatReader {
         private final AggregatePushdownSupport support;
+        private final FilterPushdownSupport filterPushdownSupport;
 
-        StubFormatReader(AggregatePushdownSupport support) {
+        StubFormatReader(AggregatePushdownSupport support, FilterPushdownSupport filterPushdownSupport) {
             this.support = support;
+            this.filterPushdownSupport = filterPushdownSupport;
         }
 
         @Override
@@ -806,6 +1033,11 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         @Override
         public AggregatePushdownSupport aggregatePushdownSupport() {
             return support;
+        }
+
+        @Override
+        public FilterPushdownSupport filterPushdownSupport() {
+            return filterPushdownSupport;
         }
 
         @Override

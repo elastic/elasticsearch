@@ -94,14 +94,14 @@ public class PanamaZstdTests extends ESTestCase {
     }
 
     // Argument-validation behavior (null buffers, heap rejection, out-of-range offsets, corrupt
-    // frames) is owned by org.elasticsearch.nativeaccess.Zstd and exhaustively covered by
-    // ZstdTests in libs/native — re-testing it here would only re-prove delegation. The
+    // frames) is owned by org.elasticsearch.zstd.Zstd and exhaustively covered by
+    // ZstdTests in libs/zstd — re-testing it here would only re-prove delegation. The
     // wrapper-specific coverage stays focused on singleton identity, availability, absolute
     // offsets, and the IllegalStateException unavailable path.
 
     /**
      * The unavailable case is exercised via the package-private constructor (since the singleton
-     * caches whatever NativeAccess returns at class init). Verifies callers get a clear
+     * caches whatever {@code Zstd.instance()} returns at class init). Verifies callers get a clear
      * {@link IllegalStateException} instead of an obscure NPE.
      */
     public void testUnavailableInstanceThrowsIllegalState() {

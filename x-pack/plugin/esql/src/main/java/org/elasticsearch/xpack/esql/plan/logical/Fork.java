@@ -7,18 +7,26 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -54,11 +62,6 @@ public final class Fork extends MergePlan implements TelemetryAware {
     }
 
     @Override
-    public Fork refreshOutput() {
-        return new Fork(source(), children(), refreshedOutput());
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(Fork.class, output(), children());
     }
@@ -82,53 +85,152 @@ public final class Fork extends MergePlan implements TelemetryAware {
     }
 
     private static void checkFork(LogicalPlan plan, Failures failures) {
-        checkBranchCount(plan, failures);
+        checkNonEmpty(plan, failures);
         if (plan instanceof Fork == false) {
             return;
         }
         Fork fork = (Fork) plan;
+        checkMaxBranches(fork, failures);
 
-        forEachMergePlanSkippingSubqueries(fork, other -> {
-            if (other == fork) {
-                return;
-            }
+        checkForUnseparatedFork(fork, false, failures);
 
-            failures.add(
-                Failure.fail(
-                    other,
-                    other instanceof UnionAll
-                        ? "FORK after subquery is not supported"
-                        : "Only a single FORK command is supported, but found multiple"
-                )
-            );
-        });
-
-        Map<String, DataType> outputTypes = fork.output().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
+        Map<String, Attribute> mergedOutput = fork.output().stream().collect(Collectors.toMap(Attribute::name, attr -> attr));
 
         fork.children().forEach(subPlan -> {
+            Predicate<Attribute> onlyNull = producesOnlyNull(subPlan);
             for (Attribute attr : subPlan.output()) {
-                var expected = outputTypes.get(attr.name());
+                var merged = mergedOutput.get(attr.name());
 
                 // If the FORK output has an UNSUPPORTED data type, we know there is no conflict.
                 // We only assign an UNSUPPORTED attribute in the FORK output when there exists no attribute with the
                 // same name and supported data type in any of the FORK branches.
-                if (expected == DataType.UNSUPPORTED) {
+                //
+                // Likewise, a branch that does not produce the column at all had it filled with nulls to line the branches up.
+                // Those rows carry no values, so there is nothing for a sibling's declarations to disagree with.
+                //
+                // Union-type resolution can also introduce synthetic conversion attributes after this FORK's output was
+                // resolved. They are carried through the branch projections so the conversion can be extracted, but are
+                // intentionally absent from the user-visible FORK output and removed by the union-types cleanup rule.
+                if (merged == null || merged.dataType() == DataType.UNSUPPORTED || onlyNull.test(attr)) {
                     continue;
                 }
 
-                var actual = attr.dataType();
-                if (actual != expected) {
+                var conflict = checkForMergeConflict(attr, merged);
+                if (conflict != null) {
                     failures.add(
                         Failure.fail(
                             attr,
-                            "Column [{}] has conflicting data types in FORK branches: [{}] and [{}]",
+                            "Column [{}] has conflicting {} in FORK branches: [{}] and [{}]",
                             attr.name(),
-                            actual,
-                            expected
+                            conflict.property(),
+                            conflict.branchValue(),
+                            conflict.mergedValue()
                         )
                     );
                 }
             }
         });
+    }
+
+    /**
+     * The {@code FORK} command's per-node branch cap. Lives at post-analysis verification rather than
+     * the constructor so that compaction passes get a chance to reduce the count first. {@link UnionAll}
+     * and {@link ViewUnionAll} are not subject to this cap; they are bounded by the query-wide
+     * {@code max_branch_count} / {@code max_branch_level} pragmas.
+     */
+    private static void checkMaxBranches(Fork fork, Failures failures) {
+        int branches = fork.children().size();
+        if (exceedsMaxBranches(branches)) {
+            failures.add(Failure.fail(fork, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, branches));
+        }
+    }
+
+    /**
+     * Rejects two user-written FORKs on the same uninterrupted pipeline path. A {@link UnionAll} is a real merge boundary, whether it
+     * came from user subqueries, a view, an external dataset, or federation, so each of its branches starts a new FORK segment. The right
+     * side of an {@link AbstractSubqueryJoin} is an independently executed query scope and is verified by its own FORK node.
+     */
+    private static void checkForUnseparatedFork(LogicalPlan plan, boolean forkSeen, Failures failures) {
+        if (plan instanceof UnionAll unionAll) {
+            for (LogicalPlan child : unionAll.children()) {
+                checkForUnseparatedFork(child, false, failures);
+            }
+            return;
+        }
+        if (plan instanceof AbstractSubqueryJoin join) {
+            checkForUnseparatedFork(join.left(), forkSeen, failures);
+            return;
+        }
+        boolean seen = forkSeen;
+        if (plan.getClass() == Fork.class) {
+            if (forkSeen) {
+                failures.add(Failure.fail(plan, "Only a single FORK command is supported, but found multiple"));
+                return;
+            }
+            seen = true;
+        }
+        for (LogicalPlan child : plan.children()) {
+            checkForUnseparatedFork(child, seen, failures);
+        }
+    }
+
+    /**
+     * A property that two same-named attributes disagree on, and so cannot be merged into one output column.
+     *
+     * @param property plural name of the property, for a user-facing message
+     * @param branchValue the value on the attribute being merged in
+     * @param mergedValue the value the merged output carries
+     */
+    record MergeConflict(String property, String branchValue, String mergedValue) {}
+
+    /**
+     * Why {@code branch} cannot be merged into {@code merged}, or {@code null} when it can.
+     * <p>
+     * {@link Expressions#toReferenceAttributesPreservingIds} keeps one attribute per column name, so a branch
+     * disagreeing on any property that changes how the column's values are read would have its rows read as if it
+     * had declared the merged one. {@link #checkFork} reports the conflict; this decides what counts as one, so
+     * that adding a text-column property does not scatter the comparison through the check itself.
+     */
+    @Nullable
+    static MergeConflict checkForMergeConflict(Attribute branch, Attribute merged) {
+        if (branch.dataType() != merged.dataType()) {
+            return new MergeConflict("data types", String.valueOf(branch.dataType()), String.valueOf(merged.dataType()));
+        }
+        // Declaring nothing is declaring the standard analyzer, so it still disagrees with a sibling that names a
+        // different one: the merged column can carry only one, and the other branch's values would be analyzed with
+        // an analyzer they never declared. A column with no values to analyze - one branch alignment filled with
+        // nulls - is skipped by the caller rather than weakening the comparison here.
+        String branchAnalyzer = analyzerOrStandard(branch);
+        String mergedAnalyzer = analyzerOrStandard(merged);
+        if (branchAnalyzer.equals(mergedAnalyzer) == false) {
+            return new MergeConflict("values analyzers", branchAnalyzer, mergedAnalyzer);
+        }
+        return null;
+    }
+
+    private static String analyzerOrStandard(Attribute attr) {
+        String declared = AnalyzedTextExpression.valuesAnalyzerOf(attr);
+        return declared == null ? AnalyzedTextExpression.STANDARD_ANALYZER : declared;
+    }
+
+    /**
+     * Whether a column of {@code branch}'s output holds nothing but nulls. Branch alignment fills a column a branch
+     * lacks this way, so that every branch outputs the same names; a column written as an explicit
+     * {@code EVAL x = null} is indistinguishable and equally empty, so both are treated alike.
+     * <p>
+     * Matched on the attribute's id rather than its name: a branch may assign the name more than once, and only the
+     * assignment this attribute came from decides what the branch outputs. Matching by name would let an assignment
+     * a later one shadows answer for the column.
+     * <p>
+     * Walks {@code branch} once, so build one predicate per branch and test every column of a wide branch against it.
+     */
+    public static Predicate<Attribute> producesOnlyNull(LogicalPlan branch) {
+        Map<NameId, Boolean> onlyNull = new HashMap<>();
+        branch.forEachDown(Eval.class, eval -> {
+            for (Alias field : eval.fields()) {
+                onlyNull.put(field.id(), Expressions.isGuaranteedNull(field.child()));
+            }
+        });
+        return attr -> onlyNull.getOrDefault(attr.id(), false);
     }
 }

@@ -58,12 +58,12 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -314,6 +314,13 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         // fills it in buildGrouping() after the deferred columnar routing pass completes.
         Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
 
+        // For provided-batch TSDB data streams: resolve @timestamp from the ESCF columns and cache it
+        // on each IndexRequest before the per-item loop, so DataStream#getWriteIndex can select the
+        // correct backing index.
+        if (batchRouter != null) {
+            batchRouter.preResolveTimestamps(project, bulkRequest.requests());
+        }
+
         while (it.hasNext()) {
             BulkItemRequest bulkItemRequest = it.next();
             DocWriteRequest<?> docWriteRequest = bulkItemRequest.request();
@@ -413,8 +420,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
         // Build per-shard source batches. For the inline-encoder path, batches are finalized here
         // (rows were accumulated during routing). For provided-batch mode the source is scattered here.
-        Map<ShardId, SourceBatch> shardBatches = router != null ? router.shardBatches() : Collections.emptyMap();
-
+        Map<ShardId, SourceBatch> shardBatches = router != null ? router.shardBatches() : Map.of();
         BatchModeRouter.validateBatchAlignment(requestsByShard, shardBatches);
 
         String nodeId = clusterService.localNode().getId();
@@ -665,7 +671,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      *                              Requests are only routed to a failure store if they are headed to a data stream with an active failure
      *                              store.
      * @param error the shard-level error the request encountered. Version conflicts and exceptions related to backpressure are not
-     *              redirected.
+     *              redirected. A cluster block exception is treated as backpressure only if every one of its blocks is retryable or every
+     *              one has a 429 status (for example the flood-stage disk block). Otherwise at least one block, such as an index write
+     *              block, describes a permanent condition of the target index, so retrying cannot succeed and the document is redirected.
      * @return true if the request and error should be redirected to the provided data stream's failure store, false if it should not
      */
     private boolean shouldRedirectRequestToFailureStore(boolean isFailureStoreRequest, DataStream failureStoreCandidate, Throwable error) {
@@ -676,7 +684,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             case VersionConflictEngineException err -> false;
             case EsRejectedExecutionException err -> false;
             case CircuitBreakingException err -> false;
-            case ClusterBlockException err -> false;
+            case ClusterBlockException err -> err.retryable() == false && err.status() != RestStatus.TOO_MANY_REQUESTS;
             case ElasticsearchException err -> err.status().getStatus() != 429;
             default -> true;
         };

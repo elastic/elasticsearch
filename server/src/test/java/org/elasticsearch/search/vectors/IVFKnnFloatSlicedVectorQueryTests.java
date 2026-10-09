@@ -119,9 +119,13 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
         return doc;
     }
 
+    private static Sort sliceSortWithMissingLast() {
+        return new Sort(new SortField(SLICE_FIELD, SortField.Type.STRING, false, SortField.STRING_LAST));
+    }
+
     @Override
     protected void decorateIWC(IndexWriterConfig indexWriterConfig) {
-        indexWriterConfig.setIndexSort(new Sort(new SortField(SLICE_FIELD, SortField.Type.STRING)));
+        indexWriterConfig.setIndexSort(sliceSortWithMissingLast());
     }
 
     public void testSlicesDense() throws IOException {
@@ -167,7 +171,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
         String filterMiss = "miss";
         String docIdField = "_doc_id";
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(SLICE_FIELD, SortField.Type.STRING)));
+        iwc.setIndexSort(sliceSortWithMissingLast());
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
 
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {

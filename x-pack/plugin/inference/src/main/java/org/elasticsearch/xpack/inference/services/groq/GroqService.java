@@ -23,6 +23,8 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
+import org.elasticsearch.inference.configuration.NonStreamingChatFeature;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
@@ -42,7 +44,7 @@ import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatComple
 import org.elasticsearch.xpack.inference.services.groq.request.GroqUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -62,7 +64,7 @@ public class GroqService extends SenderService<GroqModel> {
     public static final TransportVersion GROQ_INFERENCE_SERVICE = TransportVersion.fromName("ml_groq_inference_service");
     static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
         GroqActionCreator.COMPLETION_REQUEST_TYPE,
-        OpenAiCompletionResponseEntity::fromResponse
+        OpenAiUnifiedChatCompletionResponseEntity::fromResponse
     );
     private static final Map<TaskType, ModelCreator<? extends GroqModel>> MODEL_CREATORS = Map.of(
         TaskType.CHAT_COMPLETION,
@@ -94,6 +96,11 @@ public class GroqService extends SenderService<GroqModel> {
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return SUPPORTED_TASK_TYPES;
+    }
+
+    @Override
+    public boolean supportsNonStreamingChatCompletion() {
+        return true;
     }
 
     @Override
@@ -258,6 +265,7 @@ public class GroqService extends SenderService<GroqModel> {
                     .setName(SERVICE_NAME)
                     .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
+                    .setFeatures(InferenceServiceFeatures.of(NonStreamingChatFeature.SUPPORTED_INSTANCE))
                     .build();
             }
         );

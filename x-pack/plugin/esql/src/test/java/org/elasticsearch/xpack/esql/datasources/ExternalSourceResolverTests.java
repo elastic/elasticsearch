@@ -11054,6 +11054,45 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * The expectation is hand-built from the schema the reader will bind, so the test cannot pass by both sides
      * being the same wrong expression.
      */
+    /**
+     * {@code datasetFormat} wins over the record's own source type, and this is the case where the two DISAGREE -
+     * without it the argument is asserted only where they happen to agree, which proves nothing.
+     * <p>
+     * It matters because the provenance upgrade is format-dependent: appending a declared column no file carries
+     * makes a csv or tsv reader bind by header name instead of by position, and nothing else. A record whose own
+     * source type is not csv, read under {@code format=csv}, is upgraded by the read and would not be upgraded by
+     * a derivation that trusted the record - addressing a read the data node does not perform.
+     */
+    public void testTheBoundReadFollowsTheResolvedFormatNotTheRecordsOwn() {
+        List<Attribute> inferred = List.of(attr("id", DataType.INTEGER));
+        // A declared column NO file carries: that is what the overlay appends, and appending is what triggers the
+        // by-name upgrade for csv and tsv.
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("absent", new DatasetFieldMapping("keyword", null));
+        DatasetMapping declaringAbsent = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+
+        // The record's own type is NOT csv - an extension the registry does not claim as one.
+        SchemaCacheEntry record = SchemaCacheEntry.from(inferred, "txt", "s3://bucket/data/a.txt", Map.of(), Map.of());
+
+        String underResolvedCsv = ExternalSourceResolver.overlaidBoundReadOf(declaringAbsent, "csv").apply(record);
+        String underTheRecordsOwn = ExternalSourceResolver.overlaidBoundReadOf(declaringAbsent, null).apply(record);
+        assertNotEquals(
+            "the resolved format must decide the upgrade: a txt-typed record read as csv binds by name, and a "
+                + "derivation that trusted the record's own type would address a read nothing performs",
+            underResolvedCsv,
+            underTheRecordsOwn
+        );
+
+        // And the csv answer is the DECLARED-provenance one, built here rather than taken from the production helper.
+        List<Attribute> overlaidSchema = List.of(attr("id", DataType.INTEGER), attr("absent", DataType.KEYWORD));
+        DeclaredReadSpec declaredProvenance = DeclaredReadSpec.of(Map.of(), Map.of(), Set.of("absent"), SchemaProvenance.DECLARED);
+        assertEquals(
+            "reading a txt record as csv appends the absent column and upgrades the binding to DECLARED",
+            ReadConfigFingerprint.of(overlaidSchema, declaredProvenance),
+            underResolvedCsv
+        );
+    }
+
     public void testTheBoundReadHandedToAStatisticsLookupIsTheOverlaidRead() {
         List<Attribute> inferred = List.of(attr("id", DataType.INTEGER), attr("order_id", DataType.INTEGER));
         List<Attribute> overlaid = List.of(attr("id", DataType.INTEGER), attr("order_id", DataType.KEYWORD));

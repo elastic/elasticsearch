@@ -273,6 +273,19 @@ class FieldCapabilitiesFetcher {
                     if (context.getFieldType(parentField) == null && isUnderSubobjectsFalseMapper(parentField, objectMappers) == false) {
                         // no field type and not under a subobjects:false context, it must be an object field
                         String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
+                        if (types.length > 0) {
+                            boolean typeMatches = false;
+                            for (String t : types) {
+                                if (t.equals(type)) {
+                                    typeMatches = true;
+                                    break;
+                                }
+                            }
+                            if (typeMatches == false) {
+                                dotIndex = parentField.lastIndexOf('.');
+                                continue;
+                            }
+                        }
                         // A synthesized object may have no backing ObjectMapper, e.g. for a dotted leaf under a root-level
                         // subobjects:false mapping. It is reported as a plain object nonetheless, so it must carry the
                         // same passthrough status as one, unless prefix properties identify it as an auto-flattened

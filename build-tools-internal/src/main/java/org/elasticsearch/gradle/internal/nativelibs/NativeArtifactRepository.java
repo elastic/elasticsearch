@@ -8,18 +8,19 @@
  */
 package org.elasticsearch.gradle.internal.nativelibs;
 
+import org.elasticsearch.gradle.internal.util.HttpUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
-import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.IntPredicate;
 
 /**
  * Reads and writes native library artifacts, addressed by the hash of the sources they were built
@@ -36,10 +37,18 @@ class NativeArtifactRepository {
     private static final int CONNECT_TIMEOUT_MILLIS = 30_000;
     private static final int READ_TIMEOUT_MILLIS = 60_000;
 
+    private static final IntPredicate RETRYABLE = status -> status / 100 == 5 || status == 429;
+
     private final String baseUrl;
+    private final HttpUtils.Sleeper sleeper;
 
     NativeArtifactRepository(String baseUrl) {
+        this(baseUrl, Thread::sleep);
+    }
+
+    NativeArtifactRepository(String baseUrl, HttpUtils.Sleeper sleeper) {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        this.sleeper = sleeper;
     }
 
     /**
@@ -47,24 +56,16 @@ class NativeArtifactRepository {
      */
     Optional<byte[]> download(String artifactName, String hash) {
         String url = artifactUrl(artifactName, hash, "");
-        HttpURLConnection connection = open(url, "GET");
-        try {
-            int status = connection.getResponseCode();
-            if (status == HttpURLConnection.HTTP_NOT_FOUND) {
-                LOGGER.info("No published {} for hash {}", artifactName, hash);
-                return Optional.empty();
-            }
-            if (status != HttpURLConnection.HTTP_OK) {
-                throw new GradleException("Unexpected status " + status + " fetching " + url);
-            }
-            try (InputStream in = connection.getInputStream()) {
-                return Optional.of(in.readAllBytes());
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to fetch " + url, e);
-        } finally {
-            connection.disconnect();
+        HttpUtils.Response response = send(HttpUtils.Request.get(url, CONNECT_TIMEOUT_MILLIS, READ_TIMEOUT_MILLIS), "fetch " + url);
+
+        if (response.status() == HttpURLConnection.HTTP_NOT_FOUND) {
+            LOGGER.info("No published {} for hash {}", artifactName, hash);
+            return Optional.empty();
         }
+        if (response.status() != HttpURLConnection.HTTP_OK) {
+            throw new GradleException("Unexpected status " + response.status() + " fetching " + url + explain(response));
+        }
+        return Optional.of(response.body());
     }
 
     /**
@@ -115,35 +116,26 @@ class NativeArtifactRepository {
     }
 
     private int put(String url, byte[] content, String apiKey) {
-        HttpURLConnection connection = open(url, "PUT");
-        connection.setDoOutput(true);
-        connection.setRequestProperty("X-JFrog-Art-Api", apiKey);
-        connection.setRequestProperty("Content-Type", "application/zip");
+        Map<String, String> headers = Map.of("X-JFrog-Art-Api", apiKey, "Content-Type", "application/zip");
+        return send(HttpUtils.Request.put(url, content, headers, CONNECT_TIMEOUT_MILLIS, READ_TIMEOUT_MILLIS), "publish " + url).status();
+    }
+
+    private HttpUtils.Response send(HttpUtils.Request request, String description) {
         try {
-            try (OutputStream out = connection.getOutputStream()) {
-                out.write(content);
-            }
-            return connection.getResponseCode();
+            return HttpUtils.sendWithRetry(request, sleeper, RETRYABLE);
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to publish " + url, e);
-        } finally {
-            connection.disconnect();
+            throw new UncheckedIOException("Failed to " + description, e);
         }
+    }
+
+    /** What the server said about a status it refused, when it said anything. */
+    private static String explain(HttpUtils.Response response) {
+        String body = new String(response.body(), StandardCharsets.UTF_8).trim();
+        return body.isEmpty() ? "" : ": " + body;
     }
 
     private String artifactUrl(String artifactName, String hash, String suffix) {
         return baseUrl + "/org/elasticsearch/" + artifactName + "/" + hash + "/" + artifactName + "-" + hash + suffix + ".zip";
     }
 
-    private static HttpURLConnection open(String url, String method) {
-        try {
-            HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
-            connection.setRequestMethod(method);
-            connection.setConnectTimeout(CONNECT_TIMEOUT_MILLIS);
-            connection.setReadTimeout(READ_TIMEOUT_MILLIS);
-            return connection;
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to open " + method + " " + url, e);
-        }
-    }
 }

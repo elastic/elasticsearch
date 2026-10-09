@@ -736,9 +736,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 // answer from S3, not a failure to reach it, so this counts as a successful probe.
                 cachedExists = true;
                 cachedLength = 0L;
-                // Stamped here because the 416 response carries no timestamp, and leaving it unset makes
-                // lastModified() repeat the whole fetch. EPOCH is sound for an empty object: the timestamp is a
-                // version token for content, and there is none.
+                // The 416 carries no timestamp, and lastModified() would otherwise return null for an object
+                // that exists. EPOCH is sound for an empty one: the timestamp is a version token for content,
+                // and there is none.
                 cachedLastModified = Instant.EPOCH;
             } else if (e.statusCode() == 403) {
                 // Denied, and nothing cheaper is left to try: this request already is the cheapest read, and a

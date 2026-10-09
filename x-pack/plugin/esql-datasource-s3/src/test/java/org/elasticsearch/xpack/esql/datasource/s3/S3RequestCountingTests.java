@@ -234,6 +234,31 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
+     * The HEAD fallback carries its own fallback back to a range GET, for a policy that grants s3:GetObject but
+     * not s3:ListBucket: a range GET that failed for an unrelated reason, then a HEAD refused with 403, is still
+     * answered by retrying the range GET.
+     */
+    public void testHeadFallbackDeniedFallsBackToRangeGet() throws IOException {
+        GetObjectResponse resp = GetObjectResponse.builder()
+            .contentRange("bytes 0-0/" + FILE_SIZE)
+            .contentLength(1L)
+            .lastModified(LAST_MODIFIED)
+            .build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(
+            S3Exception.builder().statusCode(500).message("Internal Server Error").build()
+        ).thenReturn(new ResponseInputStream<>(resp, AbortableInputStream.create(new ByteArrayInputStream(new byte[] { 0 }))));
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(
+            S3Exception.builder().statusCode(403).message("Access Denied").build()
+        );
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+
+        assertEquals(FILE_SIZE, obj.length());
+        verify(mockS3, times(2)).getObject(any(GetObjectRequest.class));
+        verify(mockS3, times(1)).headObject(any(HeadObjectRequest.class));
+    }
+
+    /**
      * When the range GET returns 404 (NoSuchKeyException), the object is marked as not found.
      */
     public void testRangeGetNotFoundSetsNotFound() throws IOException {
@@ -276,7 +301,7 @@ public class S3RequestCountingTests extends ESTestCase {
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         assertTrue(obj.exists());
         assertEquals(0L, obj.length());
-        // The timestamp matters as much as the length: unset, it makes this call repeat the whole probe.
+        // The timestamp matters as much as the length: unset, this call returns null for an object that exists.
         assertEquals(Instant.EPOCH, obj.lastModified());
         verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
         verify(mockS3, never()).headObject(any(HeadObjectRequest.class));

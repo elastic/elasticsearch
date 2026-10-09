@@ -300,6 +300,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE,
         BackgroundNetworkQos.BACKGROUND_QOS_ENABLED_SETTING,
         BackgroundNetworkQos.ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING,
+        BackgroundNetworkQos.UPLOAD_CONCURRENCY_MAX_SETTING,
         RecoverySettings.NODE_BANDWIDTH_RECOVERY_FACTOR_READ_SETTING,
         RecoverySettings.NODE_BANDWIDTH_RECOVERY_FACTOR_WRITE_SETTING,
         RecoverySettings.NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING,

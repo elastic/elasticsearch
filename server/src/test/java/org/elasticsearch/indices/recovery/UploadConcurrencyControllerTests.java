@@ -9,12 +9,22 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.indices.recovery.UploadConcurrencyController.Decision;
+import org.elasticsearch.indices.recovery.UploadConcurrencyController.Signals;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.OptionalDouble;
+import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.indices.recovery.UploadConcurrencyController.COOLDOWN_INTERVALS;
-import static org.elasticsearch.indices.recovery.UploadConcurrencyController.CPU_LIMIT_PERCENT;
+import static org.elasticsearch.indices.recovery.UploadConcurrencyController.CONTENDED_CPU_PRESSURE;
+import static org.elasticsearch.indices.recovery.UploadConcurrencyController.CONTENDED_WRITE_QUEUE_WAIT_MILLIS;
+import static org.elasticsearch.indices.recovery.UploadConcurrencyController.CONTENTION_COOLDOWN_INTERVALS;
+import static org.elasticsearch.indices.recovery.UploadConcurrencyController.ERROR_COOLDOWN_INTERVALS;
+import static org.elasticsearch.indices.recovery.UploadConcurrencyController.QUIET_CPU_PRESSURE;
+import static org.elasticsearch.indices.recovery.UploadConcurrencyController.QUIET_WRITE_QUEUE_WAIT_MILLIS;
+import static org.elasticsearch.indices.recovery.UploadConcurrencyController.REVERT_COOLDOWN_INTERVALS;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class UploadConcurrencyControllerTests extends ESTestCase {
@@ -25,13 +35,69 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
 
     private final UploadConcurrencyController controller = new UploadConcurrencyController(FLOOR, CEILING);
 
-    private int cpu() {
-        return randomIntBetween(-1, CPU_LIMIT_PERCENT - 1);
+    /** queued work, no limiter waits, every other signal known and quiet */
+    private Signals quiet(double throughput) {
+        return quiet(randomIntBetween(1, 100), controller.getTarget(), throughput);
     }
 
-    /** queued work, no limiter waits */
-    private UploadConcurrencyController.Decision unconstrained(double throughput) {
-        return controller.onInterval(randomIntBetween(1, 100), controller.getTarget(), throughput, 0L, INTERVAL_NANOS, cpu());
+    private static Signals quiet(int queued, int running, double throughput) {
+        return new Signals(
+            queued,
+            running,
+            throughput,
+            0L,
+            INTERVAL_NANOS,
+            OptionalDouble.of(randomDoubleBetween(0.0, QUIET_CPU_PRESSURE, false)),
+            OptionalLong.of(0L),
+            OptionalDouble.of(randomDoubleBetween(0.0, QUIET_WRITE_QUEUE_WAIT_MILLIS, false)),
+            0L,
+            0L
+        );
+    }
+
+    private static Signals with(Signals s, OptionalDouble cpuPressure, OptionalLong throttledMicros, OptionalDouble writeQueueWaitMillis) {
+        return new Signals(
+            s.queued(),
+            s.running(),
+            s.throughputBytesPerSec(),
+            s.limiterPauseNanos(),
+            s.intervalNanos(),
+            cpuPressure,
+            throttledMicros,
+            writeQueueWaitMillis,
+            s.readErrors(),
+            s.uploadErrors()
+        );
+    }
+
+    private static Signals withErrors(Signals s, long readErrors, long uploadErrors) {
+        return new Signals(
+            s.queued(),
+            s.running(),
+            s.throughputBytesPerSec(),
+            s.limiterPauseNanos(),
+            s.intervalNanos(),
+            s.cpuPressure(),
+            s.throttledMicros(),
+            s.writeQueueWaitMillis(),
+            readErrors,
+            uploadErrors
+        );
+    }
+
+    private static Signals withPause(Signals s, long limiterPauseNanos) {
+        return new Signals(
+            s.queued(),
+            s.running(),
+            s.throughputBytesPerSec(),
+            limiterPauseNanos,
+            s.intervalNanos(),
+            s.cpuPressure(),
+            s.throttledMicros(),
+            s.writeQueueWaitMillis(),
+            s.readErrors(),
+            s.uploadErrors()
+        );
     }
 
     public void testStartsAtFloor() {
@@ -40,44 +106,101 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> new UploadConcurrencyController(10, 9));
     }
 
-    public void testRaisesWhenQueuedAndLimiterNotWaiting() {
-        final var decision = unconstrained(100.0);
+    public void testRaisesWhenQueuedAndQuiet() {
+        final Decision decision = controller.onInterval(quiet(100.0));
         assertThat(decision.action(), equalTo("raise"));
-        assertThat(decision.target(), equalTo(FLOOR + FLOOR / 4));
-        assertThat(controller.getTarget(), equalTo(12));
+        assertThat(decision.target(), equalTo(FLOOR + 1));
+        assertThat(controller.getTarget(), equalTo(FLOOR + 1));
     }
 
-    public void testRaisesByAtLeastOne() {
-        final var small = new UploadConcurrencyController(1, 5);
-        assertThat(small.onInterval(1, 1, 100.0, 0L, INTERVAL_NANOS, cpu()).target(), equalTo(2));
+    public void testRaisesByOneWhateverTheTarget() {
+        // additive increase: one more per interval, however large the target is
+        final var big = new UploadConcurrencyController(100, 140);
+        assertThat(big.onInterval(quiet(1, 100, 100.0)).target(), equalTo(101));
+        assertThat(big.onInterval(quiet(1, 101, 200.0)).action(), equalTo("keep"));
+        assertThat(big.onInterval(quiet(1, 101, 200.0)).target(), equalTo(102));
+    }
+
+    public void testQuietThresholds() {
+        final Signals base = quiet(100.0);
+        // just below the quiet thresholds raises
+        assertThat(
+            controller.onInterval(
+                with(
+                    base,
+                    OptionalDouble.of(Math.nextDown(QUIET_CPU_PRESSURE)),
+                    OptionalLong.of(0L),
+                    OptionalDouble.of(Math.nextDown(QUIET_WRITE_QUEUE_WAIT_MILLIS))
+                )
+            ).action(),
+            equalTo("raise")
+        );
+        controller.reset();
+
+        // at the thresholds it holds, with the signal as the reason
+        final Decision pressure = controller.onInterval(
+            with(base, OptionalDouble.of(QUIET_CPU_PRESSURE), OptionalLong.of(0L), base.writeQueueWaitMillis())
+        );
+        assertThat(pressure.action(), equalTo("hold"));
+        assertThat(pressure.reason(), containsString("cpu pressure"));
+        final Decision wait = controller.onInterval(
+            with(base, base.cpuPressure(), OptionalLong.of(0L), OptionalDouble.of(QUIET_WRITE_QUEUE_WAIT_MILLIS))
+        );
+        assertThat(wait.action(), equalTo("hold"));
+        assertThat(wait.reason(), containsString("write queue wait"));
+        assertThat(controller.getTarget(), equalTo(FLOOR));
+    }
+
+    public void testNeverRaisesBlind() {
+        final Signals base = quiet(100.0);
+        final var empty = OptionalDouble.empty();
+        final Decision noPressure = controller.onInterval(with(base, empty, base.throttledMicros(), base.writeQueueWaitMillis()));
+        assertThat(noPressure.action(), equalTo("hold"));
+        assertThat(noPressure.reason(), equalTo("cpu pressure unavailable"));
+        final Decision noThrottling = controller.onInterval(
+            with(base, base.cpuPressure(), OptionalLong.empty(), base.writeQueueWaitMillis())
+        );
+        assertThat(noThrottling.action(), equalTo("hold"));
+        assertThat(noThrottling.reason(), equalTo("cpu throttling unavailable"));
+        final Decision noWait = controller.onInterval(with(base, base.cpuPressure(), base.throttledMicros(), empty));
+        assertThat(noWait.action(), equalTo("hold"));
+        assertThat(noWait.reason(), equalTo("write queue wait unavailable"));
+        assertThat(controller.getTarget(), equalTo(FLOOR));
+    }
+
+    public void testUnavailableSignalsDoNotCut() {
+        final Decision decision = controller.onInterval(
+            with(quiet(100.0), OptionalDouble.empty(), OptionalLong.empty(), OptionalDouble.empty())
+        );
+        assertThat(decision.action(), equalTo("hold"));
     }
 
     public void testKeepsRaiseWhenThroughputGrows() {
-        unconstrained(100.0);
-        final var decision = unconstrained(106.0);
+        controller.onInterval(quiet(100.0));
+        final Decision decision = controller.onInterval(quiet(106.0));
         assertThat(decision.action(), equalTo("keep"));
-        assertThat(decision.target(), equalTo(12));
+        assertThat(decision.target(), equalTo(11));
         // and probes again on the next interval
-        assertThat(unconstrained(106.0).action(), equalTo("raise"));
-        assertThat(controller.getTarget(), equalTo(15));
+        assertThat(controller.onInterval(quiet(106.0)).action(), equalTo("raise"));
+        assertThat(controller.getTarget(), equalTo(12));
     }
 
     public void testRevertsRaiseWithoutGainAndCoolsDown() {
-        unconstrained(100.0);
-        final var decision = unconstrained(104.0);
+        controller.onInterval(quiet(100.0));
+        final Decision decision = controller.onInterval(quiet(104.0));
         assertThat(decision.action(), equalTo("revert"));
         assertThat(decision.target(), equalTo(FLOOR));
-        for (int i = 0; i < COOLDOWN_INTERVALS; i++) {
-            final var hold = unconstrained(100.0);
+        for (int i = 0; i < REVERT_COOLDOWN_INTERVALS; i++) {
+            final Decision hold = controller.onInterval(quiet(100.0));
             assertThat(hold.action(), equalTo("hold"));
             assertThat(hold.reason(), equalTo("cooldown"));
             assertThat(hold.target(), equalTo(FLOOR));
         }
-        assertThat(unconstrained(100.0).action(), equalTo("raise"));
+        assertThat(controller.onInterval(quiet(100.0)).action(), equalTo("raise"));
     }
 
     public void testHoldsWhenNothingQueued() {
-        final var decision = controller.onInterval(0, randomIntBetween(0, FLOOR), 100.0, 0L, INTERVAL_NANOS, cpu());
+        final Decision decision = controller.onInterval(quiet(0, randomIntBetween(0, FLOOR), 100.0));
         assertThat(decision.action(), equalTo("hold"));
         assertThat(decision.reason(), equalTo("nothing queued"));
         assertThat(decision.target(), equalTo(FLOOR));
@@ -87,60 +210,181 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
         final int running = FLOOR;
         // each running upload paused for 10% of the interval or more
         final long pauseNanos = INTERVAL_NANOS * running / 10 + randomLongBetween(0L, INTERVAL_NANOS * running);
-        final var decision = controller.onInterval(randomIntBetween(1, 100), running, 100.0, pauseNanos, INTERVAL_NANOS, cpu());
+        final Decision decision = controller.onInterval(withPause(quiet(randomIntBetween(1, 100), running, 100.0), pauseNanos));
         assertThat(decision.action(), equalTo("hold"));
+        assertThat(decision.reason(), containsString("limiter wait"));
         assertThat(decision.target(), equalTo(FLOOR));
         // just below 10% raises
         final long lowPauseNanos = INTERVAL_NANOS * running / 10 - 1;
-        assertThat(controller.onInterval(1, running, 100.0, lowPauseNanos, INTERVAL_NANOS, cpu()).action(), equalTo("raise"));
+        assertThat(controller.onInterval(withPause(quiet(1, running, 100.0), lowPauseNanos)).action(), equalTo("raise"));
     }
 
     public void testStopsAtCeiling() {
-        final var small = new UploadConcurrencyController(10, 13);
-        assertThat(small.onInterval(1, 10, 100.0, 0L, INTERVAL_NANOS, cpu()).target(), equalTo(12));
-        assertThat(small.onInterval(1, 12, 200.0, 0L, INTERVAL_NANOS, cpu()).action(), equalTo("keep"));
-        assertThat(small.onInterval(1, 12, 200.0, 0L, INTERVAL_NANOS, cpu()).target(), equalTo(13));
-        assertThat(small.onInterval(1, 13, 300.0, 0L, INTERVAL_NANOS, cpu()).action(), equalTo("keep"));
-        final var decision = small.onInterval(1, 13, 300.0, 0L, INTERVAL_NANOS, cpu());
+        final var small = new UploadConcurrencyController(10, 12);
+        assertThat(small.onInterval(quiet(1, 10, 100.0)).target(), equalTo(11));
+        assertThat(small.onInterval(quiet(1, 11, 200.0)).action(), equalTo("keep"));
+        assertThat(small.onInterval(quiet(1, 11, 200.0)).target(), equalTo(12));
+        assertThat(small.onInterval(quiet(1, 12, 300.0)).action(), equalTo("keep"));
+        final Decision decision = small.onInterval(quiet(1, 12, 300.0));
         assertThat(decision.action(), equalTo("hold"));
         assertThat(decision.reason(), equalTo("at ceiling"));
-        assertThat(decision.target(), equalTo(13));
+        assertThat(decision.target(), equalTo(12));
     }
 
-    public void testCutsOnHighCpuAndCancelsProbe() {
-        // climb a few steps
-        double throughput = 100.0;
-        for (int i = 0; i < 4; i++) {
-            unconstrained(throughput);
-            throughput *= 2;
-            unconstrained(throughput);
-        }
-        // 10 -> 12 -> 15 -> 18 -> 22
-        assertThat(controller.getTarget(), equalTo(22));
-        unconstrained(throughput); // raise to 27, probe pending
-        assertThat(controller.getTarget(), equalTo(27));
-
-        final var decision = controller.onInterval(1, 27, 0.0, 0L, INTERVAL_NANOS, randomIntBetween(CPU_LIMIT_PERCENT, 100));
+    public void testLoweredCeilingCutsTheTargetAndCancelsProbe() {
+        final double throughput = climbToPendingProbe();
+        final int target = controller.getTarget();
+        controller.setCeiling(target - 5);
+        final Decision decision = controller.onInterval(quiet(throughput));
         assertThat(decision.action(), equalTo("cut"));
-        assertThat(decision.target(), equalTo(27 * 3 / 4));
-        // the pending probe was cancelled, so low throughput next time does not revert, it raises again
-        assertThat(unconstrained(0.0).action(), equalTo("raise"));
+        assertThat(decision.reason(), containsString("ceiling lowered"));
+        assertThat(decision.target(), equalTo(target - 5));
+        assertThat(controller.getCeiling(), equalTo(target - 5));
+        // the probe was cancelled and the target stays at the ceiling
+        final Decision next = controller.onInterval(quiet(0.0));
+        assertThat(next.action(), equalTo("hold"));
+        assertThat(next.reason(), equalTo("at ceiling"));
+        // raised again, it can grow again
+        controller.setCeiling(target + 5);
+        assertThat(controller.onInterval(quiet(0.0)).action(), equalTo("raise"));
     }
 
-    public void testCpuCutStopsAtFloor() {
+    public void testCeilingNeverBelowFloor() {
+        controller.setCeiling(1);
+        assertThat(controller.getCeiling(), equalTo(FLOOR));
+        assertThat(controller.onInterval(quiet(100.0)).reason(), equalTo("at ceiling"));
+        assertThat(controller.getTarget(), equalTo(FLOOR));
+    }
+
+    private static final int CLIMB_STEPS = 20;
+
+    /** Climbs a few steps, each raise kept by doubled throughput, and raises once more with the probe pending. */
+    private double climbToPendingProbe() {
+        double throughput = 100.0;
+        for (int i = 0; i < CLIMB_STEPS; i++) {
+            controller.onInterval(quiet(throughput));
+            throughput *= 2;
+            controller.onInterval(quiet(throughput));
+        }
+        assertThat(controller.getTarget(), equalTo(FLOOR + CLIMB_STEPS));
+        controller.onInterval(quiet(throughput));
+        assertThat(controller.getTarget(), equalTo(FLOOR + CLIMB_STEPS + 1));
+        return throughput;
+    }
+
+    public void testCutsOnCpuPressureAndCancelsProbe() {
+        final double throughput = climbToPendingProbe();
+        final int target = controller.getTarget();
+        final Decision decision = controller.onInterval(
+            with(quiet(1, target, 0.0), OptionalDouble.of(Math.nextUp(CONTENDED_CPU_PRESSURE)), OptionalLong.of(0L), OptionalDouble.of(0.0))
+        );
+        assertThat(decision.action(), equalTo("cut"));
+        assertThat(decision.reason(), containsString("cpu pressure"));
+        assertThat(decision.target(), equalTo(target * 3 / 4));
+        // the pending probe was cancelled, so low throughput next time does not revert, but the cooldown holds it
+        final Decision next = controller.onInterval(quiet(throughput));
+        assertThat(next.action(), equalTo("hold"));
+        assertThat(next.reason(), equalTo("cooldown"));
+    }
+
+    public void testCutsOnThrottlingAndOnWriteQueueWait() {
+        final Signals base = quiet(100.0);
+        final Decision throttled = controller.onInterval(
+            with(base, base.cpuPressure(), OptionalLong.of(randomLongBetween(1, 1_000_000)), base.writeQueueWaitMillis())
+        );
+        assertThat(throttled.action(), equalTo("cut"));
+        assertThat(throttled.reason(), containsString("cpu throttled"));
+
+        controller.reset();
+        final Decision waiting = controller.onInterval(
+            with(base, base.cpuPressure(), base.throttledMicros(), OptionalDouble.of(Math.nextUp(CONTENDED_WRITE_QUEUE_WAIT_MILLIS)))
+        );
+        assertThat(waiting.action(), equalTo("cut"));
+        assertThat(waiting.reason(), containsString("write queue wait"));
+
+        // the thresholds themselves are not contention
+        controller.reset();
+        final Decision atThreshold = controller.onInterval(
+            with(base, OptionalDouble.of(CONTENDED_CPU_PRESSURE), OptionalLong.of(0L), OptionalDouble.of(CONTENDED_WRITE_QUEUE_WAIT_MILLIS))
+        );
+        assertThat(atThreshold.action(), equalTo("hold"));
+    }
+
+    public void testContentionReasonNamesEverySignal() {
+        final Decision decision = controller.onInterval(
+            with(quiet(100.0), OptionalDouble.of(0.5), OptionalLong.of(1000L), OptionalDouble.of(50.0))
+        );
+        assertThat(decision.reason(), containsString("cpu pressure"));
+        assertThat(decision.reason(), containsString("cpu throttled"));
+        assertThat(decision.reason(), containsString("write queue wait"));
+    }
+
+    public void testContentionCutStopsAtFloorAndCoolsDown() {
+        final Signals contended = with(quiet(1, FLOOR, 0.0), OptionalDouble.of(1.0), OptionalLong.of(0L), OptionalDouble.of(0.0));
         for (int i = 0; i < 3; i++) {
-            final var decision = controller.onInterval(1, FLOOR, 0.0, 0L, INTERVAL_NANOS, randomIntBetween(CPU_LIMIT_PERCENT, 100));
+            final Decision decision = controller.onInterval(contended);
             assertThat(decision.action(), equalTo("cut"));
             assertThat(decision.target(), equalTo(FLOOR));
         }
+        for (int i = 0; i < CONTENTION_COOLDOWN_INTERVALS; i++) {
+            assertThat(controller.onInterval(quiet(100.0)).action(), equalTo("hold"));
+        }
+        assertThat(controller.onInterval(quiet(100.0)).action(), equalTo("raise"));
+    }
+
+    public void testCutsToHalfOnUploadErrors() {
+        final double throughput = climbToPendingProbe();
+        final long readErrors = randomLongBetween(0, 3);
+        final long uploadErrors = readErrors == 0 ? randomLongBetween(1, 3) : randomLongBetween(0, 3);
+        final int target = controller.getTarget();
+        final Decision decision = controller.onInterval(withErrors(quiet(1, target, 0.0), readErrors, uploadErrors));
+        assertThat(decision.action(), equalTo("cut"));
+        assertThat(decision.target(), equalTo(target / 2));
+        assertThat(decision.reason(), containsString(readErrors + " reading the source"));
+        assertThat(decision.reason(), containsString(uploadErrors + " writing to the repository"));
+
+        // the pending probe was cancelled and raising waits for the cooldown
+        for (int i = 0; i < ERROR_COOLDOWN_INTERVALS; i++) {
+            final Decision hold = controller.onInterval(quiet(throughput));
+            assertThat(hold.action(), equalTo("hold"));
+            assertThat(hold.reason(), equalTo("cooldown"));
+        }
+        assertThat(controller.onInterval(quiet(throughput)).action(), equalTo("raise"));
+    }
+
+    public void testErrorsBeatContentionAndLongCooldownIsKept() {
+        // errors and contention in the same interval: the errors rule applies
+        climbToPendingProbe();
+        final int target = controller.getTarget();
+        final Signals both = withErrors(
+            with(quiet(1, target, 0.0), OptionalDouble.of(1.0), OptionalLong.of(0L), OptionalDouble.of(0.0)),
+            0L,
+            1L
+        );
+        final Decision decision = controller.onInterval(both);
+        assertThat(decision.target(), equalTo(target / 2));
+        assertThat(decision.reason(), containsString("upload errors"));
+
+        // a contention cut right after must not shorten the cooldown the errors started
+        controller.onInterval(with(quiet(1, target / 2, 0.0), OptionalDouble.of(1.0), OptionalLong.of(0L), OptionalDouble.of(0.0)));
+        for (int i = 0; i < ERROR_COOLDOWN_INTERVALS - 1; i++) {
+            assertThat(controller.onInterval(quiet(100.0)).action(), equalTo("hold"));
+        }
+        assertThat(controller.onInterval(quiet(100.0)).action(), equalTo("raise"));
+    }
+
+    public void testErrorCutStopsAtFloor() {
+        final Decision decision = controller.onInterval(withErrors(quiet(1, FLOOR, 0.0), 1L, 0L));
+        assertThat(decision.action(), equalTo("cut"));
+        assertThat(decision.target(), equalTo(FLOOR));
     }
 
     public void testReset() {
-        unconstrained(100.0);
-        assertThat(controller.getTarget(), equalTo(12));
+        controller.onInterval(quiet(100.0));
+        assertThat(controller.getTarget(), equalTo(FLOOR + 1));
         controller.reset();
         assertThat(controller.getTarget(), equalTo(FLOOR));
         // no pending probe after a reset
-        assertThat(unconstrained(0.0).action(), equalTo("raise"));
+        assertThat(controller.onInterval(quiet(0.0)).action(), equalTo("raise"));
     }
 }

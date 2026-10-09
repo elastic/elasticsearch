@@ -51,6 +51,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     @Nullable
     private final ExponentiallyWeightedMovingRate threadUtilizationRate;
     private final LongAdder totalExecutionTime = new LongAdder();
+    private final LongAdder totalQueueLatencyNanos = new LongAdder();
+    private final LongAdder totalStartedTasks = new LongAdder();
     private final boolean trackOngoingTasks;
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
@@ -216,6 +218,22 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     }
 
     /**
+     * Returns the total time in nanoseconds that the tasks started so far spent in the queue. Unlike
+     * {@link #getMaxQueueLatencyMillisSinceLastPollAndReset} this is never reset, so any number of readers can work out the mean queue
+     * latency over their own intervals from the change in this and {@link #getTotalStartedTasks}.
+     */
+    public long getTotalQueueLatencyNanos() {
+        return totalQueueLatencyNanos.sum();
+    }
+
+    /**
+     * Returns the number of tasks that have been taken off the queue and started so far, see {@link #getTotalQueueLatencyNanos}.
+     */
+    public long getTotalStartedTasks() {
+        return totalStartedTasks.sum();
+    }
+
+    /**
      * Returns the queue latency of the next task to be executed that is still in the task queue. Essentially peeks at the front of the
      * queue and calculates how long it has been there. Returns zero if there is no queue.
      */
@@ -276,6 +294,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         assert taskQueueLatency >= 0;
         var queueLatencyMillis = TimeUnit.NANOSECONDS.toMillis(taskQueueLatency);
         queueLatencyMillisHistogram.addObservation(queueLatencyMillis);
+        totalQueueLatencyNanos.add(taskQueueLatency);
+        totalStartedTasks.increment();
 
         if (trackMaxQueueLatency) {
             maxQueueLatencyMillisSinceLastPoll.accumulate(queueLatencyMillis);

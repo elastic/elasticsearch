@@ -213,6 +213,9 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             safeAwait(barrier); // Wait for the task to start, which means implies has finished the queuing stage.
             assertEquals("Ran one task of 1ms, should be the max", 1, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
             assertEquals("The max was just reset, should be zero", 0, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
+            // the totals are not reset by polling the max
+            assertEquals(1_000_000L, executor.getTotalQueueLatencyNanos());
+            assertEquals(1L, executor.getTotalStartedTasks());
 
             // Check that the max is kept across multiple calls, where the last is not the max.
             adjustableTimedRunnable.setQueuedTimeTakenNanos(5000000);
@@ -223,6 +226,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             safeAwait(barrier);
             assertEquals("Max should not be the last task", 5, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
             assertEquals("The max was just reset, should be zero", 0, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
+            assertEquals(7_000_000L, executor.getTotalQueueLatencyNanos());
+            assertEquals(3L, executor.getTotalStartedTasks());
         } finally {
             ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
         }

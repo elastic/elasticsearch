@@ -47,6 +47,7 @@ import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SE
 import static org.elasticsearch.threadpool.ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.assertCurrentMethodIsNotCalledRecursively;
 import static org.elasticsearch.threadpool.ThreadPool.getMaxSnapshotThreadPoolSize;
+import static org.elasticsearch.threadpool.ThreadPool.getMaxSnapshotUploadThreadPoolSize;
 import static org.elasticsearch.threadpool.ThreadPool.halfAllocatedProcessorsMaxFive;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.allOf;
@@ -369,13 +370,6 @@ public class ThreadPoolTests extends ESTestCase {
         assertThat(getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofMb(750)), equalTo(10));
         allocatedProcessors = randomIntBetween(1, 16);
         assertThat(getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(4)), equalTo(10));
-        // sized for the upload concurrency ceiling when heap allows
-        allocatedProcessors = randomIntBetween(1, 16);
-        assertThat(
-            getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofMb(749), ByteSizeValue.ofGb(64).getBytes()),
-            equalTo(halfAllocatedProcessorsMaxFive(allocatedProcessors))
-        );
-        assertThat(getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(2), ByteSizeValue.ofGb(8).getBytes()), equalTo(40));
     }
 
     public void testSnapshotUploadConcurrencyCeiling() {
@@ -389,14 +383,37 @@ public class ThreadPoolTests extends ESTestCase {
         assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(Long.MAX_VALUE / 100), equalTo(140));
     }
 
-    public void testDefaultSnapshotConcurrency() {
-        final int snapshotMax = randomIntBetween(1, 200);
+    public void testMaxSnapshotUploadThreadPoolSize() {
+        final int allocatedProcessors = randomIntBetween(1, 16);
+        // small heaps keep the small SNAPSHOT pool size, whatever the memory
+        assertThat(
+            getMaxSnapshotUploadThreadPoolSize(allocatedProcessors, ByteSizeValue.ofMb(749), ByteSizeValue.ofGb(64).getBytes()),
+            equalTo(halfAllocatedProcessorsMaxFive(allocatedProcessors))
+        );
+        // on any node the heap guard applies to, the upload pool is exactly today's SNAPSHOT pool, so adaptive uploads cannot grow there
+        final ByteSizeValue smallHeap = ByteSizeValue.ofMb(randomIntBetween(1, 749));
+        assertThat(
+            getMaxSnapshotUploadThreadPoolSize(allocatedProcessors, smallHeap, randomLongBetween(0L, ByteSizeValue.ofGb(256).getBytes())),
+            equalTo(getMaxSnapshotThreadPoolSize(allocatedProcessors, smallHeap))
+        );
+        // otherwise sized for the ceiling, but never below the SNAPSHOT pool
+        assertThat(
+            getMaxSnapshotUploadThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(2), ByteSizeValue.ofGb(8).getBytes()),
+            equalTo(40)
+        );
+        assertThat(getMaxSnapshotUploadThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(2), 0L), equalTo(10));
+    }
+
+    public void testSnapshotUploadPoolIsAtLeastAsLargeAsTheSnapshotPool() {
+        // an operator may raise the SNAPSHOT pool, and uploads run with as many threads on either pool
+        final int snapshotMax = randomIntBetween(200, 400);
         final ThreadPool threadPool = new TestThreadPool(
             "test",
-            Settings.builder().put("thread_pool.snapshot.max", snapshotMax).put("thread_pool.snapshot.core", 1).build()
+            Settings.builder().put("thread_pool.snapshot.core", 1).put("thread_pool.snapshot.max", snapshotMax).build()
         );
         try {
-            assertThat(ThreadPool.getDefaultSnapshotConcurrency(threadPool), equalTo(Math.min(10, snapshotMax)));
+            assertThat(threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(), equalTo(snapshotMax));
+            assertThat(threadPool.info(ThreadPool.Names.SNAPSHOT_UPLOAD).getMax(), equalTo(snapshotMax));
         } finally {
             terminate(threadPool);
         }

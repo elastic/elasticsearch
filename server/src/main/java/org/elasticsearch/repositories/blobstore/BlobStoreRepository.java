@@ -167,6 +167,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -577,7 +578,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             );
         } else {
             shardSnapshotTaskRunner = new ShardSnapshotTaskRunner(
-                ThreadPool.getDefaultSnapshotConcurrency(threadPool),
+                threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
                 threadPool.executor(ThreadPool.Names.SNAPSHOT),
                 this::doSnapshotShard,
                 this::snapshotFile
@@ -585,7 +586,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
         staleBlobDeleteRunner = new ThrottledTaskRunner(
             "cleanupStaleBlobs",
-            ThreadPool.getDefaultSnapshotConcurrency(threadPool),
+            threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
             threadPool.executor(ThreadPool.Names.SNAPSHOT)
         );
         this.blobStoreSnapshotMetrics = new BlobStoreSnapshotMetrics(projectId, metadata, snapshotMetrics);
@@ -1322,15 +1323,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             // Each per-index process takes some nonzero amount of working memory to hold the relevant snapshot IDs and metadata generations
             // etc. which we can keep under tighter limits and release sooner if we limit the number of concurrently processing indices.
-            // Each one needs at least one snapshot thread at all times, so getDefaultSnapshotConcurrency() of them at once is enough to
-            // keep the threadpool utilized as much as it was before the pool grew for snapshot uploads.
+            // Each one needs at least one snapshot thread at all times, so threadPool.info(SNAPSHOT).getMax() of them at once is enough to
+            // keep the threadpool fully utilized.
             ThrottledIterator.run(
                 originalRepositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotIds),
                 (ref, indexId) -> ActionListener.run(
                     ActionListener.releaseAfter(listeners.acquire(), ref),
                     l -> new IndexSnapshotsDeletion(indexId).run(l)
                 ),
-                ThreadPool.getDefaultSnapshotConcurrency(threadPool),
+                threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
                 listeners::close
             );
         }
@@ -2462,6 +2463,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // The Stateless plugin adds custom thread pools for object store operations
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SNAPSHOT,
+            ThreadPool.Names.SNAPSHOT_UPLOAD,
             ThreadPool.Names.SNAPSHOT_META,
             ThreadPool.Names.GENERIC,
             STATELESS_SHARD_READ_THREAD_NAME,
@@ -3861,7 +3863,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     } else {
                         // Start as many workers as fit into the snapshot pool at once at the most
                         final int workers = Math.min(
-                            ThreadPool.getDefaultSnapshotConcurrency(threadPool),
+                            threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
                             snapshotFiles.indexFiles().size()
                         );
                         final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> files = new LinkedBlockingQueue<>(filesToRecover);
@@ -4000,14 +4002,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * RepositoriesStats.SnapshotStats#totalReadThrottledNanos()}.
      */
     public InputStream maybeRateLimitRestores(InputStream stream, RateLimitingInputStream.Listener throttleListener) {
-        InputStream rateLimitStream = maybeRateLimit(stream, () -> restoreRateLimiter, throttleListener);
-        final BackgroundNetworkQos backgroundNetworkQos = recoverySettings.getBackgroundNetworkQos();
-        if (backgroundNetworkQos != null && backgroundNetworkQos.isBackgroundQosEnabled()) {
-            // the node's background ingress share, adjusted for foreground traffic
-            rateLimitStream = maybeRateLimit(rateLimitStream, backgroundNetworkQos::getIngressLimiter, throttleListener);
-        }
-        // still applied with background QoS on, for its disk write term
-        return maybeRateLimit(rateLimitStream, recoverySettings::rateLimiter, throttleListener);
+        return maybeRateLimit(
+            maybeRateLimit(stream, () -> restoreRateLimiter, throttleListener),
+            recoverySettings::rateLimiter,
+            throttleListener
+        );
     }
 
     /**
@@ -4347,6 +4346,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final SnapshotId snapshotId = context.snapshotId();
         final BlobContainer shardContainer = shardContainer(indexId, shardId);
         final String file = fileInfo.physicalName();
+        // set when reading the source fails, to tell it from the repository failing when writeBlob throws
+        final AtomicBoolean sourceReadFailed = new AtomicBoolean();
+        UploadStage stage = UploadStage.OPEN_SOURCE;
         try (var fileReader = context.fileReader(file, fileInfo.metadata())) {
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {
                 final long partBytes = fileInfo.partBytes(i);
@@ -4364,7 +4366,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         checkAborted();
                         fileReader.maybeReleaseCommitRef();
                         final long beforeReadNanos = System.nanoTime();
-                        int value = super.read();
+                        final int value;
+                        try {
+                            value = super.read();
+                        } catch (IOException | RuntimeException e) {
+                            sourceReadFailed.set(true);
+                            throw e;
+                        }
                         totalTimeSpendReadingInNanos.addAndGet(System.nanoTime() - beforeReadNanos);
                         return value;
                     }
@@ -4374,7 +4382,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         checkAborted();
                         fileReader.maybeReleaseCommitRef();
                         final long beforeReadNanos = System.nanoTime();
-                        int amountRead = super.read(b, off, len);
+                        final int amountRead;
+                        try {
+                            amountRead = super.read(b, off, len);
+                        } catch (IOException | RuntimeException e) {
+                            sourceReadFailed.set(true);
+                            throw e;
+                        }
                         totalTimeSpendReadingInNanos.addAndGet(System.nanoTime() - beforeReadNanos);
                         return amountRead;
                     }
@@ -4386,6 +4400,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final String partName = fileInfo.partName(i);
                 logger.trace("[{}] Writing [{}] to [{}]", metadata.name(), partName, shardContainer.path());
                 final long startMillis = threadPool.rawRelativeTimeInMillis();
+                stage = UploadStage.WRITE_BLOB;
                 shardContainer.writeBlob(OperationPurpose.SNAPSHOT_DATA, partName, inputStream, partBytes, false);
                 final long uploadTimeInMillis = threadPool.rawRelativeTimeInMillis() - startMillis;
                 blobStoreSnapshotMetrics.incrementCountersForPartUpload(partBytes, uploadTimeInMillis);
@@ -4401,12 +4416,62 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
             }
             blobStoreSnapshotMetrics.incrementNumberOfBlobsUploaded();
+            stage = UploadStage.VERIFY_SOURCE;
             fileReader.verify();
             snapshotStatus.addProcessedFile(fileInfo.length());
         } catch (Exception t) {
+            countUploadFailure(t, stage, sourceReadFailed.get());
             context.failStoreIfCorrupted(t);
             snapshotStatus.addProcessedFile(0);
             throw t;
+        }
+    }
+
+    /**
+     * What a file upload was doing when it failed.
+     */
+    enum UploadStage {
+        OPEN_SOURCE,
+        WRITE_BLOB,
+        VERIFY_SOURCE
+    }
+
+    /**
+     * Whose failure a failed file upload is, for the node's upload concurrency control.
+     */
+    enum UploadFailureSource {
+        /** Not a failure of the object stores: the upload was aborted or paused, or the source does not verify. */
+        NONE,
+        /** Reading the source, which is the object store the node shares with foreground work. */
+        SOURCE_READ,
+        /** Writing to this repository. */
+        REPOSITORY_WRITE
+    }
+
+    /**
+     * @param stage            what the upload was doing
+     * @param sourceReadFailed whether reading the source failed while writing to the repository, which then fails too
+     */
+    static UploadFailureSource classifyUploadFailure(Exception e, UploadStage stage, boolean sourceReadFailed) {
+        if (ExceptionsHelper.unwrap(e, AbortedSnapshotException.class, PausedSnapshotException.class) != null) {
+            return UploadFailureSource.NONE;
+        }
+        if (sourceReadFailed || stage == UploadStage.OPEN_SOURCE) {
+            return UploadFailureSource.SOURCE_READ;
+        }
+        return stage == UploadStage.WRITE_BLOB ? UploadFailureSource.REPOSITORY_WRITE : UploadFailureSource.NONE;
+    }
+
+    private void countUploadFailure(Exception e, UploadStage stage, boolean sourceReadFailed) {
+        final BackgroundNetworkQos backgroundNetworkQos = recoverySettings.getBackgroundNetworkQos();
+        if (backgroundNetworkQos == null) {
+            return;
+        }
+        switch (classifyUploadFailure(e, stage, sourceReadFailed)) {
+            case SOURCE_READ -> backgroundNetworkQos.onUploadReadError();
+            case REPOSITORY_WRITE -> backgroundNetworkQos.onUploadWriteError();
+            case NONE -> {
+            }
         }
     }
 

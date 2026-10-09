@@ -83,7 +83,7 @@ public class TransportGetShardSnapshotCommitInfoAction extends HandledTransportA
             transportService,
             actionFilters,
             snapshotsCommitService,
-            ThreadPool.getDefaultSnapshotConcurrency(clusterService.threadPool())
+            clusterService.threadPool().info(ThreadPool.Names.SNAPSHOT).getMax()
         );
     }
 

@@ -70,9 +70,6 @@ public class BackgroundNetworkQosTests extends ESTestCase {
         final AtomicReference<NetworkProbe.NetworkStats> network = new AtomicReference<>(new NetworkProbe.NetworkStats(0L, 0L));
         final AtomicReference<CgroupV2Probe.CpuPressure> cpuPressure = new AtomicReference<>(new CgroupV2Probe.CpuPressure(0L));
         final AtomicReference<CgroupV2Probe.CpuThrottling> cpuThrottling = new AtomicReference<>(new CgroupV2Probe.CpuThrottling(0L, 0L));
-        final AtomicReference<BackgroundNetworkQos.QueueLatency> writeQueue = new AtomicReference<>(
-            new BackgroundNetworkQos.QueueLatency(0L, 0L, 0)
-        );
         final AtomicInteger reads = new AtomicInteger();
         private long received;
         private long transmitted;
@@ -87,9 +84,6 @@ public class BackgroundNetworkQosTests extends ESTestCase {
             }, () -> {
                 reads.incrementAndGet();
                 return cpuThrottling.get();
-            }, () -> {
-                reads.incrementAndGet();
-                return writeQueue.get();
             });
         }
 
@@ -416,7 +410,7 @@ public class BackgroundNetworkQosTests extends ESTestCase {
     }
 
     public void testOnlyTheMeasurementsOfAnOnSwitchAreRead() {
-        // QoS alone reads the network only, adaptive uploads alone the CPU and write queue only
+        // QoS alone reads the network only, adaptive uploads alone the CPU only
         final TestNode qosOnly = new TestNode(nodeBandwidthSettings());
         qosOnly.switchQos(true);
         final AtomicInteger networkReads = new AtomicInteger();
@@ -435,9 +429,6 @@ public class BackgroundNetworkQosTests extends ESTestCase {
             }, () -> {
                 otherReads.incrementAndGet();
                 return null;
-            }, () -> {
-                otherReads.incrementAndGet();
-                return null;
             }),
             qosOnly.nanoTime::get
         );
@@ -447,7 +438,7 @@ public class BackgroundNetworkQosTests extends ESTestCase {
         }
         assertThat(networkReads.get(), greaterThan(0));
         // only the startup line reads these, once
-        assertThat(otherReads.get(), equalTo(3));
+        assertThat(otherReads.get(), equalTo(2));
     }
 
     public void testSelectsTheUploadRunnerBySwitch() {
@@ -595,40 +586,6 @@ public class BackgroundNetworkQosTests extends ESTestCase {
             BackgroundNetworkQos.throttledMicros(new CgroupV2Probe.CpuThrottling(100L, 1L), new CgroupV2Probe.CpuThrottling(50L, 1L)),
             equalTo(OptionalLong.empty())
         );
-
-        // write queue: mean wait of the tasks started in the interval
-        assertThat(
-            BackgroundNetworkQos.writeQueueWaitMillis(
-                new BackgroundNetworkQos.QueueLatency(1_000_000L, 10L, 0),
-                new BackgroundNetworkQos.QueueLatency(7_000_000L, 20L, 0)
-            ),
-            equalTo(OptionalDouble.of(0.6))
-        );
-        // no tasks started: no wait
-        assertThat(
-            BackgroundNetworkQos.writeQueueWaitMillis(
-                new BackgroundNetworkQos.QueueLatency(5L, 10L, 0),
-                new BackgroundNetworkQos.QueueLatency(5L, 10L, 0)
-            ),
-            equalTo(OptionalDouble.of(0.0))
-        );
-        assertThat(
-            BackgroundNetworkQos.writeQueueWaitMillis(null, new BackgroundNetworkQos.QueueLatency(5L, 10L, 0)),
-            equalTo(OptionalDouble.empty())
-        );
-    }
-
-    public void testStalledWriteQueue() {
-        final var before = new BackgroundNetworkQos.QueueLatency(100L, 10L, 0);
-        // queued and nothing started
-        assertTrue(BackgroundNetworkQos.writeStalled(before, new BackgroundNetworkQos.QueueLatency(100L, 10L, 3)));
-        // nothing started but also nothing waiting: idle
-        assertFalse(BackgroundNetworkQos.writeStalled(before, new BackgroundNetworkQos.QueueLatency(100L, 10L, 0)));
-        // queued but moving
-        assertFalse(BackgroundNetworkQos.writeStalled(before, new BackgroundNetworkQos.QueueLatency(200L, 11L, 3)));
-        // not known
-        assertFalse(BackgroundNetworkQos.writeStalled(null, new BackgroundNetworkQos.QueueLatency(100L, 10L, 3)));
-        assertFalse(BackgroundNetworkQos.writeStalled(before, null));
     }
 
     private static void assertLimiters(BackgroundNetworkQos qos, double netIn, double netOut) {

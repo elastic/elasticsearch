@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
-import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.snapshots.blobstore.RateLimitingInputStream;
@@ -51,9 +50,9 @@ import static org.elasticsearch.core.Strings.format;
  *     through the limiter. Only active when the node bandwidth settings are set. Restores are not affected.</li>
  *     <li>{@link #ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING}: the number of concurrent shard snapshot uploads, which run on their own
  *     thread pool, is adjusted every few seconds by an {@link UploadConcurrencyController}, up to
- *     {@link #UPLOAD_CONCURRENCY_MAX_SETTING}. It reads CPU contention directly (cgroup pressure stall information and throttling, and
- *     the wait in the write queue) because uploads also use CPU outside their threads, and upload errors. Off, uploads run on the
- *     snapshot pool at today's concurrency.</li>
+ *     {@link #UPLOAD_CONCURRENCY_MAX_SETTING}. It reads CPU contention directly (cgroup pressure stall information and throttling)
+ *     because uploads also use CPU outside their threads, and upload errors. Off, uploads run on the snapshot pool at today's
+ *     concurrency.</li>
  * </ul>
  * While adaptive upload concurrency is on, all repositories share this node's upload task runner so that a single controller sets the
  * node's upload concurrency. While both switches are off nothing here does anything: no measurements are read and no work is counted.
@@ -108,29 +107,17 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     static final long LOG_ACTIVE_WINDOW_NANOS = TimeUnit.SECONDS.toNanos(30);
 
     /**
-     * Total time and number of tasks started by the node's write queue, from which the mean wait in the queue over an interval follows,
-     * and the number of tasks queued now.
-     */
-    record QueueLatency(long totalNanos, long tasks, int queued) {}
-
-    /**
      * Where the node's measurements come from. Each supplier returns {@code null} if the measurement is not available.
      */
     record Probes(
         Supplier<NetworkProbe.NetworkStats> network,
         Supplier<CgroupV2Probe.CpuPressure> cpuPressure,
-        Supplier<CgroupV2Probe.CpuThrottling> cpuThrottling,
-        Supplier<QueueLatency> writeQueue
+        Supplier<CgroupV2Probe.CpuThrottling> cpuThrottling
     ) {
-        static Probes forNode(ThreadPool threadPool) {
+        static Probes forNode() {
             final NetworkProbe networkProbe = NetworkProbe.getInstance();
             final CgroupV2Probe cgroupProbe = CgroupV2Probe.getInstance();
-            return new Probes(networkProbe::getNetworkStats, cgroupProbe::getCpuPressure, cgroupProbe::getCpuThrottling, () -> {
-                if (threadPool.executor(ThreadPool.Names.WRITE) instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor write) {
-                    return new QueueLatency(write.getTotalQueueLatencyNanos(), write.getTotalStartedTasks(), write.getCurrentQueueSize());
-                }
-                return null;
-            });
+            return new Probes(networkProbe::getNetworkStats, cgroupProbe::getCpuPressure, cgroupProbe::getCpuThrottling);
         }
     }
 
@@ -179,8 +166,6 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
     private CgroupV2Probe.CpuPressure intervalStartCpuPressure;
     @Nullable
     private CgroupV2Probe.CpuThrottling intervalStartCpuThrottling;
-    @Nullable
-    private QueueLatency intervalStartWriteQueue;
     private UploadConcurrencyController.Signals lastSignals;
     private long readErrorsSinceLog;
     private long writeErrorsSinceLog;
@@ -195,7 +180,7 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         RecoverySettings recoverySettings,
         boolean stateless
     ) {
-        this(clusterSettings, threadPool, recoverySettings, stateless, Probes.forNode(threadPool), System::nanoTime);
+        this(clusterSettings, threadPool, recoverySettings, stateless, Probes.forNode(), System::nanoTime);
     }
 
     BackgroundNetworkQos(
@@ -393,11 +378,10 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         if (loggedProbes == false) {
             loggedProbes = true;
             logger.info(
-                "background qos measurements: network [{}], cpu.pressure [{}], cpu.stat throttling [{}], write queue [{}]",
+                "background qos measurements: network [{}], cpu.pressure [{}], cpu.stat throttling [{}]",
                 availability(probes.network()),
                 availability(probes.cpuPressure()),
-                availability(probes.cpuThrottling()),
-                availability(probes.writeQueue())
+                availability(probes.cpuThrottling())
             );
         }
     }
@@ -478,7 +462,6 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         final long writeErrorsNow = uploadWriteErrors.sum();
         final CgroupV2Probe.CpuPressure cpuPressureNow = probes.cpuPressure().get();
         final CgroupV2Probe.CpuThrottling cpuThrottlingNow = probes.cpuThrottling().get();
-        final QueueLatency writeQueueNow = probes.writeQueue().get();
 
         final boolean hadStart = trackingInterval;
         final long intervalNanos = now - intervalStartNanos;
@@ -492,8 +475,6 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
             intervalNanos,
             cpuPressure(intervalStartCpuPressure, cpuPressureNow, intervalNanos),
             throttledMicros(intervalStartCpuThrottling, cpuThrottlingNow),
-            writeQueueWaitMillis(intervalStartWriteQueue, writeQueueNow),
-            writeStalled(intervalStartWriteQueue, writeQueueNow),
             readErrorsNow - intervalStartReadErrors,
             writeErrorsNow - intervalStartWriteErrors
         );
@@ -505,7 +486,6 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         intervalStartWriteErrors = writeErrorsNow;
         intervalStartCpuPressure = cpuPressureNow;
         intervalStartCpuThrottling = cpuThrottlingNow;
-        intervalStartWriteQueue = writeQueueNow;
         trackingInterval = true;
 
         // the setting may have changed
@@ -540,25 +520,6 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         return OptionalLong.of(after.throttledMicros() - before.throttledMicros());
     }
 
-    static OptionalDouble writeQueueWaitMillis(@Nullable QueueLatency before, @Nullable QueueLatency after) {
-        if (before == null || after == null || after.tasks() < before.tasks() || after.totalNanos() < before.totalNanos()) {
-            return OptionalDouble.empty();
-        }
-        final long tasks = after.tasks() - before.tasks();
-        if (tasks == 0L) {
-            return OptionalDouble.of(0.0);
-        }
-        return OptionalDouble.of((after.totalNanos() - before.totalNanos()) / (double) tasks / TimeUnit.MILLISECONDS.toNanos(1));
-    }
-
-    /**
-     * Whether the write queue made no progress: tasks are queued now but none started in the interval. Then there is no wait to
-     * measure, because the tasks that wait have not started.
-     */
-    static boolean writeStalled(@Nullable QueueLatency before, @Nullable QueueLatency after) {
-        return before != null && after != null && after.tasks() == before.tasks() && after.queued() > 0;
-    }
-
     private void setUploadConcurrency(int target) {
         final int current = uploadTaskRunner.getMaxRunningTasks();
         if (current != target) {
@@ -571,7 +532,7 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
         final UploadConcurrencyController.Decision decision = uploadConcurrencyController.getLastDecision();
         final UploadConcurrencyController.Signals signals = lastSignals;
         logger.info(
-            "background network qos [{}]; {}; {}; cpu pressure [{}] throttled [{}us] write queue wait [{}ms]; "
+            "background network qos [{}]; {}; {}; cpu pressure [{}] throttled [{}us]; "
                 + "upload errors since last log read [{}] upload [{}]; uploads adaptive [{}] target [{}] running [{}] queued [{}] "
                 + "ceiling [{}] last decision [{}: {}]",
             qosEnabled ? "on" : "off",
@@ -579,9 +540,6 @@ public class BackgroundNetworkQos extends AbstractLifecycleComponent {
             networkOut.describeAndResetPause(),
             signals == null || signals.cpuPressure().isEmpty() ? "unknown" : format("%.3f", signals.cpuPressure().getAsDouble()),
             signals == null || signals.throttledMicros().isEmpty() ? "unknown" : signals.throttledMicros().getAsLong(),
-            signals == null || signals.writeQueueWaitMillis().isEmpty()
-                ? "unknown"
-                : format("%.1f", signals.writeQueueWaitMillis().getAsDouble()),
             readErrorsSinceLog,
             writeErrorsSinceLog,
             adaptiveUploadConcurrencyEnabled ? "on" : "off",

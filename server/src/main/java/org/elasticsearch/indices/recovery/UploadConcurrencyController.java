@@ -20,10 +20,10 @@ import java.util.OptionalLong;
  * Decides how many shard snapshot uploads a node runs at once. Uploads are added one per interval, only while work is queued, the
  * bandwidth limiters are not what holds them back and the node shows no sign of CPU contention, and an added upload is kept only if it
  * raised throughput. The target is cut multiplicatively when uploads fail, or when foreground work is being delayed: the pod waits for
- * CPU (pressure stall information), is throttled by its CPU quota, or its write tasks queue for long. This stops the target from
- * climbing to the ceiling when latency, connections or CPU are the limit rather than the number of uploads. A signal that is not
- * available counts as quiet when deciding to cut, but never as quiet when deciding to raise. Not thread-safe: called from a single
- * periodic task.
+ * CPU (pressure stall information) or is throttled by its CPU quota. This stops the target from climbing to the ceiling when latency,
+ * connections or CPU are the limit rather than the number of uploads. How long write tasks queue is deliberately not a signal: it is
+ * available as the {@code es.thread_pool.write.queue.latency.histogram} metric. A signal that is not available counts as quiet when
+ * deciding to cut, but never as quiet when deciding to raise. Not thread-safe: called from a single periodic task.
  */
 class UploadConcurrencyController {
 
@@ -44,10 +44,6 @@ class UploadConcurrencyController {
      * less than this is common for short bursts and not worth cutting for, but any throttling stops raises.
      */
     static final double CONTENDED_THROTTLED_FRACTION = 0.01;
-    /** Mean time in milliseconds that write tasks waited in the queue, above which foreground work counts as being delayed. */
-    static final double CONTENDED_WRITE_QUEUE_WAIT_MILLIS = 10.0;
-    /** Mean time in milliseconds that write tasks waited in the queue, below which writes count as quiet enough to add uploads. */
-    static final double QUIET_WRITE_QUEUE_WAIT_MILLIS = 2.0;
     /** Intervals to wait before raising again after upload errors. */
     static final int ERROR_COOLDOWN_INTERVALS = 6;
     /** Intervals to wait before raising again after contention cut the target. */
@@ -67,8 +63,6 @@ class UploadConcurrencyController {
      * @param intervalNanos          length of the interval
      * @param cpuPressure            fraction of the interval in which runnable tasks of the pod waited for CPU, if known
      * @param throttledMicros        time the pod was throttled by its CPU quota, if known
-     * @param writeQueueWaitMillis   mean time write tasks waited in the queue, if known (zero if none started)
-     * @param writeStalled           whether write tasks were queued but none started in the interval
      * @param readErrors             uploads that failed reading the source (shared with foreground work)
      * @param uploadErrors           uploads that failed writing to the repository
      */
@@ -80,8 +74,6 @@ class UploadConcurrencyController {
         long intervalNanos,
         OptionalDouble cpuPressure,
         OptionalLong throttledMicros,
-        OptionalDouble writeQueueWaitMillis,
-        boolean writeStalled,
         long readErrors,
         long uploadErrors
     ) {}
@@ -213,13 +205,6 @@ class UploadConcurrencyController {
             && signals.throttledMicros().getAsLong() * 1000.0 > CONTENDED_THROTTLED_FRACTION * signals.intervalNanos()) {
             reasons.add("cpu throttled " + signals.throttledMicros().getAsLong() + "us");
         }
-        if (signals.writeStalled()) {
-            reasons.add("write pool stalled");
-        }
-        if (signals.writeQueueWaitMillis().isPresent()
-            && signals.writeQueueWaitMillis().getAsDouble() > CONTENDED_WRITE_QUEUE_WAIT_MILLIS) {
-            reasons.add(Strings.format("write queue wait %.1fms", signals.writeQueueWaitMillis().getAsDouble()));
-        }
         return reasons;
     }
 
@@ -251,17 +236,16 @@ class UploadConcurrencyController {
             target,
             "raise",
             Strings.format(
-                "queued %d, limiter wait %.2f, cpu pressure %.3f, write queue wait %.1fms",
+                "queued %d, limiter wait %.2f, cpu pressure %.3f",
                 signals.queued(),
                 waitFraction,
-                signals.cpuPressure().getAsDouble(),
-                signals.writeQueueWaitMillis().getAsDouble()
+                signals.cpuPressure().getAsDouble()
             )
         );
     }
 
     /**
-     * @return why raising is not safe, or {@code null} if CPU pressure, throttling and write queue wait are all known and quiet
+     * @return why raising is not safe, or {@code null} if CPU pressure and throttling are both known and quiet
      */
     private static String notQuiet(Signals signals) {
         if (signals.cpuPressure().isEmpty()) {
@@ -273,11 +257,6 @@ class UploadConcurrencyController {
             return "cpu throttling unavailable";
         } else if (signals.throttledMicros().getAsLong() > 0L) {
             return "cpu throttled " + signals.throttledMicros().getAsLong() + "us";
-        }
-        if (signals.writeQueueWaitMillis().isEmpty()) {
-            return "write queue wait unavailable";
-        } else if (signals.writeQueueWaitMillis().getAsDouble() >= QUIET_WRITE_QUEUE_WAIT_MILLIS) {
-            return Strings.format("write queue wait %.1fms", signals.writeQueueWaitMillis().getAsDouble());
         }
         return null;
     }

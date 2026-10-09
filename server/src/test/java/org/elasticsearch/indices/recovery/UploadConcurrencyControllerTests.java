@@ -18,11 +18,9 @@ import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.indices.recovery.UploadConcurrencyController.CONTENDED_CPU_PRESSURE;
-import static org.elasticsearch.indices.recovery.UploadConcurrencyController.CONTENDED_WRITE_QUEUE_WAIT_MILLIS;
 import static org.elasticsearch.indices.recovery.UploadConcurrencyController.CONTENTION_COOLDOWN_INTERVALS;
 import static org.elasticsearch.indices.recovery.UploadConcurrencyController.ERROR_COOLDOWN_INTERVALS;
 import static org.elasticsearch.indices.recovery.UploadConcurrencyController.QUIET_CPU_PRESSURE;
-import static org.elasticsearch.indices.recovery.UploadConcurrencyController.QUIET_WRITE_QUEUE_WAIT_MILLIS;
 import static org.elasticsearch.indices.recovery.UploadConcurrencyController.REVERT_COOLDOWN_INTERVALS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,14 +47,12 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
             INTERVAL_NANOS,
             OptionalDouble.of(randomDoubleBetween(0.0, QUIET_CPU_PRESSURE, false)),
             OptionalLong.of(0L),
-            OptionalDouble.of(randomDoubleBetween(0.0, QUIET_WRITE_QUEUE_WAIT_MILLIS, false)),
-            false,
             0L,
             0L
         );
     }
 
-    private static Signals with(Signals s, OptionalDouble cpuPressure, OptionalLong throttledMicros, OptionalDouble writeQueueWaitMillis) {
+    private static Signals with(Signals s, OptionalDouble cpuPressure, OptionalLong throttledMicros) {
         return new Signals(
             s.queued(),
             s.running(),
@@ -65,8 +61,6 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
             s.intervalNanos(),
             cpuPressure,
             throttledMicros,
-            writeQueueWaitMillis,
-            s.writeStalled(),
             s.readErrors(),
             s.uploadErrors()
         );
@@ -81,8 +75,6 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
             s.intervalNanos(),
             s.cpuPressure(),
             s.throttledMicros(),
-            s.writeQueueWaitMillis(),
-            s.writeStalled(),
             readErrors,
             uploadErrors
         );
@@ -97,8 +89,6 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
             s.intervalNanos(),
             s.cpuPressure(),
             s.throttledMicros(),
-            s.writeQueueWaitMillis(),
-            s.writeStalled(),
             s.readErrors(),
             s.uploadErrors()
         );
@@ -129,53 +119,32 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
         final Signals base = quiet(100.0);
         // just below the quiet thresholds raises
         assertThat(
-            controller.onInterval(
-                with(
-                    base,
-                    OptionalDouble.of(Math.nextDown(QUIET_CPU_PRESSURE)),
-                    OptionalLong.of(0L),
-                    OptionalDouble.of(Math.nextDown(QUIET_WRITE_QUEUE_WAIT_MILLIS))
-                )
-            ).action(),
+            controller.onInterval(with(base, OptionalDouble.of(Math.nextDown(QUIET_CPU_PRESSURE)), OptionalLong.of(0L))).action(),
             equalTo("raise")
         );
         controller.reset();
 
-        // at the thresholds it holds, with the signal as the reason
-        final Decision pressure = controller.onInterval(
-            with(base, OptionalDouble.of(QUIET_CPU_PRESSURE), OptionalLong.of(0L), base.writeQueueWaitMillis())
-        );
+        // at the threshold it holds, with the signal as the reason
+        final Decision pressure = controller.onInterval(with(base, OptionalDouble.of(QUIET_CPU_PRESSURE), OptionalLong.of(0L)));
         assertThat(pressure.action(), equalTo("hold"));
         assertThat(pressure.reason(), containsString("cpu pressure"));
-        final Decision wait = controller.onInterval(
-            with(base, base.cpuPressure(), OptionalLong.of(0L), OptionalDouble.of(QUIET_WRITE_QUEUE_WAIT_MILLIS))
-        );
-        assertThat(wait.action(), equalTo("hold"));
-        assertThat(wait.reason(), containsString("write queue wait"));
         assertThat(controller.getTarget(), equalTo(FLOOR));
     }
 
     public void testNeverRaisesBlind() {
         final Signals base = quiet(100.0);
         final var empty = OptionalDouble.empty();
-        final Decision noPressure = controller.onInterval(with(base, empty, base.throttledMicros(), base.writeQueueWaitMillis()));
+        final Decision noPressure = controller.onInterval(with(base, empty, base.throttledMicros()));
         assertThat(noPressure.action(), equalTo("hold"));
         assertThat(noPressure.reason(), equalTo("cpu pressure unavailable"));
-        final Decision noThrottling = controller.onInterval(
-            with(base, base.cpuPressure(), OptionalLong.empty(), base.writeQueueWaitMillis())
-        );
+        final Decision noThrottling = controller.onInterval(with(base, base.cpuPressure(), OptionalLong.empty()));
         assertThat(noThrottling.action(), equalTo("hold"));
         assertThat(noThrottling.reason(), equalTo("cpu throttling unavailable"));
-        final Decision noWait = controller.onInterval(with(base, base.cpuPressure(), base.throttledMicros(), empty));
-        assertThat(noWait.action(), equalTo("hold"));
-        assertThat(noWait.reason(), equalTo("write queue wait unavailable"));
         assertThat(controller.getTarget(), equalTo(FLOOR));
     }
 
     public void testUnavailableSignalsDoNotCut() {
-        final Decision decision = controller.onInterval(
-            with(quiet(100.0), OptionalDouble.empty(), OptionalLong.empty(), OptionalDouble.empty())
-        );
+        final Decision decision = controller.onInterval(with(quiet(100.0), OptionalDouble.empty(), OptionalLong.empty()));
         assertThat(decision.action(), equalTo("hold"));
     }
 
@@ -331,7 +300,7 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
         final double throughput = climbToPendingProbe();
         final int target = controller.getTarget();
         final Decision decision = controller.onInterval(
-            with(quiet(1, target, 0.0), OptionalDouble.of(Math.nextUp(CONTENDED_CPU_PRESSURE)), OptionalLong.of(0L), OptionalDouble.of(0.0))
+            with(quiet(1, target, 0.0), OptionalDouble.of(Math.nextUp(CONTENDED_CPU_PRESSURE)), OptionalLong.of(0L))
         );
         assertThat(decision.action(), equalTo("cut"));
         assertThat(decision.reason(), containsString("cpu pressure"));
@@ -342,28 +311,18 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
         assertThat(next.reason(), equalTo("cooldown"));
     }
 
-    public void testCutsOnThrottlingAndOnWriteQueueWait() {
+    public void testCutsOnThrottling() {
         final Signals base = quiet(100.0);
         // more than 1% of the interval
         final long throttledMicros = randomLongBetween(50_001L, 5_000_000L);
-        final Decision throttled = controller.onInterval(
-            with(base, base.cpuPressure(), OptionalLong.of(throttledMicros), base.writeQueueWaitMillis())
-        );
+        final Decision throttled = controller.onInterval(with(base, base.cpuPressure(), OptionalLong.of(throttledMicros)));
         assertThat(throttled.action(), equalTo("cut"));
         assertThat(throttled.reason(), containsString("cpu throttled"));
+        assertThat(throttled.target(), equalTo(FLOOR));
 
+        // the threshold itself is not contention
         controller.reset();
-        final Decision waiting = controller.onInterval(
-            with(base, base.cpuPressure(), base.throttledMicros(), OptionalDouble.of(Math.nextUp(CONTENDED_WRITE_QUEUE_WAIT_MILLIS)))
-        );
-        assertThat(waiting.action(), equalTo("cut"));
-        assertThat(waiting.reason(), containsString("write queue wait"));
-
-        // the thresholds themselves are not contention
-        controller.reset();
-        final Decision atThreshold = controller.onInterval(
-            with(base, OptionalDouble.of(CONTENDED_CPU_PRESSURE), OptionalLong.of(0L), OptionalDouble.of(CONTENDED_WRITE_QUEUE_WAIT_MILLIS))
-        );
+        final Decision atThreshold = controller.onInterval(with(base, OptionalDouble.of(CONTENDED_CPU_PRESSURE), OptionalLong.of(0L)));
         assertThat(atThreshold.action(), equalTo("hold"));
     }
 
@@ -371,45 +330,20 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
         final Signals base = quiet(100.0);
         // 1% of the interval exactly is not more than 1%
         final long brief = TimeUnit.NANOSECONDS.toMicros(INTERVAL_NANOS) / 100;
-        final Decision decision = controller.onInterval(
-            with(base, base.cpuPressure(), OptionalLong.of(randomLongBetween(1L, brief)), base.writeQueueWaitMillis())
-        );
+        final Decision decision = controller.onInterval(with(base, base.cpuPressure(), OptionalLong.of(randomLongBetween(1L, brief))));
         assertThat(decision.action(), equalTo("hold"));
         assertThat(decision.reason(), containsString("cpu throttled"));
         assertThat(controller.getTarget(), equalTo(FLOOR));
     }
 
-    public void testStalledWritePoolIsContention() {
-        final Signals base = quiet(100.0);
-        final Signals stalled = new Signals(
-            base.queued(),
-            base.running(),
-            base.throughputBytesPerSec(),
-            base.limiterPauseNanos(),
-            base.intervalNanos(),
-            base.cpuPressure(),
-            base.throttledMicros(),
-            OptionalDouble.of(0.0),
-            true,
-            0L,
-            0L
-        );
-        final Decision decision = controller.onInterval(stalled);
-        assertThat(decision.action(), equalTo("cut"));
-        assertThat(decision.reason(), containsString("write pool stalled"));
-    }
-
     public void testContentionReasonNamesEverySignal() {
-        final Decision decision = controller.onInterval(
-            with(quiet(100.0), OptionalDouble.of(0.5), OptionalLong.of(1_000_000L), OptionalDouble.of(50.0))
-        );
+        final Decision decision = controller.onInterval(with(quiet(100.0), OptionalDouble.of(0.5), OptionalLong.of(1_000_000L)));
         assertThat(decision.reason(), containsString("cpu pressure"));
         assertThat(decision.reason(), containsString("cpu throttled"));
-        assertThat(decision.reason(), containsString("write queue wait"));
     }
 
     public void testContentionCutStopsAtFloorAndCoolsDown() {
-        final Signals contended = with(quiet(1, FLOOR, 0.0), OptionalDouble.of(1.0), OptionalLong.of(0L), OptionalDouble.of(0.0));
+        final Signals contended = with(quiet(1, FLOOR, 0.0), OptionalDouble.of(1.0), OptionalLong.of(0L));
         for (int i = 0; i < 3; i++) {
             final Decision decision = controller.onInterval(contended);
             assertThat(decision.action(), equalTo("cut"));
@@ -445,17 +379,13 @@ public class UploadConcurrencyControllerTests extends ESTestCase {
         // errors and contention in the same interval: the errors rule applies
         climbToPendingProbe();
         final int target = controller.getTarget();
-        final Signals both = withErrors(
-            with(quiet(1, target, 0.0), OptionalDouble.of(1.0), OptionalLong.of(0L), OptionalDouble.of(0.0)),
-            0L,
-            1L
-        );
+        final Signals both = withErrors(with(quiet(1, target, 0.0), OptionalDouble.of(1.0), OptionalLong.of(0L)), 0L, 1L);
         final Decision decision = controller.onInterval(both);
         assertThat(decision.target(), equalTo(target / 2));
         assertThat(decision.reason(), containsString("upload errors"));
 
         // a contention cut right after must not shorten the cooldown the errors started
-        controller.onInterval(with(quiet(1, target / 2, 0.0), OptionalDouble.of(1.0), OptionalLong.of(0L), OptionalDouble.of(0.0)));
+        controller.onInterval(with(quiet(1, target / 2, 0.0), OptionalDouble.of(1.0), OptionalLong.of(0L)));
         for (int i = 0; i < ERROR_COOLDOWN_INTERVALS - 1; i++) {
             assertThat(controller.onInterval(quiet(100.0)).action(), equalTo("hold"));
         }

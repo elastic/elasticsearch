@@ -10,7 +10,7 @@ products:
 
 # Amazon S3 data sources for {{esql}} Data Federation
 
-An `s3` [data source](esql-data-federation-sources.md) reads files from Amazon S3. This page compares the authentication models, lists the IAM permissions {{es}} needs to read your data, and explains how to troubleshoot access errors. For step-by-step setup, follow the guide for your authentication model.
+An `s3` [data source](esql-data-federation-sources.md) reads files from Amazon S3. This page compares the authentication models, lists the AWS Identity and Access Management (IAM) permissions {{es}} needs to read your data, and explains how to troubleshoot access errors. For step-by-step setup, follow the guide for your authentication model.
 
 :::{include} _snippets/data-federation/experimental-warning.md
 :::
@@ -36,7 +36,7 @@ For a description of each model and where it's available, refer to [authenticati
 |---|---|---|
 | `s3:GetObject` | The objects the dataset reads, for example `arn:aws:s3:::<bucket-name>/<path>/*` | Always |
 | `s3:ListBucket` | The bucket, for example `arn:aws:s3:::<bucket-name>` | When a dataset's resource is a prefix or a glob pattern rather than a single file |
-| `kms:Decrypt` | The AWS KMS key that encrypts the objects | When the objects use server-side encryption with AWS KMS keys (SSE-KMS) |
+| `kms:Decrypt` | The AWS Key Management Service (AWS KMS) key that encrypts the objects | When the objects use server-side encryption with AWS KMS keys (SSE-KMS) |
 
 Scope the `s3:GetObject` resource to the prefixes your datasets use to grant the least access needed. When you add a dataset that reads from a new bucket or prefix, extend the policy to cover it. For a complete policy and AWS CLI commands, refer to the setup guide for your authentication model.
 

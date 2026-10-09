@@ -49,7 +49,7 @@ $$$endpoint$$$
     A regional endpoint must name a region that your {{es}} version knows about. {{es}} rejects a region that AWS added after that release until you upgrade, or until a node permits its host with `esql.external.allowed_endpoint_hosts`.
 
     :::{note}
-    `https://s3.amazonaws.com` has no region. When you set `endpoint`, the SDK stops following cross-region redirects, so this global endpoint only reaches `us-east-1` buckets. Other regions get an error. Omit `endpoint` to let the SDK resolve the correct regional endpoint from the `region` setting.
+    `https://s3.amazonaws.com` has no region. When you set `endpoint`, the AWS SDK stops following cross-region redirects, so this global endpoint only reaches `us-east-1` buckets. Other regions get an error. Omit `endpoint` to let the AWS SDK resolve the correct regional endpoint from the `region` setting.
     :::
 
     {{es}} rejects every other AWS endpoint family, including FIPS endpoints, dual-stack endpoints, transfer acceleration, access points, object lambda, Outposts, the account-level control plane, the legacy `s3-external-1` alias, and S3 Express. It also rejects a bucket-qualified endpoint such as `https://mybucket.s3.us-east-1.amazonaws.com`. Name the regional endpoint instead, and let the bucket come from the dataset. It also rejects plain `http`, a value without a scheme, and a host that the URL syntax doesn't allow, such as one with an underscore or a non-numeric port.
@@ -68,9 +68,9 @@ $$$addressing-style$$$
 
     - **Default:** `auto`
     - **Valid values:**
-      - `auto`: Uses path-style when `endpoint` is set, and the SDK default otherwise.
+      - `auto`: Uses path-style when `endpoint` is set, and the AWS SDK default otherwise.
       - `path`: Always uses path-style.
-      - `virtual_hosted`: Lets the SDK decide. Bare-IP endpoints fall back to path-style.
+      - `virtual_hosted`: Lets the AWS SDK decide. Bare-IP endpoints fall back to path-style.
     - **Related:** `endpoint`
 
     Because `auto` resolves to path-style whenever `endpoint` is set, set `virtual_hosted` if reads through a VPC interface endpoint fail with an addressing error.
@@ -80,13 +80,13 @@ $$$region$$$
 `region` {applies_to}`stack: deprecated 9.6+, experimental =9.5`
 :   The AWS region used for the S3 client.
 
-    {applies_to}`stack: experimental 9.6+` The `region` setting on a data source is deprecated and has no effect. Set `region` in the [dataset settings](esql-data-federation-dataset-settings.md#amazon-s3-region) instead, or omit it to let {{es}} detect the region automatically. When no `endpoint` is set, the SDK redirects transparently. When one is set, {{es}} issues a `HeadBucket` probe on the first request and caches the discovered region. The cache is cleared after a few minutes without requests, and the next request discovers the region again.
+    {applies_to}`stack: experimental 9.6+` The `region` setting on a data source is deprecated and has no effect. Set `region` in the [dataset settings](esql-data-federation-dataset-settings.md#amazon-s3-region) instead, or omit it to let {{es}} detect the region automatically. When no `endpoint` is set, the AWS SDK redirects transparently. When one is set, {{es}} issues a `HeadBucket` probe on the first request and caches the discovered region. The cache is cleared after a few minutes without requests, and the next request discovers the region again.
 
     {applies_to}`stack: experimental =9.5` Set `region` on the data source. Datasets don't accept a `region` setting.
 
 ### Authentication settings [s3-authentication-settings]
 
-These settings select the [authentication model](esql-data-federation-sources.md#authentication) and supply the values it needs. For the IAM permissions the configured identity needs, refer to [grant read access in Amazon S3](esql-data-federation-s3.md#s3-permissions).
+These settings select the [authentication model](esql-data-federation-sources.md#authentication) and supply the values it needs. For the AWS Identity and Access Management (IAM) permissions the configured identity needs, refer to [grant read access in Amazon S3](esql-data-federation-s3.md#s3-permissions).
 
 $$$auth$$$
 
@@ -124,7 +124,7 @@ $$$secret-key$$$
 $$$session-token$$$
 
 `session_token`
-:   The AWS session token for temporary security credentials issued by AWS STS.
+:   The AWS session token for temporary security credentials issued by AWS Security Token Service (STS).
 
     - **Default:** None
     - **Requires:** `auth` set to `static_credentials`, with `access_key` and `secret_key` from the same temporary credentials
@@ -135,7 +135,7 @@ $$$session-token$$$
 $$$role-arn$$$
 
 `role_arn`
-:   The ARN of the IAM role {{es}} assumes through STS.
+:   The Amazon Resource Name (ARN) of the IAM role {{es}} assumes through STS.
 
     - **Default:** None. Required when `auth` is set to `federated_identity`.
     - **Requires:** `auth` set to `federated_identity`

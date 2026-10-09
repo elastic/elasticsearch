@@ -33,7 +33,7 @@ public final class QuerySamplingIndex {
 
     public static final String NAME = ".query_sampling";
 
-    static final int MAPPINGS_VERSION = 1;
+    static final int MAPPINGS_VERSION = 2;
 
     private QuerySamplingIndex() {}
 
@@ -79,6 +79,9 @@ public final class QuerySamplingIndex {
             field(builder, "inclusion_probability", "double");
             field(builder, "seen_probability", "double");
             field(builder, "capture_rate", "double");
+            keyword(builder, "spatial_space");
+            field(builder, "spatial_cluster", "integer");
+            keyword(builder, "hardness");
             field(builder, "picked_at", "date");
             field(builder, "updated_at", "date");
             field(builder, "has_ground_truth", "boolean");

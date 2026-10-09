@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.querysampling.storage;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
+import org.elasticsearch.xpack.querysampling.dedup.Hardness;
+import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
@@ -23,6 +25,8 @@ import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
  * @param pickedAt     milliseconds since the epoch
  * @param updatedAt    milliseconds since the epoch, when the weights were last written
  * @param groundTruth  the exact answer, or {@code null} while it has not been computed
+ * @param stratum      the part of the vector space the query is in, or {@code null} if it was not put anywhere
+ * @param hardness     how hard the query is for the index to answer, or {@code null} if that was not told
  */
 public record StoredSample(
     String samplerId,
@@ -31,7 +35,9 @@ public record StoredSample(
     TrackedQuery.Weights weights,
     long pickedAt,
     long updatedAt,
-    @Nullable GroundTruth groundTruth
+    @Nullable GroundTruth groundTruth,
+    @Nullable Stratum stratum,
+    @Nullable Hardness hardness
 ) {
 
     /**

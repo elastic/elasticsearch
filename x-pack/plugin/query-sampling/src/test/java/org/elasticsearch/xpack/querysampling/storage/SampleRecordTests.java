@@ -19,13 +19,16 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
+import org.elasticsearch.xpack.querysampling.dedup.Hardness;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
+import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -90,6 +93,39 @@ public class SampleRecordTests extends ESTestCase {
         assertThat(liveHits.get("took_millis"), equalTo(12));
         assertThat(((List<?>) liveHits.get("hits")).size(), equalTo(1));
         assertThat(document, not(hasKey("ground_truth")));
+        assertThat("a query that was not put anywhere says nothing of it", document, not(hasKey("spatial_cluster")));
+        assertThat(document, not(hasKey("spatial_space")));
+        assertThat(document, not(hasKey("hardness")));
+    }
+
+    public void testTheStrataOfAQueryAreStoredAndReadBack() throws IOException {
+        CapturedQuery query = new CapturedQuery(new String[] { "a" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
+        TrackedQuery tracked = tracked(1.0);
+        Stratum stratum = new Stratum("vec/1", randomIntBetween(0, 99));
+        Hardness hardness = randomFrom(Hardness.values());
+        tracked.stratum(stratum);
+        tracked.hardness(hardness);
+        SampledQuery sampled = new SampledQuery(FINGERPRINT, new CapturedSearch(query, List.of(), 1, 1.0), tracked);
+
+        Map<String, Object> document = toMap(SampleRecord.document(JsonXContent.contentBuilder(), "s1", sampled, 5L));
+        StoredSample stored = SampleRecord.parse(document, xContentRegistry());
+
+        assertThat(document.get("hardness"), equalTo(hardness.name().toLowerCase(Locale.ROOT)));
+        assertThat(stored.stratum(), equalTo(stratum));
+        assertThat(stored.hardness(), equalTo(hardness));
+    }
+
+    public void testQueriesWithoutStrataAreReadBackWithoutThem() throws IOException {
+        CapturedQuery query = new CapturedQuery(new String[] { "a" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
+        SampledQuery sampled = new SampledQuery(FINGERPRINT, new CapturedSearch(query, List.of(), 1, 1.0), tracked(1.0));
+
+        StoredSample stored = SampleRecord.parse(
+            toMap(SampleRecord.document(JsonXContent.contentBuilder(), "s1", sampled, 5L)),
+            xContentRegistry()
+        );
+
+        assertNull(stored.stratum());
+        assertNull(stored.hardness());
     }
 
     @SuppressWarnings("unchecked") // as above
@@ -110,7 +146,10 @@ public class SampleRecordTests extends ESTestCase {
 
     public void testEveryFieldOfADocumentIsInTheMappings() throws IOException {
         CapturedQuery query = new CapturedQuery(new String[] { "a" }, "vec", new float[] { 1f }, 10, 100, 0.5f, 3f, List.of(), "q");
-        SampledQuery sampled = new SampledQuery(FINGERPRINT, new CapturedSearch(query, List.of(), 1, 1.0), tracked(1.0));
+        TrackedQuery tracked = tracked(1.0);
+        tracked.stratum(new Stratum("vec/1", 3));
+        tracked.hardness(Hardness.HARD);
+        SampledQuery sampled = new SampledQuery(FINGERPRINT, new CapturedSearch(query, List.of(), 1, 1.0), tracked);
         sampled.attach(GroundTruth.KEY, new GroundTruth(List.of()));
 
         Map<String, Object> document = toMap(SampleRecord.document(JsonXContent.contentBuilder(), "s1", sampled, 5L));

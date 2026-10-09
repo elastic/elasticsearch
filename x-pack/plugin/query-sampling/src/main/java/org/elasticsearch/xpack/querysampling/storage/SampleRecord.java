@@ -20,13 +20,16 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
+import org.elasticsearch.xpack.querysampling.dedup.Hardness;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
+import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
@@ -68,6 +71,15 @@ public final class SampleRecord {
         builder.field("field", query.field());
         builder.field("k", query.k());
         weights(builder, sampled.tracked().weights());
+        Stratum stratum = sampled.tracked().stratum();
+        if (stratum != null) {
+            builder.field("spatial_space", stratum.space());
+            builder.field("spatial_cluster", stratum.cluster());
+        }
+        Hardness hardness = sampled.tracked().hardness();
+        if (hardness != null) {
+            builder.field("hardness", hardness.name().toLowerCase(Locale.ROOT));
+        }
         builder.field("picked_at", nowMillis);
         builder.field("updated_at", nowMillis);
         builder.field("has_ground_truth", groundTruth != null);
@@ -182,6 +194,12 @@ public final class SampleRecord {
         GroundTruth groundTruth = source.get("ground_truth") == null
             ? null
             : new GroundTruth(hits(map(source.get("ground_truth")).get("neighbors")));
+        Stratum stratum = source.get("spatial_space") == null
+            ? null
+            : new Stratum((String) source.get("spatial_space"), ((Number) source.get("spatial_cluster")).intValue());
+        Hardness hardness = source.get("hardness") == null
+            ? null
+            : Hardness.valueOf(((String) source.get("hardness")).toUpperCase(Locale.ROOT));
         return new StoredSample(
             (String) source.get("sampler_id"),
             (String) source.get("fingerprint"),
@@ -189,7 +207,9 @@ public final class SampleRecord {
             weights,
             ((Number) source.get("picked_at")).longValue(),
             ((Number) source.get("updated_at")).longValue(),
-            groundTruth
+            groundTruth,
+            stratum,
+            hardness
         );
     }
 

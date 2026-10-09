@@ -232,7 +232,7 @@ public class RecallEstimatorTests extends ESTestCase {
         double seenProbability
     ) {
         TrackedQuery.Weights weights = new TrackedQuery.Weights(1, multiplicity, inclusionProbability, seenProbability, 1.0);
-        return new StoredSample("sampler", "fingerprint", search, weights, 0, 0, groundTruth);
+        return new StoredSample("sampler", "fingerprint", search, weights, 0, 0, groundTruth, null, null);
     }
 
     private static List<CapturedSearch.Hit> hits(List<String> ids) {

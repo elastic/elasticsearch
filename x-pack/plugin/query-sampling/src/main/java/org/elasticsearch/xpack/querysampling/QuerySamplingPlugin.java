@@ -42,7 +42,9 @@ import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruthWorker;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGroundTruthAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingRecallAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingStatsAction;
+import org.elasticsearch.xpack.querysampling.sampling.PickBudget;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
+import org.elasticsearch.xpack.querysampling.sampling.SpatialStrata;
 import org.elasticsearch.xpack.querysampling.storage.QuerySamplingIndex;
 import org.elasticsearch.xpack.querysampling.storage.SampleRetention;
 import org.elasticsearch.xpack.querysampling.storage.SampleWriter;
@@ -137,7 +139,13 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
             retention.start(services.threadPool(), services.threadPool().generic());
         }
         // the values below only stand until the settings are read
-        QuerySampler sampler = new QuerySampler(1.0, 100, Randomness.get());
+        QuerySampler sampler = new QuerySampler(
+            1.0,
+            100,
+            Randomness.get(),
+            new PickBudget(System::nanoTime),
+            new SpatialStrata(QuerySamplingSettings.SPATIAL_CLUSTERS.get(services.clusterService().getSettings()))
+        );
         sampler.watch(clusterSettings);
         CostBudget budget = new CostBudget(0.0, MAX_EXACT_SEARCH_CREDIT_MILLIS);
         budget.watch(clusterSettings);

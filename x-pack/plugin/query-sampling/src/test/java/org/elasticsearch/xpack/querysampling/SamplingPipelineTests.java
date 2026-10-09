@@ -12,7 +12,9 @@ import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
+import org.elasticsearch.xpack.querysampling.sampling.PickBudget;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
+import org.elasticsearch.xpack.querysampling.sampling.SpatialStrata;
 import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
 
 import java.util.ArrayList;
@@ -115,6 +117,18 @@ public class SamplingPipelineTests extends ESTestCase {
         pipeline.accept(new CapturedSearch(search(new float[] { 1f }).query(), List.of(), 0, 0.5));
 
         assertThat("a millisecond over a probability of one half", budget.credit(), closeTo(2.0, 1e-9));
+    }
+
+    public void testAQueryIsPutInTheVectorSpaceWhenItIsSeenForTheFirstTimeOnly() {
+        SpatialStrata spatial = new SpatialStrata(2);
+        QuerySampler sampler = new QuerySampler(1.0, 100, new Random(0L), new PickBudget(System::nanoTime), spatial);
+        SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of(sampled::add));
+
+        pipeline.accept(search(new float[] { 0f, 0f }));
+        pipeline.accept(search(new float[] { 0f, 0f }));
+        pipeline.accept(search(new float[] { 9f, 9f }));
+
+        assertThat("the repeat is not counted again", spatial.counts("vec/2"), equalTo(new long[] { 1, 1 }));
     }
 
     private SamplingPipeline pipeline(Random random) {

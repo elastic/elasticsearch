@@ -66,6 +66,9 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
         budget.earn(Math.max(1, captured.tookMillis()) / captured.captureRate());
         QueryFingerprint fingerprint = QueryFingerprint.of(captured.query());
         TrackedQuery tracked = tracker.record(fingerprint, captured.captureRate());
+        if (tracked != null && tracked.multiplicity() == 1) {
+            sampler.assignStratum(tracked, captured.query().field(), captured.query().queryVector());
+        }
         if (tracked != null && sampler.offer(tracked)) {
             picked.increment();
             SampledQuery sampled = new SampledQuery(fingerprint, captured, tracked);

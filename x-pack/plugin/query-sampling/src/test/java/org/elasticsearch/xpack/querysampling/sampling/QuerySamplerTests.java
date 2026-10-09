@@ -72,7 +72,8 @@ public class QuerySamplerTests extends ESTestCase {
                 QuerySamplingSettings.ACCEPTANCE_SCALE,
                 QuerySamplingSettings.HEAD_THRESHOLD,
                 QuerySamplingSettings.MAX_PICKS_PER_HOUR,
-                QuerySamplingSettings.TARGET_PICKS_PER_HOUR
+                QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
+                QuerySamplingSettings.SPATIAL_BALANCE
             )
         );
         QuerySampler sampler = new QuerySampler(1.0, 100, seededRandom());
@@ -136,7 +137,8 @@ public class QuerySamplerTests extends ESTestCase {
                 QuerySamplingSettings.ACCEPTANCE_SCALE,
                 QuerySamplingSettings.HEAD_THRESHOLD,
                 QuerySamplingSettings.MAX_PICKS_PER_HOUR,
-                QuerySamplingSettings.TARGET_PICKS_PER_HOUR
+                QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
+                QuerySamplingSettings.SPATIAL_BALANCE
             )
         );
         QuerySampler sampler = new QuerySampler(1.0, 1000, alwaysDrawing(0.0), budget);
@@ -157,7 +159,8 @@ public class QuerySamplerTests extends ESTestCase {
                 QuerySamplingSettings.ACCEPTANCE_SCALE,
                 QuerySamplingSettings.HEAD_THRESHOLD,
                 QuerySamplingSettings.MAX_PICKS_PER_HOUR,
-                QuerySamplingSettings.TARGET_PICKS_PER_HOUR
+                QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
+                QuerySamplingSettings.SPATIAL_BALANCE
             )
         );
         QuerySampler sampler = new QuerySampler(0.5, 1000, alwaysDrawing(0.0));
@@ -190,7 +193,8 @@ public class QuerySamplerTests extends ESTestCase {
                     QuerySamplingSettings.ACCEPTANCE_SCALE,
                     QuerySamplingSettings.HEAD_THRESHOLD,
                     QuerySamplingSettings.MAX_PICKS_PER_HOUR,
-                    QuerySamplingSettings.TARGET_PICKS_PER_HOUR
+                    QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
+                    QuerySamplingSettings.SPATIAL_BALANCE
                 )
             )
         );
@@ -201,6 +205,44 @@ public class QuerySamplerTests extends ESTestCase {
         sampler.regulate(30);
 
         assertThat("nothing was picked by chance, so the scale goes up", sampler.effectiveScale(), equalTo(2.0));
+    }
+
+    public void testQueriesOfSparseClustersAreFavouredWhenBalancing() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder()
+                .put(QuerySamplingSettings.SPATIAL_BALANCE.getKey(), 1.0)
+                .put(QuerySamplingSettings.ACCEPTANCE_SCALE.getKey(), 0.1) // small enough for no probability to be capped at one
+                .build(),
+            Set.of(
+                QuerySamplingSettings.ACCEPTANCE_SCALE,
+                QuerySamplingSettings.HEAD_THRESHOLD,
+                QuerySamplingSettings.MAX_PICKS_PER_HOUR,
+                QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
+                QuerySamplingSettings.SPATIAL_BALANCE
+            )
+        );
+        QuerySampler sampler = new QuerySampler(0.1, 1000, alwaysDrawing(0.999999), new PickBudget(System::nanoTime), new SpatialStrata(2));
+        sampler.watch(clusterSettings);
+        MultiplicityTracker tracker = new MultiplicityTracker(1000);
+        // a dense cluster of 9 queries and a sparse one of 1
+        TrackedQuery dense = tracker.record(new QueryFingerprint(0, 0));
+        sampler.assignStratum(dense, "vector", new float[] { 0, 0 }); // the first query of a space is a centroid
+        TrackedQuery sparse = tracker.record(new QueryFingerprint(100, 100));
+        sampler.assignStratum(sparse, "vector", new float[] { 10, 10 });
+        for (int i = 1; i < 9; i++) {
+            dense = tracker.record(new QueryFingerprint(i, i));
+            sampler.assignStratum(dense, "vector", new float[] { 0.01f * i, 0 });
+        }
+        assertThat("the others join the first", dense.stratum().cluster(), equalTo(0));
+        assertThat(sparse.stratum().cluster(), equalTo(1));
+
+        sampler.offer(dense);
+        sampler.offer(sparse);
+
+        double plain = sampler.acceptanceProbability(1);
+        assertThat(dense.inclusionProbability(), lessThan(plain));
+        assertThat("the factor is recorded in what the draw had", sparse.inclusionProbability(), greaterThan(plain));
+        assertThat(dense.inclusionProbability() / sparse.inclusionProbability(), lessThan(0.2));
     }
 
     public void testProbabilityIsCappedAtOne() {

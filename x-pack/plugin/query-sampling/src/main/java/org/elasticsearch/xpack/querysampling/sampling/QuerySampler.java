@@ -33,6 +33,9 @@ import java.util.concurrent.Executor;
  * expected number of accepted arrivals of a query depend on its estimated traffic only, not on what
  * fraction of it was captured.
  * <p>
+ * Queries of the sparse parts of the vector space are picked more often, and those of the dense parts less, see
+ * {@link SpatialStrata}.
+ * <p>
  * With a target for the pick rate, γ is multiplied with an adjustment that follows the traffic, see {@link ScaleRegulator}.
  */
 public final class QuerySampler {
@@ -41,6 +44,7 @@ public final class QuerySampler {
     private volatile long headThreshold;
     private final Random random;
     private final PickBudget budget;
+    private final SpatialStrata spatial;
     private final ScaleRegulator regulator = new ScaleRegulator();
 
     /**
@@ -55,6 +59,14 @@ public final class QuerySampler {
      * @param budget limits how many queries are picked, apart from the head queries
      */
     public QuerySampler(double scale, long headThreshold, Random random, PickBudget budget) {
+        this(scale, headThreshold, random, budget, new SpatialStrata(0));
+    }
+
+    /**
+     * @param spatial balances the picks over the vector space
+     */
+    public QuerySampler(double scale, long headThreshold, Random random, PickBudget budget, SpatialStrata spatial) {
+        this.spatial = spatial;
         this.scale = scale;
         this.headThreshold = headThreshold;
         this.random = random;
@@ -69,6 +81,7 @@ public final class QuerySampler {
         clusterSettings.initializeAndWatch(QuerySamplingSettings.HEAD_THRESHOLD, value -> this.headThreshold = value);
         clusterSettings.initializeAndWatch(QuerySamplingSettings.MAX_PICKS_PER_HOUR, budget::perHour);
         clusterSettings.initializeAndWatch(QuerySamplingSettings.TARGET_PICKS_PER_HOUR, regulator::targetPerHour);
+        spatial.watch(clusterSettings);
     }
 
     /**
@@ -118,6 +131,14 @@ public final class QuerySampler {
     }
 
     /**
+     * Puts a query that has just been seen for the first time in the part of the vector space it belongs to, which
+     * the sampler needs to balance the picks over the space.
+     */
+    public void assignStratum(TrackedQuery query, String field, float[] vector) {
+        query.stratum(spatial.assign(field, vector));
+    }
+
+    /**
      * Handles one arrival of a query, after it has been counted.
      *
      * @return whether the query was picked by this arrival, which happens at most once per query
@@ -126,6 +147,9 @@ public final class QuerySampler {
         double multiplicity = query.weightedMultiplicity();
         boolean head = multiplicity >= headThreshold;
         double probability = acceptanceProbability(multiplicity, query.lastArrivalWeight());
+        if (head == false) {
+            probability = Math.min(1.0, probability * spatial.factor(query.stratum()));
+        }
         if (head == false && budget.available() == false) {
             // the limit on the picks is reached: the query has no chance now, and that is what is recorded for it, as for
             // any other probability, which keeps the estimates right. The head queries are never held back

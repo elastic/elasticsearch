@@ -25,6 +25,8 @@ public class QuerySamplingSettingsTests extends ESTestCase {
         assertThat(QuerySamplingSettings.HEAD_THRESHOLD.get(Settings.EMPTY), equalTo(100L));
         assertThat("there is no limit unless one is set", QuerySamplingSettings.MAX_PICKS_PER_HOUR.get(Settings.EMPTY), equalTo(0L));
         assertThat("the scale is not steered unless asked", QuerySamplingSettings.TARGET_PICKS_PER_HOUR.get(Settings.EMPTY), equalTo(0L));
+        assertThat("the vector space is not divided unless asked", QuerySamplingSettings.SPATIAL_CLUSTERS.get(Settings.EMPTY), equalTo(0));
+        assertThat("and does not change the sample", QuerySamplingSettings.SPATIAL_BALANCE.get(Settings.EMPTY), equalTo(0.0));
         assertThat("the worker is off unless asked for", QuerySamplingSettings.SAMPLING_COST_RATIO.get(Settings.EMPTY), equalTo(0.0));
         assertThat(QuerySamplingSettings.MULTIPLICITY_WINDOW.get(Settings.EMPTY), equalTo(TimeValue.timeValueHours(1)));
     }
@@ -36,6 +38,7 @@ public class QuerySamplingSettingsTests extends ESTestCase {
             QuerySamplingSettings.SAMPLING_COST_RATIO,
             QuerySamplingSettings.MAX_PICKS_PER_HOUR,
             QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
+            QuerySamplingSettings.SPATIAL_BALANCE,
             QuerySamplingSettings.MULTIPLICITY_WINDOW }) {
             assertTrue(setting.getKey() + " is dynamic", setting.isDynamic());
         }
@@ -62,6 +65,9 @@ public class QuerySamplingSettingsTests extends ESTestCase {
         expectInvalid(QuerySamplingSettings.HEAD_THRESHOLD, "0");
         expectInvalid(QuerySamplingSettings.MAX_PICKS_PER_HOUR, "-1");
         expectInvalid(QuerySamplingSettings.TARGET_PICKS_PER_HOUR, "-1");
+        expectInvalid(QuerySamplingSettings.SPATIAL_CLUSTERS, "-1");
+        expectInvalid(QuerySamplingSettings.SPATIAL_CLUSTERS, "1025");
+        expectInvalid(QuerySamplingSettings.SPATIAL_BALANCE, "1.5");
         expectInvalid(QuerySamplingSettings.SAMPLING_COST_RATIO, "-0.1");
         expectInvalid(QuerySamplingSettings.SAMPLING_COST_RATIO, "1.5");
         expectInvalid(QuerySamplingSettings.MULTIPLICITY_WINDOW, "500ms");

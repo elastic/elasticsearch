@@ -116,6 +116,33 @@ public final class QuerySamplingSettings {
     );
 
     /**
+     * The number of clusters that the query vectors of a field are grouped in, to balance the sample over the vector
+     * space, see {@link #SPATIAL_BALANCE}. 0 does not group them. The clusters are made on every node, from the
+     * queries that it captures, and are lost when the node stops.
+     */
+    public static final Setting<Integer> SPATIAL_CLUSTERS = Setting.intSetting(
+        "xpack.query_sampling.spatial_clusters",
+        0,
+        0,
+        1024,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * How much the sample is balanced over the clusters of the vector space: 0 follows the traffic, so that the
+     * dense parts of the space have most of the queries, and 1 picks as many queries of each cluster. Between the
+     * two, it is a compromise. It has no effect without {@link #SPATIAL_CLUSTERS}.
+     */
+    public static final Setting<Double> SPATIAL_BALANCE = Setting.doubleSetting(
+        "xpack.query_sampling.spatial_balance",
+        0.0,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * γ, the scale of the probability with which a query is picked: how likely a query seen for the first time is
      * picked (about 0.69·γ), and how fast that falls as the query is searched more. A bigger value samples more
      * queries, and more of the popular ones.
@@ -164,6 +191,8 @@ public final class QuerySamplingSettings {
             SAMPLING_COST_RATIO,
             MAX_PICKS_PER_HOUR,
             TARGET_PICKS_PER_HOUR,
+            SPATIAL_CLUSTERS,
+            SPATIAL_BALANCE,
             ACCEPTANCE_SCALE,
             HEAD_THRESHOLD,
             MULTIPLICITY_WINDOW,

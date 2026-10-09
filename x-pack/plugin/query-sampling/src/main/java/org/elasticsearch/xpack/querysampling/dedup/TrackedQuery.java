@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.querysampling.dedup;
 
+import org.elasticsearch.core.Nullable;
+
 /**
  * What is known about one distinct query: how often it has been captured, whether it has been picked for
  * the sample and how likely that was.
@@ -22,6 +24,7 @@ public final class TrackedQuery {
     private double logUnseen;
     private double logSurvival;
     private boolean sampled;
+    private Stratum stratum;
 
     /**
      * @param weight how many arrivals of the query this captured one stands for: the inverse of the
@@ -107,6 +110,18 @@ public final class TrackedQuery {
 
     public synchronized Weights weights() {
         return new Weights(multiplicity, weightedMultiplicity, inclusionProbability(), seenProbability(), 1.0 / lastArrivalWeight);
+    }
+
+    /**
+     * The part of the vector space the query is in, null if it has not been put anywhere.
+     */
+    @Nullable
+    public synchronized Stratum stratum() {
+        return stratum;
+    }
+
+    public synchronized void stratum(@Nullable Stratum stratum) {
+        this.stratum = stratum;
     }
 
     public synchronized boolean isSampled() {

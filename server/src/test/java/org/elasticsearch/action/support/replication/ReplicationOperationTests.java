@@ -381,6 +381,72 @@ public class ReplicationOperationTests extends ESTestCase {
         }
     }
 
+    /**
+     * The master demotes a primary (NoLongerPrimaryShardException) while its node is closing, so the write executor that
+     * {@link ReplicationOperation} forks onto to fail the shard has already been shut down. The rejection is expected
+     * in that situation and must complete the operation with RetryOnPrimaryException rather than trip an assertion.
+     */
+    public void testNoLongerPrimaryWhileWriteExecutorShutDown() throws Exception {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+
+        final ClusterState initialState = stateWithActivePrimary(index, true, 1, 0);
+        final IndexMetadata indexMetadata = initialState.getMetadata().getProject().index(index);
+        final long primaryTerm = indexMetadata.primaryTerm(0);
+        final IndexShardRoutingTable indexShardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
+        final ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
+        final Set<String> trackedShards = new HashSet<>();
+        addTrackingInfo(indexShardRoutingTable, primaryShard, trackedShards, new HashSet<>());
+        final ReplicationGroup replicationGroup = new ReplicationGroup(
+            indexShardRoutingTable,
+            indexMetadata.inSyncAllocationIds(0),
+            trackedShards,
+            0
+        );
+
+        final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
+        final ShardRouting failedReplica = randomFrom(new ArrayList<>(expectedReplicas));
+        final Map<ShardRouting, Exception> expectedFailures = Map.of(failedReplica, new CorruptIndexException("simulated", (String) null));
+
+        final TestReplicaProxy replicasProxy = new TestReplicaProxy(expectedFailures) {
+            @Override
+            public void failShardIfNeeded(
+                ShardRouting replica,
+                long primaryTerm,
+                String message,
+                Exception exception,
+                ActionListener<Void> shardActionListener
+            ) {
+                assertThat(replica, equalTo(failedReplica));
+                shardActionListener.onFailure(new NoLongerPrimaryShardException(replica.shardId(), "the king is dead"));
+            }
+        };
+        final AtomicBoolean primaryFailed = new AtomicBoolean();
+        final TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup, threadPool) {
+            @Override
+            public void failShard(String message, Exception exception) {
+                primaryFailed.set(true);
+            }
+        };
+
+        // a real executor that is shut down rejects force-executed tasks with EsRejectedExecutionException#isExecutorShutdown
+        threadPool.executor(ThreadPool.Names.WRITE).shutdown();
+
+        final Request request = new Request(shardId);
+        final PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
+        new TestReplicationOperation(request, primary, listener, replicasProxy, primaryTerm).execute();
+
+        assertThat(
+            expectThrows(
+                ExecutionException.class,
+                ReplicationOperation.RetryOnPrimaryException.class,
+                () -> listener.get(10, TimeUnit.SECONDS)
+            ).getMessage(),
+            containsString("shutting down while failing replica shard")
+        );
+        assertFalse("primary cannot be failed once the executor is shut down", primaryFailed.get());
+    }
+
     public void testAddedReplicaAfterPrimaryOperation() throws Exception {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);

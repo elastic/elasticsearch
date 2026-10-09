@@ -362,7 +362,7 @@ public class PlannerUtils {
 
     /**
      * The slices the data-node plan reads from its indices, or none when its relations do not agree on them: the shards of
-     * a plan are resolved together.
+     * a plan are resolved together. Subqueries are not concerned: each one runs as a plan of its own, with its own slices.
      */
     public static SliceSelection sliceSelection(PhysicalPlan plan) {
         Set<SliceSelection> slices = new HashSet<>();

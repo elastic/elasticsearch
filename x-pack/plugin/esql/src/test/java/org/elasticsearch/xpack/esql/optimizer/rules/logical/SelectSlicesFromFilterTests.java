@@ -9,11 +9,15 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.SliceSelection;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -267,9 +271,35 @@ public class SelectSlicesFromFilterTests extends AbstractLogicalPlanOptimizerTes
             knnFilters("integer > 10 and (_slice == \"acme\" and keyword == \"a\") and knn(dense_vector, [0, 1, 2])"),
             containsInAnyOrder("integer > 10", "keyword == \"a\"")
         );
+        assertThat(knnFilters("(knn(dense_vector, [0, 1, 2]) or integer > 10) and _slice == \"acme\""), empty());
         // the selection of the source and the filter stay in the plan
         LogicalPlan plan = planTypes("from types metadata _slice | where knn(dense_vector, [0, 1, 2]) and _slice == \"acme\"");
         assertThat(slices(plan), contains(named("acme")));
+    }
+
+    /**
+     * A data node builds the filters of a knn function again when it optimizes the plan it receives. The conditions that
+     * select slices are only left out of them when the source carries those slices, which is when its field searches them.
+     */
+    public void testKnnFiltersOnDataNode() {
+        LogicalPlan plan = planTypes("""
+            from types metadata _slice
+            | where knn(dense_vector, [0, 1, 2]) and _slice == "acme" and integer > 10
+            """);
+        assertThat(knnFilters(localOptimize(plan)), contains("integer > 10"));
+
+        // a plan whose source carries no slices, as a node that does not select them sends it
+        LogicalPlan withoutSlices = plan.transformDown(EsRelation.class, relation -> relation.withSlices(NONE));
+        assertThat(knnFilters(localOptimize(withoutSlices)), containsInAnyOrder("_slice == \"acme\"", "integer > 10"));
+        assertThat(slices(localOptimize(withoutSlices)), contains(NONE));
+
+        LogicalPlan otherSlices = plan.transformDown(EsRelation.class, relation -> relation.withSlices(named("globex")));
+        assertThat(knnFilters(localOptimize(otherSlices)), containsInAnyOrder("_slice == \"acme\"", "integer > 10"));
+    }
+
+    private static LogicalPlan localOptimize(LogicalPlan plan) {
+        var context = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), EsqlTestUtils.TEST_SEARCH_STATS);
+        return new LocalLogicalPlanOptimizer(context).localOptimize(plan);
     }
 
     /**
@@ -287,7 +317,10 @@ public class SelectSlicesFromFilterTests extends AbstractLogicalPlanOptimizerTes
 
     /** The source text of the filters of the knn function of {@code FROM types METADATA _slice | WHERE <condition>}. */
     private List<String> knnFilters(String condition) {
-        LogicalPlan plan = planTypes("from types metadata _slice | where " + condition);
+        return knnFilters(planTypes("from types metadata _slice | where " + condition));
+    }
+
+    private static List<String> knnFilters(LogicalPlan plan) {
         List<Knn> knn = new ArrayList<>();
         plan.forEachExpressionDown(Knn.class, knn::add);
         assertThat(knn, hasSize(1));

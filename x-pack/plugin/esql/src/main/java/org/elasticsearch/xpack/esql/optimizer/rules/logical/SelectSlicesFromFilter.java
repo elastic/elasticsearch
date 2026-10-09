@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -22,7 +23,9 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.rule.Rule;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -34,18 +37,63 @@ import java.util.Set;
  * Slices are read from the conditions AND'd at the top level of the filter that have the form {@code _slice == <literal>}
  * or {@code _slice IN (<literals>)}, or are a disjunction of those. The rule runs once the filters have been pushed down, so
  * a filter that cannot reach the relation selects nothing.
+ * <p>
+ * A knn function searches the slices of its source, so the conditions that select them are removed from its filters. The
+ * data nodes build the filters of a knn function again when they optimize the plan, so the rule also runs there: it does not
+ * read the slices again, and only removes those conditions when they select the slices the source carries.
  */
-public final class SelectSlicesFromFilter extends OptimizerRules.OptimizerRule<Filter> {
+public final class SelectSlicesFromFilter extends OptimizerRules.OptimizerRule<Filter> implements OptimizerRules.LocalAware<Filter> {
+
+    /** Whether the slices are read from the filter, or only those already recorded on the source are trusted. */
+    private final boolean select;
+
+    public SelectSlicesFromFilter() {
+        this(true);
+    }
+
+    private SelectSlicesFromFilter(boolean select) {
+        this.select = select;
+    }
+
+    @Override
+    public Rule<Filter, LogicalPlan> local() {
+        return new SelectSlicesFromFilter(false);
+    }
 
     @Override
     protected LogicalPlan rule(Filter filter) {
         if (filter.child() instanceof EsRelation relation && relation.indexMode() != IndexMode.LOOKUP) {
             SliceSelection slices = selectedSlices(filter.condition());
-            if (slices.isRestricted() && slices.equals(relation.slices()) == false) {
-                return filter.replaceChild(relation.withSlices(slices));
+            if (slices.isRestricted() == false || (select == false && slices.equals(relation.slices()) == false)) {
+                return filter;
+            }
+            EsRelation source = slices.equals(relation.slices()) ? relation : relation.withSlices(slices);
+            Expression condition = removeFromKnnFilters(filter.condition());
+            if (source != relation || condition != filter.condition()) {
+                return new Filter(filter.source(), source, condition);
             }
         }
         return filter;
+    }
+
+    /**
+     * Removes the conditions that select the slices of the source from the filters of the knn functions of the condition.
+     */
+    private static Expression removeFromKnnFilters(Expression condition) {
+        List<Expression> selecting = Predicates.splitAnd(condition).stream().filter(c -> slicesOf(c) != null).toList();
+        return condition.transformDown(Knn.class, knn -> {
+            List<Expression> filters = new ArrayList<>(knn.filterExpressions().size());
+            for (Expression filter : knn.filterExpressions()) {
+                List<Expression> conjuncts = Predicates.splitAnd(filter);
+                List<Expression> remaining = conjuncts.stream().filter(c -> selecting.contains(c) == false).toList();
+                if (remaining.size() == conjuncts.size()) {
+                    filters.add(filter);
+                } else if (remaining.isEmpty() == false) {
+                    filters.add(Predicates.combineAnd(remaining));
+                }
+            }
+            return filters.equals(knn.filterExpressions()) ? knn : knn.withFilters(filters);
+        });
     }
 
     /**
@@ -70,13 +118,6 @@ public final class SelectSlicesFromFilter extends OptimizerRules.OptimizerRule<F
             }
         }
         return selected == null ? SliceSelection.UNSPECIFIED : SliceSelection.of(List.copyOf(selected));
-    }
-
-    /**
-     * Whether an expression is a condition that names slices, of one of the recognised forms.
-     */
-    public static boolean selectsSlices(Expression expression) {
-        return slicesOf(expression) != null;
     }
 
     /**
@@ -132,6 +173,7 @@ public final class SelectSlicesFromFilter extends OptimizerRules.OptimizerRule<F
             && literal.value() != null
             && literal.value() instanceof List<?> == false) {
             String slice = BytesRefs.toString(literal.value());
+            // a valid slice name holds no whitespace, so it is the name SliceSelection keeps once it has trimmed it
             try {
                 SliceIndexing.validateUserSliceValue(slice);
             } catch (IllegalArgumentException e) {

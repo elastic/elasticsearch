@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThan;
@@ -160,7 +161,9 @@ public class SliceSelectionIT extends ESRestTestCase {
         for (String query : List.of(
             FROM_SINGLE + "| WHERE " + knn + " AND _slice == \"far\" | KEEP _slice, name | LIMIT 10",
             FROM_SINGLE + "| WHERE _slice == \"far\" | WHERE " + knn + " | KEEP _slice, name | LIMIT 10",
-            FROM_SINGLE + "| WHERE " + knn + " | WHERE _slice == \"far\" | KEEP _slice, name | LIMIT 10"
+            FROM_SINGLE + "| WHERE " + knn + " | WHERE _slice == \"far\" | KEEP _slice, name | LIMIT 10",
+            FROM_SINGLE + "| EVAL tenant = _slice | WHERE " + knn + " AND tenant == \"far\" | KEEP _slice, name | LIMIT 10",
+            FROM_SINGLE + "| RENAME _slice AS tenant | WHERE " + knn + " AND tenant == \"far\" | KEEP tenant, name | LIMIT 10"
         )) {
             List<String> far = slices(query);
             assertThat(query, far.size(), greaterThanOrEqualTo(2));
@@ -287,6 +290,21 @@ public class SliceSelectionIT extends ESRestTestCase {
             count("FROM (" + FROM + "| WHERE _slice == \"far\"), (" + FROM_SINGLE + "| WHERE _slice == \"other\") | STATS c = COUNT(*)"),
             equalTo(FAR_DOCS + OTHER_DOCS)
         );
+        // each subquery searches the nearest neighbours of its own slices
+        String knn = "KNN(vector, " + queryVector() + ", {\"k\": 2})";
+        List<String> neighbours = slices(
+            "FROM ("
+                + FROM_SINGLE
+                + "| WHERE "
+                + knn
+                + " AND _slice == \"far\"), ("
+                + FROM
+                + "| WHERE "
+                + knn
+                + " AND _slice == \"other\") | KEEP _slice | LIMIT 100"
+        );
+        assertThat(neighbours, hasItems("far", "other"));
+        assertThat(neighbours, everyItem(in(List.of("far", "other"))));
         // a filter over the subqueries applies to the rows of all of them
         assertThat(
             count("FROM (" + FROM + "), (" + FROM_SINGLE + "| WHERE position >= 1) | WHERE _slice == \"far\" | STATS c = COUNT(*)"),

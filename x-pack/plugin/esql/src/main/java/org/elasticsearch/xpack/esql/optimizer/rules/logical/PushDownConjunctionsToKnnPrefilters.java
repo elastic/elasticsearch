@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
-import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -32,7 +31,7 @@ public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.Optimize
     protected LogicalPlan rule(Filter filter) {
         Stack<Expression> filters = new Stack<>();
         Expression condition = filter.condition();
-        Expression newCondition = pushConjunctionsToKnn(condition, filters, null, true);
+        Expression newCondition = pushConjunctionsToKnn(condition, filters, null);
 
         return condition.equals(newCondition) ? filter : filter.with(newCondition);
     }
@@ -44,23 +43,17 @@ public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.Optimize
      * @param expression expression to process recursively
      * @param filters current filters to apply to the expression. They contain expressions on the other side of the traversed conjunctions
      * @param addedFilter a new filter to add to the list of filters for the processing
-     * @param topLevel whether the expression is AND'd at the top level of the filter condition
      * @return the updated expression, or the original expression if it doesn't need to be updated
      */
-    private static Expression pushConjunctionsToKnn(
-        Expression expression,
-        Stack<Expression> filters,
-        Expression addedFilter,
-        boolean topLevel
-    ) {
+    private static Expression pushConjunctionsToKnn(Expression expression, Stack<Expression> filters, Expression addedFilter) {
         if (addedFilter != null) {
             filters.push(addedFilter);
         }
         Expression result = switch (expression) {
             case And and:
                 // Traverse both sides of the And, using the other side as the added filter
-                Expression newLeft = pushConjunctionsToKnn(and.left(), filters, and.right(), topLevel);
-                Expression newRight = pushConjunctionsToKnn(and.right(), filters, and.left(), topLevel);
+                Expression newLeft = pushConjunctionsToKnn(and.left(), filters, and.right());
+                Expression newRight = pushConjunctionsToKnn(and.right(), filters, and.left());
                 if (newLeft.equals(and.left()) && newRight.equals(and.right())) {
                     yield and;
                 }
@@ -69,8 +62,6 @@ public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.Optimize
                 // We don't want knn expressions to have other knn expressions as a prefilter to avoid circular dependencies
                 List<Expression> newFilters = filters.stream()
                     .map(PushDownConjunctionsToKnnPrefilters::removeKnn)
-                    .filter(Objects::nonNull)
-                    .map(f -> topLevel ? removeSliceSelection(f) : f)
                     .filter(Objects::nonNull)
                     .toList();
                 if (newFilters.equals(knn.filterExpressions())) {
@@ -86,7 +77,7 @@ public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.Optimize
 
                 for (int i = 0, s = children.size(); i < s; i++) {
                     Expression child = children.get(i);
-                    Expression next = pushConjunctionsToKnn(child, filters, null, false);
+                    Expression next = pushConjunctionsToKnn(child, filters, null);
                     if (child.equals(next) == false) {
                         // lazy copy + replacement in place
                         if (childrenChanged == false) {
@@ -105,21 +96,6 @@ public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.Optimize
         }
 
         return result;
-    }
-
-    /**
-     * Removes the conditions that select the slices of the source from a filter of a knn function: the function already
-     * searches the slices of its source.
-     *
-     * @return the filter without those conditions, or null if nothing else is left
-     */
-    private static Expression removeSliceSelection(Expression filter) {
-        List<Expression> conjuncts = Predicates.splitAnd(filter);
-        List<Expression> remaining = conjuncts.stream().filter(c -> SelectSlicesFromFilter.selectsSlices(c) == false).toList();
-        if (remaining.size() == conjuncts.size()) {
-            return filter;
-        }
-        return remaining.isEmpty() ? null : Predicates.combineAnd(remaining);
     }
 
     /**

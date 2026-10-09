@@ -129,7 +129,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         substitutions(),
         operators(),
         // After operators() has pushed the filters down to the relations, and before the relations are wrapped below.
-        new Batch<>("Select Slices", Limiter.ONCE, new SelectSlicesFromFilter()),
+        selectSlices(),
         // After operators() has converged, so the UnionAll pushdowns gated on PushDownUtils.isLeafUnionAll
         // see the plain relation shape. This rule replaces a relation with Project > Eval > relation, and
         // that Eval stops the gate matching, which would switch those pushdowns off for the rest of a batch.
@@ -212,6 +212,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
             new SubstituteApproximationPlan()
         );
+    }
+
+    protected static Batch<LogicalPlan> selectSlices() {
+        return new Batch<>("Select Slices", Limiter.ONCE, new SelectSlicesFromFilter());
     }
 
     protected static Batch<LogicalPlan> operators() {

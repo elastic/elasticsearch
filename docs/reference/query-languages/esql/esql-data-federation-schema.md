@@ -32,7 +32,20 @@ The following table shows where each [supported file format](esql-data-federatio
 
 Parquet metadata can also contain column statistics and bloom filters that let queries skip irrelevant data. For text formats, use `schema_sample_size` for [CSV and TSV](esql-data-federation-dataset-settings.md#csv-schema-sample-size) or [NDJSON](esql-data-federation-dataset-settings.md#ndjson-schema-sample-size) to control how many rows or lines are sampled.
 
-{applies_to}`stack: experimental 9.6+` With the `union_by_name` and `strict` [strategies](#choose-a-schema-resolution-strategy), the files a query reads share that sample, so schema discovery reads less of each file as the number of files grows, down to `100` rows or lines from each. For a query over many files, the rows sampled in total are therefore `100` times the number of files rather than one sample. A column or type that first appears past a file's share isn't part of the inferred schema. With `strict`, a type difference that appears only there isn't detected during planning. The value is read with the inferred type, and the [`error_mode`](esql-data-federation-dataset-settings.md#error-mode) setting decides what happens if it doesn't fit.
+### How the sample is shared across files [shared-schema-sample]
+
+```{applies_to}
+stack: experimental 9.6+
+```
+
+With the `union_by_name` and `strict` [strategies](#choose-a-schema-resolution-strategy), every file a query reads is sampled, and the files split `schema_sample_size` between them. Each file gets `schema_sample_size` divided by the number of files, with that number rounded up to a power of two, and never fewer than `100` rows or lines unless `schema_sample_size` is lower.
+
+For example, with the default CSV `schema_sample_size` of `40000`:
+
+- A query over 3 files samples `10000` rows from each.
+- A query over 3000 files samples `100` rows from each, `300000` rows in total.
+
+A file's share is the rows or lines sampled from it. A column that first appears after those rows isn't part of the inferred schema, and neither is a type change in an existing column. With `strict`, this means a type difference after the sampled rows isn't caught when the query is planned. The value is read as the inferred type instead, and if it can't be converted, [`error_mode`](esql-data-federation-dataset-settings.md#error-mode) decides whether the query fails, the row is skipped, or the value becomes null.
 
 ## Choose a schema resolution strategy
 

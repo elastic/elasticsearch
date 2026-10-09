@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.engine.translog;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -45,6 +46,7 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -111,6 +113,25 @@ public class TranslogReplicatorTests extends ESTestCase {
             .put(TranslogReplicator.FLUSH_RETRY_INITIAL_DELAY_SETTING.getKey(), TimeValue.timeValueMillis(randomLongBetween(10, 20)))
             .put(TranslogReplicator.FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(randomLongBetween(50, 75)))
             .build();
+    }
+
+    public void testSlowRecoveryWarningWithNoBlobs() throws Exception {
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        when(blobContainer.listBlobs(OperationPurpose.TRANSLOG)).thenReturn(Map.of());
+        var reader = new TranslogReplicatorReader(blobContainer, new ShardId(new Index("name", "uuid"), 0));
+
+        try (var mockLog = MockLog.capture(TranslogReplicatorReader.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "slow recovery warning with no blobs",
+                    TranslogReplicatorReader.class.getCanonicalName(),
+                    Level.WARN,
+                    "*slow stateless translog recovery*blobsToRead_count=0, blobsToRead_first=N/A, blobsToRead_last=N/A*"
+                )
+            );
+            reader.close(TimeValue.timeValueSeconds(60));
+            mockLog.awaitAllExpectationsMatched();
+        }
     }
 
     public void testTranslogBytesAreSyncedPeriodically() throws IOException {

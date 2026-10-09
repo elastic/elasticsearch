@@ -123,9 +123,6 @@ tests:
 - class: org.elasticsearch.xpack.eql.qa.ccs_rolling_upgrade.EqlCcsRollingUpgradeIT
   method: testSequences
   issue: https://github.com/elastic/elasticsearch/issues/150762
-- class: org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContextTests
-  method: testNullClusterUuidDoesNotNpe
-  issue: https://github.com/elastic/elasticsearch/issues/150887
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
   method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
   issue: https://github.com/elastic/elasticsearch/issues/151402
@@ -470,12 +467,6 @@ tests:
 - class: org.elasticsearch.xpack.prometheus.PrometheusQueryRangeRestIT
   method: testRangeExplicitOnMatchesRetainedMetricNames
   issue: https://github.com/elastic/elasticsearch/issues/159798
-- class: org.elasticsearch.xpack.esql.action.HeterogeneousRelationClassIT
-  method: testGroupingOnClassSeparatesTheBranches
-  issue: https://github.com/elastic/elasticsearch/issues/159800
-- class: org.elasticsearch.xpack.esql.action.HeterogeneousRelationClassIT
-  method: testWildcardMatchingBothAnswersPerLeaf
-  issue: https://github.com/elastic/elasticsearch/issues/159801
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:prometheus-k8s-increase.increase_of_double_no_grouping_promql}
   issue: https://github.com/elastic/elasticsearch/issues/159814

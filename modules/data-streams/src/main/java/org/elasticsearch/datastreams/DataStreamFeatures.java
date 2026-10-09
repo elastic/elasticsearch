@@ -39,11 +39,13 @@ public class DataStreamFeatures implements FeatureSpecification {
 
     public static final NodeFeature LOGS_STREAM_FEATURE = new NodeFeature("logs_stream");
 
+    public static final NodeFeature GET_DATA_STREAMS_INDEX_MODE_FIX = new NodeFeature("data_stream.get_data_streams.index_mode_fix");
+
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.of(DATA_STREAM_LIFECYCLE, Version.V_8_11_0);
     }
-
+    
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
@@ -61,7 +63,8 @@ public class DataStreamFeatures implements FeatureSpecification {
             DATA_STREAM_FAILURE_STORE_TSDB_FIX,
             DOWNSAMPLE_AGGREGATE_DEFAULT_METRIC_FIX,
             LOGS_STREAM_FEATURE,
-            DOWNSAMPLE_MULTI_VALUE_DIMENSIONS
+            DOWNSAMPLE_MULTI_VALUE_DIMENSIONS,
+            GET_DATA_STREAMS_INDEX_MODE_FIX
         );
     }
 }

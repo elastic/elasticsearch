@@ -260,25 +260,6 @@ public class DefinitionVersionTests extends ESTestCase {
     }
 
     /**
-     * A setting value cannot forge a field boundary. The pair below collides under an unprefixed
-     * {@code name=value\0} encoding: one setting whose value embeds a separator and a name is
-     * indistinguishable from two settings.
-     */
-    public void testASettingValueCannotForgeAFieldBoundary() {
-        DataSource src = source(Map.of("endpoint", "https://s3.example"));
-        Map<String, Object> twoSettings = new LinkedHashMap<>();
-        twoSettings.put("a", "1");
-        twoSettings.put("b", "2");
-        Map<String, Object> oneForgedSetting = Map.of("a", "1\u0000b=2");
-
-        assertNotEquals(
-            "a value that embeds a separator must not encode as two settings",
-            DefinitionVersion.of(dataset("s3://b/*.csv", twoSettings), src),
-            DefinitionVersion.of(dataset("s3://b/*.csv", oneForgedSetting), src)
-        );
-    }
-
-    /**
      * A mapping decides how bytes become rows, not which bytes a query can reach, so it is not part of
      * this identity. A dataset declaring exactly what inference already produces describes the same read
      * and must keep sharing the entries of its undeclared twin — otherwise every mapped dataset pays a
@@ -498,75 +479,42 @@ public class DefinitionVersionTests extends ESTestCase {
         );
     }
 
-    /**
-     * A declared column name is user-controlled text in a VALUE slot, and two different defences stand between it
-     * and a forged field boundary. Each forgery below is constructed against a specific one, because a string that
-     * collides under one encoder is inert under the other - a guessed string is inert under both and the case then
-     * proves nothing.
-     * <p>
-     * Both impersonate a two-column declaration with a one-column one whose single name swallows the rest of the
-     * first column and the next column's marker. The first collides when the {@code col} tag and the name are
-     * written without going through {@link DefinitionVersion#append}; the second when {@code append} keeps its
-     * name prefix but drops the VALUE prefix. Removing either defence makes the matching assertion fail.
-     */
-    public void testADeclaredColumnNameCannotForgeAFieldBoundary() {
-        DataSource src = source(Map.of("endpoint", "https://s3.example"));
-        Map<String, DatasetFieldMapping> twoColumns = new LinkedHashMap<>();
-        twoColumns.put("age", new DatasetFieldMapping("keyword", null));
-        twoColumns.put("zz", new DatasetFieldMapping("long", null));
-        String real = DefinitionVersion.ofDataset(mapped(declaring(DatasetMapping.Dynamic.TRUE, twoColumns)), src);
-
-        // What an unprefixed tag+name would emit for the first column's tail and the second column's marker.
-        String forgedAgainstTheTag = "age" + "1:t7:keyword" + "1:p-1:" + "1:f-1:" + "col" + "zz";
-        assertNotEquals(
-            "a column name must not forge a boundary when the tag and name are written without append",
-            real,
-            DefinitionVersion.ofDataset(
-                mapped(declaring(DatasetMapping.Dynamic.TRUE, Map.of(forgedAgainstTheTag, new DatasetFieldMapping("long", null)))),
-                src
-            )
-        );
-
-        // And what a name-prefixed-but-value-unprefixed encoder would emit for the same span.
-        String forgedAgainstTheValuePrefix = "age1:tkeyword1:p-1:1:f-1:3:colzz";
-        assertNotEquals(
-            "a column name must not forge a boundary when append drops its value length prefix",
-            real,
-            DefinitionVersion.ofDataset(
-                mapped(declaring(DatasetMapping.Dynamic.TRUE, Map.of(forgedAgainstTheValuePrefix, new DatasetFieldMapping("long", null)))),
-                src
-            )
-        );
-    }
-
-    /**
-     * The two settings blocks are separated only by the fixed {@code ("type", …)} pair, so a key named
-     * {@code type} could otherwise bridge them: a dataset with no settings over an {@code s3} source encodes
-     * like a dataset whose settings are {@code {"type":"s3"}} over a source of another type. Count-prefixing each
-     * block is what makes it self-delimiting. No registered key is named {@code type} today, which made this
-     * unreachable rather than safe - and nothing enforces that it stays unreachable.
-     */
-    public void testASettingKeyCannotBridgeTheTwoSettingsBlocks() {
-        // No dataset settings, source type s3, and the source carrying type=gcs ...
-        Dataset bare = dataset("s3://b/*.csv", Map.of());
-        DataSource s3WithGcsSetting = new DataSource("src", "s3", null, Map.of("type", new DataSourceSetting("gcs", false)));
-        // ... encodes, unseparated, exactly like type=s3 in the DATASET's settings over a gcs source.
-        Dataset carriesType = dataset("s3://b/*.csv", Map.of("type", "s3"));
-        DataSource gcsBare = new DataSource("src", "gcs", null, Map.<String, DataSourceSetting>of());
-
-        assertNotEquals(
-            "a setting named like the fixed field between the two blocks must not merge them",
-            DefinitionVersion.ofDataset(bare, s3WithGcsSetting),
-            DefinitionVersion.ofDataset(carriesType, gcsBare)
-        );
-    }
-
     public void testTheDatasetVersionIsFixedWidth() {
         DataSource src = source(Map.of("endpoint", "https://s3.example"));
         for (int i = 0; i < 64; i++) {
             String version = DefinitionVersion.ofDataset(dataset("s3://b/" + i + "/*.csv", Map.of("format", "csv")), src);
             assertEquals("a version that varied in width could be a prefix of another: " + version, 32, version.length());
         }
+    }
+
+    /**
+     * The memo must never answer for a definition it was not computed from. The dangerous direction is a stale
+     * HIT: an edited dataset served the previous definition's version would keep reading the previous
+     * definition's cached facts, which is the whole failure this class exists to prevent.
+     * <p>
+     * A fresh instance equal in content is the case that proves identity is the key rather than equality - it
+     * misses and recomputes, and must still agree. The reverse (two different definitions sharing a version) is
+     * what every other case here rules out.
+     */
+    public void testTheMemoAnswersOnlyForTheDefinitionItWasComputedFrom() {
+        DataSource src = source(Map.of("endpoint", "https://s3.example"));
+        Map<String, Object> settings = Map.of("format", "csv");
+        Dataset first = dataset("s3://b/*.csv", settings);
+
+        String once = DefinitionVersion.ofDataset(first, src);
+        assertEquals("the same instance must answer identically", once, DefinitionVersion.ofDataset(first, src));
+
+        // A new instance, same content: identity misses, so this recomputes - and must agree.
+        Dataset equalButDistinct = dataset("s3://b/*.csv", settings);
+        assertNotSame("the fixture must hand over a distinct instance or it tests nothing", first, equalButDistinct);
+        assertEquals("a recomputation must agree with the memoized value", once, DefinitionVersion.ofDataset(equalButDistinct, src));
+
+        // An EDITED definition must not be served the previous version.
+        Dataset edited = dataset("s3://b/*.csv", Map.of("format", "csv", "error_mode", "skip_row"));
+        assertNotEquals("an edited definition must not be served the memoized version", once, DefinitionVersion.ofDataset(edited, src));
+
+        // And the two tiers must not answer for each other, which one shared memo could otherwise let happen.
+        assertNotEquals("the file tier and the dataset tier are different values", once, DefinitionVersion.of(first, src));
     }
 
     /**

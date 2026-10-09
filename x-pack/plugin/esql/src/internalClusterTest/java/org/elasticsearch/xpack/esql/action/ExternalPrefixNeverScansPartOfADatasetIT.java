@@ -26,7 +26,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
@@ -107,28 +106,24 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
     }
 
     /**
-     * A {@code first_file_wins} dataset's columns do not depend on the query's filter.
+     * A {@code first_file_wins} filter moves the schema pin to the first matching file in listing
+     * order. On S3 that LIST is lexicographic by key; this test uses a local filesystem, whose
+     * listing order is the provider's, so it asserts the matching partition's extra column rather
+     * than comparing an unfiltered query (whose first file is whichever key the local store listed).
      * <p>
-     * The mode answers the schema from one file, and which file is the dataset's business: the front of
-     * resolution's listing, with the query's partition-filter hints withheld from it
-     * ({@code ExternalSourceResolver#listAndRecord}). So a filter that selects a later partition does not move the
-     * schema to that partition's file. Where the files disagree about their columns that is visible — a column only
-     * the selected partition carries is absent — and it is the intended trade: the alternative is a dataset whose
-     * column set changes with the {@code WHERE} clause, so two queries differing only in their filter disagree
-     * about what the dataset is.
+     * Resolution hands partition-filter hints to listing, so {@code WHERE year == 2024} keeps that
+     * folder's file and pins schema there. A column that exists only in that partition is therefore
+     * visible to the filtered query.
      * <p>
-     * A cluster test because the unit doubles cannot reach it. Hint pruning runs in {@code GlobExpander}'s
-     * directory walk, which needs {@code listChildren}, and the stubs in {@code ExternalSourceResolverTests}
-     * return {@code null} for it — so a unit test of this passes whether the hints are withheld or not. Removing
-     * the withholding makes the second assertion below fail.
+     * A cluster test because hint pruning runs in {@code GlobExpander}'s directory walk, which needs
+     * {@code listChildren}; the stubs in {@code ExternalSourceResolverTests} return {@code null} for it.
      */
-    public void testADatasetsColumnsDoNotDependOnTheQuerysFilter() throws Exception {
+    public void testAFilterMovesTheFfwSchemaAnchorToTheMatchingPartition() throws Exception {
         Path dir = createTempDir();
         Path earliest = dir.resolve("year=2019");
         Path selected = dir.resolve("year=2024");
         Files.createDirectories(earliest);
         Files.createDirectories(selected);
-        // The dataset's first key carries only id. The partition the filter selects carries a column it does not.
         writeParquet(earliest.resolve("part-000.parquet"), "message test { required int64 id; }", 5, 5, (g, i) -> g.add("id", (long) i));
         writeParquet(
             selected.resolve("part-000.parquet"),
@@ -148,31 +143,14 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
         settings.put("partition_sample_size", 1);
         String dataset = registerLocalFileDataset("filtered_anchor_ds", dir.toUri() + "**/*.parquet", settings);
 
-        // The dataset's own columns, with no filter to influence them.
-        List<String> unfiltered;
-        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | LIMIT 10"))) {
-            unfiltered = response.columns().stream().map(c -> c.name()).toList();
-        }
-        // The same dataset, filtered to the partition whose file carries a column the other does not.
         List<String> filtered;
         try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE year == 2024 | LIMIT 10"))) {
             filtered = response.columns().stream().map(c -> c.name()).toList();
         }
-        logger.info("SCHEMA unfiltered={} filtered={}", unfiltered, filtered);
+        logger.info("SCHEMA filtered={}", filtered);
 
-        // The invariant, and the only thing asserted: the filter does not change what the dataset's columns are.
-        // Which of the two files defines them is the dataset's business and is not asserted — under the default
-        // file order (FileOrderConfig.DEFAULT is SortBy.LIST, whose apply() is a no-op) it is whichever key the
-        // provider listed first, which a local filesystem does not promise to keep stable. Asserting a column list
-        // here would pin that order and make this test flaky; asserting the two agree does not.
-        assertThat(
-            "a dataset's column set must not depend on the query's filter: keeping the filter on the schema's "
-                + "listing would make these two disagree, so the same dataset would answer differently to two "
-                + "queries that differ only in their WHERE clause",
-            filtered,
-            equalTo(unfiltered)
-        );
-        assertThat("and the rows the filter selects still come back", unfiltered, hasItem("id"));
+        assertThat("the matching partition's extra column is on the FFW schema", filtered, hasItem("added_in_2023"));
+        assertThat(filtered, hasItem("id"));
     }
 
     public void testEveryFileIsReadWhenTheSchemaListingWasAPrefixOfAPartitionedDataset() throws Exception {
@@ -268,16 +246,16 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
     }
 
     /**
-     * A text format, where a file's columns come from reading it rather than from a footer, and where the read is
-     * positional. One file defines the dataset's columns; the eleven past it carry a fourth column it does not have,
-     * and a row that does not fit the dataset's schema is a row error.
+     * A text format, where a file's columns come from reading it rather than from a footer. One file defines the
+     * dataset's columns; the eleven past it carry a fourth column it does not have. Every file binds to the dataset's
+     * columns by its own header, so a file of another width reads every row: the extra column is ignored, and a column
+     * a file lacks reads null.
      * <p>
      * {@code partition_sample_size} is 1 so the prefix is a single file, which is what makes this deterministic
      * without naming a file order — naming one declines the bound. Whichever file the provider lists first, the
-     * other width does not fit it, so the error is raised either way; and answered from that one file alone there is
-     * nothing to disagree with it and no error at all, which is what fails when the seam is reverted.
+     * columns it defines are the ones read from every file, and the columns this query keeps are in all of them.
      */
-    public void testATextFilePastThePrefixIsReadUnderTheAnchorsColumns() throws Exception {
+    public void testATextFileOfAnotherWidthPastThePrefixReadsEveryRowByItsOwnHeader() throws Exception {
         Path dir = createTempDir();
         int files = 12;
         int rowsPerFile = 10;
@@ -297,24 +275,14 @@ public class ExternalPrefixNeverScansPartOfADatasetIT extends AbstractExternalDa
         settings.put("partition_sample_size", 1);
         String dataset = registerLocalFileDataset("prefix_csv_ds", dir.toUri() + "*.csv", settings);
 
-        Exception e = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP id, value | LIMIT " + files * rowsPerFile)).close()
-        );
-        assertThat(
-            "a file past the prefix is read under the dataset's columns, so a row of another width is an error",
-            e.getMessage() + causeChain(e),
-            containsString("columns, the schema has")
-        );
-    }
-
-    /** Flattens an exception's causes so an assertion can match a message the transport wrapped. */
-    private static String causeChain(Throwable t) {
-        StringBuilder sb = new StringBuilder();
-        for (Throwable c = t.getCause(); c != null; c = c.getCause()) {
-            sb.append(' ').append(c.getMessage());
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP id, value | LIMIT " + files * rowsPerFile))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("every file is read, whatever its width", rows.size(), equalTo(files * rowsPerFile));
+            for (List<Object> row : rows) {
+                long id = ((Number) row.get(0)).longValue();
+                assertThat("each row's value belongs to its own id", ((Number) row.get(1)).longValue(), equalTo(id * 10));
+            }
         }
-        return sb.toString();
     }
 
     /**

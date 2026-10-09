@@ -209,6 +209,8 @@ rules:
     exclude:
       - ">non-issue"
       - ">test"
+      - ">test-failure"
+      - ">test-mute"
       - ">refactoring"
       - ":Delivery/Build"
       - ":Delivery/Tooling"

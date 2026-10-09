@@ -446,9 +446,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         int affectedDataStreams = 0;
         final Set<Index> indicesForFrozenConversion = new HashSet<>();
         Set<Index> activelyDownsampled = downsamplingOperations.getActivelyDownsampledIndexNames(project);
-        clearErrorStoreForUnmanagedIndices(project);
+        boolean minimumLifecycleEnabled = dataStreamLifecycleSettings.minimumLifecycleEnabled();
+        clearErrorStoreForUnmanagedIndices(project, minimumLifecycleEnabled);
         for (DataStream dataStream : project.dataStreams().values()) {
-            var dataLifecycleEnabled = dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled();
+            DataStreamLifecycle effectiveLifecycle = dataStream.getEffectiveDataLifecycle(minimumLifecycleEnabled);
+            var dataLifecycleEnabled = effectiveLifecycle != null && effectiveLifecycle.enabled();
             var failureLifecycle = dataStream.getFailuresLifecycle();
             var failuresLifecycleEnabled = failureLifecycle != null && failureLifecycle.enabled();
             if (dataLifecycleEnabled == false && failuresLifecycleEnabled == false) {
@@ -456,7 +458,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
 
             // Retrieve the effective retention to ensure the same retention is used for this data stream
-            // through all operations.
+            // through all operations. Effective retention is calculated based on the configured lifecycle,
+            // so no need to pass the flag.
             var dataRetention = getEffectiveRetention(dataStream, dataStreamLifecycleSettings, false);
             var failuresRetention = getEffectiveRetention(dataStream, dataStreamLifecycleSettings, true);
 
@@ -480,9 +483,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             // Note: rollover is applied on data stream level, this is why we still need to check the index mode of the data stream
             // and skip it if the mode is lookup.
             if (dataStream.getIndexMode() != IndexMode.LOOKUP) {
-                indicesToExcludeForRemainingRun.add(maybeExecuteRollover(project, dataStream, dataRetention, false));
+                indicesToExcludeForRemainingRun.add(
+                    maybeExecuteRollover(project, dataStream, dataRetention, false, minimumLifecycleEnabled)
+                );
             }
-            Index failureStoreWriteIndex = maybeExecuteRollover(project, dataStream, failuresRetention, true);
+            Index failureStoreWriteIndex = maybeExecuteRollover(project, dataStream, failuresRetention, true, minimumLifecycleEnabled);
             if (failureStoreWriteIndex != null) {
                 indicesToExcludeForRemainingRun.add(failureStoreWriteIndex);
             }
@@ -492,7 +497,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             indicesToExcludeForRemainingRun.addAll(
                 timeSeriesIndicesStillWithinTimeBounds(
                     project,
-                    getTargetIndices(dataStream, indicesToExcludeForRemainingRun, project::index, false),
+                    getTargetIndicesIncludingDefaults(
+                        dataStream,
+                        indicesToExcludeForRemainingRun,
+                        project::index,
+                        false,
+                        minimumLifecycleEnabled
+                    ),
                     nowSupplier
                 )
             );
@@ -516,7 +527,16 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             try {
                 indicesToExcludeForRemainingRun.addAll(
-                    maybeExecuteForceMerge(project, getTargetIndices(dataStream, indicesToExcludeForRemainingRun, project::index, true))
+                    maybeExecuteForceMerge(
+                        project,
+                        getTargetIndicesIncludingDefaults(
+                            dataStream,
+                            indicesToExcludeForRemainingRun,
+                            project::index,
+                            true,
+                            minimumLifecycleEnabled
+                        )
+                    )
                 );
             } catch (Exception e) {
                 logger.warn(
@@ -530,7 +550,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
 
             int activeDownsamplingCount = 0;
-            if (dataLifecycleEnabled && dataStream.getDataLifecycle().downsamplingRounds() != null) {
+            if (dataLifecycleEnabled && effectiveLifecycle.downsamplingRounds() != null) {
                 Set<Index> indicesBeingDownsampled = Sets.intersection(new HashSet<>(dataStream.getIndices()), activelyDownsampled);
                 activeDownsamplingCount += indicesBeingDownsampled.size();
                 indicesToExcludeForRemainingRun.addAll(indicesBeingDownsampled);
@@ -1144,16 +1164,36 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         Function<String, IndexMetadata> indexMetadataSupplier,
         boolean withFailureStore
     ) {
+        return getTargetIndicesIncludingDefaults(
+            dataStream,
+            indicesToExcludeForRemainingRun,
+            indexMetadataSupplier,
+            withFailureStore,
+            false
+        );
+    }
+
+    /**
+     * Returns the data stream lifecycle managed indices that are not part of the set of indices to exclude.
+     */
+    // For testing
+    static List<Index> getTargetIndicesIncludingDefaults(
+        DataStream dataStream,
+        Set<Index> indicesToExcludeForRemainingRun,
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        boolean withFailureStore,
+        boolean minimumLifecycleEnabled
+    ) {
         List<Index> targetIndices = new ArrayList<>();
         for (Index index : dataStream.getIndices()) {
-            if (dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier)
+            if (dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier, minimumLifecycleEnabled)
                 && indicesToExcludeForRemainingRun.contains(index) == false) {
                 targetIndices.add(index);
             }
         }
         if (withFailureStore && dataStream.getFailureIndices().isEmpty() == false) {
             for (Index index : dataStream.getFailureIndices()) {
-                if (dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier)
+                if (dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier, minimumLifecycleEnabled)
                     && indicesToExcludeForRemainingRun.contains(index) == false) {
                     targetIndices.add(index);
                 }
@@ -1165,15 +1205,14 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private static boolean isLifecycleSkipped(ProjectMetadata project, Index index) {
         IndexMetadata indexMetadata = project.index(index);
         return indexMetadata != null
-            && (IndexMetadata.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())
-                || IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP);
+            && (IndexMetadata.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings()) || indexMetadata.getIndexMode() == IndexMode.LOOKUP);
     }
 
     /**
      * This clears the error store for the case where backing indices that were managed by data stream lifecycle, failed in their lifecycle
      * execution, and then they were not managed by the data stream lifecycle (maybe they were switched to ILM or deleted).
      */
-    private void clearErrorStoreForUnmanagedIndices(ProjectMetadata project) {
+    private void clearErrorStoreForUnmanagedIndices(ProjectMetadata project, boolean minimumLifecycleEnabled) {
         for (Index index : errorStore.getAllIndices(project.id())) {
             IndexMetadata indexMetadata = project.index(index);
             if (indexMetadata == null) {
@@ -1187,7 +1226,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 errorStore.clearRecordedError(project.id(), index);
                 continue;
             }
-            if (parentDataStream.isIndexManagedByDataStreamLifecycle(indexMetadata.getIndex(), project::index) == false) {
+            if (parentDataStream.isIndexManagedByDataStreamLifecycle(
+                indexMetadata.getIndex(),
+                project::index,
+                minimumLifecycleEnabled
+            ) == false) {
                 logger.trace("Clearing recorded error for index [{}] because the index is not managed by DSL anymore", index);
                 errorStore.clearRecordedError(project.id(), index);
             }
@@ -1199,7 +1242,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         ProjectMetadata project,
         DataStream dataStream,
         TimeValue effectiveRetention,
-        boolean rolloverFailureStore
+        boolean rolloverFailureStore,
+        boolean minimumLifecycleEnabled
     ) {
         Index currentRunWriteIndex = rolloverFailureStore ? dataStream.getWriteFailureIndex() : dataStream.getWriteIndex();
         if (currentRunWriteIndex == null) {
@@ -1207,7 +1251,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
         try {
             if (isLifecycleSkipped(project, currentRunWriteIndex) == false
-                && dataStream.isIndexManagedByDataStreamLifecycle(currentRunWriteIndex, project::index)) {
+                && dataStream.isIndexManagedByDataStreamLifecycle(currentRunWriteIndex, project::index, minimumLifecycleEnabled)) {
                 RolloverRequest rolloverRequest = getDefaultRolloverRequest(
                     rolloverConfiguration,
                     dataStream.getName(),

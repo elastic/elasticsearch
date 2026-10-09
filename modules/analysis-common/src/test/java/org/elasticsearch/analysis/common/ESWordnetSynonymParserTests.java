@@ -31,7 +31,7 @@ import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTok
 import static org.hamcrest.Matchers.containsString;
 
 public class ESWordnetSynonymParserTests extends ESTokenStreamTestCase {
-    private static final CircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("noop");
+    private static final CircuitBreaker NOOP_CIRCUIT_BREAKER = NoopCircuitBreaker.INSTANCE;
 
     public void testLenientParser() throws IOException, ParseException {
         ESWordnetSynonymParser parser = new ESWordnetSynonymParser(true, false, true, new StandardAnalyzer(), NOOP_CIRCUIT_BREAKER);

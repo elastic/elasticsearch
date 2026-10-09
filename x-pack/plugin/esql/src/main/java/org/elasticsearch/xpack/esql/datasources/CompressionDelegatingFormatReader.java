@@ -93,7 +93,7 @@ final class CompressionDelegatingFormatReader implements FormatReader {
         FormatReader wrapped = configured.value() == inner
             ? this
             : new CompressionDelegatingFormatReader(configured.value(), codec, maxDecompressionRatio);
-        return new Configured<>(wrapped, configured.consumedKeys());
+        return new Configured<>(wrapped, configured.consumedKeys(), configured.identity(), configured.secretIdentity());
     }
 
     @Override
@@ -149,8 +149,20 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
-    public boolean declaredNameBindingNeedsFileStart() {
-        return inner.declaredNameBindingNeedsFileStart();
+    public FormatReader withHeaderBindingByProvenance(boolean byProvenance) {
+        FormatReader configured = inner.withHeaderBindingByProvenance(byProvenance);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec, maxDecompressionRatio);
+    }
+
+    @Override
+    public boolean readsHeaderLine() {
+        return inner.readsHeaderLine();
+    }
+
+    @Override
+    public List<String> fileHeaderColumns(StorageObject file) throws IOException {
+        // The inner reader aborts the stream, which DecompressingStorageObject routes to the raw GET without draining it.
+        return inner.fileHeaderColumns(new DecompressingStorageObject(file, codec, null, maxDecompressionRatio()));
     }
 
     @Override

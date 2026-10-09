@@ -56,7 +56,7 @@ import static org.mockito.Mockito.when;
 public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
     private static final StoragePath PATH = StoragePath.of("s3://bucket/data.parquet");
     private static final List<Attribute> ATTRIBUTES = List.of(

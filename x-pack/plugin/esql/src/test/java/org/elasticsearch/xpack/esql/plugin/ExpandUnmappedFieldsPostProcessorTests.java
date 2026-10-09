@@ -39,14 +39,17 @@ import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.xpack.esql.plugin.ExpandUnmappedFieldsPostProcessor.MAX_EXPANDED_FIELDS;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -765,6 +768,108 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
+    /**
+     * More than {@link ExpandUnmappedFieldsPostProcessor#MAX_EXPANDED_FIELDS} distinct names, arriving in random order across random
+     * rows and pages and with repeats, expand to exactly the alphabetically first ones - whatever order they arrived in - plus a
+     * warning.
+     */
+    public void testCapsExpandedFieldsToAlphabeticallyFirstRegardlessOfArrivalOrder() {
+        BlockFactory bf = blockFactory();
+        List<String> fieldNames = paddedNames("f", MAX_EXPANDED_FIELDS + between(1, 200));
+        List<String> arrivalOrder = new ArrayList<>(fieldNames);
+        Collections.shuffle(arrivalOrder, random());
+
+        List<List<Object>> rows = new ArrayList<>();
+        int next = 0;
+        while (next < arrivalOrder.size()) {
+            int end = Math.min(arrivalOrder.size(), next + between(1, 50));
+            List<String> rowNames = new ArrayList<>(arrivalOrder.subList(next, end));
+            if (next > 0 && randomBoolean()) {
+                // Repeat a name an earlier row already brought: kept or not, it must not count twice.
+                rowNames.add(arrivalOrder.get(between(0, next - 1)));
+            }
+            rows.add(row(rows.size(), jsonWithFields(rowNames)));
+            next = end;
+        }
+        List<Page> pages = new ArrayList<>();
+        int rowIdx = 0;
+        while (rowIdx < rows.size()) {
+            int end = Math.min(rows.size(), rowIdx + between(1, 10));
+            pages.add(page(bf, rows.subList(rowIdx, end)));
+            rowIdx = end;
+        }
+
+        Result expanded = expand(result(List.of(intAttr(), unmappedAttr()), pages), bf);
+        try {
+            List<String> expected = new ArrayList<>();
+            expected.add(INT_ATTR);
+            expected.addAll(fieldNames.subList(0, MAX_EXPANDED_FIELDS));
+            assertThat(names(expanded), equalTo(expected));
+            assertThat(rowCount(expanded), equalTo(rows.size()));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+        assertWarnings(TRUNCATION_WARNING);
+    }
+
+    /** Exactly {@link ExpandUnmappedFieldsPostProcessor#MAX_EXPANDED_FIELDS} names all fit, so nothing is cut off or warned about. */
+    public void testExactlyMaxExpandedFieldsAreAllKept() {
+        BlockFactory bf = blockFactory();
+        List<String> fieldNames = paddedNames("f", MAX_EXPANDED_FIELDS);
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonWithFields(fieldNames)));
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded).subList(1, names(expanded).size()), equalTo(fieldNames));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+        // ESTestCase fails the test on any warning left unasserted, so not asserting one checks that there is none.
+    }
+
+    /** Names the {@code KEEP}/{@code DROP} pattern rejects are dropped before the cap, so they cannot crowd out wanted ones. */
+    public void testNamesExcludedByPatternDoNotCountTowardsCap() {
+        BlockFactory bf = blockFactory();
+        List<String> kept = paddedNames("keep_", MAX_EXPANDED_FIELDS);
+        // Sort before every kept name, so they would take all the slots if they counted.
+        List<String> dropped = paddedNames("a_drop_", between(1, 500));
+        List<String> rowNames = new ArrayList<>(dropped);
+        rowNames.addAll(kept);
+        Result result = singlePage(
+            bf,
+            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.excludes(List.of("a_drop_*")))),
+            row(1, jsonWithFields(rowNames))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded).subList(1, names(expanded).size()), equalTo(kept));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    /** A name colliding with a query column is dropped (see {@link #testFlattenedLeafCollidingWithQueryColumnIsDropped}) before the cap. */
+    public void testNamesCollidingWithExistingColumnsDoNotCountTowardsCap() {
+        BlockFactory bf = blockFactory();
+        List<String> discovered = paddedNames("f", MAX_EXPANDED_FIELDS);
+        // Sorts before every discovered name, so it would take a slot if it counted.
+        String existing = "a_existing";
+        List<String> rowNames = new ArrayList<>(discovered);
+        rowNames.add(existing);
+        Result result = singlePage(bf, List.of(keywordAttr(existing), unmappedAttr()), row("v", jsonWithFields(rowNames)));
+
+        Result expanded = expand(result, bf);
+        try {
+            List<String> expected = new ArrayList<>();
+            expected.add(existing);
+            expected.addAll(discovered);
+            assertThat(names(expanded), equalTo(expected));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
     // No ordering recipe: these exercise the expansion mechanics, so the natural real-then-discovered fallback applies. The ordering
     // itself is covered against real plans in DetermineUnmappedFieldsToKeepTests.
     private static Result expand(Result result, BlockFactory blockFactory) {
@@ -813,6 +918,27 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         return singleQuoted.replace('\'', '"');
     }
 
+    /** {@code count} distinct names starting with {@code prefix}, zero-padded so that their alphabetical order is their numeric one. */
+    private static List<String> paddedNames(String prefix, int count) {
+        List<String> names = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            names.add(String.format(Locale.ROOT, "%s%05d", prefix, i));
+        }
+        return names;
+    }
+
+    /** A flat JSON object with one numeric value per name. */
+    private static String jsonWithFields(List<String> names) {
+        StringBuilder json = new StringBuilder("{");
+        for (int i = 0; i < names.size(); i++) {
+            if (i > 0) {
+                json.append(',');
+            }
+            json.append('"').append(names.get(i)).append("\":").append(i);
+        }
+        return json.append('}').toString();
+    }
+
     private static List<String> names(Result r) {
         return r.schema().stream().map(Attribute::name).toList();
     }
@@ -850,4 +976,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
     }
 
     private static final String INT_ATTR = "emp_no";
+
+    private static final String TRUNCATION_WARNING = "unmapped_fields=\"LOAD_ALL\" found more than [1000] fields in _source; only the "
+        + "first [1000] in alphabetical order are returned. Use KEEP or DROP to select the others.";
 }

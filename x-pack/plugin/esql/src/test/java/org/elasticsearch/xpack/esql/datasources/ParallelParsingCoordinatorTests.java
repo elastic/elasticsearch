@@ -396,7 +396,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * here would transfer a large fraction of the file to place a handful of boundaries.
      */
     public void testComputeSegmentsDoesNotDrainStream() throws IOException {
-        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         StringBuilder csv = new StringBuilder("id,name\n");
         while (csv.length() < 3 * 1024 * 1024) {
@@ -2325,8 +2325,184 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * A header read that ran to the end of the leader segment may have been cut mid-record: the header may end past
+     * segment 0. Only segment 0 steps over the leading rows and the header, so a later segment would emit them as data.
+     * The coordinator reads the file single-shot instead, and that read takes its own header.
+     */
+    public void testALeaderHeaderThatRanToTheEndOfTheSegmentReadsTheFileSingleShot() throws Exception {
+        assertLeaderProbeFallsBackToASingleShotRead(new HeaderReadingLineReader(blockFactory(), HeaderAnswer.READ_TO_END));
+    }
+
+    /** The same when the leader segment held no header at all: a skip_rows or comment run longer than the segment. */
+    public void testALeaderSegmentWithoutAHeaderReadsTheFileSingleShot() throws Exception {
+        assertLeaderProbeFallsBackToASingleShotRead(new HeaderReadingLineReader(blockFactory(), HeaderAnswer.NONE));
+    }
+
+    private void assertLeaderProbeFallsBackToASingleShotRead(HeaderReadingLineReader reader) throws Exception {
+        InMemoryStorageObject obj = new InMemoryStorageObject(lines(200));
+
+        int rows = readAllWithHeader(reader, obj);
+
+        assertEquals("only the leader range is probed", 1, reader.headerReadsOf.size());
+        assertThat(reader.headerReadsOf.get(0), Matchers.instanceOf(HeaderPrefixProbe.class));
+        assertEquals("one read, not one per segment", 1, reader.contexts.size());
+        FormatReadContext ctx = reader.contexts.get(0);
+        assertTrue("the single read owns the file's start", ctx.firstSplit());
+        assertNull("and reads its own header", ctx.fileHeaderColumns());
+        assertEquals(200, rows);
+    }
+
+    /** A header found before the end of the leader segment is the answer: the whole file is not read for it. */
+    public void testALeaderHeaderFoundBeforeTheEndOfTheSegmentIsNotReadAgain() throws Exception {
+        byte[] content = lines(200);
+        HeaderReadingLineReader reader = new HeaderReadingLineReader(blockFactory(), HeaderAnswer.FIRST_LINE);
+
+        readAllWithHeader(reader, new InMemoryStorageObject(content));
+
+        assertEquals("the leader range only", 1, reader.headerReadsOf.size());
+        assertThat(reader.headerReadsOf.get(0), Matchers.instanceOf(HeaderPrefixProbe.class));
+        assertThat(reader.contexts.size(), Matchers.greaterThan(1));
+        for (FormatReadContext ctx : reader.contexts) {
+            assertEquals(List.of("line-0000"), ctx.fileHeaderColumns());
+        }
+    }
+
+    /**
+     * Columns the caller already read are handed to every segment, the leader's included. They name the file but say
+     * nothing about where its header ends, so the leader range is still probed for that, and only for that.
+     */
+    public void testHandedHeaderColumnsReachEverySegmentAndTheLeaderIsStillProbed() throws Exception {
+        HeaderReadingLineReader reader = new HeaderReadingLineReader(blockFactory(), HeaderAnswer.FIRST_LINE);
+
+        readAllWithHeader(reader, new InMemoryStorageObject(lines(200)), List.of("handed"));
+
+        assertEquals("the leader range only", 1, reader.headerReadsOf.size());
+        assertThat(reader.headerReadsOf.get(0), Matchers.instanceOf(HeaderPrefixProbe.class));
+        assertThat(reader.contexts.size(), Matchers.greaterThan(1));
+        for (FormatReadContext ctx : reader.contexts) {
+            assertEquals(List.of("handed"), ctx.fileHeaderColumns());
+        }
+    }
+
+    /**
+     * Handed columns do not keep a file whose header ends past segment 0 segmented: later segments would emit the
+     * leading rows and the header as data. The read goes single-shot, as when nothing was handed.
+     */
+    public void testHandedHeaderColumnsWithTheHeaderPastTheLeaderSegmentReadTheFileSingleShot() throws Exception {
+        HeaderReadingLineReader reader = new HeaderReadingLineReader(blockFactory(), HeaderAnswer.NONE);
+
+        int rows = readAllWithHeader(reader, new InMemoryStorageObject(lines(200)), List.of("handed"));
+
+        assertEquals(1, reader.headerReadsOf.size());
+        assertEquals("one read, not one per segment", 1, reader.contexts.size());
+        assertTrue(reader.contexts.get(0).firstSplit());
+        assertEquals(200, rows);
+    }
+
+    private static byte[] lines(int count) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append("\n");
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static int readAllWithHeader(HeaderReadingLineReader reader, StorageObject obj) throws Exception {
+        return readAllWithHeader(reader, obj, null);
+    }
+
+    private static int readAllWithHeader(HeaderReadingLineReader reader, StorageObject obj, List<String> handedColumns) throws Exception {
+        int rows = 0;
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try (
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                reader,
+                obj,
+                List.of("line"),
+                50,
+                4,
+                exec,
+                null,
+                true,
+                true,
+                SCHEMA,
+                0L,
+                ParallelParsingCoordinator.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                true,
+                ExternalSourceMetrics.NOOP,
+                null,
+                ExternalReadCounters.NOOP,
+                null,
+                null,
+                handedColumns
+            )
+        ) {
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        } finally {
+            exec.shutdown();
+        }
+        return rows;
+    }
+
+    /** What {@link HeaderReadingLineReader} makes of a header read. */
+    private enum HeaderAnswer {
+        /** Reads the first line and stops: a header found inside the range. */
+        FIRST_LINE,
+        /** Drains the stream, as a reader cut off by the end of a range does. */
+        READ_TO_END,
+        /** Finds no header line. */
+        NONE
+    }
+
+    /**
+     * A line reader that also reads a header line: it records each object it was asked for the file's columns, and
+     * answers as its {@link HeaderAnswer} says.
+     */
+    private static class HeaderReadingLineReader extends ContextCapturingLineReader {
+        final List<StorageObject> headerReadsOf = Collections.synchronizedList(new ArrayList<>());
+        private final HeaderAnswer answer;
+
+        HeaderReadingLineReader(BlockFactory blockFactory, HeaderAnswer answer) {
+            super(blockFactory);
+            this.answer = answer;
+        }
+
+        @Override
+        public boolean readsHeaderLine() {
+            return true;
+        }
+
+        @Override
+        public List<String> fileHeaderColumns(StorageObject file) throws IOException {
+            headerReadsOf.add(file);
+            InputStream stream = file.newStream();
+            try {
+                return switch (answer) {
+                    case READ_TO_END -> List.of("bytes=" + stream.readAllBytes().length);
+                    case FIRST_LINE -> {
+                        byte[] first = new byte[9];
+                        assertEquals(first.length, stream.readNBytes(first, 0, first.length));
+                        yield List.of(new String(first, StandardCharsets.UTF_8));
+                    }
+                    case NONE -> List.of();
+                };
+            } finally {
+                file.abortStream(stream);
+            }
+        }
+    }
+
     private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     private static BlockFactory blockFactory() {

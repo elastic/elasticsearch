@@ -1,5 +1,5 @@
 ---
-navigation_title: "Connect data sources"
+navigation_title: "Data sources"
 description: "Connect Elasticsearch to external storage with ES|QL Data Federation by setting up S3 data sources, configuring endpoints, and authenticating access."
 applies_to:
   stack: experimental 9.5+
@@ -286,7 +286,7 @@ Settings vary by data source type.
 
 The following settings are available for `s3` data sources:
 
-**Connection settings:**
+Use the following connection settings:
 
 | Setting | Required | Description |
 |---|---|---|
@@ -306,7 +306,7 @@ Accepted endpoint forms. The first three are accepted in every AWS partition; th
 A regional endpoint must name a region that the Elasticsearch version you are running knows about. A region added by AWS after that release is rejected until you upgrade, or until a node permits its host with the setting described below.
 
 :::{note}
-`https://s3.amazonaws.com` has no region. When you set `endpoint`, the SDK stops following cross-region redirects, so this global endpoint only reaches `us-east-1` buckets; other regions get an error. Omit `endpoint` to let the SDK resolve the correct regional endpoint from the dataset's `region` setting.
+`https://s3.amazonaws.com` has no region. When you set `endpoint`, the SDK stops following cross-region redirects, so this global endpoint only reaches `us-east-1` buckets; other regions get an error. Omit `endpoint` to let the SDK resolve the correct regional endpoint from the `region` setting.
 :::
 
 Every other AWS endpoint family is rejected, including FIPS endpoints, dual-stack endpoints, transfer acceleration, access points, object lambda, Outposts, the account-level control plane, the legacy `s3-external-1` alias, and S3 Express. A bucket-qualified endpoint such as `https://mybucket.s3.us-east-1.amazonaws.com` is also rejected: name the regional endpoint and let the bucket come from the dataset. So are plain `http`, a value without a scheme, and a host the URL syntax does not allow, such as an underscore or a non-numeric port.
@@ -319,10 +319,12 @@ A data source created before these endpoint restrictions were introduced keeps w
 ::::
 
 :::{note}
-The `region` setting on a data source is deprecated and has no effect. Set `region` on each [dataset](esql-data-federation-datasets.md#common-settings) instead, or omit it to let Elasticsearch detect the region automatically. When no `endpoint` is set, the SDK redirects transparently. When one is set, Elasticsearch issues a `HeadBucket` probe on the first request and caches the discovered region for the lifetime of the data source.
+{applies_to}`stack: experimental 9.6+` The `region` setting on a data source is deprecated and has no effect. Set `region` in the [dataset settings](esql-data-federation-dataset-settings.md#amazon-s3-region) instead, or omit it to let Elasticsearch detect the region automatically. When no `endpoint` is set, the SDK redirects transparently. When one is set, Elasticsearch issues a `HeadBucket` probe on the first request and caches the discovered region for the lifetime of the data source.
+
+{applies_to}`stack: experimental =9.5` Set `region` on the data source. Datasets don't accept a `region` setting.
 :::
 
-**Authentication settings:**
+Use the following authentication settings:
 
 | Setting | Required | Description |
 |---|---|---|
@@ -332,7 +334,7 @@ The `region` setting on a data source is deprecated and has no effect. Set `regi
 | `jwt_audience` | No | Overrides the JWT audience claim sent to STS. Defaults to `sts.amazonaws.com`. Used with `auth: federated_identity`. |
 | `role_session_name` | No | A label for the assumed-role session. Defaults to `elasticsearch-esql-datasource`. Used with `auth: federated_identity`. |
 | `sts_endpoint` | No | STS endpoint override for `auth: federated_identity`, for example https://sts.us-east-1.amazonaws.com. Validated against the same [S3 endpoint requirements](#s3-endpoint-requirements) as `endpoint`, but for STS hosts, and always over `https`. Any host permitted via `esql.external.allowed_endpoint_hosts` receives the node's OIDC token; only add hosts on trusted network paths. {applies_to}`stack: experimental 9.6+` |
-| `sts_region` | No | The AWS region of the STS endpoint. Defaults to the dataset's `region` setting, or `us-east-1` if the dataset has no explicit region. Used with `auth: federated_identity`. |
+| `sts_region` | No | The AWS region of the STS endpoint. Defaults to the `region` setting, or `us-east-1` if no region is set. Used with `auth: federated_identity`. |
 | `auth` | Yes | Authentication mode. Set it to `anonymous`, `static_credentials`, `managed_identity`, or `federated_identity`. |
 
 ## Authentication
@@ -352,6 +354,8 @@ Managed identity uses the cloud identity attached to each {{es}} node (for examp
 
 ## Next steps
 
-- [Create datasets](esql-data-federation-datasets.md) that point at specific files in your data source, and configure file formats, schema inference, and parsing settings.
+Continue with the following data-source tasks:
+
+- [Create datasets](esql-data-federation-manage-datasets.md) that point at specific files in your data source, then review [file formats](esql-data-federation-file-formats.md) and [dataset settings](esql-data-federation-dataset-settings.md).
 - [Query your datasets](esql-data-federation-querying.md) with `FROM` to learn how partition pruning, column selection, and filter pushdown reduce storage reads.
 - [Manage credentials and privileges](esql-data-federation-security.md) to control who can create data sources and read external data.

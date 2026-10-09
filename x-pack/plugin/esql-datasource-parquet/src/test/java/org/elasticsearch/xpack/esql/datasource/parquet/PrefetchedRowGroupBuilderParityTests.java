@@ -71,7 +71,7 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
 
     @Before
     public void initBlockFactoryAndCodec() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         codecFactory = new PlainCompressionCodecFactory();
     }
 

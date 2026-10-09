@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 
@@ -143,6 +146,112 @@ public final class DatasetListingService {
             memory,
             cancelled
         );
+    }
+
+    /**
+     * Async counterpart of {@link #expand}: a wide glob is listed as concurrent per-prefix lists on {@code executor}
+     * rather than on the calling thread, which neither blocks nor waits on a pool that still has to run the lists.
+     * {@code listener} fires on whichever thread finishes last.
+     *
+     * @param concurrency how many per-prefix lists may run at once; at most one disables the fan-out
+     */
+    public void expandAsync(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        StoragePath storagePath,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        int concurrency,
+        Executor executor,
+        ActionListener<FileList> listener
+    ) {
+        GlobExpander.expandAndCompactAsync(
+            path,
+            provider,
+            hints,
+            config,
+            storagePath,
+            maxDiscoveredFiles.getAsInt(),
+            maxGlobExpansion.getAsInt(),
+            maxListedObjects.getAsInt(),
+            extents,
+            memory,
+            concurrency,
+            cancelled,
+            executor,
+            listener
+        );
+    }
+
+    /**
+     * Async counterpart of {@link #cachedListing}, with the same key-and-compute pairing and the same reservation
+     * rule. Concurrent cold misses for one key share one listing: the first query's listing is the one that runs, and
+     * the others wait on it rather than each starting a fan-out. A query that waited allocated nothing in the walk, so
+     * like a cache hit it reserves the listing's size here; a leader that was cancelled fails only itself, and the
+     * others list again.
+     */
+    public void cachedListingAsync(
+        String path,
+        StoragePath storagePath,
+        StorageProvider provider,
+        String storageIdentity,
+        String secretIdentity,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        int concurrency,
+        Executor executor,
+        ActionListener<FileList> listener
+    ) {
+        ListingCacheKey listingKey = ListingCacheKey.build(
+            storagePath.scheme(),
+            storagePath.host(),
+            storagePath.path(),
+            storageIdentity,
+            secretIdentity,
+            ExternalSourceResolver.storageConfig(config),
+            // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
+            GlobExpander.listingCacheDiscriminator(path, hints, config)
+        );
+        // Set by whichever thread runs the compute and read by whichever completes the listing.
+        AtomicBoolean computedHere = new AtomicBoolean();
+        cacheService.getOrComputeListingAsync(listingKey, innerListener -> {
+            computedHere.set(true);
+            expandAsync(
+                path,
+                provider,
+                hints,
+                config,
+                storagePath,
+                ListingExtents.UNBOUNDED,
+                memory,
+                cancelled,
+                concurrency,
+                executor,
+                innerListener
+            );
+        }, ActionListener.wrap(listing -> {
+            // Same refusal as the synchronous path: a truncated listing served from this cache would pass for the dataset.
+            if (listing.isTruncated()) {
+                listener.onFailure(new IllegalStateException("a truncated listing must never enter the shared listing cache: " + path));
+                return;
+            }
+            try {
+                // Caps are not part of the listing key; see cachedListing.
+                GlobExpander.checkDiscoveredFilesLimit(listing.fileCount(), maxDiscoveredFiles.getAsInt());
+                if (computedHere.get() == false) {
+                    memory.reserve(listing.fileCount() * FileList.LISTING_BYTES_PER_ENTRY);
+                }
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
+            listener.onResponse(listing);
+        }, listener::onFailure));
     }
 
     /**

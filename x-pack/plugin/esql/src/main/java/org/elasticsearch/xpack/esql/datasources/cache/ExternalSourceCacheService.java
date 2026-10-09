@@ -588,11 +588,11 @@ public class ExternalSourceCacheService implements Closeable {
             // Follower: if the leader was cancelled, retry rather than inheriting its TaskCancelledException.
             // The leader's thread completes this listener, so it is metered for the follower's own query: both the
             // follower's continuation and the listing its retry computes are planning CPU of the follower.
-            existing.addListener(PlanningCpuTracker.inheritMeteredCpu(ActionListener.wrap(listener::onResponse, e -> {
+            existing.addListener(PlanningCpuTracker.inheritMeteredCpu(listener.delegateResponse((l, e) -> {
                 if (e instanceof TaskCancelledException) {
-                    getOrComputeListingAsync(key, compute, listener);
+                    getOrComputeListingAsync(key, compute, l);
                 } else {
-                    listener.onFailure(e);
+                    l.onFailure(e);
                 }
             })));
             return;

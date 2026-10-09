@@ -113,6 +113,9 @@ public final class PlanningCpuTracker {
      * while {@code work} runs and resumed afterwards.
      */
     public <T, E extends Exception> T meteredCpu(CheckedSupplier<T, E> work) throws E {
+        if (this == UNMETERED) {
+            return work.get();
+        }
         Measurement outer = CURRENT.get();
         if (outer != null && outer.owner == this) {
             return work.get();
@@ -221,9 +224,13 @@ public final class PlanningCpuTracker {
     /**
      * Planning end. Settles this thread's open measurement, freezes the total and returns it. Later commits are
      * dropped, so execution that continues on this thread inside the same measurement adds nothing. Idempotent: later
-     * calls return the total the first call froze.
+     * calls return the total the first call froze. {@link #UNMETERED} always returns 0 and is never frozen, because it
+     * is shared by every caller that has no tracker.
      */
     public long finish() {
+        if (this == UNMETERED) {
+            return 0;
+        }
         Measurement measurement = CURRENT.get();
         if (measurement != null && measurement.owner == this) {
             measurement.settle(cpuClock.getAsLong());
@@ -245,6 +252,7 @@ public final class PlanningCpuTracker {
     }
 
     private void add(long deltaNanos) {
+        // UNMETERED never gets here: its clock reports CPU time unsupported, so no measurement of it is ever opened.
         if (deltaNanos > 0 && finishedCpuNanos.get() == NOT_FINISHED) {
             cpuNanos.add(deltaNanos);
         }

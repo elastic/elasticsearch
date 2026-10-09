@@ -142,11 +142,10 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
         );
     }
 
-    public void testPlanningCpuNanosIsAdditiveAndAlwaysEmitted() throws IOException {
+    public void testPlanningCpuNanosIsAlwaysEmitted() throws IOException {
         EsqlQueryProfile profile = new EsqlQueryProfile();
         assertEquals(0L, profile.planningCpuNanos());
-        profile.addPlanningCpuNanos(5L);
-        profile.addPlanningCpuNanos(7L);
+        profile.planningCpuNanos(12L);
         assertEquals(12L, profile.planningCpuNanos());
         assertThat(toJson(profile), containsString("\"planning_cpu_nanos\":12"));
         assertThat(toJson(new EsqlQueryProfile()), containsString("\"planning_cpu_nanos\":0"));

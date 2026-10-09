@@ -724,7 +724,7 @@ public class EsqlSession {
                 public void onFailure(Exception e) {
                     if (EsqlCCSUtils.returnSuccessWithEmptyResult(executionInfo, e)) {
                         EsqlCCSUtils.updateExecutionInfoToReturnEmptyResult(executionInfo, e);
-                        executionInfo.queryProfile().addPlanningCpuNanos(planningCpu.finish());
+                        executionInfo.queryProfile().planningCpuNanos(planningCpu.finish());
                         listener.onResponse(
                             new Versioned<>(
                                 new Result(
@@ -774,7 +774,7 @@ public class EsqlSession {
 
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
         assert planningCpu.isMeteringCurrentThread() : "planning reached its end on a thread without an open planning CPU measurement";
-        executionInfo.queryProfile().addPlanningCpuNanos(planningCpu.finish());
+        executionInfo.queryProfile().planningCpuNanos(planningCpu.finish());
 
         // In explain mode, wrap the listener to transform results into EXPLAIN table format.
         // We use the same execution path as normal queries to ensure accuracy.

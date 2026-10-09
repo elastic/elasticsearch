@@ -219,7 +219,8 @@ public class PlanningCpuTrackerTests extends ESTestCase {
 
     /**
      * {@link PlanningCpuTracker#UNMETERED} stands in for "no tracker": work run inside it stays counted by an enclosing
-     * measurement, as if it were not wrapped at all, and listeners are passed through unchanged.
+     * measurement, as if it were not wrapped at all, listeners are passed through unchanged, and finishing it neither
+     * settles the enclosing measurement nor freezes the shared instance.
      */
     public void testUnmeteredIsTransparent() {
         FakeCpuClock clock = new FakeCpuClock();
@@ -229,6 +230,7 @@ public class PlanningCpuTrackerTests extends ESTestCase {
         outer.meteredCpu(() -> PlanningCpuTracker.UNMETERED.meteredCpu(() -> {
             clock.burn(7);
             PlanningCpuTracker.UNMETERED.checkpoint();
+            assertEquals(0L, PlanningCpuTracker.UNMETERED.finish());
         }));
         assertEquals(7L, outer.cpuNanos());
         assertEquals(0L, PlanningCpuTracker.UNMETERED.cpuNanos());

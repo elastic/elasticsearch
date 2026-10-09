@@ -15,7 +15,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
-import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -49,7 +48,6 @@ import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.fixTypesOnP
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -817,26 +815,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
         Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
         assertResultMap(
             result,
-            getResultMatcher(result).entry(
-                "profile",
-                matchesMap() //
-                    .entry("drivers", instanceOf(List.class))
-                    .entry("plans", instanceOf(List.class))
-                    .entry("planning", matchesMap().extraOk())
-                    .entry("parsing", matchesMap().extraOk())
-                    .entry("view_resolution", matchesMap().extraOk())
-                    .entry("dataset_resolution", matchesMap().extraOk())
-                    .entry("preanalysis", matchesMap().extraOk())
-                    .entry("indices_resolution", matchesMap().extraOk())
-                    .entry("enrich_resolution", matchesMap().extraOk())
-                    .entry("inference_resolution", matchesMap().extraOk())
-                    .entry("analysis", matchesMap().extraOk())
-                    .entry("query", matchesMap().extraOk())
-                    .entry("planning_cpu_nanos", IntOrLongMatcher.isIntOrLong())
-                    .entry("field_caps_calls", instanceOf(Integer.class))
-                    .entry("unmapped_fields", instanceOf(String.class))
-                    .entry("minimumTransportVersion", instanceOf(Integer.class))
-            ),
+            getResultMatcher(result).entry("profile", getProfileMatcher()),
             matchesList().item(matchesMap().entry("name", "test").entry("type", anyOf(equalTo("text"), equalTo("keyword")))),
             resultMatcher
         );

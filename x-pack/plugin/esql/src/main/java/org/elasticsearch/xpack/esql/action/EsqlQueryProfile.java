@@ -275,60 +275,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             externalPlanningRequests,
             externalResolutionBytesRead,
             externalResolutionRequests,
-            0
-        );
-    }
-
-    // For testing
-    public EsqlQueryProfile(
-        TimeSpan query,
-        TimeSpan planning,
-        TimeSpan parsing,
-        TimeSpan viewResolution,
-        TimeSpan datasetResolution,
-        TimeSpan preAnalysis,
-        TimeSpan indicesResolution,
-        TimeSpan enrichResolution,
-        TimeSpan inferenceResolution,
-        TimeSpan analysis,
-        int fieldCapsCalls,
-        int filesScanned,
-        int splitsScanned,
-        long bytesScanned,
-        UnmappedResolution unmappedResolution,
-        int externalWarmAggregates,
-        long splitDiscoveryNanos,
-        long splitDiscoveryCpuNanos,
-        long externalPlanningBytesRead,
-        long externalPlanningRequests,
-        long externalResolutionBytesRead,
-        long externalResolutionRequests,
-        int splitDiscoveryProbes
-    ) {
-        this(
-            query,
-            planning,
-            parsing,
-            viewResolution,
-            datasetResolution,
-            preAnalysis,
-            indicesResolution,
-            enrichResolution,
-            inferenceResolution,
-            analysis,
-            fieldCapsCalls,
-            filesScanned,
-            splitsScanned,
-            bytesScanned,
-            unmappedResolution,
-            externalWarmAggregates,
-            splitDiscoveryNanos,
-            splitDiscoveryCpuNanos,
-            externalPlanningBytesRead,
-            externalPlanningRequests,
-            externalResolutionBytesRead,
-            externalResolutionRequests,
-            splitDiscoveryProbes,
+            0,
             0L
         );
     }
@@ -807,9 +754,13 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         return planningCpuNanos.get();
     }
 
-    /** Add CPU time spent planning (excludes IO wait). Folded once per query, at the end of planning. */
-    public void addPlanningCpuNanos(long nanos) {
-        planningCpuNanos.addAndGet(nanos);
+    /**
+     * Records the query's planning CPU time (excludes IO wait), as {@link PlanningCpuTracker#finish()} froze it. A set
+     * rather than an add: the tracker already sums every planning thread, and a CCS query that planned and then fails
+     * over to an empty result reports the same frozen total a second time.
+     */
+    public void planningCpuNanos(long nanos) {
+        planningCpuNanos.set(nanos);
     }
 
     public int splitDiscoveryProbes() {

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 
 import java.io.ByteArrayInputStream;
@@ -351,7 +352,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
                 100,
                 ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS,
                 custom,
-                new NoopCircuitBreaker("test")
+                NoopCircuitBreaker.INSTANCE
             );
             assertEquals(1, result.size());
             assertEquals(DataType.DATETIME, result.get(0).dataType());
@@ -724,8 +725,8 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
         assertThat(infer(wideFlatRecord(maxFields), maxFields, breaker).size(), equalTo(maxFields));
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
             () -> infer(wideFlatRecord(maxFields + 1), maxFields, breaker)
         );
         assertThat(e.getMessage(), containsString("more than [" + maxFields + "] fields"));
@@ -741,12 +742,12 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
         for (String record : List.of("{\"a\":{\"b\":1}}\n", "{\"a.b\":1}\n")) {
             assertThat(infer(record, 2, breaker).size(), equalTo(1));
-            expectThrows(IllegalArgumentException.class, () -> infer(record, 1, breaker));
+            expectThrows(ExternalClientException.class, () -> infer(record, 1, breaker));
         }
         // The esql-planning#2143 shape (36,000 leaves under deep nesting) is refused by the default cap at its 101st
         // leaf, long before the dotted names are built.
         expectThrows(
-            IllegalArgumentException.class,
+            ExternalClientException.class,
             () -> infer(deeplyNestedRecord(900, 36_000), ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS, breaker)
         );
         assertThat(breaker.getUsed(), equalTo(0L));
@@ -758,7 +759,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
      */
     public void testFieldCapIsNotSkippedAsAMalformedLine() {
         String ndjson = "not_json\n" + wideFlatRecord(3) + wideFlatRecord(5);
-        expectThrows(IllegalArgumentException.class, () -> infer(ndjson, 4, new LimitedBreaker("test", ByteSizeValue.ofMb(16))));
+        expectThrows(ExternalClientException.class, () -> infer(ndjson, 4, new LimitedBreaker("test", ByteSizeValue.ofMb(16))));
     }
 
     /**
@@ -791,7 +792,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
     public void testWellFormedLineCrossingTheCapMidRecordFails() {
         String ndjson = "{\"a\":1}\n{\"k0\":1,\"k1\":{\"x\":[1,{\"y\":2}]},\"k2\":1,\"k3\":1,\"k4\":1,\"k5\":1}\n";
         LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> infer(ndjson, 3, breaker));
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> infer(ndjson, 3, breaker));
         assertThat(e.getMessage(), containsString("more than [3] fields"));
         assertThat(breaker.getUsed(), equalTo(0L));
     }
@@ -803,7 +804,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
                 100,
                 ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS,
                 null,
-                new NoopCircuitBreaker("test")
+                NoopCircuitBreaker.INSTANCE
             );
 
             assertEquals(expected.length, result.size());

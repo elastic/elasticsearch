@@ -374,7 +374,7 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
                 request.add(templateRequest());
             }
 
-            TransportMultiSearchTemplateAction action = buildAction(threadPool, client, clusterService, new NoopCircuitBreaker("test"));
+            TransportMultiSearchTemplateAction action = buildAction(threadPool, client, clusterService, NoopCircuitBreaker.INSTANCE);
             Task task = request.createTask(1L, "type", "action", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             action.execute(task, request, future.delegateFailure((l, response) -> {
@@ -426,7 +426,7 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
                 request.add(req);
             }
 
-            TransportMultiSearchTemplateAction action = buildAction(threadPool, client, clusterService, new NoopCircuitBreaker("test"));
+            TransportMultiSearchTemplateAction action = buildAction(threadPool, client, clusterService, NoopCircuitBreaker.INSTANCE);
             Task task = request.createTask(1L, "type", "action", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             action.execute(task, request, future.delegateFailure((l, response) -> {
@@ -735,7 +735,7 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
                 threadPool,
                 client,
                 clusterService,
-                new NoopCircuitBreaker("test"),
+                NoopCircuitBreaker.INSTANCE,
                 scriptService
             );
             Task task = request.createTask(1L, "type", "action", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
@@ -864,7 +864,7 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
             MultiSearchTemplateRequest request = new MultiSearchTemplateRequest();
             request.add(templateRequest());
 
-            TransportMultiSearchTemplateAction action = buildAction(threadPool, client, clusterService, new NoopCircuitBreaker("test"));
+            TransportMultiSearchTemplateAction action = buildAction(threadPool, client, clusterService, NoopCircuitBreaker.INSTANCE);
             long taskId = randomNonNegativeLong();
             Task task = request.createTask(taskId, "type", "action", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
             PlainActionFuture<Void> future = new PlainActionFuture<>();

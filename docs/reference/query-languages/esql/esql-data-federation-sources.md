@@ -49,7 +49,7 @@ Click **Connect data source** to open a flyout where you define the connection:
 - **Data source type**: the storage system to connect to, such as **Amazon S3**.
 - **Name**: a unique name for the data source. Names must be lowercase and cannot begin with `-`, `_`, or `+`.
 - **Description**: an optional description (up to 1,000 characters).
-- **Endpoint**: an optional Amazon S3 endpoint override, given as an absolute `https` URL naming a supported AWS S3 endpoint. Leave it empty to have the endpoint resolved from the region.
+- **Endpoint**: an optional Amazon S3 endpoint override. Leave it empty to have the endpoint resolved from the region. For accepted values, refer to the [`endpoint` setting](esql-data-federation-data-source-settings.md#endpoint).
 - **Authentication**: select an authentication model from the dropdown, then fill in the credentials it requires.
 
 For the full set of authentication methods and what each one requires, refer to [authentication models](#authentication). For setup walkthroughs, refer to the [Amazon S3 authentication models](esql-data-federation-s3.md#s3-auth-models).
@@ -71,13 +71,15 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 | [Get](#get-a-data-source) | `GET /_query/data_source/{name}` | [Get ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-data-source) |
 | [List all](#list-all-data-sources) | `GET /_query/data_source` | [Get ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-data-source) |
 | [Delete](#delete-a-data-source) | `DELETE /_query/data_source/{name}` | [Delete ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-delete-data-source) |
-| [Test connection](#test-a-connection) | `POST /_query/data_source/_test` | [Test an ES\|QL data source connection](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-data-source-test-connection) |
+| [Test connection](#test-a-connection) {applies_to}`stack: experimental 9.6+` | `POST /_query/data_source/_test` | [Test an ES\|QL data source connection](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-data-source-test-connection) |
 
 ### Create or update a data source
 
 `PUT` creates a new data source or replaces an existing one entirely with one exception. Secrets you omit from the request are carried forward from the existing definition rather than cleared, so you can update non-secret settings without re-sending credentials.
 
-The create request does not validate connectivity to the external system. To verify that credentials and endpoint are correct before saving, use the [test connection](#test-a-connection) endpoint.
+The create request does not validate connectivity to the external system.
+
+{applies_to}`stack: experimental 9.6+` To verify that credentials and endpoint are correct before saving, use the [test connection](#test-a-connection) endpoint.
 
 :::{important}
 Data source names follow the same naming rules as index names: lowercase only, at most 255 bytes, and they cannot begin with `-`, `_`, or `+`, contain spaces, or contain the characters `\ / * ? " < > |`.

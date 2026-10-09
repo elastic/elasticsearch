@@ -45,6 +45,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -144,6 +145,76 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
 
         assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), containsString("bad request"));
+    }
+
+    /**
+     * Version conflicts happen when a client retries a request that was already indexed.
+     * They should be treated as successfully indexed duplicates rather than failures.
+     */
+    public void testConflictsReturnSuccess() {
+        BulkItemResponse[] bulkItemResponses = new BulkItemResponse[] {
+            failureResponse("metrics-generic.prometheus-default", RestStatus.CONFLICT, "version conflict"),
+            successResponse() };
+
+        executeRequest(
+            createWriteRequest("test_metric", 42.0, System.currentTimeMillis()),
+            listener -> listener.onResponse(new BulkResponse(bulkItemResponses, 0))
+        );
+    }
+
+    public void testConflictWithBadRequest() {
+        BulkItemResponse[] bulkItemResponses = new BulkItemResponse[] {
+            failureResponse("metrics-generic.prometheus-default", RestStatus.CONFLICT, "version conflict"),
+            failureResponse("metrics-generic.prometheus-default", RestStatus.BAD_REQUEST, "bad request"),
+            successResponse() };
+
+        Exception e = executeRequestExpectingFailure(
+            createWriteRequest("test_metric", 42.0, System.currentTimeMillis()),
+            new BulkResponse(bulkItemResponses, 0)
+        );
+
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("1 of 1 samples failed"));
+        assertThat(e.getMessage(), containsString("bad request"));
+        assertThat(e.getMessage(), containsString("1 sample(s) skipped as duplicates"));
+        assertThat(e.getMessage(), not(containsString("version conflict")));
+    }
+
+    public void testConflictWith429() {
+        BulkItemResponse[] bulkItemResponses = new BulkItemResponse[] {
+            failureResponse("metrics-generic.prometheus-default", RestStatus.CONFLICT, "version conflict"),
+            failureResponse("metrics-generic.prometheus-default", RestStatus.TOO_MANY_REQUESTS, "too many requests") };
+
+        Exception e = executeRequestExpectingFailure(
+            createWriteRequest("test_metric", 42.0, System.currentTimeMillis()),
+            new BulkResponse(bulkItemResponses, 0)
+        );
+
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.TOO_MANY_REQUESTS));
+    }
+
+    public void testConflictWithDroppedSamples() {
+        long now = System.currentTimeMillis();
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(createTimeSeries("valid_metric", 1.0, now))
+            .addTimeseries(
+                RemoteWrite.TimeSeries.newBuilder()
+                    .addLabels(RemoteWrite.Label.newBuilder().setName("job").setValue("test").build())
+                    .addSamples(RemoteWrite.Sample.newBuilder().setValue(42.0).setTimestamp(now).build())
+                    .build()
+            )
+            .build();
+        BulkItemResponse[] bulkItemResponses = new BulkItemResponse[] {
+            failureResponse("metrics-generic.prometheus-default", RestStatus.CONFLICT, "version conflict") };
+
+        Exception e = executeRequestExpectingFailure(
+            createWriteRequest(writeRequest, "generic", "default"),
+            new BulkResponse(bulkItemResponses, 0)
+        );
+
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("missing __name__ label"));
+        assertThat(e.getMessage(), containsString("1 sample(s) skipped as duplicates"));
     }
 
     public void testBulkFailure() {

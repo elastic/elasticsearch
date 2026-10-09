@@ -228,6 +228,42 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         assertThat(failureSearch.evaluate("hits.hits.0._source.error.type"), equalTo("timestamp_error"));
     }
 
+    /**
+     * Simulates a client retrying a request that was already indexed, e.g. after a timeout.
+     * The retry results in version conflicts which should be reported as a warning without rejecting data points.
+     */
+    public void testRetryOfIndexedDataPointsIsNotRejected() throws Exception {
+        long now = Clock.getDefault().now();
+        byte[] body = marshalMetrics(
+            List.of(
+                createDoubleGauge(TEST_RESOURCE, Attributes.empty(), "retried_gauge", 1.0, "By", now),
+                createDoubleGauge(TEST_RESOURCE, Attributes.empty(), "retried_gauge", 2.0, "By", now + TimeUnit.MILLISECONDS.toNanos(1))
+            )
+        );
+
+        Request request = new Request("POST", otlpEndpointPath());
+        request.setEntity(new ByteArrayEntity(body, ContentType.create("application/x-protobuf")));
+        var response = client().performRequest(request);
+        assertOK(response);
+        assertThat(ExportMetricsServiceResponse.parseFrom(responseAsBytes(response).array()).hasPartialSuccess(), equalTo(false));
+
+        Request retry = new Request("POST", otlpEndpointPath());
+        retry.setEntity(new ByteArrayEntity(body, ContentType.create("application/x-protobuf")));
+        var retryResponse = client().performRequest(retry);
+        assertOK(retryResponse);
+        ExportMetricsServiceResponse otlpResponse = ExportMetricsServiceResponse.parseFrom(responseAsBytes(retryResponse).array());
+        assertThat(otlpResponse.hasPartialSuccess(), equalTo(true));
+        assertThat(otlpResponse.getPartialSuccess().getRejectedDataPoints(), equalTo(0L));
+        assertThat(
+            otlpResponse.getPartialSuccess().getErrorMessage(),
+            equalTo("Skipped 2 duplicate documents that were already indexed with the same id.\n")
+        );
+
+        refreshMetricsIndices();
+        ObjectPath path = search("metrics-generic.otel-default");
+        assertThat(path.toString(), path.evaluate("hits.total.value"), equalTo(2));
+    }
+
     public void testGauge() throws Exception {
         long now = Clock.getDefault().now();
         export(

@@ -204,13 +204,24 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         RestStatus status = RestStatus.OK;
         int failures = 0;
         int failedBulkItems = 0;
+        int duplicates = 0;
+        String duplicateMessageSample = null;
         BulkItemResponse[] bulkItems = bulkResponse.getItems();
         for (int i = 0; i < bulkItems.length; i++) {
             BulkItemResponse.Failure failure = bulkItems[i].getFailure();
             boolean failureStoreRedirect = isFailureStoreRedirect(bulkItems[i]);
             if (failure != null || failureStoreRedirect) {
                 failedBulkItems++;
-                if (context.isPrimaryTelemetryDoc(i) == false) {
+                if (failure != null && failure.getStatus() == RestStatus.CONFLICT) {
+                    // A conflict means a document with the same _id has already been indexed.
+                    // This is almost always caused by a client retrying a request that was already (partially) indexed,
+                    // e.g. after a timeout. We don't count these as rejected items,
+                    // as clients would otherwise report the data as dropped even though it's stored.
+                    duplicates++;
+                    if (duplicateMessageSample == null) {
+                        duplicateMessageSample = failure.getMessage();
+                    }
+                } else if (context.isPrimaryTelemetryDoc(i) == false) {
                     context.recordNonPrimaryTelemetryDocFailure(bulkItems[i]);
                 } else if (failure != null) {
                     // we're counting each document as one item here
@@ -232,7 +243,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
                 }
             }
         }
-        if (bulkItems.length == failedBulkItems) {
+        if (bulkItems.length == failedBulkItems && duplicates == 0) {
             // all items failed, so we report total items as failures
             failures = context.totalItems();
         }
@@ -255,6 +266,13 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         }
         if (failureStoreRedirects > 0) {
             failureMessageBuilder.append("Redirected ").append(failureStoreRedirects).append(" documents to the failure store.\n");
+        }
+        if (duplicates > 0) {
+            logger.debug("skipped [{}] duplicate documents. Sample error message: [{}]", duplicates, duplicateMessageSample);
+            // Reported as a warning without increasing the rejected-item count
+            failureMessageBuilder.append("Skipped ")
+                .append(duplicates)
+                .append(" duplicate documents that were already indexed with the same id.\n");
         }
         failureMessageBuilder.append(context.getIgnoredItemsMessage(10));
         failureMessageBuilder.append(context.getWarningMessage());

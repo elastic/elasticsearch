@@ -311,6 +311,33 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         );
     }
 
+    public void testExemplarConflictIsReportedAsDuplicate() throws Exception {
+        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
+        Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
+        Metric metric = OtlpUtils.createGaugeMetric(
+            "test.metric",
+            "",
+            List.of(OtlpUtils.createDoubleDataPoint(2_000_000L, 0, List.of(), List.of(exemplar)))
+        );
+
+        OTLPActionResponse response = executeRequest(
+            createMetricsRequest(metric),
+            new BulkResponse(
+                new BulkItemResponse[] {
+                    bulkItemFailure("metrics-generic.otel-default", RestStatus.CONFLICT, "version conflict"),
+                    bulkItemFailure("exemplars-generic.otel-default", RestStatus.CONFLICT, "version conflict") },
+                0
+            )
+        );
+
+        byte[] responseBytes = response.getResponse().array();
+        assertThat(parseRejectedCount(responseBytes), equalTo(0L));
+        assertThat(
+            parseErrorMessage(responseBytes),
+            equalTo("Skipped 2 duplicate documents that were already indexed with the same id.\n")
+        );
+    }
+
     public void testSameTimestampExemplarsForDifferentMetricsAreNotDuplicates() throws Exception {
         assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);

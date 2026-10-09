@@ -166,7 +166,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
 
             if (bulkRequestBuilder.numberOfActions() == 0) {
                 if (droppedMissingName > 0) {
-                    String message = buildFailureSummary(totalSamples, droppedMissingName, droppedMissingName, Map.of());
+                    String message = buildFailureSummary(totalSamples, droppedMissingName, droppedMissingName, 0, Map.of());
                     listener.onFailure(new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST));
                 } else {
                     // All samples were non-finite (NaN/Infinity) and silently dropped — not a client error
@@ -177,13 +177,11 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
 
             final int finalTotalSamples = totalSamples;
             final int finalDroppedMissingName = droppedMissingName;
-            bulkRequestBuilder.execute(listener.delegateFailure((delegate, bulkResponse) -> {
-                if (bulkResponse.hasFailures() || finalDroppedMissingName > 0) {
-                    delegate.onFailure(buildPartialFailureException(bulkResponse, finalTotalSamples, finalDroppedMissingName));
-                } else {
-                    delegate.onResponse(new RemoteWriteResponse());
-                }
-            }));
+            bulkRequestBuilder.execute(
+                listener.delegateFailure(
+                    (delegate, bulkResponse) -> handleBulkResponse(bulkResponse, finalTotalSamples, finalDroppedMissingName, delegate)
+                )
+            );
 
         } catch (InvalidProtocolBufferException e) {
             logger.debug("invalid Prometheus remote write payload", e);
@@ -240,42 +238,74 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
         }
     }
 
-    private static ElasticsearchStatusException buildPartialFailureException(
+    private static void handleBulkResponse(
         BulkResponse bulkResponse,
         int totalSamples,
-        int droppedMissingName
+        int droppedMissingName,
+        ActionListener<RemoteWriteResponse> listener
     ) {
+        if (bulkResponse.hasFailures() == false && droppedMissingName == 0) {
+            listener.onResponse(new RemoteWriteResponse());
+            return;
+        }
         Map<String, Map<RestStatus, FailureGroup>> failureGroups = null;
         // Default to 400 per the remote write spec for requests that should not be retried.
         RestStatus responseStatus = RestStatus.BAD_REQUEST;
         int failures = droppedMissingName;
+        int duplicates = 0;
+        String duplicateMessageSample = null;
 
         for (BulkItemResponse item : bulkResponse.getItems()) {
             BulkItemResponse.Failure failure = item.getFailure();
-            if (failure != null) {
-                failures++;
-                if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
-                    // 429 takes priority so clients retry (valid samples that were rate-limited may succeed on retry).
-                    responseStatus = RestStatus.TOO_MANY_REQUESTS;
-                }
-                if (failureGroups == null) {
-                    failureGroups = new HashMap<>();
-                }
-                failureGroups.computeIfAbsent(failure.getIndex(), k -> new HashMap<>())
-                    .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()))
-                    .failureCount()
-                    .incrementAndGet();
+            if (failure == null) {
+                continue;
             }
+            if (failure.getStatus() == RestStatus.CONFLICT) {
+                // The _id is derived from the series and the timestamp, so a conflict means a sample for the same series and
+                // timestamp has already been indexed. This is almost always caused by a client retrying a request that was
+                // already (partially) indexed, e.g. after a timeout. We don't treat these as failures, as remote write clients
+                // would consider the samples to be dropped even though they are stored.
+                duplicates++;
+                if (duplicateMessageSample == null) {
+                    duplicateMessageSample = failure.getMessage();
+                }
+                continue;
+            }
+            failures++;
+            if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
+                // 429 takes priority so clients retry (valid samples that were rate-limited may succeed on retry).
+                responseStatus = RestStatus.TOO_MANY_REQUESTS;
+            }
+            if (failureGroups == null) {
+                failureGroups = new HashMap<>();
+            }
+            failureGroups.computeIfAbsent(failure.getIndex(), k -> new HashMap<>())
+                .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()))
+                .failureCount()
+                .incrementAndGet();
         }
 
-        String message = buildFailureSummary(totalSamples, droppedMissingName, failures, failureGroups);
-        return new ElasticsearchStatusException(message, responseStatus);
+        if (duplicates > 0) {
+            logger.debug(
+                "skipped [{}] duplicate samples out of [{}] samples. Sample error: [{}]",
+                duplicates,
+                totalSamples,
+                duplicateMessageSample
+            );
+        }
+        if (failures == 0) {
+            listener.onResponse(new RemoteWriteResponse());
+        } else {
+            String message = buildFailureSummary(totalSamples, droppedMissingName, failures, duplicates, failureGroups);
+            listener.onFailure(new ElasticsearchStatusException(message, responseStatus));
+        }
     }
 
     private static String buildFailureSummary(
         int totalSamples,
         int droppedMissingName,
         int failures,
+        int duplicates,
         @Nullable Map<String, Map<RestStatus, FailureGroup>> failureGroups
     ) {
         StringBuilder failureMessage = new StringBuilder();
@@ -286,6 +316,10 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             .append(" samples failed.\n");
         if (droppedMissingName > 0) {
             failureMessage.append(droppedMissingName).append(" sample(s) dropped due to missing __name__ label\n");
+        }
+        if (duplicates > 0) {
+            failureMessage.append(duplicates)
+                .append(" sample(s) skipped as duplicates of already indexed samples with the same series and timestamp\n");
         }
         if (failureGroups != null) {
             for (Map.Entry<String, Map<RestStatus, FailureGroup>> indexEntry : failureGroups.entrySet()) {

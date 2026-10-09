@@ -15,6 +15,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
@@ -76,11 +77,11 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceSingleNullValue() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             minimalMapping(b);
             b.endObject();
-        })).documentMapper();
+        }));
 
         String expected = "{}";
         CheckedConsumer<XContentBuilder, IOException> buildInput = b -> {
@@ -88,17 +89,17 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
             b.nullValue();
         };
 
-        assertThat(syntheticSource(mapper, buildInput), equalTo(expected));
-        assertThat(syntheticSource(mapper, new SourceFilter(new String[] { "field" }, null), buildInput), equalTo(expected));
-        assertThat(syntheticSource(mapper, new SourceFilter(null, new String[] { "field" }), buildInput), equalTo("{}"));
+        assertThat(syntheticSource(mapperService, buildInput), equalTo(expected));
+        assertThat(syntheticSource(mapperService, new SourceFilter(new String[] { "field" }, null), buildInput), equalTo(expected));
+        assertThat(syntheticSource(mapperService, new SourceFilter(null, new String[] { "field" }), buildInput), equalTo("{}"));
     }
 
     public void testSyntheticSourceManyNullValue() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             minimalMapping(b);
             b.endObject();
-        })).documentMapper();
+        }));
 
         int nullCount = randomIntBetween(1, 5);
 
@@ -111,9 +112,9 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
             b.endArray();
         };
 
-        assertThat(syntheticSource(mapper, buildInput), equalTo(expected));
-        assertThat(syntheticSource(mapper, new SourceFilter(new String[] { "field" }, null), buildInput), equalTo(expected));
-        assertThat(syntheticSource(mapper, new SourceFilter(null, new String[] { "field" }), buildInput), equalTo("{}"));
+        assertThat(syntheticSource(mapperService, buildInput), equalTo(expected));
+        assertThat(syntheticSource(mapperService, new SourceFilter(new String[] { "field" }, null), buildInput), equalTo(expected));
+        assertThat(syntheticSource(mapperService, new SourceFilter(null, new String[] { "field" }), buildInput), equalTo("{}"));
     }
 
     public void testSyntheticSourceIndexLevelKeepArrays() throws IOException {
@@ -129,7 +130,7 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
             .put("index.mapping.source.mode", "synthetic")
             .put("index.mapping.synthetic_source_keep", "arrays")
             .build();
-        DocumentMapper mapperAll = createMapperService(getVersion(), settings, () -> true, mappings).documentMapper();
+        MapperService mapperService = createMapperService(getVersion(), settings, () -> true, mappings);
 
         int elementCount = randomIntBetween(2, 5);
         CheckedConsumer<XContentBuilder, IOException> buildInput = (XContentBuilder builder) -> {
@@ -141,7 +142,7 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
         buildInput.accept(builder);
         builder.endObject();
         String expected = Strings.toString(builder);
-        String actual = syntheticSource(mapperAll, buildInput);
+        String actual = syntheticSource(mapperService, buildInput);
         assertThat(actual, equalTo(expected));
     }
 

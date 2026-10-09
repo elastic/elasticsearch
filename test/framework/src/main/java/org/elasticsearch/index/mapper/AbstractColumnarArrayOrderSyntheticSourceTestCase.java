@@ -48,50 +48,46 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
         return createMapperService(settings.build(), mapping(b -> b.startObject("field").field("type", fieldTypeName()).endObject()));
     }
 
-    protected DocumentMapper columnarMapper() throws IOException {
-        return columnarMapperService().documentMapper();
-    }
-
     public void testOffsetsFieldNotUsed() throws IOException {
-        var mapper = columnarMapper();
+        var mapper = columnarMapperService().documentMapper();
         // The high-cardinality columnar path stores values in order and must not allocate a sidecar offsets field.
         assertNull(mapper.mappers().getMapper("field").getOffsetFieldName());
         assertTrue(mapper.mappers().getMapper("field").storesArrayValuesInOrder());
     }
 
     public void testOrderAndDuplicatesPreserved() throws IOException {
-        var mapper = columnarMapper();
+        MapperService mapperService = columnarMapperService();
         assertEquals("""
-            {"field":["b","a","a","c"]}""", syntheticSource(mapper, b -> b.array("field", "b", "a", "a", "c")));
+            {"field":["b","a","a","c"]}""", syntheticSource(mapperService, b -> b.array("field", "b", "a", "a", "c")));
     }
 
     public void testSingleValueCollapsesToScalar() throws IOException {
-        var mapper = columnarMapper();
+        MapperService mapperService = columnarMapperService();
         assertEquals("""
-            {"field":"a"}""", syntheticSource(mapper, b -> b.array("field", "a")));
+            {"field":"a"}""", syntheticSource(mapperService, b -> b.array("field", "a")));
         assertEquals("""
-            {"field":"a"}""", syntheticSource(mapper, b -> b.field("field", "a")));
+            {"field":"a"}""", syntheticSource(mapperService, b -> b.field("field", "a")));
     }
 
     public void testInterleavedNullsPreserved() throws IOException {
-        var mapper = columnarMapper();
+        MapperService mapperService = columnarMapperService();
         assertEquals(
             """
                 {"field":["a",null,"b"]}""",
-            syntheticSource(mapper, b -> { b.startArray("field").value("a").nullValue().value("b").endArray(); })
+            syntheticSource(mapperService, b -> { b.startArray("field").value("a").nullValue().value("b").endArray(); })
         );
     }
 
     public void testAllNullArray() throws IOException {
-        var mapper = columnarMapper();
+        MapperService mapperService = columnarMapperService();
         assertEquals("""
-            {"field":[null,null]}""", syntheticSource(mapper, b -> b.startArray("field").nullValue().nullValue().endArray()));
+            {"field":[null,null]}""", syntheticSource(mapperService, b -> b.startArray("field").nullValue().nullValue().endArray()));
     }
 
     public void testLoneNull() throws IOException {
-        var mapper = columnarMapper();
+        MapperService mapperService = columnarMapperService();
         assertEquals("""
-            {"field":[null]}""", syntheticSource(mapper, b -> b.startArray("field").nullValue().endArray()));
+            {"field":[null]}""", syntheticSource(mapperService, b -> b.startArray("field").nullValue().endArray()));
     }
 
     /**
@@ -101,23 +97,23 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
      * no slot. See {@link MultiValuedBinaryDocValuesField#keepsNullSlot}.
      */
     public void testScalarNullIsAbsent() throws IOException {
-        var mapper = columnarMapper();
-        assertEquals("{}", syntheticSource(mapper, b -> b.nullField("field")));
+        MapperService mapperService = columnarMapperService();
+        assertEquals("{}", syntheticSource(mapperService, b -> b.nullField("field")));
     }
 
     public void testEmptyArray() throws IOException {
-        var mapper = columnarMapper();
+        MapperService mapperService = columnarMapperService();
         // An empty array has no values to store in a doc-value column and isn't field-owned, so columnar drops it
         // (lossy) rather than keeping a generic _ignored_source marker. The field is therefore absent from _source.
-        assertEquals("{}", syntheticSource(mapper, b -> b.startArray("field").endArray()));
+        assertEquals("{}", syntheticSource(mapperService, b -> b.startArray("field").endArray()));
     }
 
     public void testEmptyStringDistinctFromNull() throws IOException {
-        var mapper = columnarMapper();
+        MapperService mapperService = columnarMapperService();
         assertEquals("""
-            {"field":""}""", syntheticSource(mapper, b -> b.array("field", "")));
+            {"field":""}""", syntheticSource(mapperService, b -> b.array("field", "")));
         assertEquals("""
-            {"field":["a","",null,"b"]}""", syntheticSource(mapper, b -> {
+            {"field":["a","",null,"b"]}""", syntheticSource(mapperService, b -> {
             b.startArray("field").value("a").value("").nullValue().value("b").endArray();
         }));
     }

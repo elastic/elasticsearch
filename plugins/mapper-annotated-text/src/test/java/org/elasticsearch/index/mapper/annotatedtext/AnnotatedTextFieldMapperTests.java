@@ -740,7 +740,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         List<String> values = new ArrayList<>(shortValues);
         values.addAll(longValues);
         Collections.shuffle(values, random());
-        DocumentMapper mapper = createColumnarModeDocumentMapper(mapping(b -> {
+        MapperService mapperService = createColumnarModeMapperService(mapping(b -> {
             b.startObject("field");
             {
                 b.field("type", "annotated_text");
@@ -765,6 +765,6 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         }));
         // All values must survive in encounter order; syntheticSource() asserts round-trip stability internally.
         String expected = "{\"field\":" + values.stream().collect(Collectors.joining("\",\"", "[\"", "\"]")) + "}";
-        assertThat(syntheticSource(mapper, b -> b.array("field", values.toArray(new String[0]))), equalTo(expected));
+        assertThat(syntheticSource(mapperService, b -> b.array("field", values.toArray(new String[0]))), equalTo(expected));
     }
 }

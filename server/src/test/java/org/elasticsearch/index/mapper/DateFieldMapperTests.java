@@ -1005,16 +1005,16 @@ public class DateFieldMapperTests extends MapperTestCase {
     public void testColumnarDateArrayOrderRoundTrip() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
         // Use epoch_millis format so input numbers and synthetic-source output both serialize as raw millis strings without ambiguity.
-        DocumentMapper mapper = createMapperService(
+        MapperService mapperService = createMapperService(
             settings,
             mapping(b -> b.startObject("field").field("type", "date").field("format", "epoch_millis").endObject())
-        ).documentMapper();
+        );
         // Cap at year ~2096 to stay well within Java's date range.
         long v1 = randomLongBetween(0L, 4_000_000_000_000L);
         long v2 = randomLongBetween(0L, 4_000_000_000_000L);
         long v3 = randomLongBetween(0L, 4_000_000_000_000L);
         // Out-of-order with v2 duplicated — sorted-deduped output would collapse the run.
-        String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
+        String src = syntheticSource(mapperService, b -> b.array("field", v2, v1, v3, v2));
         // epoch_millis values are emitted as quoted strings under strict columnar synthetic source.
         assertThat(src, containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",\"" + v3 + "\",\"" + v2 + "\"]"));
     }

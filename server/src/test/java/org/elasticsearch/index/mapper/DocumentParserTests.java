@@ -3926,7 +3926,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
      */
     public void testSyntheticSourceKeywordArrayInsideLogsdbObjectArray() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "logsdb").build();
-        DocumentMapper mapper = createMapperService(
+        MapperService mapperService = createMapperService(
             settings,
             mapping(
                 b -> b.startObject("obj")
@@ -3938,9 +3938,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
                     .endObject()
                     .endObject()
             )
-        ).documentMapper();
+        );
 
-        String result = syntheticSource(mapper, b -> {
+        String result = syntheticSource(mapperService, b -> {
             b.startArray("obj");
             {
                 b.startObject();
@@ -3965,7 +3965,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             .put("index.mapping.source.mode", "synthetic")
             .put("index.mapping.synthetic_source_keep", "arrays")
             .build();
-        DocumentMapper mapper = createMapperService(
+        MapperService mapperService = createMapperService(
             settings,
             mapping(
                 b -> b.startObject("obj")
@@ -3977,9 +3977,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
                     .endObject()
                     .endObject()
             )
-        ).documentMapper();
+        );
 
-        String result = syntheticSource(mapper, b -> {
+        String result = syntheticSource(mapperService, b -> {
             b.startArray("obj");
             {
                 b.startObject();
@@ -4006,7 +4006,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             .put("index.mapping.source.mode", "synthetic")
             .put("index.mapping.synthetic_source_keep", "arrays")
             .build();
-        DocumentMapper mapper = createMapperService(
+        MapperService mapperService = createMapperService(
             settings,
             mapping(
                 b -> b.startObject("parent")
@@ -4022,9 +4022,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
                     .endObject()
                     .endObject()
             )
-        ).documentMapper();
+        );
 
-        String result = syntheticSource(mapper, b -> {
+        String result = syntheticSource(mapperService, b -> {
             b.startObject("parent");
             b.startArray("kw");
             b.startObject().field("sub", "x").endObject();

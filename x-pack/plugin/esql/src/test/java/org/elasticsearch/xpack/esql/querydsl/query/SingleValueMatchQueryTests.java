@@ -46,6 +46,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
+import org.elasticsearch.index.mapper.SingleValuedColumnarBinaryDocValuesField;
+import org.elasticsearch.index.mapper.TestIndexWriterBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -138,7 +140,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
     public void testQuery() throws IOException {
         assumeCodecAvailable();
         MapperService mapper = createMapperService(setup.indexSettings(), mapping(setup::mapping));
-        try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
+        try (Directory d = newDirectory(); RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapper).build(d)) {
             List<List<Object>> fieldValues = setup.build(iw);
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
@@ -155,7 +157,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
     public void testEmpty() throws IOException {
         assumeCodecAvailable();
         MapperService mapper = createMapperService(setup.indexSettings(), mapping(setup::mapping));
-        try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
+        try (Directory d = newDirectory(); RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapper).build(d)) {
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
                 withBoundQuery(
@@ -282,9 +284,11 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
         @Override
         public void assertRewrite(IndexSearcher indexSearcher, Query query) throws IOException {
-            // The high-cardinality setups write their doc values through the test's own codec rather than as a column, and only a
-            // column says whether its documents each hold one value, so the query never rewrites away.
-            if (docValuesMode.highCardinality() == false && empty == false && multivaluedField == false) {
+            final boolean docValuesProveOneValuePerDoc = switch (docValuesMode) {
+                case DEFAULT, DOC_VALUES_ONLY, DOC_VALUES_ONLY_HIGH_CARDINALITY_PAYLOAD, DOC_VALUES_ONLY_SINGLE_VALUED_COLUMNAR -> true;
+                case DOC_VALUES_ONLY_HIGH_CARDINALITY, DOC_VALUES_ONLY_SINGLE_VALUED -> false;
+            };
+            if (docValuesProveOneValuePerDoc && empty == false && multivaluedField == false) {
                 assertThat(query.rewrite(indexSearcher), instanceOf(MatchAllDocsQuery.class));
             } else {
                 assertThat(query.rewrite(indexSearcher), sameInstance(query));
@@ -321,10 +325,6 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         DOC_VALUES_ONLY_SINGLE_VALUED,
         /** The same blobs, on an index with the ColumNAR codec on, where the field is framed as bare values. */
         DOC_VALUES_ONLY_SINGLE_VALUED_COLUMNAR;
-
-        boolean highCardinality() {
-            return this != DEFAULT && this != DOC_VALUES_ONLY;
-        }
 
         boolean singleValuedBlobs() {
             return this == DOC_VALUES_ONLY_SINGLE_VALUED || this == DOC_VALUES_ONLY_SINGLE_VALUED_COLUMNAR;
@@ -409,10 +409,16 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                         default -> throw new UnsupportedOperationException();
                     }
                 }
-                case DOC_VALUES_ONLY_SINGLE_VALUED, DOC_VALUES_ONLY_SINGLE_VALUED_COLUMNAR -> {
+                case DOC_VALUES_ONLY_SINGLE_VALUED -> {
                     switch (v) {
                         // The blob is the value's own bytes, with no count beside it.
                         case String s -> fields.add(new BinaryDocValuesField("foo", new BytesRef(s)));
+                        default -> throw new UnsupportedOperationException();
+                    }
+                }
+                case DOC_VALUES_ONLY_SINGLE_VALUED_COLUMNAR -> {
+                    switch (v) {
+                        case String s -> fields.add(new SingleValuedColumnarBinaryDocValuesField("foo", new BytesRef(s)));
                         default -> throw new UnsupportedOperationException();
                     }
                 }

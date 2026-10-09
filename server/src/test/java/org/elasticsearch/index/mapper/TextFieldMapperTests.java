@@ -564,10 +564,10 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testColumnarArrayOrderRoundTrip() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        DocumentMapper mapper = createMapperService(
+        MapperService mapperService = createMapperService(
             settings,
             mapping(b -> b.startObject("field").field("type", "text").field("doc_values", true).endObject())
-        ).documentMapper();
+        );
 
         String v1 = randomAlphanumericOfLength(4);
         String v2 = randomAlphanumericOfLength(4);
@@ -575,7 +575,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         // Duplicate v2 and an interleaved null: sorted-deduped doc-values order would reorder/collapse them and drop the null; the in-order
         // binary doc values must restore arrival order, the duplicate, and the null position.
         assertThat(
-            syntheticSource(mapper, b -> b.array("field", v2, v1, null, v3, v2)),
+            syntheticSource(mapperService, b -> b.array("field", v2, v1, null, v3, v2)),
             containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",null,\"" + v3 + "\",\"" + v2 + "\"]")
         );
     }
@@ -586,15 +586,15 @@ public class TextFieldMapperTests extends MapperTestCase {
      */
     public void testColumnarArrayOrderWithValueExceedMaxTermLength() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        DocumentMapper mapper = createMapperService(
+        MapperService mapperService = createMapperService(
             settings,
             mapping(b -> b.startObject("field").field("type", "text").field("doc_values", true).endObject())
-        ).documentMapper();
+        );
 
         String shortValue = randomAlphanumericOfLength(4);
         String longValue = randomAlphanumericOfLength(40000); // exceeds IndexWriter.MAX_TERM_LENGTH (32766)
         assertThat(
-            syntheticSource(mapper, b -> b.array("field", longValue, null, shortValue)),
+            syntheticSource(mapperService, b -> b.array("field", longValue, null, shortValue)),
             containsString("\"field\":[\"" + longValue + "\",null,\"" + shortValue + "\"]")
         );
     }
@@ -998,27 +998,27 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceWithDocValues() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(
+        MapperService mapperService = createSytheticSourceMapperService(
             fieldMapping(b -> b.field("type", "text").field("index", false).field("doc_values", true))
-        ).documentMapper();
+        );
 
-        var syntheticSource = syntheticSource(mapper, b -> b.field("field", "test value"));
+        var syntheticSource = syntheticSource(mapperService, b -> b.field("field", "test value"));
         assertEquals("{\"field\":\"test value\"}", syntheticSource);
     }
 
     public void testSyntheticSourceWithDocValuesMultiValue() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(
+        MapperService mapperService = createSytheticSourceMapperService(
             fieldMapping(b -> b.field("type", "text").field("index", false).field("doc_values", true))
-        ).documentMapper();
+        );
 
-        var syntheticSource = syntheticSource(mapper, b -> b.array("field", "value1", "value2"));
+        var syntheticSource = syntheticSource(mapperService, b -> b.array("field", "value1", "value2"));
         assertEquals("{\"field\":[\"value1\",\"value2\"]}", syntheticSource);
     }
 
     public void testSyntheticSourceWithDocValuesHighCardinality() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "text")));
+        MapperService mapperService = createColumnarModeMapperService(fieldMapping(b -> b.field("type", "text")));
 
-        var syntheticSource = syntheticSource(mapper, b -> b.array("field", "value1", "value2"));
+        var syntheticSource = syntheticSource(mapperService, b -> b.array("field", "value1", "value2"));
         assertEquals("{\"field\":[\"value1\",\"value2\"]}", syntheticSource);
     }
 
@@ -1334,7 +1334,8 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         });
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping).documentMapper();
+        MapperService mapperService = createSytheticSourceMapperService(mapping);
+        DocumentMapper mapper = mapperService.documentMapper();
 
         var source = source(b -> b.field("name", "QUICK Brown fox"));
         ParsedDocument doc = mapper.parse(source);
@@ -1345,7 +1346,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertIgnoredSourceIsEmpty(doc);
 
         // verify that source is synthesized correctly
-        assertThat(syntheticSource(mapper, b -> b.field("name", "QUICK Brown fox")), equalTo("{\"name\":\"QUICK Brown fox\"}"));
+        assertThat(syntheticSource(mapperService, b -> b.field("name", "QUICK Brown fox")), equalTo("{\"name\":\"QUICK Brown fox\"}"));
     }
 
     public void testDoesNotDelegateSyntheticSourceForNormalizedKeywordMultiFieldWhenStoreOriginalValueInLogsDbIndices() throws IOException {
@@ -1367,7 +1368,8 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         });
-        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+        MapperService mapperService = createMapperService(indexSettings, mapping);
+        DocumentMapper mapper = mapperService.documentMapper();
 
         // when
         var source = source(b -> {
@@ -1384,7 +1386,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertIgnoredSourceIsEmpty(doc);
 
         // verify that source is synthesized correctly
-        assertThat(syntheticSource(mapper, b -> {
+        assertThat(syntheticSource(mapperService, b -> {
             b.field("@timestamp", "2024-01-01T00:00:00Z");
             b.field("name", "QUICK Brown fox");
         }), equalTo("{\"@timestamp\":\"2024-01-01T00:00:00.000Z\",\"name\":\"QUICK Brown fox\"}"));
@@ -1408,7 +1410,8 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         });
-        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+        MapperService mapperService = createMapperService(indexSettings, mapping);
+        DocumentMapper mapper = mapperService.documentMapper();
 
         var source = source(b -> b.field("name", "QUICK Brown fox"));
         ParsedDocument doc = mapper.parse(source);
@@ -1421,7 +1424,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         assertIgnoredSourceIsEmpty(doc);
 
-        assertThat(syntheticSource(mapper, b -> b.field("name", "QUICK Brown fox")), equalTo("{\"name\":\"quick brown fox\"}"));
+        assertThat(syntheticSource(mapperService, b -> b.field("name", "QUICK Brown fox")), equalTo("{\"name\":\"quick brown fox\"}"));
     }
 
     public void testBWCSerialization() throws IOException {
@@ -3077,12 +3080,12 @@ public class TextFieldMapperTests extends MapperTestCase {
         // create a value that exceeds MAX_TERM_LENGTH
         String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
 
-        DocumentMapper mapper = createSytheticSourceMapperService(
+        MapperService mapperService = createSytheticSourceMapperService(
             fieldMapping(b -> b.field("type", "text").field("index", false).field("doc_values", true))
-        ).documentMapper();
+        );
 
         // despite the value exceeding Lucene's max term length, we still expect to synthesize it
-        var syntheticSource = syntheticSource(mapper, b -> b.field("field", longValue));
+        var syntheticSource = syntheticSource(mapperService, b -> b.field("field", longValue));
         assertEquals("{\"field\":\"" + longValue + "\"}", syntheticSource);
     }
 
@@ -3090,11 +3093,11 @@ public class TextFieldMapperTests extends MapperTestCase {
         String shortValue = "short";
         String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
 
-        DocumentMapper mapper = createSytheticSourceMapperService(
+        MapperService mapperService = createSytheticSourceMapperService(
             fieldMapping(b -> b.field("type", "text").field("index", false).field("doc_values", true))
-        ).documentMapper();
+        );
 
-        var syntheticSource = syntheticSource(mapper, b -> b.array("field", shortValue, longValue));
+        var syntheticSource = syntheticSource(mapperService, b -> b.array("field", shortValue, longValue));
 
         // expect both values in synthetic source
         assertThat(syntheticSource, containsString(shortValue));

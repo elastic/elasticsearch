@@ -160,7 +160,7 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
             var mapper = mapperService.documentMapper();
 
             try (var directory = newDirectory()) {
-                var iw = indexWriterForSyntheticSource(directory);
+                var iw = indexWriterForSyntheticSource(mapperService, directory);
                 var doc = mapper.parse(new SourceToParse("_id", new BytesArray(source), XContentType.JSON));
 
                 var offsetsField = doc.rootDoc().getFields("field.offsets");

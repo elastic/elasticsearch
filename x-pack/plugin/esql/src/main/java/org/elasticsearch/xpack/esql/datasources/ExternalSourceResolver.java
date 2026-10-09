@@ -2651,7 +2651,12 @@ public class ExternalSourceResolver {
                     if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
                         result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata, schemaInterner);
                     } else {
-                        result = SchemaReconciliation.reconcileUnionByName(allMetadata, pendingSchemaWarnings::add, schemaInterner);
+                        result = SchemaReconciliation.reconcileUnionByName(
+                            allMetadata,
+                            pendingSchemaWarnings::add,
+                            schemaInterner,
+                            schemaMaxFields(config)
+                        );
                     }
 
                     // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
@@ -2766,6 +2771,19 @@ public class ExternalSourceResolver {
             schemaInterner,
             privateLists,
             metadataListener
+        );
+    }
+
+    /**
+     * The most columns a dataset's schema may have: its {@code schema_max_fields} key when set, otherwise the
+     * {@code esql.external.schema_max_fields} node setting. Held to the declared mapping and to the merged
+     * {@code union_by_name} schema, as the format readers hold each file's own schema to it.
+     */
+    private int schemaMaxFields(Map<String, Object> config) {
+        return ExternalSourceSettings.parseDatasetSchemaMaxFields(
+            config == null ? null : config.get("schema_max_fields"),
+            "schema_max_fields",
+            ExternalSourceSettings.SCHEMA_MAX_FIELDS.get(settings)
         );
     }
 
@@ -4709,6 +4727,7 @@ public class ExternalSourceResolver {
         pendingListingWarnings.addAll(singletonList.listingWarnings());
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
         // operator (and file schema) work purely in logical names.
+        DeclaredSchemaResolver.checkDeclaredWidth(declaredMapping, schemaMaxFields(config));
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
         FormatNameResolver.rejectConflictingObjectFormat(storagePath, sourceType, dataSourceModule.formatReaderRegistry());
         // Cheap no-I/O guard first (partition collision), then the columnar coercibility check which reads
@@ -5042,6 +5061,7 @@ public class ExternalSourceResolver {
 
             // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
             // operator (and file schema) work purely in logical names.
+            DeclaredSchemaResolver.checkDeclaredWidth(declaredMapping, schemaMaxFields(config));
             List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
             FormatNameResolver.rejectConflictingListedFormats(listing, sourceType, dataSourceModule.formatReaderRegistry());
 
@@ -5268,10 +5288,11 @@ public class ExternalSourceResolver {
             rejectUncoercibleFileTypedRetypes(metadata.schema(), sourceType, declaredMapping);
             listener.onResponse(null);
         }, listener::onFailure);
+        Map<String, Object> probeConfig = declaredProbeConfig(sourceType, config);
         if (isCacheable(provider)) {
-            cachedResolveSingleSourceAsync(anchor, anchorHint, storageIdentity, secretIdentity, config, null, null, checked);
+            cachedResolveSingleSourceAsync(anchor, anchorHint, storageIdentity, secretIdentity, probeConfig, null, null, checked);
         } else {
-            resolveSingleSourceAsync(anchor.toString(), anchorHint, config, checked);
+            resolveSingleSourceAsync(anchor.toString(), anchorHint, probeConfig, checked);
         }
     }
 
@@ -5302,10 +5323,27 @@ public class ExternalSourceResolver {
         if (sourceType == null || FILE_TYPED_FORMATS.contains(sourceType) == false || declaredMapping.mappings() == null) {
             return;
         }
+        Map<String, Object> probeConfig = declaredProbeConfig(sourceType, config);
         List<Attribute> physicalSchema = (isCacheable(provider)
-            ? cachedResolveSingleSource(anchor, anchorMtime, storageIdentity, secretIdentity, config)
-            : resolveSingleSource(anchor.toString(), config)).schema();
+            ? cachedResolveSingleSource(anchor, anchorMtime, storageIdentity, secretIdentity, probeConfig)
+            : resolveSingleSource(anchor.toString(), probeConfig)).schema();
         rejectUncoercibleFileTypedRetypes(physicalSchema, sourceType, declaredMapping);
+    }
+
+    /**
+     * The config the strict declared probe reads the anchor's footer with. A declared dataset is not capped by how many
+     * columns its files have, so for Parquet, the only file-typed reader that enforces {@code schema_max_fields}, the
+     * probe raises the cap to its ceiling; the reader charges the schema it flattens to the breaker instead. The key is
+     * part of the reader's config identity, so the probe's schema cache entry is kept apart from the inferred one, which
+     * stays capped.
+     */
+    private static Map<String, Object> declaredProbeConfig(String sourceType, Map<String, Object> config) {
+        if ("parquet".equals(sourceType) == false) {
+            return config;
+        }
+        Map<String, Object> probeConfig = config == null ? new HashMap<>() : new HashMap<>(config);
+        probeConfig.put("schema_max_fields", ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS);
+        return probeConfig;
     }
 
     /**
@@ -5466,6 +5504,7 @@ public class ExternalSourceResolver {
         if (fileTyped) {
             rejectUncoercibleFileTypedRetypes(inferred.schema(), inferred.sourceType(), declaredMapping);
         }
+        DeclaredSchemaResolver.checkDeclaredWidth(declaredMapping, schemaMaxFields(inferred.config()));
         DeclaredSchemaResolver.Overlaid unified = DeclaredSchemaResolver.overlayNonStrict(inferred.schema(), declaredMapping, false);
         if (unified.absent().isEmpty() == false && isSchemaComplete(inferred.sourceType(), inferred.config())) {
             // The schema lists every column of the file(s) it was built from, so these columns are not there. The

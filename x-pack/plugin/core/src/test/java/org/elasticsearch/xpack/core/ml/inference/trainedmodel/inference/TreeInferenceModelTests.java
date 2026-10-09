@@ -342,7 +342,9 @@ public class TreeInferenceModelTests extends ESTestCase {
      * Expected values are Shapley values of the path-dependent value function v(S), computed by hand:
      * v({}) = 15, v({foo}) = 20 or 10 (by foo), v({bar}) = 15 for bar = 0.3 and 0.5 * 20 + 0.5 * (0.5 * 7 + 0.5 * 9) = 14
      * for bar = 0.7, and v({foo, bar}) is the prediction. Values for documents passing through the zero-sample node depend
-     * on the even split: with a left fraction p, foo's importance for (0.3, 0.7) would be -5.25 + p / 2.
+     * on the even split: with a left fraction p, foo's importance for (0.3, 0.7) would be -5.25 + p / 2. So do values for
+     * documents that never reach the node but that bar alone routes into it: bar's importance for (0.7, 0.7) would be
+     * -0.25 - p / 2.
      */
     public void testFeatureImportanceWithZeroSampleInnerNode() throws IOException {
         List<String> featureNames = Arrays.asList("foo", "bar");
@@ -400,6 +402,11 @@ public class TreeInferenceModelTests extends ESTestCase {
         featureImportance = tree.featureImportance(new double[] { 0.1, 0.7 });
         assertThat(featureImportance[0][0], closeTo(-6.0, eps));
         assertThat(featureImportance[1][0], closeTo(-2.0, eps));
+
+        // Never reaches the zero-sample node, but bar alone routes it there
+        featureImportance = tree.featureImportance(new double[] { 0.7, 0.7 });
+        assertThat(featureImportance[0][0], closeTo(5.5, eps));
+        assertThat(featureImportance[1][0], closeTo(-0.5, eps));
     }
 
     /**

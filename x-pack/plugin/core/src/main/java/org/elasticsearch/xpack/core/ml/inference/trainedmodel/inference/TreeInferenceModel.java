@@ -296,10 +296,11 @@ public class TreeInferenceModel implements InferenceModel, BoundedInferenceModel
                 nextIndex = splitPath.unwind(pathIndex, nextIndex);
             }
 
-            // A node below the root that no training samples reached leaves the child fractions as 0 / 0. An even split keeps them
-            // summing to one and has no effect on the expected value, because no samples reach the node, but it does affect the
-            // attributions of documents whose path goes through it, for which it is the neutral choice. The root is excluded:
-            // it only has zero samples if the model has no number_samples at all, which must not be masked.
+            // A node below the root that no counted samples reached leaves the child fractions as 0 / 0. An even split keeps them
+            // summing to one and has no effect on the expected value, because the fraction leading into the node is zero. It does
+            // affect the attributions of any document that some subset of its features routes into the node, for which it is the
+            // neutral choice. The root is excluded: it only has zero samples if the model has no number_samples at all, which must
+            // not be masked. CTreeShapFeatureImportance in ml-cpp must use the same rule.
             long numberSamples = currNode.getNumberSamples();
             boolean evenSplit = numberSamples == 0 && nodeIndex != 0;
             double hotFractionZero = evenSplit ? 0.5 : nodes[hotIndex].getNumberSamples() / (double) numberSamples;

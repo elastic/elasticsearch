@@ -8,12 +8,10 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
@@ -23,43 +21,31 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
 
 /**
  * Node-scoped {@link NodeByteBudget}. Look-ahead {@link #tryAdmit} refuses rather than wait.
  * {@link #admitAsync} is FIFO; one overshoot slot is granted only to a runnable lease. A unit
- * larger than the cap goes through that slot only. Legacy {@link #admitWaitUntil} keeps the
- * charge-on-expiry path for leftover parquet column iterator tests until the hard cap lands.
+ * larger than the cap goes through that slot only. There is no blocking wait and no
+ * charge-on-expiry: waiters park on a ticket until a grant or cancel. Live-cluster
+ * {@code hot_threads} proof that {@code esql_worker} is absent from gate frames is deferred.
  */
 public final class NodeByteBudgetService implements NodeByteBudget {
 
-    private static final Logger logger = LogManager.getLogger(NodeByteBudgetService.class);
-
     public static final int HEAP_DIVISOR = 8;
 
-    public static final long DEFAULT_ADMIT_WAIT_MS = 1_000L;
-
-    public static final int FORCE_ADMIT_LIMIT_MULTIPLIER = 2;
-
-    private static final long WARN_LOG_INTERVAL_MS = 30_000L;
-
     private final long limit;
-    private final long admitWaitMs;
     private final AtomicLong used = new AtomicLong();
     private final AtomicLong peakUsed = new AtomicLong();
-    private final AtomicLong forcedAdmits = new AtomicLong();
-    private final AtomicLong waitNanos = new AtomicLong();
-    private final AtomicLong lastWarnLogTime = new AtomicLong();
     private final ReentrantLock lock = new ReentrantLock();
-    private final Condition notFull = lock.newCondition();
     private final ArrayDeque<TicketWaiter> waiters = new ArrayDeque<>();
     private final ArrayList<Runnable> pendingCompletions = new ArrayList<>();
     private RowGroupIo overshootOwner;
+    /** Live OVER_CAP rescue holds. Guarded by {@link #lock}. */
+    private int rescueHolds;
     private volatile AdmissionTracker tracker = AdmissionTracker.NOOP;
 
     public static NodeByteBudgetService forHeap() {
@@ -68,41 +54,14 @@ public final class NodeByteBudgetService implements NodeByteBudget {
     }
 
     public NodeByteBudgetService(long limit) {
-        this(limit, DEFAULT_ADMIT_WAIT_MS);
-    }
-
-    public NodeByteBudgetService(long limit, long admitWaitMs) {
         if (limit < 1L) {
             throw new IllegalArgumentException("limit must be at least 1, got: " + limit);
         }
-        if (admitWaitMs < 0L) {
-            throw new IllegalArgumentException("admitWaitMs must be non-negative, got: " + admitWaitMs);
-        }
         this.limit = limit;
-        this.admitWaitMs = admitWaitMs;
     }
 
     public void bindTracker(AdmissionTracker tracker) {
         this.tracker = tracker == null ? AdmissionTracker.NOOP : tracker;
-    }
-
-    public long admitWaitMs() {
-        return admitWaitMs;
-    }
-
-    public long forcedAdmits() {
-        return forcedAdmits.get();
-    }
-
-    public long waitNanos() {
-        return waitNanos.get();
-    }
-
-    public long forceAdmitLimit() {
-        if (limit > Long.MAX_VALUE / FORCE_ADMIT_LIMIT_MULTIPLIER) {
-            return Long.MAX_VALUE;
-        }
-        return limit * (long) FORCE_ADMIT_LIMIT_MULTIPLIER;
     }
 
     @Override
@@ -158,7 +117,9 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                 } else {
                     waiter.tracked = tracker.waitStarted(
                         AdmissionTracker.GATE_BYTES,
-                        lease == null ? Thread.currentThread().getName() : "lease#" + lease.startSeq()
+                        lease == null
+                            ? Thread.currentThread().getName() + ":bytes=" + bytes
+                            : "lease#" + lease.startSeq() + ":bytes=" + bytes
                     );
                     waiters.addLast(waiter);
                     if (lease != null) {
@@ -215,7 +176,6 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                 return next < 0L ? 0L : next;
             });
             grantTicketWaitersLocked();
-            notFull.signalAll();
             completions = takePendingCompletions();
         } finally {
             lock.unlock();
@@ -236,7 +196,6 @@ public final class NodeByteBudgetService implements NodeByteBudget {
             }
             overshootOwner = null;
             grantTicketWaitersLocked();
-            notFull.signalAll();
             completions = takePendingCompletions();
         } finally {
             lock.unlock();
@@ -285,7 +244,6 @@ public final class NodeByteBudgetService implements NodeByteBudget {
         try {
             failCancelledWaitersLocked();
             grantTicketWaitersLocked();
-            notFull.signalAll();
             completions = takePendingCompletions();
         } finally {
             lock.unlock();
@@ -294,96 +252,37 @@ public final class NodeByteBudgetService implements NodeByteBudget {
     }
 
     /**
-     * Blocking wait with charge-on-expiry for leftover parquet column iterator tests.
-     * Production coalesced reads no longer call this.
-     * Lock order: this lock, then the budget lock inside {@link RowGroupIo#tryPinOvershoot()}.
+     * Unsticks the FIFO head, then re-runs the normal grant loop. Skips cancelled heads.
+     * {@link AdmissionGate.RescueResult#OVER_CAP} is a plain hold ({@code owner=false}), counted
+     * in {@link #used()}. At most one rescued hold is live: a second over-cap grant waits until
+     * that hold releases. OVER_CAP is skipped when {@code used} has dropped since the head
+     * parked (holders draining, not a wedge). {@link AdmissionGate.RescueResult#REGRANT} is a
+     * within-cap grant that should have happened on an earlier release (lost wakeup).
+     * {@code delivery} {@code null} keeps each waiter's executor.
      */
-    public Hold admitWaitUntil(long bytes, RowGroupIo lease, long deadlineNanos) {
-        if (lease == null) {
-            throw new IllegalArgumentException("lease is required");
-        }
-        if (bytes < 0L) {
-            throw new IllegalArgumentException("bytes must be non-negative, got: " + bytes);
-        }
-        if (bytes == 0L) {
-            return new HoldImpl(this, 0L, lease, false);
-        }
-        boolean enteredWait = false;
-        boolean forced = false;
-        long waitStartedNanos = 0L;
-        boolean ambientCancelled = StorageRetryCancellation.isCancelled();
-        Hold hold;
+    public AdmissionGate.RescueResult rescueHeadOverCap() {
+        return rescueHeadOverCap(null);
+    }
+
+    public AdmissionGate.RescueResult rescueHeadOverCap(@Nullable Executor delivery) {
+        List<Runnable> completions;
+        AdmissionGate.RescueResult result;
         lock.lock();
         try {
-            while (true) {
-                if (lease.isCancelled()) {
-                    throw cancelled();
-                }
-                long remainingNanos = deadlineNanos - System.nanoTime();
-                if (remainingNanos <= 0L && ambientCancelled) {
-                    throw cancelled();
-                }
-                HoldImpl granted = tryChargeLocked(bytes, lease, true);
-                if (granted != null) {
-                    hold = granted;
-                    break;
-                }
-                lease.setWake(this, this::wakeWaiters);
-                if (lease.isCancelled()) {
-                    throw cancelled();
-                }
-                if (remainingNanos <= 0L) {
-                    if (ambientCancelled) {
-                        throw cancelled();
-                    }
-                    long current = used.get();
-                    long next = current + bytes;
-                    if (next < 0L) {
-                        throw new EsRejectedExecutionException("parquet I/O byte reservation overflow");
-                    }
-                    if (next > forceAdmitLimit()) {
-                        throw overForceLimit(bytes, next);
-                    }
-                    setUsed(next);
-                    forcedAdmits.incrementAndGet();
-                    forced = true;
-                    hold = new HoldImpl(this, bytes, lease, false);
-                    break;
-                }
-                if (enteredWait == false) {
-                    enteredWait = true;
-                    waitStartedNanos = System.nanoTime();
-                }
-                try {
-                    notFull.awaitNanos(remainingNanos);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new EsRejectedExecutionException("Interrupted while waiting for parquet I/O bytes: " + e);
-                }
-                lock.unlock();
-                try {
-                    ambientCancelled = StorageRetryCancellation.isCancelled();
-                } finally {
-                    lock.lock();
-                }
-            }
+            result = rescueHeadLocked(delivery);
+            grantTicketWaitersLocked(delivery);
+            completions = takePendingCompletions();
         } finally {
-            if (enteredWait) {
-                waitNanos.addAndGet(System.nanoTime() - waitStartedNanos);
-            }
             lock.unlock();
         }
-        if (forced) {
-            maybeLogForcedAdmit(bytes);
-        }
-        return hold;
+        runCompletions(completions);
+        return result;
     }
 
     /**
      * Caller holds the lock. Does not inspect the waiter queue: the caller decides whether a
      * queued waiter may charge (grant path) or must refuse (look-ahead {@link #tryAdmit}).
-     * {@code allowOvershoot} is true for tickets and the parking path; {@link #tryAdmit} never
-     * takes the slot.
+     * {@code allowOvershoot} is true for tickets; {@link #tryAdmit} never takes the slot.
      */
     private HoldImpl tryChargeLocked(long bytes, RowGroupIo lease, boolean allowOvershoot) {
         long current = used.get();
@@ -430,6 +329,10 @@ public final class NodeByteBudgetService implements NodeByteBudget {
     }
 
     private void grantTicketWaitersLocked() {
+        grantTicketWaitersLocked(null);
+    }
+
+    private void grantTicketWaitersLocked(@Nullable Executor delivery) {
         failCancelledWaitersLocked();
         while (waiters.isEmpty() == false) {
             TicketWaiter head = waiters.peekFirst();
@@ -443,8 +346,65 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                 return;
             }
             waiters.removeFirst();
-            head.complete(granted);
+            head.complete(granted, deliveryFor(head, delivery));
         }
+    }
+
+    /**
+     * Caller holds the lock. Cancelled heads are dropped until a live head remains. A head that
+     * {@link #tryChargeLocked} can admit is a lost-wakeup {@link AdmissionGate.RescueResult#REGRANT}.
+     * An over-cap grant is a {@link HoldImpl} with {@code owner=false}; it does not
+     * {@link #tryBecomeOwner} or pin the overshoot slot. Skipped when {@code used} has dropped
+     * since the head parked, or when another rescued hold is still live.
+     */
+    private AdmissionGate.RescueResult rescueHeadLocked(@Nullable Executor delivery) {
+        failCancelledWaitersLocked();
+        while (waiters.isEmpty() == false) {
+            TicketWaiter head = waiters.peekFirst();
+            if (head.cancel.getAsBoolean() || (head.lease != null && head.lease.isCancelled())) {
+                waiters.removeFirst();
+                head.fail(cancelled());
+                continue;
+            }
+            HoldImpl charged = tryChargeLocked(head.bytes, head.lease, true);
+            if (charged != null) {
+                waiters.removeFirst();
+                head.complete(charged, deliveryFor(head, delivery));
+                return AdmissionGate.RescueResult.REGRANT;
+            }
+            if (used.get() < head.usedAtPark) {
+                head.usedAtPark = used.get();
+                return AdmissionGate.RescueResult.NONE;
+            }
+            if (rescueHolds > 0) {
+                return AdmissionGate.RescueResult.NONE;
+            }
+            long next = used.get() + head.bytes;
+            if (next < 0L) {
+                throw new EsRejectedExecutionException("parquet I/O byte reservation overflow");
+            }
+            setUsed(next);
+            rescueHolds++;
+            waiters.removeFirst();
+            head.complete(new HoldImpl(this, head.bytes, head.lease, false, true), deliveryFor(head, delivery));
+            return AdmissionGate.RescueResult.OVER_CAP;
+        }
+        return AdmissionGate.RescueResult.NONE;
+    }
+
+    private void releaseRescueHold() {
+        lock.lock();
+        try {
+            if (rescueHolds > 0) {
+                rescueHolds--;
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private static Executor deliveryFor(TicketWaiter head, @Nullable Executor delivery) {
+        return delivery != null ? delivery : head.executor;
     }
 
     private void failCancelledWaitersLocked() {
@@ -478,34 +438,6 @@ public final class NodeByteBudgetService implements NodeByteBudget {
         }
     }
 
-    private void maybeLogForcedAdmit(long bytes) {
-        long last = lastWarnLogTime.get();
-        long now = System.currentTimeMillis();
-        if (now - last > WARN_LOG_INTERVAL_MS && lastWarnLogTime.compareAndSet(last, now)) {
-            logger.warn(
-                "parquet I/O byte wait expired; charged [{}] over cap [{}] (forced admits so far [{}], total wait [{}]ms)",
-                ByteSizeValue.ofBytes(bytes),
-                ByteSizeValue.ofBytes(limit),
-                forcedAdmits.get(),
-                TimeUnit.NANOSECONDS.toMillis(waitNanos.get())
-            );
-        }
-    }
-
-    private EsRejectedExecutionException overForceLimit(long bytes, long next) {
-        return new EsRejectedExecutionException(
-            "parquet I/O byte wait expired; charging ["
-                + bytes
-                + "] bytes would exceed twice the node cap ["
-                + limit
-                + "] (used ["
-                + used.get()
-                + "], next ["
-                + next
-                + "])"
-        );
-    }
-
     public static EsRejectedExecutionException cancelled() {
         return NodeByteBudget.cancelled();
     }
@@ -516,6 +448,7 @@ public final class NodeByteBudgetService implements NodeByteBudget {
         private final BooleanSupplier cancel;
         private final Executor executor;
         private final SubscribableListener<Hold> listener;
+        private long usedAtPark;
         private final AtomicBoolean completed = new AtomicBoolean();
         private AdmissionTracker.Wait tracked = AdmissionTracker.NOOP_WAIT;
 
@@ -525,13 +458,18 @@ public final class NodeByteBudgetService implements NodeByteBudget {
             this.cancel = cancel;
             this.executor = executor;
             this.listener = listener;
+            this.usedAtPark = used.get();
         }
 
-        private void complete(HoldImpl hold) {
-            pendingCompletions.add(() -> fork(() -> deliver(hold), hold));
+        private void complete(HoldImpl hold, Executor exec) {
+            // Stamp grant time at the decision, before the delivery fork. An undelivered grant
+            // sitting on a saturated pool must not look like "no grant" to the watchdog.
+            tracked.granted();
+            pendingCompletions.add(() -> fork(exec, () -> deliver(hold), hold));
         }
 
         private void completeInline(HoldImpl hold) {
+            tracked.granted();
             pendingCompletions.add(() -> deliver(hold));
         }
 
@@ -546,12 +484,11 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                 listener.onFailure(cancelled());
                 return;
             }
-            tracked.granted();
             listener.onResponse(hold);
         }
 
         private void fail(Exception e) {
-            pendingCompletions.add(() -> fork(() -> {
+            pendingCompletions.add(() -> fork(executor, () -> {
                 if (completed.compareAndSet(false, true)) {
                     tracked.finished();
                     listener.onFailure(e);
@@ -559,9 +496,9 @@ public final class NodeByteBudgetService implements NodeByteBudget {
             }, null));
         }
 
-        private void fork(Runnable task, @Nullable HoldImpl holdOnReject) {
+        private void fork(Executor exec, Runnable task, @Nullable HoldImpl holdOnReject) {
             try {
-                executor.execute(task);
+                exec.execute(task);
             } catch (Exception e) {
                 if (holdOnReject != null) {
                     holdOnReject.close();
@@ -579,14 +516,21 @@ public final class NodeByteBudgetService implements NodeByteBudget {
         private final long bytes;
         private final RowGroupIo lease;
         private final boolean overshoot;
+        private final boolean rescued;
         private final AtomicLong remaining;
         private final AtomicBoolean closed = new AtomicBoolean();
+        private final AtomicBoolean rescueReleased = new AtomicBoolean();
 
         private HoldImpl(NodeByteBudgetService budget, long bytes, RowGroupIo lease, boolean overshoot) {
+            this(budget, bytes, lease, overshoot, false);
+        }
+
+        private HoldImpl(NodeByteBudgetService budget, long bytes, RowGroupIo lease, boolean overshoot, boolean rescued) {
             this.budget = budget;
             this.bytes = bytes;
             this.lease = lease;
             this.overshoot = overshoot;
+            this.rescued = rescued;
             this.remaining = new AtomicLong(Math.max(0L, bytes));
         }
 
@@ -636,6 +580,9 @@ public final class NodeByteBudgetService implements NodeByteBudget {
             // Charge only. Overshoot owner stays until clearOwner(lease): force-added
             // buffers can still sit in used, and a second over-cap unit must queue.
             drop(Long.MAX_VALUE);
+            if (rescued && rescueReleased.compareAndSet(false, true)) {
+                budget.releaseRescueHold();
+            }
         }
     }
 }

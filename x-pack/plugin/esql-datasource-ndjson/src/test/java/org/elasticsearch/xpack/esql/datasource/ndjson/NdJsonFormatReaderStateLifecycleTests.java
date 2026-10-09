@@ -94,7 +94,7 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         "withDeclaredTypeColumns",
         WitherLifecycle.IDENTITY_NO_COPY,
         "withDeclaredProvenanceBinding",
-        WitherLifecycle.IDENTITY_NO_COPY,
+        WitherLifecycle.SHARES_COUNTERS,
         "withHeaderBindingByProvenance",
         WitherLifecycle.IDENTITY_NO_COPY
     );

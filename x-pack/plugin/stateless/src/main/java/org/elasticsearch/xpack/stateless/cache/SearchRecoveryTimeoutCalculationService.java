@@ -40,11 +40,11 @@ public class SearchRecoveryTimeoutCalculationService {
         StatelessSharedBlobCacheService cacheService,
         ThreadPool threadPool,
         ClusterSettings clusterSettings,
-        IntSupplier maxConcurrentRelocationRecoveriesSupplier
+        IntSupplier maxConcurrentRelocationsSupplier
     ) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
-        this.maxConcurrentRelocationsSupplier = maxConcurrentRelocationRecoveriesSupplier;
+        this.maxConcurrentRelocationsSupplier = maxConcurrentRelocationsSupplier;
         clusterSettings.initializeAndWatch(
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
             value -> this.searchRecoveryWarmingRelocationWithShutdownTimeout = value
@@ -139,16 +139,17 @@ public class SearchRecoveryTimeoutCalculationService {
         return false;
     }
 
-    /// Returns the warming timeout for a shard whose relocation source is shutting down, as the maximum of two heuristics:
+    /// Returns the warming timeout for a shard whose relocation source is shutting down. This is the larger of the two
+    /// heuristics below, multiplied by `concurrentRelocations` and capped at `remaining`:
     ///
-    /// 1. _Equal-share_: `factor * (remaining / shardsOnSource) * concurrentRelocations`, ensuring every
-    /// shard on the shutting-down source gets a fair slice of the remaining grace period.
+    /// 1. _Equal-share_: `factor * (remaining / shardsOnSource)`, ensuring every shard on the shutting-down source gets
+    /// a fair slice of the remaining grace period.
     /// 2. _Data-volume-proportional_ (contributes only when `totalBytesToWarm` is greater than zero): the fraction of the
     /// node's warming cache budget consumed by this shard's data multiplied by the remaining time,
     /// i.e. `(totalBytesToWarm / (cacheSize * cacheRatio)) * remaining`.
     ///
-    /// with `remaining = deadline - now` and `deadline = start + min(metadata grace, cap)`, and `concurrentRelocations`
-    /// being the number of relocations from the source to the target that are expected to be running at the same time.
+    /// Here `remaining = deadline - now` with `deadline = start + min(metadata grace, cap)`, and `concurrentRelocations` is
+    /// the number of relocations from the source to the target that are expected to be running at the same time.
     private SearchRecoveryTimeout computeRelocationSourceShutdownWarmingTimeout(
         ClusterState state,
         String sourceNodeId,

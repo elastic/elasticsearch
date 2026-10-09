@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -47,6 +49,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
@@ -463,12 +466,20 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         putTransformConfiguration(transformsConfigManager, transformId);
 
         var task = mockTransformTask();
-        // NotMasterException is a transient cluster-state/master failure -- the kind the startup retry loop is meant to
-        // recover from. See testNodeOperationDoesNotRetryPermanentStartFailure for the permanent-failure counterpart.
+        // Transient cluster-state/master failures -- the kind the startup retry loop is meant to recover from. The
+        // MasterNotDiscoveredException mirrors how TransformTask#start reports a persist-state failure forwarded to a node that
+        // also had no master. See testNodeOperationDoesNotRetryPermanentStartFailure for the permanent-failure counterpart.
+        var transientFailure = randomFrom(
+            new NotMasterException("not master"),
+            new ElasticsearchException(
+                "Error while updating state for transform [" + transformId + "] to [STARTED].",
+                new RemoteTransportException("[node][cluster:admin/persistent/update_status]", new MasterNotDiscoveredException())
+            )
+        );
         doAnswer(ans -> {
             ActionListener<StartTransformAction.Response> listener = ans.getArgument(1);
             if (failFirstCall.compareAndSet(true, false)) {
-                listener.onFailure(new NotMasterException("not master"));
+                listener.onFailure(transientFailure);
             } else {
                 listener.onResponse(new StartTransformAction.Response(true));
             }

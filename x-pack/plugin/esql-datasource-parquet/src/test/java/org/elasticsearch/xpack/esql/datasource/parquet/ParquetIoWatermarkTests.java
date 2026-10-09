@@ -73,7 +73,7 @@ public class ParquetIoWatermarkTests extends ESTestCase {
             granted.countDown();
         }, e -> granted.countDown()));
         assertEquals(1, watermark.waiterCount());
-        assertTrue(watermark.rescueIfStalled());
+        assertEquals(AdmissionGate.RescueResult.OVER_CAP, watermark.rescueHead(null));
         assertTrue(granted.await(5, TimeUnit.SECONDS));
         assertNotNull(headHold.get());
         assertEquals(130, watermark.used());

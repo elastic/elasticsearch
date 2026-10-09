@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
@@ -249,23 +250,29 @@ public final class NodeByteBudgetService implements NodeByteBudget {
     }
 
     /**
-     * Grants the FIFO head over the cap as a plain hold ({@code owner=false}), then re-runs the
-     * normal grant loop. Skips cancelled heads. Returns {@code true} only for an over-cap grant.
-     * The rescued hold is counted in {@link #used()} and released on the normal close path.
+     * Unsticks the FIFO head, then re-runs the normal grant loop. Skips cancelled heads.
+     * {@link AdmissionGate.RescueResult#OVER_CAP} is a plain hold ({@code owner=false}), counted
+     * in {@link #used()}. {@link AdmissionGate.RescueResult#REGRANT} is a within-cap grant that
+     * should have happened on an earlier release (lost wakeup). {@code delivery} replaces
+     * {@code Runnable::run} so the inspect thread does not run grant continuations.
      */
-    public boolean rescueHeadOverCap() {
+    public AdmissionGate.RescueResult rescueHeadOverCap() {
+        return rescueHeadOverCap(null);
+    }
+
+    public AdmissionGate.RescueResult rescueHeadOverCap(@Nullable Executor delivery) {
         List<Runnable> completions;
-        boolean rescued;
+        AdmissionGate.RescueResult result;
         lock.lock();
         try {
-            rescued = rescueHeadLocked();
-            grantTicketWaitersLocked();
+            result = rescueHeadLocked(delivery);
+            grantTicketWaitersLocked(delivery);
             completions = takePendingCompletions();
         } finally {
             lock.unlock();
         }
         runCompletions(completions);
-        return rescued;
+        return result;
     }
 
     /**
@@ -318,6 +325,10 @@ public final class NodeByteBudgetService implements NodeByteBudget {
     }
 
     private void grantTicketWaitersLocked() {
+        grantTicketWaitersLocked(null);
+    }
+
+    private void grantTicketWaitersLocked(@Nullable Executor delivery) {
         failCancelledWaitersLocked();
         while (waiters.isEmpty() == false) {
             TicketWaiter head = waiters.peekFirst();
@@ -331,16 +342,17 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                 return;
             }
             waiters.removeFirst();
-            head.complete(granted);
+            head.complete(granted, deliveryFor(head, delivery));
         }
     }
 
     /**
      * Caller holds the lock. Cancelled heads are dropped until a live head remains. A head that
-     * {@link #tryChargeLocked} can admit is not a rescue. An over-cap grant is a {@link HoldImpl}
-     * with {@code owner=false}; it does not {@link #tryBecomeOwner} or pin the overshoot slot.
+     * {@link #tryChargeLocked} can admit is a lost-wakeup {@link AdmissionGate.RescueResult#REGRANT}.
+     * An over-cap grant is a {@link HoldImpl} with {@code owner=false}; it does not
+     * {@link #tryBecomeOwner} or pin the overshoot slot.
      */
-    private boolean rescueHeadLocked() {
+    private AdmissionGate.RescueResult rescueHeadLocked(@Nullable Executor delivery) {
         failCancelledWaitersLocked();
         while (waiters.isEmpty() == false) {
             TicketWaiter head = waiters.peekFirst();
@@ -352,8 +364,8 @@ public final class NodeByteBudgetService implements NodeByteBudget {
             HoldImpl charged = tryChargeLocked(head.bytes, head.lease, true);
             if (charged != null) {
                 waiters.removeFirst();
-                head.complete(charged);
-                return false;
+                head.complete(charged, deliveryFor(head, delivery));
+                return AdmissionGate.RescueResult.REGRANT;
             }
             long next = used.get() + head.bytes;
             if (next < 0L) {
@@ -361,10 +373,14 @@ public final class NodeByteBudgetService implements NodeByteBudget {
             }
             setUsed(next);
             waiters.removeFirst();
-            head.complete(new HoldImpl(this, head.bytes, head.lease, false));
-            return true;
+            head.complete(new HoldImpl(this, head.bytes, head.lease, false), deliveryFor(head, delivery));
+            return AdmissionGate.RescueResult.OVER_CAP;
         }
-        return false;
+        return AdmissionGate.RescueResult.NONE;
+    }
+
+    private static Executor deliveryFor(TicketWaiter head, @Nullable Executor delivery) {
+        return delivery != null ? delivery : head.executor;
     }
 
     private void failCancelledWaitersLocked() {
@@ -419,11 +435,15 @@ public final class NodeByteBudgetService implements NodeByteBudget {
             this.listener = listener;
         }
 
-        private void complete(HoldImpl hold) {
-            pendingCompletions.add(() -> fork(() -> deliver(hold), hold));
+        private void complete(HoldImpl hold, Executor exec) {
+            // Stamp grant time at the decision, before the delivery fork. An undelivered grant
+            // sitting on a saturated pool must not look like "no grant" to the watchdog.
+            tracked.granted();
+            pendingCompletions.add(() -> fork(exec, () -> deliver(hold), hold));
         }
 
         private void completeInline(HoldImpl hold) {
+            tracked.granted();
             pendingCompletions.add(() -> deliver(hold));
         }
 
@@ -438,12 +458,11 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                 listener.onFailure(cancelled());
                 return;
             }
-            tracked.granted();
             listener.onResponse(hold);
         }
 
         private void fail(Exception e) {
-            pendingCompletions.add(() -> fork(() -> {
+            pendingCompletions.add(() -> fork(executor, () -> {
                 if (completed.compareAndSet(false, true)) {
                     tracked.finished();
                     listener.onFailure(e);
@@ -451,9 +470,9 @@ public final class NodeByteBudgetService implements NodeByteBudget {
             }, null));
         }
 
-        private void fork(Runnable task, @Nullable HoldImpl holdOnReject) {
+        private void fork(Executor exec, Runnable task, @Nullable HoldImpl holdOnReject) {
             try {
-                executor.execute(task);
+                exec.execute(task);
             } catch (Exception e) {
                 if (holdOnReject != null) {
                     holdOnReject.close();

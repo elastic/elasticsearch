@@ -144,8 +144,8 @@ final class ParquetIoWatermark implements AdmissionGate {
     }
 
     @Override
-    public boolean rescueIfStalled() {
-        return budget.rescueHeadOverCap();
+    public RescueResult rescueHead(@Nullable Executor delivery) {
+        return budget.rescueHeadOverCap(delivery);
     }
 
     @Override

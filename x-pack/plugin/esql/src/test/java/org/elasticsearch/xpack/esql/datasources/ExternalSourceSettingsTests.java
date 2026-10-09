@@ -325,8 +325,20 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.SCHEMA_MAX_FIELDS));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED));
         assertTrue(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED.get(Settings.EMPTY));
+        assertTrue(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED.isDynamic());
         // Registered rather than merely declared: an unregistered key fails a node that carries it in its config.
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS));
+    }
+
+    public void testAdmissionRescueEnabledFollowsClusterSettings() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED));
+        AtomicBoolean observed = new AtomicBoolean();
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED, observed::set);
+        assertTrue(observed.get());
+        clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED.getKey(), false).build());
+        assertFalse(observed.get());
+        clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED.getKey(), true).build());
+        assertTrue(observed.get());
     }
 
     /** Entries are matched against {@code host:port}, so one naming no port is refused at startup. */

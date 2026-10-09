@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.Nullable;
+
+import java.util.concurrent.Executor;
+
 /**
  * Holder side of an admission gate, polled by the stall watchdog when it renders a waiter graph.
  * Wait/grant events go through {@link AdmissionTracker}; this probe answers "who holds" and,
@@ -26,6 +30,16 @@ public interface AdmissionGate {
         GRANT_AGE
     }
 
+    /**
+     * Outcome of {@link #rescueHead(Executor)}. The watchdog logs {@link #REGRANT} as a lost
+     * wakeup and {@link #OVER_CAP} as an over-budget safety net.
+     */
+    enum RescueResult {
+        NONE,
+        REGRANT,
+        OVER_CAP
+    }
+
     /** Stable token, also used as the telemetry dimension ({@code bytes}, {@code permits/s3}, …). */
     String name();
 
@@ -43,10 +57,11 @@ public interface AdmissionGate {
     }
 
     /**
-     * Grants the FIFO head over the cap as a counted scheduling-bug signal. Default is a no-op.
-     * The byte gate returns {@code true} when it issued an over-cap hold.
+     * Unsticks the FIFO head. The watchdog has already decided the gate is stalled.
+     * {@code delivery} is used instead of {@code Runnable::run} so inspect (GENERIC) does not
+     * run grant continuations. Default is a no-op.
      */
-    default boolean rescueIfStalled() {
-        return false;
+    default RescueResult rescueHead(@Nullable Executor delivery) {
+        return RescueResult.NONE;
     }
 }

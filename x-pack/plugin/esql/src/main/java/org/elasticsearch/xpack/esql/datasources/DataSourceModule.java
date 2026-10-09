@@ -246,7 +246,6 @@ public final class DataSourceModule implements Closeable {
         AdmissionTracker admissionTracker = AdmissionTracker.NOOP;
         if (threadPool != null) {
             watchdog = new AdmissionStallWatchdog(threadPool, meterRegistry != null ? meterRegistry : MeterRegistry.NOOP);
-            watchdog.setRescueEnabled(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED.get(settings));
             admissionTracker = watchdog;
         }
         this.admissionWatchdog = watchdog;
@@ -518,6 +517,16 @@ public final class DataSourceModule implements Closeable {
     public void setAdmissionRescueEnabled(boolean enabled) {
         if (admissionWatchdog != null) {
             admissionWatchdog.setRescueEnabled(enabled);
+        }
+    }
+
+    /**
+     * Where rescue delivers {@code Runnable::run} waiters. Production passes {@code esql_worker}
+     * so GENERIC inspect never starts blob I/O. Null keeps each waiter's own executor (tests).
+     */
+    public void setRescueDelivery(@Nullable Executor delivery) {
+        if (admissionWatchdog != null) {
+            admissionWatchdog.setRescueDelivery(delivery);
         }
     }
 

@@ -653,11 +653,11 @@ public final class ExternalSourceSettings {
     }
 
     /**
-     * When true (default), a byte-budget FIFO head that has waited {@code DEFAULT_STALL} without a
-     * grant is admitted over the cap as a plain hold. The rescue is a logged scheduling-bug signal
-     * (WARN plus {@code es.esql.datasources.admission.rescues.total}), not a substitute for one
-     * ticket per row group. Disable to observe a hang for diagnosis. Dynamic so a cluster can
-     * toggle it without restart.
+     * When true (default), a byte-budget FIFO head that has waited the rescue window without a
+     * grant is admitted over the cap as a plain hold. The rescue is a logged possible-stall
+     * signal (WARN plus {@code es.esql.datasources.admission.rescues.total}), not a substitute
+     * for one ticket per row group. Disable to observe a hang for diagnosis. Dynamic so a
+     * cluster can toggle it without restart.
      */
     public static final Setting<Boolean> ADMISSION_RESCUE_ENABLED = Setting.boolSetting(
         "esql.external.admission.rescue.enabled",

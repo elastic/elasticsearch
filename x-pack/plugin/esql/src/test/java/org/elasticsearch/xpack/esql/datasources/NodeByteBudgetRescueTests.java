@@ -14,9 +14,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate.RescueResult.NONE;
+import static org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate.RescueResult.OVER_CAP;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -45,7 +49,7 @@ public class NodeByteBudgetRescueTests extends ESTestCase {
         assertFalse(ownerPhase2.isDone());
         assertEquals(2, budget.waiterCount());
 
-        assertTrue(budget.rescueHeadOverCap());
+        assertEquals(OVER_CAP, budget.rescueHeadOverCap());
         assertTrue("HOL unstuck over the cap", headTicket.isDone());
         assertTrue("owner phase-2 granted by the post-rescue loop", ownerPhase2.isDone());
         assertEquals(0, budget.waiterCount());
@@ -78,7 +82,7 @@ public class NodeByteBudgetRescueTests extends ESTestCase {
         SubscribableListener<NodeByteBudget.Hold> second = budget.admitAsync(50, new RowGroupIo(), () -> false, Runnable::run);
         assertEquals(2, budget.waiterCount());
 
-        assertTrue(budget.rescueHeadOverCap());
+        assertEquals(OVER_CAP, budget.rescueHeadOverCap());
         assertTrue(first.isDone());
         assertFalse("second waiter stays queued until the next stall window", second.isDone());
         assertEquals(1, budget.waiterCount());
@@ -88,7 +92,7 @@ public class NodeByteBudgetRescueTests extends ESTestCase {
         assertFalse(firstHold.get().isOvershoot());
         assertSame(overshoot.lease(), budget.overshootOwner());
 
-        assertTrue(budget.rescueHeadOverCap());
+        assertEquals(OVER_CAP, budget.rescueHeadOverCap());
         assertTrue(second.isDone());
         assertEquals(0, budget.waiterCount());
         assertEquals(180, budget.used());
@@ -117,7 +121,7 @@ public class NodeByteBudgetRescueTests extends ESTestCase {
         assertEquals(2, budget.waiterCount());
         cancelFirst.set(true);
 
-        assertTrue(budget.rescueHeadOverCap());
+        assertEquals(OVER_CAP, budget.rescueHeadOverCap());
         assertTrue(cancelled.isDone());
         cancelled.addListener(ActionListener.wrap(h -> fail("cancelled head must not be rescued"), e -> {
             assertThat(e, instanceOf(EsRejectedExecutionException.class));
@@ -140,9 +144,30 @@ public class NodeByteBudgetRescueTests extends ESTestCase {
         NodeByteBudgetService budget = new NodeByteBudgetService(100);
         NodeByteBudget.Hold hold = budget.tryAdmit(40);
         assertNotNull(hold);
-        assertFalse(budget.rescueHeadOverCap());
+        assertEquals(NONE, budget.rescueHeadOverCap());
         assertEquals(40, budget.used());
         hold.close();
+        assertEquals(0, budget.used());
+    }
+
+    public void testRescueDeliversSameWaitersOnProvidedExecutor() {
+        NodeByteBudgetService budget = new NodeByteBudgetService(100);
+        NodeByteBudget.Hold residual = budget.tryAdmit(80);
+        NodeByteBudget.Hold overshoot = occupyOvershoot(budget, 25);
+        overshoot.close();
+        SubscribableListener<NodeByteBudget.Hold> head = budget.admitAsync(50, new RowGroupIo(), () -> false, Runnable::run);
+        assertFalse(head.isDone());
+        List<Runnable> held = new ArrayList<>();
+        assertEquals(OVER_CAP, budget.rescueHeadOverCap(held::add));
+        assertFalse("SAME waiter must not run on the caller", head.isDone());
+        assertEquals(1, held.size());
+        held.get(0).run();
+        assertTrue(head.isDone());
+        AtomicReference<NodeByteBudget.Hold> hold = new AtomicReference<>();
+        head.addListener(ActionListener.wrap(hold::set, e -> fail(e.toString())));
+        hold.get().close();
+        residual.close();
+        budget.clearOwner(overshoot.lease());
         assertEquals(0, budget.used());
     }
 

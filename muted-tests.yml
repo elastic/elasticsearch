@@ -637,3 +637,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-multifile.multiFileSalaryStats [ndjson.gz/S3]}
   issue: https://github.com/elastic/elasticsearch/issues/161557
+- class: org.elasticsearch.FakeAutoMergeMuteTest1791568002
+  method: testAutoMergeMute
+  issue: https://github.com/elastic/elasticsearch/issues/0

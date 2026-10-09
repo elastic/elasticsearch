@@ -15,9 +15,11 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.test.RollingUpgradePerformer;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -111,6 +113,7 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
     }
 
     protected void clusterRollingUpgrade(CheckedConsumer<Integer, Exception> onNodeUpgradeComplete) throws IOException {
+        assertAllNodesVersion(true);
         closeClients();
 
         var serverlessBwcStackVersion = System.getProperty("tests.serverless.bwc_stack_version");
@@ -130,6 +133,25 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
             }
         });
         initClient();
+        assertAllNodesVersion(false);
+    }
+
+    /**
+     * Asserts that every node is on the old version, or that none are. A rolling upgrade must start from a fully old cluster
+     * and end on a fully upgraded one.
+     */
+    private static void assertAllNodesVersion(boolean oldVersion) throws IOException {
+        Map<String, Object> nodes = ObjectPath.evaluate(entityAsMap(client().performRequest(new Request("GET", "/_nodes"))), "nodes");
+        for (Object node : nodes.values()) {
+            Map<?, ?> nodeInfo = (Map<?, ?>) node;
+            String version = (String) nodeInfo.get("version");
+            String buildHash = (String) nodeInfo.get("build_hash");
+            assertThat(
+                "node [" + nodeInfo.get("name") + "] version [" + version + "] build_hash [" + buildHash + "]",
+                RollingUpgradePerformer.isOldClusterVersion(version, buildHash),
+                equalTo(oldVersion)
+            );
+        }
     }
 
     protected ElasticsearchCluster getCluster() {

@@ -378,9 +378,10 @@ public class ThreadPoolTests extends ESTestCase {
         assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(ByteSizeValue.ofGb(2).getBytes()), equalTo(10));
         assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(ByteSizeValue.ofGb(4).getBytes()), equalTo(20));
         assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(ByteSizeValue.ofGb(16).getBytes()), equalTo(80));
+        // no upper bound of its own: the node's actual limit is the lower of this and the indices.recovery.upload_concurrency.max setting
         assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(ByteSizeValue.ofGb(28).getBytes()), equalTo(140));
-        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(ByteSizeValue.ofGb(64).getBytes()), equalTo(140));
-        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(Long.MAX_VALUE / 100), equalTo(140));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(ByteSizeValue.ofGb(64).getBytes()), equalTo(320));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(Long.MAX_VALUE / 10), equalTo(Integer.MAX_VALUE));
     }
 
     public void testMaxSnapshotUploadThreadPoolSize() {

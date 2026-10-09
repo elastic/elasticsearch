@@ -722,12 +722,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     static final int MIN_SNAPSHOT_UPLOAD_CONCURRENCY = 10;
 
     /**
-     * Upper bound for {@link #getSnapshotUploadConcurrencyCeiling}: stays below the serverless object store client's default
-     * {@code max_connections} of 150 so that uploads do not wait on connections and leave some for other object store traffic.
-     */
-    static final int MAX_SNAPSHOT_UPLOAD_CONCURRENCY = 140;
-
-    /**
      * The size of the {@link Names#SNAPSHOT_UPLOAD} pool, the most shard snapshot uploads a node may run at once. Like the SNAPSHOT pool
      * it is small when there is little heap, because uploads hold buffers.
      */
@@ -745,14 +739,16 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     }
 
     /**
-     * The most shard snapshot uploads a node may run at once: 10 for the smallest (2GiB) node, scaled linearly with node memory, capped
-     * at {@link #MAX_SNAPSHOT_UPLOAD_CONCURRENCY}. Never below {@link #MIN_SNAPSHOT_UPLOAD_CONCURRENCY}, e.g. when memory is unknown.
+     * The most shard snapshot uploads a node may run at once: 10 for the smallest (2GiB) node, scaled linearly with node memory. Never
+     * below {@link #MIN_SNAPSHOT_UPLOAD_CONCURRENCY}, e.g. when memory is unknown. How many uploads a node actually runs is bounded by
+     * the lower of this and {@code indices.recovery.upload_concurrency.max}, which is where limits other than node size, such as the
+     * connections of the object store client, are applied.
      *
      * @param totalMemoryBytes total node memory (the container limit when running in a container), or 0 if unknown
      */
     static int getSnapshotUploadConcurrencyCeiling(long totalMemoryBytes) {
         final long scaled = MIN_SNAPSHOT_UPLOAD_CONCURRENCY * Math.max(totalMemoryBytes, 0L) / ByteSizeUnit.GB.toBytes(2);
-        return Math.clamp(scaled, MIN_SNAPSHOT_UPLOAD_CONCURRENCY, MAX_SNAPSHOT_UPLOAD_CONCURRENCY);
+        return Math.clamp(scaled, MIN_SNAPSHOT_UPLOAD_CONCURRENCY, Integer.MAX_VALUE);
     }
 
     static class ThreadedRunnable implements Runnable {

@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -52,6 +53,35 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertFalse("tryReserve must not cross the cap", watermark.tryReserve(30));
         assertEquals(80, watermark.used());
         assertEquals(1, watermark.holders());
+    }
+
+    public void testGrantAgePolicyAndRescuePlainHold() throws Exception {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(100);
+        assertEquals(AdmissionGate.StallPolicy.GRANT_AGE, watermark.stallPolicy());
+        assertTrue(watermark.tryReserve(80));
+        RowGroupIo owner = new RowGroupIo();
+        ParquetIoWatermark.AdmitHold overshoot = awaitAdmit(watermark, 25, owner);
+        overshoot.drop();
+        assertEquals(80, watermark.used());
+        assertSame(owner, watermark.overshootOwner());
+
+        RowGroupIo head = new RowGroupIo();
+        AtomicReference<ParquetIoWatermark.AdmitHold> headHold = new AtomicReference<>();
+        CountDownLatch granted = new CountDownLatch(1);
+        watermark.admitAsync(50, head, () -> false, Runnable::run).addListener(ActionListener.wrap(h -> {
+            headHold.set(h);
+            granted.countDown();
+        }, e -> granted.countDown()));
+        assertEquals(1, watermark.waiterCount());
+        assertEquals(AdmissionGate.RescueResult.OVER_CAP, watermark.rescueHead(null));
+        assertTrue(granted.await(5, TimeUnit.SECONDS));
+        assertNotNull(headHold.get());
+        assertEquals(130, watermark.used());
+        assertSame("rescue must not steal the overshoot slot", owner, watermark.overshootOwner());
+        headHold.get().drop();
+        watermark.release(80);
+        watermark.clearOwner(owner);
+        assertEquals(0, watermark.used());
     }
 
     public void testHoldersCountsOutstandingAdmitHolds() {

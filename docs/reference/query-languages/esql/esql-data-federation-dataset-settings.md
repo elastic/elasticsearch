@@ -387,7 +387,7 @@ $$$csv-schema-sample-size$$$
 
     The sample determines whether sparse or late-appearing fields get a column. To learn how schemas are inferred, refer to [schema inference](esql-data-federation-schema.md).
 
-    {applies_to}`stack: experimental 9.6+` When [`schema_resolution`](#schema-resolution) is `union_by_name` or `strict` and the schema is inferred, every file a query reads is sampled, so the files share the sample. Each file is sampled for `schema_sample_size` divided by the number of files, with that number rounded up to a power of two, and for no fewer than `100` rows unless `schema_sample_size` is lower. For example, with the default `schema_sample_size`, a query over 3 files samples `10000` rows from each, and a query over 3000 files samples `100` rows from each, `300000` rows in total. A column or type that first appears later in a file is handled as if it appeared past `schema_sample_size`.
+    {applies_to}`stack: experimental 9.6+` With `union_by_name` or `strict`, the sample is split across the files a query reads. For details, refer to [How the sample is shared across files](esql-data-federation-schema.md#shared-schema-sample).
 
 $$$csv-quote$$$
 

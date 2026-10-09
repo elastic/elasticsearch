@@ -3646,8 +3646,7 @@ public class FileSplitProvider implements SplitProvider {
                 stats,
                 inferredFileTypes,
                 readSchema != null ? attributesToTypeMap(readSchema) : null,
-                implicitNulls,
-                declaredReadSpec.declaredTypeColumns()
+                implicitNulls
             );
             return SourceStatisticsSerializer.alignHarvestWithFold(stats, foldedSourceMetadata);
         }
@@ -3667,12 +3666,16 @@ public class FileSplitProvider implements SplitProvider {
             Set<String> poison = new HashSet<>(declaredReadSpec.dateFormats().keySet());
             if (inferredFileTypes != null) {
                 Map<String, DataType> overlaidTypes = attributesToTypeMap(readSchema); // logical, declared types
-                for (String logical : declaredReadSpec.declaredTypeColumns()) {
+                // Every read column, not just the declared ones: what makes a footer stat untrustworthy is
+                // that the file's type differs from the type the scan reads it as, which is visible here
+                // without asking who supplied the latter (esql-planning#2076).
+                for (Map.Entry<String, DataType> overlaid : overlaidTypes.entrySet()) {
+                    String logical = overlaid.getKey();
                     String physical = declaredReadSpec.renames().getOrDefault(logical, logical);
                     DataType inferredType = inferredFileTypes.get(physical);
                     // Absent from THIS file (lenient union-by-name overlay skipped it): no footer stat exists
                     // for it here either, so nothing to poison.
-                    if (inferredType != null && inferredType != overlaidTypes.get(logical)) {
+                    if (inferredType != null && inferredType != overlaid.getValue()) {
                         poison.add(logical);
                     }
                 }
@@ -3701,13 +3704,7 @@ public class FileSplitProvider implements SplitProvider {
         // readSchema and converts afterwards; comparing against reconciledTypes would treat a
         // representable DATETIME→DATE_NANOS widen as unrepresentable and rewrite the harvest
         // to value_count=0.
-        stats = ExternalSourceResolver.alignHarvestWithAnchorTypes(
-            stats,
-            statsFileTypes,
-            attributesToTypeMap(readSchema),
-            implicitNulls,
-            declaredReadSpec.declaredTypeColumns()
-        );
+        stats = ExternalSourceResolver.alignHarvestWithAnchorTypes(stats, statsFileTypes, attributesToTypeMap(readSchema), implicitNulls);
         return SourceStatisticsSerializer.alignHarvestWithFold(stats, foldedSourceMetadata);
     }
 

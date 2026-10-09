@@ -47,7 +47,6 @@ final class RunningFileStatsFold {
     private final Mode mode;
     private final boolean implicitNullsForAbsentColumn;
     private final Map<String, DataType> anchorTypes;
-    private final Set<String> declaredTypeColumns;
 
     private Map<String, DataType> runningTypes = Map.of();
     private SplitStats accumulator;
@@ -64,33 +63,18 @@ final class RunningFileStatsFold {
     private final Set<String> invalidCountColumns = new HashSet<>();
     private final Set<String> unsignedForeignDomainColumns = new HashSet<>();
 
-    private RunningFileStatsFold(
-        Mode mode,
-        boolean implicitNullsForAbsentColumn,
-        @Nullable Map<String, DataType> anchorTypes,
-        Set<String> declaredTypeColumns
-    ) {
+    private RunningFileStatsFold(Mode mode, boolean implicitNullsForAbsentColumn, @Nullable Map<String, DataType> anchorTypes) {
         this.mode = mode;
         this.implicitNullsForAbsentColumn = implicitNullsForAbsentColumn;
         this.anchorTypes = anchorTypes == null ? Map.of() : anchorTypes;
-        this.declaredTypeColumns = declaredTypeColumns;
     }
 
     static RunningFileStatsFold reconciliation(boolean implicitNullsForAbsentColumn) {
-        return new RunningFileStatsFold(Mode.RECONCILIATION, implicitNullsForAbsentColumn, null, Set.of());
+        return new RunningFileStatsFold(Mode.RECONCILIATION, implicitNullsForAbsentColumn, null);
     }
 
-    static RunningFileStatsFold firstFileWins(
-        Map<String, DataType> anchorTypes,
-        boolean implicitNullsForAbsentColumn,
-        Set<String> declaredTypeColumns
-    ) {
-        return new RunningFileStatsFold(
-            Mode.FIRST_FILE_WINS,
-            implicitNullsForAbsentColumn,
-            anchorTypes,
-            declaredTypeColumns == null ? Set.of() : declaredTypeColumns
-        );
+    static RunningFileStatsFold firstFileWins(Map<String, DataType> anchorTypes, boolean implicitNullsForAbsentColumn) {
+        return new RunningFileStatsFold(Mode.FIRST_FILE_WINS, implicitNullsForAbsentColumn, anchorTypes);
     }
 
     /**
@@ -255,7 +239,6 @@ final class RunningFileStatsFold {
                 ExternalSourceResolver.attributesToTypeMap(meta.schema()),
                 anchorTypes,
                 implicitNullsForAbsentColumn,
-                declaredTypeColumns,
                 invalidCountColumns,
                 unsignedForeignDomainColumns
             );

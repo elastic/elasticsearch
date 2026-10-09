@@ -1536,7 +1536,6 @@ public class ExternalSourceResolver {
                 // into the async aggregation so text-format multi-file merges force a re-scan instead of serving
                 // a subset COUNT/MIN/MAX (see foldsAbsentColumnAsImplicitNull / SourceStatisticsSerializer).
                 boolean implicitNulls = foldsAbsentColumnAsImplicitNull(base.sourceType());
-                Set<String> declaredTypeColumns = physicalDeclaredTypeColumnsOf(declaredMapping);
                 // Prefetch the dataset-level aggregate BEFORE the per-file stats gather — see
                 // applyDatasetAggregate for why post-gather reads self-defeat under cache pressure.
                 DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(
@@ -1561,11 +1560,7 @@ public class ExternalSourceResolver {
                 Map<String, String> ffwReadConfigs = new HashMap<>(listing.fileCount());
                 Map<StoragePath, Map<String, DataType>> ffwInferredTypes = new HashMap<>();
                 Map<StoragePath, SourceStatistics> ffwSlimStats = new HashMap<>();
-                RunningFileStatsFold fold = RunningFileStatsFold.firstFileWins(
-                    attributesToTypeMap(base.schema()),
-                    implicitNulls,
-                    declaredTypeColumns
-                );
+                RunningFileStatsFold fold = RunningFileStatsFold.firstFileWins(attributesToTypeMap(base.schema()), implicitNulls);
                 ActionListener<Map<String, Object>> statsListener = ActionListener.wrap(aggregatedStats -> {
                     try {
                         Map<String, Object> effective = applyDatasetAggregate(
@@ -3475,26 +3470,15 @@ public class ExternalSourceResolver {
         return SourceStatisticsSerializer.mergeStatistics(perFileFlatStats, implicitNullsForAbsentColumn);
     }
 
-    /** Production FIRST_FILE_WINS fold of {@code allMetadata}. */
-    @Nullable
-    static Map<String, Object> aggregateFileStatistics(List<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
-        return aggregateFileStatistics(allMetadata, implicitNullsForAbsentColumn, Set.of());
-    }
-
     /** Production FIRST_FILE_WINS fold. The listing-order oracle is {@link #batchAggregateFileStatistics}. */
     @Nullable
-    static Map<String, Object> aggregateFileStatistics(
-        List<SourceMetadata> allMetadata,
-        boolean implicitNullsForAbsentColumn,
-        Set<String> declaredTypeColumns
-    ) {
+    static Map<String, Object> aggregateFileStatistics(List<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
         if (allMetadata.isEmpty()) {
             return null;
         }
         RunningFileStatsFold fold = RunningFileStatsFold.firstFileWins(
             attributesToTypeMap(allMetadata.get(0).schema()),
-            implicitNullsForAbsentColumn,
-            declaredTypeColumns
+            implicitNullsForAbsentColumn
         );
         for (int i = 0; i < allMetadata.size(); i++) {
             fold.accept(i, allMetadata.get(i));
@@ -3509,16 +3493,11 @@ public class ExternalSourceResolver {
      * {@link RunningFileStatsFold}.
      */
     @Nullable
-    static Map<String, Object> batchAggregateFileStatistics(
-        List<SourceMetadata> allMetadata,
-        boolean implicitNullsForAbsentColumn,
-        Set<String> declaredTypeColumns
-    ) {
+    static Map<String, Object> batchAggregateFileStatistics(List<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
         List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
         Map<String, DataType> anchorTypes = null;
         Set<String> invalidCountColumns = new HashSet<>();
         Set<String> unsignedForeignDomainColumns = new HashSet<>();
-        Set<String> declaredColumns = declaredTypeColumns == null ? Set.of() : declaredTypeColumns;
         for (SourceMetadata meta : allMetadata) {
             Map<String, Object> flat = flatStatsOf(meta);
             if (flat == null) {
@@ -3534,7 +3513,6 @@ public class ExternalSourceResolver {
                     fileTypes,
                     anchorTypes,
                     implicitNullsForAbsentColumn,
-                    declaredColumns,
                     invalidCountColumns,
                     unsignedForeignDomainColumns
                 );
@@ -3564,8 +3542,7 @@ public class ExternalSourceResolver {
         @Nullable Map<String, Object> harvest,
         @Nullable Map<String, DataType> fileTypes,
         @Nullable Map<String, DataType> plannerTypes,
-        boolean implicitNullsForAbsentColumn,
-        Set<String> declaredTypeColumns
+        boolean implicitNullsForAbsentColumn
     ) {
         if (harvest == null
             || harvest.isEmpty()
@@ -3575,18 +3552,22 @@ public class ExternalSourceResolver {
             || plannerTypes.isEmpty()) {
             return harvest;
         }
-        Set<String> declaredColumns = declaredTypeColumns == null ? Set.of() : declaredTypeColumns;
         List<String> rewriteColumns = null;
         List<String> encodeColumns = null;
         List<String> poisonColumns = null;
+        List<String> invalidCountColumns = null;
         for (Map.Entry<String, DataType> entry : fileTypes.entrySet()) {
             DataType plannerType = plannerTypes.get(entry.getKey());
             DataType fileType = entry.getValue();
             if (unrepresentableUnderAnchor(plannerType, fileType)) {
-                if (declaredCoercible(declaredColumns, entry.getKey(), fileType, plannerType)) {
-                    continue;
-                }
-                if (implicitNullsForAbsentColumn) {
+                if (scanCoercesPerValue(fileType, plannerType)) {
+                    // The scan converts each value, so this harvest describes neither an all-null read
+                    // nor the converted one. Drop the extrema and the counts rather than serve either.
+                    if (invalidCountColumns == null) {
+                        invalidCountColumns = new ArrayList<>();
+                    }
+                    invalidCountColumns.add(entry.getKey());
+                } else if (implicitNullsForAbsentColumn) {
                     if (rewriteColumns == null) {
                         rewriteColumns = new ArrayList<>();
                     }
@@ -3620,6 +3601,10 @@ public class ExternalSourceResolver {
                 SourceStatisticsSerializer.poisonColumnExtrema(harvest, column);
             }
         }
+        if (invalidCountColumns != null) {
+            harvest = new HashMap<>(harvest);
+            dropColumnCounts(harvest, new HashSet<>(invalidCountColumns), true);
+        }
         return harvest;
     }
 
@@ -3640,8 +3625,14 @@ public class ExternalSourceResolver {
         return fileType == DataType.UNSIGNED_LONG && anchorType != null && anchorType != DataType.UNSIGNED_LONG;
     }
 
-    private static boolean declaredCoercible(Set<String> declaredTypeColumns, String name, DataType fileType, DataType plannerType) {
-        return declaredTypeColumns.contains(name) && DeclaredTypeCoercions.supports(fileType, plannerType);
+    /**
+     * Whether the scan converts this column's values rather than discarding the column. True when the
+     * file type can be converted to the planner's type, which is a property of the two types and of
+     * nothing else - asking in addition whether the column was declared gave two reads of the same
+     * file different statistics (esql-planning#2076).
+     */
+    private static boolean scanCoercesPerValue(DataType fileType, DataType plannerType) {
+        return DeclaredTypeCoercions.supports(fileType, plannerType);
     }
 
     /**
@@ -3654,7 +3645,6 @@ public class ExternalSourceResolver {
         Map<String, DataType> fileTypes,
         Map<String, DataType> anchorTypes,
         boolean implicitNullsForAbsentColumn,
-        Set<String> declaredColumns,
         Set<String> invalidCountColumns,
         Set<String> unsignedForeignDomainColumns
     ) {
@@ -3664,7 +3654,7 @@ public class ExternalSourceResolver {
             DataType anchorType = anchorTypes.get(entry.getKey());
             DataType fileType = entry.getValue();
             if (unrepresentableUnderAnchor(anchorType, fileType)) {
-                if (declaredCoercible(declaredColumns, entry.getKey(), fileType, anchorType)) {
+                if (scanCoercesPerValue(fileType, anchorType)) {
                     // The scan still coerces this column per value, so its harvest describes neither an
                     // all-null read nor the coerced one: drop extrema and counts after the merge.
                     invalidCountColumns.add(entry.getKey());
@@ -4666,28 +4656,6 @@ public class ExternalSourceResolver {
     private static Set<String> declaredTypeColumnsOf(@Nullable DatasetMapping declaredMapping) {
         DatasetMapping.Mappings mappings = declaredMapping == null ? null : declaredMapping.mappings();
         return mappings == null ? Set.of() : Set.copyOf(mappings.properties().keySet());
-    }
-
-    /**
-     * Declared-type columns as the physical file names {@link #aggregateFileStatistics} sees on
-     * each file's schema. {@link #declaredTypeColumnsOf} is logical; a {@code path} rename is
-     * applied here so membership matches the harvest. {@link DeclaredReadSpec} keeps the logical
-     * set; {@link FileSourceFactory} physicalizes that copy at read time.
-     */
-    static Set<String> physicalDeclaredTypeColumnsOf(@Nullable DatasetMapping declaredMapping) {
-        Set<String> logical = declaredTypeColumnsOf(declaredMapping);
-        if (logical.isEmpty()) {
-            return logical;
-        }
-        Map<String, String> renames = DeclaredSchemaResolver.renameMap(declaredMapping);
-        if (renames.isEmpty()) {
-            return logical;
-        }
-        Set<String> physical = new HashSet<>(logical.size());
-        for (String col : logical) {
-            physical.add(PhysicalNames.translate(col, renames));
-        }
-        return Set.copyOf(physical);
     }
 
     /**

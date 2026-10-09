@@ -875,7 +875,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
-    public void testFfwFooterAggregateRewritesUnrepresentableDatetimeColumn() {
+    /**
+     * A {@code DATE_NANOS} file under a {@code DATETIME} anchor has its instants narrowed per value, the
+     * same narrowing {@code ::datetime} performs, so the pre-narrowing extrema describe neither read and
+     * the column safe-misses. A column both files agree on is untouched by its neighbour's fate.
+     */
+    public void testFfwFooterAggregateSafeMissesANarrowedDatetimeColumn() {
         Map<String, Object> f1 = new HashMap<>();
         f1.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
         f1.put(SourceStatisticsSerializer.columnMinKey("ts"), 1000L);
@@ -917,12 +922,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(List.of(m1, m2), true);
         assertNotNull(agg);
-        assertEquals(1000L, agg.get(SourceStatisticsSerializer.columnMinKey("ts")));
-        assertEquals(5000L, agg.get(SourceStatisticsSerializer.columnMaxKey("ts")));
-        assertNull(agg.get(SourceStatisticsSerializer.columnMinUnservableKey("ts")));
-        assertNull(agg.get(SourceStatisticsSerializer.columnMaxUnservableKey("ts")));
-        assertEquals(2L, ((Number) agg.get(SourceStatisticsSerializer.columnValueCountKey("ts"))).longValue());
-        assertEquals(2L, ((Number) agg.get(SourceStatisticsSerializer.columnNullCountKey("ts"))).longValue());
+        assertNull(agg.get(SourceStatisticsSerializer.columnMinKey("ts")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnMaxKey("ts")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMinUnservableKey("ts")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMaxUnservableKey("ts")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnValueCountKey("ts")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnNullCountKey("ts")));
         assertEquals(1L, agg.get(SourceStatisticsSerializer.columnMinKey("id")));
         assertEquals(9L, agg.get(SourceStatisticsSerializer.columnMaxKey("id")));
         assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
@@ -930,22 +935,46 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(0L, ((Number) agg.get(SourceStatisticsSerializer.columnNullCountKey("id"))).longValue());
     }
 
-    public void testFfwFooterAggregateRewritesUnrepresentableColumnAndKeepsWidening() {
-        Map<String, Object> drift = ExternalSourceResolver.aggregateFileStatistics(
+    /**
+     * Three fates for a second file whose column type differs from the anchor's, and which one applies
+     * turns on the type pair alone. Narrowing is converted per value, so the extrema safe-miss; widening
+     * is exact, so they merge; a pair nothing can convert is null-filled whole, so the harvest becomes
+     * the all-null contract. None of the three consults who supplied the schema.
+     */
+    public void testFfwFooterAggregateDecidesByTypePairNotByDeclaration() {
+        Map<String, Object> narrowed = ExternalSourceResolver.aggregateFileStatistics(
             List.of(
                 fileWithColumn("file:///part-a.parquet", DataType.INTEGER, 1L, 2L),
                 fileWithColumn("file:///part-b.parquet", DataType.LONG, -10L, 20L)
             ),
             true
         );
-        assertNotNull(drift);
-        assertEquals(1L, drift.get(SourceStatisticsSerializer.columnMinKey("x")));
-        assertEquals(2L, drift.get(SourceStatisticsSerializer.columnMaxKey("x")));
-        assertNull(drift.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
-        assertNull(drift.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
-        assertEquals(2L, ((Number) drift.get(SourceStatisticsSerializer.columnValueCountKey("x"))).longValue());
-        assertEquals(2L, ((Number) drift.get(SourceStatisticsSerializer.columnNullCountKey("x"))).longValue());
-        assertEquals(4L, ((Number) drift.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        assertNotNull(narrowed);
+        assertNull(narrowed.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertNull(narrowed.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertEquals(Boolean.TRUE, narrowed.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertEquals(Boolean.TRUE, narrowed.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertNull(narrowed.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertNull(narrowed.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        assertEquals(4L, ((Number) narrowed.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+
+        Map<String, Object> unconvertible = ExternalSourceResolver.aggregateFileStatistics(
+            List.of(
+                fileWithColumn("file:///bool/part-a.parquet", DataType.BOOLEAN, 0L, 1L),
+                fileWithColumn("file:///bool/part-b.parquet", DataType.INTEGER, -10L, 20L)
+            ),
+            true
+        );
+        assertNotNull(unconvertible);
+        assertEquals(
+            "the second file reads as all-null, so the anchor's extrema stand",
+            0L,
+            unconvertible.get(SourceStatisticsSerializer.columnMinKey("x"))
+        );
+        assertEquals(1L, unconvertible.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertEquals(2L, ((Number) unconvertible.get(SourceStatisticsSerializer.columnValueCountKey("x"))).longValue());
+        assertEquals(2L, ((Number) unconvertible.get(SourceStatisticsSerializer.columnNullCountKey("x"))).longValue());
+        assertEquals(4L, ((Number) unconvertible.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
 
         Map<String, Object> widen = ExternalSourceResolver.aggregateFileStatistics(
             List.of(
@@ -964,7 +993,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(4L, ((Number) widen.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
     }
 
-    public void testAlignHarvestWithAnchorTypesRewritesUnrepresentableFooterColumn() {
+    /**
+     * A footer column the scan cannot convert at all is null-filled whole, so its harvest becomes the
+     * all-null contract. {@code INTEGER} under a {@code BOOLEAN} target is that pair: the boolean mapper
+     * accepts only true/false tokens, so no value survives.
+     */
+    public void testAlignHarvestWithAnchorTypesRewritesUnconvertibleFooterColumn() {
         Map<String, Object> later = new HashMap<>();
         later.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
         later.put(SourceStatisticsSerializer.columnMinKey("x"), -10L);
@@ -975,10 +1009,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         Map<String, Object> aligned = ExternalSourceResolver.alignHarvestWithAnchorTypes(
             frozen,
-            Map.of("x", DataType.LONG),
             Map.of("x", DataType.INTEGER),
-            true,
-            Set.of()
+            Map.of("x", DataType.BOOLEAN),
+            true
         );
 
         assertNotSame(frozen, aligned);
@@ -1001,8 +1034,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             later,
             Map.of("x", DataType.LONG),
             Map.of("x", DataType.UNSIGNED_LONG),
-            true,
-            Set.of()
+            true
         );
 
         assertEquals(DeclaredTypeCoercions.coerceToUnsignedLong(0L), aligned.get(SourceStatisticsSerializer.columnMinKey("x")));
@@ -1030,8 +1062,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 harvest,
                 Map.of("x", DataType.UNSIGNED_LONG),
                 Map.of("x", DataType.DOUBLE),
-                implicitNulls,
-                Set.of()
+                implicitNulls
             );
             assertNull(aligned.get(SourceStatisticsSerializer.columnMinKey("x")));
             assertNull(aligned.get(SourceStatisticsSerializer.columnMaxKey("x")));
@@ -1061,8 +1092,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Map.copyOf(harvest),
             Map.of("x", DataType.LONG),
             Map.of("x", DataType.UNSIGNED_LONG),
-            true,
-            Set.of()
+            true
         );
 
         assertNull(aligned.get(SourceStatisticsSerializer.columnMinKey("x")));
@@ -1075,7 +1105,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(2L, ((Number) aligned.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
     }
 
-    public void testAlignHarvestWithAnchorTypesLeavesTextUnrepresentableForFold() {
+    public void testAlignHarvestWithAnchorTypesLeavesTextUnconvertibleForFold() {
         Map<String, Object> later = new HashMap<>();
         later.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
         later.put(SourceStatisticsSerializer.columnMinKey("x"), -10L);
@@ -1086,34 +1116,40 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         assertSame(
             frozen,
-            ExternalSourceResolver.alignHarvestWithAnchorTypes(
-                frozen,
-                Map.of("x", DataType.LONG),
-                Map.of("x", DataType.INTEGER),
-                false,
-                Set.of()
-            )
+            ExternalSourceResolver.alignHarvestWithAnchorTypes(frozen, Map.of("x", DataType.INTEGER), Map.of("x", DataType.BOOLEAN), false)
         );
     }
 
-    public void testAlignHarvestWithAnchorTypesSkipsDeclaredCoercibleColumn() {
+    /**
+     * A column the scan converts per value has a harvest describing neither the file's values nor the
+     * converted ones, so its extrema and counts both go. {@code row_count} is the file's shape, not a
+     * claim about the column, and survives. This held only for declared columns before
+     * esql-planning#2076, which let the same harvest be served or dropped by declaration alone.
+     */
+    public void testAlignHarvestWithAnchorTypesDropsAConvertedColumnsCounts() {
         Map<String, Object> later = new HashMap<>();
         later.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
         later.put(SourceStatisticsSerializer.columnMinKey("x"), -10L);
         later.put(SourceStatisticsSerializer.columnMaxKey("x"), 20L);
         later.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        later.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
         Map<String, Object> frozen = Map.copyOf(later);
 
-        assertSame(
+        Map<String, Object> aligned = ExternalSourceResolver.alignHarvestWithAnchorTypes(
             frozen,
-            ExternalSourceResolver.alignHarvestWithAnchorTypes(
-                frozen,
-                Map.of("x", DataType.LONG),
-                Map.of("x", DataType.INTEGER),
-                true,
-                Set.of("x")
-            )
+            Map.of("x", DataType.LONG),
+            Map.of("x", DataType.INTEGER),
+            true
         );
+
+        assertNull(aligned.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertNull(aligned.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertEquals(Boolean.TRUE, aligned.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertEquals(Boolean.TRUE, aligned.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertNull(aligned.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertNull(aligned.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        assertEquals(2L, ((Number) aligned.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        assertEquals("the caller's map is not mutated", -10L, frozen.get(SourceStatisticsSerializer.columnMinKey("x")));
     }
 
     /**
@@ -1164,14 +1200,18 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
     }
 
-    public void testFfwFooterAggregateSafeMissesDeclaredCoercibleColumn() {
+    /**
+     * The fold's view of the same rule: an INTEGER anchor with a LONG second file converts per value, so
+     * the merged extrema and counts are dropped whoever declared the schema. Passing a declared-column
+     * set used to be what turned this on.
+     */
+    public void testFfwFooterAggregateSafeMissesAConvertedColumn() {
         Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
             List.of(
                 fileWithColumn("file:///part-a.parquet", DataType.INTEGER, 1L, 2L),
                 fileWithColumn("file:///part-b.parquet", DataType.LONG, -10L, 20L)
             ),
-            true,
-            Set.of("x")
+            true
         );
         assertNotNull(agg);
         assertNull(agg.get(SourceStatisticsSerializer.columnMinKey("x")));
@@ -1181,33 +1221,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertNull(agg.get(SourceStatisticsSerializer.columnValueCountKey("x")));
         assertNull(agg.get(SourceStatisticsSerializer.columnNullCountKey("x")));
         assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
-    }
-
-    public void testPhysicalDeclaredTypeColumnsUseFileNamesForPathRename() {
-        DatasetMapping renamed = new DatasetMapping(
-            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("y", new DatasetFieldMapping("integer", "x")))
-        );
-        assertEquals(Set.of("x"), ExternalSourceResolver.physicalDeclaredTypeColumnsOf(renamed));
-
-        DatasetMapping sameName = new DatasetMapping(
-            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("x", new DatasetFieldMapping("integer", null)))
-        );
-        assertEquals(Set.of("x"), ExternalSourceResolver.physicalDeclaredTypeColumnsOf(sameName));
-        assertEquals(Set.of(), ExternalSourceResolver.physicalDeclaredTypeColumnsOf((DatasetMapping) null));
-
-        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
-            List.of(
-                fileWithColumn("file:///part-a.parquet", DataType.INTEGER, 1L, 2L),
-                fileWithColumn("file:///part-b.parquet", DataType.LONG, -10L, 20L)
-            ),
-            true,
-            ExternalSourceResolver.physicalDeclaredTypeColumnsOf(renamed)
-        );
-        assertNotNull(agg);
-        assertNull(agg.get(SourceStatisticsSerializer.columnValueCountKey("x")));
-        assertNull(agg.get(SourceStatisticsSerializer.columnNullCountKey("x")));
-        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
-        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
     }
 
     public void testFfwFooterAggregatePoisonsUnsignedExtremaUnderDoubleAnchor() {

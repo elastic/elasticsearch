@@ -6526,7 +6526,12 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
     }
 
-    public void testRangeAwareSplitsRewriteFirstFileWinsUnrepresentableFooterColumn() {
+    /**
+     * A split's stamped statistics follow the same rule as the fold: a column the scan narrows per value
+     * cannot have its pre-narrowing extrema or counts served, so they are withheld rather than rewritten
+     * as all-null, which would have claimed the column holds no values at all.
+     */
+    public void testRangeAwareSplitsSafeMissANarrowedFooterColumn() {
         Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
         RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
         FileSplitProvider splitter = splitterFor(mockReader);
@@ -6541,14 +6546,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
         assertEquals(1, splits.size());
-        Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
-        assertEquals(0L, stats.get(SourceStatisticsSerializer.columnValueCountKey("x")));
-        assertEquals(2L, stats.get(SourceStatisticsSerializer.columnNullCountKey("x")));
-        assertNull(stats.get(SourceStatisticsSerializer.columnMinKey("x")));
-        assertNull(stats.get(SourceStatisticsSerializer.columnMaxKey("x")));
-        assertNull(stats.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
-        assertNull(stats.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
-        assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        assertUnknownColumnStats(((FileSplit) splits.get(0)).statistics(), "x", 2L);
     }
 
     public void testUnknownFirstFileWinsNativeTypesPublishUnknownCountsNotAllNulls() {
@@ -6804,15 +6802,20 @@ public class FileSplitProviderTests extends ESTestCase {
      * An extensionless object with {@code format: parquet} still applies the footer rewrite;
      * implicit-nulls come from the configured reader, not the filename extension.
      */
-    public void testCachedExtensionlessSplitsRewriteUnrepresentableFooterColumn() throws Exception {
+    /**
+     * The all-null contract survives for a pair the scan cannot convert at all: an {@code INTEGER} column
+     * read as {@code BOOLEAN} is null-filled whole by the footer reader, so the stamp says zero values and
+     * every row null rather than withholding the counts.
+     */
+    public void testCachedExtensionlessSplitsRewriteUnconvertibleFooterColumn() throws Exception {
         Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
         RangeAwareFormatReader mockReader = createCachedRangeReader(List.of(new SplitRange(0, 2000, rawStats)));
         FileSplitProvider splitter = rangeAwareProvider(mockReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "x", DataType.INTEGER)));
+        ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "x", DataType.BOOLEAN)));
         SplitDiscoveryContext ctx = singleFileStatsContext(
             "s3://b/part-b",
             "s3://b/part-b",
-            new SchemaReconciliation.FileSchemaInfo(unified, null, null, Map.of("x", DataType.LONG)),
+            new SchemaReconciliation.FileSchemaInfo(unified, null, null, Map.of("x", DataType.INTEGER)),
             unified,
             Map.of(FormatNameResolver.CONFIG_FORMAT, "parquet")
         );

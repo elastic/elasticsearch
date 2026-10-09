@@ -398,9 +398,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplitWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/159143
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
-  method: testLongLivedPitRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/155740
 - class: org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManagerTests
   method: testSignAndVerifyDifferentPayloadFailsPKCS12orBCFKS
   issue: https://github.com/elastic/elasticsearch/issues/159806
@@ -484,3 +481,14 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/161325
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/161399
+- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
+  method: test {csv-spec:scoring.testMatchAndQueryStringFunctionsWithScore}
+  issue: https://github.com/elastic/elasticsearch/issues/153614
+- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
+  issue: https://github.com/elastic/elasticsearch/issues/161483
+- class: org.elasticsearch.xpack.esql.action.EsqlActionTaskIT
+  method: testTaskContentsForTopNQueryWithNoReduction
+  issue: https://github.com/elastic/elasticsearch/issues/161486
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
+  method: testReshardWithDisruption
+  issue: https://github.com/elastic/elasticsearch/issues/161494

@@ -208,6 +208,11 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         return filteredNodesAndShards;
     }
 
+    /** Sender timeout for GetCheckpoint node fan-out. Null/zero means wait forever. */
+    static TransportRequestOptions checkpointNodeTransportOptions(TimeValue timeout) {
+        return timeout != null && timeout.millis() > 0 ? TransportRequestOptions.timeout(timeout) : TransportRequestOptions.EMPTY;
+    }
+
     private void getCheckpointsFromNodes(
         ClusterState clusterState,
         Task task,
@@ -273,7 +278,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                 GetCheckpointNodeAction.NAME,
                 nodeCheckpointsRequest,
                 task,
-                TransportRequestOptions.EMPTY,
+                checkpointNodeTransportOptions(timeout),
                 new ActionListenerResponseHandler<>(
                     groupedListener,
                     GetCheckpointNodeAction.Response::new,

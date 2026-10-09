@@ -142,7 +142,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
                 lifecycle,
                 errorStore.getError(state.projectId(), idxMetadata.getIndex()),
                 computeFrozenTransitionStatus(state, parentDataStream, idxMetadata, lifecycle, pastFrozenAfterByDataStream),
-                parentDataStream.isMinimumLifecycleApplicable(minimumLifecycleEnabled)
+                parentDataStream.isMinimumLifecycleApplicable(index, minimumLifecycleEnabled)
             );
             explainIndices.add(explainIndexDataStreamLifecycle);
         }

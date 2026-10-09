@@ -578,6 +578,35 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(dataStream.isMinimumLifecycleApplicable(randomBoolean()), is(false));
     }
 
+    public void testIsMinimumLifecycleApplicableForIndex() {
+        DataStream timeSeries = DataStreamTestHelper.randomInstance(true)
+            .copy()
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .setLifecycle(null)
+            .build();
+        String backingIndex = timeSeries.getIndices().get(randomIntBetween(0, timeSeries.getIndices().size() - 1)).getName();
+        String failureIndex = timeSeries.getFailureIndices().get(randomIntBetween(0, timeSeries.getFailureIndices().size() - 1)).getName();
+
+        // A backing index of a time series data stream without a lifecycle
+        assertThat(timeSeries.isMinimumLifecycleApplicable(backingIndex, true), is(true));
+        assertThat(timeSeries.isMinimumLifecycleApplicable(backingIndex, false), is(false));
+
+        // A failure index of a time series data stream without a lifecycle
+        assertThat(timeSeries.isMinimumLifecycleApplicable(failureIndex, true), is(false));
+        assertThat(timeSeries.isMinimumLifecycleApplicable(failureIndex, false), is(false));
+
+        // An index that does not belong to the data stream
+        String otherIndex = randomValueOtherThan(backingIndex, () -> randomAlphaOfLength(10));
+        assertThat(timeSeries.isMinimumLifecycleApplicable(otherIndex, randomBoolean()), is(false));
+
+        // A data stream with a lifecycle configured
+        DataStreamLifecycle lifecycle = randomBoolean()
+            ? DataStreamLifecycle.dataLifecycleBuilder().enabled(false).build()
+            : DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build();
+        DataStream withLifecycle = timeSeries.copy().setLifecycle(lifecycle).build();
+        assertThat(withLifecycle.isMinimumLifecycleApplicable(backingIndex, randomBoolean()), is(false));
+    }
+
     public void testRolloverFailureStore() {
         DataStream ds = DataStreamTestHelper.randomInstance(true).promoteDataStream();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();

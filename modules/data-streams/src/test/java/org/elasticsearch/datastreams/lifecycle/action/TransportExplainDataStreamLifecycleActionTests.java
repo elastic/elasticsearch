@@ -258,11 +258,11 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
     }
 
     /**
-     * Time series data streams without a configured lifecycle are managed by the default lifecycle only when the default lifecycle for
+     * Time series data streams without a configured lifecycle are managed by the minimum lifecycle only when the minimum lifecycle for
      * time series is enabled. Their indices are then reported as managed, with the lifecycle enabled by default and without a configured
      * lifecycle. Data streams with a configured lifecycle and non time series data streams are not affected.
      */
-    public void testDefaultLifecycleForTimeSeries() throws Exception {
+    public void testMinimumLifecycleForTimeSeries() throws Exception {
         long now = System.currentTimeMillis();
         ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
 
@@ -282,10 +282,23 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
             .creationDate(now - 3600_000L)
             .build();
         builder.put(tsdsWriteIndex, false);
+        IndexMetadata failureIndex = IndexMetadata.builder(DataStream.getDefaultFailureStoreName(tsdsName, 3, now))
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .creationDate(now - 3600_000L)
+            .build();
+        builder.put(failureIndex, false);
         builder.put(
-            newInstance(tsdsName, List.of(tsdsRolledOverIndex.getIndex(), tsdsWriteIndex.getIndex()), 2, Map.of(), false, null).copy()
-                .setIndexMode(IndexMode.TIME_SERIES)
-                .build()
+            newInstance(
+                tsdsName,
+                List.of(tsdsRolledOverIndex.getIndex(), tsdsWriteIndex.getIndex()),
+                3,
+                Map.of(),
+                false,
+                null,
+                List.of(failureIndex.getIndex())
+            ).copy().setIndexMode(IndexMode.TIME_SERIES).build()
         );
 
         String tsdsWithLifecycleName = "tsds-with-lifecycle";
@@ -328,7 +341,7 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
 
             ExplainDataStreamLifecycleAction.Request request = new ExplainDataStreamLifecycleAction.Request(
                 TEST_REQUEST_TIMEOUT,
-                new String[] { tsdsName, tsdsWithLifecycleName, standardName }
+                new String[] { tsdsName, tsdsWithLifecycleName, standardName, failureIndex.getIndex().getName() }
             );
             AtomicReference<ExplainDataStreamLifecycleAction.Response> responseRef = new AtomicReference<>();
             testAction.masterOperation(
@@ -343,7 +356,7 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
             Map<String, ExplainIndexDataStreamLifecycle> explainByIndex = response.getIndices()
                 .stream()
                 .collect(Collectors.toMap(ExplainIndexDataStreamLifecycle::getIndex, Function.identity()));
-            assertThat(explainByIndex.size(), equalTo(4));
+            assertThat(explainByIndex.size(), equalTo(5));
 
             for (IndexMetadata tsdsIndex : List.of(tsdsRolledOverIndex, tsdsWriteIndex)) {
                 ExplainIndexDataStreamLifecycle explain = explainByIndex.get(tsdsIndex.getIndex().getName());
@@ -366,6 +379,10 @@ public class TransportExplainDataStreamLifecycleActionTests extends ESTestCase {
             ExplainIndexDataStreamLifecycle standard = explainByIndex.get(standardIndex.getIndex().getName());
             assertThat(standard.isManagedByLifecycle(), is(false));
             assertThat(standard.isMinimumLifecycleEnabled(), is(false));
+
+            ExplainIndexDataStreamLifecycle failure = explainByIndex.get(failureIndex.getIndex().getName());
+            assertThat(failure.isManagedByLifecycle(), is(true));
+            assertThat(failure.isMinimumLifecycleEnabled(), is(false));
         }
     }
 

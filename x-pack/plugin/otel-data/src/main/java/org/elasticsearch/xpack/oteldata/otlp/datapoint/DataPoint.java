@@ -132,24 +132,24 @@ public interface DataPoint {
     long getDocCount();
 
     /**
-     * Returns {@code true} when this data point can be written into an {@link org.elasticsearch.escf.EscfRowBuffer}
+     * Returns {@code true} when this data point can be written into an {@link org.elasticsearch.escf.EscfBatchBuilder}
      * as a scalar long or double field (i.e. via
-     * {@link #writeColumnarValue(org.elasticsearch.escf.EscfRowBuffer, String)}).
+     * {@link #writeColumnarValue(org.elasticsearch.escf.EscfBatchBuilder, String)}).
      * Histogram, summary, and exponential-histogram data points return {@code false} because they write
-     * nested objects/arrays that the current ESCF row-buffer API does not yet support.
+     * nested objects/arrays that the current columnar API does not yet support.
      */
     default boolean supportsColumnarValue() {
         return false;
     }
 
     /**
-     * Writes the metric value as a scalar field into the given {@link org.elasticsearch.escf.EscfRowBuffer}.
+     * Writes the metric value as a scalar field into the given {@link org.elasticsearch.escf.EscfBatchBuilder}.
      * Only valid when {@link #supportsColumnarValue()} returns {@code true}.
      *
-     * @param row       the row buffer to write into
-     * @param fieldName the field name within the enclosing {@code metrics} object
+     * @param batchBuilder the batch builder to write into
+     * @param fieldName    the field name within the enclosing {@code metrics} object
      */
-    default void writeColumnarValue(org.elasticsearch.escf.EscfRowBuffer row, String fieldName) {
+    default void writeColumnarValue(org.elasticsearch.escf.EscfBatchBuilder batchBuilder, String fieldName) {
         throw new UnsupportedOperationException("writeColumnarValue not supported for " + getClass().getSimpleName());
     }
 
@@ -249,10 +249,10 @@ public interface DataPoint {
         }
 
         @Override
-        public void writeColumnarValue(org.elasticsearch.escf.EscfRowBuffer row, String fieldName) {
+        public void writeColumnarValue(org.elasticsearch.escf.EscfBatchBuilder batchBuilder, String fieldName) {
             switch (dataPoint.getValueCase()) {
-                case AS_DOUBLE -> row.doubleField(fieldName, dataPoint.getAsDouble());
-                case AS_INT -> row.longField(fieldName, dataPoint.getAsInt());
+                case AS_DOUBLE -> batchBuilder.doubleField(fieldName, dataPoint.getAsDouble());
+                case AS_INT -> batchBuilder.longField(fieldName, dataPoint.getAsInt());
                 case VALUE_NOT_SET -> throw new IllegalStateException(
                     "number data point without a value should have been filtered out: " + metric.getName()
                 );

@@ -181,17 +181,6 @@ public abstract sealed class IndexRouting {
     }
 
     /**
-     * Returns a {@link RoutingExtractor} for this routing strategy if it can compute the shard id
-     * from data accumulated during a single source parse pass (e.g. via
-     * {@link org.elasticsearch.sourcebatch.SourceBatchEncoder}); returns {@code null} for strategies that route
-     * solely on the document id and explicit routing field, in which case callers should use
-     * {@link #indexShard(IndexRequest)} directly.
-     */
-    public RoutingExtractor newRoutingExtractor() {
-        return null;
-    }
-
-    /**
      * Called when indexing a document must be rerouted from the source shard to the target
      * during resharding. Should be similar to {@link #indexShard(IndexRequest)} while avoiding
      * the initial expense of having to calculate the routing parameters.
@@ -454,8 +443,7 @@ public abstract sealed class IndexRouting {
 
         /**
          * Records the routing hash that {@link #postProcess(IndexRequest)} will later read. Used by
-         * subclasses that compute the hash through means other than {@link #hashSource} — e.g. via
-         * a {@link RoutingExtractor} fed during batch encoding.
+         * subclasses that compute the hash through means other than {@link #hashSource}.
          */
         final void setRecordedHash(int h) {
             this.hash = h;
@@ -652,23 +640,6 @@ public abstract sealed class IndexRouting {
                 );
             }
 
-            @Override
-            public RoutingExtractor newRoutingExtractor() {
-                return new RoutingPathExtractor(this);
-            }
-
-            /**
-             * Computes the shard id from a {@link RoutingHashBuilder} populated during batch encoding,
-             * applying the same post-processing as {@link #indexShard(IndexRequest)} (records the
-             * hash so {@link #postProcess(IndexRequest)} can later embed it in the auto-generated id
-             * for LogsDB, and reroutes if the destination shard is a not-yet-handed-off split target).
-             */
-            int shardIdForRoutingHash(RoutingHashBuilder builder) {
-                int h = builder.buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
-                setRecordedHash(h);
-                return rerouteWritesIfResharding(routingFunction.shardNum(h));
-            }
-
             public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
                 return hashRoutingFields(sourceType, source).createId(suffix, IndexRouting.ExtractFromSource::defaultOnEmpty);
             }
@@ -740,28 +711,6 @@ public abstract sealed class IndexRouting {
                 return hash(tsid);
             }
 
-            @Override
-            public RoutingExtractor newRoutingExtractor() {
-                return new DimensionsExtractor(this);
-            }
-
-            /**
-             * Computes the shard id from a {@link TsidBuilder} populated during batch encoding,
-             * matching the post-processing of {@link #hashSource(IndexRequest)}: builds the tsid,
-             * stashes it on the request so the data node can reuse it instead of rebuilding (see
-             * {@link #extractDimensionsWhileMapping()}), records the routing hash for
-             * {@link #postProcess(IndexRequest)}, and reroutes if the destination shard is a
-             * not-yet-handed-off split target.
-             */
-            int shardIdForExtractedTsid(TsidBuilder tsidBuilder, IndexRequest indexRequest) {
-                BytesRef tsid = tsidBuilder.buildTsid(creationVersion);
-                indexRequest.tsid(tsid);
-                int h = hash(tsid);
-                setRecordedHash(h);
-                return rerouteWritesIfResharding(routingFunction.shardNum(h));
-            }
-
-            /** Used by {@link DimensionsExtractor} to evaluate the dimension-path predicate once per leaf column. */
             boolean matchesField(String fieldName) {
                 return isDimensionField.test(fieldName);
             }

@@ -621,9 +621,9 @@ public class EscfBatchScattererTests extends ESTestCase {
         Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
         try (EscfEncoder encoder = new EscfEncoder(recycler)) {
             for (BytesReference source : sources) {
-                encoder.addDocument(source, XContentType.JSON, 0);
+                encoder.addDocument(source, XContentType.JSON);
             }
-            return encoder.buildPartition(0);
+            return encoder.build();
         }
     }
 

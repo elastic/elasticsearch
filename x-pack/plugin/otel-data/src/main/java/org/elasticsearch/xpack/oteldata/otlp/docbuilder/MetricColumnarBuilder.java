@@ -17,7 +17,6 @@ import com.google.protobuf.ByteString;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.escf.EscfBatchBuilder;
-import org.elasticsearch.escf.EscfRowBuffer;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
@@ -28,14 +27,14 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Columnar counterpart to {@link MetricDocumentBuilder}: writes OTel metric data-point groups directly
- * into an {@link EscfRowBuffer} without going through an intermediate XContent representation.
+ * into an {@link EscfBatchBuilder} without going through an intermediate XContent representation.
  *
  * <p>The method {@link #buildMetricRow} returns {@code true} on success. It returns {@code false} when the
  * data-point group cannot be fully expressed as scalar ESCF columns — currently when any data point is not a
  * scalar number (histogram/summary/exponential-histogram) or any attribute value is non-scalar
  * (ARRAY/KVLIST/BYTES). Callers must treat a {@code false} return as a signal to fall back to the
- * {@link MetricDocumentBuilder} XContent path; the row-buffer is left in an undefined state and must not be
- * committed.
+ * {@link MetricDocumentBuilder} XContent path; the batch builder row is left open and the caller
+ * must not call {@link EscfBatchBuilder#finishRow()}.
  *
  * <p>The field layout emitted by this class is identical to that of {@link MetricDocumentBuilder}:
  * same field names, same nesting depth, same ordering. The {@code OTLPMetricsEscfComparisonRestIT}
@@ -54,10 +53,10 @@ public final class MetricColumnarBuilder {
     /**
      * Writes a single metric data-point group into the next row of {@code builder}.
      *
-     * <p>Calls {@link EscfBatchBuilder#beginRow()} before writing and leaves the row staged (not committed).
-     * The caller is responsible for calling {@link EscfBatchBuilder#commit(int)} if this method returns
-     * {@code true}, and for discarding the staged row (via the next {@link EscfBatchBuilder#beginRow()} call)
-     * if it returns {@code false}.
+     * <p>Calls {@link EscfBatchBuilder#beginRow()} before writing and leaves the row open on success.
+     * The caller is responsible for calling {@link EscfBatchBuilder#finishRow()} to obtain the row index
+     * if this method returns {@code true}. If it returns {@code false}, {@code beginRow} was never called
+     * (pre-flight failure) so no cleanup is required.
      *
      * @param batchBuilder       the batch builder whose current row will receive the fields
      * @param dataPointGroup     the group to write
@@ -91,17 +90,17 @@ public final class MetricColumnarBuilder {
             return false;
         }
 
-        EscfRowBuffer row = batchBuilder.beginRow();
+        batchBuilder.beginRow();
         try {
-            return writeRow(row, batchBuilder, dataPointGroup, dynamicTemplates, dynamicTemplateParams);
+            return writeRow(batchBuilder, dataPointGroup, dynamicTemplates, dynamicTemplateParams);
         } catch (IllegalArgumentException e) {
-            // EscfRowBuffer throws IllegalArgumentException on duplicate field names.
+            // EscfBatchBuilder throws IllegalArgumentException on duplicate field names.
+            batchBuilder.abortRow();
             return false;
         }
     }
 
     private boolean writeRow(
-        EscfRowBuffer row,
         EscfBatchBuilder batchBuilder,
         DataPointGroupingContext.DataPointGroup dataPointGroup,
         Map<String, String> dynamicTemplates,
@@ -109,42 +108,42 @@ public final class MetricColumnarBuilder {
     ) {
         List<DataPoint> dataPoints = dataPointGroup.dataPoints();
 
-        row.longField("@timestamp", TimeUnit.NANOSECONDS.toMillis(dataPointGroup.getTimestampUnixNano()));
+        batchBuilder.longField("@timestamp", TimeUnit.NANOSECONDS.toMillis(dataPointGroup.getTimestampUnixNano()));
         if (dataPointGroup.getStartTimestampUnixNano() != 0) {
-            row.longField("start_timestamp", TimeUnit.NANOSECONDS.toMillis(dataPointGroup.getStartTimestampUnixNano()));
+            batchBuilder.longField("start_timestamp", TimeUnit.NANOSECONDS.toMillis(dataPointGroup.getStartTimestampUnixNano()));
         }
 
         // resource
-        writeResource(row, dataPointGroup.resource(), dataPointGroup.resourceSchemaUrl());
+        writeResource(batchBuilder, dataPointGroup.resource(), dataPointGroup.resourceSchemaUrl());
 
         // data_stream
-        writeDataStream(row, dataPointGroup.targetIndex());
+        writeDataStream(batchBuilder, dataPointGroup.targetIndex());
 
         // scope
-        writeScope(row, dataPointGroup.scope(), dataPointGroup.scopeSchemaUrl());
+        writeScope(batchBuilder, dataPointGroup.scope(), dataPointGroup.scopeSchemaUrl());
 
         // datapoint attributes (top-level "attributes" object)
-        writeAttributes(row, dataPointGroup.dataPointAttributes(), 0);
+        writeAttributes(batchBuilder, dataPointGroup.dataPointAttributes(), 0);
 
         if (Strings.hasLength(dataPointGroup.unit())) {
-            writeAsciiStringField(row, MetricDocumentBuilder.UNIT_FIELD, dataPointGroup.unit());
+            writeAsciiStringField(batchBuilder, MetricDocumentBuilder.UNIT_FIELD, dataPointGroup.unit());
         }
 
         String temporality = MetricDocumentBuilder.temporalityToString(dataPointGroup.temporality());
         if (temporality != null) {
-            writeAsciiStringField(row, MetricDocumentBuilder.TEMPORALITY_FIELD, temporality);
+            writeAsciiStringField(batchBuilder, MetricDocumentBuilder.TEMPORALITY_FIELD, temporality);
         }
 
         String metricNamesHash = dataPointGroup.getMetricNamesHash(hasher);
-        writeAsciiStringField(row, "_metric_names_hash", metricNamesHash);
+        writeAsciiStringField(batchBuilder, "_metric_names_hash", metricNamesHash);
 
         // metrics object
         long docCount = 0;
-        row.startObject("metrics");
+        batchBuilder.startObject("metrics");
         for (int i = 0; i < dataPoints.size(); i++) {
             DataPoint dataPoint = dataPoints.get(i);
             String metricName = dataPoint.getMetricName();
-            dataPoint.writeColumnarValue(row, metricName);
+            dataPoint.writeColumnarValue(batchBuilder, metricName);
 
             MappingHints mappingHints = defaultMappingHints.withConfigFromAttributes(dataPoint.getAttributes());
             String dynamicTemplate = dataPoint.getDynamicTemplate(mappingHints);
@@ -160,12 +159,11 @@ public final class MetricColumnarBuilder {
                 docCount = dataPoint.getDocCount();
             }
         }
-        row.endObject();
+        batchBuilder.endObject();
         if (docCount > 0) {
-            row.longField("_doc_count", docCount);
+            batchBuilder.longField("_doc_count", docCount);
         }
 
-        row.finishRow();
         return true;
     }
 
@@ -173,77 +171,77 @@ public final class MetricColumnarBuilder {
     // Resource / Scope / DataStream / Attributes
     // -------------------------------------------------------------------------
 
-    private void writeResource(EscfRowBuffer row, Resource resource, ByteString schemaUrl) {
-        row.startObject("resource");
-        writeByteStringFieldIfNotEmpty(row, "schema_url", schemaUrl);
-        writeAttributes(row, resource.getAttributesList(), resource.getDroppedAttributesCount());
-        row.endObject();
+    private void writeResource(EscfBatchBuilder batchBuilder, Resource resource, ByteString schemaUrl) {
+        batchBuilder.startObject("resource");
+        writeByteStringFieldIfNotEmpty(batchBuilder, "schema_url", schemaUrl);
+        writeAttributes(batchBuilder, resource.getAttributesList(), resource.getDroppedAttributesCount());
+        batchBuilder.endObject();
     }
 
-    private void writeScope(EscfRowBuffer row, InstrumentationScope scope, ByteString schemaUrl) {
-        row.startObject("scope");
-        writeByteStringFieldIfNotEmpty(row, "schema_url", schemaUrl);
-        writeByteStringFieldIfNotEmpty(row, "name", scope.getNameBytes());
-        writeByteStringFieldIfNotEmpty(row, "version", scope.getVersionBytes());
-        writeAttributes(row, scope.getAttributesList(), scope.getDroppedAttributesCount());
-        row.endObject();
+    private void writeScope(EscfBatchBuilder batchBuilder, InstrumentationScope scope, ByteString schemaUrl) {
+        batchBuilder.startObject("scope");
+        writeByteStringFieldIfNotEmpty(batchBuilder, "schema_url", schemaUrl);
+        writeByteStringFieldIfNotEmpty(batchBuilder, "name", scope.getNameBytes());
+        writeByteStringFieldIfNotEmpty(batchBuilder, "version", scope.getVersionBytes());
+        writeAttributes(batchBuilder, scope.getAttributesList(), scope.getDroppedAttributesCount());
+        batchBuilder.endObject();
     }
 
-    private void writeDataStream(EscfRowBuffer row, TargetIndex targetIndex) {
+    private void writeDataStream(EscfBatchBuilder batchBuilder, TargetIndex targetIndex) {
         if (targetIndex.isDataStream() == false) {
             return;
         }
-        row.startObject("data_stream");
-        writeAsciiStringField(row, "type", targetIndex.type());
-        writeAsciiStringField(row, "dataset", targetIndex.dataset());
-        writeAsciiStringField(row, "namespace", targetIndex.namespace());
-        row.endObject();
+        batchBuilder.startObject("data_stream");
+        writeAsciiStringField(batchBuilder, "type", targetIndex.type());
+        writeAsciiStringField(batchBuilder, "dataset", targetIndex.dataset());
+        writeAsciiStringField(batchBuilder, "namespace", targetIndex.namespace());
+        batchBuilder.endObject();
     }
 
-    private void writeAttributes(EscfRowBuffer row, List<KeyValue> attributes, int droppedCount) {
+    private void writeAttributes(EscfBatchBuilder batchBuilder, List<KeyValue> attributes, int droppedCount) {
         if (droppedCount > 0) {
-            row.longField("dropped_attributes_count", droppedCount);
+            batchBuilder.longField("dropped_attributes_count", droppedCount);
         }
-        row.startObject("attributes");
+        batchBuilder.startObject("attributes");
         for (int i = 0; i < attributes.size(); i++) {
             KeyValue kv = attributes.get(i);
             if (OTelDocumentBuilder.isIgnoredAttribute(kv.getKey()) == false) {
-                writeScalarAnyValue(row, kv.getKey(), kv.getValue());
+                writeScalarAnyValue(batchBuilder, kv.getKey(), kv.getValue());
             }
         }
-        row.endObject();
+        batchBuilder.endObject();
     }
 
     /**
      * Writes a scalar {@link AnyValue} field. Non-scalar types (ARRAY, KVLIST, BYTES, VALUE_NOT_SET)
      * are silently skipped — the pre-flight check in {@link #buildMetricRow} ensures they do not appear.
      */
-    private void writeScalarAnyValue(EscfRowBuffer row, String fieldName, AnyValue value) {
+    private void writeScalarAnyValue(EscfBatchBuilder batchBuilder, String fieldName, AnyValue value) {
         switch (value.getValueCase()) {
             case STRING_VALUE -> {
                 ByteString sv = value.getStringValueBytes();
                 byte[] bytes = sv.toByteArray();
-                row.stringField(fieldName, bytes, 0, bytes.length);
+                batchBuilder.stringField(fieldName, bytes, 0, bytes.length);
             }
-            case BOOL_VALUE -> row.booleanField(fieldName, value.getBoolValue());
-            case INT_VALUE -> row.longField(fieldName, value.getIntValue());
-            case DOUBLE_VALUE -> row.doubleField(fieldName, value.getDoubleValue());
+            case BOOL_VALUE -> batchBuilder.booleanField(fieldName, value.getBoolValue());
+            case INT_VALUE -> batchBuilder.longField(fieldName, value.getIntValue());
+            case DOUBLE_VALUE -> batchBuilder.doubleField(fieldName, value.getDoubleValue());
             // Non-scalar types should have been rejected by hasNonScalarAttributes() before this point.
             default -> {
                 /* skip */ }
         }
     }
 
-    private static void writeByteStringFieldIfNotEmpty(EscfRowBuffer row, String name, ByteString value) {
+    private static void writeByteStringFieldIfNotEmpty(EscfBatchBuilder batchBuilder, String name, ByteString value) {
         if (value != null && value.isEmpty() == false) {
-            row.stringField(name, value.toByteArray(), 0, value.size());
+            batchBuilder.stringField(name, value.toByteArray(), 0, value.size());
         }
     }
 
-    private static void writeAsciiStringField(EscfRowBuffer row, String name, String value) {
+    private static void writeAsciiStringField(EscfBatchBuilder batchBuilder, String name, String value) {
         if (value != null && value.isEmpty() == false) {
             byte[] bytes = value.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            row.stringField(name, bytes, 0, bytes.length);
+            batchBuilder.stringField(name, bytes, 0, bytes.length);
         }
     }
 

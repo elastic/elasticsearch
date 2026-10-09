@@ -114,9 +114,9 @@ public class MetricColumnarBuilderTests extends ESTestCase {
             Map<String, String> templates = new HashMap<>();
             Map<String, Map<String, String>> templateParams = new HashMap<>();
             assertTrue(builder.buildMetricRow(batchBuilder, group, templates, templateParams));
-            batchBuilder.commit(0);
+            batchBuilder.finishRow();
         });
-        EscfBatch batch = batchBuilder.buildPartition(0);
+        EscfBatch batch = batchBuilder.build();
 
         assertEquals(1, batch.docCount());
         assertFalse(readLongColumn(batch, "@timestamp").isEmpty());
@@ -155,9 +155,9 @@ public class MetricColumnarBuilderTests extends ESTestCase {
         EscfBatchBuilder batchBuilder = new EscfBatchBuilder();
         context.consume(group -> {
             assertTrue(builder.buildMetricRow(batchBuilder, group, new HashMap<>(), new HashMap<>()));
-            batchBuilder.commit(0);
+            batchBuilder.finishRow();
         });
-        EscfBatch batch = batchBuilder.buildPartition(0);
+        EscfBatch batch = batchBuilder.build();
 
         assertEquals(2, batch.docCount());
         List<String> names = readStringColumn(batch, "resource.attributes.service.name");
@@ -207,9 +207,9 @@ public class MetricColumnarBuilderTests extends ESTestCase {
         EscfBatchBuilder batchBuilder = new EscfBatchBuilder();
         context.consume(group -> {
             assertTrue(builder.buildMetricRow(batchBuilder, group, new HashMap<>(), new HashMap<>()));
-            batchBuilder.commit(0);
+            batchBuilder.finishRow();
         });
-        EscfBatch batch = batchBuilder.buildPartition(0);
+        EscfBatch batch = batchBuilder.build();
 
         assertEquals(1, batch.docCount());
         assertEquals(List.of("prod"), readStringColumn(batch, "attributes.env"));
@@ -252,7 +252,7 @@ public class MetricColumnarBuilderTests extends ESTestCase {
 
         EscfBatchBuilder batchBuilder = new EscfBatchBuilder();
         context.consume(group -> { assertFalse(builder.buildMetricRow(batchBuilder, group, new HashMap<>(), new HashMap<>())); });
-        assertFalse(batchBuilder.hasPartition(0));
+        assertEquals(0, batchBuilder.docCount());
     }
 
     /** Dotted metric names (e.g. {@code gauge.0}) are written as a nested-path column, not a top-level key. */
@@ -274,9 +274,9 @@ public class MetricColumnarBuilderTests extends ESTestCase {
         EscfBatchBuilder batchBuilder = new EscfBatchBuilder();
         context.consume(group -> {
             assertTrue(builder.buildMetricRow(batchBuilder, group, new HashMap<>(), new HashMap<>()));
-            batchBuilder.commit(0);
+            batchBuilder.finishRow();
         });
-        EscfBatch batch = batchBuilder.buildPartition(0);
+        EscfBatch batch = batchBuilder.build();
 
         assertEquals(1, batch.docCount());
         // The dotted metric name "gauge.0" must produce a column at path "metrics.gauge.0".
@@ -317,6 +317,6 @@ public class MetricColumnarBuilderTests extends ESTestCase {
 
         EscfBatchBuilder batchBuilder = new EscfBatchBuilder();
         context.consume(group -> { assertFalse(builder.buildMetricRow(batchBuilder, group, new HashMap<>(), new HashMap<>())); });
-        assertFalse(batchBuilder.hasPartition(0));
+        assertEquals(0, batchBuilder.docCount());
     }
 }

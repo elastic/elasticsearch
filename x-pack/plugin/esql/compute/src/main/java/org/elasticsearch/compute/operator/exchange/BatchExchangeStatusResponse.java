@@ -30,9 +30,9 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
     private static final TransportVersion ESQL_LOOKUP_BYTES_READ = TransportVersion.fromName("esql_lookup_bytes_read");
     // Warnings ship as part of the same per-driver warnings feature as the DriverCompletionInfo warnings field.
     private static final TransportVersion ESQL_DRIVER_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
-    /** Adds the optional server-driver profile summary to batch exchange responses and remote fetch operator status. */
+    /** Adds the optional server-driver profile summary to batch exchange responses. */
     public static final TransportVersion ESQL_BATCH_EXCHANGE_PROFILE = TransportVersion.fromName("esql_batch_exchange_profile");
-    /** Adds granular per-worker exchange traffic to remote fetch profiles. */
+    /** Adds granular per-worker exchange traffic to the server-driver profile. */
     public static final TransportVersion ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE = TransportVersion.fromName(
         "esql_batch_exchange_granular_profile"
     );

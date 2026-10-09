@@ -551,6 +551,9 @@ public class KnnIndexTester {
                 if (mergeExec != null) {
                     mergeExec.shutdown();
                 }
+                if (quantExec != null) {
+                    quantExec.shutdown();
+                }
             }
         }
         logger.info("Results: \n" + formattedResults);

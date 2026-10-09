@@ -153,24 +153,17 @@ public class ViewService {
         boolean canDeleteReservedViews,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
-        final ViewMetadata viewMetadata = metadata.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
-        for (String viewName : viewNames) {
-            var view = viewMetadata.getView(viewName);
-            if (view == null) {
-                listener.onFailure(new ResourceNotFoundException("view [{}] not found", viewName));
-                return;
-            }
-            if (canDeleteReservedViews == false && view.isReserved()) {
-                listener.onFailure(new IllegalArgumentException("cannot delete reserved view [" + viewName + "]"));
-                return;
-            }
+        try {
+            validateDeleteViews(clusterService.state().metadata().getProject(projectId), viewNames, canDeleteReservedViews);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
         }
-
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(masterNodeTimeout, ackTimeout, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
+                validateDeleteViews(project, viewNames, canDeleteReservedViews);
                 final ViewMetadata viewMetadata = getMetadata(project);
                 if (viewNames.stream().allMatch(v -> viewMetadata.getView(v) == null)) {
                     // The update is a no-op, because none of the views that we're trying to remove exist.
@@ -228,6 +221,22 @@ public class ViewService {
             });
         // Parse the query to ensure it's syntactically valid; parseView rejects any SET statements
         parser.parseView(view.query(), new QueryParams(), new InferenceSettings(Settings.EMPTY), view.name());
+    }
+
+    /**
+     * Validates that views could be deleted
+     */
+    void validateDeleteViews(ProjectMetadata metadata, Collection<String> viewNames, boolean canDeleteReservedViews) {
+        final ViewMetadata viewMetadata = getMetadata(metadata);
+        for (String viewName : viewNames) {
+            var view = viewMetadata.getView(viewName);
+            if (view == null) {
+                throw new ResourceNotFoundException("view [{}] not found", viewName);
+            }
+            if (canDeleteReservedViews == false && view.isReserved()) {
+                throw new IllegalArgumentException("cannot delete reserved view [" + viewName + "]");
+            }
+        }
     }
 
     /**

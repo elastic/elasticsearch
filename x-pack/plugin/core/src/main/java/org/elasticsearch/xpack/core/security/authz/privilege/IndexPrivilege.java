@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
@@ -34,6 +35,12 @@ import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
@@ -57,12 +64,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndMinimize;
 
@@ -340,7 +348,21 @@ public final class IndexPrivilege extends Privilege {
     public static final Predicate<String> ACTION_MATCHER = ALL.predicate();
     public static final Predicate<String> CREATE_INDEX_MATCHER = CREATE_INDEX.predicate();
 
-    private static final ConcurrentHashMap<Set<String>, Set<IndexPrivilege>> CACHE = new ConcurrentHashMap<>();
+    /**
+     * The maximum estimated heap retained by the cache of resolved index privileges (see {@link #resolveBySelectorAccess}).
+     * <p>
+     * Resolving a set of privilege names compiles and minimizes the union of their automata, which is CPU intensive, so results are
+     * cached. There is one entry per distinct combination of privilege names used by some role or API key, so the number of entries
+     * is unbounded, and entries vary in size from a few KB (a single raw action) to ~100 KB (a union of most named privileges). The
+     * cache is therefore bounded by estimated bytes rather than by entry count.
+     */
+    public static final Setting<ByteSizeValue> CACHE_SIZE_SETTING = Setting.memorySizeSetting(
+        setting("authz.index_privileges.cache.size"),
+        "5%",
+        Setting.Property.NodeScope
+    );
+
+    private static volatile Cache<Set<String>, Set<IndexPrivilege>> cache = buildCache(Settings.EMPTY);
 
     private final IndexComponentSelectorPredicate selectorPredicate;
 
@@ -395,13 +417,45 @@ public final class IndexPrivilege extends Privilege {
      * All raw actions are treated as granting access to the {@link IndexComponentSelector#DATA} selector.
      */
     public static Set<IndexPrivilege> resolveBySelectorAccess(Set<String> names) {
-        return CACHE.computeIfAbsent(names, (theName) -> {
-            if (theName.isEmpty()) {
-                return Set.of(NONE);
-            } else {
-                return resolve(theName);
-            }
-        });
+        try {
+            return cache.computeIfAbsent(names, (theName) -> {
+                if (theName.isEmpty()) {
+                    return Set.of(NONE);
+                } else {
+                    return resolve(theName);
+                }
+            });
+        } catch (ExecutionException e) {
+            throw FutureUtils.rethrowExecutionException(e);
+        }
+    }
+
+    /**
+     * Rebuilds the cache of resolved index privileges according to the given node settings, see {@link #CACHE_SIZE_SETTING}.
+     * Any previously cached entries are discarded.
+     */
+    public static void updateConfiguration(Settings settings) {
+        cache = buildCache(settings);
+    }
+
+    private static Cache<Set<String>, Set<IndexPrivilege>> buildCache(Settings settings) {
+        return CacheBuilder.<Set<String>, Set<IndexPrivilege>>builder()
+            .setMaximumWeight(CACHE_SIZE_SETTING.get(settings).getBytes())
+            .weigher(IndexPrivilege::weigh)
+            .build();
+    }
+
+    /**
+     * Estimates the heap a cache entry retains: the key with its names, and the value set with its privileges, which account for their
+     * automata through {@link Privilege#ramBytesUsed()}.
+     */
+    private static long weigh(Set<String> names, Set<IndexPrivilege> privileges) {
+        return RamUsageEstimator.sizeOfCollection(names) + RamUsageEstimator.sizeOfCollection(privileges);
+    }
+
+    // visible for testing
+    static Cache<Set<String>, Set<IndexPrivilege>> getCache() {
+        return cache;
     }
 
     @Nullable

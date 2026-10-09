@@ -1,0 +1,6 @@
+area: Authorization
+issues:
+ - 126015
+pr: 160928
+summary: Limit the index privileges cache by memory usage
+type: bug

@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
@@ -16,6 +18,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
@@ -72,6 +75,8 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
@@ -592,5 +597,20 @@ public class PrivilegeTests extends ESTestCase {
         verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:admin/reindex/rethrottle");
         verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:monitor/something/else");
         verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:admin/something/else");
+    }
+
+    public void testRamBytesUsed() {
+        final long fixedBytes = RamUsageEstimator.shallowSizeOfInstance(Privilege.class) + RamUsageEstimator.shallowSizeOfInstance(
+            CachedSupplier.class
+        ) + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+
+        final Set<String> names = Set.of("read", "indices:data/read/search");
+        final Privilege privilege = new Privilege(names, "indices:data/read/*", "indices:admin/get*");
+        final long runAutomatonBytes = new CharacterRunAutomaton(privilege.getAutomaton()).ramBytesUsed();
+        assertThat(runAutomatonBytes, greaterThan(privilege.getAutomaton().ramBytesUsed()));
+        assertThat(privilege.ramBytesUsed(), equalTo(fixedBytes + RamUsageEstimator.sizeOfCollection(names) + runAutomatonBytes));
+
+        assertThat(Privilege.ALL.ramBytesUsed(), equalTo(fixedBytes + RamUsageEstimator.sizeOfCollection(Privilege.ALL.name())));
+        assertThat(Privilege.NONE.ramBytesUsed(), equalTo(fixedBytes + RamUsageEstimator.sizeOfCollection(Privilege.NONE.name())));
     }
 }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EnumSerializationTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -16,9 +17,11 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -313,6 +316,57 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(result.unifiedSchema().size(), equalTo(2));
         assertThat(result.unifiedSchema().get(0).name(), equalTo("id"));
         assertThat(result.unifiedSchema().get(1).name(), equalTo("name"));
+    }
+
+    /**
+     * Each file is under a cap of 3 columns, but their distinct names merge into 4: the per-file cap in the readers
+     * does not see it, so the merge must refuse.
+     */
+    public void testUnionByNameRefusesMergedSchemaOverCap() {
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(
+            f1,
+            meta(List.of(attr("a", DataType.INTEGER), attr("b", DataType.INTEGER))),
+            f2,
+            meta(List.of(attr("c", DataType.INTEGER), attr("d", DataType.INTEGER)))
+        );
+
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
+            () -> SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING, new SchemaInterner(null, 0), 3)
+        );
+        assertThat(e.getMessage(), containsString("more than [3] columns"));
+        assertThat(e.getMessage(), containsString("raise [esql.external.schema_max_fields]"));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        // At the cap the merge still succeeds.
+        assertThat(
+            SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING, new SchemaInterner(null, 0), 4)
+                .unifiedSchema()
+                .size(),
+            equalTo(4)
+        );
+    }
+
+    /** At the ceiling raising the cap is refused too, so the refusal points at declaring the columns instead. */
+    public void testUnionByNameOverCeilingSuggestsDeclaringColumns() {
+        int ceiling = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;
+        List<Attribute> wide = new ArrayList<>(ceiling);
+        for (int i = 0; i < ceiling; i++) {
+            wide.add(attr("c" + i, DataType.INTEGER));
+        }
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(
+            path("s3://b/f1.parquet"),
+            meta(wide),
+            path("s3://b/f2.parquet"),
+            meta(List.of(attr("extra", DataType.INTEGER)))
+        );
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
+            () -> SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING, new SchemaInterner(null, 0), ceiling)
+        );
+        assertThat(e.getMessage(), containsString("dynamic: false"));
+        assertThat(e.getMessage(), not(containsString("raise")));
     }
 
     public void testUnionByNameAddedColumn() {
@@ -842,6 +896,60 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(result.perFileInfo().size(), equalTo(1));
     }
 
+    /**
+     * {@code strict} must refuse a within-file schema-inference widen even on a single-file dataset,
+     * where {@code validateStrictMatch} skips the only file (it equals the reference file) and so would
+     * otherwise see nothing to compare. The reader reports the widen via
+     * {@link SourceMetadata#widenedColumns()}, independent of file count.
+     */
+    public void testStrictSingleFileRefusesWithinFileWidening() {
+        List<Attribute> schema = List.of(attr("a", DataType.KEYWORD));
+        StoragePath f1 = path("s3://b/f1.csv");
+        WidenedColumn widened = new WidenedColumn("a", DataType.INTEGER, DataType.KEYWORD, "oops", 3);
+
+        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
+        metadata.put(f1, metaWithWidenedColumns(schema, List.of(widened)));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
+        assertThat(e.getMessage(), containsString("[f1.csv]"));
+        assertThat(e.getMessage(), containsString("column [a]"));
+        assertThat(e.getMessage(), containsString("[keyword]"));
+        assertThat(e.getMessage(), containsString("[integer]"));
+        assertThat(e.getMessage(), containsString("oops"));
+    }
+
+    /**
+     * A file with more than one widened column must name all of them in the one exception, not just the
+     * first — otherwise fixing the named column and rerunning would only reveal the next one.
+     */
+    public void testStrictRefusesWithinFileWideningNamesEveryWidenedColumn() {
+        List<Attribute> schema = List.of(attr("a", DataType.KEYWORD), attr("b", DataType.DOUBLE));
+        StoragePath f1 = path("s3://b/f1.csv");
+        WidenedColumn widenedA = new WidenedColumn("a", DataType.INTEGER, DataType.KEYWORD, "oops", 3);
+        WidenedColumn widenedB = new WidenedColumn("b", DataType.LONG, DataType.DOUBLE, "1.5", 5);
+
+        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
+        metadata.put(f1, metaWithWidenedColumns(schema, List.of(widenedA, widenedB)));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
+        assertThat(e.getMessage(), containsString("column [a]"));
+        assertThat(e.getMessage(), containsString("oops"));
+        assertThat(e.getMessage(), containsString("column [b]"));
+        assertThat(e.getMessage(), containsString("1.5"));
+    }
+
+    /** A dataset with no within-file widening reports nothing extra: {@code strict} behaves as before this fix. */
+    public void testStrictSingleFileWithNoWideningIsUnaffected() {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER));
+        StoragePath f1 = path("s3://b/f1.csv");
+
+        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
+        metadata.put(f1, metaWithWidenedColumns(schema, List.of()));
+
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileStrict(f1, metadata);
+        assertThat(result.unifiedSchema().size(), equalTo(1));
+    }
+
     public void testUnionByNameSingleFile() {
         List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
         StoragePath f1 = path("s3://b/f1.parquet");
@@ -1265,9 +1373,8 @@ public class SchemaReconciliationTests extends ESTestCase {
     }
 
     public void testUnionByNameTextSourceWidenDatetimeToDateNanosKeepsCastNotPinned() {
-        // DATE_NANOS is excluded from read-type pinning: a text reader parsing an epoch number at
-        // DATE_NANOS reads it as epoch-nanos, not the epoch-millis a DATETIME column holds, so the
-        // DATETIME file keeps its inferred read type and the post-read cast rescales the unit.
+        // DATE_NANOS is excluded from read-type pinning: the DATETIME file keeps its inferred read
+        // type and the post-read cast widens millis to nanos.
         List<Attribute> schema1 = List.of(attr("c", DataType.DATETIME));
         List<Attribute> schema2 = List.of(attr("c", DataType.DATE_NANOS));
 
@@ -1455,12 +1562,17 @@ public class SchemaReconciliationTests extends ESTestCase {
     }
 
     private static SourceMetadata meta(List<Attribute> schema) {
-        return new SimpleMetadata(schema, "parquet");
+        return new SimpleMetadata(schema, "parquet", List.of());
     }
 
     /** Like {@link #meta(List)} but with an explicit {@code sourceType}, e.g. {@code "ndjson"}. */
     private static SourceMetadata meta(List<Attribute> schema, String sourceType) {
-        return new SimpleMetadata(schema, sourceType);
+        return new SimpleMetadata(schema, sourceType, List.of());
+    }
+
+    /** Like {@link #meta(List)} but carrying a within-file widening record, as a CSV/TSV/NDJSON reader would report it. */
+    private static SourceMetadata metaWithWidenedColumns(List<Attribute> schema, List<WidenedColumn> widenedColumns) {
+        return new SimpleMetadata(schema, "csv", widenedColumns);
     }
 
     private static Map<StoragePath, SourceMetadata> orderedMap(StoragePath k1, SourceMetadata v1, StoragePath k2, SourceMetadata v2) {
@@ -1473,10 +1585,12 @@ public class SchemaReconciliationTests extends ESTestCase {
     private static class SimpleMetadata implements SourceMetadata {
         private final List<Attribute> schema;
         private final String sourceType;
+        private final List<WidenedColumn> widenedColumns;
 
-        SimpleMetadata(List<Attribute> schema, String sourceType) {
+        SimpleMetadata(List<Attribute> schema, String sourceType, List<WidenedColumn> widenedColumns) {
             this.schema = schema;
             this.sourceType = sourceType;
+            this.widenedColumns = widenedColumns;
         }
 
         @Override
@@ -1492,6 +1606,11 @@ public class SchemaReconciliationTests extends ESTestCase {
         @Override
         public String location() {
             return "test";
+        }
+
+        @Override
+        public List<WidenedColumn> widenedColumns() {
+            return widenedColumns;
         }
     }
 

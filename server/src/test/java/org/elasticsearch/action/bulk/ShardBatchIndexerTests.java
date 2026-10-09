@@ -774,11 +774,14 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
      * {@code IndexingChain}'s {@code fieldGen/first} logic.
      */
     public void testBatchIndexTextFieldPositionIncrementGap() throws Exception {
+        // Columnar text defaults to index_options=docs (no positions); this test asserts positional phrase behavior, so it must
+        // keep positions. The default-gap mapping opts back in explicitly, while the zero-gap mapping relies on the
+        // position_increment_gap fallback that keeps positions when a gap is configured without an explicit index_options.
         String defaultGapMapping = """
             {
               "dynamic": "strict",
               "properties": {
-                "f": { "type": "text" }
+                "f": { "type": "text", "index_options": "positions" }
               }
             }""";
         String zeroGapMapping = """

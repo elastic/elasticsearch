@@ -592,6 +592,55 @@ took:
   - exists: esql.datasources.queries.cpu_nanos.total
 
 ---
+"Datasource failure reason telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources_failure_reasons ]
+      reason: "Datasource failure-reason counters present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # failed external-source queries by error_type (always emitted, 0 when no query failed)
+  - exists: esql.datasources.queries.failures.by_error_type.verification
+  - exists: esql.datasources.queries.failures.by_error_type.storage_auth
+  - exists: esql.datasources.queries.failures.by_error_type.storage_not_found
+  - exists: esql.datasources.queries.failures.by_error_type.storage_throttled
+  - exists: esql.datasources.queries.failures.by_error_type.storage_unavailable
+  - exists: esql.datasources.queries.failures.by_error_type.format
+  - exists: esql.datasources.queries.failures.by_error_type.discovery
+  - exists: esql.datasources.queries.failures.by_error_type.circuit_breaker
+  - exists: esql.datasources.queries.failures.by_error_type.timeout
+  - exists: esql.datasources.queries.failures.by_error_type.resource_limit
+  - exists: esql.datasources.queries.failures.by_error_type.other
+  # failed discovery attempts by error_type
+  - exists: esql.datasources.discovery.failures.by_error_type.storage_auth
+  - exists: esql.datasources.discovery.failures.by_error_type.discovery
+  - exists: esql.datasources.discovery.failures.by_error_type.other
+  # rejected data source / dataset changes by reason
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.validation
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.not_found
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.already_exists
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.max_count
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.unknown_type
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.unavailable
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.has_dependents
+  - exists: esql.datasources.config.datasources.changes.rejected.by_reason.other
+  - exists: esql.datasources.config.datasets.changes.rejected.by_reason.validation
+  - exists: esql.datasources.config.datasets.changes.rejected.by_reason.other
+  # data source / dataset changes by storage type
+  - exists: esql.datasources.config.datasources.changes.by_type.s3
+  - exists: esql.datasources.config.datasources.changes.by_type.gcs
+  - exists: esql.datasources.config.datasources.changes.by_type.azure
+  - exists: esql.datasources.config.datasources.changes.by_type.http
+  - exists: esql.datasources.config.datasources.changes.by_type.local
+  - exists: esql.datasources.config.datasources.changes.by_type.unknown
+  - exists: esql.datasources.config.datasets.changes.by_type.s3
+  - exists: esql.datasources.config.datasets.changes.by_type.unknown
+
+---
 "Datasource inventory marginals":
   - requires:
       test_runner_features: [ capabilities ]

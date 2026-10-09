@@ -60,6 +60,10 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
  * Without the schema, ESQL's DATETIME type always maps to TIMESTAMP and DOUBLE always maps
  * to FLOAT, which causes incorrect stripe/row-group skipping when the actual column uses a
  * different ORC type.
+ *
+ * @param expressions already rewritten by
+ *                    {@link org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion#rewrite}
+ *                    at the {@link OrcFilterPushdownSupport#pushFilters} entry point (or by tests)
  */
 record OrcPushedExpressions(List<Expression> expressions) {
 

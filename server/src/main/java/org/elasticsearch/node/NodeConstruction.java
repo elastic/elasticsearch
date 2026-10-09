@@ -1301,6 +1301,11 @@ class NodeConstruction {
             featureService
         );
 
+        pluginsService.filterPlugins(RepositoryPlugin.class)
+            .map(RepositoryPlugin::getRestoreLifecycleListener)
+            .filter(Objects::nonNull)
+            .forEach(restoreService::setLifecycleListener);
+
         DiscoveryModule discoveryModule = createDiscoveryModule(
             settings,
             threadPool,

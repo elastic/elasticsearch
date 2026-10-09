@@ -33,6 +33,9 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -85,13 +88,15 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
 
     private final Client client;
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportKnnEvalAction(
         ActionFilters actionFilters,
         Client client,
         TransportService transportService,
-        ClusterService clusterService
+        ClusterService clusterService,
+        ProjectResolver projectResolver
     ) {
         super(
             KnnEvalPlugin.KNN_EVAL_ACTION.name(),
@@ -102,6 +107,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         );
         this.client = client;
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -166,12 +172,29 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             .indicesOptions(request.indicesOptions())
             .fields(field);
         setParentTask(task, mappingsRequest);
-        client.execute(
-            GetFieldMappingsAction.INSTANCE,
-            mappingsRequest,
-            listener.<GetFieldMappingsResponse>map(response -> rescoreOf(spec, response))
-                .delegateResponse((delegate, e) -> delegate.onFailure(mappingLookupFailure(field, e)))
-        );
+        client.execute(GetFieldMappingsAction.INSTANCE, mappingsRequest, listener.<GetFieldMappingsResponse>map(response -> {
+            rejectDisabledIndices(response.mappings().keySet());
+            return rescoreOf(spec, response);
+        }).delegateResponse((delegate, e) -> delegate.onFailure(mappingLookupFailure(field, e))));
+    }
+
+    /** The mappings response names the concrete indices, so each one's {@link KnnEvalPlugin#INDEX_ENABLED} is checked here. */
+    private void rejectDisabledIndices(Iterable<String> indices) {
+        ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
+        for (String index : indices) {
+            IndexMetadata metadata = project.index(index);
+            if (metadata != null && KnnEvalPlugin.INDEX_ENABLED.get(metadata.getSettings()) == false) {
+                throw new IllegalArgumentException(
+                    "["
+                        + RestKnnEvalAction.ENDPOINT
+                        + "] is disabled on index ["
+                        + index
+                        + "] by ["
+                        + KnnEvalPlugin.INDEX_ENABLED.getKey()
+                        + "]"
+                );
+            }
+        }
     }
 
     /** A [read]-only caller is refused by an action they never invoked; name this one. */

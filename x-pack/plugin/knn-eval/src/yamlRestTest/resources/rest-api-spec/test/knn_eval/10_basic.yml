@@ -563,6 +563,67 @@ teardown:
   - length: { results: 1 }
 
 ---
+"An index admin can switch the API off for an index":
+  - do:
+      indices.put_settings:
+        index: knn_eval_test
+        body:
+          index.knn_eval.enabled: false
+
+  - do:
+      catch: /\[_knn_eval\] is disabled on index \[knn_eval_test\] by \[index.knn_eval.enabled\]/
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 5
+          knn_settings:
+            - visit_percentage: 100
+
+  - do:
+      indices.put_settings:
+        index: knn_eval_test
+        body:
+          index.knn_eval.enabled: true
+
+  - do:
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 5
+          knn_settings:
+            - visit_percentage: 100
+
+  - length: { results: 1 }
+
+  # the index setting can't override a cluster-wide off
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.knn_eval.enabled: false
+
+  - do:
+      catch: /\[_knn_eval\] is disabled by \[search.knn_eval.enabled\]/
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          query_source:
+            from: docs
+            size: 5
+          knn_settings:
+            - visit_percentage: 100
+
+---
 "A capped rescore window is reported per settings entry":
   - do:
       knn_eval:

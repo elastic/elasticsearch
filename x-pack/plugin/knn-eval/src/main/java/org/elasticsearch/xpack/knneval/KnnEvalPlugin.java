@@ -32,9 +32,18 @@ public class KnnEvalPlugin extends Plugin implements ActionPlugin {
         Setting.Property.OperatorDynamic
     );
 
+    /** Lets an index's admins refuse evaluations on it; ANDed with {@link #ENABLED}, so it can't override a cluster-wide off. */
+    static final Setting<Boolean> INDEX_ENABLED = Setting.boolSetting(
+        "index.knn_eval.enabled",
+        true,
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic,
+        Setting.Property.ServerlessPublic
+    );
+
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(ENABLED);
+        return List.of(ENABLED, INDEX_ENABLED);
     }
 
     @Override

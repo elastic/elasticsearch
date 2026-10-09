@@ -35,6 +35,11 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -50,6 +55,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
@@ -106,6 +112,10 @@ public class TransportKnnEvalActionTests extends ESTestCase {
     }
 
     private static ClusterService clusterService(boolean allowExpensiveQueries, boolean knnEvalEnabled) {
+        return clusterService(allowExpensiveQueries, knnEvalEnabled, true);
+    }
+
+    private static ClusterService clusterService(boolean allowExpensiveQueries, boolean knnEvalEnabled, boolean indexEnabled) {
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.builder()
                 .put(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey(), allowExpensiveQueries)
@@ -116,6 +126,14 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create("knn-eval-test-node"));
+        // the stub client's mappings name "index"; the action reads its index.knn_eval.enabled from here
+        IndexMetadata index = IndexMetadata.builder("index")
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(KnnEvalPlugin.INDEX_ENABLED.getKey(), indexEnabled))
+            .build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).put(index, false)))
+            .build();
+        when(clusterService.state()).thenReturn(state);
         return clusterService;
     }
 
@@ -424,7 +442,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             ActionFilters.EMPTY,
             client,
             MockUtils.setupTransportServiceWithThreadpoolExecutor(),
-            clusterService(true, false)
+            clusterService(true, false),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
         PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
         disabled.doExecute(
@@ -436,6 +455,25 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[_knn_eval] is disabled by [search.knn_eval.enabled]"));
     }
 
+    public void testIndexSettingDisablesTheEvaluation() {
+        RecordingClient client = new RecordingClient();
+        TransportKnnEvalAction action = new TransportKnnEvalAction(
+            ActionFilters.EMPTY,
+            client,
+            MockUtils.setupTransportServiceWithThreadpoolExecutor(),
+            clusterService(true, true, false),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+        );
+        PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
+        action.doExecute(
+            null,
+            new KnnEvalRequest(specWithBaseline(new KnnEvalSettings(100.0f, null, null, false)), new String[] { "index" }),
+            future
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(e.getMessage(), containsString("[_knn_eval] is disabled on index [index] by [index.knn_eval.enabled]"));
+    }
+
     /** {@code search.allow_expensive_queries} doesn't gate exact baselines. */
     public void testExactBaselineIgnoresAllowExpensiveQueries() {
         KnnEvalSpec exactBaseline = specWithBaseline(new KnnEvalSettings(null, null, null, true));
@@ -445,7 +483,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             ActionFilters.EMPTY,
             client,
             MockUtils.setupTransportServiceWithThreadpoolExecutor(),
-            clusterService(false)
+            clusterService(false),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
         PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
         action.doExecute(null, new KnnEvalRequest(exactBaseline, new String[] { "index" }), future);
@@ -485,7 +524,13 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         RecordingClient client = new RecordingClient();
         client.nestedPath = "obj";
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        TransportKnnEvalAction action = new TransportKnnEvalAction(ActionFilters.EMPTY, client, transportService, clusterService(true));
+        TransportKnnEvalAction action = new TransportKnnEvalAction(
+            ActionFilters.EMPTY,
+            client,
+            transportService,
+            clusterService(true),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+        );
         KnnEvalSettings settings = new KnnEvalSettings(100.0f, null, null, false);
         KnnEvalSpec spec = new KnnEvalSpec(
             "obj.emb",
@@ -534,7 +579,13 @@ public class TransportKnnEvalActionTests extends ESTestCase {
     public void testCancelledTaskStopsBeforeStartingChildWork() {
         RecordingClient client = new RecordingClient();
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        TransportKnnEvalAction action = new TransportKnnEvalAction(ActionFilters.EMPTY, client, transportService, clusterService(true));
+        TransportKnnEvalAction action = new TransportKnnEvalAction(
+            ActionFilters.EMPTY,
+            client,
+            transportService,
+            clusterService(true),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+        );
         KnnEvalRequest request = new KnnEvalRequest(
             specWithBaseline(new KnnEvalSettings(20.0f, null, 100.0f, false)),
             new String[] { "index" }
@@ -560,7 +611,13 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         RecordingClient client = new RecordingClient();
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         ClusterService clusterService = clusterService(true);
-        TransportKnnEvalAction action = new TransportKnnEvalAction(ActionFilters.EMPTY, client, transportService, clusterService);
+        TransportKnnEvalAction action = new TransportKnnEvalAction(
+            ActionFilters.EMPTY,
+            client,
+            transportService,
+            clusterService,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+        );
         KnnEvalRequest request = new KnnEvalRequest(
             specWithBaseline(new KnnEvalSettings(20.0f, null, null, false)),
             new String[] { "index" }
@@ -610,7 +667,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             ActionFilters.EMPTY,
             client,
             transportService,
-            clusterService(allowExpensiveQueries)
+            clusterService(allowExpensiveQueries),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
         PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
         action.doExecute(null, new KnnEvalRequest(spec, new String[] { "index" }), future);
@@ -835,7 +893,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             ActionFilters.EMPTY,
             client,
             transportService,
-            clusterService(allowExpensiveQueries)
+            clusterService(allowExpensiveQueries),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
         PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
         action.doExecute(null, new KnnEvalRequest(spec, new String[] { "index" }), future);

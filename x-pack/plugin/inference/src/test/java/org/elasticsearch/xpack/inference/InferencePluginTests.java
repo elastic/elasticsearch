@@ -14,6 +14,7 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
@@ -26,15 +27,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.core.XPackSettings.ML_NATIVE_CODE_PLATFORMS;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
 public class InferencePluginTests extends ESTestCase {
@@ -108,17 +108,24 @@ public class InferencePluginTests extends ESTestCase {
                 restHeaders,
                 equalTo(
                     Map.of(
-                        X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
+                        "X-elastic-product-use-case",
                         true,
-                        X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
+                        "X-Elastic-Inference-Interaction-Id",
                         false,
-                        X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
+                        "X-elastic-product-solution",
                         false,
-                        X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER,
+                        "X-elastic-product-feature",
+                        false,
+                        "X-Elastic-Trace-Id",
+                        false,
+                        "X-Elastic-User-Id",
+                        false,
+                        "X-Elastic-Space-Id",
                         false
                     )
                 )
             );
+            assertThat(restHeaders, not(hasKey(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER)));
         }
     }
 
@@ -127,12 +134,16 @@ public class InferencePluginTests extends ESTestCase {
             assertThat(
                 plugin.getTaskHeaders(),
                 containsInAnyOrder(
-                    X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
-                    X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
-                    X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
-                    X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER
+                    "X-elastic-product-use-case",
+                    "X-Elastic-Inference-Interaction-Id",
+                    "X-elastic-product-solution",
+                    "X-elastic-product-feature",
+                    "X-Elastic-Trace-Id",
+                    "X-Elastic-User-Id",
+                    "X-Elastic-Space-Id"
                 )
             );
+            assertThat(plugin.getTaskHeaders(), not(hasItem(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER)));
         }
     }
 }

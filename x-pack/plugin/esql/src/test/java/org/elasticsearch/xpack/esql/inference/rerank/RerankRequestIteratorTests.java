@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceReq
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_USE_CASE;
 import static org.elasticsearch.xpack.esql.inference.InferenceService.ESQL_PRODUCT_USE_CASE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -721,7 +722,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
         try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize, null)) {
             assertTrue(requestIterator.hasNext());
             RerankAction.Request request = (RerankAction.Request) requestIterator.next().inferenceRequest();
-            assertThat(request.getContext().productUseCase(), equalTo(ESQL_PRODUCT_USE_CASE));
+            assertThat(request.getContext().metadata().get(PRODUCT_USE_CASE), equalTo(ESQL_PRODUCT_USE_CASE));
         }
 
         allBreakersEmpty();

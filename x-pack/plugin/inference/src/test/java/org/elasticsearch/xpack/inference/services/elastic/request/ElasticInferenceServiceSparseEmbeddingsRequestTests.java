@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.inference.services.elastic.request;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.inference.InferenceRequestMetadata;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -18,13 +20,15 @@ import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_ORIGIN;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_USE_CASE;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
@@ -113,10 +117,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
                 new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
                 ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url, modelId),
                 new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-                new ElasticInferenceServiceRequestMetadata(
-                    new InferenceProductContext("my-product-use-case-from-metadata", "my-product-origin"),
-                    "1.2.3"
-                ),
+                capturedMetadata(),
                 inputType,
                 null,
                 CCMAuthenticationApplierFactory.NOOP_APPLIER
@@ -127,11 +128,19 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
             assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
             var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-            var headers = httpPost.getHeaders(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+            var headers = httpPost.getHeaders(PRODUCT_USE_CASE.httpHeader());
             assertThat(headers.length, is(2));
-            assertThat(headers[0].getValue(), is(inputType.toString()));
+            assertThat(headers[0].getValue(), is(ElasticInferenceServiceUsageContext.fromInputType(inputType).productUseCaseHeaderValue()));
             assertThat(headers[1].getValue(), is("my-product-use-case-from-metadata"));
+            assertThat(httpPost.getHeaders(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER).length, is(1));
         }
+    }
+
+    private static ElasticInferenceServiceRequestMetadata capturedMetadata() {
+        var threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(PRODUCT_USE_CASE.httpHeader(), "my-product-use-case-from-metadata");
+        threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "my-product-origin");
+        return ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext(threadContext);
     }
 
     public void testDecorate_HttpRequest_WithAuthorizationHeader() {
@@ -147,7 +156,10 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
                 ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url, modelId),
                 new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
                 new ElasticInferenceServiceRequestMetadata(
-                    new InferenceProductContext("my-product-use-case-from-metadata", "my-product-origin"),
+                    InferenceRequestMetadata.builder()
+                        .put(PRODUCT_USE_CASE, "my-product-use-case-from-metadata")
+                        .put(PRODUCT_ORIGIN, "my-product-origin")
+                        .build(),
                     "1.2.3"
                 ),
                 inputType,

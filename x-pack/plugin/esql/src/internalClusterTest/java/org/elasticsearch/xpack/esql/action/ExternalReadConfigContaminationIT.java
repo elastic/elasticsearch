@@ -241,6 +241,40 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
      * uncoercible value therefore fails to coerce whenever the column is projected, which a plain header would
      * never produce — inference would see the value and widen the column to text instead.
      */
+    /**
+     * The SINGLE-FILE case of the same cost, where no dataset-level fold exists to be blamed for it. A dataset tier
+     * needs at least two files, so this isolates the per-file half: a retyping read asks only its own overlaid
+     * address, and the licensed row count the reconcile files at the record's OWN address is no longer read by it.
+     * <p>
+     * The bound is what this pins. One scan per definition, then warm - not one scan per query, and not a
+     * permanently cold dataset. Its multi-file sibling cannot show which half caused it, because both halves are
+     * in play there.
+     */
+    public void testASingleFileRetypingReadPaysOneScanThenWarms() throws Exception {
+        String uri = writeOneFileFixture();
+        String plain = register("single_plain", uri, null, false);
+        String declared = register("single_declared", uri, mappingTsWithDialect(), false);
+
+        assertScanRows(plain, ROWS);
+        assertScanRows(plain, 0L);
+        // A different definition over the same file: its own address holds nothing yet, so this scan measures it.
+        assertScanRows(declared, ROWS);
+        // And having measured it, the declared read warms - one scan, not one per query.
+        assertScanRows(declared, 0L);
+    }
+
+    /** One file of the dialect fixture, so no dataset-level fold can exist (that tier needs two files or more). */
+    private String writeOneFileFixture() throws Exception {
+        String[] dates = { "2024-03-02", "2024-01-05", "2024-12-01", "2024-07-08", "2024-05-11" };
+        StringBuilder a = new StringBuilder("id:integer,ts:datetime\n");
+        for (int i = 0; i < ROWS; i++) {
+            a.append(i).append(',').append(dates[i % dates.length]).append("T00:00:00").append('\n');
+        }
+        Path file = createTempDir().resolve("single.csv");
+        Files.writeString(file, a.toString());
+        return StoragePath.fileUri(file);
+    }
+
     private String writeTypedDropFixture() throws Exception {
         StringBuilder sb = new StringBuilder("name:keyword,age:integer\n");
         for (int i = 0; i < ROWS; i++) {

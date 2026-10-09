@@ -95,7 +95,7 @@ $$$auth$$$
 
     - **Default:** `auto`
     - **Valid values:**
-      - `auto`: Infers the model from the other settings. Federated identity settings such as `role_arn` select `federated_identity`. Otherwise, `access_key` and `secret_key` select `static_credentials`. A data source with neither is rejected. `auto` never selects `anonymous` or `managed_identity`, so set those explicitly.
+      - `auto`: Infers the model from the other settings. Federated identity settings such as `role_arn` select `federated_identity`, and `access_key` with `secret_key` selects `static_credentials`. A data source with both, or with neither, is rejected. `auto` never selects `anonymous` or `managed_identity`, so set those explicitly.
       - `anonymous`
       - `static_credentials`
       - `managed_identity`

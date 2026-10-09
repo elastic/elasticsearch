@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.util.EnumSet;
 import java.util.Map;
@@ -144,5 +145,17 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
             .addIndex("subquery", IndexResolution.notFound("subquery"));
         var parsedPlan = ta.resolveViewsAndInSubqueries(planAfterLet);
         expectThrows(VerificationException.class, containsString("Unknown index [subquery]"), () -> ta.buildAnalyzer().analyze(parsedPlan));
+    }
+
+    // -- a LET binding cannot be used as a TS source, like an inline subquery --
+
+    public void testLetBindingAsTsSourceRejected() {
+        requireLetSupport();
+        var statement = EsqlTestUtils.TEST_PARSER.createStatement("LET b = (FROM idx | LIMIT 3); TS b | STATS c = COUNT(*)");
+        expectThrows(
+            ParsingException.class,
+            containsString("Subqueries are not supported in TS command"),
+            () -> LetResolver.resolve(statement.plan(), statement.letBindings())
+        );
     }
 }

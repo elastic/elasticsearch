@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LetBinding;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -45,6 +46,11 @@ public class LetResolverTests extends ESTestCase {
     /** Creates a bare UnresolvedRelation for the given pattern string. */
     private static UnresolvedRelation relation(String pattern) {
         return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, pattern), false, Collections.emptyList(), IndexMode.STANDARD, null);
+    }
+
+    /** Creates a time-series (TS command) UnresolvedRelation for the given pattern string. */
+    private static UnresolvedRelation tsRelation(String pattern) {
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, pattern), false, Collections.emptyList(), IndexMode.TIME_SERIES, null);
     }
 
     /** Wraps a plan in a trivial Limit to produce a non-trivial subplan. */
@@ -323,5 +329,35 @@ public class LetResolverTests extends ESTestCase {
         assertThat(result, instanceOf(Limit.class));
         assertThat(((Limit) result).child(), instanceOf(Limit.class));
         assertThat(((Limit) ((Limit) result).child()).child(), sameInstance(body));
+    }
+
+    // -----------------------------------------------------------------------
+    // TS source: a binding cannot replace a time-series relation
+    // -----------------------------------------------------------------------
+
+    public void testBindingAsTsSourceIsRejected() {
+        // LET b = (FROM idx | LIMIT 10); TS b
+        LetBinding b = binding("b", withLimit(relation("idx")));
+        expectThrows(
+            ParsingException.class,
+            containsString("Subqueries are not supported in TS command"),
+            () -> LetResolver.resolve(tsRelation("b"), List.of(b))
+        );
+    }
+
+    public void testBindingInMixedTsSourceIsRejected() {
+        // LET b = (FROM idx | LIMIT 10); TS tsdb_index, b
+        LetBinding b = binding("b", withLimit(relation("idx")));
+        expectThrows(
+            ParsingException.class,
+            containsString("Subqueries are not supported in TS command"),
+            () -> LetResolver.resolve(tsRelation("tsdb_index,b"), List.of(b))
+        );
+    }
+
+    public void testTsSourceNotMatchingAnyBindingIsLeftAlone() {
+        LetBinding b = binding("b", withLimit(relation("idx")));
+        LogicalPlan main = tsRelation("tsdb_index");
+        assertThat(LetResolver.resolve(main, List.of(b)), sameInstance(main));
     }
 }

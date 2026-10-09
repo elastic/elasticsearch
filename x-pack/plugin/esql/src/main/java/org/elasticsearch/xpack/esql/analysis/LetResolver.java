@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LetBinding;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -114,6 +115,16 @@ public final class LetResolver {
         return plan.transformDownSkipBranch((p, skipBranch) -> {
             if (p instanceof UnresolvedRelation ur) {
                 String indexPattern = ur.indexPattern().indexPattern();
+                // A binding is an ordinary subquery plan, so it cannot stand in for a time-series source: the
+                // parser already chose TS-specific planning for the surrounding commands. Mirrors the parser's
+                // rejection of inline subqueries in TS.
+                if (ur.indexMode().isTsdb()) {
+                    for (String token : indexPattern.split(",", -1)) {
+                        if (resolved.containsKey(token.strip())) {
+                            throw new ParsingException(ur.source(), "Subqueries are not supported in TS command");
+                        }
+                    }
+                }
                 LogicalPlan bound = resolved.get(indexPattern);
                 if (bound != null) {
                     skipBranch.set(true);
@@ -139,6 +150,7 @@ public final class LetResolver {
                             LogicalPlan bindingPlan = resolved.get(trimmed);
                             if (bindingPlan != null) {
                                 flushNonBindingPatterns(result, nonBindingPatterns, ur);
+                                result.add(bindingPlan);
                             } else {
                                 nonBindingPatterns.add(trimmed);
                             }
@@ -165,7 +177,7 @@ public final class LetResolver {
     }
 
     private static void flushNonBindingPatterns(List<LogicalPlan> result, List<String> nonBindingPatterns, UnresolvedRelation ur) {
-        if (nonBindingPatterns.isEmpty() != false) {
+        if (nonBindingPatterns.isEmpty() == false) {
             result.add(
                 new UnresolvedRelation(
                     ur.source(),

@@ -120,16 +120,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
     }
 
     private static ClusterService clusterService(boolean allowExpensiveQueries, boolean knnEvalEnabled) {
-        return clusterService(allowExpensiveQueries, knnEvalEnabled, true);
-    }
-
-    private static ClusterService clusterService(boolean allowExpensiveQueries, boolean knnEvalEnabled, boolean indexEnabled) {
         // the stub client's mappings name "index"
-        return clusterService(allowExpensiveQueries, knnEvalEnabled, Map.of("index", indexEnabled));
-    }
-
-    private static ClusterService clusterService(boolean allowExpensiveQueries, boolean knnEvalEnabled, Map<String, Boolean> indexEnabled) {
-        return clusterService(allowExpensiveQueries, knnEvalEnabled, indexEnabled, Set.of());
+        return clusterService(allowExpensiveQueries, knnEvalEnabled, Map.of("index", true), Set.of());
     }
 
     /**
@@ -498,7 +490,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             ActionFilters.EMPTY,
             client,
             MockUtils.setupTransportServiceWithThreadpoolExecutor(),
-            clusterService(true, true, false),
+            clusterService(true, true, Map.of("index", false), Set.of()),
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             TestIndexNameExpressionResolver.newInstance()
         );
@@ -546,7 +538,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             client,
             MockUtils.setupTransportServiceWithThreadpoolExecutor(),
             // the stub maps only "index"
-            clusterService(true, true, Map.of("index", true, "other-index", true)),
+            clusterService(true, true, Map.of("index", true, "other-index", true), Set.of()),
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             TestIndexNameExpressionResolver.newInstance()
         );
@@ -595,11 +587,10 @@ public class TransportKnnEvalActionTests extends ESTestCase {
 
     public void testPatternMatchingNoIndexIsNamed() {
         RecordingClient client = new RecordingClient();
-        client.mappingsOverride = Map.of();
         Exception e = evaluationFailure(client, clusterService(true), "missing-*");
         assertThat(e, instanceOf(IllegalArgumentException.class));
         assertThat(e.getMessage(), equalTo("[_knn_eval] found no indices to evaluate"));
-        assertFalse(client.pointInTimeOpened);
+        assertFalse(client.fieldMappingsRequested);
     }
 
     /** Runs an evaluation that must fail before any search, and returns its failure. */
@@ -632,7 +623,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             ActionFilters.EMPTY,
             client,
             MockUtils.setupTransportServiceWithThreadpoolExecutor(),
-            clusterService(true, true, enabled),
+            clusterService(true, true, enabled, Set.of()),
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             TestIndexNameExpressionResolver.newInstance()
         );

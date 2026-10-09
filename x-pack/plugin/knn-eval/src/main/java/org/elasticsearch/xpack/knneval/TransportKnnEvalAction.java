@@ -140,6 +140,9 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
             // data streams included, as the PIT includes them
             indices = Set.of(indexNameExpressionResolver.concreteIndexNames(project, request.indicesOptions(), true, request.indices()));
+            if (indices.isEmpty()) {
+                throw new IllegalArgumentException("[" + RestKnnEvalAction.ENDPOINT + "] found no indices to evaluate");
+            }
             rejectDisabledIndices(project, indices);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -315,9 +318,6 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             }
         }
         // otherwise fromFieldMapping reports a missing [index_options] in mapping [null]
-        if (response.mappings().isEmpty()) {
-            throw new IllegalArgumentException("[" + RestKnnEvalAction.ENDPOINT + "] found no indices to evaluate");
-        }
         if (fieldMapping == null) {
             throw new IllegalArgumentException("field [" + field + "] is not mapped in any of the target indices");
         }

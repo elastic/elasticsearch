@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.querysampling.dedup;
 
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,7 +36,7 @@ import java.util.function.LongSupplier;
 public final class MultiplicityTracker {
 
     private final int maxDistinct;
-    private final long windowNanos;
+    private volatile long windowNanos;
     private final LongSupplier nanoTime;
     private volatile Map<QueryFingerprint, TrackedQuery> current = new ConcurrentHashMap<>();
     private volatile Map<QueryFingerprint, TrackedQuery> previous = new ConcurrentHashMap<>();
@@ -53,6 +55,13 @@ public final class MultiplicityTracker {
         this.windowNanos = window.nanos();
         this.nanoTime = nanoTime;
         this.windowStart = nanoTime.getAsLong();
+    }
+
+    /**
+     * Follows the setting for how long a query is remembered, now and when it changes.
+     */
+    public void watch(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(QuerySamplingSettings.MULTIPLICITY_WINDOW, value -> this.windowNanos = value.nanos());
     }
 
     /**
@@ -93,9 +102,10 @@ public final class MultiplicityTracker {
     private void rotateIfDue() {
         long now = nanoTime.getAsLong();
         long elapsed = now - windowStart;
-        if (elapsed >= windowNanos) {
+        long window = windowNanos;
+        if (elapsed >= window) {
             // after a quiet spell of two windows or more the current generation is already out of date too
-            previous = elapsed / windowNanos >= 2 ? new ConcurrentHashMap<>() : current;
+            previous = elapsed / window >= 2 ? new ConcurrentHashMap<>() : current;
             current = new ConcurrentHashMap<>();
             windowStart = now;
         }

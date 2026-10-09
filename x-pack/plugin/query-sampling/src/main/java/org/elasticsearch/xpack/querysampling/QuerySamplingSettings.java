@@ -63,9 +63,48 @@ public final class QuerySamplingSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * γ, the scale of the probability with which a query is picked: how likely a query seen for the first time is
+     * picked (about 0.69·γ), and how fast that falls as the query is searched more. A bigger value samples more
+     * queries, and more of the popular ones.
+     */
+    public static final Setting<Double> ACCEPTANCE_SCALE = Setting.doubleSetting(
+        "xpack.query_sampling.acceptance_scale",
+        1.0,
+        0.0,
+        100.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Estimated number of searches from which a query is always picked. The hottest queries carry a large part of
+     * the traffic, leaving them to chance would make the estimates swing on one coin flip. A value of 1 picks every
+     * query that is captured.
+     */
+    public static final Setting<Long> HEAD_THRESHOLD = Setting.longSetting(
+        "xpack.query_sampling.head_threshold",
+        100L,
+        1L,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * How long a query is remembered after its last search. Its count, and so how likely it is to be picked, only
+     * covers the searches within this time. A query that is not seen for between one and two windows is forgotten.
+     */
+    public static final Setting<TimeValue> MULTIPLICITY_WINDOW = Setting.timeSetting(
+        "xpack.query_sampling.multiplicity_window",
+        TimeValue.timeValueHours(1),
+        TimeValue.timeValueSeconds(1),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private QuerySamplingSettings() {}
 
     public static List<Setting<?>> getSettings() {
-        return List.of(ENABLED, CAPTURE_RATE, WEIGHTS_REFRESH_INTERVAL, RETENTION);
+        return List.of(ENABLED, CAPTURE_RATE, ACCEPTANCE_SCALE, HEAD_THRESHOLD, MULTIPLICITY_WINDOW, WEIGHTS_REFRESH_INTERVAL, RETENTION);
     }
 }

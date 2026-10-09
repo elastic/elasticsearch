@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.querysampling;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -80,6 +82,38 @@ public class QuerySamplingGroundTruthIT extends QuerySamplingRestTestCase {
     public void testSampledQueriesAreWrittenToTheIndex() throws Exception {
         setUpIndexAndSampling();
         sampleOneQuery();
+    }
+
+    public void testHeadThresholdCanBeChangedWhileRunning() throws Exception {
+        setUpIndexAndSampling();
+        // a head threshold of one makes every captured query a head query, which is always picked, so none is left to chance
+        Request settings = new Request("PUT", "/_cluster/settings");
+        settings.setJsonEntity("""
+            { "persistent": { "xpack.query_sampling.head_threshold": 1 } }
+            """);
+        client().performRequest(settings);
+
+        List<Float> sent = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            float x = randomFloat();
+            sent.add(x);
+            client().performRequest(knnSearch(x));
+        }
+
+        assertBusy(() -> {
+            for (float x : sent) {
+                assertNotNull("the query was picked", storedValue(x, "weighted_multiplicity"));
+            }
+        });
+    }
+
+    public void testSettingsOutOfRangeAreRejected() throws Exception {
+        Request settings = new Request("PUT", "/_cluster/settings");
+        settings.setJsonEntity("""
+            { "persistent": { "xpack.query_sampling.head_threshold": 0 } }
+            """);
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(settings));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
     public void testWeightsOfStoredQueriesAreRefreshed() throws Exception {

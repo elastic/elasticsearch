@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.querysampling.dedup;
 
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -117,6 +121,25 @@ public class MultiplicityTrackerTests extends ESTestCase {
             now.addAndGet(TimeValue.timeValueSeconds(61).nanos());
         }
         assertThat(tracker.distinct(), equalTo(1));
+    }
+
+    public void testWindowFollowsTheSettingWhenItChanges() {
+        AtomicLong now = new AtomicLong();
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put(QuerySamplingSettings.MULTIPLICITY_WINDOW.getKey(), "1m").build(),
+            Set.of(QuerySamplingSettings.MULTIPLICITY_WINDOW)
+        );
+        MultiplicityTracker tracker = new MultiplicityTracker(10, TimeValue.timeValueDays(1), now::get);
+        tracker.watch(clusterSettings);
+        QueryFingerprint query = new QueryFingerprint(1, 1);
+        tracker.record(query);
+
+        now.addAndGet(TimeValue.timeValueMinutes(3).nanos());
+        assertThat("a window of a minute has long passed", tracker.record(query).multiplicity(), equalTo(1L));
+
+        clusterSettings.applySettings(Settings.builder().put(QuerySamplingSettings.MULTIPLICITY_WINDOW.getKey(), "1h").build());
+        now.addAndGet(TimeValue.timeValueMinutes(3).nanos());
+        assertThat("with a window of an hour it is remembered", tracker.record(query).multiplicity(), equalTo(2L));
     }
 
     public void testRotationMakesRoomWhenFull() {

@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -64,12 +65,9 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
     static final String THREAD_POOL_NAME = "query_sampling";
     private static final int QUEUE_SIZE = 1000;
     private static final int MAX_DISTINCT_QUERIES = 100_000;
-    private static final TimeValue MULTIPLICITY_WINDOW = TimeValue.timeValueHours(1);
     private static final int WRITE_BATCH_SIZE = 100;
     private static final int MAX_PENDING_WRITES = 1000;
     private static final TimeValue WRITE_INTERVAL = TimeValue.timeValueSeconds(1);
-    private static final double ACCEPTANCE_SCALE = 1.0;
-    private static final long HEAD_THRESHOLD = 100;
 
     private final SetOnce<QueryCaptureFilter> captureFilter = new SetOnce<>();
 
@@ -98,7 +96,9 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        MultiplicityTracker tracker = new MultiplicityTracker(MAX_DISTINCT_QUERIES, MULTIPLICITY_WINDOW, System::nanoTime);
+        ClusterSettings clusterSettings = services.clusterService().getClusterSettings();
+        MultiplicityTracker tracker = new MultiplicityTracker(MAX_DISTINCT_QUERIES, TimeValue.timeValueHours(1), System::nanoTime);
+        tracker.watch(clusterSettings);
         // a new id for every run of the sampler: its weights only make sense against the counts it keeps
         OriginSettingClient client = new OriginSettingClient(services.client(), QUERY_SAMPLING_ORIGIN);
         String samplerId = UUIDs.randomBase64UUID();
@@ -132,13 +132,12 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled()) {
             retention.start(services.threadPool(), services.threadPool().generic());
         }
-        SamplingPipeline pipeline = new SamplingPipeline(
-            tracker,
-            new QuerySampler(ACCEPTANCE_SCALE, HEAD_THRESHOLD, Randomness.get()),
-            List.of(writer)
-        );
+        // the values below only stand until the settings are read
+        QuerySampler sampler = new QuerySampler(1.0, 100, Randomness.get());
+        sampler.watch(clusterSettings);
+        SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of(writer));
         CaptureHandoff handoff = new CaptureHandoff(services.threadPool().executor(THREAD_POOL_NAME), pipeline);
-        QueryCaptureFilter filter = new QueryCaptureFilter(services.clusterService().getClusterSettings(), handoff);
+        QueryCaptureFilter filter = new QueryCaptureFilter(clusterSettings, handoff);
         captureFilter.set(filter);
         return List.of(new QuerySamplingService(filter, handoff, tracker, pipeline, writer, refresher, retention));
     }

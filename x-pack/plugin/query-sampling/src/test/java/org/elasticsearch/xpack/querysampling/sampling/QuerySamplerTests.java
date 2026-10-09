@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.querysampling.sampling;
 
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 
 import java.util.Random;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -53,6 +57,32 @@ public class QuerySamplerTests extends ESTestCase {
             total += sampler.acceptanceProbability(estimatedArrivals, weight);
         }
         assertThat(total, closeTo(scale * Math.log(1 + estimatedArrivals), 1e-9));
+    }
+
+    public void testFollowsTheSettingsWhenTheyChange() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder()
+                .put(QuerySamplingSettings.ACCEPTANCE_SCALE.getKey(), 0.5)
+                .put(QuerySamplingSettings.HEAD_THRESHOLD.getKey(), 5)
+                .build(),
+            Set.of(QuerySamplingSettings.ACCEPTANCE_SCALE, QuerySamplingSettings.HEAD_THRESHOLD)
+        );
+        QuerySampler sampler = new QuerySampler(1.0, 100, seededRandom());
+        sampler.watch(clusterSettings);
+
+        // what is set when the sampler starts to watch replaces what it was created with
+        assertThat(sampler.acceptanceProbability(1), closeTo(0.5 * Math.log(2), 1e-12));
+        assertThat(sampler.acceptanceProbability(5), equalTo(1.0));
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(QuerySamplingSettings.ACCEPTANCE_SCALE.getKey(), 0.25)
+                .put(QuerySamplingSettings.HEAD_THRESHOLD.getKey(), 2)
+                .build()
+        );
+
+        assertThat(sampler.acceptanceProbability(1), closeTo(0.25 * Math.log(2), 1e-12));
+        assertThat("the head starts earlier", sampler.acceptanceProbability(2), equalTo(1.0));
     }
 
     public void testProbabilityIsCappedAtOne() {

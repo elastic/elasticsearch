@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.querysampling.sampling;
 
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 
 import java.util.Random;
@@ -29,8 +31,8 @@ import java.util.Random;
  */
 public final class QuerySampler {
 
-    private final double scale;
-    private final long headThreshold;
+    private volatile double scale;
+    private volatile long headThreshold;
     private final Random random;
 
     /**
@@ -41,6 +43,14 @@ public final class QuerySampler {
         this.scale = scale;
         this.headThreshold = headThreshold;
         this.random = random;
+    }
+
+    /**
+     * Follows the settings that tune the sampler, now and when they change.
+     */
+    public void watch(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(QuerySamplingSettings.ACCEPTANCE_SCALE, value -> this.scale = value);
+        clusterSettings.initializeAndWatch(QuerySamplingSettings.HEAD_THRESHOLD, value -> this.headThreshold = value);
     }
 
     /**

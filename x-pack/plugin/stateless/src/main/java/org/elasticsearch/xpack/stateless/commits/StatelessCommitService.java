@@ -754,12 +754,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
             success = true;
 
-            // Any upload bound installed after this commit was created is pinned at or above its generation (the relocation's final
-            // flush follows it), so if no listener is installed it is safe to notify right away.
+            // Any upload bound installed after this commit was created will be pinned at or above its generation
+            // (the relocation's final flush follows it), so if no listener is installed it should be safe to notify right away.
             final SubscribableListener<Long> uploadBoundListener = commitState.relocationUploadBoundListener;
 
             // todo: ES-8431 remove commitState.isInitializingNoSearch, we only need this for relocations now.
-            // It's possible that a background merge is triggered by the relocation flushes; we do not want to notify
+            // It's possible that a background merge is triggered by the relocation flushes, we do not want to notify
             // the search nodes about this commit since the segments in that commit can overlap with some of the segments
             // that might be created by the new primary node and can have different contents.
             if (shardRoutingTable.isEmpty() || commitState.isInitializingNoSearch()) {

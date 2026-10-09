@@ -50,7 +50,7 @@ public class ExistsQuery extends Query {
      * as missing. It keeps the {@code exists} wire format, so a node that receives it over the wire runs a
      * plain {@link ExistsQueryBuilder}.
      */
-    public static class Builder extends ExistsQueryBuilder {
+    private static class Builder extends ExistsQueryBuilder {
         Builder(String fieldName) {
             super(fieldName);
         }

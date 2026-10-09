@@ -4305,7 +4305,7 @@ public class EsqlCapabilities {
          * {@code flattened} root, consistent with field extraction returning {@code null} there. Previously
          * {@code LIKE}/{@code RLIKE} failed those shards, and {@code ==} and {@code IS NOT NULL} matched rows whose
          * value read as {@code null}.
-         * See <a href="https://github.com/elastic/elasticsearch/issues/148190">#148190</a>.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/161383">#161383</a>.
          */
         FIX_FLATTENED_SUBKEY_PUSHDOWN,
 

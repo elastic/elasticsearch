@@ -135,6 +135,15 @@ setup:
   - match: { values: [ [ "kw", "alpha" ] ] }
 
 ---
+'contains':
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM kw,flat METADATA _index | WHERE CONTAINS(category.raw, "lph") | KEEP _index, category.raw | LIMIT 10'
+  - match: { values: [ [ "kw", "alpha" ] ] }
+
+---
 'is not null':
   - do:
       esql.query:

@@ -221,15 +221,12 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
     }
 
     /**
-     * {@code columnar_stored} source: the batch path rebuilds each row's {@code _source} from the mapped columns and must write the
-     * same {@code _ignored_source} blob (and {@code .counts} companion) the row path writes in {@link SourceFieldMapper#postParse}.
-     * Synthetic recovery stays enabled, since {@code columnar_stored} requires it.
+     * A columnar index with {@code columnar_stored} source. Synthetic recovery stays enabled, since {@code columnar_stored} requires it.
      */
     private static Settings columnarStoredSettings() {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
-            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
             .build();
     }
 
@@ -246,6 +243,10 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
         );
     }
 
+    /**
+     * The batch path rebuilds each row's {@code _source} from the mapped columns and must write the same {@code _ignored_source} blob
+     * (and {@code .counts} companion) the row path writes in {@link SourceFieldMapper#postParse}.
+     */
     public void testColumnarStoredSource() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject("kwd").field("type", "keyword").endObject();

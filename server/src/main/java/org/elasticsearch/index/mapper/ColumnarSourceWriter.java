@@ -65,21 +65,15 @@ final class ColumnarSourceWriter {
         this.cachedColumnarPerThread = new ThreadLocal<>();
     }
 
-    void write(DocumentParserContext context, XContentBuilder builder) throws IOException {
-        // Make the full in-memory document tree (root + nested children) available to the reconstruction so nested
-        // loaders can select their children. Shard-index order places each child before its parent, matching the order
-        // in which the synthetic source loader reads them from a real segment; this is what preserves array order across
-        // nested documents, including the deeper documents that subobjects:false creates for object sub-fields and
-        // arrays inside a nested field. For a document with no nested fields this is just the single root document and
-        // nothing downstream looks at it.
-        write(context.mappingLookup(), context.luceneDocumentsInShardIndexOrder(), context.doc(), builder);
-    }
-
     /**
      * Reconstructs the {@code _source} of one document from the fields of {@code doc}. Shared by the row path, which parses {@code doc}
      * from the original source, and the columnar batch path, which reassembles it from the mapped columns of one row.
      *
-     * @param allDocs the root document plus its nested children in shard-index order; just {@code [doc]} when there are no nested fields
+     * @param allDocs the full in-memory document tree (root plus nested children), so that nested loaders can select their children.
+     *                Shard-index order places each child before its parent, matching the order in which the synthetic source loader
+     *                reads them from a real segment; this is what preserves array order across nested documents, including the deeper
+     *                documents that subobjects:false creates for object sub-fields and arrays inside a nested field. Without nested
+     *                fields it is just {@code [doc]} and nothing downstream looks at it.
      */
     void write(MappingLookup mappingLookup, List<LuceneDocument> allDocs, LuceneDocument doc, XContentBuilder builder) throws IOException {
         // It is safe to reuse synthetic loader and leaf loader for each thread per index.

@@ -6345,15 +6345,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * A DECLARED column whose type in the file cannot be read as declared (int32 for a declared boolean: the boolean
-     * mapper takes no numbers) is a read failure of the whole column in that file, so {@code error_mode} decides:
-     * {@code fail_fast} fails naming column, file, both types and {@code [error_mode]}; {@code null_field} nulls the
-     * column with the summary + detail warnings; {@code skip_row} drops every row of the file, charged to the budget.
-     * Both the optimized and the baseline row-at-a-time iterator.
-     */
-    /**
      * The inferred twin of {@link #testDeclaredUncoercibleColumnFollowsErrorMode}, pinning what this reader does
-     * TODAY so esql-planning#2076 can be told apart from a regression when it lands.
+     * TODAY so esql-planning#2076 can be told apart from a regression once it is fixed.
      * <p>
      * The file types {@code flag} as {@code int32} and the query wants {@code boolean}, a pair
      * {@link DeclaredTypeCoercions#supports} rejects outright. For a DECLARED column that is a read failure of the
@@ -6425,6 +6418,13 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A DECLARED column whose type in the file cannot be read as declared (int32 for a declared boolean: the boolean
+     * mapper takes no numbers) is a read failure of the whole column in that file, so {@code error_mode} decides:
+     * {@code fail_fast} fails naming column, file, both types and {@code [error_mode]}; {@code null_field} nulls the
+     * column with the summary + detail warnings; {@code skip_row} drops every row of the file, charged to the budget.
+     * Both the optimized and the baseline row-at-a-time iterator.
+     */
     public void testDeclaredUncoercibleColumnFollowsErrorMode() throws Exception {
         assertDeclaredUncoercibleColumnFollowsErrorMode(declaredReader("flag"));
         assertDeclaredUncoercibleColumnFollowsErrorMode(

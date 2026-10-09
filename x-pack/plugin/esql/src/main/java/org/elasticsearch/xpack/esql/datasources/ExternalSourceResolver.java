@@ -3809,9 +3809,12 @@ public class ExternalSourceResolver {
 
     /**
      * The pre-#2076 form: {@link #isSchemaPinnedFromAnchorFile} narrowed to inferred reads. Still read by
-     * {@code pinnedColumnsOf} and {@code EsqlSession}, which decide which columns to safe-miss on the
-     * read-schema-blind cache; widening those to strict reads changes cache occupancy, not correctness of
-     * a read, so it moves separately. Removed with the last provenance reader.
+     * {@code pinnedColumnsOf} and {@code EsqlSession.collectPinnedReads}, which strip columns from a
+     * statistics commit. Those two are not left here because the provenance question is harmless there -
+     * {@code SourceStatisticsSerializer#overlayPinnedColumnsOnStats} calls what they strip "wrong VALUES",
+     * so a strict read that skips the strip can commit a value a narrow read then serves. They are left
+     * because moving them changes what a cache entry holds rather than what one read returns, and that is
+     * worth landing on its own. Removed with the last provenance reader.
      */
     public static boolean isAnchorPinnedFirstFileWins(
         @Nullable String sourcePath,
@@ -3829,10 +3832,10 @@ public class ExternalSourceResolver {
      * True when this file's own column types were never read, so column statistics must not be
      * interpreted against them. Unknown is not incompatible: it means nobody looked.
      * <p>
-     * Asks the record whether its types were read rather than inferring it from how the schema was
-     * produced. {@code inferredTypes == null} alone cannot answer this - it is also what a file whose
-     * own schema IS the read schema carries - and keying on provenance instead gives two reads of the
-     * same bytes different answers, which is esql-planning#2076.
+     * Asks the record whether its own types were read rather than inferring it from how the schema was
+     * declared, which gave two reads of the same bytes different answers (esql-planning#2076). The
+     * structural question of whether the pinned schema can even describe this file is separate and is
+     * {@link #isSchemaPinnedFromAnchorFile}; a caller needs both.
      */
     static boolean nativeTypesUnknown(@Nullable SchemaReconciliation.FileSchemaInfo info) {
         return info == null || info.nativeTypesRead() == false;
@@ -5624,10 +5627,9 @@ public class ExternalSourceResolver {
         // in the loop that already builds that schema per file.
         String expectedReadConfig = null;
         boolean perFileReadConfigsDisagree = false;
-        boolean anchorPinnedFirstFileWins = isAnchorPinnedFirstFileWins(
+        boolean schemaPinnedFromAnchorFile = isSchemaPinnedFromAnchorFile(
             resolved.fileList() == null ? null : resolved.fileList().originalPattern(),
-            inferred.config(),
-            DeclaredReadSpec.NONE
+            inferred.config()
         );
         // Per-file coercibility, at plan time only under fail_fast: a declared column a file stores under a type that
         // cannot be read as declared is a read failure of that file's column, which error_mode decides. Under fail_fast
@@ -5694,12 +5696,12 @@ public class ExternalSourceResolver {
             // inferred types onto info.inferredTypes(); preserve that snapshot so a widened+pinned column stays
             // identifiable after the overlay. Only when nothing upstream retyped the file (inferredTypes null) does
             // info.fileSchema() still carry the inferred types, so fall back to it for the declared-overlay-only path.
-            // An inferred FIRST_FILE_WINS glob is the exception: a missing snapshot means the native types were
+            // A schema pinned from one file is the exception: a missing snapshot means the native types were
             // never obtained, and filling from the pinned fileSchema would treat the pin as the found type.
             Map<String, DataType> preRetypeInferredTypes;
             if (info.inferredTypes() != null) {
                 preRetypeInferredTypes = info.inferredTypes();
-            } else if (anchorPinnedFirstFileWins) {
+            } else if (schemaPinnedFromAnchorFile) {
                 preRetypeInferredTypes = null;
             } else {
                 preRetypeInferredTypes = attributesToTypeMap(info.fileSchema().attributes());

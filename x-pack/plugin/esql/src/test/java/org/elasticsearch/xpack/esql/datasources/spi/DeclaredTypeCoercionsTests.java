@@ -59,11 +59,6 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     private final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
     /**
-     * The full (physical, declared) matrix over the types the file mappers produce plus the
-     * declarable set, checked against an independently-written expectation of the mapper-ingest
-     * coercion rules (so a change to either side is caught).
-     */
-    /**
      * The licence an inferred column has today is {@link TypeWidening}'s lossless promotion; the licence a declared
      * column has is {@link DeclaredTypeCoercions#supports}. esql-planning#2076 collapses the two so a file's column
      * type is read the same way whatever produced the schema, and that collapse is only safe in one direction: every
@@ -92,6 +87,11 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         assertThat("a lossless widening that supports() does not admit would be refused after the collapse", gaps, empty());
     }
 
+    /**
+     * The full (physical, declared) matrix over the types the file mappers produce plus the
+     * declarable set, checked against an independently-written expectation of the mapper-ingest
+     * coercion rules (so a change to either side is caught).
+     */
     public void testSupportsPinnedToMapperCoercionSet() {
         Set<DataType> types = Set.of(
             DataType.KEYWORD,

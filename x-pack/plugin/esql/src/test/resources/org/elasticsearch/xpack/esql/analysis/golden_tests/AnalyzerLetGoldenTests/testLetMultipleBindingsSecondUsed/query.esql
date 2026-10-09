@@ -1,4 +1,4 @@
-LET a = (FROM employees | WHERE emp_no > 10010 | KEEP emp_no, languages),
-    b = (FROM languages | WHERE language_code > 2 | KEEP language_name, language_code);
+LET a = (FROM employees | WHERE emp_no > 10010 | KEEP emp_no, languages);
+    LET b = (FROM languages | WHERE language_code > 2 | KEEP language_name, language_code);
 FROM b
 | SORT language_code

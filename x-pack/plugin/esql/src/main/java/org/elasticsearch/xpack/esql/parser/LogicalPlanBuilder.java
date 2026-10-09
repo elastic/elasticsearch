@@ -190,24 +190,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             settings.add(visitSetCommand(setCommandContext));
         }
 
-        List<LetBinding> letBindings = ctx.letCommand() == null ? List.of() : visitLetCommand(ctx.letCommand());
+        List<LetBinding> letBindings = new ArrayList<>(ctx.letCommand().size());
+        Set<String> seenNames = new HashSet<>();
+        for (EsqlBaseParser.LetCommandContext letCommandContext : ctx.letCommand()) {
+            LetBinding binding = visitLetCommand(letCommandContext);
+            if (seenNames.add(binding.name()) == false) {
+                throw new ParsingException(source(letCommandContext), "duplicate LET binding name [{}]", binding.name());
+            }
+            letBindings.add(binding);
+        }
 
         LogicalPlan query = visitSingleStatement(ctx.singleStatement());
         return new EsqlStatement(query, settings, letBindings);
     }
 
     @Override
-    public List<LetBinding> visitLetCommand(EsqlBaseParser.LetCommandContext ctx) {
-        List<LetBinding> bindings = new ArrayList<>(ctx.letBinding().size());
-        Set<String> seenNames = new HashSet<>();
-        for (EsqlBaseParser.LetBindingContext bindingCtx : ctx.letBinding()) {
-            LetBinding binding = visitLetBinding(bindingCtx);
-            if (seenNames.add(binding.name()) == false) {
-                throw new ParsingException(source(bindingCtx), "duplicate LET binding name [{}]", binding.name());
-            }
-            bindings.add(binding);
-        }
-        return bindings;
+    public LetBinding visitLetCommand(EsqlBaseParser.LetCommandContext ctx) {
+        return visitLetBinding(ctx.letBinding());
     }
 
     @Override

@@ -119,8 +119,8 @@ public class LetResolverTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testChainedBindingsResolveLeftToRight() {
-        // LET a = (FROM base | LIMIT 5),
-        // b = (FROM a | LIMIT 3); -- "a" in b's body resolves to aBody
+        // LET a = (FROM base | LIMIT 5);
+        // LET b = (FROM a | LIMIT 3); -- "a" in b's body resolves to aBody
         // FROM b
         LogicalPlan aBody = withLimit(relation("base"));
         LetBinding a = binding("a", aBody);
@@ -175,8 +175,8 @@ public class LetResolverTests extends ESTestCase {
     }
 
     public void testLetResolutionComplexCycle() {
-        // LET a = (FROM b | LIMIT 1),
-        // b = (FROM a | LIMIT 1);
+        // LET a = (FROM b | LIMIT 1);
+        // LET b = (FROM a | LIMIT 1);
         // FROM a
         LetBinding a = binding("a", withLimit(relation("b")));
         LetBinding b = binding("b", withLimit(relation("a")));
@@ -188,8 +188,8 @@ public class LetResolverTests extends ESTestCase {
     }
 
     public void testLetResolutionCycleInInSubquery() {
-        // LET a = (FROM b | LIMIT 1),
-        // b = (FROM base | WHERE x IN (FROM a) | LIMIT 1);
+        // LET a = (FROM b | LIMIT 1);
+        // LET b = (FROM base | WHERE x IN (FROM a) | LIMIT 1);
         // FROM a
         // substitute replaces InSubquery(x, UR("a")) → InSubquery(x, Limit(UR("b"),1))
         // checkForCycles recurses into the subquery and finds UR("b") ∈ resolved → cycle
@@ -204,8 +204,8 @@ public class LetResolverTests extends ESTestCase {
     }
 
     public void testLetResolutionCycleInMultiColumnInSubquery() {
-        // LET a = (FROM b | LIMIT 1),
-        // b = (FROM base | WHERE (x, y) IN (FROM a) | LIMIT 1);
+        // LET a = (FROM b | LIMIT 1);
+        // LET b = (FROM base | WHERE (x, y) IN (FROM a) | LIMIT 1);
         // FROM a
         // Same cycle as above but through a multi-column IN subquery.
         LetBinding a = binding("a", withLimit(relation("b")));

@@ -26,7 +26,7 @@ import Expression,
        Promql;
 
 statements
-    : setCommand* letCommand? singleStatement EOF
+    : setCommand* letCommand* singleStatement EOF
     ;
 
 singleStatement
@@ -436,7 +436,7 @@ setField
     ;
 
 letCommand
-    : DEV_LET letBinding (COMMA letBinding)* SEMICOLON
+    : DEV_LET letBinding SEMICOLON
     ;
 
 letBinding

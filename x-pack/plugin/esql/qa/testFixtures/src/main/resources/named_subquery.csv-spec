@@ -41,8 +41,8 @@ cnt:long
 letChainedBindings
 required_capability: named_subquery_let
 
-LET filtered = (FROM languages | WHERE language_code > 1),
-    top2 = (FROM filtered | SORT language_code | LIMIT 2)\;
+LET filtered = (FROM languages | WHERE language_code > 1)\;
+    LET top2 = (FROM filtered | SORT language_code | LIMIT 2)\;
 FROM top2
 | KEEP language_code, language_name
 | SORT language_code
@@ -101,8 +101,8 @@ letMultipleBindingsFromAndIn
 required_capability: named_subquery_let
 required_capability: where_in_subquery_without_view
 
-LET sources = (FROM languages | WHERE language_code > 1 | KEEP language_code, language_name),
-    filter_codes = (FROM languages | WHERE language_code <= 3 | KEEP language_code)\;
+LET sources = (FROM languages | WHERE language_code > 1 | KEEP language_code, language_name)\;
+    LET filter_codes = (FROM languages | WHERE language_code <= 3 | KEEP language_code)\;
 FROM sources
 | WHERE language_code IN (FROM filter_codes)
 | KEEP language_code, language_name
@@ -168,15 +168,14 @@ required_capability: esql_limit_by
 required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery
 
-LET
-top2_clusters = (
+LET top2_clusters = (
     FROM k8s
         | STATS AVG(network.bytes_in) BY cluster
         | SORT `AVG(network.bytes_in)` DESC
         | LIMIT 2
         | KEEP cluster
-),
-top1_pod_by_cluster = (
+)\;
+LET top1_pod_by_cluster = (
     FROM k8s
         | WHERE cluster IN (FROM top2_clusters)
         | STATS AVG(network.bytes_in) BY cluster, pod
@@ -208,26 +207,25 @@ required_capability: esql_limit_by
 required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery
 
-LET
-top2_clusters = (
+LET top2_clusters = (
     FROM k8s
         | STATS AVG(network.bytes_in) BY cluster
         | SORT `AVG(network.bytes_in)` DESC
         | LIMIT 2
         | KEEP cluster
-),
-top_clusters = (
+)\;
+LET top_clusters = (
     FROM k8s
         | EVAL cluster = CASE(cluster IN (FROM top2_clusters), cluster, "Other"::keyword)
-),
-top1_pod_by_cluster = (
+)\;
+LET top1_pod_by_cluster = (
     FROM top_clusters
         | STATS AVG(network.bytes_in) BY cluster, pod
         | SORT `AVG(network.bytes_in)` DESC
         | LIMIT 1 BY cluster
         | KEEP cluster, pod
-),
-top_pods_by_cluster = (
+)\;
+LET top_pods_by_cluster = (
     FROM top_clusters
         | EVAL pod = CASE((cluster, pod) IN (FROM top1_pod_by_cluster), pod, "Other"::keyword)
 )\;

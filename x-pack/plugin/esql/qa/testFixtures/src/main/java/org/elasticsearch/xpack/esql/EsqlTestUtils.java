@@ -1925,50 +1925,39 @@ public final class EsqlTestUtils {
      * Rewrites index names inside a LET-prefix query for cross-cluster testing.
      * Real index names in LET binding bodies are converted to remote patterns ({@code *:index,index}).
      * LET binding names used as FROM sources in subsequent bindings or the main query are left unchanged.
+     * Each {@code LET name = (subquery);} statement declares exactly one binding.
      */
     private static String convertLetQueryToRemoteIndices(String testQuery, Set<String> bothClusterIndices) {
-        // Split at the top-level ';' to separate the LET clause from the main query.
+        // Split at the top-level ';' to separate the LET statements from the main query.
         List<String> parts = splitIgnoringParentheses(testQuery, ";");
-        String letClause = parts.get(0).strip();
-        String mainQuery = parts.size() > 1 ? String.join(";", parts.subList(1, parts.size())).strip() : "";
-
-        // Strip the "LET" keyword and split individual bindings at top-level commas.
-        String letBodyStr = letClause.substring(3).strip();
-        List<String> bindingParts = splitIgnoringParentheses(letBodyStr, ",");
+        int letCount = 0;
+        while (letCount < parts.size() && startsWithCommandKeyword(parts.get(letCount).strip(), LET_COMMAND_PATTERN)) {
+            letCount++;
+        }
+        String mainQuery = String.join(";", parts.subList(letCount, parts.size())).strip();
 
         // First pass: collect all binding names so we can skip rewriting them as remote indices.
         Set<String> letBindingNames = new HashSet<>();
         List<String[]> parsedBindings = new ArrayList<>();
-        for (String bp : bindingParts) {
-            bp = bp.strip();
-            int eqIdx = bp.indexOf('=');
-            if (eqIdx < 0) {
-                parsedBindings.add(new String[] { null, bp });
-                continue;
-            }
-            String name = bp.substring(0, eqIdx).strip();
-            String bodyWithParens = bp.substring(eqIdx + 1).strip();
+        for (String letStatement : parts.subList(0, letCount)) {
+            // Strip the "LET" keyword; what remains is "name = (body)".
+            String binding = letStatement.strip().substring(3).strip();
+            int eqIdx = binding.indexOf('=');
+            String name = binding.substring(0, eqIdx).strip();
             letBindingNames.add(name);
-            parsedBindings.add(new String[] { name, bodyWithParens });
+            parsedBindings.add(new String[] { name, binding.substring(eqIdx + 1).strip() });
         }
 
         // Second pass: rewrite each binding body, leaving LET binding name references unchanged.
-        StringBuilder result = new StringBuilder("LET");
-        for (int i = 0; i < parsedBindings.size(); i++) {
-            String name = parsedBindings.get(i)[0];
-            String bodyWithParens = parsedBindings.get(i)[1].strip();
-            if (name == null) {
-                result.append(i == 0 ? "\n" : ",\n").append(bodyWithParens);
-                continue;
-            }
+        StringBuilder result = new StringBuilder();
+        for (String[] parsedBinding : parsedBindings) {
+            String bodyWithParens = parsedBinding[1];
             String innerBody = bodyWithParens.startsWith("(") && bodyWithParens.endsWith(")")
                 ? bodyWithParens.substring(1, bodyWithParens.length() - 1)
                 : bodyWithParens;
             String rewrittenBody = convertSubqueryToRemoteIndices(innerBody, bothClusterIndices, letBindingNames);
-            result.append(i == 0 ? "\n" : ",\n");
-            result.append(name).append(" = (").append(rewrittenBody).append(")");
+            result.append("LET ").append(parsedBinding[0]).append(" = (").append(rewrittenBody).append(");\n");
         }
-        result.append(";\n");
 
         // Rewrite the main query, treating LET binding names as non-indices.
         if (mainQuery.isEmpty() == false) {

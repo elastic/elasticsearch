@@ -57,13 +57,19 @@ public class LetParserTests extends AbstractStatementParserTests {
     public void testMultipleBindings() {
         assumeLet();
         EsqlStatement stmt = statement("""
-            LET a = (FROM idx1 | LIMIT 3),
-                b = (FROM idx2 | LIMIT 5);
+            LET a = (FROM idx1 | LIMIT 3);
+                LET b = (FROM idx2 | LIMIT 5);
             ROW x = 1
             """);
         assertThat(stmt.letBindings().size(), is(2));
         assertThat(stmt.letBindings().get(0).name(), is("a"));
         assertThat(stmt.letBindings().get(1).name(), is("b"));
+    }
+
+    /** A LET statement declares exactly one binding: several bindings need several LET statements. */
+    public void testCommaSeparatedBindingsRejected() {
+        assumeLet();
+        expectValidationError("LET a = (FROM idx1 | LIMIT 3), b = (FROM idx2 | LIMIT 5); ROW x = 1", "token recognition error");
     }
 
     public void testQuotedBindingNameRejected() {
@@ -128,28 +134,27 @@ public class LetParserTests extends AbstractStatementParserTests {
         assumeLet();
         assumeTrue("requires FORK_V9 capability", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         EsqlStatement stmt = statement("""
-            LET
-            top3_extensions = (
+            LET top3_extensions = (
                FROM kibana_sample_data_logs
                   | STATS AVG(bytes) BY extension
                   | SORT `AVG(bytes)` DESC
                   | LIMIT 3
                   | KEEP extension
-            ),
-            first_column = (
+            );
+            LET first_column = (
                FROM kibana_sample_data_logs
                   | FORK (WHERE extension IN (FROM top3_extensions))
                          (WHERE extension NOT IN (FROM top3_extensions)
                              | EVAL extension = "other")
-            ),
-            top3_geo_dest_by_ext = (
+            );
+            LET top3_geo_dest_by_ext = (
                FROM first_column
                   | STATS AVG(bytes) BY extension, geo.dest
                   | SORT `AVG(bytes)` DESC
                   | LIMIT 3 BY extension
                   | KEEP extension, geo.dest
-            ),
-            first_and_second_column = (
+            );
+            LET first_and_second_column = (
               FROM top3_geo_dest_by_ext
                   | FORK (WHERE (extension, geo.dest) IN (FROM top3_geo_dest_by_ext))
                          (WHERE (extension, geo.dest) NOT IN (FROM top3_geo_dest_by_ext)
@@ -222,7 +227,7 @@ public class LetParserTests extends AbstractStatementParserTests {
 
     public void testDuplicateBindingName() {
         assumeLet();
-        expectValidationError("LET a = (FROM idx1 | LIMIT 1), a = (FROM idx2 | LIMIT 1); ROW x = 1", "duplicate LET binding name [a]");
+        expectValidationError("LET a = (FROM idx1 | LIMIT 1); LET a = (FROM idx2 | LIMIT 1); ROW x = 1", "duplicate LET binding name [a]");
     }
 
     public void testBindingNameWithStar() {

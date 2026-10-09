@@ -60,8 +60,8 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
     public void testLetMultipleBindingsSecondUsed() {
         requireLetSupport();
         runGoldenTest("""
-            LET a = (FROM employees | WHERE emp_no > 10010 | KEEP emp_no, languages),
-                b = (FROM languages | WHERE language_code > 2 | KEEP language_name, language_code);
+            LET a = (FROM employees | WHERE emp_no > 10010 | KEEP emp_no, languages);
+                LET b = (FROM languages | WHERE language_code > 2 | KEEP language_name, language_code);
             FROM b
             | SORT language_code
             """, STAGES);
@@ -72,8 +72,8 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
     public void testLetChainedBindings() {
         requireLetSupport();
         runGoldenTest("""
-            LET base = (FROM employees | WHERE emp_no > 10010 | KEEP emp_no, languages),
-                top5 = (FROM base | LIMIT 5);
+            LET base = (FROM employees | WHERE emp_no > 10010 | KEEP emp_no, languages);
+                LET top5 = (FROM base | LIMIT 5);
             FROM top5
             | SORT emp_no
             """, STAGES);

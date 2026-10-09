@@ -7,7 +7,7 @@
 lexer grammar Let;
 
 //
-// LET name = (subquery), ... ;
+// LET name = (subquery);
 //
 DEV_LET : {this.isDevVersion()}? 'let' -> pushMode(LET_MODE);
 
@@ -24,7 +24,6 @@ LET_LP        : LP        -> type(LP), pushMode(DEFAULT_MODE);
 // handles a stray RP seen directly in LET_MODE (syntax error path).
 LET_RP        : RP        -> type(RP), popMode, popMode;
 LET_SEMICOLON : SEMICOLON -> type(SEMICOLON), popMode;
-LET_COMMA     : COMMA     -> type(COMMA);
 LET_ASSIGN    : ASSIGN    -> type(ASSIGN);
 
 LET_UNQUOTED_IDENTIFIER : UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER);

@@ -105,7 +105,9 @@ public class ShardWarmVolumesTests extends ESTestCase {
         ShardWarmVolumes volumes = newVolumes();
         assertTrue(volumes.claimFetch(state, "source"));
 
-        volumes.completeFetch(state, "source", "source", startedAtMillis, Map.of(shardId, 10L));
+        volumes.completeFetch(state, "source", startedAtMillis, Map.of(shardId, 10L));
+        assertTrue(volumes.isInFlight("source"));
+        volumes.releaseClaim("source", startedAtMillis);
         assertFalse(volumes.isInFlight("source"));
         assertThat(volumes.get(state, "source").volumes(), equalTo(Map.of(shardId, 10L)));
         assertFalse(volumes.claimFetch(state, "source"));
@@ -121,8 +123,10 @@ public class ShardWarmVolumesTests extends ESTestCase {
         ShardWarmVolumes volumes = newVolumes();
         assertTrue(volumes.claimFetch(first, "source"));
 
-        volumes.completeFetch(second, "source", "source", firstGen, Map.of(shardId, 10L));
+        volumes.completeFetch(second, "source", firstGen, Map.of(shardId, 10L));
         assertThat(volumes.peek("source"), nullValue());
+        assertTrue(volumes.isInFlight("source"));
+        volumes.releaseClaim("source", firstGen);
         assertFalse(volumes.isInFlight("source"));
     }
 
@@ -137,8 +141,10 @@ public class ShardWarmVolumesTests extends ESTestCase {
         ShardWarmVolumes volumes = newVolumes();
         assertTrue(volumes.claimFetch(withSource, "source"));
 
-        volumes.completeFetch(withoutSource, "source", "source", startedAtMillis, Map.of(shardId, 10L));
+        volumes.completeFetch(withoutSource, "source", startedAtMillis, Map.of(shardId, 10L));
         assertThat(volumes.peek("source"), nullValue());
+        assertTrue(volumes.isInFlight("source"));
+        volumes.releaseClaim("source", startedAtMillis);
         assertFalse(volumes.isInFlight("source"));
     }
 
@@ -208,11 +214,15 @@ public class ShardWarmVolumesTests extends ESTestCase {
         ClusterState first = drainState(index, "source", "target", firstGen);
         ClusterState second = drainState(index, "source", "target", secondGen);
         ShardWarmVolumes volumes = newVolumes();
+        assertTrue(volumes.claimFetch(first, "source"));
         volumes.put("source", new ShardWarmVolumes.Entry(firstGen, Map.of(new ShardId(index, 0), 10L)));
         assertThat(volumes.peek("source"), notNullValue());
         volumes.clusterChanged(new ClusterChangedEvent("test", second, first));
         assertThat(volumes.peek("source"), nullValue());
+        assertFalse(volumes.isInFlight("source"));
         assertTrue(volumes.claimFetch(second, "source"));
+        volumes.releaseClaim("source", firstGen);
+        assertTrue(volumes.isInFlight("source"));
     }
 
     private static ShardWarmVolumes newVolumes() {

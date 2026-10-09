@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearch
 
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -35,8 +34,8 @@ public class ShardWarmVolumes implements ClusterStateListener {
     // Entries are added only while that source has a shutdown record, and dropped when the node leaves
     // or its shutdown is cancelled / replaced with a new generation.
     private final ConcurrentMap<String, Entry> memo = ConcurrentCollections.newConcurrentMap();
-    // Tracks source node IDs for which a fetch is in progress, to avoid duplicate fetches.
-    private final Set<String> inFlight = ConcurrentCollections.newConcurrentSet();
+    // Source node ID to the shutdown start time of the fetch that holds the claim.
+    private final ConcurrentMap<String, Long> inFlight = ConcurrentCollections.newConcurrentMap();
     private volatile boolean enabled;
 
     private ShardWarmVolumes() {
@@ -75,11 +74,15 @@ public class ShardWarmVolumes implements ClusterStateListener {
             return false;
         }
         long generation = shutdown.getStartedAtMillis();
-        Entry existing = memo.get(sourceNodeId);
-        if (existing != null && existing.generationStartedAtMillis() == generation) {
+        if (inFlight.putIfAbsent(sourceNodeId, generation) != null) {
             return false;
         }
-        return inFlight.add(sourceNodeId);
+        Entry existing = memo.get(sourceNodeId);
+        if (existing != null && existing.generationStartedAtMillis() == generation) {
+            inFlight.remove(sourceNodeId, generation);
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -115,17 +118,18 @@ public class ShardWarmVolumes implements ClusterStateListener {
 
     public void completeFetch(
         ClusterState state,
-        String claimedId,
         String respondingNodeId,
         long volumesGeneration,
         Map<ShardId, Long> volumes
     ) {
         putIfCurrentGeneration(state, respondingNodeId, volumesGeneration, volumes);
-        releaseClaim(claimedId);
     }
 
-    public void releaseClaim(String sourceNodeId) {
-        inFlight.remove(sourceNodeId);
+    /**
+     * Drops the in-flight claim for {@code sourceNodeId} when it is still the claim taken at {@code startedAtMillis}.
+     */
+    public void releaseClaim(String sourceNodeId, long startedAtMillis) {
+        inFlight.remove(sourceNodeId, startedAtMillis);
     }
 
     private void putIfCurrentGeneration(ClusterState state, String nodeId, long generation, Map<ShardId, Long> volumes) {
@@ -146,15 +150,23 @@ public class ShardWarmVolumes implements ClusterStateListener {
             return;
         }
         var nodes = event.state().nodes();
+        var shutdowns = event.state().metadata().nodeShutdowns();
         memo.entrySet().removeIf(e -> nodes.nodeExists(e.getKey()) == false);
-        inFlight.removeIf(id -> nodes.nodeExists(id) == false);
+        inFlight.entrySet().removeIf(e -> {
+            if (nodes.nodeExists(e.getKey()) == false) {
+                return true;
+            }
+            if (shutdownsChanged == false) {
+                return false;
+            }
+            var shutdown = shutdowns.get(e.getKey());
+            return shutdown == null || shutdown.getStartedAtMillis() != e.getValue();
+        });
         if (shutdownsChanged) {
-            var shutdowns = event.state().metadata().nodeShutdowns();
             memo.entrySet().removeIf(e -> {
                 var shutdown = shutdowns.get(e.getKey());
                 return shutdown == null || shutdown.getStartedAtMillis() != e.getValue().generationStartedAtMillis();
             });
-            inFlight.removeIf(id -> shutdowns.get(id) == null);
         }
     }
 
@@ -165,7 +177,7 @@ public class ShardWarmVolumes implements ClusterStateListener {
 
     // visible for testing
     boolean isInFlight(String sourceNodeId) {
-        return inFlight.contains(sourceNodeId);
+        return inFlight.containsKey(sourceNodeId);
     }
 
     // visible for testing

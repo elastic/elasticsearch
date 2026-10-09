@@ -88,8 +88,11 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
             String relocatingNodeId = indexShard.routingEntry().relocatingNodeId();
 
             final var state = clusterService.state();
-            final boolean wantVolumes = ShardWarmVolumes.shouldFetch(indexShard.routingEntry(), state)
-                && shardWarmVolumes.claimFetch(state, relocatingNodeId);
+            final boolean shouldFetch = ShardWarmVolumes.shouldFetch(indexShard.routingEntry(), state);
+            final long claimedStartedAtMillis = shouldFetch
+                ? state.metadata().nodeShutdowns().get(relocatingNodeId).getStartedAtMillis()
+                : 0L;
+            final boolean wantVolumes = shouldFetch && shardWarmVolumes.claimFetch(state, relocatingNodeId);
 
             final long start = nowSupplier.getAsLong();
             TransportFetchSearchShardInformationAction.Request request = new TransportFetchSearchShardInformationAction.Request(
@@ -102,7 +105,6 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
                 if (wantVolumes && response.volumesCollected()) {
                     shardWarmVolumes.completeFetch(
                         clusterService.state(),
-                        relocatingNodeId,
                         response.respondingNodeId(),
                         response.volumesGeneration(),
                         response.volumes()
@@ -143,7 +145,10 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
                 collector.recordError();
             });
             if (wantVolumes) {
-                responseListener = ActionListener.runAfter(responseListener, () -> shardWarmVolumes.releaseClaim(relocatingNodeId));
+                responseListener = ActionListener.runAfter(
+                    responseListener,
+                    () -> shardWarmVolumes.releaseClaim(relocatingNodeId, claimedStartedAtMillis)
+                );
             }
             try {
                 client.execute(TransportFetchSearchShardInformationAction.TYPE, request, responseListener);

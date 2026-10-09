@@ -218,11 +218,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         super(mappedFieldType.name(), mappedFieldType, BuilderParams.empty());
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new ConstantBuilder(this);
-    }
-
     /**
      * A trivial builder for non-configurable metadata field mappers that have no parameters.
      * Wraps a built mapper and returns it unchanged from {@link #build()}.

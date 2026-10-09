@@ -182,11 +182,6 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder().init(this);
-    }
-
-    @Override
     public void doValidate(MappingLookup lookup) {
         if (enabled == false) {
             // not configured, so skip the validation

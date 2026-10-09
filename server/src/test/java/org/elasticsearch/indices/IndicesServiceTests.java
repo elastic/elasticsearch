@@ -229,11 +229,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         protected void parseCreateField(DocumentParserContext context) {}
 
         @Override
-        public Builder getMergeBuilder() {
-            return new DeprecatedParameterMapper.TypeBuilder(leafName()).init(this);
-        }
-
-        @Override
         protected String contentType() {
             return CONTENT_TYPE;
         }

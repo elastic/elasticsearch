@@ -528,11 +528,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Builder getMergeBuilder() {
-            return null;
-        }
-
-        @Override
         protected String contentType() {
             return "prefix";
         }
@@ -564,11 +559,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         @Override
         protected void parseCreateField(DocumentParserContext context) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Builder getMergeBuilder() {
-            return null;
         }
 
         @Override
@@ -728,12 +718,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers, builder.indexDisabledByDefault).init(
-            this
-        );
     }
 
     public static String getShingleFieldName(String parentField, int shingleSize) {

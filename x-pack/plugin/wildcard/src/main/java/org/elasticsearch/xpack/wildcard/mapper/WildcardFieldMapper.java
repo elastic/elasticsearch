@@ -1288,11 +1288,6 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreAboveDefault, indexMode, indexVersionCreated, storeIgnoredFieldsInBinaryDocValues).init(this);
-    }
-
-    @Override
     public boolean storesArrayValuesInOrder() {
         return fieldType().usesArrayOrderBinaryDocValues();
     }

@@ -4346,19 +4346,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            indexCreatedVersion,
-            indexMode,
-            excludeSourceVectorsSetting,
-            experimentalFeaturesEnabled,
-            extraVectorsFormatProviders,
-            indexDisabledByDefault
-        ).init(this);
-    }
-
     private static DenseVectorIndexOptions parseIndexOptions(
         String fieldName,
         Object propNode,

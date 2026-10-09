@@ -114,11 +114,6 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder().init(this);
-    }
-
-    @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // postParse is a no-op when disabled (the common case). The enabled case needs the raw
         // request source size as a column; revisit alongside SourceFieldMapper when we add stored source

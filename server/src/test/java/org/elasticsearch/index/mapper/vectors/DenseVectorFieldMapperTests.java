@@ -2024,9 +2024,16 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             false
         ).elementType(ElementType.FLOAT).dimensions(dimensions).build(context);
 
-        // Change the element type to byte, which is incompatible with int8 HNSW index options
-        DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
-        builder.elementType(ElementType.BYTE);
+        // Change the element type to byte, which is incompatible with the int8 HNSW index options the field was built with
+        DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
+            "test",
+            IndexVersion.current(),
+            IndexMode.STANDARD,
+            false,
+            false,
+            List.of(),
+            false
+        ).elementType(ElementType.BYTE).dimensions(dimensions).indexOptions(mapper.fieldType().getIndexOptions());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.build(context));
         assertThat(
             e.getMessage(),

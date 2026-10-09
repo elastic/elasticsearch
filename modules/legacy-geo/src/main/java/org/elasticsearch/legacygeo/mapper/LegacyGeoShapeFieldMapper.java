@@ -634,13 +634,4 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         return CONTENT_TYPE;
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            indexCreatedVersion,
-            builder.ignoreMalformed.getDefaultValue().value(),
-            builder.coerce.getDefaultValue().value()
-        ).init(this);
-    }
 }

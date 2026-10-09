@@ -345,13 +345,6 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        Builder builder = new Builder(columnarIdByDefault);
-        builder.init(this);
-        return builder;
-    }
-
-    @Override
     public void preParse(DocumentParserContext context) {
         if (context.sourceToParse().id() == null) {
             throw new IllegalStateException("_id should have been set on the coordinating node");

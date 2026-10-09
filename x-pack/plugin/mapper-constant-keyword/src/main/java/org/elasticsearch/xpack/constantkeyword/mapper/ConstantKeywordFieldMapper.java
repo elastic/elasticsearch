@@ -92,11 +92,6 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         return (ConstantKeywordFieldMapper) in;
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
         // This is defined as updateable because it can be updated once, from [null] to any value,

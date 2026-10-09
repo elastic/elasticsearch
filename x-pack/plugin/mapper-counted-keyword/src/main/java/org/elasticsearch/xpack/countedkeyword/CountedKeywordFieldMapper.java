@@ -506,11 +506,6 @@ public class CountedKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexSourceKeepMode, indexDisabledByDefault).init(this);
-    }
-
-    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

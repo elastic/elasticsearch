@@ -1206,11 +1206,6 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), scriptCompiler, indexSettings).dimension(dimension).init(this);
-    }
-
-    @Override
     public void doValidate(MappingLookup lookup) {
         if (dimension && null != lookup.nestedLookup().getNestedParent(fullPath())) {
             throw new IllegalArgumentException(

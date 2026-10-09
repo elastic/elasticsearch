@@ -2110,11 +2110,6 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexSettings, indexAnalyzers, fieldType().isWithinMultiField()).init(this);
-    }
-
-    @Override
     protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
         return docValuesParameters.multiValue() == false && token != XContentParser.Token.VALUE_NULL;
     }

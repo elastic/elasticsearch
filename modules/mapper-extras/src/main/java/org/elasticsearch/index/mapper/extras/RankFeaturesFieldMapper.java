@@ -146,11 +146,6 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
-    }
-
-    @Override
     public RankFeaturesFieldType fieldType() {
         return (RankFeaturesFieldType) super.fieldType();
     }

@@ -575,11 +575,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexSettings).init(this);
-    }
-
-    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value;
         XContentParser parser = context.parser();

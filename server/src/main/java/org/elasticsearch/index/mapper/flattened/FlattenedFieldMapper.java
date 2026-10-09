@@ -2298,30 +2298,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        Builder b = new Builder(
-            leafName(),
-            builder.ignoreAboveDefault,
-            builder.indexSettings,
-            builder.usesBinaryDocValues,
-            builder.isLegacyIndexWithRootValues,
-            builder.forceStoreRootDocValues,
-            builder.storeIgnoredFieldsInBinaryDocValues,
-            builder.indexDisabledByDefault
-        );
-        b.init(this);
-        Map<String, FieldMapper.Builder> propBuilders = new TreeMap<>();
-        for (Map.Entry<String, FieldMapper> entry : mappedSubFields.entrySet()) {
-            FieldMapper.Builder propMergeBuilder = entry.getValue().getMergeBuilder();
-            if (propMergeBuilder != null) {
-                propBuilders.put(entry.getKey(), propMergeBuilder);
-            }
-        }
-        b.properties.setValue(propBuilders);
-        return b;
-    }
-
-    @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
             return new SyntheticSourceSupport.Native(

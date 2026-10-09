@@ -275,8 +275,4 @@ public class TokenCountFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexSettings).init(this);
-    }
 }

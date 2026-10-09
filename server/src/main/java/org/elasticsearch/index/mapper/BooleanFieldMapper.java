@@ -711,11 +711,6 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), scriptCompiler, indexSettings).dimension(fieldType().isDimension()).init(this);
-    }
-
-    @Override
     public void doValidate(MappingLookup lookup) {
         if (fieldType().isDimension() && null != lookup.nestedLookup().getNestedParent(fullPath())) {
             throw new IllegalArgumentException(

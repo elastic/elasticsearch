@@ -368,11 +368,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), this.fieldType().indexVersionCreated, this.excludeSourceVectorsSetting).init(this);
-    }
-
-    @Override
     public SparseVectorFieldType fieldType() {
         return (SparseVectorFieldType) super.fieldType();
     }

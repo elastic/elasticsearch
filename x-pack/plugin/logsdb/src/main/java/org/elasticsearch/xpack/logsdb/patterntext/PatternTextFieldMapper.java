@@ -281,12 +281,6 @@ public class PatternTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexSettings, fieldType().isWithinMultiField(), useBinaryDocValuesForRawText)
-            .init(this);
-    }
-
-    @Override
     public Iterator<Mapper> iterator() {
         List<Mapper> mappers = new ArrayList<>();
         Iterator<Mapper> m = super.iterator();

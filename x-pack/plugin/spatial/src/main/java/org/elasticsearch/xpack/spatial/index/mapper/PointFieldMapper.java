@@ -220,11 +220,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         return (PointFieldType) mappedFieldType;
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), builder.ignoreMalformed.getDefaultValue().value()).init(this);
-    }
-
     public static class PointFieldType extends AbstractPointFieldType<CartesianPoint> implements ShapeQueryable {
         private final boolean isSyntheticSource;
         private final boolean isColumnar;

@@ -601,17 +601,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            builder.indexCreatedVersion(),
-            builder.analyzers.indexAnalyzers,
-            fieldType().isSyntheticSourceEnabled(),
-            fieldType().isWithinMultiField()
-        ).init(this);
-    }
-
-    @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType.stored()) {
             return new SyntheticSourceSupport.Native(() -> new StringStoredFieldFieldLoader(fullPath(), leafName()) {

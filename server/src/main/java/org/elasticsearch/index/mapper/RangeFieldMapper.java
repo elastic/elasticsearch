@@ -416,11 +416,6 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), type, coerceByDefault).init(this);
-    }
-
-    @Override
     public RangeFieldType fieldType() {
         return (RangeFieldType) super.fieldType();
     }

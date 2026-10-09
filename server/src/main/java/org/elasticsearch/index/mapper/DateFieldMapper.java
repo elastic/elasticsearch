@@ -1247,11 +1247,6 @@ public final class DateFieldMapper extends FieldMapper {
         this.offsetsFallback = (b, v) -> b.value(fieldType().format((Long) v, fieldType().dateTimeFormatter()));
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), resolution, null, scriptCompiler, indexSettings).init(this);
-    }
-
     public DocValuesParameter.Values docValuesParameters() {
         return docValuesParameters;
     }

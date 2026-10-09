@@ -580,18 +580,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            builder.version,
-            builder.scriptCompiler,
-            builder.ignoreMalformed.getDefaultValue().value(),
-            builder.coerce.getDefaultValue().value(),
-            builder.geoFormatterFactory
-        ).init(this);
-    }
-
-    @Override
     public GeoShapeWithDocValuesFieldType fieldType() {
         return (GeoShapeWithDocValuesFieldType) super.fieldType();
     }

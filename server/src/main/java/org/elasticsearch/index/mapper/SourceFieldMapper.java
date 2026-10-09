@@ -827,14 +827,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        Builder b = new Builder(null, Settings.EMPTY, sourceModeIsNoop, false, serializeMode);
-        b.fallbackMode = this.mode;
-        b.init(this);
-        return b;
-    }
-
     public boolean isSynthetic() {
         return mode == Mode.SYNTHETIC;
     }

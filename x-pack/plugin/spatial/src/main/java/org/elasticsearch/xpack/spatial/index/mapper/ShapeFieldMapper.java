@@ -368,16 +368,6 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            builder.version,
-            builder.ignoreMalformed.getDefaultValue().value(),
-            builder.coerce.getDefaultValue().value()
-        ).init(this);
-    }
-
-    @Override
     public ShapeFieldType fieldType() {
         return (ShapeFieldType) super.fieldType();
     }

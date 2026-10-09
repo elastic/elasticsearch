@@ -1177,11 +1177,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         return Map.of(mappedFieldType.name(), indexAnalyzer);
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexAnalyzers, fieldType().isWithinMultiField(), indexSettings).init(this);
-    }
-
     public boolean indexed() {
         return indexed;
     }

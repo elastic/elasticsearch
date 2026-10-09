@@ -481,11 +481,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(requiredByDefault, docValuesEnabledByDefault).init(this);
-    }
-
     static final class InstancesLookup {
 
         private record Key(boolean requiredByDefault, boolean required, boolean docValuesEnabledByDefault, boolean docValues) {}

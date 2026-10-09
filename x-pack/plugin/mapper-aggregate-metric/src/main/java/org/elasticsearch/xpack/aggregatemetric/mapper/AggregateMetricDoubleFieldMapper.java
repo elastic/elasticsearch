@@ -889,11 +889,6 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexSettings).metric(metricType).init(this);
-    }
-
-    @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(
             () -> new CompositeSyntheticFieldLoader(

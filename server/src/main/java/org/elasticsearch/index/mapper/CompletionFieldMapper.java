@@ -81,11 +81,6 @@ public class CompletionFieldMapper extends FieldMapper {
      */
     static final int COMPLETION_CONTEXTS_LIMIT = 10;
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), builder.defaultAnalyzer, builder.indexVersionCreated).init(this);
-    }
-
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
         static {

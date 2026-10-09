@@ -109,11 +109,6 @@ public class Murmur3FieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
-    }
-
-    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

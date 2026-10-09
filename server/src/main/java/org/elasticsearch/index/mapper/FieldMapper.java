@@ -715,14 +715,6 @@ public abstract class FieldMapper extends Mapper {
         }
     }
 
-    /**
-     * Returns a {@link Builder} to be used for merging and serialization
-     *
-     * Implement as follows:
-     * {@code return new MyBuilder(simpleName()).init(this); }
-     */
-    public abstract Builder getMergeBuilder();
-
     protected abstract String contentType();
 
     @Override
@@ -921,21 +913,6 @@ public abstract class FieldMapper extends Mapper {
                 fieldBuilders.put(builder.leafName(), builder);
                 updateSyntheticSourceCompatibleKeywordField(builder);
                 return this;
-            }
-
-            private void add(FieldMapper mapper) {
-                FieldMapper.Builder builder = Objects.requireNonNull(
-                    mapper.getMergeBuilder(),
-                    () -> "multi-field mapper [" + mapper.fullPath() + "] must provide a merge builder"
-                );
-                fieldBuilders.put(mapper.leafName(), builder);
-
-                if (mapper instanceof KeywordFieldMapper kwd) {
-                    if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
-                        hasSyntheticSourceCompatibleKeywordField = true;
-                        hasLegacySyntheticSourceCompatibleKeywordField = true;
-                    }
-                }
             }
 
             void mergeFrom(Builder incoming, MapperMergeContext mergeContext) {
@@ -1325,10 +1302,6 @@ public abstract class FieldMapper extends Mapper {
                     }
                 }
             }
-        }
-
-        private void init(FieldMapper toInit) {
-            setValue(initializer.apply(toInit));
         }
 
         /**
@@ -2195,18 +2168,6 @@ public abstract class FieldMapper extends Mapper {
         /**
          * Initialises all parameters from an existing mapper
          */
-        public Builder init(FieldMapper initializer) {
-            for (Parameter<?> param : getParameters()) {
-                param.init(initializer);
-            }
-            for (FieldMapper subField : initializer.builderParams.multiFields.mappers) {
-                multiFieldsBuilder.add(subField);
-            }
-            this.copyTo = initializer.builderParams.copyTo;
-            this.sourceKeepMode = initializer.builderParams.sourceKeepMode;
-            return this;
-        }
-
         public Builder addMultiField(FieldMapper.Builder builder) {
             this.multiFieldsBuilder.add(builder);
             return this;

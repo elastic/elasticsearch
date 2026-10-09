@@ -2555,18 +2555,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         return Map.of(mappedFieldType.name(), fieldType().normalizer);
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            indexAnalyzers,
-            scriptCompiler,
-            indexSettings,
-            forceDocValuesSkipper,
-            fieldType().isWithinMultiField()
-        ).dimension(fieldType().isDimension()).init(this);
-    }
-
     // Uses this mapper's frozen FieldType; for high-cardinality doc values that type has DocValuesType.NONE because binary doc values
     // are indexed via MultiValuedBinaryDocValuesField in indexValue, not on this Lucene Field instance.
     public Field buildKeywordField(BytesRef binaryValue) {

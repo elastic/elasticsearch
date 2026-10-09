@@ -392,11 +392,6 @@ public class BinaryFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new BinaryFieldMapper.Builder(leafName(), indexSettings, isSyntheticSourceEnabled).init(this);
-    }
-
-    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

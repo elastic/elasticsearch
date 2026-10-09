@@ -901,11 +901,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexSettings).dimension(dimension).metric(metricType).init(this);
-    }
-
     /**
      * Parse object to unsigned long
      * @param value must represent an unsigned long in rage [0;18446744073709551615] or an exception will be thrown

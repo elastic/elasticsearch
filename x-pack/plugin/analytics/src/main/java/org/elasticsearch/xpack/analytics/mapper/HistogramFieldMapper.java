@@ -167,11 +167,6 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault, indexSettings).metric(metricType).init(this);
-    }
-
-    @Override
     protected void parseCreateField(DocumentParserContext context) {
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }

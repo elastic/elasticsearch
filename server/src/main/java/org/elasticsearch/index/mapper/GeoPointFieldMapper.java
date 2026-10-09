@@ -308,11 +308,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), builder.scriptCompiler, indexSettings).init(this);
-    }
-
-    @Override
     protected void index(DocumentParserContext context, GeoPoint geometry) throws IOException {
         final boolean indexed = fieldType().indexType.hasPoints();
         final boolean hasDocValues = fieldType().hasDocValues();

@@ -99,11 +99,6 @@ public class FeatureProbeFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
-    }
-
-    @Override
     protected void parseCreateField(DocumentParserContext context) {}
 
     @Override

@@ -370,8 +370,4 @@ public class OffsetSourceFieldMapper extends FieldMapper {
         }
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
-    }
 }

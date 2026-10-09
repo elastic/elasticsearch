@@ -72,6 +72,10 @@ excludeList.add(
   'search.highlight/70_number_of_fragments/lowering index.highlight.max_number_of_fragments should reject the default number of fragments'
 )
 
+// Synonyms system index auto-expands replicas to 0-all, and replicas can't be allocated on upgraded nodes in a mixed cluster,
+// so reload failures can't be ruled out. The "bwc" variant of this test covers analyzer reloading.
+excludeList.add('synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set')
+
 def clusterPath = getPath()
 
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->

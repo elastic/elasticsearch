@@ -36,6 +36,11 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class LocalBulk extends ExportBulk {
 
+    /**
+     * The maximum number of document-level exceptions to log in the event of a bulk request failure.
+     */
+    private static final int MAX_EXCEPTIONS_TO_LOG = 10;
+
     private final Logger logger;
     private final Client client;
     private final DateFormatter formatter;
@@ -129,8 +134,14 @@ public class LocalBulk extends ExportBulk {
             .forEach(exception::addExportException);
 
         if (exception.hasExportExceptions()) {
+            int count = 0;
             for (ExportException e : exception) {
+                if (count >= MAX_EXCEPTIONS_TO_LOG) {
+                    logger.warn("more than {} exceptions occurred, skipping the rest", MAX_EXCEPTIONS_TO_LOG);
+                    break;
+                }
                 logger.warn("unexpected error while indexing monitoring document", e);
+                count++;
             }
             listener.onFailure(exception);
         } else {

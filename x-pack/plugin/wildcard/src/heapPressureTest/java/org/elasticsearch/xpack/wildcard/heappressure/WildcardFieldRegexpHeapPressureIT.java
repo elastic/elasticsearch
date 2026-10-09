@@ -7,11 +7,7 @@
 
 package org.elasticsearch.xpack.wildcard.heappressure;
 
-import org.elasticsearch.client.Request;
-
 import java.util.Map;
-
-import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Regexp queries on a {@code wildcard} field must be rejected by the request circuit breaker instead of exhausting the heap.
@@ -34,6 +30,6 @@ public class WildcardFieldRegexpHeapPressureIT extends WildcardFieldHeapPressure
         assertNotNull("expected the circuit breaker to fire but the search succeeded", body);
         assertTrue("expected a circuit_breaking_exception, but got: " + body, containsCircuitBreakingException(body));
         // An out-of-memory node would not answer.
-        assertThat(client().performRequest(new Request("GET", "/")).getStatusLine().getStatusCode(), equalTo(200));
+        assertNodeAlive();
     }
 }

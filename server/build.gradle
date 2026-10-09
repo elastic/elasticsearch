@@ -10,6 +10,7 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-heap-pressure-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.test-build-info'
 apply plugin: 'elasticsearch.transport-version-references'
@@ -101,6 +102,11 @@ dependencies {
   internalClusterTestImplementation(project(':modules:mapper-extras'))
   internalClusterTestImplementation(project(':modules:data-streams'))
   internalClusterTestImplementation(project(':test:external-modules:test-multi-project'))
+
+  heapPressureTestImplementation project(':test:framework')
+  heapPressureTestImplementation project(':test:test-clusters')
+  // The pausable field the heap pressure tests use to hold requests in flight.
+  clusterModules project(':test:external-modules:test-pausable-field')
 }
 
 // log4j-core registers both the PluginProcessor and GraalVmProcessor on the processor path; we only want the former

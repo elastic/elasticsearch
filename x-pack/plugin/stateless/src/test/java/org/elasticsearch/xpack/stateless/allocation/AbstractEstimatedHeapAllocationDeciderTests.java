@@ -38,6 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithNoExplanation;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -149,6 +151,11 @@ public class AbstractEstimatedHeapAllocationDeciderTests extends ESAllocationTes
             final var decision = decider.canAllocate(shard, node(false), allocation);
             assertThat(decision.toString(), decision.type(), equalTo(shardBytes > 50 ? Decision.Type.NO : Decision.Type.YES));
             assertThat(decider.canRemain(indexMetadata, shard, node(false), allocation).type(), equalTo(Decision.Type.YES));
+            if (shardBytes > 50) {
+                assertDecision(decision, Decision.Type.NO, true, "would add [" + shardBytes + "] bytes");
+                allocation.debugDecision(false);
+                assertDecision(decider.canAllocate(shard, node(false), allocation), Decision.Type.NO, false, null);
+            }
         }
     }
 
@@ -207,15 +214,25 @@ public class AbstractEstimatedHeapAllocationDeciderTests extends ESAllocationTes
         final var allocation = allocation(decider, info);
         for (boolean debug : new boolean[] { false, true }) {
             allocation.debugDecision(debug);
-            final var allocateDecision = decider.canAllocate(shard, node, allocation);
-            final var remainDecision = decider.canRemain(indexMetadata, shard, node, allocation);
-            assertThat(allocateDecision.toString(), allocateDecision.type(), equalTo(allocate));
-            assertThat(remainDecision.toString(), remainDecision.type(), equalTo(remain));
+            assertDecision(decider.canAllocate(shard, node, allocation), allocate, debug, explanation);
+            assertDecision(decider.canRemain(indexMetadata, shard, node, allocation), remain, debug, explanation);
+        }
+    }
+
+    private static void assertDecision(Decision decision, Decision.Type type, boolean debug, String explanation) {
+        if (type == Decision.Type.NO) {
+            // NO decisions keep their label without debug, but only carry an explanation with it
+            assertThat(
+                decision,
+                debug
+                    ? isNoDecisionWithExplanationMatching("test_heap", containsString(explanation))
+                    : isNoDecisionWithNoExplanation("test_heap")
+            );
+        } else {
+            assertThat(decision.toString(), decision.type(), equalTo(type));
             if (debug) {
-                assertThat(allocateDecision.label(), equalTo("test_heap"));
-                assertThat(remainDecision.label(), equalTo("test_heap"));
-                assertThat(allocateDecision.getExplanation(), containsString(explanation));
-                assertThat(remainDecision.getExplanation(), containsString(explanation));
+                assertThat(decision.label(), equalTo("test_heap"));
+                assertThat(decision.getExplanation(), containsString(explanation));
             }
         }
     }

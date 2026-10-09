@@ -77,6 +77,50 @@ public final class DataSourceUsageAccumulator {
     public static final int OP_COUNT = 4;
     public static final List<String> OP_NAMES = List.of("created", "updated", "deleted", "rejected");
 
+    // ---- failure error-type vocabulary (queries.failures.by_error_type / discovery.failures.by_error_type) ----
+
+    public static final String ERROR_TYPE_VERIFICATION = "verification";
+    public static final String ERROR_TYPE_STORAGE_AUTH = "storage_auth";
+    public static final String ERROR_TYPE_STORAGE_NOT_FOUND = "storage_not_found";
+    public static final String ERROR_TYPE_STORAGE_THROTTLED = "storage_throttled";
+    public static final String ERROR_TYPE_STORAGE_UNAVAILABLE = "storage_unavailable";
+    public static final String ERROR_TYPE_FORMAT = "format";
+    public static final String ERROR_TYPE_DISCOVERY = "discovery";
+    public static final String ERROR_TYPE_CIRCUIT_BREAKER = "circuit_breaker";
+    public static final String ERROR_TYPE_TIMEOUT = "timeout";
+    public static final String ERROR_TYPE_RESOURCE_LIMIT = "resource_limit";
+    public static final String ERROR_TYPE_OTHER = "other";
+    /** The closed set of failure categories. Anything else is a programming error, never a runtime value. */
+    public static final List<String> ERROR_TYPE_NAMES = List.of(
+        ERROR_TYPE_VERIFICATION,
+        ERROR_TYPE_STORAGE_AUTH,
+        ERROR_TYPE_STORAGE_NOT_FOUND,
+        ERROR_TYPE_STORAGE_THROTTLED,
+        ERROR_TYPE_STORAGE_UNAVAILABLE,
+        ERROR_TYPE_FORMAT,
+        ERROR_TYPE_DISCOVERY,
+        ERROR_TYPE_CIRCUIT_BREAKER,
+        ERROR_TYPE_TIMEOUT,
+        ERROR_TYPE_RESOURCE_LIMIT,
+        ERROR_TYPE_OTHER
+    );
+    public static final int ERROR_TYPE_COUNT = ERROR_TYPE_NAMES.size();
+
+    // ---- config-change rejection reason vocabulary (mirrors ConfigChangeTelemetry#REASON_*) ----
+
+    /** The closed set of rejection reasons for a rejected data-source / dataset change. */
+    public static final List<String> REJECT_REASON_NAMES = List.of(
+        "validation",
+        "not_found",
+        "already_exists",
+        "max_count",
+        "unknown_type",
+        "unavailable",
+        "has_dependents",
+        "other"
+    );
+    public static final int REJECT_REASON_COUNT = REJECT_REASON_NAMES.size();
+
     // ---- CPU-component vocabulary ----
 
     public static final int CPU_EXECUTION = 0;
@@ -154,14 +198,25 @@ public final class DataSourceUsageAccumulator {
 
     private final LongAdder[] queries = adders(OUTCOME_COUNT);
 
+    // ---- failure counters by error_type (query failures; discovery failures) ----
+
+    private final LongAdder[] queryFailuresByErrorType = adders(ERROR_TYPE_COUNT);
+    private final LongAdder[] discoveryFailuresByErrorType = adders(ERROR_TYPE_COUNT);
+
     // ---- per-component CPU counter (ns, indexed by CPU_* constants) ----
 
     private final LongAdder[] queryCpuNanos = adders(CPU_COMPONENT_COUNT);
 
     private final LongAdder[][] configChanges = new LongAdder[KIND_COUNT][];
+    /** Rejected changes by [kind][reason]. Sums to {@code configChanges[kind][OP_REJECTED]} when every rejection carries a reason. */
+    private final LongAdder[][] configRejectedByReason = new LongAdder[KIND_COUNT][];
+    /** All changes (any op, including rejected) by [kind][type ordinal]. */
+    private final LongAdder[][] configChangesByType = new LongAdder[KIND_COUNT][];
     {
         for (int k = 0; k < KIND_COUNT; k++) {
             configChanges[k] = adders(OP_COUNT);
+            configRejectedByReason[k] = adders(REJECT_REASON_COUNT);
+            configChangesByType[k] = adders(TYPE_COUNT);
         }
     }
 
@@ -216,7 +271,19 @@ public final class DataSourceUsageAccumulator {
     }
 
     public void recordQuery(String outcome, long durationMillis, boolean partial) {
+        recordQuery(outcome, durationMillis, partial, null);
+    }
+
+    /**
+     * @param errorType one of {@link #ERROR_TYPE_NAMES}, used only when {@code outcome} is {@code failure}; {@code null}
+     *                  there counts as {@link #ERROR_TYPE_OTHER}, so the per-error-type counters always sum to the
+     *                  {@code failure} outcome counter
+     */
+    public void recordQuery(String outcome, long durationMillis, boolean partial, String errorType) {
         int oi = outcomeIndex(outcome);
+        if (oi == OUTCOME_FAILURE) {
+            queryFailuresByErrorType[errorTypeIndex(errorType == null ? ERROR_TYPE_OTHER : errorType)].increment();
+        }
         queries[oi].increment();
         bucketTime(queryDuration, Math.max(0L, durationMillis));
         if (oi == OUTCOME_CANCELLED) {
@@ -246,7 +313,15 @@ public final class DataSourceUsageAccumulator {
     }
 
     public void recordDiscoveryFailure() {
+        recordDiscoveryFailure(ERROR_TYPE_OTHER);
+    }
+
+    /** @param errorType one of {@link #ERROR_TYPE_NAMES} */
+    public void recordDiscoveryFailure(String errorType) {
+        // Resolve the category first: an unknown one throws, and must not leave the total counted without its breakdown.
+        int errorTypeIndex = errorTypeIndex(errorType);
         discoveryFailures.increment();
+        discoveryFailuresByErrorType[errorTypeIndex].increment();
     }
 
     /**
@@ -278,7 +353,27 @@ public final class DataSourceUsageAccumulator {
      * @param op {@code created}, {@code updated}, {@code deleted}, or {@code rejected}
      */
     public void recordConfigChange(String kind, String op) {
-        configChanges[kindIndex(kind)][opIndex(op)].increment();
+        recordConfigChange(kind, op, Type.UNKNOWN, null);
+    }
+
+    /**
+     * @param kind   {@code datasources} or {@code datasets}
+     * @param op     {@code created}, {@code updated}, {@code deleted}, or {@code rejected}
+     * @param type   the storage / data-source type the change applies to
+     * @param reason one of {@link #REJECT_REASON_NAMES}; only used when {@code op} is {@code rejected}, where {@code null}
+     *               counts as {@code other} so the per-reason counters always sum to the {@code rejected} op counter
+     */
+    public void recordConfigChange(String kind, String op, Type type, String reason) {
+        // Resolve every index first: an unknown value throws, and must not leave some of the counters incremented.
+        int ki = kindIndex(kind);
+        int oi = opIndex(op);
+        int ti = index(type);
+        int ri = oi == OP_REJECTED ? rejectReasonIndex(reason == null ? "other" : reason) : -1;
+        configChanges[ki][oi].increment();
+        configChangesByType[ki][ti].increment();
+        if (ri >= 0) {
+            configRejectedByReason[ki][ri].increment();
+        }
     }
 
     // ---- snapshot accessors (read by the stats/conversion layer) ----
@@ -321,6 +416,18 @@ public final class DataSourceUsageAccumulator {
         return discoveryFailures.sum();
     }
 
+    /** @param errorTypeIndex index into {@link #ERROR_TYPE_NAMES} */
+    public long queryFailures(int errorTypeIndex) {
+        checkErrorTypeIndex(errorTypeIndex);
+        return queryFailuresByErrorType[errorTypeIndex].sum();
+    }
+
+    /** @param errorTypeIndex index into {@link #ERROR_TYPE_NAMES} */
+    public long discoveryFailures(int errorTypeIndex) {
+        checkErrorTypeIndex(errorTypeIndex);
+        return discoveryFailuresByErrorType[errorTypeIndex].sum();
+    }
+
     public long parseRows() {
         return parseRows.sum();
     }
@@ -350,6 +457,19 @@ public final class DataSourceUsageAccumulator {
         checkKindIndex(kindIndex);
         checkOpIndex(opIndex);
         return configChanges[kindIndex][opIndex].sum();
+    }
+
+    /** @param kindIndex one of the {@code KIND_*} constants; @param reasonIndex index into {@link #REJECT_REASON_NAMES} */
+    public long configRejected(int kindIndex, int reasonIndex) {
+        checkKindIndex(kindIndex);
+        checkRejectReasonIndex(reasonIndex);
+        return configRejectedByReason[kindIndex][reasonIndex].sum();
+    }
+
+    /** @param kindIndex one of the {@code KIND_*} constants; counts every op, including rejected */
+    public long configChanges(int kindIndex, Type type) {
+        checkKindIndex(kindIndex);
+        return configChangesByType[kindIndex][index(type)].sum();
     }
 
     public long storageRequestDuration(int bucket) {
@@ -430,6 +550,22 @@ public final class DataSourceUsageAccumulator {
         };
     }
 
+    static int errorTypeIndex(String errorType) {
+        int i = ERROR_TYPE_NAMES.indexOf(errorType);
+        if (i < 0) {
+            throw new IllegalArgumentException("unexpected error type: " + errorType);
+        }
+        return i;
+    }
+
+    static int rejectReasonIndex(String reason) {
+        int i = REJECT_REASON_NAMES.indexOf(reason);
+        if (i < 0) {
+            throw new IllegalArgumentException("unexpected rejection reason: " + reason);
+        }
+        return i;
+    }
+
     static int formatIndex(String canonicalFormat) {
         return switch (canonicalFormat) {
             case "parquet" -> FORMAT_PARQUET;
@@ -482,6 +618,22 @@ public final class DataSourceUsageAccumulator {
     private static void checkOpIndex(int opIndex) {
         if (opIndex < 0 || opIndex >= OP_COUNT) {
             throw new IllegalArgumentException("opIndex out of range: " + opIndex + "; use OP_* constants (0.." + (OP_COUNT - 1) + ")");
+        }
+    }
+
+    private static void checkErrorTypeIndex(int errorTypeIndex) {
+        if (errorTypeIndex < 0 || errorTypeIndex >= ERROR_TYPE_COUNT) {
+            throw new IllegalArgumentException(
+                "errorTypeIndex out of range: " + errorTypeIndex + "; valid range is 0.." + (ERROR_TYPE_COUNT - 1)
+            );
+        }
+    }
+
+    private static void checkRejectReasonIndex(int reasonIndex) {
+        if (reasonIndex < 0 || reasonIndex >= REJECT_REASON_COUNT) {
+            throw new IllegalArgumentException(
+                "reasonIndex out of range: " + reasonIndex + "; valid range is 0.." + (REJECT_REASON_COUNT - 1)
+            );
         }
     }
 

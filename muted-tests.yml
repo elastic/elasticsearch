@@ -233,6 +233,9 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search/160_exists_query/Test exists query on mapped short field with no doc values}
   issue: https://github.com/elastic/elasticsearch/issues/161489
+- class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
+  method: testForceMergeIsBlockedThenUnblocked
+  issue: https://github.com/elastic/elasticsearch/issues/161490
 
 # Examples:
 #

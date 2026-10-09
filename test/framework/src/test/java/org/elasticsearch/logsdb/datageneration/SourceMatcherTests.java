@@ -161,6 +161,27 @@ public class SourceMatcherTests extends ESTestCase {
         assertTrue(sut.match().isMatch());
     }
 
+    public void testCoercedNumberFieldWithControlCharacters() throws IOException {
+        // Not long: its string parsing does not trim, so the value below is malformed for long fields.
+        String type = randomFrom("byte", "short", "integer");
+
+        // Number parsing trims leading and trailing characters up to U+0020, so this string is indexed as 5.
+        List<Map<String, Object>> expected = List.of(Map.of("field", List.of("\u001F5\u001A", 123)));
+        List<Map<String, Object>> actual = List.of(Map.of("field", List.of(5, 123)));
+
+        var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
+        mapping.startObject();
+        mapping.startObject("_doc");
+        {
+            mapping.startObject("field").field("type", type).field("ignore_malformed", true).endObject();
+        }
+        mapping.endObject();
+        mapping.endObject();
+
+        var sut = new SourceMatcher(Map.of(), mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
+        assertTrue(sut.match().getMessage(), sut.match().isMatch());
+    }
+
     public void testNullValueIntegerNumericMatcherCastsType() throws IOException {
         String type = randomFrom("byte", "short", "integer", "long");
         int nullValue = 51;

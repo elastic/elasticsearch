@@ -201,6 +201,11 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
 
     private XContentBuilder toXContent(XContentBuilder builder, Params params, boolean includeFilteredFields) throws IOException {
         builder.startObject();
+
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+            builder.field(InferenceIndexDocTypeField.DOC_TYPE_FIELD, InferenceIndexDocTypeField.ENDPOINT_CONFIG_TYPE);
+        }
+
         if (params.paramAsBoolean(USE_ID_FOR_INDEX, false)) {
             builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
         } else {

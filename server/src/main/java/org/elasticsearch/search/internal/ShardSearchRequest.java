@@ -79,6 +79,10 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
     private final long nowInMillis;
     private final boolean allowPartialSearchResults;
     private final OriginalIndices originalIndices;
+    // Set by the coordinator to signal that it supports rebuilding the ShardSearchRequest in between phases
+    // from its own data, so data nodes should omit it in their shard results.
+    // Required to handle CCS bw compatibility with proxy connections.
+    private final boolean enableShardResultsSkipRequest;
 
     private boolean canReturnNullResponseIfMatchNoDocs;
     private SearchSortValuesAndFormats bottomSortValues;
@@ -111,6 +115,9 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
     public static final TransportVersion SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY = TransportVersion.fromName(
         "shard_search_request_reshard_shard_count_summary"
     );
+    public static final TransportVersion SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST = TransportVersion.fromName(
+        "shard_results_skip_shard_search_request"
+    );
 
     // Test only constructor.
     public ShardSearchRequest(
@@ -136,7 +143,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             clusterAlias,
             null,
             null,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            true
         );
     }
 
@@ -152,7 +160,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         @Nullable String clusterAlias,
         ShardSearchContextId readerId,
         TimeValue keepAlive,
-        SplitShardCountSummary splitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary,
+        boolean enableShardResultsSkipRequest
     ) {
         this(
             originalIndices,
@@ -174,7 +183,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             searchRequest.getWaitForCheckpointsTimeout(),
             searchRequest.isForceSyntheticSource(),
             splitShardCountSummary,
-            searchRequest.searchSlice()
+            searchRequest.searchSlice(),
+            enableShardResultsSkipRequest
         );
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
@@ -241,7 +251,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             SearchService.NO_TIMEOUT,
             false,
             splitShardCountSummary,
-            sliceRouting
+            sliceRouting,
+            true
         );
     }
 
@@ -266,7 +277,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         TimeValue waitForCheckpointsTimeout,
         boolean forceSyntheticSource,
         SplitShardCountSummary splitShardCountSummary,
-        @Nullable String sliceRouting
+        @Nullable String sliceRouting,
+        boolean enableShardResultsSkipRequest
     ) {
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -290,6 +302,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         this.forceSyntheticSource = forceSyntheticSource;
         this.splitShardCountSummary = splitShardCountSummary;
         this.sliceRouting = sliceRouting;
+        this.enableShardResultsSkipRequest = enableShardResultsSkipRequest;
     }
 
     @SuppressWarnings("this-escape")
@@ -317,6 +330,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         this.forceSyntheticSource = clone.forceSyntheticSource;
         this.splitShardCountSummary = clone.splitShardCountSummary;
         this.sliceRouting = clone.sliceRouting;
+        this.enableShardResultsSkipRequest = clone.enableShardResultsSkipRequest;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -334,6 +348,17 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         clusterAlias = in.readOptionalString();
         allowPartialSearchResults = in.readBoolean();
         canReturnNullResponseIfMatchNoDocs = in.readBoolean();
+        if (in.getTransportVersion().supports(SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST)) {
+            // Data nodes adapt their response, hence skip including the shard search request in their results whenever possible,
+            // depending on the version of the coordinating node. This can't be a simple version check though, because it needs
+            // to account for the cross-cluster scenario where the shard request / response is proxied via a node that supports
+            // the feature back to a coordinating node that does not. The version of the channel that the data node writes the
+            // response back to supports the feature, but the coordinating node that originated the request did not set the flag
+            // if it is on an older version that does not support rebuilding the shard search request from its own data.
+            enableShardResultsSkipRequest = in.readBoolean();
+        } else {
+            enableShardResultsSkipRequest = false;
+        }
         bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
         readerId = in.readOptionalWriteable(ShardSearchContextId::new);
         keepAlive = in.readOptionalTimeValue();
@@ -390,6 +415,9 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         out.writeBoolean(allowPartialSearchResults);
         if (asKey == false) {
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
+            if (out.getTransportVersion().supports(SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST)) {
+                out.writeBoolean(enableShardResultsSkipRequest);
+            }
             out.writeOptionalWriteable(bottomSortValues);
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
@@ -514,6 +542,10 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
 
     public void canReturnNullResponseIfMatchNoDocs(boolean value) {
         this.canReturnNullResponseIfMatchNoDocs = value;
+    }
+
+    public boolean enableShardResultsSkipRequest() {
+        return enableShardResultsSkipRequest;
     }
 
     private static final ThreadLocal<BytesStreamOutput> scratch = ThreadLocal.withInitial(BytesStreamOutput::new);

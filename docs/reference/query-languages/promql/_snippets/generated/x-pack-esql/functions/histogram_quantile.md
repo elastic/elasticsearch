@@ -24,7 +24,3 @@
 ```
 histogram_quantile(0.9, rate(http_request_duration_seconds_bucket[5m]))
 ```
-
-**Differences from Prometheus**
-
-Only classic histograms, represented by cumulative `le` bucket series, are supported. Prometheus native histograms are not supported.

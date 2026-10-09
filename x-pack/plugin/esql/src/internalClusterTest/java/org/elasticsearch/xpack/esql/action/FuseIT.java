@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class FuseIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(EsqlPluginWithEnterpriseOrTrialLicense.class, TestEncryptionServicePlugin.class);
+        return List.of(TestEncryptionServicePlugin.class, EsqlPluginWithEnterpriseOrTrialLicense.class);
     }
 
     @Before

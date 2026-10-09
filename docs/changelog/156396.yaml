@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 156396
+summary: Selectively enable MADV_RANDOM on the stateless indexing tier for stored fields
+type: enhancement

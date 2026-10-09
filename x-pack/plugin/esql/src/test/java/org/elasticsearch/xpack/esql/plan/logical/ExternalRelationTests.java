@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -13,13 +14,19 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.time.Instant;
 import java.util.List;
@@ -70,6 +77,61 @@ public class ExternalRelationTests extends ESTestCase {
         assertSame(fileList, exec.fileList());
         assertTrue(exec.fileList().isResolved());
         assertEquals(2, exec.fileList().fileCount());
+    }
+
+    /**
+     * Pins the logical -> physical lowering shape: {@code toPhysicalExec()} carries the relation's
+     * build-time state (fileList, datasetName, the data-only unified schema) onto the exec, while
+     * every local-execution pushdown hint starts at its neutral value. Pushdowns are produced later,
+     * per-node, by {@code LocalPhysicalPlanOptimizer} rules, so they must not be set at lowering time.
+     */
+    public void testToPhysicalExecLoweringShape() {
+        FileList fileList = createFileList();
+        ExternalRelation relation = new ExternalRelation(
+            Source.EMPTY,
+            "s3://bucket/data.parquet",
+            createMetadata(),
+            createAttributes(),
+            fileList,
+            Map.of(),
+            "my_dataset"
+        );
+
+        ExternalSourceExec exec = relation.toPhysicalExec();
+
+        // Build-time state copied from the relation.
+        assertSame(fileList, exec.fileList());
+        assertEquals("my_dataset", exec.datasetName());
+        assertNotNull("unifiedSchema seeded from the relation", exec.unifiedSchema());
+        assertEquals(relation.output(), exec.output());
+        assertEquals(relation.sourceType(), exec.sourceType());
+
+        // No splits yet — split discovery is the later bridge that attaches them.
+        assertTrue("splits attached only by split discovery", exec.splits().isEmpty());
+
+        // Local-execution pushdown hints all at their neutral values.
+        assertNull("no pushed filter at lowering", exec.pushedFilter());
+        assertTrue("no pushed expressions at lowering", exec.pushedExpressions().isEmpty());
+        assertEquals("no pushed limit at lowering", FormatReader.NO_LIMIT, exec.pushedLimit());
+        assertNull("no pushed top-n at lowering", exec.pushedTopN());
+        assertFalse("no deferred extraction at lowering", exec.deferredExtraction());
+    }
+
+    /**
+     * The coordinator {@link Mapper} never lowers an {@link ExternalRelation} to an
+     * {@link ExternalSourceExec}; it wraps it in a {@link FragmentExec} so the data-node-bound
+     * subtree carries the still-logical relation. The exec only appears later, per-node, during
+     * {@code PlannerUtils.localPlan()}. This guards that layering invariant.
+     */
+    public void testCoordinatorMapperKeepsRelationLogical() {
+        ExternalRelation relation = createRelation(createFileList());
+
+        PhysicalPlan mapped = new Mapper().map(new Versioned<>(relation, TransportVersion.current()));
+
+        assertTrue("relation is wrapped in a FragmentExec", mapped.anyMatch(FragmentExec.class::isInstance));
+        assertFalse("coordinator-side plan must not contain ExternalSourceExec", mapped.anyMatch(ExternalSourceExec.class::isInstance));
+        FragmentExec fragment = (FragmentExec) mapped;
+        assertTrue("fragment still holds the logical ExternalRelation", fragment.fragment() instanceof ExternalRelation);
     }
 
     public void testWithAttributesPreservesFileList() {
@@ -136,9 +198,8 @@ public class ExternalRelationTests extends ESTestCase {
             Map.of(),
             Map.of(),
             null,
-            256,
-            fileList
-        );
+            256
+        ).withFileList(fileList);
 
         assertSame(fileList, exec.fileList());
         assertEquals(Integer.valueOf(256), exec.estimatedRowSize());
@@ -168,9 +229,8 @@ public class ExternalRelationTests extends ESTestCase {
             Map.of(),
             Map.of(),
             null,
-            null,
-            fileList
-        );
+            null
+        ).withFileList(fileList);
 
         assertSame(fileList, execWithFileList.fileList());
     }
@@ -192,9 +252,8 @@ public class ExternalRelationTests extends ESTestCase {
             Map.of(),
             Map.of(),
             null,
-            null,
-            fileList1
-        );
+            null
+        ).withFileList(fileList1);
         ExternalSourceExec exec2 = new ExternalSourceExec(
             Source.EMPTY,
             "s3://bucket/data.parquet",
@@ -203,9 +262,8 @@ public class ExternalRelationTests extends ESTestCase {
             Map.of(),
             Map.of(),
             null,
-            null,
-            fileList1
-        );
+            null
+        ).withFileList(fileList1);
         ExternalSourceExec exec3 = new ExternalSourceExec(
             Source.EMPTY,
             "s3://bucket/data.parquet",
@@ -214,9 +272,8 @@ public class ExternalRelationTests extends ESTestCase {
             Map.of(),
             Map.of(),
             null,
-            null,
-            fileList2
-        );
+            null
+        ).withFileList(fileList2);
 
         assertEquals(exec1, exec2);
         assertEquals(exec1.hashCode(), exec2.hashCode());
@@ -312,7 +369,12 @@ public class ExternalRelationTests extends ESTestCase {
         Attribute name = attr("name", DataType.KEYWORD);
         Attribute year = attr("year", DataType.INTEGER); // partition column
 
-        SourceMetadata partitionedMetadata = createMetadataWithSchema(List.of(id, name, year));
+        // Coordinator shape: partition identity comes from the serialized stamp (written at resolution
+        // alongside the resolved fileList), which is what dataOnlyUnifiedSchema now reads.
+        SourceMetadata partitionedMetadata = createMetadataWithSchema(
+            List.of(id, name, year),
+            Map.of(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.of("year"))
+        );
         FileList partitionedFiles = createPartitionedFileList(Map.of("year", DataType.INTEGER));
         ExternalRelation relation = new ExternalRelation(
             Source.EMPTY,
@@ -332,7 +394,38 @@ public class ExternalRelationTests extends ESTestCase {
         assertTrue("data columns preserved", exec.unifiedSchema().names().contains("name"));
     }
 
+    public void testToPhysicalExecStripsPartitionAttributesOnDataNodeShape() {
+        // Data-node shape: the relation deserializes with FileList.UNRESOLVED, so the OLD fileList-based
+        // strip kept the wider, partition-inclusive unifiedSchema here (the P6 latent inconsistency). Reading
+        // the serialized stamp strips partition attributes identically to the coordinator.
+        Attribute id = attr("id", DataType.LONG);
+        Attribute name = attr("name", DataType.KEYWORD);
+        Attribute year = attr("year", DataType.INTEGER); // partition column
+
+        SourceMetadata partitionedMetadata = createMetadataWithSchema(
+            List.of(id, name, year),
+            Map.of(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.of("year"))
+        );
+        ExternalRelation relation = new ExternalRelation(
+            Source.EMPTY,
+            "s3://bucket/year=*/*.parquet",
+            partitionedMetadata,
+            List.of(id, name, year),
+            FileList.UNRESOLVED,
+            Map.of()
+        );
+
+        ExternalSourceExec exec = relation.toPhysicalExec();
+
+        assertEquals("partition attr stripped from the stamp even with an UNRESOLVED fileList", 2, exec.unifiedSchema().size());
+        assertFalse("partition column not present in seeded unified", exec.unifiedSchema().names().contains("year"));
+    }
+
     private static SourceMetadata createMetadataWithSchema(List<Attribute> schema) {
+        return createMetadataWithSchema(schema, Map.of());
+    }
+
+    private static SourceMetadata createMetadataWithSchema(List<Attribute> schema, Map<String, Object> sourceMetadata) {
         return new SourceMetadata() {
             @Override
             public List<Attribute> schema() {
@@ -347,6 +440,11 @@ public class ExternalRelationTests extends ESTestCase {
             @Override
             public String location() {
                 return "s3://bucket/data/*.parquet";
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return sourceMetadata;
             }
 
             @Override
@@ -432,8 +530,7 @@ public class ExternalRelationTests extends ESTestCase {
             Map.of(),
             Map.of(),
             null,
-            null,
-            fileList
-        );
+            null
+        ).withFileList(fileList);
     }
 }

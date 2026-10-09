@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159210
+summary: Infer one format from dataset pattern
+type: enhancement

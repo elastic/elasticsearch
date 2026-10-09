@@ -89,4 +89,17 @@ public class OffsetCodecStageTests extends AbstractTransformStageTestCase {
         }
         assertMultiBlockTransformRoundTrip(OffsetCodecStage.INSTANCE, blocks);
     }
+
+    public void testRoundTripMinAtLongMinValue() throws IOException {
+        // NOTE: an all-negative block with min at Long.MIN_VALUE and max at -1 applies offset, so the
+        // subtraction wraps and must still round trip.
+        final int blockSize = randomBlockSize();
+        final long[] values = new long[blockSize];
+        values[0] = Long.MIN_VALUE;
+        values[blockSize - 1] = -1;
+        for (int i = 1; i < blockSize - 1; i++) {
+            values[i] = randomLongBetween(Long.MIN_VALUE, -1);
+        }
+        assertTransformRoundTrip(OffsetCodecStage.INSTANCE, values);
+    }
 }

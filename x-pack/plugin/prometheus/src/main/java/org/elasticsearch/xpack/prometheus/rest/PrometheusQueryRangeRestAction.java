@@ -8,15 +8,15 @@
 package org.elasticsearch.xpack.prometheus.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatementResult;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -38,6 +38,15 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
     private static final String END_PARAM = "end";
     private static final String LIMIT_PARAM = "limit";
     private static final int DEFAULT_LIMIT = 0; // 0 = no limit, matching Prometheus semantics
+
+    private final Supplier<TimeValue> maxQueryTimeout;
+
+    /**
+     * @param maxQueryTimeout supplies the default and maximum query timeout, see {@link PromqlQueryExecutor#resolveTimeout}
+     */
+    public PrometheusQueryRangeRestAction(Supplier<TimeValue> maxQueryTimeout) {
+        this.maxQueryTimeout = maxQueryTimeout;
+    }
 
     @Override
     public String getName() {
@@ -67,6 +76,7 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
         String step = getRequiredParam(request, PrometheusQueryResponseListener.STEP_PARAM);
         String index = request.param(INDEX_PARAM, DEFAULT_PROMQL_INDEX_PATTERN);
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
+        TimeValue timeout = PromqlQueryExecutor.resolveTimeout(request, maxQueryTimeout.get());
 
         PromqlStatementResult result = PromqlQueryPlanBuilder.buildStatement(
             query,
@@ -77,11 +87,25 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
             limit,
             PrometheusQueryResponseListener.QueryMode.RANGE
         );
-        var esqlRequest = PreparedEsqlQueryRequest.sync(result.esqlStatement(), query);
+        var esqlRequest = new PromqlQueryRequest(
+            index,
+            result.esqlStatement(),
+            query,
+            LIMIT_PARAM,
+            limit == DEFAULT_LIMIT ? null : limit,
+            START_PARAM,
+            start,
+            END_PARAM,
+            end,
+            PrometheusQueryResponseListener.STEP_PARAM,
+            step
+        );
 
-        return channel -> client.execute(
-            EsqlQueryAction.INSTANCE,
+        return channel -> PromqlQueryExecutor.execute(
+            client,
+            request.getHttpChannel(),
             esqlRequest,
+            timeout,
             new PrometheusQueryResponseListener(
                 channel,
                 result.resultType(),

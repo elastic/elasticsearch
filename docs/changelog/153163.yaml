@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 153163
+summary: Add index_terms parameter to integer field type
+type: feature

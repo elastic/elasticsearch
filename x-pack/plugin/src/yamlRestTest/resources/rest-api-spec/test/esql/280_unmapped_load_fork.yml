@@ -6,8 +6,8 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_v5, optional_fields_fix_unmapped_load_multi_index_pattern ]
-      reason: 'requires SET unmapped_fields="load" and the bug fix for querying multiple indices'
+          capabilities: [ optional_fields_v5, optional_fields_fix_unmapped_load_multi_index_pattern, optional_fields_load_with_fork_subqueries_and_views ]
+      reason: 'requires SET unmapped_fields="load" support for FORK across single and multiple index patterns'
   #
   # The table below represents the field mappings for the three indices created in this test.
   #
@@ -18,6 +18,9 @@ setup:
   # | tau        | date    | date_nanos | -       |
   # | beta       | -       | double     | -       |
   # | a.b.c.d    | -       | -          | boolean |
+  #
+  # lambda is mapped as keyword in index1/index2 and unmapped in index3; under unmapped_fields="load"
+  # it is loaded from _source where unmapped, so it can be referenced inside FORK branches in every case.
   #
   - do:
       indices.create:
@@ -62,75 +65,127 @@ setup:
                          properties:
                             d:
                               type: boolean
+  #
+  # Two documents per index, one with a lambda value of 11+ bytes (kept by the FORK branch that requires
+  # BYTE_LENGTH(lambda) >= 11) and one shorter (dropped by that branch). In index3 lambda is unmapped and only
+  # present in _source, so it is materialized under unmapped_fields="load".
+  #
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "index1" } }
+          - { "alpha": 1, "lambda": "elasticsearch", "tau": "2024-01-01" }
+          - { "index": { "_index": "index1" } }
+          - { "alpha": 2, "lambda": "short", "tau": "2024-01-02" }
+          - { "index": { "_index": "index2" } }
+          - { "alpha": 10, "lambda": "observability", "tau": "2024-02-01T00:00:00.000Z", "beta": 1.5 }
+          - { "index": { "_index": "index2" } }
+          - { "alpha": 20, "lambda": "tiny", "tau": "2024-02-02T00:00:00.000Z", "beta": 2.5 }
+          - { "index": { "_index": "index3" } }
+          - { "a": { "b": { "c": { "d": true } } }, "lambda": "index3_lambda" }
+          - { "index": { "_index": "index3" } }
+          - { "a": { "b": { "c": { "d": false } } }, "lambda": "sm" }
 
 ---
 two-branches-one-index:
   - do:
-      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM index1 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true)'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:43: FORK is not supported with unmapped_fields="load"' }
+          query: 'SET unmapped_fields="load"; FROM index1 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true) | KEEP lambda, _fork | SORT _fork, lambda'
+  - match: { columns.0.name: lambda }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: _fork }
+  - length: { values: 3 }
+  - match: { values.0: ["elasticsearch", "fork1"] }
+  - match: { values.1: ["elasticsearch", "fork2"] }
+  - match: { values.2: ["short", "fork2"] }
 
 ---
 one-branch-one-index:
   - do:
-      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11)'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:43: FORK is not supported with unmapped_fields="load"' }
+          query: 'SET unmapped_fields="load"; FROM index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) | KEEP lambda, _fork | SORT _fork, lambda'
+  - match: { columns.0.name: lambda }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: _fork }
+  - length: { values: 1 }
+  - match: { values.0: ["observability", "fork1"] }
 
 ---
 two-branches-one-index-wildcard:
   - do:
-      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM index3* | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true)'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:44: FORK is not supported with unmapped_fields="load"' }
+          query: 'SET unmapped_fields="load"; FROM index3* | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true) | KEEP lambda, _fork | SORT _fork, lambda'
+  - match: { columns.0.name: lambda }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: _fork }
+  - length: { values: 3 }
+  - match: { values.0: ["index3_lambda", "fork1"] }
+  - match: { values.1: ["index3_lambda", "fork2"] }
+  - match: { values.2: ["sm", "fork2"] }
 
 ---
 one-branch-multi-index:
   - do:
-      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM index1,index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11)'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:50: FORK is not supported with unmapped_fields="load"' }
+          query: 'SET unmapped_fields="load"; FROM index1,index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) | KEEP lambda, _fork | SORT _fork, lambda'
+  - match: { columns.0.name: lambda }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: _fork }
+  - length: { values: 2 }
+  - match: { values.0: ["elasticsearch", "fork1"] }
+  - match: { values.1: ["observability", "fork1"] }
 
 ---
 two-branches-multi-index:
   - do:
-      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM index1,index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true)'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:50: FORK is not supported with unmapped_fields="load"' }
+          query: 'SET unmapped_fields="load"; FROM index1,index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true) | KEEP lambda, _fork | SORT _fork, lambda'
+  - match: { columns.0.name: lambda }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: _fork }
+  - length: { values: 6 }
+  - match: { values.0: ["elasticsearch", "fork1"] }
+  - match: { values.1: ["observability", "fork1"] }
+  - match: { values.2: ["elasticsearch", "fork2"] }
+  - match: { values.3: ["observability", "fork2"] }
+  - match: { values.4: ["short", "fork2"] }
+  - match: { values.5: ["tiny", "fork2"] }
 
 ---
 two-branches-multi-index-wildcard:
   - do:
-      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM ind* | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true)'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:41: FORK is not supported with unmapped_fields="load"' }
+          query: 'SET unmapped_fields="load"; FROM ind* METADATA _index | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true) | KEEP lambda, _fork, _index | SORT _fork, lambda'
+  - match: { columns.0.name: lambda }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: _fork }
+  - match: { columns.2.name: _index }
+  - length: { values: 9 }
+  - match: { values.0: ["elasticsearch", "fork1", "index1"] }
+  - match: { values.1: ["index3_lambda", "fork1", "index3"] }
+  - match: { values.2: ["observability", "fork1", "index2"] }
+  - match: { values.3: ["elasticsearch", "fork2", "index1"] }
+  - match: { values.4: ["index3_lambda", "fork2", "index3"] }
+  - match: { values.5: ["observability", "fork2", "index2"] }
+  - match: { values.6: ["short", "fork2", "index1"] }
+  - match: { values.7: ["sm", "fork2", "index3"] }
+  - match: { values.8: ["tiny", "fork2", "index2"] }

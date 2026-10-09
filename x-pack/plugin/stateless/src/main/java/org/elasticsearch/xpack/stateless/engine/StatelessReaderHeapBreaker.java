@@ -7,11 +7,16 @@
 
 package org.elasticsearch.xpack.stateless.engine;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.BreakerSettings;
+
+import java.util.function.Supplier;
 
 /**
  * Name and settings for the stateless {@code reader_heap} circuit breaker. Tracks heap reserved by the stateless
@@ -19,6 +24,8 @@ import org.elasticsearch.indices.breaker.BreakerSettings;
  * is exceeded the engine defers the refresh and re-evaluates on the next cycle.
  */
 public final class StatelessReaderHeapBreaker {
+
+    private static final Logger logger = LogManager.getLogger(StatelessReaderHeapBreaker.class);
 
     public static final String NAME = "stateless_reader_heap";
 
@@ -34,6 +41,13 @@ public final class StatelessReaderHeapBreaker {
     );
 
     private StatelessReaderHeapBreaker() {}
+
+    public static void addLimitUpdateConsumer(ClusterSettings clusterSettings, Supplier<CircuitBreaker> breakerSupplier) {
+        clusterSettings.addSettingsUpdateConsumer(LIMIT_SETTING, newLimit -> {
+            breakerSupplier.get().setLimitAndOverhead(newLimit.getBytes(), 1.0);
+            logger.info("Updated breaker settings {} limit: {}", NAME, newLimit);
+        });
+    }
 
     public static BreakerSettings breakerSettings(Settings settings) {
         return new BreakerSettings(

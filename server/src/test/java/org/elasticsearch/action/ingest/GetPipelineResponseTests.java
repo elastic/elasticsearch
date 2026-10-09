@@ -10,8 +10,10 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -61,7 +63,8 @@ public class GetPipelineResponseTests extends ESTestCase {
     public void testXContentDeserialization() throws IOException {
         Map<String, PipelineConfiguration> pipelinesMap = createPipelineConfigMap();
         GetPipelineResponse response = new GetPipelineResponse(new ArrayList<>(pipelinesMap.values()));
-        XContentBuilder builder = response.toXContent(getRandomXContentBuilder(), ToXContent.EMPTY_PARAMS);
+        XContentBuilder builder = ChunkedToXContentObject.wrapAsToXContentObject(response)
+            .toXContent(getRandomXContentBuilder(), ToXContent.EMPTY_PARAMS);
         GetPipelineResponse parsedResponse;
         try (
             XContentParser parser = builder.generator()
@@ -78,6 +81,13 @@ public class GetPipelineResponseTests extends ESTestCase {
             assertTrue(pipelinesMap.containsKey(pipeline.getId()));
             assertEquals(pipelinesMap.get(pipeline.getId()).getConfig(), pipeline.getConfig());
         }
+    }
+
+    public void testChunkCount() throws IOException {
+        Map<String, PipelineConfiguration> pipelinesMap = createPipelineConfigMap();
+        GetPipelineResponse response = new GetPipelineResponse(new ArrayList<>(pipelinesMap.values()));
+        // One chunk to open the enclosing object, one chunk per pipeline, and one chunk to close it.
+        AbstractChunkedSerializingTestCase.assertChunkCount(response, ignored -> pipelinesMap.size() + 2);
     }
 
     protected GetPipelineResponse doParseInstance(XContentParser parser) throws IOException {

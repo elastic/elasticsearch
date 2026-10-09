@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 148500
-summary: Decouple Parquet late materialization from two-phase byte-ratio gate
-type: enhancement

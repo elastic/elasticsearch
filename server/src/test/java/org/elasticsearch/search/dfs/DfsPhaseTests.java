@@ -10,14 +10,17 @@
 package org.elasticsearch.search.dfs;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -32,7 +35,6 @@ import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
@@ -41,6 +43,8 @@ import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
+import org.elasticsearch.tasks.TaskCancelHelper;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,9 +55,14 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.search.dfs.DfsPhase.executeKnnVectorQuery;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
 public class DfsPhaseTests extends IndexShardTestCase {
 
@@ -103,53 +112,9 @@ public class DfsPhaseTests extends IndexShardTestCase {
                 threadPoolExecutor.getMaximumPoolSize(),
                 1
             );
-            IndexSettings indexSettings = new IndexSettings(
-                IndexMetadata.builder("index")
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
-                    .creationDate(System.currentTimeMillis())
-                    .build(),
-                Settings.EMPTY
-            );
-            BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
-                @Override
-                public void onCache(ShardId shardId, Accountable accountable) {
-
-                }
-
-                @Override
-                public void onRemoval(ShardId shardId, Accountable accountable) {
-
-                }
-            });
-            SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
-                0,
-                0,
-                indexSettings,
-                bitsetFilterCache,
-                null,
-                null,
-                MappingLookup.EMPTY,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                Collections.emptyMap(),
-                null,
-                MapperMetrics.NOOP,
-                SearchExecutionContextHelper.SHARD_SEARCH_STATS
-            );
 
             Query query = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, numDocs, null);
-            try (TestSearchContext context = new TestSearchContext(searchExecutionContext, indexShard, searcher) {
+            try (TestSearchContext context = new TestSearchContext(getSearchExecutionContext(), indexShard, searcher) {
                 @Override
                 public DfsSearchResult dfsResult() {
                     return new DfsSearchResult(null, null, null);
@@ -163,7 +128,7 @@ public class DfsPhaseTests extends IndexShardTestCase {
                     );
                 context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
                 context.parsedQuery(new ParsedQuery(query));
-                executeKnnVectorQuery(context);
+                executeKnnVectorQuery(context, null);
                 assertTrue(queryCount.get() > 0);
                 assertTrue(queryTime.get() > 0);
                 reader.close();
@@ -224,5 +189,89 @@ public class DfsPhaseTests extends IndexShardTestCase {
             }
             reader.close();
         }
+    }
+
+    public void testCancelledContextPropagatesCancellationReason() throws IOException {
+        IndexShard indexShard = newShard(true);
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir, newIndexWriterConfig())) {
+            Document d = new Document();
+            String fieldName = "text";
+            String fieldValue = "fox";
+            d.add(new StringField(fieldName, fieldValue, Field.Store.NO));
+            w.addDocument(d);
+            w.flush();
+
+            IndexReader reader = w.getReader();
+            ContextIndexSearcher searcher = new ContextIndexSearcher(
+                reader,
+                IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(),
+                randomBoolean(),
+                threadPoolExecutor,
+                threadPoolExecutor.getMaximumPoolSize(),
+                1
+            );
+
+            try (reader; TestSearchContext context = spy(new TestSearchContext(getSearchExecutionContext(), indexShard, searcher))) {
+                SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+                context.setTask(task);
+                context.parsedQuery(new ParsedQuery(new TermQuery(new Term(fieldName, fieldValue))));
+
+                String cancellationReason = randomAlphanumericOfLength(8);
+                // Either cancel the task before checking the cancellation state on first call in collectionStatistics(), or the second
+                // call in termStatistics() to ensure both are covered
+                AtomicBoolean shouldCancel = new AtomicBoolean(randomBoolean());
+                doAnswer(invocation -> {
+                    if (shouldCancel.getAndSet(true)) {
+                        TaskCancelHelper.cancel(task, cancellationReason);
+                    }
+                    return invocation.callRealMethod();
+                }).when(context).isCancelled();
+
+                var exception = expectThrows(DfsPhaseExecutionException.class, () -> DfsPhase.execute(context));
+                assertThat(exception.getCause(), instanceOf(TaskCancelledException.class));
+                assertThat(exception.getCause().getMessage(), containsString(cancellationReason));
+            }
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
+    private static SearchExecutionContext getSearchExecutionContext() {
+        IndexSettings indexSettings = new IndexSettings(
+            IndexMetadata.builder("index")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .build(),
+            Settings.EMPTY
+        );
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
+        return new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            bitsetFilterCache,
+            null,
+            null,
+            MappingLookup.EMPTY,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            Collections.emptyMap(),
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
+        );
     }
 }

@@ -31,6 +31,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.search.TooManyScrollContextsException;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -69,6 +72,19 @@ public class MlRecoverableErrorClassifierTests extends ESTestCase {
 
     public void testIllegalIndexShardStateException_isRecoverable() {
         var e = new IllegalIndexShardStateException(new ShardId("my-index", "uuid", 0), IndexShardState.RECOVERING, "shard not ready");
+        assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
+    }
+
+    public void testSearchContextMissingExceptionShouldBeRecoverable() {
+        var e = new SearchContextMissingException(new ShardSearchContextId("s", 1L));
+        assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
+        assertFalse(MlRecoverableErrorClassifier.isCapacityConstrained(e));
+    }
+
+    public void testSearchPhaseExecutionExceptionWrappingSearchContextMissingShouldBeRecoverable() {
+        var scm = new SearchContextMissingException(new ShardSearchContextId("s", 1L));
+        var shardFailure = new ShardSearchFailure(scm);
+        var e = new SearchPhaseExecutionException("query", "scroll failed", new ShardSearchFailure[] { shardFailure });
         assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
     }
 
@@ -144,6 +160,63 @@ public class MlRecoverableErrorClassifierTests extends ESTestCase {
     public void testElasticsearchStatusException_tooManyRequests_isRecoverable() {
         var e = new ElasticsearchStatusException("too many requests", RestStatus.TOO_MANY_REQUESTS);
         assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
+    }
+
+    // -------------------------------------------------------------------------
+    // Capacity constraint sub-classifier
+    // -------------------------------------------------------------------------
+
+    public void testTooManyRequestsStatusShouldBeCapacityConstrained() {
+        var e = new ElasticsearchStatusException("too many requests", RestStatus.TOO_MANY_REQUESTS);
+        assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(e));
+    }
+
+    public void testTransientCircuitBreakerShouldBeCapacityConstrained() {
+        var e = new CircuitBreakingException("transient", CircuitBreaker.Durability.TRANSIENT);
+        assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(e));
+    }
+
+    public void testPermanentCircuitBreakerShouldNotBeCapacityConstrained() {
+        var e = new CircuitBreakingException("permanent", CircuitBreaker.Durability.PERMANENT);
+        assertFalse(MlRecoverableErrorClassifier.isCapacityConstrained(e));
+    }
+
+    public void testNonShutdownRejectionShouldBeCapacityConstrained() {
+        var e = new EsRejectedExecutionException("pool full", false);
+        assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(e));
+    }
+
+    public void testShutdownRejectionShouldNotBeCapacityConstrained() {
+        var e = new EsRejectedExecutionException("executor shutdown", true);
+        assertFalse(MlRecoverableErrorClassifier.isCapacityConstrained(e));
+    }
+
+    public void testAvailabilityErrorShouldNotBeCapacityConstrained() {
+        var e = new SearchPhaseExecutionException("query", "partial results", ShardSearchFailure.EMPTY_ARRAY);
+        assertFalse(MlRecoverableErrorClassifier.isCapacityConstrained(e));
+    }
+
+    public void testWrappedTooManyRequestsShouldBeCapacityConstrained() {
+        var inner = new ElasticsearchStatusException("too many requests", RestStatus.TOO_MANY_REQUESTS);
+        var wrapped = new RemoteTransportException("remote", inner);
+        assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(wrapped));
+    }
+
+    public void testWrappedTransientCircuitBreakerShouldBeCapacityConstrained() {
+        var inner = new CircuitBreakingException("transient", CircuitBreaker.Durability.TRANSIENT);
+        var wrapped = new RemoteTransportException("remote", inner);
+        assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(wrapped));
+    }
+
+    public void testWrappedNonShutdownRejectionShouldBeCapacityConstrained() {
+        var inner = new EsRejectedExecutionException("pool full", false);
+        var wrapped = new RemoteTransportException("remote", inner);
+        assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(wrapped));
+    }
+
+    public void testTooManyScrollContextsExceptionShouldBeCapacityConstrained() {
+        var e = new TooManyScrollContextsException(10, "search.max_open_scroll_context");
+        assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(e));
     }
 
     // -------------------------------------------------------------------------

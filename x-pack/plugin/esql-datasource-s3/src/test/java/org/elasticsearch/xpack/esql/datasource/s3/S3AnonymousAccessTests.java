@@ -16,7 +16,11 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
@@ -25,12 +29,13 @@ import java.time.Instant;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for S3 anonymous access (auth=none), HEAD fallback, and listing error handling.
+ * Tests for S3 anonymous access (auth=anonymous), HEAD fallback, and listing error handling.
  */
 public class S3AnonymousAccessTests extends ESTestCase {
 
@@ -89,21 +94,27 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * When the suffix-range GET fails with a non-403 S3 error, falls back to HEAD.
-     * If HEAD also fails, the error propagates as IOException.
+     * When the suffix-range GET fails with a retryable S3 status, metadata resolution falls back to HEAD.
+     * A retryable HEAD status maps like a retryable GET: {@link ExternalUnavailableException} (HTTP 503),
+     * not a client-class {@link IOException}.
      */
-    public void testHeadNon403ErrorPropagates() {
-        when(mockS3Client.getObject(any(GetObjectRequest.class))).thenThrow(
-            S3Exception.builder().statusCode(500).message("Internal Server Error").build()
-        );
-        when(mockS3Client.headObject(any(HeadObjectRequest.class))).thenThrow(
-            S3Exception.builder().statusCode(500).message("Internal Server Error").build()
-        );
+    public void testRetryableMetadataStatusIsUnavailable() {
+        for (int status : new int[] { 429, 500, 502, 503, 504 }) {
+            S3Client client = mock(S3Client.class);
+            when(client.getObject(any(GetObjectRequest.class))).thenThrow(
+                S3Exception.builder().statusCode(status).message("Retryable failure").build()
+            );
+            when(client.headObject(any(HeadObjectRequest.class))).thenThrow(
+                S3Exception.builder().statusCode(status).message("Retryable failure").build()
+            );
 
-        S3StorageObject obj = new S3StorageObject(mockS3Client, BUCKET, KEY, PATH);
+            S3StorageObject obj = new S3StorageObject(client, BUCKET, KEY, PATH);
+            ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, obj::length);
 
-        IOException e = expectThrows(IOException.class, obj::length);
-        assertThat(e.getMessage(), containsString("HeadObject request failed"));
+            assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
+            assertThat(eue.getMessage(), containsString("HTTP " + status));
+            assertEquals(ExternalUnavailableException.isThrottlingStatus(status), eue.throttling());
+        }
     }
 
     /**
@@ -126,8 +137,8 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * When HeadObject returns 403 and the range GET also fails (non-404), the error
-     * should propagate with a descriptive message.
+     * When suffix-range GET and the bytes=0-0 fallback both return 403, the error
+     * is a client-class error (not retryable), and includes the object name.
      */
     public void testHeadFallbackRangeGetAlsoFails() {
         when(mockS3Client.headObject(any(HeadObjectRequest.class))).thenThrow(
@@ -139,15 +150,27 @@ public class S3AnonymousAccessTests extends ESTestCase {
 
         S3StorageObject obj = new S3StorageObject(mockS3Client, BUCKET, KEY, PATH);
 
-        IOException e = expectThrows(IOException.class, obj::length);
-        assertThat(e.getMessage(), containsString("HEAD denied, range GET also failed"));
+        ExternalClientException e = expectThrows(ExternalClientException.class, obj::length);
+        assertThat(e.getMessage(), containsString("Access denied reading [" + PATH.objectName() + "]"));
+        assertThat(e.getMessage(), containsString("HTTP 403"));
+        // The message has to say what to change, not only what was refused. A bare 403 does not say why, and the
+        // storage object does not know the auth mode, so the remedy holds for every mode and names no setting.
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Verify that the data source is allowed to read this object with the credentials it is configured with, "
+                    + "or anonymously if it has none."
+            )
+        );
+        assertThat(e.getMessage(), not(containsString("access_key")));
+        assertThat(e.getMessage(), not(containsString("auth=anonymous")));
     }
 
     /**
      * Verify S3Configuration correctly identifies anonymous mode.
      */
     public void testConfigurationAnonymousMode() {
-        S3Configuration anonymous = S3Configuration.fromFields(null, null, "http://endpoint", "us-east-1", "none");
+        S3Configuration anonymous = S3Configuration.fromFields(null, null, "http://endpoint", "us-east-1", "anonymous");
         assertTrue(anonymous.isAnonymous());
         assertFalse(anonymous.hasCredentials());
 
@@ -155,56 +178,71 @@ public class S3AnonymousAccessTests extends ESTestCase {
         assertFalse(credentials.isAnonymous());
         assertTrue(credentials.hasCredentials());
 
-        S3Configuration defaultChain = S3Configuration.fromFields(null, null, "http://endpoint", null);
-        assertFalse(defaultChain.isAnonymous());
-        assertFalse(defaultChain.hasCredentials());
+        // A credential-less, non-anonymous config no longer parses: auto with nothing to resolve is rejected at create.
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> S3Configuration.fromFields(null, null, "http://endpoint", null)
+        );
+        assertTrue(e.getMessage().contains("requires credentials"));
     }
 
     /**
-     * Verify that auth=none is mutually exclusive with credentials.
+     * Verify that auth=anonymous is mutually exclusive with credentials.
      */
     public void testConfigurationAnonymousModeConflictsWithCredentials() {
-        expectThrows(org.elasticsearch.common.ValidationException.class, () -> S3Configuration.fromFields("ak", "sk", null, null, "none"));
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> S3Configuration.fromFields("ak", "sk", null, null, "anonymous")
+        );
     }
 
     /**
-     * auth=workload_identity delegates to {@code buildWorkloadIdentityCredentialsProvider()}, which
+     * auth=managed_identity delegates to {@code buildManagedIdentityCredentialsProvider()}, which
      * by default returns an {@code AwsCredentialsProviderChain}. Tests may subclass and override
      * that method to inject a static provider — the same seam used by GcsStorageProvider.
      */
-    public void testWorkloadIdentityCredentialsProviderType() {
-        S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "workload_identity");
+    public void testManagedIdentityCredentialsProviderType() {
+        S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "managed_identity");
         assertNotNull(config);
-        assertTrue(config.isWorkloadIdentity());
-        var provider = S3StorageProvider.forTesting(null, null).credentialsProvider(config);
+        assertTrue(config.isManagedIdentity());
+        assertEquals(
+            org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration.AuthMode.MANAGED_IDENTITY,
+            config.resolveAuthMode()
+        );
+        // The MANAGED_IDENTITY switch arm builds this chain.
+        var provider = S3StorageProvider.forTesting(null, null).buildManagedIdentityCredentialsProvider();
         assertThat(provider, instanceOf(software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain.class));
     }
 
     /**
-     * Verifies that overriding {@code buildWorkloadIdentityCredentialsProvider()} allows injecting
-     * a test credential — the unit-test seam for wrong-credential counter-proofs.
+     * Verifies that overriding {@code buildManagedIdentityCredentialsProvider()} allows injecting
+     * a test credential — the unit-test seam for wrong-credential counter-proofs. The MANAGED_IDENTITY
+     * switch arm in the constructor selects exactly this provider.
      */
-    public void testWorkloadIdentityCredentialOverrideSeam() {
-        S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "workload_identity");
+    public void testManagedIdentityCredentialOverrideSeam() {
         var injected = software.amazon.awssdk.auth.credentials.StaticCredentialsProvider.create(
             software.amazon.awssdk.auth.credentials.AwsBasicCredentials.create("test-key", "test-secret")
         );
         var provider = new S3StorageProvider(null, null, null) {
             @Override
-            protected software.amazon.awssdk.auth.credentials.AwsCredentialsProvider buildWorkloadIdentityCredentialsProvider() {
+            protected software.amazon.awssdk.auth.credentials.AwsCredentialsProvider buildManagedIdentityCredentialsProvider() {
                 return injected;
             }
-        }.credentialsProvider(config);
-        assertSame("credentialsProvider() must delegate to buildWorkloadIdentityCredentialsProvider()", injected, provider);
+        };
+        assertSame(
+            "overriding buildManagedIdentityCredentialsProvider() (the seam the MANAGED_IDENTITY arm calls) returns the injected provider",
+            injected,
+            provider.buildManagedIdentityCredentialsProvider()
+        );
     }
 
     /**
-     * auth=workload_identity is mutually exclusive with explicit credentials.
+     * auth=managed_identity is mutually exclusive with explicit credentials.
      */
-    public void testWorkloadIdentityModeConflictsWithCredentials() {
+    public void testManagedIdentityModeConflictsWithCredentials() {
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
-            () -> S3Configuration.fromFields("ak", "sk", null, null, "workload_identity")
+            () -> S3Configuration.fromFields("ak", "sk", null, null, "managed_identity")
         );
     }
 }

@@ -190,7 +190,8 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
                         if (nodeIds.size() > 1) {
                             shard = shard.relocate(
                                 randomValueOtherThan(nodeId, () -> randomFrom(nodeIds)),
-                                ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
+                                ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
+                                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                             );
                         }
                         indexRoutingTableBuilder.addShard(shard);

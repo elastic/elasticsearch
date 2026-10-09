@@ -16,7 +16,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionModelTests;
@@ -43,7 +43,7 @@ public class AlibabaCloudSearchCompletionRequestManagerTests extends ESTestCase 
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     public void testExecute_executesRequest() {
-        var inputs = new ChatCompletionInput(List.of("input1", "input2", "input3"));
+        var inputs = new CompletionInput(List.of("input1", "input2", "input3"));
         RequestSender mockSender = mock(RequestSender.class);
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
@@ -60,7 +60,7 @@ public class AlibabaCloudSearchCompletionRequestManagerTests extends ESTestCase 
     }
 
     public void testExecute_throwsElasticsearchStatusException_whenNumberOfInputsIsEven() {
-        var inputs = new ChatCompletionInput(List.of("input1", "input2"));
+        var inputs = new CompletionInput(List.of("input1", "input2"));
         RequestSender mockSender = mock(RequestSender.class);
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
@@ -74,7 +74,7 @@ public class AlibabaCloudSearchCompletionRequestManagerTests extends ESTestCase 
     }
 
     public void testExecute_throwsIllegalArgumentException_whenInputIsNotChatCompletion() {
-        var inputs = new EmbeddingsInput(List.of("input1"), InputType.SEARCH);
+        var inputs = EmbeddingsInput.fromStrings(List.of("input1"), InputType.SEARCH);
         RequestSender mockSender = mock(RequestSender.class);
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 

@@ -23,7 +23,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -120,7 +119,7 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
     private void handleStartSplitOnSource(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
         assert task instanceof CancellableTask : "not cancellable";
 
-        SubscribableListener.<Releasable>newForked(
+        SubscribableListener.<SplitSourceService.HandoffPreparation>newForked(
             l -> splitSourceService.setupTargetShard(
                 (CancellableTask) task,
                 request.shardId,
@@ -128,7 +127,7 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
                 request.targetPrimaryTerm,
                 l
             )
-        ).<ActionResponse>andThen((l, releasable) -> {
+        ).<ActionResponse>andThen((l, handoffPreparation) -> {
             /*
              Install a cluster state observer to observe handoff or source/target shard primary term change and
              complete the listener accordingly. The retryable action below, retries requests for HANDOFF until this
@@ -146,10 +145,11 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
             AtomicBoolean shouldRetry = new AtomicBoolean(true);  // should retry until cluster state converges
             splitSourceService.waitForHandoffSuccessOrFailure(
                 request.shardId,
+                handoffPreparation.sourceShardId(),
                 request.targetPrimaryTerm,
                 request.sourcePrimaryTerm,
                 shouldRetry,
-                releasable,
+                handoffPreparation.permits(),
                 l
             );
 

@@ -158,12 +158,12 @@ public class SortedNumericFieldDataTests extends AbstractFieldDataImplTestCase {
     }
 
     @Override
-    protected SortedBinaryDocValues.ValueMode expectedValueModeSingleValueWithMissing() {
-        return SortedBinaryDocValues.ValueMode.SINGLE_VALUED;
+    protected SortableBinaryDocValues.ValueMode expectedValueModeSingleValueWithMissing() {
+        return SortableBinaryDocValues.ValueMode.SINGLE_VALUED;
     }
 
     @Override
-    protected SortedBinaryDocValues.ValueMode expectedValueModeSingleValueAllSet() {
-        return SortedBinaryDocValues.ValueMode.SINGLE_VALUED;
+    protected SortableBinaryDocValues.ValueMode expectedValueModeSingleValueAllSet() {
+        return SortableBinaryDocValues.ValueMode.SINGLE_VALUED;
     }
 }

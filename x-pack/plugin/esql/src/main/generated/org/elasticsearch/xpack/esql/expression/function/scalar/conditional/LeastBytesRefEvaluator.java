@@ -79,10 +79,11 @@ public final class LeastBytesRefEvaluator implements ExpressionEvaluator {
       }
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
+          if (valuesBlocks[i].isNull(p)) {
+            result.appendNull();
+            continue position;
+          }
           switch (valuesBlocks[i].getValueCount(p)) {
-            case 0:
-                result.appendNull();
-                continue position;
             case 1:
                 break;
             default:
@@ -132,7 +133,7 @@ public final class LeastBytesRefEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

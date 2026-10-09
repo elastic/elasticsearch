@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -1915,7 +1916,17 @@ public class IngestDocumentTests extends ESTestCase {
             someList.add(someList); // the list contains itself
             ingestDocument.setFieldValue("someList", someList);
             Exception e = expectThrows(IllegalArgumentException.class, () -> new IngestDocument(ingestDocument));
-            assertThat(e.getMessage(), equalTo("Iterable object is self-referencing itself"));
+            assertThat(e.getMessage(), equalTo("Iterable object is self-referencing itself (source document)"));
+        }
+
+        {
+            // the copy constructor rejects self-references in ingest metadata too
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+            Map<String, Object> selfReference = new HashMap<>();
+            selfReference.put("self", selfReference);
+            ingestDocument.getIngestMetadata().put("self", selfReference);
+            Exception e = expectThrows(IllegalArgumentException.class, () -> new IngestDocument(ingestDocument));
+            assertThat(e.getMessage(), equalTo("Iterable object is self-referencing itself (ingest metadata)"));
         }
     }
 
@@ -2007,8 +2018,8 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testDeepCopy() {
         IngestDocument copiedDoc = new IngestDocument(
-            IngestDocument.deepCopyMap(document.getSourceAndMetadata()),
-            IngestDocument.deepCopyMap(document.getIngestMetadata())
+            CollectionUtils.deepCopy(document.getSourceAndMetadata()),
+            CollectionUtils.deepCopy(document.getIngestMetadata())
         );
         assertArrayEquals(
             copiedDoc.getFieldValue(DOUBLE_ARRAY_FIELD, double[].class),

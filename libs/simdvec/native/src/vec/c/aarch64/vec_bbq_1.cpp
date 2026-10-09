@@ -14,29 +14,22 @@
 
 #include <stddef.h>
 #include <arm_neon.h>
-#include <algorithm>
 #include "vec.h"
 #include "vec_common.h"
 #include "aarch64/aarch64_vec_common.h"
 
-static inline int32_t reduce_u8x16_neon(uint8x16_t vec) {
-    // Split the vector into two halves and widen to `uint16x8_t`
-    uint16x8_t low_half = vmovl_u8(vget_low_u8(vec));   // widen lower 8 elements
-    uint16x8_t high_half = vmovl_u8(vget_high_u8(vec)); // widen upper 8 elements
-
-    // Sum the widened halves
-    uint16x8_t sum16 = vaddq_u16(low_half, high_half);
-
-    // Now reduce the `uint16x8_t` to a single `simsimd_u32_t`
-    uint32x4_t sum32 = vpaddlq_u16(sum16);       // pairwise add into 32-bit integers
-    uint64x2_t sum64 = vpaddlq_u32(sum32);       // pairwise add into 64-bit integers
-    int32_t final_sum = vaddvq_u64(sum64);       // final horizontal add to 32-bit result
-    return final_sum;
+// Counts the bits of a & q per byte and folds the counts into acc with UDOT against a constant weight
+// vector: one instruction applies the query plane's bit value and sums four bytes into each 32-bit lane, so
+// no 8-bit partial sums and no periodic reduction are needed. Per lane a step adds at most
+// 4 bytes * 8 bits * weight, far from a u32 overflow.
+static inline uint32x4_t dot_bit_weighted_neon(const uint32x4_t acc, const uint8x16_t a, const uint8x16_t q, const uint8x16_t weight) {
+    return vdotq_u32(acc, vcntq_u8(vandq_u8(a, q)), weight);
 }
 
 template<int query_bits>
 static inline int64_t dotd1qN_inner(const int8_t* a, const int8_t* q, const int32_t length) {
     int64_t bit_result[query_bits] = {};
+    int64_t sum = 0;
 
     const uint8_t* query[query_bits];
     apply_indexed<query_bits>([&](auto I) {
@@ -44,40 +37,26 @@ static inline int64_t dotd1qN_inner(const int8_t* a, const int8_t* q, const int3
     });
 
     int r = 0;
-    constexpr int chunk_size = sizeof(uint64x2_t);
+    constexpr int chunk_size = sizeof(uint8x16_t);
     if (length >= chunk_size) {
-        int iters = length / chunk_size;
-        uint8x16_t zero = vcombine_u8(vcreate_u8(0), vcreate_u8(0));
+        // one accumulator per query plane keeps the UDOT chains independent
+        uint32x4_t acc[query_bits];
+        uint8x16_t weight[query_bits];
+        apply_indexed<query_bits>([&](auto I) {
+            acc[I] = vdupq_n_u32(0);
+            weight[I] = vdupq_n_u8(1 << I);
+        });
 
-        for (int j = 0; j < iters;) {
-            uint8x16_t bit_sum[query_bits];
+        for (; r + chunk_size <= length; r += chunk_size) {
+            const uint8x16_t yv = vld1q_u8((const uint8_t*)a + r);
             apply_indexed<query_bits>([&](auto I) {
-                bit_sum[I] = zero;
-            });
-
-            /*
-            * After every 31 iterations we need to add the
-            * bit sums to the total sum.
-            * We must ensure that the temporary sums <= 255
-            * and 31 * 8 bits = 248 which is OK.
-            */
-            uint64_t limit = std::min(j + 31, iters);
-            for (; j < limit; j++, r += chunk_size)  {
-                uint8x16_t qv[query_bits];
-                apply_indexed<query_bits>([&](auto I) {
-                    qv[I] = vld1q_u8(query[I] + r);
-                });
-                const uint8x16_t yv = vld1q_u8((const uint8_t*)a + r);
-
-                apply_indexed<query_bits>([&](auto I) {
-                    bit_sum[I] = vaddq_u8(bit_sum[I], vcntq_u8(vandq_u8(qv[I], yv)));
-                });
-            }
-
-            apply_indexed<query_bits>([&](auto I) {
-                bit_result[I] += reduce_u8x16_neon(bit_sum[I]);
+                acc[I] = dot_bit_weighted_neon(acc[I], yv, vld1q_u8(query[I] + r), weight[I]);
             });
         }
+
+        apply_indexed<query_bits>([&](auto I) {
+            sum += vaddvq_u32(acc[I]);
+        });
     }
 
     // switch to single 64-bit ops
@@ -108,7 +87,6 @@ static inline int64_t dotd1qN_inner(const int8_t* a, const int8_t* q, const int3
             bit_result[I] += __builtin_popcount(bits & value & 0xFF);
         });
     }
-    int64_t sum = 0;
     apply_indexed<query_bits>([&](auto I) {
         sum += (bit_result[I] << I);
     });
@@ -133,16 +111,21 @@ static inline void dotd1qN_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    constexpr int batches = 2;
-    constexpr int chunk_size = sizeof(uint64x2_t);
+    // four vectors per batch keep twice as many cache misses in flight as two; two query planes share one
+    // accumulator, UDOT folds the plane weight in, so the accumulators, the query planes, the weights and the
+    // loaded vectors of a batch fit in the 32 NEON registers
+    constexpr int batches = 4;
+    constexpr int chunk_size = sizeof(uint8x16_t);
+    constexpr int accs = (query_bits + 1) / 2;
 
     const uint8_t* query[query_bits];
+    uint8x16_t weight[query_bits];
     apply_indexed<query_bits>([&](auto I) {
         query[I] = (const uint8_t*)q + I * length;
+        weight[I] = vdupq_n_u8(1 << I);
     });
 
-    const int iters = length / chunk_size;
-    const uint8x16_t zero = vcombine_u8(vcreate_u8(0), vcreate_u8(0));
+    const int blk = length & ~(chunk_size - 1);
 
     int c = 0;
 
@@ -152,73 +135,55 @@ static inline void dotd1qN_inner_bulk(
             as[I] = (const uint8_t*)mapper(a, c + I, offsets, pitch);
         });
 
-        int64_t bit_result[batches * query_bits] = {};
+        uint32x4_t acc[batches * accs];
+        apply_indexed<batches * accs>([&](auto I) {
+            acc[I] = vdupq_n_u32(0);
+        });
 
-        int r = 0;
-
-        if (length >= chunk_size) {
-            for (int j = 0; j < iters;) {
-                uint8x16_t bit_sum[batches * query_bits];
-                apply_indexed<batches * query_bits>([&](auto B) {
-                    bit_sum[B] = zero;
-                });
-
-                /*
-                * After every 31 iterations we need to add the
-                * bit_sum to the total sum.
-                * We must ensure that the temporary sums <= 255
-                * and 31 * 8 bits = 248 which is OK.
-                */
-                uint64_t limit = std::min(j + 31, iters);
-                for (; j < limit; j++, r+= chunk_size)  {
-                    uint8x16_t qv[query_bits];
-                    apply_indexed<query_bits>([&](auto I) {
-                        qv[I] = vld1q_u8(query[I] + r);
-                    });
-
-                    uint8x16_t yv[batches];
-                    apply_indexed<batches>([&](auto I) {
-                        yv[I] = vld1q_u8(as[I] + r);
-                    });
-
-                    apply_indexed<batches>([&](auto B) {
-                        apply_indexed<query_bits>([&](auto Q) {
-                            constexpr int idx = B * query_bits + Q;
-                            bit_sum[idx] = vaddq_u8(bit_sum[idx], vcntq_u8(vandq_u8(qv[Q], yv[B])));
-                        });
-                    });
-                }
-
-                apply_indexed<batches * query_bits>([&](auto I) {
-                    bit_result[I] += reduce_u8x16_neon(bit_sum[I]);
-                });
-            }
-        }
-
-        // complete using byte ops
-        for (; r < length; r++) {
-            int64_t vs[batches];
-            apply_indexed<batches>([&](auto I) {
-                vs[I] = *((int64_t*)(as[I] + r));
+        for (int r = 0; r < blk; r += chunk_size) {
+            uint8x16_t qv[query_bits];
+            apply_indexed<query_bits>([&](auto I) {
+                qv[I] = vld1q_u8(query[I] + r);
             });
 
-            int64_t qs[query_bits];
+            apply_indexed<batches>([&](auto B) {
+                const uint8x16_t yv = vld1q_u8(as[B] + r);
+                apply_indexed<query_bits>([&](auto Q) {
+                    constexpr int idx = B * accs + Q / 2;
+                    acc[idx] = dot_bit_weighted_neon(acc[idx], yv, qv[Q], weight[Q]);
+                });
+            });
+        }
+
+        int64_t res[batches];
+        apply_indexed<batches>([&](auto B) {
+            res[B] = 0;
+            apply_indexed<accs>([&](auto K) {
+                res[B] += vaddvq_u32(acc[B * accs + K]);
+            });
+        });
+
+        // Byte tail. Single-byte loads only: with sparse addresses a vector can
+        // end right before an unmapped page, so wider loads could fault.
+        for (int r = blk; r < length; r++) {
+            uint8_t vs[batches];
+            apply_indexed<batches>([&](auto I) {
+                vs[I] = as[I][r];
+            });
+
+            uint8_t qs[query_bits];
             apply_indexed<query_bits>([&](auto I) {
-                qs[I] = *((int64_t*)(query[I] + r));
+                qs[I] = query[I][r];
             });
 
             apply_indexed<batches>([&](auto B) {
                 apply_indexed<query_bits>([&](auto Q) {
-                    bit_result[B * query_bits + Q] += __builtin_popcount(qs[Q] & vs[B] & 0xFF);
+                    res[B] += __builtin_popcount(qs[Q] & vs[B]) << Q;
                 });
             });
         }
         apply_indexed<batches>([&](auto B) {
-            int32_t res = 0;
-            apply_indexed<query_bits>([&](auto Q) {
-                res += (bit_result[B * query_bits + Q] << Q);
-            });
-            results[c + B] = (f32_t)res;
+            results[c + B] = (f32_t)res[B];
         });
     }
 

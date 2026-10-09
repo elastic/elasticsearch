@@ -44,7 +44,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Locale;
-import java.util.OptionalInt;
 
 import static fixture.gcs.TestUtils.createServiceAccount;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
@@ -120,17 +119,13 @@ public class GoogleCloudStorageBlobStoreStorageClassTests extends ESTestCase {
             service,
             BigArrays.NON_RECYCLING_INSTANCE,
             randomIntBetween(1, 8) * 1024,
-            OptionalInt.empty(),
+            largeBlobThreshold,
+            ByteSizeValue.ofMb(1).getBytes(),
             BackoffPolicy.noBackoff(),
             new GcsRepositoryStatsCollector(),
             dataStorageClass,
             metadataStorageClass
-        ) {
-            @Override
-            long getLargeBlobThresholdInBytes() {
-                return largeBlobThreshold;
-            }
-        };
+        );
 
         return blobStore.blobContainer(BlobPath.EMPTY);
     }
@@ -211,7 +206,7 @@ public class GoogleCloudStorageBlobStoreStorageClassTests extends ESTestCase {
         assertStorageClass(null, sourceBlobName);
 
         // copy with SNAPSHOT_DATA purpose so the destination is assigned the configured data storage class
-        container.copyBlob(OperationPurpose.SNAPSHOT_DATA, container, sourceBlobName, destBlobName, data.length);
+        container.copyBlob(OperationPurpose.SNAPSHOT_DATA, container, sourceBlobName, destBlobName, data.length, null);
 
         assertStorageClass(dataStorageClass, destBlobName);
     }
@@ -228,7 +223,7 @@ public class GoogleCloudStorageBlobStoreStorageClassTests extends ESTestCase {
         assertStorageClass(null, sourceBlobName);
 
         // copy with SNAPSHOT_METADATA purpose so the destination is assigned the configured metadata storage class
-        container.copyBlob(OperationPurpose.SNAPSHOT_METADATA, container, sourceBlobName, destBlobName, data.length);
+        container.copyBlob(OperationPurpose.SNAPSHOT_METADATA, container, sourceBlobName, destBlobName, data.length, null);
 
         assertStorageClass(metadataStorageClass, destBlobName);
     }

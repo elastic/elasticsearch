@@ -13,14 +13,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
+import org.elasticsearch.action.datastreams.lifecycle.FrozenTransitionStatus;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadProjectAction;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -29,14 +30,22 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.datastreams.lifecycle.FrozenTransitionInfoProvider;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.LongSupplier;
 
 /**
  * Transport action handling the explain the data stream lifecycle requests for one or more data stream lifecycle managed indices.
@@ -47,7 +56,10 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DataStreamLifecycleErrorStore errorStore;
-    private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
+    private final FrozenTransitionInfoProvider frozenTransitionInfoProvider;
+    private final LongSupplier nowSupplier;
+    private final boolean dlmOnly;
 
     @Inject
     public TransportExplainDataStreamLifecycleAction(
@@ -58,7 +70,8 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         DataStreamLifecycleErrorStore dataLifecycleServiceErrorStore,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        DataStreamLifecycleSettings dataStreamLifecycleSettings,
+        FrozenTransitionInfoProvider frozenTransitionInfoProvider
     ) {
         super(
             ExplainDataStreamLifecycleAction.INSTANCE.name(),
@@ -73,7 +86,10 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.errorStore = dataLifecycleServiceErrorStore;
-        this.globalRetentionSettings = globalRetentionSettings;
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
+        this.frozenTransitionInfoProvider = frozenTransitionInfoProvider;
+        this.nowSupplier = threadPool::absoluteTimeInMillis;
+        this.dlmOnly = DataStreamLifecycle.isDataStreamsLifecycleOnlyMode(clusterService.getSettings());
     }
 
     @Override
@@ -87,6 +103,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         ProjectMetadata metadata = state.metadata();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(metadata, request);
         List<ExplainIndexDataStreamLifecycle> explainIndices = new ArrayList<>(concreteIndices.length);
+        Map<String, Set<Index>> pastFrozenAfterByDataStream = new HashMap<>();
         for (String index : concreteIndices) {
             IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
             if (indexAbstraction == null) {
@@ -98,22 +115,28 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             }
             DataStream parentDataStream = indexAbstraction.getParentDataStream();
             if (parentDataStream == null
-                || parentDataStream.isIndexManagedByDataStreamLifecycle(idxMetadata.getIndex(), metadata::index) == false) {
-                explainIndices.add(new ExplainIndexDataStreamLifecycle(index, false, false, null, null, null, null, null));
+                || parentDataStream.isIndexManagedByDataStreamLifecycle(idxMetadata.getIndex(), metadata::index, false) == false) {
+                explainIndices.add(
+                    ExplainIndexDataStreamLifecycle.unmanagedIndexResponse(
+                        index,
+                        describeNotManagedByDlmReason(parentDataStream, idxMetadata, dlmOnly)
+                    )
+                );
                 continue;
             }
 
             RolloverInfo rolloverInfo = idxMetadata.getRolloverInfos().get(parentDataStream.getName());
             TimeValue generationDate = parentDataStream.getGenerationLifecycleDate(idxMetadata);
-            ExplainIndexDataStreamLifecycle explainIndexDataStreamLifecycle = new ExplainIndexDataStreamLifecycle(
+            DataStreamLifecycle lifecycle = parentDataStream.getDataLifecycleForIndex(idxMetadata.getIndex());
+            ExplainIndexDataStreamLifecycle explainIndexDataStreamLifecycle = ExplainIndexDataStreamLifecycle.managedIndexResponse(
                 index,
-                true,
                 parentDataStream.isInternal(),
                 idxMetadata.getCreationDate(),
                 rolloverInfo == null ? null : rolloverInfo.getTime(),
                 generationDate,
-                parentDataStream.getDataLifecycleForIndex(idxMetadata.getIndex()),
-                errorStore.getError(state.projectId(), index)
+                lifecycle,
+                errorStore.getError(state.projectId(), idxMetadata.getIndex()),
+                computeFrozenTransitionStatus(state, parentDataStream, idxMetadata, lifecycle, pastFrozenAfterByDataStream)
             );
             explainIndices.add(explainIndexDataStreamLifecycle);
         }
@@ -123,10 +146,97 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             new ExplainDataStreamLifecycleAction.Response(
                 explainIndices,
                 request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
-                globalRetentionSettings.get(false),
-                globalRetentionSettings.get(true)
+                dataStreamLifecycleSettings.getGlobalRetention(false),
+                dataStreamLifecycleSettings.getGlobalRetention(true)
             )
         );
+    }
+
+    private String describeNotManagedByDlmReason(DataStream parentDataStream, IndexMetadata indexMetadata, boolean dlmOnly) {
+        String indexName = indexMetadata.getIndex().getName();
+        if (indexMetadata.getIndexMode() == IndexMode.LOOKUP) {
+            return "Index [" + indexName + "] is a lookup index which is not compatible with lifecycle management.";
+        }
+        if (parentDataStream == null) {
+            return "Index [" + indexName + "] does not belong to a data stream, so it cannot be managed by data stream lifecycle.";
+        }
+        DataStreamLifecycle lifecycle = parentDataStream.getDataLifecycleForIndex(indexMetadata.getIndex());
+        if (lifecycle == null) {
+            return "Index ["
+                + indexName
+                + "] belongs to data stream ["
+                + parentDataStream.getName()
+                + "] which does not have data stream lifecycle configuration.";
+        }
+        if (lifecycle.enabled() == false) {
+            return "Index ["
+                + indexName
+                + "] belongs to data stream ["
+                + parentDataStream.getName()
+                + "] which has disabled data stream lifecycle.";
+        }
+        assert dlmOnly == false : "In DLM only mode, the only way an index is unmanaged is if the configuration is missing or is disabled.";
+        String ilmPolicy = indexMetadata.getLifecyclePolicyName();
+        if (DataStream.lifecycleManagedBy(
+            ilmPolicy,
+            lifecycle,
+            indexMetadata.getSettings(),
+            indexMetadata.getIndexMode()
+        ) == DataStream.LifecycleManagedBy.ILM) {
+            // At this point, we know that the lifecycle is not null and enabled, so it is safe to suggest flipping the prefer_ilm flag
+            return "Index ["
+                + indexName
+                + "] is managed by Index Lifecycle Management (ILM) policy ["
+                + ilmPolicy
+                + "], you can switch to data stream lifecycle by setting prefer_ilm to false.";
+        }
+        return null;
+    }
+
+    /**
+     * Computes the frozen tier transition status for the given index, or {@code null} if frozen tier transition
+     * state should not be reported: the index is a failure-store index (DLM frozen transitions only ever apply to
+     * backing indices), its lifecycle does not configure {@code frozen_after}, or the transition has already
+     * completed.
+     */
+    private FrozenTransitionStatus computeFrozenTransitionStatus(
+        ProjectState state,
+        DataStream parentDataStream,
+        IndexMetadata idxMetadata,
+        DataStreamLifecycle lifecycle,
+        Map<String, Set<Index>> pastFrozenAfterByDataStream
+    ) {
+        if (lifecycle == null
+            || lifecycle.frozenAfter() == null
+            || parentDataStream.isFailureStoreIndex(idxMetadata.getIndex().getName())) {
+            return null;
+        }
+        if (DataStreamLifecycleService.frozenTransitionCompleted(idxMetadata)) {
+            return null;
+        }
+        if (frozenTransitionInfoProvider.infoAvailable() == false) {
+            return FrozenTransitionStatus.NOT_SUPPORTED;
+        }
+
+        if (DataStreamLifecycleService.indexMarkedForFrozen(idxMetadata)) {
+            // Only marked indices are ever submitted to the transition executor, so an unmarked index can never be
+            // QUEUED or RUNNING; skip the (synchronized) status lookup entirely for the common unmarked case.
+            FrozenTransitionInfoProvider.Status executorStatus = frozenTransitionInfoProvider.getTransitionStatus(
+                state.projectId(),
+                idxMetadata.getIndex().getName()
+            );
+            return switch (executorStatus) {
+                case QUEUED -> FrozenTransitionStatus.QUEUED;
+                case RUNNING -> FrozenTransitionStatus.RUNNING;
+                case NOT_STARTED -> FrozenTransitionStatus.MARKED;
+            };
+        }
+
+        Set<Index> pastFrozenAfter = pastFrozenAfterByDataStream.computeIfAbsent(
+            parentDataStream.getName(),
+            name -> DataStreamLifecycleService.indicesPastFrozenAfter(state.metadata(), parentDataStream, nowSupplier)
+        );
+        return pastFrozenAfter.contains(idxMetadata.getIndex()) ? FrozenTransitionStatus.ELIGIBLE : FrozenTransitionStatus.WAITING;
     }
 
     @Override

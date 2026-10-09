@@ -109,20 +109,16 @@ public class RestRankEvalAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             parseRankEvalRequest(rankEvalRequest, request, parser, clusterSupportsFeature);
         }
-        return channel -> client.executeLocally(
-            RankEvalPlugin.ACTION,
-            rankEvalRequest,
-            new RestToXContentListener<RankEvalResponse>(channel) {
-                @Override
-                public RestResponse buildResponse(RankEvalResponse response, XContentBuilder builder) throws Exception {
-                    try {
-                        return super.buildResponse(response, builder);
-                    } finally {
-                        response.close();
-                    }
+        return channel -> client.execute(RankEvalPlugin.ACTION, rankEvalRequest, new RestToXContentListener<RankEvalResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(RankEvalResponse response, XContentBuilder builder) throws Exception {
+                try {
+                    return super.buildResponse(response, builder);
+                } finally {
+                    response.close();
                 }
             }
-        );
+        });
     }
 
     private static void parseRankEvalRequest(

@@ -47,4 +47,12 @@ public interface OutboundRequest {
     default boolean isStreaming() {
         return false;
     }
+
+    /**
+     * Called when the remote service responds with a 401. Implementations may use this
+     * hook to invalidate cached authentication credentials so the next request re-authenticates.
+     *
+     * <p>The default implementation is a no-op.
+     */
+    default void onAuthenticationFailure() {}
 }

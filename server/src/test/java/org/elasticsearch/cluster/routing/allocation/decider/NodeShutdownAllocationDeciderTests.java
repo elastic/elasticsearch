@@ -34,8 +34,11 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithNoExplanation;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -46,7 +49,8 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         true,
         RecoverySource.EmptyStoreRecoverySource.INSTANCE,
         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
-        ShardRouting.Role.DEFAULT
+        ShardRouting.Role.DEFAULT,
+        ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
     );
     private final ClusterSettings clusterSettings = createBuiltInClusterSettings();
     private final NodeShutdownAllocationDecider decider = new NodeShutdownAllocationDecider();
@@ -85,9 +89,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             RoutingAllocation allocation = createRoutingAllocation(state);
             RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
 
-            Decision decision = decider.canAllocate(shard, routingNode, allocation);
-            assertThat(type.toString(), decision.type(), equalTo(Decision.Type.NO));
-            assertThat(decision.getExplanation(), equalTo("node [" + DATA_NODE.getId() + "] is preparing to be removed from the cluster"));
+            assertNoDecision(type.toString(), allocation, () -> decider.canAllocate(shard, routingNode, allocation));
         }
     }
 
@@ -110,13 +112,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             RoutingAllocation allocation = createRoutingAllocation(state);
             RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
 
-            Decision decision = decider.canRemain(null, shard, routingNode, allocation);
-            assertThat(type.toString(), decision.type(), equalTo(Decision.Type.NO));
-            assertThat(
-                type.toString(),
-                decision.getExplanation(),
-                equalTo("node [" + DATA_NODE.getId() + "] is preparing to be removed from the cluster")
-            );
+            assertNoDecision(type.toString(), allocation, () -> decider.canRemain(null, shard, routingNode, allocation));
         }
     }
 
@@ -160,9 +156,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             ClusterState state = prepareState(type);
             RoutingAllocation allocation = createRoutingAllocation(state);
 
-            Decision decision = decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, allocation);
-            assertThat(decision.type(), equalTo(Decision.Type.NO));
-            assertThat(decision.getExplanation(), equalTo("node [" + DATA_NODE.getId() + "] is preparing to be removed from the cluster"));
+            assertNoDecision(type.toString(), allocation, () -> decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, allocation));
         }
     }
 
@@ -196,10 +190,11 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         var replacementNode = newNode(replacementName, "node-data-1", Set.of(DiscoveryNodeRole.DATA_ROLE));
         state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.getNodes()).add(replacementNode).build()).build();
 
-        assertThatDecision(
-            decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, createRoutingAllocation(state)),
-            Decision.Type.NO,
-            "node [" + DATA_NODE.getId() + "] is preparing to be removed from the cluster"
+        final var replacementAllocation = createRoutingAllocation(state);
+        assertNoDecision(
+            "replacement present",
+            replacementAllocation,
+            () -> decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, replacementAllocation)
         );
         assertThatDecision(
             decider.shouldAutoExpandToNode(indexMetadata, replacementNode, createRoutingAllocation(state)),
@@ -246,6 +241,24 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
 
     private static void assertThatDecision(Decision decision, Decision.Type type, String explanation) {
         assertThat(decision.type(), equalTo(type));
+        assertThat(decision.label(), equalTo(NodeShutdownAllocationDecider.NAME));
         assertThat(decision.getExplanation(), equalTo(explanation));
+    }
+
+    /**
+     * Asserts the decision is a NO for a node being removed, labelled with the decider name both with and without debug, but only
+     * explained when debug is on. Switches {@code allocation} to non-debug.
+     */
+    private void assertNoDecision(String description, RoutingAllocation allocation, Supplier<Decision> decision) {
+        assertThat(
+            description,
+            decision.get(),
+            isNoDecisionWithExplanationMatching(
+                NodeShutdownAllocationDecider.NAME,
+                equalTo("node [" + DATA_NODE.getId() + "] is preparing to be removed from the cluster")
+            )
+        );
+        allocation.debugDecision(false);
+        assertThat(description, decision.get(), isNoDecisionWithNoExplanation(NodeShutdownAllocationDecider.NAME));
     }
 }

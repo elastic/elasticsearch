@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -47,6 +48,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
     private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
     private static final TransportVersion PROJECT_DELETION_GLOBAL_BLOCK = TransportVersion.fromName("project_deletion_global_block");
+    static final TransportVersion PROJECT_CREATION_GLOBAL_BLOCK = TransportVersion.fromName("project_creation_global_block");
 
     private final Set<ClusterBlock> global;
 
@@ -398,7 +400,13 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(MULTI_PROJECT)) {
             writeBlockSet(global, out);
-            out.writeMap(projectBlocksMap, (o, projectId) -> projectId.writeTo(o), (o, projectBlocks) -> projectBlocks.writeTo(out));
+            // To skip writing the project_under_creation block to older versions, we need to do the check here before iterating
+            // the map and write it out, since after filtering out the new block, we might end up with a project entry in
+            // projectBlocksMap that has no blocks at all, which is not allowed by the constructor.
+            final var projectBlocksToWrite = out.getTransportVersion().supports(PROJECT_CREATION_GLOBAL_BLOCK)
+                ? projectBlocksMap
+                : projectBlocksWithoutUnderCreationBlock();
+            out.writeMap(projectBlocksToWrite, (o, projectId) -> projectId.writeTo(o), (o, projectBlocks) -> projectBlocks.writeTo(out));
         } else {
             if (noProjectOrDefaultProjectOnly()) {
                 writeToSingleProjectNode(out);
@@ -485,6 +493,36 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
                 }
             }
         }
+    }
+
+    /**
+     * Returns {@link #projectBlocksMap} adjusted for serialization to a version that predates
+     * {@link #PROJECT_CREATION_GLOBAL_BLOCK}: the under-creation block is removed from every project's project-global
+     * blocks, and any project left with no blocks at all is dropped (an empty {@link ProjectBlocks} would otherwise
+     * violate the no-empty-projects invariant checked in the {@link ClusterBlocks} constructor on read). Only called on
+     * those older versions; this method and its call site can be removed once that version is no longer a BWC boundary.
+     */
+    private Map<ProjectId, ProjectBlocks> projectBlocksWithoutUnderCreationBlock() {
+        Map<ProjectId, ProjectBlocks> filteredCopy = null;
+        for (Map.Entry<ProjectId, ProjectBlocks> entry : projectBlocksMap.entrySet()) {
+            final ProjectBlocks projectBlocks = entry.getValue();
+            if (projectBlocks.projectGlobals().contains(ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK) == false) {
+                continue;
+            }
+            if (filteredCopy == null) {
+                // take a copy of the whole thing (would include entries skipped above too).
+                filteredCopy = new HashMap<>(projectBlocksMap);
+            }
+            final Set<ClusterBlock> remainingGlobals = new HashSet<>(projectBlocks.projectGlobals());
+            remainingGlobals.remove(ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK);
+            if (projectBlocks.indices().isEmpty() && remainingGlobals.isEmpty()) {
+                filteredCopy.remove(entry.getKey());
+            } else {
+                filteredCopy.put(entry.getKey(), new ProjectBlocks(projectBlocks.indices(), Set.copyOf(remainingGlobals)));
+            }
+        }
+        /// if there were no {@link ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK}, return the same map.
+        return filteredCopy == null ? projectBlocksMap : filteredCopy;
     }
 
     private static void writeBlockSet(Set<ClusterBlock> blocks, StreamOutput out) throws IOException {

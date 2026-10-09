@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -20,7 +21,7 @@ import java.util.Objects;
 
 /**
  * Unresolved PromQL function call produced by the parser and replaced by a resolved node
- * (e.g. {@link WithinSeriesAggregate}, {@link AcrossSeriesAggregate}) during analysis.
+ * (e.g. {@link WithinSeriesAggregate}, {@link AcrossSeriesAggregate}, {@link AcrossSeriesReduction}) during analysis.
  * <p>
  *     The parser cannot validate function names, arity, or parameter types without
  *     consulting the function registry; that semantic work is deliberately deferred
@@ -59,6 +60,11 @@ public final class UnresolvedPromqlFunction extends LogicalPlan implements Promq
         this.rawParams = rawParams;
         this.grouping = grouping;
         this.groupingKeys = groupingKeys != null ? groupingKeys : List.of();
+    }
+
+    @Override
+    public TranslationContext.IntermediateResult translate(TranslationContext translation) {
+        throw new QlIllegalArgumentException("Unsupported PromQL plan node: {}", this);
     }
 
     public String functionName() {

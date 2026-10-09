@@ -32,6 +32,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.lucene.search.FuzzyQueries;
+import org.elasticsearch.lucene.search.cost.FuzzyQueryCostEstimator;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -337,6 +338,19 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         });
     }
 
+    public void testDeepBoolTowerOfCheapFuzzyClausesTripsBreaker() {
+        assertCircuitBreakerTripsOnQueryConstruction("1mb", () -> {
+            QueryBuilder tower = new FuzzyQueryBuilder(TEXT_FIELD_NAME, "abc").fuzziness(Fuzziness.ONE).prefixLength(3);
+            for (int i = 0; i < 150; i++) {
+                BoolQueryBuilder level = new BoolQueryBuilder();
+                level.must(tower);
+                level.should(new FuzzyQueryBuilder(TEXT_FIELD_NAME, "abc").fuzziness(Fuzziness.ONE).prefixLength(3));
+                tower = level;
+            }
+            return tower;
+        });
+    }
+
     public void testSingleFuzzyClauseTripsCircuitBreakerAtConstruction() throws IOException {
         CircuitBreaker cb = createCircuitBreakerService("2kb");
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
@@ -503,6 +517,63 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         assertTrue(
             "larger prefix must reduce the cost estimate (" + longerTermOneEdit + " vs " + longerTermLargePrefix + ")",
             longerTermLargePrefix < longerTermOneEdit
+        );
+    }
+
+    public void testFuzzyCostEstimateScalesWithTopTermsRewriteSize() {
+        Term term = new Term(TEXT_FIELD_NAME, "value");
+        FuzzyQuery few = new FuzzyQuery(term, 1, 0, 10, true);
+        FuzzyQuery many = new FuzzyQuery(term, 1, 0, 200, true);
+
+        long fewBytes = FuzzyQueries.estimateBytes(few);
+        long manyBytes = FuzzyQueries.estimateBytes(many);
+
+        assertTrue(
+            "a larger top-terms expansion cap must yield a larger cost estimate (" + fewBytes + " vs " + manyBytes + ")",
+            manyBytes > fewBytes
+        );
+    }
+
+    public void testFuzzyCostEstimateForBooleanRewritesIgnoresMaxExpansionsAndUsesMaxCharged() {
+        Term term = new Term(TEXT_FIELD_NAME, "value");
+        FuzzyQuery smallDeclared = new FuzzyQuery(term, 1, 0, 10, true, MultiTermQuery.SCORING_BOOLEAN_REWRITE);
+        FuzzyQuery largeDeclared = new FuzzyQuery(term, 1, 0, 500, true, MultiTermQuery.SCORING_BOOLEAN_REWRITE);
+        FuzzyQuery constantScoreBoolean = new FuzzyQuery(term, 1, 0, 10, true, MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE);
+        FuzzyQuery topTermsAtMaxCharged = new FuzzyQuery(term, 1, 0, FuzzyQueryCostEstimator.MAX_CHARGED_EXPANSIONS, true);
+
+        long smallDeclaredBytes = FuzzyQueries.estimateBytes(smallDeclared);
+        long largeDeclaredBytes = FuzzyQueries.estimateBytes(largeDeclared);
+        long constantScoreBooleanBytes = FuzzyQueries.estimateBytes(constantScoreBoolean);
+        long topTermsAtMaxChargedBytes = FuzzyQueries.estimateBytes(topTermsAtMaxCharged);
+
+        assertEquals(
+            "scoring_boolean must charge the same regardless of the query's declared maxExpansions",
+            smallDeclaredBytes,
+            largeDeclaredBytes
+        );
+        assertEquals("scoring_boolean and constant_score_boolean must charge identically", smallDeclaredBytes, constantScoreBooleanBytes);
+        assertEquals(
+            "a boolean rewrite must charge exactly as much as a top-terms rewrite capped at MAX_CHARGED_EXPANSIONS",
+            topTermsAtMaxChargedBytes,
+            smallDeclaredBytes
+        );
+    }
+
+    public void testFuzzyCostEstimateForConstantScoreRewritesUsesDefaultMaxExpansions() {
+        Term term = new Term(TEXT_FIELD_NAME, "value");
+        FuzzyQuery constantScore = new FuzzyQuery(term, 1, 0, 10, true, MultiTermQuery.CONSTANT_SCORE_REWRITE);
+        FuzzyQuery constantScoreBlended = new FuzzyQuery(term, 1, 0, 500, true, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
+        FuzzyQuery topTermsAtDefault = new FuzzyQuery(term, 1, 0, FuzzyQuery.defaultMaxExpansions, true);
+
+        long constantScoreBytes = FuzzyQueries.estimateBytes(constantScore);
+        long constantScoreBlendedBytes = FuzzyQueries.estimateBytes(constantScoreBlended);
+        long topTermsAtDefaultBytes = FuzzyQueries.estimateBytes(topTermsAtDefault);
+
+        assertEquals("constant_score and constant_score_blended must charge identically", constantScoreBytes, constantScoreBlendedBytes);
+        assertEquals(
+            "a constant-score rewrite must charge exactly as much as a top-terms rewrite at the default cap",
+            topTermsAtDefaultBytes,
+            constantScoreBytes
         );
     }
 

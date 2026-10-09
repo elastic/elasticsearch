@@ -13,6 +13,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.BitsIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.lucene.search.CostlyMultiTermQueries;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.ProfileWeight;
@@ -55,7 +57,7 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -63,6 +65,7 @@ import java.util.stream.Collectors;
  */
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private static final MatchNoDocsQuery REWRITE_TIMEOUT = new MatchNoDocsQuery("rewrite timed out");
+    private static final Releasable NOOP_RELEASABLE = () -> {};
 
     /**
      * The interval at which we check for search cancellation when we cannot use
@@ -80,9 +83,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Nullable
     private CircuitBreaker circuitBreaker;
 
-    private final ThreadLocal<long[]> leafExecutionBytes = ThreadLocal.withInitial(() -> new long[1]);
-
-    private final AtomicLong outstandingPointRangeExecutionBytes = new AtomicLong();
+    private final AtomicReference<LeafExecutionAccounting> leafExecutionAccounting = new AtomicReference<>();
 
     private final MutableQueryTimeout cancellable;
 
@@ -174,45 +175,44 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     public void setCircuitBreaker(@Nullable CircuitBreaker circuitBreaker) {
+        LeafExecutionAccounting previous = leafExecutionAccounting.getAndSet(null);
+        if (previous != null) {
+            previous.close();
+        }
         this.circuitBreaker = circuitBreaker;
     }
 
     /**
-     * Reserve {@code bytes} of point-range execution RAM on the request breaker for the leaf currently
-     * being scored on this thread, recording it so {@link #searchLeaf} can release it once the leaf is
-     * done. No-op when no breaker is configured or {@code bytes <= 0}. Propagates
-     * {@link org.elasticsearch.common.breaker.CircuitBreakingException} when the reservation trips the
-     * breaker; in that case nothing is recorded because the breaker did not commit the bytes.
+     * The request circuit breaker for {@code searcher}, or {@code null} when it is not a {@link ContextIndexSearcher} or has no breaker
+     * configured (e.g. percolator or tests). Meant to be called from {@code Query#createWeight} to capture the breaker for later checks.
      */
-    void chargeLeafExecutionBytes(long bytes) {
-        if (circuitBreaker == null || bytes <= 0L) {
-            return;
-        }
-        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "pointrange-execution");
-        leafExecutionBytes.get()[0] += bytes;
-        outstandingPointRangeExecutionBytes.addAndGet(bytes);
+    @Nullable
+    public static CircuitBreaker circuitBreakerOrNull(IndexSearcher searcher) {
+        return searcher instanceof ContextIndexSearcher cis ? cis.circuitBreaker : null;
     }
 
     /**
-     * Release any point-range execution RAM charged on this thread since {@code baseline} (the value
-     * returned by an earlier {@link #leafExecutionBytesBaseline()} call), returning the tally to that
-     * baseline. Called from a {@code finally} block in {@link #searchLeaf}.
+     * Checkpoint for query-time binary doc values decoding. A large should-fan-out of binary-doc-values matcher queries opens one decoder
+     * per surviving clause/segment pair, each holding a multi-hundred-KB decode buffer that is invisible to any breaker. Passing 0 bytes
+     * means the child breaker never accumulates (nothing to release), but the call still runs the parent's real-heap check, which trips
+     * once the accumulating buffers push heap over the limit - turning a node OOM into a recoverable
+     * {@link org.elasticsearch.common.breaker.CircuitBreakingException}.
      */
-    private void releaseLeafExecutionBytes(long baseline) {
-        if (circuitBreaker == null) {
-            return;
+    public static void checkBinaryDvDecodeBreaker(@Nullable CircuitBreaker breaker) {
+        if (breaker != null) {
+            // Passing 0 bytes means the child breaker never accumulates and hence there is no need to explicitly release anything.
+            // The call still runs the parent's real-heap check, which trips once the accumulating buffers push heap over the limit.
+            breaker.addEstimateBytesAndMaybeBreak(0L, "binary_doc_values_decode");
         }
-        long[] holder = leafExecutionBytes.get();
-        long toRelease = holder[0] - baseline;
-        if (toRelease > 0L) {
-            circuitBreaker.addWithoutBreaking(-toRelease);
-            outstandingPointRangeExecutionBytes.addAndGet(-toRelease);
-        }
-        holder[0] = baseline;
     }
 
-    private long leafExecutionBytesBaseline() {
-        return circuitBreaker == null ? 0L : leafExecutionBytes.get()[0];
+    /**
+     * As {@link #checkBinaryDvDecodeBreaker(CircuitBreaker)}, resolving the breaker from {@code searcher}. Shaped to be
+     * passed as a method reference where a caller can only be handed a searcher - see {@code ScanBudget} in the columnar
+     * library, which has no notion of a circuit breaker of its own.
+     */
+    public static void checkBinaryDvDecodeBreaker(IndexSearcher searcher) {
+        checkBinaryDvDecodeBreaker(circuitBreakerOrNull(searcher));
     }
 
     /**
@@ -248,9 +248,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // of memory.
         this.cancellable.clear();
 
-        long remaining = outstandingPointRangeExecutionBytes.getAndSet(0L);
-        if (circuitBreaker != null && remaining > 0L) {
-            circuitBreaker.addWithoutBreaking(-remaining);
+        LeafExecutionAccounting accounting = leafExecutionAccounting.getAndSet(null);
+        if (accounting != null) {
+            accounting.close();
         }
     }
 
@@ -322,9 +322,41 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
         PointRangeQuery pointRangeQuery = pointRangeQueryOrNull(query);
         if (circuitBreaker != null && pointRangeQuery != null) {
+            getOrCreateLeafExecutionAccounting();
             return new PointRangeBreakerWeight(this, weight, pointRangeQuery, query instanceof IndexOrDocValuesQuery);
         }
+        Query multiTermQuery = multiTermQueryOrNull(unwrapBoost(query));
+        if (circuitBreaker != null && multiTermQuery != null) {
+            getOrCreateLeafExecutionAccounting();
+            return new MultiTermBreakerWeight(this, weight, multiTermQuery, unwrapBoost(query) instanceof IndexOrDocValuesQuery);
+        }
         return weight;
+    }
+
+    void chargeLeaf(LeafReaderContext ctx, long bytes, String label) {
+        LeafExecutionAccounting accounting = getOrCreateLeafExecutionAccounting();
+        if (accounting != null) {
+            accounting.charge(ctx, bytes, label);
+        }
+    }
+
+    @Nullable
+    private LeafExecutionAccounting getOrCreateLeafExecutionAccounting() {
+        LeafExecutionAccounting existing = leafExecutionAccounting.get();
+        if (existing != null) {
+            return existing;
+        }
+        CircuitBreaker breaker = this.circuitBreaker;
+        if (breaker == null) {
+            return null;
+        }
+        LeafExecutionAccounting created = new LeafExecutionAccounting(breaker, getLeafContexts().size());
+        return leafExecutionAccounting.compareAndSet(null, created) ? created : leafExecutionAccounting.get();
+    }
+
+    /** Test-only */
+    boolean hasLeafExecutionAccounting() {
+        return leafExecutionAccounting.get() != null;
     }
 
     private static PointRangeQuery pointRangeQueryOrNull(Query query) {
@@ -335,6 +367,25 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return prq;
         }
         return null;
+    }
+
+    @Nullable
+    private static Query multiTermQueryOrNull(Query query) {
+        if (query instanceof IndexOrDocValuesQuery iodvq) {
+            query = iodvq.getIndexQuery();
+        }
+        return CostlyMultiTermQueries.isCostlyMultiTermQuery(query) ? query : null;
+    }
+
+    /**
+     * Unwraps {@link BoostQuery} only. {@link ConstantScoreQuery#createWeight} recurses through this override, so its child is
+     * already wrapped once; unwrapping it here too would double-charge.
+     */
+    private static Query unwrapBoost(Query query) {
+        while (query instanceof BoostQuery boostQuery) {
+            query = boostQuery.getQuery();
+        }
+        return query;
     }
 
     /**
@@ -540,8 +591,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector) throws IOException {
         cancellable.checkCancelled();
 
-        final long leafExecutionBaseline = leafExecutionBytesBaseline();
-        try {
+        final LeafExecutionAccounting accounting = this.leafExecutionAccounting.get();
+        try (Releasable ignored = accounting == null ? NOOP_RELEASABLE : accounting.enterLeaf(ctx)) {
             final LeafCollector leafCollector;
             try {
                 leafCollector = collector.getLeafCollector(ctx);
@@ -589,8 +640,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // Finish the leaf collection in preparation for the next.
             // This includes any collection that was terminated early via `CollectionTerminatedException`
             leafCollector.finish();
-        } finally {
-            releaseLeafExecutionBytes(leafExecutionBaseline);
         }
     }
 

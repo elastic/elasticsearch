@@ -11,11 +11,13 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.isA;
 
 public class InvalidRepositoryTests extends ESTestCase {
@@ -37,5 +39,20 @@ public class InvalidRepositoryTests extends ESTestCase {
         assertThat(expectedException.getMessage(), equalTo("[name] repository type [type] failed to create on current node"));
         assertThat(expectedException.getCause(), isA(RepositoryException.class));
         assertThat(expectedException.getCause().getMessage(), equalTo("[name] failed to create repository"));
+    }
+
+    public void testDeprecationInfos() {
+        assertThat(
+            repository.getDeprecationInfos(),
+            hasItem(
+                new RepositoryDeprecationInfo(
+                    RepositoryDeprecationInfo.Level.CRITICAL,
+                    "Invalid repository",
+                    ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                    "This repository could not be initialized. Fix the repository configuration before upgrading.",
+                    false
+                )
+            )
+        );
     }
 }

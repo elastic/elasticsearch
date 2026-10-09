@@ -1,5 +1,0 @@
-area: Security
-issues: []
-pr: 147782
-summary: Add ES|QL datasource and dataset index privileges
-type: enhancement

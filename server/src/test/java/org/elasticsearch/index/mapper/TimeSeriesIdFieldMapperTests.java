@@ -775,6 +775,103 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         assertThat(failure.getMessage(), equalTo("[5:1] failed to parse: Illegal base64 character 20"));
     }
 
+    // parseAndGetTsid holds @timestamp fixed, so equality of the _tsid alone decides whether two documents collide on
+    // the (_tsid, @timestamp) primary key and one is dropped. See https://github.com/elastic/elasticsearch/issues/99123.
+
+    private DocumentMapper metricsMapper() throws IOException {
+        return createDocumentMapper("metricset,pod", mapping(b -> {
+            b.startObject("metricset").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("pod").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("gauge").field("type", "double").field("time_series_metric", "gauge").endObject();
+            b.startObject("counter").field("type", "double").field("time_series_metric", "counter").endObject();
+        }));
+    }
+
+    public void testIdenticalDocumentsShareTsid() throws IOException {
+        final DocumentMapper docMapper = metricsMapper();
+
+        final BytesRef first = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("gauge", 10));
+        final BytesRef second = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("gauge", 10));
+
+        assertThat(second, equalTo(first));
+    }
+
+    public void testSameMetricDifferentValueShareTsid() throws IOException {
+        final DocumentMapper docMapper = metricsMapper();
+
+        final BytesRef first = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("gauge", 10));
+        final BytesRef second = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("gauge", 20));
+
+        // Same dimensions, metric and @timestamp with a different value: the documents share a _tsid and collide, so
+        // the earlier value is overwritten. The metric is the same, so this is not the distinct-metric case of #99123.
+        assertThat(second, equalTo(first));
+    }
+
+    public void testDifferentMetricsShareTsid() throws IOException {
+        final DocumentMapper docMapper = metricsMapper();
+
+        final BytesRef gauge = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("gauge", 10));
+        final BytesRef counter = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("counter", 10));
+
+        // Bug #99123: gauge and counter are distinct metrics, but the metric name is not part of the _tsid, so they
+        // collide and one document is lost. Ideally these would differ.
+        assertThat(counter, equalTo(gauge));
+    }
+
+    public void testDifferentDimensionsProduceDifferentTsid() throws IOException {
+        final DocumentMapper docMapper = metricsMapper();
+
+        final BytesRef first = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("gauge", 10));
+        final BytesRef second = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p2").field("gauge", 10));
+
+        assertThat(second, not(equalTo(first)));
+    }
+
+    public void testMetricNamesHashDimensionAvoidsCollision() throws IOException {
+        final DocumentMapper docMapper = createDocumentMapper("metricset,pod,_metric_names_hash", mapping(b -> {
+            b.startObject("metricset").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("pod").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("_metric_names_hash").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("gauge").field("type", "double").field("time_series_metric", "gauge").endObject();
+            b.startObject("counter").field("type", "double").field("time_series_metric", "counter").endObject();
+        }));
+
+        final BytesRef gauge = parseAndGetTsid(
+            docMapper,
+            b -> b.field("metricset", "pod").field("pod", "p1").field("_metric_names_hash", "gauge").field("gauge", 10)
+        );
+        final BytesRef counter = parseAndGetTsid(
+            docMapper,
+            b -> b.field("metricset", "pod").field("pod", "p1").field("_metric_names_hash", "counter").field("counter", 10)
+        );
+
+        // Mirrors the OTLP mitigation (see TsidBuilder#OTEL_METRIC_FIELD and MetricDocumentBuilder): promoting a
+        // per-metric-name-set hash to a dimension makes the two documents differ on _tsid so they no longer collide.
+        assertThat(counter, not(equalTo(gauge)));
+    }
+
+    public void testSameMetricNamesHashShareTsid() throws IOException {
+        final DocumentMapper docMapper = createDocumentMapper("metricset,pod,_metric_names_hash", mapping(b -> {
+            b.startObject("metricset").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("pod").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("_metric_names_hash").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("gauge").field("type", "double").field("time_series_metric", "gauge").endObject();
+        }));
+
+        final BytesRef first = parseAndGetTsid(
+            docMapper,
+            b -> b.field("metricset", "pod").field("pod", "p1").field("_metric_names_hash", "gauge").field("gauge", 10)
+        );
+        final BytesRef second = parseAndGetTsid(
+            docMapper,
+            b -> b.field("metricset", "pod").field("pod", "p1").field("_metric_names_hash", "gauge").field("gauge", 20)
+        );
+
+        // Same _metric_names_hash yields the same _tsid, so the documents collide and the earlier value is overwritten.
+        // The _metric_names_hash dimension separates distinct metric name sets, not repeated samples of one metric.
+        assertThat(second, equalTo(first));
+    }
+
     public void testValueForDisplay() throws Exception {
         DocumentMapper docMapper = createDocumentMapper("a", mapping(b -> {
             b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();

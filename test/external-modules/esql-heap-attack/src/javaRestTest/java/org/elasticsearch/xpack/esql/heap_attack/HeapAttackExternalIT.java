@@ -12,6 +12,7 @@ import fixture.s3.S3HttpHandler;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -35,13 +36,16 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.BUCKET;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Heap-attack suite for the {@code FROM <dataset>} ES|QL command over external datasources. The mirror
  * image of {@link HeapAttackIT}: instead of attacking the cluster from inside (FROM + bulk-indexed data),
  * we attack it from outside by serving pathologically large or fat datasource files via an in-memory S3
  * fixture and submitting {@code FROM <dataset>} queries that would crash the node if the request breaker
- * did not intervene. Each scenario registers a dataset (bound to a single {@code auth=none} S3 data
+ * did not intervene. Each scenario registers a dataset (bound to a single {@code auth=anonymous} S3 data
  * source against the fixture) pointing at its uploaded object key, then queries it by name. Because the
  * data source persists no secrets, no project encryption key is required.
  * <p>
@@ -70,7 +74,7 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
      *  with {@code /{bucket}/{basePath}/}, where the fixture sets basePath = WAREHOUSE. */
     private static final String KEY_PREFIX = WAREHOUSE + "/heap-attack-external";
 
-    /** Name of the {@code auth=none} S3 data source backing every {@code FROM <dataset>} query in this
+    /** Name of the {@code auth=anonymous} S3 data source backing every {@code FROM <dataset>} query in this
      *  suite. Registered once against the in-memory fixture; since it persists no secrets it requires no
      *  project encryption key. */
     private static final String DATA_SOURCE = "heap_attack_s3";
@@ -165,12 +169,17 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
     }
 
     /**
-     * Registers the {@code auth=none} S3 data source the suite's datasets bind to. The fixture serves
+     * Registers the {@code auth=anonymous} S3 data source the suite's datasets bind to. The fixture serves
      * blobs without an {@code Authorization} header, so anonymous reads succeed; persisting no secrets
      * means no project encryption key is needed. Idempotent via {@link DatasetRegistry#ensureDataSource}.
      */
     private void ensureDataSourceRegistered() throws IOException {
-        DatasetRegistry.ensureDataSource(adminClient(), DATA_SOURCE, "s3", Map.of("endpoint", S3_FIXTURE.getAddress(), "auth", "none"));
+        DatasetRegistry.ensureDataSource(
+            adminClient(),
+            DATA_SOURCE,
+            "s3",
+            Map.of("endpoint", S3_FIXTURE.getAddress(), "auth", "anonymous")
+        );
     }
 
     /*
@@ -227,9 +236,18 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
         // accumulators). Sizing against the breaker budget (not total heap) leaves headroom for the
         // untracked allocations from the S3 client's Netty infrastructure and the format-specific
         // parsing pipeline.
+        //
+        // ZSTD is tighter. PanamaZstdInputStream holds an 8 MiB native back-reference window plus
+        // staging copies; window growth is addWithoutBreaking, and schema metadata decompresses
+        // with a null breaker. Four rows per key (the uncompressed default) then kills the 512 MB
+        // node before the hash table trips — ConnectionClosedException, not 429. One row per key
+        // still creates the same groups. Pipelined STATS then cancels the GET mid-frame, which
+        // surfaces as 400 Truncated zstd rather than 429; sequential parse plus allowing that
+        // abort keep the node-alive invariant without disabling the test.
         long breakerBudget = clusterHeapMax * ExternalClusters.BREAKER_LIMIT_PERCENT / 100;
         int baseDistinctKeys = (int) Math.min(MAX_ROWS / 4, breakerBudget / 64L * 3 / 2);
-        int baseRowCount = baseDistinctKeys * 4;
+        int rowsPerKey = compression == Compression.ZSTD ? 1 : 4;
+        int baseRowCount = baseDistinctKeys * rowsPerKey;
         // Same key across attempts so the fixture's blob map holds at most one payload per test
         // method — otherwise five attempts × ~200 MB pile up in the test JVM heap.
         String key = scenarioKey("statsblowup", format, compression);
@@ -238,7 +256,7 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
         // key's extension, so the dataset carries no WITH settings.
         String dataset = datasetName("statsblowup", format, compression);
         DatasetRegistry.ensureDataset(adminClient(), dataset, DATA_SOURCE, "s3://" + BUCKET + "/" + key, null);
-        assertCircuitBreaks(attempt -> {
+        TryCircuitBreaking blowup = attempt -> {
             int distinctKeys = (int) Math.min(MAX_ROWS / 4, (long) baseDistinctKeys * attempt);
             int rowCount = (int) Math.min(MAX_ROWS, (long) baseRowCount * attempt);
             byte[] payload = HeapAttackExternalFixtures.maybeCompress(
@@ -248,8 +266,60 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
             );
             S3FixtureUtils.addBlobToFixture(handler(), key, payload);
             String esql = "FROM " + dataset + " | STATS c = COUNT(*) BY id";
-            return runQueryAsMap(esql);
-        });
+            return runQueryAsMap(esql, compression == Compression.ZSTD);
+        };
+        if (compression == Compression.ZSTD) {
+            assertCircuitBreaksAllowingCancelledDecompress(blowup);
+        } else {
+            assertCircuitBreaks(blowup);
+        }
+    }
+
+    /**
+     * A streaming query must release its planning reservation the way a regular query does. The leak
+     * is only each file's listing and schema bytes, far below the idle tolerance of
+     * {@link #allowedRequestBreakerBaselineBytes()}, so this measures the request breaker around the
+     * queries directly, over many files and several queries so a leak cannot hide in that tolerance.
+     */
+    public void testStreamingQueryReleasesPlanningReservation() throws Exception {
+        assumeTrue("ES|QL streaming is not available in release builds yet", Build.current().isSnapshot());
+        String prefix = KEY_PREFIX + "/" + sanitizedTestName();
+        for (int f = 0; f < 200; f++) {
+            S3FixtureUtils.addBlobToFixture(handler(), prefix + "/part-" + f + ".csv", HeapAttackExternalFixtures.csvManyRows(1, 1));
+        }
+        String dataset = datasetName("streamrelease", Format.CSV, Compression.NONE);
+        DatasetRegistry.ensureDataset(adminClient(), dataset, DATA_SOURCE, "s3://" + BUCKET + "/" + prefix + "/*.csv", null);
+        String esql = "FROM " + dataset + " | STATS c = COUNT(*)";
+        runQueryAsMap(esql, false);
+        long baseline = requestBreakerBytes();
+
+        for (int q = 0; q < 10; q++) {
+            runQueryAsMap(esql, false);
+        }
+        assertBusy(() -> assertThat("regular queries", requestBreakerBytes(), lessThanOrEqualTo(baseline + LEAK_SLACK_BYTES)));
+
+        for (int q = 0; q < 10; q++) {
+            StreamSummary s = streamQuery(esql, 10);
+            assertThat(s.errors(), empty());
+            assertThat(s.rowCount(), equalTo(1L));
+        }
+        assertBusy(() -> assertThat("streaming queries", requestBreakerBytes(), lessThanOrEqualTo(baseline + LEAK_SLACK_BYTES)));
+    }
+
+    /** Well below the ~200&nbsp;KB each query over 200 files reserves for its listing and schemas. */
+    private static final long LEAK_SLACK_BYTES = 64 * 1024;
+
+    private static long requestBreakerBytes() throws IOException {
+        Response response = adminClient().performRequest(
+            new Request("GET", "/_nodes/stats/breaker?filter_path=nodes.*.breakers.request.estimated_size_in_bytes")
+        );
+        Map<?, ?> nodes = (Map<?, ?>) responseAsMap(response).get("nodes");
+        long total = 0;
+        for (Object node : nodes.values()) {
+            Map<?, ?> request = (Map<?, ?>) ((Map<?, ?>) ((Map<?, ?>) node).get("breakers")).get("request");
+            total += ((Number) request.get("estimated_size_in_bytes")).longValue();
+        }
+        return total;
     }
 
     /*
@@ -306,11 +376,19 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
         );
     }
 
-    private Map<String, Object> runQueryAsMap(String esql) throws IOException {
+    /**
+     * @param sequentialParse {@code true} pins {@code external_parsing_parallelism} to 1 so a
+     *                        {@code .csv.zst} read stays on the sequential codec path. Parallel
+     *                        streaming parse wraps a cancelled GET as {@code Truncated zstd input}.
+     */
+    private Map<String, Object> runQueryAsMap(String esql, boolean sequentialParse) throws IOException {
         // Wrap in JSON {"query":"..."} the same way HeapAttackRestHelpers#query expects.
-        String body = "{\"query\":\"" + esql.replace("\"", "\\\"") + "\"}";
-        Response response = query(body, null);
-        Map<String, Object> map = responseAsMap(response);
-        return map;
+        StringBuilder body = new StringBuilder("{\"query\":\"").append(esql.replace("\"", "\\\"")).append("\"");
+        if (sequentialParse) {
+            body.append(", \"pragma\": {\"external_parsing_parallelism\": 1}");
+        }
+        body.append("}");
+        Response response = query(body.toString(), null);
+        return responseAsMap(response);
     }
 }

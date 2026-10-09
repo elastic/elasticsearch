@@ -13,6 +13,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 public class ModSerializationTests extends AbstractArithmeticSerializationTests<Mod> {
     @Override
     protected Mod create(Source source, Expression left, Expression right) {
-        return new Mod(source, left, right);
+        return new Mod(source, left, right, randomBoolean());
     }
 }

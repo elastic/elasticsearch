@@ -40,6 +40,10 @@
           "time_series_metric": "counter"
         }
       }
+    },
+    "request_duration": {
+      "type": "exponential_histogram",
+      "time_series_metric": "histogram"
     }
   }
 }

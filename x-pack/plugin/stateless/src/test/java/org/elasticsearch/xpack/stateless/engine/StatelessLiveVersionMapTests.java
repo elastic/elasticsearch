@@ -50,7 +50,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
         var id = "test";
-        Translog.Location loc = randomTranslogLocation();
+        Translog.OperationLocation loc = randomOperationLocation();
         var indexVersionValue = newIndexVersionValue(loc, 1, 1, 1);
         putIndex(map, id, indexVersionValue);
         assertEquals(indexVersionValue, get(map, id));
@@ -88,7 +88,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         deleteVersionValue = newDeleteVersionValue(2, 2, 2, 2);
         putDelete(map, id, deleteVersionValue);
         assertEquals(deleteVersionValue, get(map, id));
-        var indexValueVersion2 = newIndexVersionValue(randomTranslogLocation(), 3, 3, 1);
+        var indexValueVersion2 = newIndexVersionValue(randomOperationLocation(), 3, 3, 1);
         putIndex(map, id, indexValueVersion2);
         assertThat(archive.archivePerGeneration().size(), equalTo(0));
         refresh(map);
@@ -108,19 +108,19 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
         var id = "test";
-        putIndex(map, id, newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        putIndex(map, id, newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
         assertThat(archive.archivePerGeneration().size(), equalTo(0));
         refresh(map);
         assertThat(archive.archivePerGeneration().size(), equalTo(1));
         var archiveMap = archive.archivePerGeneration().get(preCommitGeneration.get() + 1);
         assertNotNull(archiveMap);
-        var update = newIndexVersionValue(randomTranslogLocation(), 2, 2, 1);
+        var update = newIndexVersionValue(randomOperationLocation(), 2, 2, 1);
         putIndex(map, id, update);
         refresh(map);
         assertEquals(update, get(map, id));
         flush(map, currentGeneration, preCommitGeneration);
         // while the commit if propagating to the unpromotables, a new update is added
-        var update2 = newIndexVersionValue(randomTranslogLocation(), 1, 1, 1);
+        var update2 = newIndexVersionValue(randomOperationLocation(), 1, 1, 1);
         putIndex(map, id, update2);
         assertEquals(update2, get(map, id));
         refresh(map);
@@ -148,7 +148,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         var map = newLiveVersionMap(archive);
         var id = "test";
         assertThat(archive.getMinDeleteTimestamp(), equalTo(Long.MAX_VALUE));
-        putIndex(map, id, newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        putIndex(map, id, newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
         refresh(map);
         assertThat(archive.getMinDeleteTimestamp(), equalTo(Long.MAX_VALUE));
         var deleteVersionValue = newDeleteVersionValue(2, 2, 2, 2);
@@ -176,7 +176,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         var map = newLiveVersionMap(archive);
         assertEquals(archive.getMinDeleteTimestamp(), Long.MAX_VALUE);
         // the timestamp is not changed throughout refreshes that don't see deletes
-        putIndex(map, "1", newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        putIndex(map, "1", newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
         refresh(map);
         assertThat(archive.getMinDeleteTimestamp(), equalTo(Long.MAX_VALUE));
 
@@ -192,7 +192,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         // New segment generation (flush on index shard)
         preCommitGeneration.incrementAndGet();
         currentGeneration.incrementAndGet();
-        putIndex(map, "3", newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        putIndex(map, "3", newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
         putDelete(map, "3", newDeleteVersionValue(1, 1, 1, 3));
         refresh(map);
         assertThat(archive.getMinDeleteTimestamp(), equalTo(1L));
@@ -211,7 +211,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
         assertFalse(isUnsafe(map));
-        maybePutIndex(map, "1", newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        maybePutIndex(map, "1", newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
         assertTrue(isUnsafe(map));
         // A refresh moves the unsafe map from current to old and then to archive.
         // Do at least one refresh
@@ -239,7 +239,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
         assertFalse(isUnsafe(map));
-        maybePutIndex(map, "1", newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        maybePutIndex(map, "1", newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
         assertTrue(isUnsafe(map));
         // A commit happens (e.g. due to a switch from unsafe to safe when a get to an unsafe map is received)
         flush(map, currentGeneration, preCommitGeneration);
@@ -261,7 +261,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         AtomicLong preCommitGeneration = new AtomicLong();
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
-        maybePutIndex(map, "1", newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        maybePutIndex(map, "1", newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
         // commit, hold on to unprmotable responses
         assertThat(archive.getMinSafeGeneration(), equalTo(-1L));
         flush(map, currentGeneration, preCommitGeneration);
@@ -269,7 +269,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         assertThat(minSafeGeneration, Matchers.equalTo(preCommitGeneration.get() + 1));
         assertTrue(isUnsafe(map));
         // while unpromotable refresh is happening, we index mode
-        maybePutIndex(map, "2", newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        maybePutIndex(map, "2", newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
         refresh(map);
         assertThat(archive.getMinSafeGeneration(), Matchers.equalTo(preCommitGeneration.get() + 1));
         archive.afterUnpromotablesRefreshed(currentGeneration.get());
@@ -290,7 +290,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         AtomicLong preCommitGeneration = new AtomicLong();
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
-        maybePutIndex(map, "1", newIndexVersionValue(randomTranslogLocation(), 1, 0, 1));
+        maybePutIndex(map, "1", newIndexVersionValue(randomOperationLocation(), 1, 0, 1));
         assertTrue(isUnsafe(map));
         // Flush starts
         preCommitGeneration.set(currentGeneration.get() + 1);
@@ -298,7 +298,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         assertTrue(isUnsafe(map));
         int count = randomIntBetween(1, 3);
         for (int i = 0; i < count; i++) {
-            maybePutIndex(map, randomIdentifier(), newIndexVersionValue(randomTranslogLocation(), 1, i + 1, 1));
+            maybePutIndex(map, randomIdentifier(), newIndexVersionValue(randomOperationLocation(), 1, i + 1, 1));
             if (randomBoolean()) {
                 refresh(map);
             }
@@ -453,7 +453,9 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         }
     }
 
-    private Translog.Location randomTranslogLocation() {
-        return randomBoolean() ? null : new Translog.Location(randomNonNegativeLong(), randomNonNegativeLong(), randomInt());
+    private Translog.OperationLocation randomOperationLocation() {
+        return randomBoolean()
+            ? null
+            : new Translog.OperationLocation(new Translog.Location(randomNonNegativeLong(), randomNonNegativeLong(), randomInt()));
     }
 }

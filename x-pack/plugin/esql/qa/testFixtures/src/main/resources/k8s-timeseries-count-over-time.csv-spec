@@ -200,23 +200,25 @@ last_up:long | cluster:keyword | time_bucket:date_nanos
 5            | staging         | 2024-05-10T00:20:00.000Z
 ;
 
-count_over_time_of_date_nanos_promql-Ignore
+count_over_time_of_date_nanos_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_date_nanos_step
 
+# datenanos-k8s carries a date_nanos @timestamp; the built-in step column is still exposed as datetime
+# (epoch-millis), matching the plain-date variant count_over_time_of_date_promql over the same data.
 PROMQL index=datenanos-k8s step=10m last_up=(max by (cluster) (count_over_time(network.eth0.last_up[10m])))
 | SORT step, cluster | LIMIT 10;
 
-last_up:double | step:date_nanos          | cluster:keyword
-10.0           | 2024-05-10T00:00:00.000Z | prod
-14.0           | 2024-05-10T00:00:00.000Z | qa
-10.0           | 2024-05-10T00:00:00.000Z | staging
-11.0           | 2024-05-10T00:10:00.000Z | prod
+last_up:double | step:datetime            | cluster:keyword
+10.0           | 2024-05-10T00:10:00.000Z | prod
 14.0           | 2024-05-10T00:10:00.000Z | qa
-11.0           | 2024-05-10T00:10:00.000Z | staging
-3.0            | 2024-05-10T00:20:00.000Z | prod
-3.0            | 2024-05-10T00:20:00.000Z | qa
-5.0            | 2024-05-10T00:20:00.000Z | staging
+10.0           | 2024-05-10T00:10:00.000Z | staging
+12.0           | 2024-05-10T00:20:00.000Z | prod
+14.0           | 2024-05-10T00:20:00.000Z | qa
+12.0           | 2024-05-10T00:20:00.000Z | staging
+3.0            | 2024-05-10T00:30:00.000Z | prod
+3.0            | 2024-05-10T00:30:00.000Z | qa
+4.0            | 2024-05-10T00:30:00.000Z | staging
 ;
 
 count_over_time_of_date
@@ -805,4 +807,20 @@ bytes:double | step:datetime            | pod:keyword
 15.0         | 2024-05-09T23:40:00.000Z | three
 19.0         | 2024-05-09T23:50:00.000Z | two
 20.0         | 2024-05-09T23:40:00.000Z | one
+;
+
+count_over_time_of_keyword_dimension
+required_capability: ts_command_v0
+TS k8s | STATS c = sum(count_over_time(pod)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
+
+c:long | cluster:keyword | time_bucket:datetime
+23     | prod            | 2024-05-10T00:00:00.000Z
+37     | qa              | 2024-05-10T00:00:00.000Z
+24     | staging         | 2024-05-10T00:00:00.000Z
+31     | prod            | 2024-05-10T00:10:00.000Z
+39     | qa              | 2024-05-10T00:10:00.000Z
+23     | staging         | 2024-05-10T00:10:00.000Z
+7      | prod            | 2024-05-10T00:20:00.000Z
+6      | qa              | 2024-05-10T00:20:00.000Z
+10     | staging         | 2024-05-10T00:20:00.000Z
 ;

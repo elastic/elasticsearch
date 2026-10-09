@@ -1,4 +1,8 @@
 ### Modulus `%` [esql-mod]
+```{applies_to}
+stack: ga
+serverless: ga
+```
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/operators/mod.svg
 :alt: Embedded

@@ -132,12 +132,10 @@ public class BlockLoaderTestRunner {
                 var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapDoc);
                 var source = new SourceToParse(
                     "1",
-                    BytesReference.bytes(documentXContent),
-                    XContentType.JSON,
+                    new BytesSource(BytesReference.bytes(documentXContent), XContentType.JSON, true),
                     null,
                     Map.of(),
                     Map.of(),
-                    true,
                     XContentMeteringParserDecorator.NOOP,
                     null
                 );
@@ -251,8 +249,8 @@ public class BlockLoaderTestRunner {
         StoredFieldsSpec storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();
         SourceLoader.Leaf leafSourceLoader = null;
         if (storedFieldsSpec.requiresSource()) {
-            var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
-            leafSourceLoader = sourceLoader.leaf(context.reader(), null);
+            var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
+            leafSourceLoader = sourceLoader.leaf(context, null);
             storedFieldsSpec = storedFieldsSpec.merge(
                 new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
             );

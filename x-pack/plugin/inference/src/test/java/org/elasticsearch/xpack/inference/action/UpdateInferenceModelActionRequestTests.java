@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -15,10 +16,11 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -26,13 +28,18 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializingTestCase<UpdateInferenceModelAction.Request> {
+public class UpdateInferenceModelActionRequestTests extends AbstractBWCWireSerializationTestCase<UpdateInferenceModelAction.Request> {
+
+    private static final TransportVersion INFERENCE_UPDATE_ENDPOINT_TIMEOUT_ADDED = TransportVersion.fromName(
+        "inference_update_endpoint_timeout_added"
+    );
 
     private static final String TEST_URL = "https://example.com";
     private static final int TEST_MAX_INPUT_TOKENS = 256;
@@ -55,6 +62,8 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
             randomBytesReference(50),
             randomFrom(XContentType.values()),
             randomFrom(TaskType.values()),
+            randomFrom(randomTimeValue(), null),
+            randomTimeValue(),
             randomTimeValue()
         );
     }
@@ -65,15 +74,80 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
         var content = instance.getContent();
         var contentType = instance.getContentType();
         var taskType = instance.getTaskType();
-        switch (randomInt(3)) {
+        var timeout = instance.getTimeout();
+        switch (randomInt(4)) {
             case 0 -> inferenceId = randomValueOtherThan(inferenceId, () -> randomAlphaOfLength(5));
             case 1 -> content = randomValueOtherThan(content, () -> randomBytesReference(50));
             case 2 -> contentType = randomValueOtherThan(contentType, () -> randomFrom(XContentType.values()));
             case 3 -> taskType = randomValueOtherThan(taskType, () -> randomFrom(TaskType.values()));
+            case 4 -> {
+                if (timeout.equals(TIMEOUT_NOT_DETERMINED)) {
+                    // A null timeout is translated internally to TIMEOUT_NOT_DETERMINED, which would not mutate the instance
+                    timeout = randomValueOtherThan(timeout, ESTestCase::randomTimeValue);
+                } else {
+                    timeout = randomValueOtherThan(timeout, () -> randomFrom(randomTimeValue(), null));
+                }
+            }
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new UpdateInferenceModelAction.Request(inferenceId, content, contentType, taskType, randomTimeValue());
+        return new UpdateInferenceModelAction.Request(
+            inferenceId,
+            content,
+            contentType,
+            taskType,
+            timeout,
+            instance.masterNodeTimeout(),
+            instance.ackTimeout()
+        );
+    }
+
+    @Override
+    protected UpdateInferenceModelAction.Request mutateInstanceForVersion(
+        UpdateInferenceModelAction.Request instance,
+        TransportVersion version
+    ) {
+        var timeout = instance.getTimeout();
+        if (version.supports(INFERENCE_UPDATE_ENDPOINT_TIMEOUT_ADDED) == false) {
+            // Older nodes do not serialize the timeout, so it is read back as the placeholder value
+            timeout = TIMEOUT_NOT_DETERMINED;
+        }
+        return new UpdateInferenceModelAction.Request(
+            instance.getInferenceEntityId(),
+            instance.getContent(),
+            instance.getContentType(),
+            instance.getTaskType(),
+            timeout,
+            instance.masterNodeTimeout(),
+            instance.ackTimeout()
+        );
+    }
+
+    public void testConstructor_WithNullTimeout_UsesPlaceholder() {
+        var request = new UpdateInferenceModelAction.Request(
+            randomAlphaOfLength(5),
+            randomBytesReference(50),
+            randomFrom(XContentType.values()),
+            randomFrom(TaskType.values()),
+            null,
+            randomTimeValue(),
+            randomTimeValue()
+        );
+        assertThat(request.getTimeout(), is(TIMEOUT_NOT_DETERMINED));
+    }
+
+    public void testConstructor_WithNonNullTimeout_UsesTimeout() {
+        var timeout = randomTimeValue();
+        var request = new UpdateInferenceModelAction.Request(
+            randomAlphaOfLength(5),
+            randomBytesReference(50),
+            randomFrom(XContentType.values()),
+            randomFrom(TaskType.values()),
+            timeout,
+            randomTimeValue(),
+            randomTimeValue()
+        );
+        assertThat(request.getTimeout(), is(timeout));
     }
 
     @Override
@@ -295,7 +369,9 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
             new BytesArray(body),
             XContentType.JSON,
             TaskType.TEXT_EMBEDDING,
-            TimeValue.timeValueSeconds(1)
+            TimeValue.timeValueSeconds(1),
+            TimeValue.timeValueSeconds(30),
+            TimeValue.timeValueSeconds(30)
         );
     }
 }

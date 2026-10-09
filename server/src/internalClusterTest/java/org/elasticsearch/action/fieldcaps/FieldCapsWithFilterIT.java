@@ -131,13 +131,16 @@ public class FieldCapsWithFilterIT extends ESIntegTestCase {
             oldTimestamp,
             true
         );
-        internalCluster().stopNode(redNode);
         createIndexAndIndexDocs(
             "index_new",
             indexSettings(between(1, 5), 0).put("index.routing.allocation.include._name", blueNode),
             newTimestamp,
             false
         );
+        int nodeCount = internalCluster().size();
+        internalCluster().stopNode(redNode);
+        // Wait for the master to commit redNode's departure so its shards are reported as unavailable rather than not-connected
+        ensureStableCluster(nodeCount - 1);
         // fails without index filter
         {
             FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();

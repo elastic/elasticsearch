@@ -1,0 +1,5 @@
+area: Recovery
+issues: []
+pr: 156018
+summary: Return priorities in recovery APIs
+type: enhancement

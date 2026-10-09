@@ -34,7 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 @ServerlessScope(value = Scope.PUBLIC)
 public class RestExplainAction extends BaseRestHandler {
-    private static final String SINGLE_SLICE_ONLY_ERROR = "[_slice] must be a single value for explain requests";
+    private static final String SINGLE_SLICE_ONLY_ERROR = "[slice] must be a single value for explain requests";
 
     @Override
     public List<Route> routes() {

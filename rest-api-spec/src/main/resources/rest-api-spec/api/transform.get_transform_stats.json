@@ -28,6 +28,16 @@
       ]
     },
     "params": {
+      "allow_no_match": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether to ignore if a wildcard expression matches no transforms. (This includes `_all` string or when no transforms have been specified)"
+      },
+      "basic": {
+        "type": "boolean",
+        "default": false,
+        "description": "If true, the response includes id, state, node, stats, health, and basic checkpointing information (last and next checkpoint numbers and the next checkpoint's position and progress). Skips statistics that require heavy computations to calculate: operations_behind, changes_last_detected_at, last_search_time, and checkpoint timestamps."
+      },
       "from": {
         "type": "long",
         "default": 0,
@@ -42,11 +52,6 @@
         "type": "time",
         "default": "30s",
         "description": "Controls the time to wait for the stats"
-      },
-      "allow_no_match": {
-        "type": "boolean",
-        "default": true,
-        "description": "Whether to ignore if a wildcard expression matches no transforms. (This includes `_all` string or when no transforms have been specified)"
       }
     }
   }

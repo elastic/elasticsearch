@@ -1,5 +1,0 @@
-area: PromQL
-issues: []
-pr: 151325
-summary: "[PROMQL] Bug fix: correctly adjust quantile phi to percentile scale"
-type: bug

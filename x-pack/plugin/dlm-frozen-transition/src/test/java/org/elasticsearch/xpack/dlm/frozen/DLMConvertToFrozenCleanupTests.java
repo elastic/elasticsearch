@@ -145,7 +145,7 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
         buildAndSetProjectState(dataStreamName, indexName, cloneIndexName);
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -182,7 +182,7 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
         buildAndSetProjectState(null, indexName, cloneIndexName);
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -211,7 +211,7 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
         mockModifyDataStreamsFailure.set(new ElasticsearchException("swap failed"));
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -239,7 +239,7 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
         mockModifyDataStreamsResponse.set(AcknowledgedResponse.FALSE);
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -269,7 +269,7 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
         buildAndSetProjectState(dataStreamName, frozenIndexName);
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,

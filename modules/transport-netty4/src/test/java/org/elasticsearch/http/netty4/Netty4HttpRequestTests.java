@@ -24,7 +24,12 @@ import org.elasticsearch.test.rest.FakeHttpBodyStream;
 public class Netty4HttpRequestTests extends ESTestCase {
 
     public void testEmptyFullContent() {
-        final var request = new Netty4HttpRequest(0, new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"), HttpBody.empty());
+        final var request = new Netty4HttpRequest(
+            0,
+            new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"),
+            HttpBody.empty(),
+            "http"
+        );
         assertFalse(request.hasContent());
     }
 
@@ -32,7 +37,8 @@ public class Netty4HttpRequestTests extends ESTestCase {
         final var request = new Netty4HttpRequest(
             0,
             new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"),
-            new FakeHttpBodyStream()
+            new FakeHttpBodyStream(),
+            "http"
         );
         assertFalse(request.hasContent());
     }
@@ -47,7 +53,8 @@ public class Netty4HttpRequestTests extends ESTestCase {
                 "/",
                 new DefaultHttpHeaders().add(HttpHeaderNames.CONTENT_LENGTH, len)
             ),
-            HttpBody.fromBytesReference(new BytesArray(new byte[len]))
+            HttpBody.fromBytesReference(new BytesArray(new byte[len])),
+            "http"
         );
         assertTrue(request.hasContent());
     }
@@ -56,12 +63,12 @@ public class Netty4HttpRequestTests extends ESTestCase {
         final var len = between(1, 1024);
         final var nettyRequestWithLen = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
         HttpUtil.setContentLength(nettyRequestWithLen, len);
-        final var requestWithLen = new Netty4HttpRequest(0, nettyRequestWithLen, new FakeHttpBodyStream());
+        final var requestWithLen = new Netty4HttpRequest(0, nettyRequestWithLen, new FakeHttpBodyStream(), "http");
         assertTrue(requestWithLen.hasContent());
 
         final var nettyChunkedRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", new DefaultHttpHeaders());
         HttpUtil.setTransferEncodingChunked(nettyChunkedRequest, true);
-        final var chunkedRequest = new Netty4HttpRequest(0, nettyChunkedRequest, new FakeHttpBodyStream());
+        final var chunkedRequest = new Netty4HttpRequest(0, nettyChunkedRequest, new FakeHttpBodyStream(), "http");
         assertTrue(chunkedRequest.hasContent());
     }
 
@@ -69,9 +76,29 @@ public class Netty4HttpRequestTests extends ESTestCase {
         final var len = between(1, 1024);
         final var nettyRequestWithLen = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
         HttpUtil.setContentLength(nettyRequestWithLen, len);
-        final var streamRequest = new Netty4HttpRequest(0, nettyRequestWithLen, new FakeHttpBodyStream());
+        final var streamRequest = new Netty4HttpRequest(0, nettyRequestWithLen, new FakeHttpBodyStream(), "http");
 
         streamRequest.setBody(HttpBody.fromBytesReference(randomBytesReference(len)));
         assertTrue(streamRequest.hasContent());
+    }
+
+    public void testGetSchemeHttp() {
+        final var request = new Netty4HttpRequest(
+            0,
+            new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"),
+            HttpBody.empty(),
+            "http"
+        );
+        assertEquals("http", request.getScheme());
+    }
+
+    public void testGetSchemeHttps() {
+        final var request = new Netty4HttpRequest(
+            0,
+            new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"),
+            HttpBody.empty(),
+            "https"
+        );
+        assertEquals("https", request.getScheme());
     }
 }

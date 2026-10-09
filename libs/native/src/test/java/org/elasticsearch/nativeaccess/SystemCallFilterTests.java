@@ -11,6 +11,7 @@ package org.elasticsearch.nativeaccess;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.assumeTrue;
 import static org.junit.Assert.fail;
@@ -21,9 +22,8 @@ public class SystemCallFilterTests extends ESTestCase {
     /** command to try to run in tests */
     static final String EXECUTABLE = Constants.WINDOWS ? "calc" : "ls";
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void installSyscallFilter() throws Exception {
         assumeTrue(
             "requires system call filter installation",
             NativeAccess.instance().getExecSandboxState() != NativeAccess.ExecSandboxState.NONE

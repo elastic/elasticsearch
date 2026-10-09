@@ -86,7 +86,7 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
         );
     }
 
-    public void testPotentiallyUnmappedFlagAndMessageInsistOnKeyword() {
+    public void testPotentiallyUnmappedFlagAndMessageKeyword() {
         Map<DataType, Set<String>> input = new TreeMap<>(Map.of(DataType.LONG, new LinkedHashSet<>(Set.of("idx_a"))));
 
         CompactInvalidMappedField field = CompactInvalidMappedField.potentiallyUnmapped("f", input, new HashMap<>());

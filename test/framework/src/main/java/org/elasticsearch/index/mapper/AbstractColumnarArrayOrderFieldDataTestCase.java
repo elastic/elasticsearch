@@ -10,14 +10,16 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -31,20 +33,23 @@ import java.util.List;
  * nulls ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}) instead of a sidecar {@code .offsets} field. Loads values through
  * the mapper's fielddata builder (so the mapper-to-fielddata wiring is exercised), which sorts within a document, drops nulls and keeps
  * duplicates. Concrete subclasses supply the field type (keyword, text, match_only_text).
+ *
+ * <p>This is the layout a strictly columnar index uses <em>without</em> the ColumNAR codec. The codec stores the same
+ * fields as a payload that hands its values back in the order they were written; that path is covered separately by
+ * {@code KeywordColumnarPayloadFieldDataTests}. Since the codec is on by default, it is turned off here so these tests
+ * keep exercising the sorting layout they were written for.
  */
 public abstract class AbstractColumnarArrayOrderFieldDataTestCase extends MapperServiceTestCase {
 
     protected abstract String fieldTypeName();
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
-
     private MapperService columnarMapperService() throws IOException {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        return createMapperService(settings, mapping(b -> b.startObject("field").field("type", fieldTypeName()).endObject()));
+        Settings.Builder settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName());
+        // Only settable while the flag is on; without it the setting is not registered and would be rejected as unknown.
+        if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
+            settings.put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), false);
+        }
+        return createMapperService(settings.build(), mapping(b -> b.startObject("field").field("type", fieldTypeName()).endObject()));
     }
 
     /**
@@ -55,7 +60,15 @@ public abstract class AbstractColumnarArrayOrderFieldDataTestCase extends Mapper
         MapperService mapperService = columnarMapperService();
         // Sanity: this field must actually use the in-order binary doc-values format, otherwise the test is not exercising the bug.
         assertTrue(mapperService.documentMapper().mappers().getMapper("field").storesArrayValuesInOrder());
+        return readFielddataValues(mapperService, doc);
+    }
 
+    /**
+     * Indexes a single document and returns the fielddata values exposed for it, or {@code null} when the field has no non-null values
+     * for that document (an all-null or empty array, which fielddata reports as no values via {@code advanceExact == false}).
+     */
+    protected List<String> readFielddataValues(MapperService mapperService, CheckedConsumer<XContentBuilder, IOException> doc)
+        throws IOException {
         List<String> values = new ArrayList<>();
         boolean[] hasValues = { false };
         withLuceneIndex(mapperService, iw -> iw.addDocument(mapperService.documentMapper().parse(source(doc)).rootDoc()), reader -> {
@@ -63,12 +76,12 @@ public abstract class AbstractColumnarArrayOrderFieldDataTestCase extends Mapper
             IndexFieldData<?> indexFieldData = mapperService.fieldType("field")
                 .fielddataBuilder(FieldDataContext.noRuntimeFields("test", "test"))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
-            SortedBinaryDocValues docValues = indexFieldData.load(leaf).getBytesValues();
+            SortableBinaryDocValues docValues = indexFieldData.load(leaf).getBytesValues();
             if (docValues.advanceExact(0)) {
                 hasValues[0] = true;
                 int count = docValues.docValueCount();
                 for (int i = 0; i < count; i++) {
-                    values.add(docValues.nextValue().utf8ToString());
+                    values.add(decode(docValues.nextValue()));
                 }
             }
         });
@@ -76,10 +89,10 @@ public abstract class AbstractColumnarArrayOrderFieldDataTestCase extends Mapper
     }
 
     /**
-     * Generates {@code n} distinct fixed-length alphanumeric values. Equal-length ASCII alphanumerics sort identically as Java strings
-     * and as {@link org.apache.lucene.util.BytesRef}, so callers can compute the expected fielddata order with natural string ordering.
+     * Generates {@code n} distinct values for the field under test. The default produces fixed-length alphanumerics; subclasses whose
+     * values aren't plain strings (ex. ip) override this together with {@link #decode} and {@link #expectedFielddataOrder}.
      */
-    private List<String> randomDistinctValues(int n) {
+    protected List<String> randomDistinctValues(int n) {
         LinkedHashSet<String> values = new LinkedHashSet<>();
         while (values.size() < n) {
             values.add(randomAlphanumericOfLength(8));
@@ -87,33 +100,46 @@ public abstract class AbstractColumnarArrayOrderFieldDataTestCase extends Mapper
         return new ArrayList<>(values);
     }
 
+    /**
+     * Decodes a raw fielddata {@link BytesRef} into the value's textual form. The default reads utf8; subclasses whose doc values store a
+     * non-utf8 encoding (ex. the {@code IpFieldMapper} InetAddressPoint encoding) override this.
+     */
+    protected String decode(BytesRef value) {
+        return value.utf8ToString();
+    }
+
+    /**
+     * Returns {@code values} in the order fielddata exposes them within a document (sorted, with duplicates kept). The default uses
+     * natural string ordering, which matches {@link BytesRef} ordering for equal-length alphanumerics; subclasses whose binary ordering
+     * differs from string ordering (ex. ip) override this.
+     */
+    protected List<String> expectedFielddataOrder(List<String> values) {
+        List<String> expected = new ArrayList<>(values);
+        expected.sort(null);
+        return expected;
+    }
+
     public void testMultiValuedReadsBackSorted() throws IOException {
         List<String> input = randomDistinctValues(3);
-        List<String> expected = new ArrayList<>(input);
-        expected.sort(null);
-        assertEquals(expected, fielddataValues(b -> b.array("field", input.toArray(new String[0]))));
+        assertEquals(expectedFielddataOrder(input), fielddataValues(b -> b.array("field", input.toArray(new String[0]))));
     }
 
     public void testDuplicatesKept() throws IOException {
         List<String> distinct = randomDistinctValues(2);
         List<String> input = List.of(distinct.get(0), distinct.get(0), distinct.get(1));
-        List<String> expected = new ArrayList<>(input);
-        expected.sort(null);
-        assertEquals(expected, fielddataValues(b -> b.array("field", input.toArray(new String[0]))));
+        assertEquals(expectedFielddataOrder(input), fielddataValues(b -> b.array("field", input.toArray(new String[0]))));
     }
 
     public void testNullsDropped() throws IOException {
         List<String> distinct = randomDistinctValues(2);
-        List<String> expected = new ArrayList<>(distinct);
-        expected.sort(null);
         assertEquals(
-            expected,
+            expectedFielddataOrder(distinct),
             fielddataValues(b -> b.startArray("field").value(distinct.get(0)).nullValue().value(distinct.get(1)).endArray())
         );
     }
 
     public void testSingleValue() throws IOException {
-        String value = randomAlphanumericOfLength(8);
+        String value = randomDistinctValues(1).get(0);
         assertEquals(List.of(value), fielddataValues(b -> b.field("field", value)));
     }
 

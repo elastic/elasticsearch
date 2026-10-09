@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 147586
-summary: Integrate circuit breaker with Parquet prefetch
-type: enhancement

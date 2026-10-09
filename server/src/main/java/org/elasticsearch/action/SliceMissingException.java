@@ -25,7 +25,7 @@ public final class SliceMissingException extends ElasticsearchException {
     private final String id;
 
     public SliceMissingException(String index, String id) {
-        super("_slice is required for [" + index + "]/[" + id + "]");
+        super("slice is required for [" + index + "]/[" + id + "]");
         Objects.requireNonNull(index, "index must not be null");
         Objects.requireNonNull(id, "id must not be null");
         setIndex(index);

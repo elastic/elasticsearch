@@ -76,7 +76,7 @@ public class RestMultiGetAction extends BaseRestHandler {
         }
 
         FetchSourceContext defaultFetchSource = FetchSourceContext.parseFromRestRequest(request);
-        // Top-level routing/_slice become the per-item default (each doc may still override with its own routing/_slice).
+        // Top-level routing/slice become the per-item default (each doc may still override with its own routing/slice).
         final SliceIndexing.ParsedRouting defaultRouting = SliceIndexing.parseRoutingOrSliceWithProvenance(request);
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             multiGetRequest.add(

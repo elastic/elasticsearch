@@ -46,7 +46,8 @@ public class DocumentMapper {
                 false,
                 false,
                 MapperService.MergeReason.MAPPING_UPDATE,
-                mapperService.getIndexMode().isStrictColumnar()
+                mapperService.getIndexMode().isStrictColumnar(),
+                false
             )
         );
         MetadataFieldMapper[] metadata = mapperService.getMetadataBuilders()
@@ -164,7 +165,7 @@ public class DocumentMapper {
          * with the source loading strategy declared on the source field mapper.
          */
         try {
-            mappingLookup.newSourceLoader(null, mapperMetrics.sourceFieldMetrics());
+            mappingLookup.newSourceLoader(null, mapperMetrics.sourceFieldMetrics(), null);
         } catch (IllegalArgumentException e) {
             mapperMetrics.sourceFieldMetrics().recordSyntheticSourceIncompatibleMapping();
             throw e;
@@ -202,7 +203,7 @@ public class DocumentMapper {
         }
         List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
         for (String path : routingPaths) {
-            if (settings.getMode() == IndexMode.TIME_SERIES) {
+            if (settings.getMode().isTsdb()) {
                 for (String match : mappingLookup.getMatchingFieldNames(path)) {
                     mappingLookup.getFieldType(match).validateMatchedRoutingPath(path);
                 }

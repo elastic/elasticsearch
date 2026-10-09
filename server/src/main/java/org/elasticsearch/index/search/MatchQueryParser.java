@@ -30,6 +30,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 import org.elasticsearch.ElasticsearchException;
@@ -55,8 +56,11 @@ import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 public class MatchQueryParser {
@@ -503,11 +507,11 @@ public class MatchQueryParser {
             SpanNearQuery.Builder builder = new SpanNearQuery.Builder(field, true);
             Term lastTerm = null;
             while (in.incrementToken()) {
-                if (posIncAtt.getPositionIncrement() > 1) {
-                    builder.addGap(posIncAtt.getPositionIncrement() - 1);
-                }
                 if (lastTerm != null) {
                     builder.addClause(new SpanTermQuery(lastTerm));
+                }
+                if (posIncAtt.getPositionIncrement() > 1) {
+                    builder.addGap(posIncAtt.getPositionIncrement() - 1);
                 }
                 lastTerm = new Term(field, termAtt.getBytesRef());
             }
@@ -766,7 +770,8 @@ public class MatchQueryParser {
              * The articulation points of the graph are visited in order and the queries
              * created at each point are merged in the returned near query.
              */
-            List<SpanQuery> clauses = new ArrayList<>();
+            SpanNearQuery.Builder builder = new SpanNearQuery.Builder(field, true);
+            Set<SpanQuery> positionalQueries = Collections.newSetFromMap(new IdentityHashMap<>());
             int[] articulationPoints = graph.articulationPoints();
             int lastState = 0;
             for (int i = 0; i <= articulationPoints.length; i++) {
@@ -794,23 +799,52 @@ public class MatchQueryParser {
                         queryPos = null;
                     }
                 } else {
+                    int positionIncrement = getPositionIncrement(graph, start);
                     Term[] terms = graph.getTerms(field, start);
                     assert terms.length > 0;
+                    if (positionIncrement > 1) {
+                        builder.addGap(positionIncrement - 1);
+                    }
                     queryPos = newSpanQuery(terms, usePrefix);
                 }
 
                 if (queryPos != null) {
-                    clauses.add(queryPos);
+                    builder.addClause(queryPos);
+                    positionalQueries.add(queryPos);
                 }
             }
 
-            if (clauses.isEmpty()) {
+            if (positionalQueries.isEmpty()) {
                 return null;
-            } else if (clauses.size() == 1) {
-                return clauses.get(0);
-            } else {
-                return new SpanNearQuery(clauses.toArray(new SpanQuery[0]), 0, true);
             }
+            SpanNearQuery query = builder.build();
+            SpanQuery[] clauses = query.getClauses();
+            if (clauses.length == 1) {
+                return clauses[0];
+            }
+            // the builder inserted a private gap clause for every addGap call; those were not
+            // visited when the positional queries were created, so visit them here to keep the
+            // clause count consistent with a full walk of the final query
+            for (SpanQuery clause : clauses) {
+                if (positionalQueries.contains(clause) == false) {
+                    clause.visit(queryVisitor);
+                }
+            }
+            return query;
+        }
+
+        /**
+         * Returns the position increment of the tokens starting at {@code state}. Stacked tokens
+         * carry the increment of their leading token (see {@link GraphTokenStreamFiniteStrings}),
+         * so all tokens at a state share one value; max selects it regardless of iteration order.
+         */
+        private int getPositionIncrement(GraphTokenStreamFiniteStrings graph, int state) {
+            int positionIncrement = 1;
+            for (AttributeSource attributeSource : graph.getTerms(state)) {
+                PositionIncrementAttribute positionIncrementAttribute = attributeSource.addAttribute(PositionIncrementAttribute.class);
+                positionIncrement = Math.max(positionIncrement, positionIncrementAttribute.getPositionIncrement());
+            }
+            return positionIncrement;
         }
     }
 }

@@ -70,7 +70,7 @@ public class LeaderBulkByPaginatedSearchTaskState {
     }
 
     /**
-     * Returns the number of slices this BulkByScrollRequest will use
+     * Returns the number of slices this BulkByPaginatedSearchRequest will use
      */
     public int getSlices() {
         return slices;

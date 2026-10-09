@@ -1,0 +1,5 @@
+pr: 158410
+summary: External data source error messages say what went wrong
+area: ES|QL
+type: bug
+issues: []

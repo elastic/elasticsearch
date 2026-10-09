@@ -432,6 +432,42 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
         });
     }
 
+    public void testInterruption() throws Exception {
+        final var cancelled = new AtomicBoolean();
+        final Publisher<Integer> publisher = s -> s.onSubscribe(new Subscription() {
+            @Override
+            public void request(long n) {}
+
+            @Override
+            public void cancel() {
+                cancelled.set(true);
+            }
+        });
+
+        final var iterator = new CancellableRateLimitedFluxIterator<Integer>(between(1, 10), unused -> {});
+        publisher.subscribe(iterator);
+
+        final var consumer = new Thread(() -> {
+            assertThat(assertThrows(RuntimeException.class, iterator::hasNext).getCause(), instanceOf(InterruptedException.class));
+            assertTrue(Thread.currentThread().isInterrupted());
+        });
+        consumer.start();
+        try {
+            if (randomBoolean()) {
+                // Sometimes wait for the consumer to be parked in Condition#await
+                assertBusy(() -> assertThat(consumer.getState(), equalTo(Thread.State.WAITING)));
+            }
+        } finally {
+            consumer.interrupt();
+            safeJoin(consumer);
+        }
+        assertTrue(cancelled.get());
+        assertThat(iterator.getQueue(), is(empty()));
+
+        // Subsequent hasNext() must fail immediately even on a thread that is not interrupted.
+        assertThat(assertThrows(RuntimeException.class, iterator::hasNext).getCause(), instanceOf(InterruptedException.class));
+    }
+
     public void runOnNewThread(Runnable runnable) {
         threadPool.executor(ThreadPool.Names.GENERIC).submit(runnable);
     }

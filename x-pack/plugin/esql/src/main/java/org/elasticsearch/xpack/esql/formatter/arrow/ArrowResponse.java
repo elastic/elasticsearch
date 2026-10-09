@@ -433,13 +433,14 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case SOURCE -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
 
             case DATE_RANGE -> new BlockArrowFormatter.AsDateRange(type);
+            case DOUBLE_RANGE -> new BlockArrowFormatter.AsDoubleRange(type);
 
             case TSID_DATA_TYPE -> TO_BE_IMPLEMENTED_MARKER;
             case DENSE_VECTOR -> TO_BE_IMPLEMENTED_MARKER;
 
             case AGGREGATE_METRIC_DOUBLE -> TO_BE_IMPLEMENTED_MARKER;
             case EXPONENTIAL_HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
-            case FLATTENED -> TO_BE_IMPLEMENTED_MARKER;
+            case FLATTENED -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
             case GEOHASH -> TO_BE_IMPLEMENTED_MARKER;
             case GEOHEX -> TO_BE_IMPLEMENTED_MARKER;
             case GEOTILE -> TO_BE_IMPLEMENTED_MARKER;

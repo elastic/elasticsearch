@@ -18,7 +18,11 @@ There are several thread pools, but the important ones include:
 $$$search-threadpool$$$
 
 `search`
-:   For count/search operations at the shard level. Used also by fetch and other search related operations  Thread pool type is `fixed` with a size of `int((`[`# of allocated processors`](#node.processors)` * 3) / 2) + 1`, and queue_size of `1000`.
+:   For count/search operations at the shard level. Used also by fetch and other search related operations. Thread pool type is `fixed` with a size of `int((`[`# of allocated processors`](#node.processors)` * 3) / 2) + 1`, and queue_size of `1000 * size` (that is, `1000` multiplied by the pool size above).
+
+    :::{note}
+    In {{stack}} 8.x and earlier, the `search` queue_size was a fixed `1000` regardless of node size. Since 9.0 it scales with the pool size. Operators can set `thread_pool.search.queue_size` explicitly to override this default.
+    :::
 
 $$$search-throttled$$$`search_throttled`
 :   For count/search/suggest/get operations on `search_throttled indices`. Thread pool type is `fixed` with a size of `1`, and queue_size of `100`.
@@ -63,6 +67,8 @@ $$$search-throttled$$$`search_throttled`
 
 `flush`
 :   For [flush](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-flush) and [translog](/reference/elasticsearch/index-settings/translog.md) `fsync` operations. Thread pool type is `scaling` with a keep-alive of `5m` and a default maximum size of `min(5, (`[`# of allocated processors`](#node.processors)`) / 2)`.
+
+$$$merge-threadpool$$$
 
 `merge`
 :   For [merge](https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-merge.html) operations of all the shards on the node. Thread pool type is `scaling` with a keep-alive of `5m` and a default maximum size of [`# of allocated processors`](#node.processors).

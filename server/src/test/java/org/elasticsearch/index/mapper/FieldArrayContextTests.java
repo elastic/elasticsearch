@@ -98,7 +98,6 @@ public class FieldArrayContextTests extends ESTestCase {
      * eager {@code Offsets} structure for clean single-value-per-field documents.
      */
     public void testSingleValueSkipsOffsetEmissionInStrictColumnar() throws IOException {
-        assumeTrue("strict columnar requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         var context = new FieldArrayContext();
         context.recordOffset("field", "a");
 
@@ -166,7 +165,6 @@ public class FieldArrayContextTests extends ESTestCase {
      * Empty array marker on a previously-untouched field in strict columnar must not emit a DV.
      */
     public void testEmptyArrayInStrictColumnarSkipsEmission() throws IOException {
-        assumeTrue("strict columnar requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         var context = new FieldArrayContext();
         context.maybeRecordEmptyArray("field");
 
@@ -301,7 +299,6 @@ public class FieldArrayContextTests extends ESTestCase {
     }
 
     public void testShouldRecordOffsetsStrictColumnarFiresWhenMultiValue() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             var context = new TestDocumentParserContext(settings);

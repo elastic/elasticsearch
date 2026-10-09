@@ -1,15 +1,38 @@
 ---
+"doc_values object form rejected outside columnar mode":
+  - requires:
+      cluster_features: ["mapper.doc_values.extended_form_only_in_columnar"]
+      reason: "doc_values object form is rejected outside columnar index modes starting with this feature"
+
+  - do:
+      catch: /unsupported doc_values configuration/
+      indices.create:
+        index: test_non_columnar_rejected
+        body:
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  multi_value: false
+
+---
 "multi_value=false is enforced per document not per segment":
   - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
       cluster_features: ["mapper.doc_values.multi_value_rename"]
-      reason: "multi_value doc values parameter uses boolean wire-format"
+      reason: "multi_value doc values parameter uses boolean wire-format; columnar index mode required"
 
   - do:
       indices.create:
         index: test_per_document
         body:
           settings:
-            index.mode: logsdb
+            index.mode: logsdb_columnar
           mappings:
             properties:
               kw:
@@ -47,15 +70,20 @@
 ---
 "multi_value=false mapping serialization roundtrip":
   - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
       cluster_features: ["mapper.doc_values.multi_value_rename"]
-      reason: "multi_value doc values parameter uses boolean wire-format"
+      reason: "multi_value doc values parameter uses boolean wire-format; columnar index mode required"
 
   - do:
       indices.create:
         index: test_roundtrip
         body:
           settings:
-            index.mode: logsdb
+            index.mode: logsdb_columnar
           mappings:
             properties:
               kw:
@@ -72,15 +100,20 @@
 ---
 "multi_value=false on multi-field sub rejects parent array":
   - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
       cluster_features: ["mapper.doc_values.multi_value_rename"]
-      reason: "multi_value=false enforcement on indexing"
+      reason: "multi_value=false enforcement on indexing; columnar index mode required"
 
   - do:
       indices.create:
         index: test_multifield_sub
         body:
           settings:
-            index.mode: logsdb
+            index.mode: logsdb_columnar
           mappings:
             properties:
               parent:
@@ -113,15 +146,20 @@
 ---
 "multi_value=false on multi-field parent rejects parent array":
   - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
       cluster_features: ["mapper.doc_values.multi_value_rename"]
-      reason: "multi_value=false enforcement on indexing"
+      reason: "multi_value=false enforcement on indexing; columnar index mode required"
 
   - do:
       indices.create:
         index: test_multifield_parent
         body:
           settings:
-            index.mode: logsdb
+            index.mode: logsdb_columnar
           mappings:
             properties:
               parent:
@@ -145,14 +183,20 @@
 ---
 "index.mapping.doc_values.multi_value=false defaults all fields to single-valued":
   - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
       cluster_features: ["mapper.doc_values.multi_value_index_setting"]
-      reason: "index.mapping.doc_values.multi_value index-level setting requires this feature"
+      reason: "index.mapping.doc_values.multi_value index-level setting requires this feature; columnar index mode required"
 
   - do:
       indices.create:
         index: test_index_setting_default
         body:
           settings:
+            index.mode: columnar
             index.mapping.doc_values.multi_value: false
           mappings:
             properties:
@@ -179,14 +223,20 @@
 ---
 "field-level multi_value overrides index.mapping.doc_values.multi_value":
   - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
       cluster_features: ["mapper.doc_values.multi_value_index_setting"]
-      reason: "index.mapping.doc_values.multi_value index-level setting requires this feature"
+      reason: "index.mapping.doc_values.multi_value index-level setting requires this feature; columnar index mode required"
 
   - do:
       indices.create:
         index: test_index_setting_override
         body:
           settings:
+            index.mode: columnar
             index.mapping.doc_values.multi_value: false
           mappings:
             properties:
@@ -217,14 +267,20 @@
 ---
 "index.mapping.doc_values.multi_value=false mapping round-trip":
   - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
       cluster_features: ["mapper.doc_values.multi_value_index_setting"]
-      reason: "index.mapping.doc_values.multi_value index-level setting requires this feature"
+      reason: "index.mapping.doc_values.multi_value index-level setting requires this feature; columnar index mode required"
 
   - do:
       indices.create:
         index: test_index_setting_roundtrip
         body:
           settings:
+            index.mode: columnar
             index.mapping.doc_values.multi_value: false
           mappings:
             properties:
@@ -237,3 +293,88 @@
         index: test_index_setting_roundtrip
 
   - is_false: test_index_setting_roundtrip.mappings.properties.kw.doc_values
+
+---
+"term-family queries decode multi-valued ArrayOrderInlineNull doc values":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.keyword.columnar_default_high_cardinality"]
+      reason: "multi-valued, high-cardinality keyword/ip fields with index:false store doc values in the ArrayOrderInlineNull binary format; this guards that the scanning binary doc-values path can decode it"
+
+  - do:
+      indices.create:
+        index: test_mv_inline_null
+        body:
+          settings:
+            index:
+              mode: columnar
+          mappings:
+            dynamic: false
+            properties:
+              kw:
+                type: keyword
+                index: false
+              ip_field:
+                type: ip
+                index: false
+
+  # Document order matters: the all-null array (doc 2) and the empty array (doc 4) sit immediately before matching docs, exercising the
+  # advanceExact behaviour of the inline-null iterator (before the fix these mis-read the neighbouring document's blob).
+  - do:
+      bulk:
+        index: test_mv_inline_null
+        refresh: true
+        body:
+          - { "index": { "_id": "1" } }
+          - { "kw": ["alpha", "beta"], "ip_field": ["10.0.0.1", "10.0.0.9"] }
+          - { "index": { "_id": "2" } }
+          - { "kw": [null, "beta"] }
+          - { "index": { "_id": "3" } }
+          - { "kw": ["delta", "epsilon"], "ip_field": ["192.168.0.1"] }
+          - { "index": { "_id": "4" } }
+          - { "kw": [] }
+          - { "index": { "_id": "5" } }
+          - { "kw": "zeta" }
+
+  # "beta" is carried by doc 1 (["alpha","beta"]) and doc 2 ([null,"beta"]); the leading null slot must neither hide nor duplicate it.
+  - do:
+      search:
+        index: test_mv_inline_null
+        body: { size: 0, track_total_hits: true, query: { term: { kw: beta } } }
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test_mv_inline_null
+        body: { size: 0, track_total_hits: true, query: { terms: { kw: [ alpha, delta ] } } }
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test_mv_inline_null
+        body: { size: 0, track_total_hits: true, query: { prefix: { kw: be } } }
+  - match: { hits.total.value: 2 }
+
+  # "beta" (docs 1,2) and "zeta" (doc 5) both contain "et".
+  - do:
+      search:
+        index: test_mv_inline_null
+        body: { size: 0, track_total_hits: true, query: { wildcard: { kw: "*et*" } } }
+  - match: { hits.total.value: 3 }
+
+  - do:
+      search:
+        index: test_mv_inline_null
+        body: { size: 0, track_total_hits: true, query: { regexp: { kw: beta } } }
+  - match: { hits.total.value: 2 }
+
+  # [10.0.0.0, 10.0.0.255] matches doc 1 only; doc 3's 192.168.0.1 is out of range and the empty / null docs carry no ip.
+  - do:
+      search:
+        index: test_mv_inline_null
+        body: { size: 0, track_total_hits: true, query: { range: { ip_field: { gte: "10.0.0.0", lte: "10.0.0.255" } } } }
+  - match: { hits.total.value: 1 }

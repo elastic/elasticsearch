@@ -81,6 +81,7 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
                         hitField = new DocumentField(scriptFieldName, values);
                         // script fields are never meta-fields
                         hitContext.hit().setDocumentField(hitField);
+                        // Bytes are charged by FetchPhase#nextDoc after all sub-phases have run.
                     }
                 }
             }

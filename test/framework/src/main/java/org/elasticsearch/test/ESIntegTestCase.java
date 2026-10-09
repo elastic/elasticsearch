@@ -13,6 +13,7 @@ import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
@@ -57,6 +58,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.PreResolvedUpdates;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
@@ -111,7 +113,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
@@ -129,6 +130,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -145,7 +147,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
@@ -221,10 +222,11 @@ import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -233,10 +235,10 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -913,14 +915,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Waits for the specified data stream to have the expected number of backing indices.
      */
-    public static List<String> waitForDataStreamBackingIndices(String dataStreamName, int expectedSize) {
+    public static List<Index> waitForDataStreamBackingIndices(String dataStreamName, int expectedSize) {
         return waitForDataStreamIndices(dataStreamName, expectedSize, false);
     }
 
     /**
      * Waits for the specified data stream to have the expected number of backing or failure indices.
      */
-    public static List<String> waitForDataStreamIndices(String dataStreamName, int expectedSize, boolean failureStore) {
+    public static List<Index> waitForDataStreamIndices(String dataStreamName, int expectedSize, boolean failureStore) {
         // We listen to the cluster state on the master node to ensure all other nodes have already acked the new cluster state.
         // This avoids inconsistencies in subsequent API calls which might hit a non-master node.
         final var listener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
@@ -931,18 +933,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
             return dataStream.getDataStreamIndices(failureStore).getIndices().size() == expectedSize;
         });
         safeAwait(listener, TimeValue.timeValueSeconds(30));
-        final var backingIndexNames = getDataStreamBackingIndexNames(dataStreamName, failureStore);
+        final var backingIndices = getDataStreamBackingIndices(dataStreamName, failureStore);
         assertEquals(
             Strings.format(
                 "Retrieved number of data stream indices doesn't match expectation for data stream [%s]. Expected %d but got %s",
                 dataStreamName,
                 expectedSize,
-                backingIndexNames
+                backingIndices
             ),
             expectedSize,
-            backingIndexNames.size()
+            backingIndices.size()
         );
-        return backingIndexNames;
+        return backingIndices;
     }
 
     /**
@@ -956,6 +958,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Returns a list of the data stream's backing or failure index names.
      */
     public static List<String> getDataStreamBackingIndexNames(String dataStreamName, boolean failureStore) {
+        return getDataStreamBackingIndices(dataStreamName, failureStore).stream().map(Index::getName).toList();
+    }
+
+    /**
+     * Returns a list of the data stream's backing or failure indices.
+     */
+    public static List<Index> getDataStreamBackingIndices(String dataStreamName, boolean failureStore) {
         GetDataStreamAction.Response response = safeGet(
             client().execute(
                 GetDataStreamAction.INSTANCE,
@@ -965,7 +974,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertThat(response.getDataStreams().size(), equalTo(1));
         DataStream dataStream = response.getDataStreams().getFirst().getDataStream();
         assertThat(dataStream.getName(), equalTo(dataStreamName));
-        return dataStream.getDataStreamIndices(failureStore).getIndices().stream().map(Index::getName).toList();
+        return dataStream.getDataStreamIndices(failureStore).getIndices();
     }
 
     /**
@@ -1016,7 +1025,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // The cluster health API always runs on the master node, and the master only completes cluster state publication when all nodes
         // in the cluster have accepted the new cluster state. By waiting for all events to have finished on the master node, we ensure
         // that the whole cluster has a consistent view of which node is the master.
-        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setTimeout(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+            .setTimeout(TEST_REQUEST_TIMEOUT)
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNodes(Integer.toString(internalCluster().size()))
+            .get();
     }
 
     /**
@@ -1385,11 +1398,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final var sourceEnabled = mapperService.mappingLookup().isSourceEnabled();
         // Some integration tests use synthetic source/id, so the original source/id stored field might have been trimmed during merges.
         // Here we set up a source loader similar to what search fetch phase use to force loading the source, or id, before comparing docs.
-        final var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+        final var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
         final var storedFieldLoader = StoredFieldLoader.create(true, sourceLoader.requiredStoredFields());
 
         // Some indices merge away the _id field
-        final var pruneIdField = engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
+        final var pruneIdField = engineConfig.getIndexSettings().getMode().isTsdb();
         final var idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
 
         // Some integration tests merge away the _seq_no field, in which case this method sets all _seq_no to UNASSIGNED_SEQ_NO
@@ -1425,7 +1438,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
                 int[] docIdsArray = segmentDocIds.stream().mapToInt(Integer::intValue).toArray();
                 var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, docIdsArray);
-                var leafSourceLoader = sourceLoader.leaf(leafReader, docIdsArray);
+                var leafSourceLoader = sourceLoader.leaf(leafReader.getContext(), docIdsArray);
                 var leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leafReader, docIdsArray);
 
                 primaryTermDocValues = leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
@@ -1626,29 +1639,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
                             + nbDocsOnReplica
                             + "]";
 
-                        if (nbDocsOnPrimary != nbDocsOnReplica) {
-                            // Number of docs is the same on primary/replica so compare and prints the complete list of docs
-                            assertThat(message, docsOnReplica, equalTo(docsOnPrimary));
-                        } else {
-                            // Primary/replica don't have the same number of docs, compare each doc and only prints the different docs
-                            // This can help when only a subset of documents are different, but it can print all remaining docs if a doc
-                            // is missing in one of the shard.
-                            var diffOnPrimary = new ArrayList<DocIdSeqNoAndSource>();
-                            var diffOnReplica = new ArrayList<DocIdSeqNoAndSource>();
-                            for (int doc = 0; doc < nbDocsOnPrimary; doc++) {
-                                var docOnPrimary = docsOnPrimary.get(doc);
-                                var docOnReplica = docsOnReplica.get(doc);
-                                if (Objects.equals(docOnPrimary, docOnReplica) == false) {
-                                    diffOnPrimary.add(docOnPrimary);
-                                    diffOnReplica.add(docOnReplica);
-                                    break;
-                                }
-                            }
-                            assertThat(
-                                message + ", num_docs_different=[" + diffOnPrimary.size() + "]",
-                                diffOnReplica,
-                                equalTo(diffOnPrimary)
-                            );
+                        if (docsOnPrimary.equals(docsOnReplica) == false) {
+                            // Only compute and print docs missing from either shard when the complete lists differ.
+                            final var primaryDocs = new HashSet<>(docsOnPrimary);
+                            final var replicaDocs = new HashSet<>(docsOnReplica);
+                            final var docsOnlyOnPrimary = docsOnPrimary.stream().filter(doc -> replicaDocs.contains(doc) == false).toList();
+                            final var docsOnlyOnReplica = docsOnReplica.stream().filter(doc -> primaryDocs.contains(doc) == false).toList();
+                            fail(message + ", docs_only_on_primary=" + docsOnlyOnPrimary + ", docs_only_on_replica=" + docsOnlyOnReplica);
                         }
                     }
                 }
@@ -2667,6 +2664,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             builder.put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "256B");
         }
         builder.put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean());
+        builder.put(PreResolvedUpdates.PRE_RESOLVE_BULK_UPDATES.getKey(), randomBoolean());
         return builder.build();
     }
 
@@ -2756,9 +2754,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
                 List<Class<? extends Plugin>> plugins = new ArrayList<>(ESIntegTestCase.this.nodePlugins());
-                if (enableIndexSlice()) {
-                    plugins.add(AlwaysValidateSlicePlugin.class);
-                }
                 if (enableConcurrentSearch) {
                     plugins.add(ConcurrentSearchTestPlugin.class);
                 }
@@ -2781,15 +2776,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Default is true, can be disabled if it causes problems in specific tests.
      */
     protected boolean enableConcurrentSearch() {
-        return true;
-    }
-
-    /**
-     * Whether the test cluster should enable index slicing validation.
-     * This adds the {@link IndexSettings#SLICE_VALIDATED} setting to all indices created in the cluster. In production, this happens
-     * via an x-pack plugin
-     */
-    protected boolean enableIndexSlice() {
         return true;
     }
 
@@ -2853,7 +2839,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         mocks.add(TestSeedPlugin.class);
         mocks.add(AssertActionNamePlugin.class);
         mocks.add(MockScriptService.TestPlugin.class);
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomizeColumnarIdMode()) {
+        if (randomizeColumnarIdMode()) {
             mocks.add(RandomizeColumnarIdModePlugin.class);
         }
         return Collections.unmodifiableList(mocks);
@@ -2867,34 +2853,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         @Override
         public List<Setting<?>> getSettings() {
             return Collections.singletonList(INDEX_TEST_SEED_SETTING);
-        }
-    }
-
-    public static final class AlwaysValidateSlicePlugin extends Plugin {
-        private static final SliceIndexingValidationProvider PROVIDER_INSTANCE = new SliceIndexingValidationProvider();
-
-        @Override
-        public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-            return List.of(PROVIDER_INSTANCE);
-        }
-
-        private static final class SliceIndexingValidationProvider implements IndexSettingProvider {
-            @Override
-            public void provideAdditionalSettings(
-                String indexName,
-                String dataStreamName,
-                IndexMode templateIndexMode,
-                ProjectMetadata projectMetadata,
-                Instant resolvedAt,
-                Settings indexTemplateAndCreateRequestSettings,
-                List<CompressedXContent> combinedTemplateMappings,
-                IndexVersion indexVersion,
-                Settings.Builder additionalSettings
-            ) {
-                if (IndexSettings.SLICE_ENABLED.get(indexTemplateAndCreateRequestSettings)) {
-                    additionalSettings.put(IndexSettings.SLICE_VALIDATED.getKey(), "true");
-                }
-            }
         }
     }
 
@@ -2946,13 +2904,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     indexName,
                     dataStreamName,
                     templateIndexMode,
+                    registryInstalledTemplate,
                     projectMetadata,
                     resolvedAt,
                     indexTemplateAndCreateRequestSettings,
                     combinedTemplateMappings,
                     indexVersion,
                     additionalSettings) -> {
-                    if (templateIndexMode == IndexMode.TIME_SERIES) {
+                    if (IndexMode.isTsdb(templateIndexMode)) {
                         // Don't randomly enable columnar id mode, if time series index mode has been enabled.
                         // Enabling columnar id isn't possible because tsdb always uses synthetic id.
                         return;
@@ -3096,18 +3055,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return INSTANCE == null;
     }
 
-    @Override
-    public final void setUp() throws Exception {
-        // do not override setUp, use an @Before
-        super.setUp();
-    }
-
-    @Override
-    public final void tearDown() throws Exception {
-        // do not override tearDown, use an @After
-        super.tearDown();
-    }
-
     @Before
     public final void setupTestCluster() throws Exception {
         if (runTestScopeLifecycle()) {
@@ -3194,7 +3141,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assert INSTANCE == null;
         if (isSuiteScopedTest(targetClass)) {
             // note we need to do this this way to make sure this is reproducible
-            INSTANCE = (ESIntegTestCase) targetClass.getConstructor().newInstance();
+            INSTANCE = newSuiteScopeTestInstance(targetClass);
             boolean success = false;
             try {
                 INSTANCE.printTestMessage("setup");
@@ -3208,6 +3155,42 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         } else {
             INSTANCE = null;
+        }
+    }
+
+    private static ESIntegTestCase newSuiteScopeTestInstance(Class<?> targetClass) throws Exception {
+        try {
+            return (ESIntegTestCase) targetClass.getConstructor().newInstance();
+        } catch (NoSuchMethodException e) {
+            // Parameterized tests do not have a no-argument constructor. The suite fixture does not participate in the test runs, so
+            // using the first parameter set gives it the same construction semantics while setupSuiteScopeCluster initializes static
+            // state shared by all parameterized instances.
+            for (Method method : targetClass.getMethods()) {
+                if (method.getAnnotation(ParametersFactory.class) == null) {
+                    continue;
+                }
+                Object parameters = method.invoke(null);
+                if (parameters instanceof Iterable<?> iterable) {
+                    Iterator<?> iterator = iterable.iterator();
+                    if (iterator.hasNext() == false) {
+                        throw new IllegalStateException("parameter factory [" + method.getName() + "] returned no parameters", e);
+                    }
+                    Object firstParameters = iterator.next();
+                    if (firstParameters instanceof Object[] arguments) {
+                        for (Constructor<?> constructor : targetClass.getConstructors()) {
+                            if (constructor.getParameterCount() == arguments.length) {
+                                return (ESIntegTestCase) constructor.newInstance(arguments);
+                            }
+                        }
+                    }
+                    throw new IllegalStateException(
+                        "parameter factory [" + method.getName() + "] did not return arguments for a public constructor",
+                        e
+                    );
+                }
+                throw new IllegalStateException("parameter factory [" + method.getName() + "] must return an Iterable", e);
+            }
+            throw e;
         }
     }
 

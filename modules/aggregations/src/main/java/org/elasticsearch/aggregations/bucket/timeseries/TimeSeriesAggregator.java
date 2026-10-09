@@ -13,7 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -129,7 +129,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                     }
                 });
             } else {
-                SortedBinaryDocValues docValues = entry.getValue().bytesValues(aggCtx.getLeafReaderContext());
+                SortableBinaryDocValues docValues = entry.getValue().bytesValues(aggCtx.getLeafReaderContext());
                 dimensionConsumers.put(entry.getKey(), (docId, tsidBuilder) -> {
                     if (docValues.advanceExact(docId)) {
                         assert docValues.docValueCount() == 1 : "Dimension field cannot be a multi-valued field";

@@ -1,0 +1,5 @@
+pr: 154717
+summary: Fix PromQL `topk()` over already-aggregated vectors such as `sum by (...)`
+area: PromQL
+type: bug
+issues: []

@@ -1,0 +1,2 @@
+FROM employees
+| EVAL m = emp_no IN (ROW emp_no = 1)

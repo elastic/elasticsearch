@@ -34,8 +34,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
     private ThreadPool.ThreadPoolType threadPoolType;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initThreadPoolType() throws Exception {
         threadPoolType = randomFrom(ThreadPool.ThreadPoolType.values());
     }
 

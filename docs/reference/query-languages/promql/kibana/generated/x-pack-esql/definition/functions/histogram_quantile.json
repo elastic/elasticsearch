@@ -2,7 +2,7 @@
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
   "type" : "histogram",
   "name" : "histogram_quantile",
-  "description" : "Returns the φ-quantile of a classic histogram represented by cumulative `le` buckets.",
+  "description" : "Returns the φ-quantile of a classic histogram represented by cumulative `le` buckets or a native (exponential) histogram.",
   "signatures" : [
     {
       "params" : [

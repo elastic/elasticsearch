@@ -9,9 +9,10 @@
 
 package org.elasticsearch.inference.completion;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xcontent.ToXContent;
 
-public sealed interface Content extends NamedWriteable, ToXContent permits ContentObjects, ContentString {
+public sealed interface Content extends Accountable, NamedWriteable, ToXContent permits ContentObjects, ContentString {
     boolean containsMultimodalContent();
 }

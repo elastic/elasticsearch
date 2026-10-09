@@ -72,8 +72,7 @@ public class OutboundHandlerTests extends ESTestCase {
     private Compression.Scheme compressionScheme;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initHandler() throws Exception {
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         closeListener = new PlainActionFuture<>();
         channel.addCloseListener(closeListener);
@@ -93,7 +92,7 @@ public class OutboundHandlerTests extends ESTestCase {
 
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(this.recycler);
-        final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
+        final Supplier<CircuitBreaker> breaker = () -> NoopCircuitBreaker.INSTANCE;
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, (c, m) -> {
             try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
@@ -106,9 +105,8 @@ public class OutboundHandlerTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void terminateThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
-        super.tearDown();
     }
 
     public void testSendRawBytes() {

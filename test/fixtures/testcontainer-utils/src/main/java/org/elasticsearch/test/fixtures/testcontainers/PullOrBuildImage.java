@@ -22,6 +22,8 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.utility.LazyFuture;
 
+import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -30,6 +32,10 @@ import java.util.function.Supplier;
  * <p>
  * This is useful when you want to use a pre-built image from a registry (faster) but have a
  * fallback option to build locally if the registry is unavailable or the image doesn't exist.
+ * <p>
+ * The pull timeout defaults to {@link #DEFAULT_PULL_TIMEOUT} and can be overridden via the
+ * {@link #PullOrBuildImage(String, ImageFromDockerfile, Duration)} or
+ * {@link #PullOrBuildImage(DockerImageName, ImageFromDockerfile, Duration)} constructors.
  * <p>
  * Example usage:
  * <pre>{@code
@@ -46,10 +52,14 @@ public class PullOrBuildImage extends LazyFuture<String> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PullOrBuildImage.class);
 
+    // Suite timeouts are typically 20 minutes; 10 minutes leaves headroom for the fallback build.
+    public static final Duration DEFAULT_PULL_TIMEOUT = Duration.ofMinutes(10);
+
     private final DockerImageName remoteImageName;
     private final ImageFromDockerfile fallbackImage;
     private final Supplier<DockerClient> dockerClientSupplier;
     private final ImagePullPolicy imagePullPolicy;
+    private final Duration pullTimeout;
 
     /**
      * Creates a new PullOrBuildImage with the specified remote image name and fallback Dockerfile.
@@ -62,13 +72,37 @@ public class PullOrBuildImage extends LazyFuture<String> {
     }
 
     /**
+     * Creates a new PullOrBuildImage with the specified remote image name, fallback Dockerfile,
+     * and a custom pull timeout.
+     *
+     * @param remoteImageName the name of the remote image to pull (e.g., "myregistry.io/myimage:v1.0")
+     * @param fallbackImage   the ImageFromDockerfile to build if the pull fails
+     * @param pullTimeout     how long to wait for the pull before falling back to the local build
+     */
+    public PullOrBuildImage(String remoteImageName, ImageFromDockerfile fallbackImage, Duration pullTimeout) {
+        this(DockerImageName.parse(remoteImageName), fallbackImage, pullTimeout);
+    }
+
+    /**
      * Creates a new PullOrBuildImage with the specified remote image name and fallback Dockerfile.
      *
      * @param remoteImageName the DockerImageName of the remote image to pull
      * @param fallbackImage   the ImageFromDockerfile to build if the pull fails
      */
     public PullOrBuildImage(DockerImageName remoteImageName, ImageFromDockerfile fallbackImage) {
-        this(remoteImageName, fallbackImage, () -> DockerClientFactory.instance().client(), PullPolicy.defaultPolicy());
+        this(remoteImageName, fallbackImage, DEFAULT_PULL_TIMEOUT);
+    }
+
+    /**
+     * Creates a new PullOrBuildImage with the specified remote image name, fallback Dockerfile,
+     * and a custom pull timeout.
+     *
+     * @param remoteImageName the DockerImageName of the remote image to pull
+     * @param fallbackImage   the ImageFromDockerfile to build if the pull fails
+     * @param pullTimeout     how long to wait for the pull before falling back to the local build
+     */
+    public PullOrBuildImage(DockerImageName remoteImageName, ImageFromDockerfile fallbackImage, Duration pullTimeout) {
+        this(remoteImageName, fallbackImage, () -> DockerClientFactory.instance().client(), PullPolicy.defaultPolicy(), pullTimeout);
     }
 
     // Package-private constructor for testing
@@ -76,12 +110,14 @@ public class PullOrBuildImage extends LazyFuture<String> {
         DockerImageName remoteImageName,
         ImageFromDockerfile fallbackImage,
         Supplier<DockerClient> dockerClientSupplier,
-        ImagePullPolicy imagePullPolicy
+        ImagePullPolicy imagePullPolicy,
+        Duration pullTimeout
     ) {
         this.remoteImageName = remoteImageName;
         this.fallbackImage = fallbackImage;
         this.dockerClientSupplier = dockerClientSupplier;
         this.imagePullPolicy = imagePullPolicy;
+        this.pullTimeout = pullTimeout;
     }
 
     @Override
@@ -102,12 +138,16 @@ public class PullOrBuildImage extends LazyFuture<String> {
             }
 
             LOGGER.info("Attempting to pull remote image: {}", remoteImageName);
-            dockerClientSupplier.get()
+            boolean completed = dockerClientSupplier.get()
                 .pullImageCmd(remoteImageName.asCanonicalNameString())
                 .exec(new PullImageResultCallback())
-                .awaitCompletion();
-            LOGGER.info("Successfully pulled remote image: {}", remoteImageName);
-            return true;
+                .awaitCompletion(pullTimeout.toMillis(), TimeUnit.MILLISECONDS);
+            if (completed) {
+                LOGGER.info("Successfully pulled remote image: {}", remoteImageName);
+                return true;
+            }
+            LOGGER.info("Timed out after {} pulling remote image: {}. Falling back to Dockerfile build.", pullTimeout, remoteImageName);
+            return false;
         } catch (NotFoundException e) {
             LOGGER.info("Remote image not found: {}. Falling back to Dockerfile build.", remoteImageName);
             return false;

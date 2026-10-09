@@ -12,6 +12,7 @@ package org.elasticsearch.datageneration;
 import org.elasticsearch.datageneration.datasource.DataSource;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.fields.PredefinedField;
+import org.elasticsearch.index.IndexMode;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -51,6 +52,7 @@ public record DataGeneratorSpecification(
         private int nestedFieldsLimit;
         private boolean fullyDynamicMapping;
         private List<PredefinedField> predefinedFields;
+        private IndexMode indexMode;
 
         public Builder() {
             this.dataSourceHandlers = new ArrayList<>();
@@ -61,6 +63,7 @@ public record DataGeneratorSpecification(
             this.nestedFieldsLimit = 50;
             fullyDynamicMapping = false;
             this.predefinedFields = new ArrayList<>();
+            this.indexMode = IndexMode.STANDARD;
         }
 
         public Builder withDataSourceHandlers(Collection<DataSourceHandler> handlers) {
@@ -93,9 +96,18 @@ public record DataGeneratorSpecification(
             return this;
         }
 
+        /**
+         * The index mode the generated mapping/documents will be validated against. Some mapping parameters (e.g. the object form of
+         * {@code doc_values}) are only valid in strict-columnar modes; defaults to {@link IndexMode#STANDARD}.
+         */
+        public Builder withIndexMode(IndexMode indexMode) {
+            this.indexMode = indexMode;
+            return this;
+        }
+
         public DataGeneratorSpecification build() {
             return new DataGeneratorSpecification(
-                new DataSource(dataSourceHandlers),
+                new DataSource(dataSourceHandlers, indexMode),
                 maxFieldCountPerLevel,
                 maxObjectDepth,
                 nestedFieldsLimit,

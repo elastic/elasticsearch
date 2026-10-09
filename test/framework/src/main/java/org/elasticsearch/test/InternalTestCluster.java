@@ -1987,6 +1987,7 @@ public final class InternalTestCluster extends TestCluster {
         nodeAndClient.recreateNode(newSettings, () -> rebuildUnicastHostFiles(Collections.singletonList(nodeAndClient)));
         nodeAndClient.startNode();
         publishNode(nodeAndClient);
+        callback.onNodeStarted(nodeAndClient.name);
 
         if (callback.validateClusterForming() || excludedNodeIds.isEmpty() == false) {
             // we have to validate cluster size to ensure that the restarted node has rejoined the cluster if it was master-eligible;
@@ -2551,13 +2552,19 @@ public final class InternalTestCluster extends TestCluster {
     public static class RestartCallback {
 
         /**
-         * Executed once the give node name has been stopped.
+         * Executed once the given node name has been stopped.
          */
         public Settings onNodeStopped(String nodeName) throws Exception {
             return Settings.EMPTY;
         }
 
         public void onAllNodesStopped() throws Exception {}
+
+        /**
+         * Executed once the given node has started and been published to the cluster, before cluster
+         * formation is validated.
+         */
+        public void onNodeStarted(String nodeName) throws Exception {}
 
         /**
          * Executed for each node before the {@code n + 1} node is restarted. The given client is
@@ -2673,9 +2680,28 @@ public final class InternalTestCluster extends TestCluster {
                 try {
                     env.shardLock(id, "InternalTestCluster assert after test", TimeUnit.SECONDS.toMillis(5)).close();
                 } catch (ShardLockObtainFailedException ex) {
-                    throw new AssertionError("Shard " + id + " is still locked after 5 sec waiting", ex);
+                    throw new AssertionError(
+                        "Shard " + id + " is still locked after 5 sec waiting" + describeShardRoutingForDiagnostics(id, ex),
+                        ex
+                    );
                 }
             }
+        }
+    }
+
+    /**
+     * Best-effort description of where a shard is currently allocated, for the assertion message in
+     * {@link #assertAfterTest()}. Any failure gathering it is attached to {@code lockFailure} as suppressed.
+     */
+    private String describeShardRoutingForDiagnostics(ShardId shardId, ShardLockObtainFailedException lockFailure) {
+        try {
+            ClusterState state = clusterService().state();
+            var projectId = state.metadata().projectFor(shardId.getIndex()).id();
+            var shardRouting = state.routingTable(projectId).shardRoutingTable(shardId);
+            return "; " + numDataNodes() + " data node(s), routing: " + shardRouting.assignedShards();
+        } catch (Exception e) {
+            lockFailure.addSuppressed(e);
+            return "; routing unavailable, see suppressed exception";
         }
     }
 

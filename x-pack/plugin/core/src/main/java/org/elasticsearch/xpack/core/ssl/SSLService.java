@@ -367,7 +367,7 @@ public class SSLService {
      *
      * @throws IllegalArgumentException if no supported ciphers are in the requested ciphers
      */
-    static String[] supportedCiphers(String[] supportedCiphers, List<String> requestedCiphers, boolean log) {
+    public static String[] supportedCiphers(String[] supportedCiphers, List<String> requestedCiphers, boolean log) {
         List<String> supportedCiphersList = new ArrayList<>(requestedCiphers.size());
         List<String> unsupportedCiphers = new LinkedList<>();
         boolean found;

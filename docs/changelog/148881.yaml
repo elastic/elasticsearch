@@ -1,5 +1,0 @@
-area: Engine
-issues: []
-pr: 148881
-summary: Reduce the amount of memory used by `TranslogReplicator#BlobTranslogFile`
-type: enhancement

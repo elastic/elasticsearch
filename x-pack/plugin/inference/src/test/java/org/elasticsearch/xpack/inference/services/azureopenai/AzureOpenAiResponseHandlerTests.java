@@ -7,20 +7,86 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
+import org.apache.http.Header;
+import org.apache.http.HeaderElement;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 
 import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class AzureOpenAiResponseHandlerTests extends ESTestCase {
+
+    public void testHandle429TokenOverflow_ThrowWithoutRetrying() {
+        String responseBody = """
+            {
+                "error": {
+                    "message": "The input or output tokens must be reduced in order to run successfully",
+                    "type": "content_too_large",
+                    "param": null,
+                    "code": null
+                }
+            }
+            """;
+
+        var header = mock(Header.class);
+        when(header.getElements()).thenReturn(new HeaderElement[] {});
+
+        var statusLine = mock(StatusLine.class);
+        when(statusLine.getStatusCode()).thenReturn(429);
+
+        var httpResponse = mock(HttpResponse.class);
+        when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
+        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+
+        var mockRequest = RequestTests.mockRequest("id");
+        var httpResult = new HttpResult(httpResponse, responseBody.getBytes(StandardCharsets.UTF_8));
+        var handler = new AzureOpenAiResponseHandler("", (request, result) -> null, false);
+
+        var retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
+
+        assertFalse(retryException.shouldRetry());
+    }
+
+    public void testHandle429RateLimit_ThrowWithRetrying() {
+        String responseBody = """
+            {
+                "error": {
+                    "message": "Rate limit reached. Please try again in a moment.",
+                    "type": "requests",
+                    "param": null,
+                    "code": "rate_limit_exceeded"
+                }
+            }
+            """;
+
+        var header = mock(Header.class);
+        when(header.getElements()).thenReturn(new HeaderElement[] {});
+
+        var statusLine = mock(StatusLine.class);
+        when(statusLine.getStatusCode()).thenReturn(429);
+
+        var httpResponse = mock(HttpResponse.class);
+        when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
+        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+
+        var mockRequest = RequestTests.mockRequest("id");
+        var httpResult = new HttpResult(httpResponse, responseBody.getBytes(StandardCharsets.UTF_8));
+        var handler = new AzureOpenAiResponseHandler("", (request, result) -> null, false);
+
+        var retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
+
+        assertTrue(retryException.shouldRetry());
+    }
 
     public void testBuildRateLimitErrorMessage() {
         int statusCode = 429;

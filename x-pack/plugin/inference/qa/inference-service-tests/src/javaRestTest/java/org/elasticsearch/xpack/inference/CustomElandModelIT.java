@@ -18,15 +18,18 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class CustomElandModelIT extends InferenceBaseRestTest {
 
     // The model definition is taken from org.elasticsearch.xpack.ml.integration.TextExpansionQueryIT
 
-    static final String BASE_64_ENCODED_MODEL = "UEsDBAAACAgAAAAAAAAAAAAAAAAAA"
+    static final String SPARSE_EMBEDDING_BASE_64_ENCODED_MODEL = "UEsDBAAACAgAAAAAAAAAAAAAAAAAA"
         + "AAAAAAUAA4Ac2ltcGxlbW9kZWwvZGF0YS5wa2xGQgoAWlpaWlpaWlpaWoACY19fdG9yY2hfXwpUaW55VG"
         + "V4dEV4cGFuc2lvbgpxACmBfShYCAAAAHRyYWluaW5ncQGJWBYAAABfaXNfZnVsbF9iYWNrd2FyZF9ob29"
         + "rcQJOdWJxAy5QSwcIITmbsFgAAABYAAAAUEsDBBQACAgIAAAAAAAAAAAAAAAAAAAAAAAdAB0Ac2ltcGxl"
@@ -61,9 +64,48 @@ public class CustomElandModelIT extends InferenceBaseRestTest {
         + "AAIAAAATAAAAAAAAAAAAAAAAANQFAABzaW1wbGVtb2RlbC92ZXJzaW9uUEsGBiwAAAAAAAAAHgMtAAAAAAAA"
         + "AAAABQAAAAAAAAAFAAAAAAAAAGoBAAAAAAAAUgYAAAAAAABQSwYHAAAAALwHAAAAAAAAAQAAAFBLBQYAAAAABQAFAGoBAABSBgAAAAA=";
 
-    static final long RAW_MODEL_SIZE; // size of the model before base64 encoding
+    static final long SPARSE_EMBEDDING_RAW_MODEL_SIZE; // size of the model before base64 encoding
     static {
-        RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
+        SPARSE_EMBEDDING_RAW_MODEL_SIZE = Base64.getDecoder().decode(SPARSE_EMBEDDING_BASE_64_ENCODED_MODEL).length;
+    }
+
+    // The model definition is taken from org.elasticsearch.xpack.ml.integration.TextEmbeddingQueryIT
+    static final String TEXT_EMBEDDING_BASE_64_ENCODED_MODEL = "UEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAUAA4Ac2ltcGxlbW9kZWwvZGF0YS5wa2xGQgoAWl"
+        + "paWlpaWlpaWoACY19fdG9yY2hfXwpUaW55VGV4dEVtYmVkZGluZwpxACmBfShYCAAAAHRy"
+        + "YWluaW5ncQGJWBYAAABfaXNfZnVsbF9iYWNrd2FyZF9ob29rcQJOdWJxAy5QSwcIsFTQsF"
+        + "gAAABYAAAAUEsDBBQACAgIAAAAAAAAAAAAAAAAAAAAAAAdAB0Ac2ltcGxlbW9kZWwvY29k"
+        + "ZS9fX3RvcmNoX18ucHlGQhkAWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWoWPMWvDMBCF9/"
+        + "yKGy1IQ7Ia0q1j2yWbMYdsnWphWWd0Em3+fS3bBEopXd99j/dd77UI3Fy43+grvUwdGePC"
+        + "R/XKJntS9QEAcdZRT5QoCiJcoWnXtMvW/ohS1C4sZaihY/YFcoI2e4+d7sdPHQ0OzONyf5"
+        + "+T46B9U8DSNWTBcixMJeRtvQwkjv2AePpld1wKAC7MOaEzUsONgnDc4sQjBUz3mbbbY2qD"
+        + "2usbB9rQmcWV47/gOiVIReAvUsHT8y5S7yKL/mnSIWuPQmSqLRm0DJWkWD0eUEqtjUgpx7"
+        + "AXow6mai5HuJzPrTp8A1BLBwiD/6yJ6gAAAKkBAABQSwMEFAAICAgAAAAAAAAAAAAAAAAA"
+        + "AAAAACcAQQBzaW1wbGVtb2RlbC9jb2RlL19fdG9yY2hfXy5weS5kZWJ1Z19wa2xGQj0AWl"
+        + "paWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpa"
+        + "WlpaWlpaWo2Qz0rDQBDGk/5RmjfwlmMCbWivBZ9gWL0IFkRCdLcmmOwmuxu0N08O3r2rCO"
+        + "rdx9CDgm/hWUUQMdugzUk6LCwzv++bGeak5YE1saoorNgCCwsbzFc9sm1PvivQo2zqToU8"
+        + "iiT1FEunfadXRcLzUocJVWN3i3ElZF3W4pDxUM9yVrPNXCeCR+lOLdp1190NwVktzoVKDF"
+        + "5COh+nQpbtsX+0/tjpOWYJuR8HMuJUZEEW8TJKQ8UY9eJIxZ7S0vvb3vf9yiCZLiV3Fz5v"
+        + "1HdHw6HvFK3JWnUElWR5ygbz8TThB4NMUJYG+axowyoWHbiHBwQbSWbHHXiEJ4QWkmOTPM"
+        + "MLQhvJaZOgSX49Z3a8uPq5Ia/whtBBctEkl4a8wwdCF8lVk1wb8glfCCtIbprkttntrkF0"
+        + "0Q1+AFBLBwi4BIswOAEAAP0BAABQSwMEAAAICAAAAAAAAAAAAAAAAAAAAAAAABkAQQBzaW"
+        + "1wbGVtb2RlbC9jb25zdGFudHMucGtsRkI9AFpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpa"
+        + "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlqAAikuUEsHCG0vCVcEAAAABA"
+        + "AAAFBLAwQAAAgIAAAAAAAAAAAAAAAAAAAAAAAAEwA7AHNpbXBsZW1vZGVsL3ZlcnNpb25G"
+        + "QjcAWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWl"
+        + "paWlpaWjMKUEsHCNGeZ1UCAAAAAgAAAFBLAQIAAAAACAgAAAAAAACwVNCwWAAAAFgAAAAU"
+        + "AAAAAAAAAAAAAAAAAAAAAABzaW1wbGVtb2RlbC9kYXRhLnBrbFBLAQIAABQACAgIAAAAAA"
+        + "CD/6yJ6gAAAKkBAAAdAAAAAAAAAAAAAAAAAKgAAABzaW1wbGVtb2RlbC9jb2RlL19fdG9y"
+        + "Y2hfXy5weVBLAQIAABQACAgIAAAAAAC4BIswOAEAAP0BAAAnAAAAAAAAAAAAAAAAAPoBAA"
+        + "BzaW1wbGVtb2RlbC9jb2RlL19fdG9yY2hfXy5weS5kZWJ1Z19wa2xQSwECAAAAAAgIAAAA"
+        + "AAAAbS8JVwQAAAAEAAAAGQAAAAAAAAAAAAAAAADIAwAAc2ltcGxlbW9kZWwvY29uc3Rhbn"
+        + "RzLnBrbFBLAQIAAAAACAgAAAAAAADRnmdVAgAAAAIAAAATAAAAAAAAAAAAAAAAAFQEAABz"
+        + "aW1wbGVtb2RlbC92ZXJzaW9uUEsGBiwAAAAAAAAAHgMtAAAAAAAAAAAABQAAAAAAAAAFAA"
+        + "AAAAAAAGoBAAAAAAAA0gQAAAAAAABQSwYHAAAAADwGAAAAAAAAAQAAAFBLBQYAAAAABQAFAGoBAADSBAAAAAA=";
+
+    static final long TEXT_EMBEDDING_RAW_MODEL_SIZE; // size of the model before base64 encoding
+    static {
+        TEXT_EMBEDDING_RAW_MODEL_SIZE = Base64.getDecoder().decode(TEXT_EMBEDDING_BASE_64_ENCODED_MODEL).length;
     }
 
     // Test a sparse embedding model deployed with the ml trained models APIs
@@ -71,7 +113,7 @@ public class CustomElandModelIT extends InferenceBaseRestTest {
         String modelId = "custom-text-expansion-model";
 
         createTextExpansionModel(modelId, client());
-        putModelDefinition(modelId, BASE_64_ENCODED_MODEL, RAW_MODEL_SIZE, client());
+        putModelDefinition(modelId, SPARSE_EMBEDDING_BASE_64_ENCODED_MODEL, SPARSE_EMBEDDING_RAW_MODEL_SIZE, client());
         putVocabulary(
             List.of("these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"),
             modelId,
@@ -100,7 +142,7 @@ public class CustomElandModelIT extends InferenceBaseRestTest {
         String modelId = "custom-model-that-cannot-be-stopped";
 
         createTextExpansionModel(modelId, client());
-        putModelDefinition(modelId, BASE_64_ENCODED_MODEL, RAW_MODEL_SIZE, client());
+        putModelDefinition(modelId, SPARSE_EMBEDDING_BASE_64_ENCODED_MODEL, SPARSE_EMBEDDING_RAW_MODEL_SIZE, client());
         putVocabulary(
             List.of("these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"),
             modelId,
@@ -135,6 +177,83 @@ public class CustomElandModelIT extends InferenceBaseRestTest {
         // Force stop works
         String forceStopEndpoint = org.elasticsearch.common.Strings.format("_ml/trained_models/%s/deployment/_stop?force", inferenceId);
         assertStatusOkOrCreated(client().performRequest(new Request("POST", forceStopEndpoint)));
+    }
+
+    /**
+     * Verifies that when a text-embedding inference endpoint create fails after the model deployment has been started
+     * (the new {@code stopModelDeploymentIfStarted} behavior), the ML deployment is actually stopped and does not
+     * remain running as an orphan.
+     *
+     * <p>The failure is forced by the incompatible-semantic_text-mapping check in
+     * {@code checkForExistingUsesOfInferenceId}: a document is indexed with the semantic_text field
+     * (populating {@code model_settings} in the mapping), then the endpoint is force-deleted, and a recreation
+     * attempt with a different similarity setting triggers the incompatibility which fires after validation has
+     * already deployed the model.
+     */
+    @SuppressWarnings("unchecked")
+    public void testStopsDeployment_WhenCreateFailsAfterDeployment() throws Exception {
+        var modelId = "stop-deployment-on-failure-model";
+        var inferenceId = "stop-deployment-on-failure-inference";
+        var indexName = "stop-deployment-on-failure-index";
+
+        // Upload the text-embedding model (not yet deployed)
+        createMlNodeTextEmbeddingModel(modelId, client());
+
+        // Create the inference endpoint with the default similarity (cosine).
+        // Validation deploys the model and returns the embedding dimensions.
+        putModel(inferenceId, Strings.format("""
+            {
+              "service": "elasticsearch",
+              "service_settings": {
+                "model_id": "%s",
+                "num_allocations": 1,
+                "num_threads": 1
+              }
+            }
+            """, modelId), TaskType.TEXT_EMBEDDING);
+
+        // Create an index with a semantic_text field referencing the endpoint
+        putSemanticText(inferenceId, indexName);
+
+        // Index a document so that model_settings (task_type, similarity, dimensions, element_type) are
+        // written into the index mapping — required for the incompatibility check to fire later
+        var indexRequest = new Request("PUT", indexName + "/_create/1");
+        indexRequest.setJsonEntity("{\"inference_field\": \"hello world\"}");
+        assertStatusOkOrCreated(client().performRequest(indexRequest));
+        assertStatusOkOrCreated(client().performRequest(new Request("GET", "_refresh")));
+
+        // Force-delete the endpoint (stops the deployment while the index mapping still references it)
+        deleteModel(inferenceId, "force=true");
+
+        // Attempt to recreate the same inference endpoint with an incompatible similarity (dot_product).
+        // The validator redeploys the model, but checkForExistingUsesOfInferenceId then detects the
+        // conflict with the existing mapping and fails. stopModelDeploymentIfStarted must stop the
+        // newly-started deployment.
+        var e = expectThrows(ResponseException.class, () -> putModel(inferenceId, Strings.format("""
+            {
+              "service": "elasticsearch",
+              "service_settings": {
+                "model_id": "%s",
+                "num_allocations": 1,
+                "num_threads": 1,
+                "similarity": "dot_product"
+              }
+            }
+            """, modelId), TaskType.TEXT_EMBEDDING));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(400));
+        assertThat(e.getMessage(), containsString("incompatible settings"));
+
+        // The deployment that validation started must have been stopped by stopModelDeploymentIfStarted.
+        // Use assertBusy because the ML stop is asynchronous relative to the HTTP response.
+        assertBusy(() -> {
+            var stats = (List<Map<String, Object>>) getTrainedModelStats(modelId).get("trained_model_stats");
+            assertNull(
+                "Deployment should have been stopped after the failed inference endpoint create, but deployment_stats is still present",
+                stats.get(0).get("deployment_stats")
+            );
+        }, 30, TimeUnit.SECONDS);
+
+        deleteIndex(indexName);
     }
 
     static void createTextExpansionModel(String modelId, RestClient client) throws IOException {
@@ -183,7 +302,37 @@ public class CustomElandModelIT extends InferenceBaseRestTest {
     // Create the model including definition and vocab
     static void createMlNodeTextExpansionModel(String modelId, RestClient client) throws IOException {
         createTextExpansionModel(modelId, client);
-        putModelDefinition(modelId, BASE_64_ENCODED_MODEL, RAW_MODEL_SIZE, client);
+        putModelDefinition(modelId, SPARSE_EMBEDDING_BASE_64_ENCODED_MODEL, SPARSE_EMBEDDING_RAW_MODEL_SIZE, client);
+        putVocabulary(
+            List.of("these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"),
+            modelId,
+            client
+        );
+    }
+
+    private static void createTextEmbeddingModel(String modelId, RestClient client) throws IOException {
+        Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
+        request.setJsonEntity("""
+            {
+               "description": "a text embedding model",
+               "model_type": "pytorch",
+               "inference_config": {
+                 "text_embedding": {
+                   "tokenization": {
+                     "bert": {
+                       "with_special_tokens": false
+                     }
+                   }
+                 }
+               }
+             }""");
+        client.performRequest(request);
+    }
+
+    // Creates a text-embedding trained model with definition and vocabulary (model NOT deployed)
+    static void createMlNodeTextEmbeddingModel(String modelId, RestClient client) throws IOException {
+        createTextEmbeddingModel(modelId, client);
+        putModelDefinition(modelId, TEXT_EMBEDDING_BASE_64_ENCODED_MODEL, TEXT_EMBEDDING_RAW_MODEL_SIZE, client);
         putVocabulary(
             List.of("these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"),
             modelId,

@@ -36,7 +36,7 @@ public class ValidatingSubstitutor {
 
     /**
      * Substitutes placeholder values in a string that match the keys in a provided map with the map's corresponding values.
-     * After replacement, if the source still contains a placeholder an {@link IllegalStateException} is thrown.
+     * After replacement, if the source still contains a placeholder an {@link IllegalArgumentException} is thrown.
      * @param source the string that will be searched for placeholders to be replaced
      * @param field a description of the source string
      * @return a string with the placeholders replaced by string values
@@ -50,7 +50,7 @@ public class ValidatingSubstitutor {
     private static void ensureNoMorePlaceholdersExist(String substitutedString, String field) {
         Matcher matcher = VARIABLE_PLACEHOLDER_PATTERN.matcher(substitutedString);
         if (matcher.find()) {
-            throw new IllegalStateException(
+            throw new IllegalArgumentException(
                 Strings.format(
                     "Found placeholder [%s] in field [%s] after replacement call, "
                         + "please check that all templates have a corresponding field definition.",

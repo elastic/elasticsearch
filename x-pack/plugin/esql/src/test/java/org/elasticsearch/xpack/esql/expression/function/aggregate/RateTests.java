@@ -71,12 +71,12 @@ public class RateTests extends AbstractAggregationTestCase {
                 }
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, NullTypeExpectation.OUTPUT_KEEPS_TYPE);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Rate(source, args.get(0), Literal.TRUE, Rate.NO_WINDOW, args.get(1), args.get(2));
+        return new Rate(source, args.get(0), args.get(1), Literal.TRUE, Rate.NO_WINDOW, args.get(2));
     }
 
     @Override
@@ -206,5 +206,18 @@ public class RateTests extends AbstractAggregationTestCase {
         var preview = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         DocsV3Support.Param window = new DocsV3Support.Param(DataType.TIME_DURATION, List.of(preview));
         return List.of(params.get(0), window);
+    }
+
+    /**
+     * Filters out implicitly injected parameters to ensure CONSTANT hint validation
+     * only checks declared @Param arguments.
+     */
+    public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
+        assertThat(params, hasSize(5));
+        assertThat(params.get(1).type(), equalTo(DataType.DATETIME));
+        assertThat(params.get(2).type(), equalTo(DataType.KEYWORD));
+        assertThat(params.get(3).type(), equalTo(DataType.INTEGER));
+        assertThat(params.get(4).type(), equalTo(DataType.LONG));
+        return List.of(params.get(0));
     }
 }

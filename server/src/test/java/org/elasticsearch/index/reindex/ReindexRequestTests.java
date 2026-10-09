@@ -9,15 +9,20 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
@@ -43,9 +48,9 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.junit.Assert.assertArrayEquals;
 
 /**
  * Tests some of the validation of {@linkplain ReindexRequest}. See reindex's rest tests for much more.
@@ -728,6 +733,256 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
         }
     }
 
+    public void testDestSliceParsesWhenFeatureFlagEnabled() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        // A destination [_slice] is a plain slice value that every reindexed document is routed to.
+        ReindexRequest request = parseRequestWithDestRoutingField(SliceIndexing.FIELD_NAME, "s1");
+        assertEquals("s1", request.getDestination().routing());
+        assertTrue(request.getDestination().isRoutingFromSlice());
+        assertNull(request.validate());
+    }
+
+    public void testDestSliceCommandValueRejectedAtParse() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        // Routing-command style values are no longer accepted for a destination [_slice]; only plain slice values are.
+        Exception e = expectThrows(Exception.class, () -> parseRequestWithDestRoutingField(SliceIndexing.FIELD_NAME, "=s1"));
+        assertThat(e.getMessage(), containsString("[reindex] failed to parse field [dest]"));
+    }
+
+    public void testDestSliceAllRejectedAtParse() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Exception e = expectThrows(
+            Exception.class,
+            () -> parseRequestWithDestRoutingField(SliceIndexing.FIELD_NAME, SliceIndexing.SLICE_ALL)
+        );
+        assertThat(e.getMessage(), containsString("[reindex] failed to parse field [dest]"));
+    }
+
+    public void testSourceSliceParsesWhenFeatureFlagEnabled() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = parseRequestWithSourceSlice("tenant-a");
+        assertEquals("tenant-a", request.getSearchRequest().searchSlice());
+        assertTrue(request.getSearchRequest().isRoutingFromSlice());
+        assertEquals("tenant-a", request.getSearchRequest().routing());
+    }
+
+    public void testSourceSliceAllParsesWhenFeatureFlagEnabled() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = parseRequestWithSourceSlice(SliceIndexing.SLICE_ALL);
+        assertEquals(SliceIndexing.SLICE_ALL, request.getSearchRequest().searchSlice());
+        assertTrue(request.getSearchRequest().isRoutingFromSlice());
+        // [_all] leaves routing unrestricted so every slice is read.
+        assertNull(request.getSearchRequest().routing());
+    }
+
+    public void testSourceSliceRejectedWhenFeatureFlagDisabled() throws IOException {
+        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Exception e = expectThrows(Exception.class, () -> parseRequestWithSourceSlice("tenant-a"));
+        Throwable root = e;
+        while (root.getCause() != null) {
+            root = root.getCause();
+        }
+        assertThat(root.getMessage(), equalTo("request does not support [" + SliceIndexing.FIELD_NAME + "]"));
+    }
+
+    public void testSourceSliceRejectedWhenClusterFeatureUnsupported() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                    b.field(SliceIndexing.FIELD_NAME, "tenant-a");
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            Exception e = expectThrows(Exception.class, () -> ReindexRequest.fromXContent(p, Predicates.never()));
+            Throwable root = e;
+            while (root.getCause() != null) {
+                root = root.getCause();
+            }
+            assertThat(root.getMessage(), equalTo("request does not support [" + SliceIndexing.FIELD_NAME + "]"));
+        }
+    }
+
+    public void testSourceSliceBuilderObjectStillParses() throws IOException {
+        // The search slice-scroll object form of [slice] must keep working and must not be treated as a source [_slice] value.
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                    b.startObject("slice");
+                    {
+                        b.field("id", 0);
+                        b.field("max", 2);
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            ReindexRequest r = ReindexRequest.fromXContent(p, Predicates.always());
+            assertNotNull(r.getSearchRequest().source().slice());
+            assertFalse(r.getSearchRequest().isRoutingFromSlice());
+        }
+    }
+
+    public void testSourceSliceRejectedWhenNotAString() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        // A source [_slice] must be a plain string; a non-string value (here a number) is rejected rather than silently ignored.
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                    b.field(SliceIndexing.FIELD_NAME, 42);
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            Exception e = expectThrows(Exception.class, () -> ReindexRequest.fromXContent(p, Predicates.always()));
+            Throwable root = e;
+            while (root.getCause() != null) {
+                root = root.getCause();
+            }
+            assertThat(root.getMessage(), equalTo("[" + SliceIndexing.FIELD_NAME + "] must be a string value"));
+        }
+    }
+
+    public void testDestSliceAndRoutingAreMutuallyExclusive() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                    b.field("routing", "keep");
+                    b.field(SliceIndexing.FIELD_NAME, "s1");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            Exception e = expectThrows(Exception.class, () -> ReindexRequest.fromXContent(p, Predicates.always()));
+            assertThat(e.getMessage(), containsString("[reindex] failed to parse field [dest]"));
+        }
+    }
+
+    public void testDestSliceRejectedWhenClusterFeatureUnsupported() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                    b.field(SliceIndexing.FIELD_NAME, "keep");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            Exception e = expectThrows(Exception.class, () -> ReindexRequest.fromXContent(p, Predicates.never()));
+            assertThat(e.getMessage(), containsString("[reindex] failed to parse field [dest]"));
+        }
+    }
+
+    public void testDestSliceProvenancePreservedOnTransportSerialization() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = parseRequestWithDestRoutingField(SliceIndexing.FIELD_NAME, "s1");
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersion.current());
+        request.writeTo(out);
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry());
+        in.setTransportVersion(TransportVersion.current());
+        ReindexRequest deserialized = new ReindexRequest(in);
+
+        assertEquals("s1", deserialized.getDestination().routing());
+        assertTrue(deserialized.getDestination().isRoutingFromSlice());
+    }
+
+    public void testDestSliceRejectedWhenFeatureFlagDisabled() throws IOException {
+        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                    b.field(SliceIndexing.FIELD_NAME, "s1");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> ReindexRequest.fromXContent(p, Predicates.never())
+            );
+            assertThat(e.getMessage(), containsString("failed to parse field"));
+            assertThat(e.getCause().getMessage(), containsString("failed to parse field"));
+            assertThat(e.getCause().getCause().getMessage(), equalTo("request does not support [" + SliceIndexing.FIELD_NAME + "]"));
+        }
+    }
+
     private ReindexRequest parseRequestWithSourceIndices(Object sourceIndices) throws IOException {
         BytesReference request;
         try (XContentBuilder b = JsonXContent.contentBuilder()) {
@@ -749,6 +1004,56 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
             return ReindexRequest.fromXContent(p, Predicates.never());
+        }
+    }
+
+    private ReindexRequest parseRequestWithSourceSlice(String sliceValue) throws IOException {
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                    b.field(SliceIndexing.FIELD_NAME, sliceValue);
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            return ReindexRequest.fromXContent(p, Predicates.always());
+        }
+    }
+
+    private ReindexRequest parseRequestWithDestRoutingField(String field, String value) throws IOException {
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                    b.field(field, value);
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            return ReindexRequest.fromXContent(p, Predicates.always());
         }
     }
 

@@ -11,10 +11,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -29,7 +32,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
 /**
  * Removes duplicate values from a multivalued field.
  */
-public class MvDedupe extends AbstractMultivalueFunction {
+public class MvDedupe extends AbstractMultivalueFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvDedupe", MvDedupe::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvDedupe.class)
         .unary(MvDedupe::new)
@@ -38,6 +41,7 @@ public class MvDedupe extends AbstractMultivalueFunction {
 
     // @TODO: add unsigned_long
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = {
             "boolean",
             "cartesian_point",

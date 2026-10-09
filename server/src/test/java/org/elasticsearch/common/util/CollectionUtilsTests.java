@@ -13,16 +13,23 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -32,10 +39,14 @@ import java.util.RandomAccess;
 import java.util.Set;
 import java.util.UUID;
 
+import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.LAX;
+import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.ORDERED;
+import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.UNMODIFIABLE;
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopyNoNullElements;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
+import static org.elasticsearch.common.util.CollectionUtils.deepCopy;
 import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
 import static org.elasticsearch.common.util.CollectionUtils.ensureNoSelfReferences;
 import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
@@ -47,6 +58,8 @@ import static org.elasticsearch.common.util.CollectionUtils.toArray;
 import static org.elasticsearch.common.util.CollectionUtils.wrapUnmodifiableOrEmptySingleton;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class CollectionUtilsTests extends ESTestCase {
 
@@ -235,7 +248,7 @@ public class CollectionUtilsTests extends ESTestCase {
         assertSelfReferenceMessage(e, hint);
     }
 
-    /** Non-empty {@link Object[]} graphs without self-reference should complete without throwing. */
+    /** Non-empty {@link Object Object[]} graphs without self-reference should complete without throwing. */
     public void testEnsureNoSelfReferencesNonEmptyObjectArrays() {
         String hint = randomMessageHintOrNull("object array");
         ensureNoSelfReferences(new Object[] { "a", 1L, true }, hint);
@@ -582,5 +595,483 @@ public class CollectionUtilsTests extends ESTestCase {
         } else {
             assertEquals("Iterable object is self-referencing itself (" + hint + ")", e.getMessage());
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // deepCopy tests
+    // -------------------------------------------------------------------------
+
+    public void testDeepCopyNull() {
+        assertNull(deepCopy(null));
+        assertNull(deepCopy(null, UNMODIFIABLE));
+        assertNull(deepCopy(null, ORDERED));
+        assertNull(deepCopy(null, UNMODIFIABLE, ORDERED));
+    }
+
+    public void testDeepCopyImmutableScalarsReturnSameReference() {
+        String str = randomAlphaOfLength(5);
+        assertSame(str, deepCopy(str));
+
+        Boolean bool = randomBoolean();
+        assertSame(bool, deepCopy(bool));
+
+        Character ch = (char) randomIntBetween('a', 'z');
+        assertSame(ch, deepCopy(ch));
+
+        Byte b = (byte) randomIntBetween(0, 127);
+        assertSame(b, deepCopy(b));
+
+        Short s = (short) randomIntBetween(0, 1000);
+        assertSame(s, deepCopy(s));
+
+        Integer i = randomInt();
+        assertSame(i, deepCopy(i));
+
+        Long l = randomLong();
+        assertSame(l, deepCopy(l));
+
+        Float f = randomFloat();
+        assertSame(f, deepCopy(f));
+
+        Double d = randomDouble();
+        assertSame(d, deepCopy(d));
+
+        BigInteger bi = BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE);
+        assertSame(bi, deepCopy(bi));
+
+        BigDecimal bd = new BigDecimal("1.23456789012345678901234567890");
+        assertSame(bd, deepCopy(bd));
+
+        ZonedDateTime zdt = ZonedDateTime.now(ZoneOffset.UTC);
+        assertSame(zdt, deepCopy(zdt));
+    }
+
+    public void testDeepCopyImmutableScalarsWithOptions() {
+        // options do not affect pass-through of immutable scalars
+        String str = randomAlphaOfLength(5);
+        assertSame(str, deepCopy(str, UNMODIFIABLE));
+        assertSame(str, deepCopy(str, ORDERED));
+        assertSame(str, deepCopy(str, UNMODIFIABLE, ORDERED));
+    }
+
+    public void testDeepCopyDateClonesReference() {
+        Date original = new Date(randomLong());
+        Date copy = deepCopy(original);
+        assertNotSame(original, copy);
+        assertEquals(original, copy);
+        // mutating the copy must not affect the original
+        copy.setTime(original.getTime() + 1);
+        assertNotEquals(original, copy);
+    }
+
+    public void testDeepCopyMap() {
+        Map<String, Object> original = new HashMap<>();
+        original.put("str", "hello");
+        original.put("num", 42);
+        original.put("nested", new HashMap<>(Map.of("k", "v")));
+
+        Map<String, Object> copy = deepCopy(original);
+        assertNotSame(original, copy);
+        assertEquals(original, copy);
+    }
+
+    public void testDeepCopyMapMutationIsolation() {
+        Map<String, Object> original = new HashMap<>();
+        original.put("key", "value");
+
+        Map<String, Object> copy = deepCopy(original);
+        copy.put("extra", "added");
+        assertFalse(original.containsKey("extra"));
+    }
+
+    public void testDeepCopyMapEmptyMap() {
+        Map<String, Object> original = new HashMap<>();
+        Map<String, Object> copy = deepCopy(original);
+        assertNotSame(original, copy);
+        assertTrue(copy.isEmpty());
+    }
+
+    public void testDeepCopyList() {
+        List<Object> original = new ArrayList<>(List.of("a", 1, true));
+        List<Object> copy = deepCopy(original);
+        assertNotSame(original, copy);
+        assertEquals(original, copy);
+        copy.add("extra");
+        assertFalse(original.contains("extra"));
+    }
+
+    public void testDeepCopyListEmptyList() {
+        List<Object> original = new ArrayList<>();
+        List<Object> copy = deepCopy(original);
+        assertNotSame(original, copy);
+        assertTrue(copy.isEmpty());
+    }
+
+    public void testDeepCopySet() {
+        Set<Object> original = new HashSet<>(Set.of("x", "y", "z"));
+        Set<Object> copy = deepCopy(original);
+        assertNotSame(original, copy);
+        assertEquals(original, copy);
+        copy.add("extra");
+        assertFalse(original.contains("extra"));
+    }
+
+    public void testDeepCopyByteArray() {
+        byte[] original = new byte[] { 1, 2, 3, 4, 5 };
+        byte[] copy = deepCopy(original);
+        assertNotSame(original, copy);
+        assertArrayEquals(original, copy);
+        copy[0] = (byte) ~copy[0];
+        assertFalse(copy[0] == original[0]);
+    }
+
+    public void testDeepCopyDoubleArray() {
+        double[] original = new double[] { 1.0, 2.5, 3.14 };
+        double[] copy = deepCopy(original);
+        assertNotSame(original, copy);
+        assertArrayEquals(original, copy, 0.0);
+        copy[0] = 99.0;
+        assertNotEquals(99.0, original[0]);
+    }
+
+    public void testDeepCopyDouble2DArray() {
+        double[][] original = new double[][] { { 1.0, 2.0 }, { 3.0, 4.0 } };
+        double[][] copy = deepCopy(original);
+        assertNotSame(original, copy);
+        // outer array is a new instance
+        assertNotSame(original[0], copy[0]);
+        assertNotSame(original[1], copy[1]);
+        assertArrayEquals(original[0], copy[0], 0.0);
+        assertArrayEquals(original[1], copy[1], 0.0);
+        // mutating the inner copy must not affect the original
+        copy[0][0] = 99.0;
+        assertNotEquals(99.0, original[0][0]);
+    }
+
+    public void testDeepCopyDouble2DArrayWithEmptyRows() {
+        double[][] original = new double[][] { {}, { 1.0 } };
+        double[][] copy = deepCopy(original);
+        assertNotSame(original, copy);
+        assertArrayEquals(original[0], copy[0], 0.0);
+        assertArrayEquals(original[1], copy[1], 0.0);
+    }
+
+    public void testDeepCopyIntArray() {
+        int[] original = new int[] { 10, 20, 30 };
+        int[] copy = deepCopy(original);
+        assertNotSame(original, copy);
+        assertArrayEquals(original, copy);
+        copy[0] = 99;
+        assertNotEquals(99, original[0]);
+    }
+
+    public void testDeepCopyStringArray() {
+        // String[] is the typical result of String#split() in a script processor
+        String[] original = "foo.bar.baz".split("\\.");
+        String[] copy = deepCopy(original);
+        assertNotSame(original, copy);
+        assertArrayEquals(original, copy);
+        original[0] = "mutated";
+        assertThat(copy[0], equalTo("foo"));
+    }
+
+    public void testDeepCopyStringArrayNestedInMap() {
+        // exercises the path where an Object array appears as a map value
+        String[] arr = "a.b.c".split("\\.");
+        Map<String, Object> original = new HashMap<>(Map.of("parts", arr));
+        Map<String, Object> copy = deepCopy(original);
+        assertNotSame(original, copy);
+        String[] copiedArr = (String[]) copy.get("parts");
+        assertNotSame(arr, copiedArr);
+        assertArrayEquals(arr, copiedArr);
+        arr[0] = "mutated";
+        assertThat(copiedArr[0], equalTo("a"));
+    }
+
+    public void testDeepCopyObjectArrayWithNullElements() {
+        Object[] original = new Object[] { "hello", null, 42 };
+        Object[] copy = deepCopy(original);
+        assertNotSame(original, copy);
+        assertArrayEquals(original, copy);
+    }
+
+    public void testDeepCopyMapKeyIsDeepCopied() {
+        Date originalKey = new Date(1000L); // a mutable non-primitive map key
+        Map<Object, Object> original = new HashMap<>();
+        original.put(originalKey, "value");
+
+        Map<Object, Object> copy = deepCopy(original);
+
+        Date copiedKey = (Date) copy.keySet().iterator().next();
+        assertEquals(originalKey, copiedKey);
+        assertNotSame(originalKey, copiedKey); // it was copied!
+    }
+
+    public void testDeepCopyNestedMapInList() {
+        Map<String, Object> inner = new HashMap<>(Map.of("key", "value"));
+        List<Object> list = new ArrayList<>(List.of(inner));
+        Map<String, Object> outer = new HashMap<>(Map.of("list", list));
+
+        Map<String, Object> copy = deepCopy(outer);
+        assertNotSame(outer, copy);
+
+        @SuppressWarnings("unchecked")
+        List<Object> copiedList = (List<Object>) copy.get("list");
+        assertNotSame(list, copiedList);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> copiedInner = (Map<String, Object>) copiedList.get(0);
+        assertNotSame(inner, copiedInner);
+        assertEquals("value", copiedInner.get("key"));
+
+        // mutating the nested copy must not affect the original
+        copiedInner.put("new", "thing");
+        assertFalse(inner.containsKey("new"));
+    }
+
+    public void testDeepCopyNestedListInMap() {
+        List<Object> innerList = new ArrayList<>(List.of(1, 2, 3));
+        Map<String, Object> original = new HashMap<>(Map.of("items", innerList));
+
+        Map<String, Object> copy = deepCopy(original);
+
+        @SuppressWarnings("unchecked")
+        List<Object> copiedList = (List<Object>) copy.get("items");
+        assertNotSame(innerList, copiedList);
+        copiedList.add(4);
+        assertFalse(innerList.contains(4));
+    }
+
+    public void testDeepCopyUnmodifiableMap() {
+        Map<String, Object> original = new HashMap<>(Map.of("k", "v"));
+        Map<String, Object> copy = deepCopy(original, UNMODIFIABLE);
+        assertNotSame(original, copy);
+        assertEquals(original, copy);
+        expectThrows(UnsupportedOperationException.class, () -> copy.put("new", "val"));
+        expectThrows(UnsupportedOperationException.class, () -> copy.remove("k"));
+    }
+
+    public void testDeepCopyUnmodifiableList() {
+        List<Object> original = new ArrayList<>(List.of(1, 2, 3));
+        List<Object> copy = deepCopy(original, UNMODIFIABLE);
+        assertNotSame(original, copy);
+        assertEquals(original, copy);
+        expectThrows(UnsupportedOperationException.class, () -> copy.add(4));
+        expectThrows(UnsupportedOperationException.class, () -> copy.remove(0));
+    }
+
+    public void testDeepCopyUnmodifiableSet() {
+        Set<Object> original = new HashSet<>(Set.of("a", "b"));
+        Set<Object> copy = deepCopy(original, UNMODIFIABLE);
+        assertNotSame(original, copy);
+        assertEquals(original, copy);
+        expectThrows(UnsupportedOperationException.class, () -> copy.add("c"));
+    }
+
+    public void testDeepCopyUnmodifiableNestedCollections() {
+        List<Object> innerList = new ArrayList<>(List.of(10, 20));
+        Map<String, Object> original = new HashMap<>();
+        original.put("list", innerList);
+
+        Map<String, Object> copy = deepCopy(original, UNMODIFIABLE);
+        expectThrows(UnsupportedOperationException.class, () -> copy.put("k", "v"));
+
+        @SuppressWarnings("unchecked")
+        List<Object> copiedList = (List<Object>) copy.get("list");
+        expectThrows(UnsupportedOperationException.class, () -> copiedList.add(30));
+    }
+
+    public void testDeepCopyUnmodifiableDoesNotAffectOriginal() {
+        Map<String, Object> original = new HashMap<>(Map.of("k", "v"));
+        deepCopy(original, UNMODIFIABLE);
+        // the original must still be mutable
+        original.put("k2", "v2");
+        assertTrue(original.containsKey("k2"));
+    }
+
+    public void testDeepCopyOrderedPreservesMapInsertionOrder() {
+        Map<String, Object> original = new LinkedHashMap<>();
+        original.put("charlie", 3);
+        original.put("alpha", 1);
+        original.put("bravo", 2);
+
+        Map<String, Object> copy = deepCopy(original, ORDERED);
+        assertNotSame(original, copy);
+        assertEquals(List.of("charlie", "alpha", "bravo"), new ArrayList<>(copy.keySet()));
+    }
+
+    public void testDeepCopyOrderedPreservesSetInsertionOrder() {
+        Set<Object> original = new LinkedHashSet<>();
+        original.add("charlie");
+        original.add("alpha");
+        original.add("bravo");
+
+        Set<Object> copy = deepCopy(original, ORDERED);
+        assertNotSame(original, copy);
+        assertEquals(List.of("charlie", "alpha", "bravo"), new ArrayList<>(copy));
+    }
+
+    public void testDeepCopyOrderedNested() {
+        Map<String, Object> inner = new LinkedHashMap<>();
+        inner.put("z", 1);
+        inner.put("a", 2);
+        Map<String, Object> outer = new LinkedHashMap<>();
+        outer.put("inner", inner);
+        outer.put("other", "val");
+
+        Map<String, Object> copy = deepCopy(outer, ORDERED);
+        assertEquals(List.of("inner", "other"), new ArrayList<>(copy.keySet()));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> copiedInner = (Map<String, Object>) copy.get("inner");
+        assertEquals(List.of("z", "a"), new ArrayList<>(copiedInner.keySet()));
+    }
+
+    public void testDeepCopyOrderedNestedSet() {
+        // ORDERED should propagate into sets nested inside maps
+        Set<Object> innerSet = new LinkedHashSet<>();
+        innerSet.add("charlie");
+        innerSet.add("alpha");
+        innerSet.add("bravo");
+        Map<String, Object> outer = new LinkedHashMap<>();
+        outer.put("set", innerSet);
+
+        Map<String, Object> copy = deepCopy(outer, ORDERED);
+
+        @SuppressWarnings("unchecked")
+        Set<Object> copiedSet = (Set<Object>) copy.get("set");
+        assertNotSame(innerSet, copiedSet);
+        assertEquals(List.of("charlie", "alpha", "bravo"), new ArrayList<>(copiedSet));
+    }
+
+    public void testDeepCopyUnmodifiableAndOrdered() {
+        Map<String, Object> original = new LinkedHashMap<>();
+        original.put("b", 2);
+        original.put("a", 1);
+
+        Map<String, Object> copy = deepCopy(original, UNMODIFIABLE, ORDERED);
+        assertEquals(List.of("b", "a"), new ArrayList<>(copy.keySet()));
+        expectThrows(UnsupportedOperationException.class, () -> copy.put("c", 3));
+    }
+
+    public void testDeepCopyUnmodifiableAndOrderedSet() {
+        Set<Object> original = new LinkedHashSet<>();
+        original.add("charlie");
+        original.add("alpha");
+        original.add("bravo");
+
+        Set<Object> copy = deepCopy(original, UNMODIFIABLE, ORDERED);
+        assertEquals(List.of("charlie", "alpha", "bravo"), new ArrayList<>(copy));
+        expectThrows(UnsupportedOperationException.class, () -> copy.add("delta"));
+    }
+
+    public void testDeepCopyUnmodifiableWithByteArrayCopies() {
+        // Arrays are always copied as mutable; UNMODIFIABLE only applies to Map/List/Set.
+        byte[] arr = new byte[] { 1, 2, 3 };
+        byte[] copy = deepCopy(arr, UNMODIFIABLE);
+        assertNotSame(arr, copy);
+        assertArrayEquals(new byte[] { 1, 2, 3 }, copy);
+        copy[0] = 99;
+        assertThat(arr[0], equalTo((byte) 1));
+    }
+
+    public void testDeepCopyUnmodifiableWithDoubleArrayCopies() {
+        double[] arr = new double[] { 1.0, 2.0 };
+        double[] copy = deepCopy(arr, UNMODIFIABLE);
+        assertNotSame(arr, copy);
+        assertArrayEquals(new double[] { 1.0, 2.0 }, copy, 0.0);
+    }
+
+    public void testDeepCopyUnmodifiableWithDouble2DArrayCopies() {
+        double[][] arr = new double[][] { { 1.0 }, { 2.0 } };
+        double[][] copy = deepCopy(arr, UNMODIFIABLE);
+        assertNotSame(arr, copy);
+        assertArrayEquals(new double[] { 1.0 }, copy[0], 0.0);
+        assertArrayEquals(new double[] { 2.0 }, copy[1], 0.0);
+    }
+
+    public void testDeepCopyUnmodifiableWithNestedByteArrayCopies() {
+        // byte[] nested inside a map with UNMODIFIABLE: the map is unmodifiable but the array is a mutable copy
+        Map<String, Object> map = new HashMap<>();
+        map.put("arr", new byte[] { 1, 2 });
+        Map<String, Object> copy = deepCopy(map, UNMODIFIABLE);
+        expectThrows(UnsupportedOperationException.class, () -> copy.put("x", "y"));
+        byte[] arrCopy = (byte[]) copy.get("arr");
+        assertArrayEquals(new byte[] { 1, 2 }, arrCopy);
+        arrCopy[0] = 99; // still mutable
+    }
+
+    public void testDeepCopyDuplicateOptionsAreHarmless() {
+        // UNMODIFIABLE | UNMODIFIABLE is still UNMODIFIABLE
+        Map<String, Object> original = new HashMap<>(Map.of("k", "v"));
+        Map<String, Object> copy = deepCopy(original, UNMODIFIABLE, UNMODIFIABLE);
+        assertEquals(original, copy);
+        expectThrows(UnsupportedOperationException.class, () -> copy.put("x", "y"));
+    }
+
+    public void testDeepCopyUnknownTypeThrows() {
+        // Default (strict) behavior: unknown types always throw, even in production.
+        var e = expectThrows(IllegalArgumentException.class, () -> deepCopy(new Object()));
+        assertThat(e.getMessage(), equalTo("unexpected value type [class java.lang.Object]"));
+    }
+
+    public void testDeepCopyUnknownTypeNestedInMapThrows() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("bad", new Object());
+        expectThrows(IllegalArgumentException.class, () -> deepCopy(map));
+    }
+
+    public void testDeepCopyLaxUnknownTypeAssertsInDev() {
+        // LAX behavior: tests run with -ea so the assert fires as AssertionError; in production the
+        // value is passed through by reference without throwing.
+        var e = expectThrows(AssertionError.class, () -> deepCopy(new Object(), LAX));
+        assertThat(e.getMessage(), equalTo("unexpected value type [class java.lang.Object]"));
+    }
+
+    public void testDeepCopy() {
+        Map<String, Object> original = new HashMap<>();
+        {
+            original.put("foo", "bar");
+            original.put("int", 123);
+            original.put("double", 123.0D);
+            Map<String, Object> innerObject = new HashMap<>();
+            innerObject.put("buzz", "hello world");
+            innerObject.put("foo_null", null);
+            innerObject.put("1", "bar");
+            innerObject.put("long", 123L);
+            List<String> innerInnerList = new ArrayList<>();
+            innerInnerList.add("item1");
+            List<Object> innerList = new ArrayList<>();
+            innerList.add(innerInnerList);
+            innerObject.put("list", innerList);
+            original.put("fizz", innerObject);
+            List<Map<String, Object>> list = new ArrayList<>();
+            Map<String, Object> value = new HashMap<>();
+            value.put("field", "value");
+            list.add(value);
+            list.add(null);
+            original.put("list", list);
+            List<String> list2 = new ArrayList<>();
+            list2.add("foo");
+            list2.add("bar");
+            list2.add("baz");
+            original.put("list2", list2);
+        }
+
+        Map<?, ?> result = deepCopy(original);
+        assertThat(result, equalTo(original));
+        assertThat(result, not(sameInstance(original)));
+
+        result = deepCopy(original, UNMODIFIABLE);
+        assertThat(result, equalTo(original));
+        assertThat(result, not(sameInstance(original)));
+        Map<?, ?> innerMap = (Map<?, ?>) result.get("fizz");
+        expectThrows(UnsupportedOperationException.class, () -> innerMap.remove("x"));
+        List<?> innerList = (List<?>) result.get("list");
+        expectThrows(UnsupportedOperationException.class, () -> innerList.remove(0));
+
+        original.put("embedded_object", new byte[] { 1, 2, 3 });
+        result = deepCopy(original);
+        assertArrayEquals(new byte[] { 1, 2, 3 }, (byte[]) result.get("embedded_object"));
     }
 }

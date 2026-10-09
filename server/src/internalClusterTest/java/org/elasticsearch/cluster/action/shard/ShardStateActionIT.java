@@ -58,7 +58,7 @@ public class ShardStateActionIT extends ESIntegTestCase {
         final var loopingTask = new LoopingTask(masterClusterService, Priority.HIGH); // prevents all NORMAL or lower tasks from running
         try {
             updateClusterSettings(
-                Settings.builder().put(ShardStateAction.SHARD_STARTED_REROUTE_ALL_ASSIGNED_PRIORITY.getKey(), Priority.NORMAL)
+                Settings.builder().put(ShardStartedTaskExecutor.SHARD_STARTED_REROUTE_ALL_ASSIGNED_PRIORITY.getKey(), Priority.NORMAL)
             );
 
             loopingTask.start();
@@ -102,7 +102,9 @@ public class ShardStateActionIT extends ESIntegTestCase {
                         && cs.getRoutingNodes().node(cs.nodes().resolveNode(dataNode1).getId()).size() == 2
                 );
             } finally {
-                updateClusterSettings(Settings.builder().putNull(ShardStateAction.SHARD_STARTED_REROUTE_ALL_ASSIGNED_PRIORITY.getKey()));
+                updateClusterSettings(
+                    Settings.builder().putNull(ShardStartedTaskExecutor.SHARD_STARTED_REROUTE_ALL_ASSIGNED_PRIORITY.getKey())
+                );
             }
         }
     }
@@ -126,8 +128,8 @@ public class ShardStateActionIT extends ESIntegTestCase {
         @Override
         public List<Setting<?>> getSettings() {
             return List.of(
-                ShardStateAction.SHARD_STARTED_REROUTE_ALL_ASSIGNED_PRIORITY,
-                ShardStateAction.SHARD_STARTED_REROUTE_SOME_UNASSIGNED_PRIORITY
+                ShardStartedTaskExecutor.SHARD_STARTED_REROUTE_ALL_ASSIGNED_PRIORITY,
+                ShardStartedTaskExecutor.SHARD_STARTED_REROUTE_SOME_UNASSIGNED_PRIORITY
             );
         }
     }

@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.telemetry.InferenceProductContext;
 
 /**
  * Record encapsulating arbitrary metadata, which is usually propagated through HTTP headers.
- * @param context - product attribution context holding product use case and product origin
+ * @param context - product attribution context holding product use case, origin, solution, feature, and interaction id
  * @param esVersion - the Elasticsearch version of the node handling the request
  */
-public record ElasticInferenceServiceRequestMetadata(InferenceProductContext context, String esVersion) {}
+public record ElasticInferenceServiceRequestMetadata(InferenceProductContext context, @Nullable String esVersion) {}

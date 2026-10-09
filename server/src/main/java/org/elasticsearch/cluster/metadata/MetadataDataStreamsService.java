@@ -60,7 +60,7 @@ public class MetadataDataStreamsService {
     private static final Logger LOGGER = LogManager.getLogger(MetadataDataStreamsService.class);
     private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
     private final MasterServiceTaskQueue<UpdateLifecycleTask> updateLifecycleTaskQueue;
     private final MasterServiceTaskQueue<SetRolloverOnWriteTask> setRolloverOnWriteTaskQueue;
     private final MasterServiceTaskQueue<UpdateOptionsTask> updateOptionsTaskQueue;
@@ -71,12 +71,12 @@ public class MetadataDataStreamsService {
     public MetadataDataStreamsService(
         ClusterService clusterService,
         IndicesService indicesService,
-        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings,
         IndexSettingProviders indexSettingProviders
     ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.globalRetentionSettings = globalRetentionSettings;
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
         this.indexSettingProviders = indexSettingProviders;
         ClusterStateTaskExecutor<UpdateLifecycleTask> updateLifecycleExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
@@ -380,7 +380,10 @@ public class MetadataDataStreamsService {
         }
         if (lifecycle != null) {
             // We don't issue any warnings if all data streams are internal data streams
-            lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(false), onlyInternalDataStreams);
+            lifecycle.addWarningHeaderIfDataRetentionNotEffective(
+                dataStreamLifecycleSettings.getGlobalRetention(false),
+                onlyInternalDataStreams
+            );
         }
         return builder.build();
     }
@@ -405,7 +408,7 @@ public class MetadataDataStreamsService {
             // We don't issue any warnings if all data streams are internal data streams
             dataStreamOptions.failureStore()
                 .lifecycle()
-                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(true), onlyInternalDataStreams);
+                .addWarningHeaderIfDataRetentionNotEffective(dataStreamLifecycleSettings.getGlobalRetention(true), onlyInternalDataStreams);
         }
         return builder.build();
     }
@@ -511,9 +514,16 @@ public class MetadataDataStreamsService {
         Settings mergedEffectiveSettings = templateSettings.merge(mergedDataStreamSettings);
         CompressedXContent effectiveMappings = dataStream.getEffectiveMappings(projectMetadata, indicesService);
         MetadataIndexTemplateService.validateTemplate(
-            addSettingsFromIndexSettingProviders(dataStreamName, effectiveMappings, projectMetadata, mergedEffectiveSettings),
+            addSettingsFromIndexSettingProviders(
+                dataStreamName,
+                template.isRegistryInstalled(),
+                effectiveMappings,
+                projectMetadata,
+                mergedEffectiveSettings
+            ),
             effectiveMappings,
-            indicesService
+            indicesService,
+            dataStreamName
         );
 
         return dataStream.copy().setSettings(mergedDataStreamSettings).build();
@@ -521,6 +531,7 @@ public class MetadataDataStreamsService {
 
     private Settings addSettingsFromIndexSettingProviders(
         String dataStreamName,
+        boolean registryInstalledTemplate,
         CompressedXContent effectiveMappings,
         ProjectMetadata projectMetadata,
         Settings settings
@@ -534,6 +545,7 @@ public class MetadataDataStreamsService {
                 dataStreamName,
                 dataStreamName,
                 indexMode,
+                registryInstalledTemplate,
                 projectMetadata,
                 Instant.now(),
                 settings,
@@ -580,7 +592,8 @@ public class MetadataDataStreamsService {
         MetadataIndexTemplateService.validateTemplate(
             getEffectiveSettings(projectMetadata, dataStream, mappingsOverrides),
             effectiveMappings,
-            indicesService
+            indicesService,
+            dataStreamName
         );
         return dataStream.copy().setMappings(mappingsOverrides).build();
     }
@@ -623,6 +636,7 @@ public class MetadataDataStreamsService {
         );
         return addSettingsFromIndexSettingProviders(
             dataStream.getName(),
+            template.isRegistryInstalled(),
             effectiveMappings,
             projectMetadata,
             templateSettings.merge(dataStream.getSettings())

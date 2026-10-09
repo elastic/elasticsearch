@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomList;
@@ -33,11 +34,13 @@ public class EsIndexGenerator {
     }
 
     public static EsIndex esIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) {
-        return new EsIndex(name, mapping, indexNameWithModes, Map.of(), Map.of());
+        Map<String, IndexProperties> props = new HashMap<>(indexNameWithModes.size());
+        indexNameWithModes.forEach((k, v) -> props.put(k, new IndexProperties(v, 0)));
+        return new EsIndex(name, mapping, props, Map.of(), Map.of());
     }
 
     public static EsIndex randomEsIndex() {
-        return new EsIndex(randomIdentifier(), randomMapping(), randomIndexNameWithModes(), Map.of(), Map.of());
+        return new EsIndex(randomIdentifier(), randomMapping(), randomIndexProperties(), Map.of(), Map.of());
     }
 
     public static Map<String, EsField> randomMapping() {
@@ -49,6 +52,17 @@ public class EsIndexGenerator {
         return result;
     }
 
+    public static Map<String, IndexProperties> randomIndexProperties() {
+        return randomMap(0, 10, () -> {
+            IndexMode mode = randomFrom(IndexMode.availableModes());
+            return tuple(randomIdentifier(), new IndexProperties(mode, between(0, 10)));
+        });
+    }
+
+    /**
+     * @deprecated Use {@link #randomIndexProperties()} instead.
+     */
+    @Deprecated
     public static Map<String, IndexMode> randomIndexNameWithModes() {
         return randomMap(0, 10, () -> tuple(randomIdentifier(), randomFrom(IndexMode.availableModes())));
     }

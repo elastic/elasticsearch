@@ -14,6 +14,7 @@ import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
@@ -148,7 +149,7 @@ public abstract class AbstractLlamaServiceSettingsTests<T extends LlamaServiceSe
         assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
     }
 
-    public void testUpdateServiceSettings_EmptyRateLimitObject_DoesNotChangeSettings() {
+    public void testUpdateServiceSettings_EmptyRateLimitObject_RevertsToDefault() {
         var originalServiceSettings = createServiceSettings(
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_URI,
@@ -158,7 +159,48 @@ public abstract class AbstractLlamaServiceSettingsTests<T extends LlamaServiceSe
             new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>()))
         );
 
+        assertThat(
+            updatedServiceSettings,
+            is(createServiceSettings(INITIAL_TEST_MODEL_ID, INITIAL_TEST_URI, new RateLimitSettings(DEFAULT_RATE_LIMIT)))
+        );
+    }
+
+    public void testUpdateServiceSettings_ExplicitNullRateLimit_RevertsToDefault() {
+        var settingsMap = new HashMap<String, Object>();
+        settingsMap.put(RateLimitSettings.FIELD_NAME, null);
+        var originalServiceSettings = createServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        assertThat(
+            originalServiceSettings.updateServiceSettings(settingsMap),
+            is(createServiceSettings(INITIAL_TEST_MODEL_ID, INITIAL_TEST_URI, new RateLimitSettings(DEFAULT_RATE_LIMIT)))
+        );
+    }
+
+    public void testUpdateServiceSettings_ApiKey_IsIgnored() {
+        var originalServiceSettings = createServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, "secret-key"))
+        );
+
         assertThat(updatedServiceSettings, is(originalServiceSettings));
+    }
+
+    public void testFromMap_RequestContext_IgnoresApiKey() {
+        var map = buildCommonServiceSettingsMap(TEST_MODEL_ID, TEST_URI.toString(), TEST_RATE_LIMIT);
+        map.put(DefaultSecretSettings.API_KEY, "my-api-key");
+
+        // The api_key field is declared as a no-op in the request parser; must not throw.
+        var serviceSettings = fromMap(map, ConfigurationParseContext.REQUEST);
+
+        assertThat(serviceSettings, is(createServiceSettings(TEST_MODEL_ID, TEST_URI, new RateLimitSettings(TEST_RATE_LIMIT))));
     }
 
     public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {

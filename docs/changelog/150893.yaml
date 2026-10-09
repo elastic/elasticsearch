@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 150893
+summary: Post filtering for knn search - hnsw implementation
+type: enhancement

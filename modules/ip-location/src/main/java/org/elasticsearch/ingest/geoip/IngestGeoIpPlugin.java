@@ -62,6 +62,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -123,13 +124,21 @@ public class IngestGeoIpPlugin extends Plugin
     ) {
         long cacheSize = CACHE_SIZE.get(environment.settings());
         GeoIpCache geoIpCache = new GeoIpCache(cacheSize);
+        // Track the eager-download setting so ingest-capable nodes retrieve and load databases locally even before a
+        // pipeline registers a consumer.
+        final AtomicBoolean eagerDownload = new AtomicBoolean(
+            GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.get(environment.settings())
+        );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING, eagerDownload::set);
         DatabaseNodeService registry = new DatabaseNodeService(
             environment,
             client,
             geoIpCache,
             genericExecutor,
             clusterService,
-            projectResolver
+            projectResolver,
+            eagerDownload::get
         );
         databaseRegistry.set(registry);
         return registry;

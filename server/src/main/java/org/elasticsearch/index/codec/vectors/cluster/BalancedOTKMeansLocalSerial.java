@@ -10,9 +10,9 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.hnsw.IntToIntFunction;
 
 import java.io.IOException;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Single threaded implementation of mini-batch optimal transport k-means.
@@ -33,7 +33,7 @@ class BalancedOTKMeansLocalSerial<V> extends BalancedOTKMeansLocal<V> {
     @Override
     protected void assign(
         ClusteringVectorValues<V> vectors,
-        IntToIntFunction ordTranslator,
+        IntUnaryOperator ordTranslator,
         V[] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
@@ -41,16 +41,6 @@ class BalancedOTKMeansLocalSerial<V> extends BalancedOTKMeansLocal<V> {
     ) throws IOException {
         assert centroidChangedSlices.length == 1;
         stepLloydSlice(vectors, ops, ordTranslator, centroids, centroidChangedSlices[0], assignments, neighborHoods, 0, vectors.size());
-    }
-
-    @Override
-    protected void assignSpilled(
-        ClusteringVectorValues<V> vectors,
-        KMeansIntermediate<V> kmeansIntermediate,
-        NeighborHood[] neighborhoods,
-        float soarLambda
-    ) throws IOException {
-        assignSpilledSlice(vectors, ops, kmeansIntermediate, neighborhoods, soarLambda, 0, vectors.size());
     }
 
     @Override

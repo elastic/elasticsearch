@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FallbackPostMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
@@ -45,6 +46,7 @@ class FlattenedFieldParser {
     private final String nullValue;
 
     private final boolean usesBinaryDocValues;
+    private final boolean usesArrayOrderBinaryDocValues;
     private final boolean hasRootDocValues;
     private final boolean storeIgnoredFieldsInBinaryDocValues;
     private final IndexVersion indexVersion;
@@ -69,7 +71,8 @@ class FlattenedFieldParser {
         boolean storeIgnoredFieldsInBinaryDocValues,
         FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays,
         IndexVersion indexVersion,
-        boolean writeDimensionRouting
+        boolean writeDimensionRouting,
+        boolean usesArrayOrderBinaryDocValues
     ) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
@@ -79,6 +82,7 @@ class FlattenedFieldParser {
         this.ignoreAbove = ignoreAbove;
         this.nullValue = nullValue;
         this.usesBinaryDocValues = usesBinaryDocValues;
+        this.usesArrayOrderBinaryDocValues = usesArrayOrderBinaryDocValues;
         this.hasRootDocValues = hasRootDocValues;
         this.mappedSubFields = mappedSubFields;
         this.storeIgnoredFieldsInBinaryDocValues = storeIgnoredFieldsInBinaryDocValues;
@@ -139,20 +143,7 @@ class FlattenedFieldParser {
             String value = parser.text();
             addField(context, path, currentName, value);
         } else if (token == XContentParser.Token.VALUE_NULL) {
-            String key = path.pathAsText(currentName);
-            if (key.contains(SEPARATOR)) {
-                throw new IllegalArgumentException(
-                    "Keys in [flattened] fields cannot contain the reserved character \\0. Offending key: [" + key + "]."
-                );
-            }
-            FieldMapper mappedSubField = mappedSubFields.get(key);
-            if (mappedSubField != null) {
-                mappedSubField.parse(context.documentParserContext());
-            } else if (nullValue != null) {
-                addField(context, path, currentName, nullValue);
-            } else if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT) {
-                context.arrayContext.recordNull(key);
-            }
+            addNull(context, path, currentName);
         } else {
             // Note that we throw an exception here just to be safe. We don't actually expect to reach
             // this case, since XContentParser verifies that the input is well-formed as it parses.
@@ -172,7 +163,7 @@ class FlattenedFieldParser {
         // and are not part of the flattened field's root/keyed representation.
         FieldMapper mappedSubField = mappedSubFields.get(key);
         if (mappedSubField != null) {
-            mappedSubField.parse(context.documentParserContext());
+            FallbackPostMapper.parseField(context.documentParserContext(), mappedSubField);
             return;
         }
 
@@ -182,15 +173,22 @@ class FlattenedFieldParser {
         if (value.length() > ignoreAbove) {
             var lookup = context.documentParserContext().mappingLookup();
             if (lookup.isSourceSynthetic() || lookup.isSourceColumnarStored()) {
-                if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT) {
+                // In document-order mode there is no _offsets sidecar; ignored values are tail-appended during read.
+                if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT && usesArrayOrderBinaryDocValues == false) {
                     context.arrayContext.recordOffset(key, new BytesRef(value));
                 }
                 if (storeIgnoredFieldsInBinaryDocValues) {
+                    // Array-order mode must preserve duplicates; SORTED_UNIQUE would lose them via TreeSet deduplication.
+                    // SORTED (not UNSORTED) because ignored values lose their document position by definition —
+                    // they are tail-appended per key — so we sort them for deterministic reconstruction.
+                    var ordering = usesArrayOrderBinaryDocValues
+                        ? MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
+                        : MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE;
                     MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
                         context.documentParserContext.doc(),
                         keyedIgnoredValuesFieldFullPath,
                         BytesRef.deepCopyOf(bytesKeyedValue),
-                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+                        ordering,
                         indexVersion
                     );
                 } else {
@@ -233,12 +231,21 @@ class FlattenedFieldParser {
                         MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
                     );
                 }
-                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-                    context.documentParserContext.doc(),
-                    keyedFieldFullPath,
-                    bytesKeyedValue,
-                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-                );
+                if (usesArrayOrderBinaryDocValues) {
+                    // Document-order mode: store key\0value inline, preserving document order and duplicates.
+                    MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.recordValue(
+                        context.documentParserContext.doc(),
+                        keyedFieldFullPath,
+                        bytesKeyedValue
+                    );
+                } else {
+                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                        context.documentParserContext.doc(),
+                        keyedFieldFullPath,
+                        bytesKeyedValue,
+                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                    );
+                }
             } else {
                 if (hasRootDocValues) {
                     context.documentParserContext.doc().add(new SortedSetDocValuesField(rootFieldFullPath, bytesValue));
@@ -246,7 +253,8 @@ class FlattenedFieldParser {
                 context.documentParserContext.doc().add(new SortedSetDocValuesField(keyedFieldFullPath, bytesKeyedValue));
             }
 
-            if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT) {
+            // In document-order mode there is no _offsets sidecar.
+            if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT && usesArrayOrderBinaryDocValues == false) {
                 context.arrayContext.recordOffset(key, bytesValue);
             }
 
@@ -259,6 +267,44 @@ class FlattenedFieldParser {
                 final BytesRef keyedFieldValue = FlattenedFieldParser.extractValue(bytesKeyedValue);
                 context.documentParserContext().getRoutingFields().addString(rootFieldFullPath + "." + keyedFieldName, keyedFieldValue);
             }
+        }
+    }
+
+    private void addNull(Context context, ContentPath path, String currentName) throws IOException {
+        String key = path.pathAsText(currentName);
+        if (key.contains(SEPARATOR)) {
+            throw new IllegalArgumentException(
+                "Keys in [flattened] fields cannot contain the reserved character \\0. Offending key: [" + key + "]."
+            );
+        }
+        FieldMapper mappedSubField = mappedSubFields.get(key);
+        if (mappedSubField != null) {
+            FallbackPostMapper.parseField(context.documentParserContext(), mappedSubField);
+        } else if (nullValue != null) {
+            addField(context, path, currentName, nullValue);
+        } else if (usesArrayOrderBinaryDocValues) {
+            // Document-order mode: record a null slot with the key inline so synthetic source can reconstruct it.
+            MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.recordNull(
+                context.documentParserContext.doc(),
+                keyedFieldFullPath,
+                new BytesRef(key + SEPARATOR)
+            );
+        } else if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT) {
+            context.arrayContext.recordNull(key);
+        }
+    }
+
+    /**
+     * Indexes the current parser value at {@code path} (already a full dotted key from the document root). A null token records a null
+     * slot via {@link #addNull} to preserve columnar array order; any other token is indexed via {@link #addField}.
+     */
+    void indexValueAtPath(DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext, String path)
+        throws IOException {
+        Context context = new Context(documentParserContext.parser(), documentParserContext, arrayContext);
+        if (documentParserContext.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+            addNull(context, new ContentPath(), path);
+        } else {
+            addField(context, new ContentPath(), path, documentParserContext.parser().text());
         }
     }
 

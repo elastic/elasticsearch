@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference.completion;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -26,12 +28,14 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.NAME
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE_FIELD;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public record ToolCall(String id, FunctionField function, String type) implements Writeable, ToXContentObject {
+public record ToolCall(String id, FunctionField function, String type) implements Accountable, Writeable, ToXContentObject {
 
     static final ConstructingObjectParser<ToolCall, Void> PARSER = new ConstructingObjectParser<>(
         ToolCall.class.getSimpleName(),
         args -> new ToolCall((String) args[0], (FunctionField) args[1], (String) args[2])
     );
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ToolCall.class);
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("id"));
@@ -59,11 +63,22 @@ public record ToolCall(String id, FunctionField function, String type) implement
         return builder.endObject();
     }
 
-    public record FunctionField(String arguments, String name) implements Writeable, ToXContentObject {
+    @Override
+    public long ramBytesUsed() {
+        var idRamBytesUsed = RamUsageEstimator.sizeOf(id());
+        var functionRamBytesUsed = function().ramBytesUsed();
+        var typeRamBytesUsed = RamUsageEstimator.sizeOf(type());
+
+        return SHALLOW_SIZE + idRamBytesUsed + functionRamBytesUsed + typeRamBytesUsed;
+    }
+
+    public record FunctionField(String arguments, String name) implements Accountable, Writeable, ToXContentObject {
         static final ConstructingObjectParser<FunctionField, Void> PARSER = new ConstructingObjectParser<>(
             "tool_call_function_field",
             args -> new FunctionField((String) args[0], (String) args[1])
         );
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(FunctionField.class);
 
         static {
             PARSER.declareString(constructorArg(), new ParseField("arguments"));
@@ -86,6 +101,14 @@ public record ToolCall(String id, FunctionField function, String type) implement
             builder.field(ARGUMENTS_FIELD, arguments);
             builder.field(NAME_FIELD, name);
             return builder.endObject();
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            var argumentsRamBytesUsed = RamUsageEstimator.sizeOf(arguments);
+            var nameRamBytesUsed = RamUsageEstimator.sizeOf(name);
+
+            return SHALLOW_SIZE + argumentsRamBytesUsed + nameRamBytesUsed;
         }
     }
 }

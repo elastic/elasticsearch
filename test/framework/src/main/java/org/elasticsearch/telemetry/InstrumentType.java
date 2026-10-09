@@ -10,12 +10,14 @@
 package org.elasticsearch.telemetry;
 
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
+import org.elasticsearch.telemetry.metric.DoubleAsyncGauge;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
+import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -37,7 +39,9 @@ public enum InstrumentType {
     DOUBLE_HISTOGRAM(true),
     LONG_HISTOGRAM(false),
     DOUBLE_GAUGE(true),
-    LONG_GAUGE(false);
+    LONG_GAUGE(false),
+    DOUBLE_ASYNC_GAUGE(true),
+    LONG_ASYNC_GAUGE(false);
 
     public final boolean isDouble;
     public final boolean isLong;
@@ -69,6 +73,10 @@ public enum InstrumentType {
             return InstrumentType.DOUBLE_GAUGE;
         } else if (instrument instanceof LongGauge) {
             return InstrumentType.LONG_GAUGE;
+        } else if (instrument instanceof DoubleAsyncGauge) {
+            return InstrumentType.DOUBLE_ASYNC_GAUGE;
+        } else if (instrument instanceof LongAsyncGauge) {
+            return InstrumentType.LONG_ASYNC_GAUGE;
         } else {
             throw new IllegalArgumentException("unknown instrument [" + instrument.getClass().getName() + "]");
         }

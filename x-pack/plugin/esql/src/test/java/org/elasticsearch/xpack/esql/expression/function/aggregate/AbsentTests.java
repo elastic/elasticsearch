@@ -43,6 +43,7 @@ public class AbsentTests extends AbstractAggregationTestCase {
         FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
         FunctionAppliesTo flattenedPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
+        FunctionAppliesTo dateRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
 
         Stream.of(
             MultiRowTestCaseSupplier.nullCases(1, 1000),
@@ -53,6 +54,8 @@ public class AbsentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
+            MultiRowTestCaseSupplier.dateRangeCases(1, 1000).stream().map(s -> s.withAppliesTo(dateRangeAppliesTo)).toList(),
+            MultiRowTestCaseSupplier.doubleRangeCases(1, 1000),
             MultiRowTestCaseSupplier.denseVectorCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
@@ -87,10 +90,12 @@ public class AbsentTests extends AbstractAggregationTestCase {
             DataType.CARTESIAN_POINT,
             DataType.CARTESIAN_SHAPE,
             DataType.DATE_NANOS,
+            DataType.DATE_RANGE,
             DataType.DATETIME,
             DataType.DATE_NANOS,
             DataType.DENSE_VECTOR,
             DataType.DOUBLE,
+            DataType.DOUBLE_RANGE,
             DataType.FLATTENED,
             DataType.GEO_POINT,
             DataType.GEO_SHAPE,

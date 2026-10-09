@@ -24,11 +24,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -45,6 +47,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStatsTests;
@@ -54,9 +57,11 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
+import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
@@ -70,6 +75,7 @@ import org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
+import org.elasticsearch.xpack.ml.job.results.AnomalyResultsTestUtils;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.job.results.BucketTests;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinitionTests;
@@ -257,12 +263,19 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         // Records are not persisted to Elasticsearch as an array within the bucket
         // documents, so remove them from the expected bucket before comparing
         bucket.setRecords(Collections.emptyList());
-        assertEquals(bucket, persistedBucket.results().get(0));
+        AnomalyResultsTestUtils.clearBucketEventIngested(bucket);
+        Bucket persisted = persistedBucket.results().get(0);
+        AnomalyResultsTestUtils.assertBucketEventIngestedPresentThenClear(persisted);
+        assertEquals(bucket, persisted);
 
         QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder());
+        AnomalyResultsTestUtils.assertRecordsEventIngestedPresentThenClear(persistedRecords.results());
+        AnomalyResultsTestUtils.clearRecordsEventIngested(records);
         assertResultsAreSame(records, persistedRecords);
 
         QueryPage<Influencer> persistedInfluencers = getInfluencers();
+        AnomalyResultsTestUtils.assertInfluencersEventIngestedPresentThenClear(persistedInfluencers.results());
+        AnomalyResultsTestUtils.clearInfluencersEventIngested(influencers);
         assertResultsAreSame(influencers, persistedInfluencers);
 
         QueryPage<CategoryDefinition> persistedDefinition = getCategoryDefinition(
@@ -301,6 +314,29 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             annotations.stream().map(Annotation::getAnnotation).collect(toList()),
             containsInAnyOrder("Job model snapshot with id [" + modelSnapshot.getSnapshotId() + "] stored", annotation.getAnnotation())
         );
+    }
+
+    public void testProcessResultsStandaloneBucketInfluencerHasEventIngested() throws Exception {
+        // BucketInfluencers are written as standalone bucket_influencer documents by
+        // JobResultsPersister#persistBucketInfluencersStandalone, which is where event.ingested is
+        // stamped (the copies nested in the bucket document are serialized before that and carry none).
+        // BucketTests#createTestInstance adds bucket influencers only at random, so force exactly one
+        // to exercise this write path deterministically.
+        ResultsBuilder resultsBuilder = new ResultsBuilder();
+        Bucket bucket = createBucket(false);
+        BucketInfluencer bucketInfluencer = new BucketInfluencer(JOB_ID, new Date(), 600);
+        bucketInfluencer.setInfluencerFieldName("test_field");
+        bucketInfluencer.setAnomalyScore(99.0);
+        bucket.setBucketInfluencers(List.of(bucketInfluencer));
+        resultsBuilder.addBucket(bucket);
+        when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
+
+        resultProcessor.process();
+        resultProcessor.awaitCompletion();
+
+        List<BucketInfluencer> persistedBucketInfluencers = getBucketInfluencers();
+        assertThat(persistedBucketInfluencers, is(not(empty())));
+        AnomalyResultsTestUtils.assertBucketInfluencersEventIngestedPresent(persistedBucketInfluencers);
     }
 
     public void testProcessResults_ModelSnapshot() throws Exception {
@@ -424,7 +460,10 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         // Records are not persisted to Elasticsearch as an array within the bucket
         // documents, so remove them from the expected bucket before comparing
         nonInterimBucket.setRecords(Collections.emptyList());
-        assertEquals(nonInterimBucket, persistedBucket.results().get(0));
+        AnomalyResultsTestUtils.clearBucketEventIngested(nonInterimBucket);
+        Bucket persisted = persistedBucket.results().get(0);
+        AnomalyResultsTestUtils.assertBucketEventIngestedPresentThenClear(persisted);
+        assertEquals(nonInterimBucket, persisted);
 
         QueryPage<Influencer> persistedInfluencers = getInfluencers();
         assertEquals(0, persistedInfluencers.count());
@@ -456,9 +495,14 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         // Records are not persisted to Elasticsearch as an array within the bucket
         // documents, so remove them from the expected bucket before comparing
         finalBucket.setRecords(Collections.emptyList());
-        assertEquals(finalBucket, persistedBucket.results().get(0));
+        AnomalyResultsTestUtils.clearBucketEventIngested(finalBucket);
+        Bucket persisted = persistedBucket.results().get(0);
+        AnomalyResultsTestUtils.assertBucketEventIngestedPresentThenClear(persisted);
+        assertEquals(finalBucket, persisted);
 
         QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder().includeInterim(true));
+        AnomalyResultsTestUtils.assertRecordsEventIngestedPresentThenClear(persistedRecords.results());
+        AnomalyResultsTestUtils.clearRecordsEventIngested(finalAnomalyRecords);
         assertResultsAreSame(finalAnomalyRecords, persistedRecords);
     }
 
@@ -481,6 +525,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder().size(200).includeInterim(true));
         List<AnomalyRecord> allRecords = new ArrayList<>(firstSetOfRecords);
         allRecords.addAll(secondSetOfRecords);
+        AnomalyResultsTestUtils.assertRecordsEventIngestedPresentThenClear(persistedRecords.results());
+        AnomalyResultsTestUtils.clearRecordsEventIngested(allRecords);
         assertResultsAreSame(allRecords, persistedRecords);
     }
 
@@ -799,6 +845,29 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     private Annotation parseAnnotation(BytesReference source) throws IOException {
         try (XContentParser parser = createParser(jsonXContent, source)) {
             return Annotation.fromXContent(parser, null);
+        }
+    }
+
+    private List<BucketInfluencer> getBucketInfluencers() throws Exception {
+        String resultsIndex = AnomalyDetectorsIndex.jobResultsAliasedName(JOB_ID);
+        indicesAdmin().prepareRefresh(resultsIndex).get();
+        SearchRequest searchRequest = new SearchRequest(resultsIndex).source(
+            new SearchSourceBuilder().query(
+                QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), BucketInfluencer.RESULT_TYPE_VALUE)
+            ).size(1000)
+        );
+        List<BucketInfluencer> bucketInfluencers = new ArrayList<>();
+        assertCheckedResponse(client().search(searchRequest), searchResponse -> {
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                bucketInfluencers.add(parseBucketInfluencer(hit.getSourceRef()));
+            }
+        });
+        return bucketInfluencers;
+    }
+
+    private BucketInfluencer parseBucketInfluencer(BytesReference source) throws IOException {
+        try (XContentParser parser = createParser(jsonXContent, source)) {
+            return BucketInfluencer.LENIENT_PARSER.apply(parser, null);
         }
     }
 

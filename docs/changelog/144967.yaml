@@ -1,0 +1,14 @@
+area: ES|QL
+issues: []
+pr: 144967
+summary: Add the ES|QL `TSTEP` grouping function to group time-series data into stable, fixed-interval buckets for consistent chart steps across time zones and daylight saving time changes
+type: feature
+highlight:
+  notable: true
+  title: Introducing `TSTEP` - Prometheus-like, fixed-interval, step-aligned time buckets in ES|QL
+  body: |-
+    ES|QL introduces `TSTEP`, a step-based time grouping function that creates fixed-interval buckets
+    aligned to the end of the query range (or `now()`), instead of truncating timestamps like `TBUCKET`.
+
+    For example, `TS metrics | STATS AVG(rate(requests)) BY TSTEP(5m)` emits one bucket per 5‑minute
+    step, aligned to the query end, providing a consistent time grid for visualizations.

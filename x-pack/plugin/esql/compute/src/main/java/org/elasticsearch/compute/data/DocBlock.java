@@ -235,6 +235,7 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

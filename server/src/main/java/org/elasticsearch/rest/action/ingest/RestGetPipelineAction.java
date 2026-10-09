@@ -16,10 +16,11 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -50,7 +51,13 @@ public class RestGetPipelineAction extends BaseRestHandler {
         return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
             GetPipelineAction.INSTANCE,
             request,
-            new RestToXContentListener<>(channel, GetPipelineResponse::status)
+            // A GET for a specific pipeline id that is not found returns 404, so preserve the response's status rather than always 200.
+            new RestChunkedToXContentListener<>(channel) {
+                @Override
+                protected RestStatus getRestStatus(GetPipelineResponse response) {
+                    return response.status();
+                }
+            }
         );
     }
 }

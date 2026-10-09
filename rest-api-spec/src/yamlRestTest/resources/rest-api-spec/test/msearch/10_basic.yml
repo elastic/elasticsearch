@@ -4,6 +4,12 @@ setup:
       test_runner_features: allowed_warnings
 
   - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.default_allow_partial_results: false
+
+  - do:
       index:
           index:  index_1
           id:     "1"
@@ -29,6 +35,14 @@ setup:
 
   - do:
       indices.refresh: {}
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.default_allow_partial_results: null
 
 ---
 "Basic multi-search":

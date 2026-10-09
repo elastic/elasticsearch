@@ -16,7 +16,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -61,6 +60,14 @@ public class IvfQueryConfigResolver {
         return autoCalibrate;
     }
 
+    /**
+     * The oversample that configuration alone asks for: the query-time override when there is one, otherwise
+     * the mapping default.
+     */
+    public float declaredRescoreOversample() {
+        return queryOversample != null ? queryOversample : mappingRescoreOversample;
+    }
+
     public IvfSegmentConfig resolve(FieldInfo fieldInfo, LeafReader leafReader) throws IOException {
         IvfSegmentConfig raw = autoCalibrate ? resolveCalibrated(fieldInfo, leafReader) : mappingDefaults();
         return IvfSegmentConfig.withEffectiveRescoreOversample(raw, queryOversample, mappingRescoreOversample);
@@ -68,8 +75,8 @@ public class IvfQueryConfigResolver {
 
     private IvfSegmentConfig mappingDefaults() {
         return new IvfSegmentConfig(
-            ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
-            ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) quantBits),
+            CentroidIndexFormat.FLAT,
+            new IvfSegmentConfig.OsqConfig(QuantEncoding.fromBits((byte) quantBits)),
             mappingUsePrecondition,
             Float.NaN
         );
@@ -85,13 +92,15 @@ public class IvfQueryConfigResolver {
             vectorsReader = perField.getFieldReader(fieldInfo.name);
         }
         if (vectorsReader instanceof CalibrationAwareReader calibrationAwareReader) {
-            ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = calibrationAwareReader.getQuantEncoding(fieldInfo);
-            if (quantEncoding == null) {
-                return mappingDefaults();
-            }
-            float oversampleFactor = calibrationAwareReader.getOversampleFactor(fieldInfo);
-            boolean precondition = calibrationAwareReader.shouldPrecondition(fieldInfo);
-            return new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT, quantEncoding, precondition, oversampleFactor);
+            return switch (calibrationAwareReader.getCalibrationParameters(fieldInfo)) {
+                case SegmentCalibrationParameters.Osq osq when osq.calibrated() == false -> mappingDefaults();
+                case SegmentCalibrationParameters.Osq osq -> new IvfSegmentConfig(
+                    CentroidIndexFormat.FLAT,
+                    new IvfSegmentConfig.OsqConfig(osq.encoding()),
+                    osq.precondition(),
+                    osq.oversample()
+                );
+            };
         }
         return mappingDefaults();
     }

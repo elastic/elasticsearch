@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159717
+summary: Null-fill deferred Parquet extract
+type: enhancement

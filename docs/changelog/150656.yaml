@@ -1,7 +1,0 @@
-area: ES|QL
-issues:
- - 149943
- - 150156
-pr: 150656
-summary: Fix JDK 21 FFM regressions in zstd native binding
-type: bug

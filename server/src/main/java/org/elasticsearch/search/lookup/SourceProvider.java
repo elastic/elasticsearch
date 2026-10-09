@@ -12,6 +12,7 @@ package org.elasticsearch.search.lookup;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
+import org.elasticsearch.search.NestedDocuments;
 
 import java.io.IOException;
 
@@ -33,8 +34,13 @@ public interface SourceProvider {
      * but it is not safe to use this to access documents from the same segment across
      * multiple threads.
      */
-    static SourceProvider fromLookup(MappingLookup lookup, SourceFilter filter, SourceFieldMetrics metrics) {
-        return new ConcurrentSegmentSourceProvider(lookup, filter, metrics);
+    static SourceProvider fromLookup(
+        MappingLookup lookup,
+        SourceFilter filter,
+        SourceFieldMetrics metrics,
+        NestedDocuments nestedDocuments
+    ) {
+        return new ConcurrentSegmentSourceProvider(lookup, filter, metrics, nestedDocuments);
     }
 
     /**

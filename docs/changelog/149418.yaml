@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 149416
-pr: 149418
-summary: Fix wildcard view resolution losing duplicate copies
-type: bug

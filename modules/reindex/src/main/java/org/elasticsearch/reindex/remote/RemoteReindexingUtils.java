@@ -215,6 +215,11 @@ public class RemoteReindexingUtils {
         CircuitBreaker breaker,
         long memoryAccountingThresholdBytes
     ) {
+        // Account the raw Apache HTTP response buffer against the REQUEST breaker before the
+        // response reaches this callback. RemoteParseContext accounts parsed hits later.
+        request.setOptions(
+            request.getOptions().toBuilder().setHttpAsyncResponseConsumerFactory(new BreakerAwareConsumerFactory(breaker)).build()
+        );
         // Preserve the thread context so headers survive after the call
         Supplier<ThreadContext.StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(true);
         try {
@@ -229,8 +234,12 @@ public class RemoteReindexingUtils {
                         // Armed with the parseContext while we own it; nulled out once handed off to the Response.
                         // The finally always closes whatever this points at (null is safe).
                         Releasable toCloseOnFailure = null;
+                        Releasable responseEntityReleasable = null;
                         try {
                             HttpEntity responseEntity = response.getEntity();
+                            if (responseEntity instanceof Releasable releasable) {
+                                responseEntityReleasable = releasable;
+                            }
                             InputStream content = responseEntity.getContent();
                             XContentType xContentType = null;
                             if (responseEntity.getContentType() != null) {
@@ -290,7 +299,7 @@ public class RemoteReindexingUtils {
                                 e
                             );
                         } finally {
-                            Releasables.closeWhileHandlingException(toCloseOnFailure);
+                            Releasables.closeWhileHandlingException(toCloseOnFailure, responseEntityReleasable);
                         }
                         listener.onResponse(parsedResponse);
                     }
@@ -302,11 +311,19 @@ public class RemoteReindexingUtils {
                         assert ctx != null; // eliminates compiler warning
                         if (e instanceof ResponseException re) {
                             int statusCode = re.getResponse().getStatusLine().getStatusCode();
-                            e = wrapExceptionToPreserveStatus(statusCode, re.getResponse().getEntity(), re);
+                            HttpEntity responseEntity = re.getResponse().getEntity();
+                            try {
+                                e = wrapExceptionToPreserveStatus(statusCode, responseEntity, re);
+                            } finally {
+                                closeIfReleasable(responseEntity);
+                            }
                             if (RestStatus.TOO_MANY_REQUESTS.getStatus() == statusCode) {
                                 listener.onRejection(e);
                                 return;
                             }
+                        } else if (ExceptionsHelper.unwrap(e, CircuitBreakingException.class) instanceof CircuitBreakingException cbe) {
+                            listener.onFailure(cbe);
+                            return;
                         } else if (e instanceof ContentTooLongException) {
                             e = new IllegalArgumentException(
                                 "Remote responded with a chunk that was too large. Use a smaller batch size.",
@@ -319,6 +336,12 @@ public class RemoteReindexingUtils {
             });
         } catch (Exception e) {
             listener.onFailure(e);
+        }
+    }
+
+    private static void closeIfReleasable(@Nullable HttpEntity entity) {
+        if (entity instanceof Releasable releasable) {
+            releasable.close();
         }
     }
 

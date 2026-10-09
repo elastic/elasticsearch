@@ -47,7 +47,7 @@ public class RestExplainActionTests extends RestActionTestCase {
         });
         RestRequest explainRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/test/_explain/1")
-            .withParams(Map.of("index", "test", "id", "1", "_slice", sliceValue, "q", "field:value"))
+            .withParams(Map.of("index", "test", "id", "1", "slice", sliceValue, "q", "field:value"))
             .build();
         dispatchRequest(explainRequest);
     }
@@ -56,51 +56,51 @@ public class RestExplainActionTests extends RestActionTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest explainRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/test/_explain/1")
-            .withParams(Map.of("index", "test", "id", "1", "_slice", "s1", "routing", "r1"))
+            .withParams(Map.of("index", "test", "id", "1", "slice", "s1", "routing", "r1"))
             .build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(explainRequest, mock(NodeClient.class))
         );
-        assertThat(e.getMessage(), containsString("[routing] is not allowed together with [_slice]"));
+        assertThat(e.getMessage(), containsString("[routing] is not allowed together with [slice]"));
     }
 
     public void testSliceParamRejectedWhenFeatureDisabled() {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest explainRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/test/_explain/1")
-            .withParams(Map.of("index", "test", "id", "1", "_slice", "s1"))
+            .withParams(Map.of("index", "test", "id", "1", "slice", "s1"))
             .build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(explainRequest, mock(NodeClient.class))
         );
-        assertThat(e.getMessage(), containsString("request does not support [_slice]"));
+        assertThat(e.getMessage(), containsString("request does not support [slice]"));
     }
 
     public void testSliceParamRejectedWhenInvalid() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest explainRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/test/_explain/1")
-            .withParams(Map.of("index", "test", "id", "1", "_slice", "_all"))
+            .withParams(Map.of("index", "test", "id", "1", "slice", "_all"))
             .build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(explainRequest, mock(NodeClient.class))
         );
-        assertThat(e.getMessage(), containsString("[_slice] must be a single value for explain requests"));
+        assertThat(e.getMessage(), containsString("[slice] must be a single value for explain requests"));
     }
 
     public void testSliceParamRejectedWhenCommaDelimited() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest explainRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/test/_explain/1")
-            .withParams(Map.of("index", "test", "id", "1", "_slice", "s1,s2"))
+            .withParams(Map.of("index", "test", "id", "1", "slice", "s1,s2"))
             .build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(explainRequest, mock(NodeClient.class))
         );
-        assertThat(e.getMessage(), containsString("[_slice] must be a single value for explain requests"));
+        assertThat(e.getMessage(), containsString("[slice] must be a single value for explain requests"));
     }
 }

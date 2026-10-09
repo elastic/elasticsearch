@@ -9,6 +9,7 @@
 
 package org.elasticsearch.foreign.processor;
 
+import org.elasticsearch.foreign.LibraryProvider;
 import org.elasticsearch.foreign.LibrarySpecification;
 import org.elasticsearch.foreign.processor.model.LibraryModel;
 
@@ -35,7 +36,7 @@ public class LibraryProcessor extends AbstractProcessor {
     /** Processor option: the minimum Java release the generated classes must run on (e.g. {@code 21}). */
     static final String OPTION_JAVA_VERSION = "javaVersion";
 
-    private static final String LIBRARY_PROVIDER_FQN = "org.elasticsearch.foreign.LibraryProvider";
+    private static final String LIBRARY_PROVIDER_FQN = LibraryProvider.class.getName();
     private static final String LIBRARY_PROVIDER_SERVICE = "META-INF/services/" + LIBRARY_PROVIDER_FQN;
 
     // LinkedHashSet so the services file output is deterministic across rounds.

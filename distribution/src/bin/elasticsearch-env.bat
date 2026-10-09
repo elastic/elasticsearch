@@ -19,6 +19,16 @@ set ES_MODULEPATH=!ES_HOME!\lib
 set LAUNCHERS_CLASSPATH=!ES_CLASSPATH!;!ES_HOME!\lib\launchers\*;!ES_HOME!\lib\java-version-checker\*
 set SERVER_CLI_CLASSPATH=!ES_CLASSPATH!;!ES_HOME!\lib\tools\server-cli\*
 
+rem If ES_TOOLS_DEBUG is set, emit the resolved ES_HOME and the contents of
+rem the launcher classpath directories to stderr before launching any tool.
+if defined ES_TOOLS_DEBUG (
+  echo [es-tools-debug] ES_HOME=%ES_HOME% 1>&2
+  for %%D in ("lib" "lib\java-version-checker" "lib\cli-launcher" "lib\tools\server-launcher") do (
+    echo [es-tools-debug] contents of "%ES_HOME%\%%~D": 1>&2
+    dir /b "%ES_HOME%\%%~D" 1>&2
+  )
+)
+
 set HOSTNAME=%COMPUTERNAME%
 
 if not defined ES_PATH_CONF (
@@ -50,7 +60,7 @@ if defined ES_JAVA_HOME (
   )
 
   rem check the user supplied jdk version
-  !JAVA! -cp "%ES_HOME%\lib\java-version-checker\*" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
+  !JAVA! -Xms4m -Xmx64m -XX:+UseSerialGC -cp "%ES_HOME%\lib\java-version-checker\*" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
 ) else (
   rem use the bundled JDK (default)
   set JAVA="%ES_HOME%\jdk\bin\java.exe"

@@ -83,6 +83,13 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
         return CollectionUtils.appendToCopy(super.getPlugins(), ThreadPoolMergeSchedulerStressTestIT.TestEnginePlugin.class);
     }
 
+    @Override
+    protected boolean resetNodeAfterTest() {
+        // The TestEnginePlugin holds state (the runMergeSemaphore, the enqueued/running merge sets, and its randomized merge counts). We
+        // need to reset the node after each test to avoid problems.
+        return true;
+    }
+
     public static class TestEnginePlugin extends Plugin implements EnginePlugin {
 
         final AtomicReference<ThreadPoolMergeExecutorService> mergeExecutorServiceReference = new AtomicReference<>();
@@ -285,12 +292,12 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
             assert testEnginePlugin.runMergeSemaphore.availablePermits() > 0 : "some merges are blocked, test is broken";
             assertThat(testEnginePlugin.runningMergesSet.size(), is(0));
             assertThat(testEnginePlugin.enqueuedMergesSet.size(), is(0));
-            testEnginePlugin.mergeExecutorServiceReference.get().allDone();
+            assertThat(testEnginePlugin.mergeExecutorServiceReference.get().allDone(), is(true));
+            // indices stats says that no merge is currently running (meaning merging did catch up).
+            IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("index").setMerge(true).get();
+            long currentMergeCount = indicesStatsResponse.getIndices().get("index").getPrimaries().merge.getCurrent();
+            assertThat(currentMergeCount, equalTo(0L));
         }, 10, TimeUnit.MINUTES);
-        // indices stats says that no merge is currently running (meaning merging did catch up)
-        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("index").setMerge(true).get();
-        long currentMergeCount = indicesStatsResponse.getIndices().get("index").getPrimaries().merge.getCurrent();
-        assertThat(currentMergeCount, equalTo(0L));
         // run a force-merge to 1 segment to make sure nothing is broken
         assertAllSuccessful(indicesAdmin().prepareForceMerge("index").setMaxNumSegments(1).get());
         assertAllSuccessful(indicesAdmin().prepareRefresh("index").get());

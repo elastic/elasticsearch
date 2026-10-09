@@ -20,12 +20,11 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.encryption.spi.EncryptionService;
-import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
+import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 
 public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNodeProjectAction<PutDataSourceAction.Request> {
     private final DataSourceService dataSourceService;
-    private final EncryptionService encryptionService;
+    private final FederationLicense federationLicense;
 
     @Inject
     public TransportPutDataSourceAction(
@@ -35,8 +34,7 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
         ActionFilters actionFilters,
         DataSourceService dataSourceService,
         ProjectResolver projectResolver,
-        DataSourceCredentials credentials,
-        EncryptionService encryptionService
+        FederationLicense federationLicense
     ) {
         super(
             PutDataSourceAction.NAME,
@@ -49,23 +47,7 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.dataSourceService = dataSourceService;
-        this.encryptionService = encryptionService;
-        // The feature is coupled to project-encryption-key, so the service is always bound here (hard, not
-        // optional, injection). Constructed on every node at startup; hand it to the shared
-        // DataSourceCredentials for the data-node decryption path.
-        credentials.setEncryptionService(encryptionService);
-    }
-
-    @Override
-    protected void doExecute(Task task, PutDataSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        // Coord-side pre-check: fail fast on unknown type / validation error before the master round-trip.
-        try {
-            dataSourceService.validatePutDataSource(request);
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
-        super.doExecute(task, request, listener);
+        this.federationLicense = federationLicense;
     }
 
     @Override
@@ -75,7 +57,8 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        dataSourceService.putDataSource(state.projectId(), request, encryptionService, listener);
+        federationLicense.check();
+        dataSourceService.putDataSource(state.projectId(), request, listener);
     }
 
     @Override

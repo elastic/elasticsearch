@@ -33,6 +33,8 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -48,9 +50,8 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
     private Settings settings = null;
     private ThreadPool threadPool = null;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initThreadPool() throws Exception {
         settings = Settings.builder()
             .put("path.home", createTempDir().toString())
             .put("node.name", "test-" + getTestName())
@@ -59,9 +60,8 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
         threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         terminate(threadPool);
     }
 

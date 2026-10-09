@@ -143,6 +143,21 @@ public class FunctionRefTests extends ScriptTestCase {
         assertEquals("[]", exec("def l = new ArrayList(); return Optional.empty().orElseGet(l::toString);"));
     }
 
+    public void testDefReceiverReferenceToScriptAwareMethod() {
+        // contains is @script_aware, so the reference must hand it the script even when the receiver is def
+        assertEquals(true, exec("def s = 'abc'; return Optional.of('b').map(s::contains).get();"));
+        assertEquals(true, exec("def s = 'abc'; def o = Optional.of('b'); return o.map(s::contains).get();"));
+        // inside a lambda too, and inside a user function
+        assertEquals(true, exec("def s = 'abc'; return Optional.empty().orElseGet(() -> Optional.of('b').map(s::contains).get());"));
+        assertEquals(true, exec("boolean f(def s) { Optional.of('b').map(s::contains).get() } return f('abc');"));
+        assertEquals(true, exec("boolean f(def s) { def o = Optional.of('b'); o.map(s::contains).get() } return f('abc');"));
+    }
+
+    public void testReferenceToScriptAwareMethodInDefCall() {
+        assertEquals(1, exec("def m = ['abc':'b']; m.replaceAll(String::indexOf); return m['abc'];"));
+        assertEquals("aXc", exec("String s = 'abc'; def m = ['b':'X']; m.replaceAll(s::replace); return m['b'];"));
+    }
+
     public void testCapturingMethodReferenceDefInterface() {
         assertEquals("5", exec("Integer x = Integer.valueOf(5); def opt = Optional.empty(); return opt.orElseGet(x::toString);"));
         assertEquals("[]", exec("List l = new ArrayList(); def opt = Optional.empty(); return opt.orElseGet(l::toString);"));

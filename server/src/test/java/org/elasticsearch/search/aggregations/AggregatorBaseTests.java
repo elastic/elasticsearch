@@ -94,6 +94,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
             null,
             null,
             false,
+            false,
             false
         );
         return ValuesSourceConfig.resolveFieldOnly(ft, context);

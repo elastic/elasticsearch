@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 
 public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilder<
@@ -68,9 +67,9 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
     }
 
     /**
-     * Sets slice-routing provenance and the user-provided {@code _slice} value.
+     * Sets slice-routing provenance and the user-provided {@code slice} value.
      */
-    public ValidateQueryRequestBuilder setSearchSlice(@Nullable String searchSlice) {
+    public ValidateQueryRequestBuilder setSearchSlice(String searchSlice) {
         request.searchSlice(searchSlice);
         return this;
     }

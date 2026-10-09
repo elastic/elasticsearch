@@ -1,0 +1,2 @@
+FROM employees
+| WHERE (emp_no, salary) IN (ROW emp_no = 10001, salary = 60000)

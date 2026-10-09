@@ -11,6 +11,10 @@ setup:
           priority: 1000
           data_stream: {}
           template:
+            settings:
+              # doc_values:false fields are tested here, which columnar modes reject; pin plain logsdb so the random
+              # logsdb_columnar promotion does not apply.
+              mode: "logsdb"
             mappings:
               properties:
                 "@timestamp":
@@ -222,6 +226,10 @@ teardown:
           priority: 1001
           data_stream: {}
           template:
+            settings:
+              # doc_values:false fields are tested here, which columnar modes reject; pin plain logsdb so the random
+              # logsdb_columnar promotion does not apply.
+              mode: "logsdb"
             mappings:
               properties:
                 "@timestamp":
@@ -336,6 +344,10 @@ teardown:
           priority: 1001
           data_stream: {}
           template:
+            settings:
+              # doc_values:false fields are tested here, which columnar modes reject; pin plain logsdb so the random
+              # logsdb_columnar promotion does not apply.
+              mode: "logsdb"
             mappings:
               properties:
                 "@timestamp":

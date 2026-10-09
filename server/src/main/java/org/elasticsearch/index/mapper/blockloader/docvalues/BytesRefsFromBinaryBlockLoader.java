@@ -13,7 +13,9 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
@@ -60,8 +62,11 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
      * Each BytesRef from the doc values maps directly to a value in the block loader.
      */
     public static class BytesRefsFromBinary extends AbstractBytesRefsFromBinaryReader {
+        private final ColumnarStringPageReader pages;
+
         public BytesRefsFromBinary(TrackingBinaryDocValues docValues) {
             super(docValues);
+            this.pages = new ColumnarStringPageReader(docValues.breaker());
         }
 
         @Override
@@ -69,6 +74,14 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
             // Attempt a fast path through OptionalColumnAtATimeReader
             if (docValues.docValues() instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
                 BlockLoader.Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, false);
+                if (block != null) {
+                    return block;
+                }
+            }
+            // A string column whose blobs are its values is read a page at a time. One framed as payloads is not:
+            // this reader hands back blobs, and a page of that column is its slots.
+            if (docValues.docValues() instanceof StringColumnSource columnar && columnar.singleValued()) {
+                BlockLoader.Block block = pages.read(columnar, factory, docs, offset);
                 if (block != null) {
                     return block;
                 }
@@ -84,6 +97,11 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
             }
             BytesRef bytes = docValues.docValues().binaryValue();
             builder.appendBytesRef(bytes);
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(pages, super::close);
         }
 
         @Override

@@ -22,6 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
+import org.elasticsearch.xpack.core.inference.action.DocumentExtractionAction;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
@@ -52,8 +53,7 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
     private ModelRegistry modelRegistry;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createAction() throws Exception {
         client = mock(Client.class);
         threadPool = new TestThreadPool("test");
         when(client.threadPool()).thenReturn(threadPool);
@@ -63,8 +63,7 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         terminate(threadPool);
     }
 
@@ -470,4 +469,95 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
         verify(client, times(1)).execute(eq(RerankAction.INSTANCE), captor.capture(), any());
         assertThat(captor.getValue().getTimeout(), is(expectedTimeout));
     }
+
+    public void testExecutesADocumentExtractionAction_WhenTaskTypeIsDocumentExtraction_InRequest_TimeoutSpecified() {
+        testExecutesADocumentExtractionAction_WhenTaskTypeIsDocumentExtraction_InRequest(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE);
+    }
+
+    public void testExecutesADocumentExtractionAction_WhenTaskTypeIsDocumentExtraction_InRequest_NullTimeout() {
+        testExecutesADocumentExtractionAction_WhenTaskTypeIsDocumentExtraction_InRequest(null, TIMEOUT_NOT_DETERMINED);
+    }
+
+    public void testExecutesADocumentExtractionAction_WhenTaskTypeIsDocumentExtraction_InRequest_TimeoutNotDetermined() {
+        testExecutesADocumentExtractionAction_WhenTaskTypeIsDocumentExtraction_InRequest(TIMEOUT_NOT_DETERMINED, TIMEOUT_NOT_DETERMINED);
+    }
+
+    private void testExecutesADocumentExtractionAction_WhenTaskTypeIsDocumentExtraction_InRequest(
+        TimeValue timeout,
+        TimeValue expectedTimeout
+    ) {
+        @SuppressWarnings("unchecked")
+        ActionListener<InferenceAction.Response> listener = (ActionListener<InferenceAction.Response>) mock(ActionListener.class);
+        var request = new InferenceActionProxy.Request(
+            TaskType.DOCUMENT_EXTRACTION,
+            "id",
+            new BytesArray(DOCUMENT_EXTRACTION_REQUEST_JSON),
+            XContentType.JSON,
+            timeout,
+            false,
+            InferenceContext.EMPTY_INSTANCE
+        );
+
+        action.doExecute(mock(Task.class), request, listener);
+
+        var captor = ArgumentCaptor.forClass(DocumentExtractionAction.Request.class);
+        verify(client, times(1)).execute(eq(DocumentExtractionAction.INSTANCE), captor.capture(), any());
+        assertThat(captor.getValue().getTimeout(), is(expectedTimeout));
+    }
+
+    public void testExecutesADocumentExtractionRequest_WhenTaskTypeIsDocumentExtraction_FromStorage_TimeoutSpecified() {
+        testExecutesADocumentExtractionRequest_WhenTaskTypeIsDocumentExtraction_FromStorage(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE);
+    }
+
+    public void testExecutesADocumentExtractionRequest_WhenTaskTypeIsDocumentExtraction_FromStorage_NullTimeout() {
+        testExecutesADocumentExtractionRequest_WhenTaskTypeIsDocumentExtraction_FromStorage(null, TIMEOUT_NOT_DETERMINED);
+    }
+
+    public void testExecutesADocumentExtractionRequest_WhenTaskTypeIsDocumentExtraction_FromStorage_TimeoutNotDetermined() {
+        testExecutesADocumentExtractionRequest_WhenTaskTypeIsDocumentExtraction_FromStorage(TIMEOUT_NOT_DETERMINED, TIMEOUT_NOT_DETERMINED);
+    }
+
+    private void testExecutesADocumentExtractionRequest_WhenTaskTypeIsDocumentExtraction_FromStorage(
+        TimeValue timeout,
+        TimeValue expectedTimeout
+    ) {
+        doAnswer(invocation -> {
+            ActionListener<UnparsedModel> listener = invocation.getArgument(1);
+            listener.onResponse(
+                new UnparsedModel("id", TaskType.DOCUMENT_EXTRACTION, "service", Collections.emptyMap(), Collections.emptyMap())
+            );
+
+            return Void.TYPE;
+        }).when(modelRegistry).getModelWithSecrets(any(), any());
+
+        var listener = new TestPlainActionFuture<InferenceAction.Response>();
+        var request = new InferenceActionProxy.Request(
+            TaskType.ANY,
+            "id",
+            new BytesArray(DOCUMENT_EXTRACTION_REQUEST_JSON),
+            XContentType.JSON,
+            timeout,
+            false,
+            InferenceContext.EMPTY_INSTANCE
+        );
+
+        action.doExecute(mock(Task.class), request, listener);
+
+        var captor = ArgumentCaptor.forClass(DocumentExtractionAction.Request.class);
+        verify(client, times(1)).execute(eq(DocumentExtractionAction.INSTANCE), captor.capture(), any());
+        assertThat(captor.getValue().getTimeout(), is(expectedTimeout));
+    }
+
+    private static final String DOCUMENT_EXTRACTION_REQUEST_JSON = """
+        {
+            "input": [
+                {
+                   "content": {
+                        "value": "data:application/pdf;base64,abcd",
+                        "type": "pdf"
+                    }
+                }
+            ]
+        }
+        """;
 }

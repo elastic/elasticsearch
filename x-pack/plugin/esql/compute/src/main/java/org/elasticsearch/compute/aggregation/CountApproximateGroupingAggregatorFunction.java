@@ -40,7 +40,7 @@ public class CountApproximateGroupingAggregatorFunction implements GroupingAggre
 
     CountApproximateGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
         this.channels = channels;
-        this.state = new DoubleArrayState(driverContext.bigArrays(), 0);
+        this.state = new DoubleArrayState(driverContext.bigArrays(), driverContext.breaker(), 0);
         this.driverContext = driverContext;
         this.countAll = channels.isEmpty();
     }

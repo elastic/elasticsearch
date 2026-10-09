@@ -14,11 +14,13 @@ import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetF
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -158,17 +160,22 @@ public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     protected Set<String> getAuditMessages(String transformId) {
-        var searchRequest = new SearchRequest(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN);
-        var searchResponse = client().search(searchRequest).actionGet(TimeValue.THIRTY_SECONDS);
         try {
-            return Arrays.stream(searchResponse.getHits().getHits())
-                .map(SearchHit::getSourceAsMap)
-                .filter(source -> Objects.equals(source.get("transform_id"), transformId))
-                .map(source -> source.get("message"))
-                .map(Object::toString)
-                .collect(Collectors.toSet());
-        } finally {
-            searchResponse.decRef();
+            var searchRequest = new SearchRequest(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN);
+            var searchResponse = client().search(searchRequest).actionGet(TimeValue.THIRTY_SECONDS);
+            try {
+                return Arrays.stream(searchResponse.getHits().getHits())
+                    .map(SearchHit::getSourceAsMap)
+                    .filter(source -> Objects.equals(source.get("transform_id"), transformId))
+                    .map(source -> source.get("message"))
+                    .map(Object::toString)
+                    .collect(Collectors.toSet());
+            } finally {
+                searchResponse.decRef();
+            }
+        } catch (SearchPhaseExecutionException | IndexNotFoundException e) {
+            logger.debug("Failed to search audit messages, returning empty set for retry", e);
+            return Set.of();
         }
     }
 

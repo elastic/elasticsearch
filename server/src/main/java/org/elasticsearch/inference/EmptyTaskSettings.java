@@ -16,14 +16,21 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * This class defines an empty task settings object. This is useful for services that do not have any task settings.
+ *
+ * <p>This is not a record so that it can be subclassed by {@code EnforcingEmptyTaskSettings}, which reuses this
+ * class's writeable name and serialization so it remains readable by nodes that predate it, while still enforcing
+ * rejection of unknown settings on {@link #updatedTaskSettings}.
  */
-public record EmptyTaskSettings() implements TaskSettings {
+public class EmptyTaskSettings implements TaskSettings {
     public static final String NAME = "empty_task_settings";
 
     public static final EmptyTaskSettings INSTANCE = new EmptyTaskSettings();
+
+    protected EmptyTaskSettings() {}
 
     public EmptyTaskSettings(StreamInput in) {
         this();
@@ -57,5 +64,19 @@ public record EmptyTaskSettings() implements TaskSettings {
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         return INSTANCE;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        return o != null && getClass() == o.getClass();
+    }
+
+    @Override
+    public int hashCode() {
+        // The class doesn't have any members so return the same hash code
+        return Objects.hash(NAME);
     }
 }

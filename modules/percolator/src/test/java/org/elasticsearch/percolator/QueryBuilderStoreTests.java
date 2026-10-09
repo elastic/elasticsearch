@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -22,6 +23,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.lucene.search.SharedAutomaton;
+import org.elasticsearch.common.lucene.search.SharedAutomatonQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedFunction;
@@ -64,6 +67,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.SearchExecutionContextHelper.SHARD_SEARCH_STATS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class QueryBuilderStoreTests extends ESTestCase {
 
@@ -211,6 +215,66 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testPercolateContextReleaseClearsPreChargedQueries() throws IOException {
+        String fieldName = "keyword_field";
+        QueryBuilder[] queryBuilders = new QueryBuilder[] { new TermQueryBuilder(fieldName, "value") };
+
+        try (Directory directory = newDirectory()) {
+            PercolatorTestSetup setup = setupPercolatorTest(directory, fieldName, queryBuilders);
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+            SearchExecutionContext baseContext = new SearchExecutionContext(setup.baseContext(), breaker);
+            SearchExecutionContext percolateContext = PercolateQueryBuilder.newPercolateSearchContext(baseContext, false);
+
+            long baselineUsed = breaker.getUsed();
+
+            new WildcardQueryBuilder(fieldName, "test*pattern*with*wildcards").toQuery(percolateContext);
+            new RegexpQueryBuilder(fieldName, ".*test.*regexp.*pattern.*").toQuery(percolateContext);
+
+            Query marker = new TermQuery(new Term(fieldName, "marker"));
+            percolateContext.markQueryMemoryPreCharged(marker);
+            assertTrue("query should be reported as pre-charged before release", percolateContext.isQueryMemoryPreCharged(marker));
+
+            percolateContext.releaseQueryConstructionMemory();
+
+            assertFalse(
+                "percolate context release must clear the pre-charged set so it does not retain query references",
+                percolateContext.isQueryMemoryPreCharged(marker)
+            );
+            assertThat("percolate context release must return the request breaker to baseline", breaker.getUsed(), equalTo(baselineUsed));
+        }
+    }
+
+    public void testPercolateContextReleaseDropsSharedAutomata() throws IOException {
+        String fieldName = "keyword_field";
+        QueryBuilder[] queryBuilders = new QueryBuilder[] { new TermQueryBuilder(fieldName, "value") };
+
+        try (Directory directory = newDirectory()) {
+            PercolatorTestSetup setup = setupPercolatorTest(directory, fieldName, queryBuilders);
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+            SearchExecutionContext baseContext = new SearchExecutionContext(setup.baseContext(), breaker);
+            SearchExecutionContext percolateContext = PercolateQueryBuilder.newPercolateSearchContext(baseContext, false);
+            MappedFieldType fieldType = percolateContext.getFieldType(fieldName);
+
+            long baselineUsed = breaker.getUsed();
+
+            SharedAutomaton before = sharedAutomatonOf(fieldType.wildcardQuery("*passwd*", null, false, percolateContext));
+            percolateContext.releaseQueryConstructionMemory();
+            assertThat(breaker.getUsed(), equalTo(baselineUsed));
+
+            // Released after every stored query, so the next one must not reuse an automaton nothing is charged for.
+            SharedAutomaton after = sharedAutomatonOf(fieldType.wildcardQuery("*passwd*", null, false, percolateContext));
+            assertNotSame("release must drop the automata whose charge it refunded", before, after);
+            assertThat("the rebuilt automaton must be charged again", breaker.getUsed() - baselineUsed, greaterThan(after.ramBytesUsed()));
+
+            percolateContext.releaseQueryConstructionMemory();
+            assertThat(breaker.getUsed(), equalTo(baselineUsed));
+        }
+    }
+
+    private static SharedAutomaton sharedAutomatonOf(Query query) {
+        return asInstanceOf(SharedAutomatonQuery.class, query).getSharedAutomaton();
     }
 
     private record PercolatorTestSetup(BinaryFieldMapper fieldMapper, SearchExecutionContext baseContext) {}

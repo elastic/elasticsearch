@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.apache.lucene.internal.hppc.LongArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogramHolder;
@@ -106,8 +107,12 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
             throw new UnsupportedOperationException("This producer should never be called without timestamps");
         }
 
-        void collect(ExponentialHistogramValuesReader docValues, long[] timestamps, IntArrayList docIdBuffer, Temporality temporality)
-            throws IOException {
+        void collect(
+            ExponentialHistogramValuesReader docValues,
+            LongArrayList timestampBuffer,
+            IntArrayList docIdBuffer,
+            Temporality temporality
+        ) throws IOException {
             assert assertTemporality(temporality) : "delegate should change only after a tsid reset";
             if (temporalityCollector == null) {
                 temporalityCollector = switch (temporality) {
@@ -115,7 +120,7 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
                     case CUMULATIVE -> cumulativeCollector;
                 };
             }
-            assert timestamps.length == docIdBuffer.size() : "timestamps and docIdBuffer should have the same size";
+            assert timestampBuffer.size() == docIdBuffer.size() : "timestamps and docIdBuffer should have the same size";
             for (int i = 0; i < docIdBuffer.size(); i++) {
                 int docId = docIdBuffer.get(i);
                 if (docValues.advanceExact(docId) == false) {
@@ -123,7 +128,7 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
                 }
                 state = State.IN_PROGRESS;
                 ExponentialHistogram value = docValues.histogramValue();
-                temporalityCollector.collect(value, timestamps[i]);
+                temporalityCollector.collect(value, timestampBuffer.get(i));
             }
         }
 
@@ -282,18 +287,26 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
                     // lastTimestamp == -1 means that the previous value is already persisted by a previous bucket, nothing extra to
                     // persist.
                     if (lastTimestamp > 0) {
-                        // If we have a previous value in this bucket, we need to see if the last persisted value is enough to capture
-                        // the reset or not.
-                        ExponentialHistogram lastPersisted = null;
-                        if (resetStack.isEmpty() == false) {
-                            lastPersisted = ((ResetDataPoints.HistogramResetValue) resetStack.peek().value()).value();
-                        } else if (previousBucketValueHolder != null) {
-                            lastPersisted = previousBucketValueHolder.accessor();
-                        }
-                        // If there is no known last persisted value or the last persisted has a larger value count than the
-                        // current value, we need to store the previous document to capture the reset.
-                        if (lastPersisted == null || value.valueCount() < lastPersisted.valueCount()) {
-                            resetStack.push(new ResetDataPoints.ResetPoint(lastTimestamp, copyHistogram(previousValueHolder.accessor())));
+                        // The previous data point is already on the top of the stack when the previous iteration also detected a reset
+                        // (its timestamp matches lastTimestamp). Re-pushing it would produce two entries for the same
+                        // (field, timestamp) pair, which causes a duplicate field error in the reset document.
+                        boolean previousAlreadyPersisted = resetStack.isEmpty() == false && resetStack.peek().timestamp() == lastTimestamp;
+                        if (previousAlreadyPersisted == false) {
+                            // If we have a previous value in this bucket, we need to see if the last persisted value is enough to
+                            // capture the reset or not.
+                            ExponentialHistogram lastPersisted = null;
+                            if (resetStack.isEmpty() == false) {
+                                lastPersisted = ((ResetDataPoints.HistogramResetValue) resetStack.peek().value()).value();
+                            } else if (previousBucketValueHolder != null) {
+                                lastPersisted = previousBucketValueHolder.accessor();
+                            }
+                            // If there is no known last persisted value or the last persisted has a larger value count than the
+                            // current value, we need to store the previous document to capture the reset.
+                            if (lastPersisted == null || value.valueCount() < lastPersisted.valueCount()) {
+                                resetStack.push(
+                                    new ResetDataPoints.ResetPoint(lastTimestamp, copyHistogram(previousValueHolder.accessor()))
+                                );
+                            }
                         }
                     }
                     // This is the last value before reset, which we always need to persist

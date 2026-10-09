@@ -18,6 +18,7 @@ import software.amazon.awssdk.services.sts.model.Credentials;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -40,9 +41,8 @@ public class AsyncWebIdentityCredentialsProviderTests extends ESTestCase {
     private AtomicInteger tokenCalls;
     private Consumer<ActionListener<String>> tokenSupplier;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initClock() throws Exception {
         clock = new MutableClock(Instant.parse("2026-05-29T00:00:00Z"));
         tokenCalls = new AtomicInteger();
         tokenSupplier = listener -> {

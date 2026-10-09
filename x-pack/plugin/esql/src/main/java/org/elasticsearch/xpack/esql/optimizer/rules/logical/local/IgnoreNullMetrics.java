@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -62,10 +61,10 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
      */
     private static boolean isMetricsQuery(LogicalPlan logicalPlan) {
         if (logicalPlan instanceof EsRelation r) {
-            return r.indexMode() == IndexMode.TIME_SERIES;
+            return r.indexMode().isTsdb();
         }
         if (logicalPlan instanceof UnresolvedRelation r) {
-            return r.indexMode() == IndexMode.TIME_SERIES;
+            return r.indexMode().isTsdb();
         }
         return false;
     }

@@ -139,7 +139,7 @@ public class TransportSLMGetExpiredSnapshotsActionTests extends ESTestCase {
             }
         });
 
-        final var action = new TransportSLMGetExpiredSnapshotsAction(transportService, repositoriesService, new ActionFilters(Set.of()));
+        final var action = new TransportSLMGetExpiredSnapshotsAction(transportService, repositoriesService, ActionFilters.EMPTY);
         final var task = new Task(1, "direct", TransportSLMGetExpiredSnapshotsAction.INSTANCE.name(), "", TaskId.EMPTY_TASK_ID, Map.of());
 
         final var policyMap = createPolicies(

@@ -22,14 +22,16 @@ import java.util.Map;
 /**
  * Results from running a chunk of ESQL.
  *
- * @param schema            "Schema" of the {@link Attribute}s that are produced by the {@link LogicalPlan}
- *                          that was run. Each {@link Page} contains a {@link Block} of values for each
- *                          attribute in this list.
- * @param pages             Actual values produced by running the ESQL.
- * @param attributeMetadata attribute metadata to return with response
- * @param configuration     The configuration used during the execution of this query.
- * @param completionInfo    Information collected from drivers after they've been completed.
- * @param executionInfo     Metadata about the execution of this query. Used for cross cluster queries.
+ * @param schema               "Schema" of the {@link Attribute}s that are produced by the {@link LogicalPlan}
+ *                             that was run. Each {@link Page} contains a {@link Block} of values for each
+ *                             attribute in this list.
+ * @param pages                Actual values produced by running the ESQL.
+ * @param attributeMetadata    attribute metadata to return with response
+ * @param configuration        The configuration used during the execution of this query.
+ * @param completionInfo       Information collected from drivers after they've been completed.
+ * @param executionInfo        Metadata about the execution of this query. Used for cross cluster queries.
+ * @param approximationApplied Tri-state: null when query approximation was not requested (field omitted from the response),
+ *                             otherwise whether approximation was actually applied for the query.
  */
 public record Result(
     List<Attribute> schema,
@@ -37,9 +39,9 @@ public record Result(
     Map<NameId, Map<String, Object>> attributeMetadata,
     Configuration configuration,
     DriverCompletionInfo completionInfo,
-    @Nullable EsqlExecutionInfo executionInfo
+    @Nullable EsqlExecutionInfo executionInfo,
+    @Nullable Boolean approximationApplied
 ) {
-
     @Nullable
     public Map<String, Object> attributeMetadata(NameId name) {
         return attributeMetadata.get(name);

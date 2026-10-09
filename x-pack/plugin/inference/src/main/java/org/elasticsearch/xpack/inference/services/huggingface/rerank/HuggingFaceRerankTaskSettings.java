@@ -12,7 +12,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -23,6 +22,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 
 public class HuggingFaceRerankTaskSettings implements TaskSettings, TopNProvider {
 
@@ -44,12 +44,7 @@ public class HuggingFaceRerankTaskSettings implements TaskSettings, TopNProvider
         }
 
         Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, validationException);
-        Integer topNDocumentsOnly = extractOptionalPositiveInteger(
-            map,
-            TOP_N_DOCS_ONLY,
-            ModelConfigurations.TASK_SETTINGS,
-            validationException
-        );
+        Integer topNDocumentsOnly = extractOptionalPositiveInteger(map, TOP_N_DOCS_ONLY, TASK_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 

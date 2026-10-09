@@ -1,6 +1,0 @@
-area: Mapping
-issues:
- - 149500
-pr: 150636
-summary: Don't allow runtime fields to shadow fields used in index sort
-type: bug

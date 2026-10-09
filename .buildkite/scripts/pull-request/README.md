@@ -9,6 +9,9 @@ The generator handles the following:
   - Various configurations for filtering/activating steps based on labels, changed files, etc. See below.
   - Replacing `$SNAPSHOT_BWC_VERSIONS` in pipelines with an array of versions from `.ci/snapshotBwcVersions`
   - Duplicating any step with `bwc_template: true` for each BWC version in `.ci/bwcVersions`
+  - Replacing `$LATER_BRANCHES` in pipelines with the development branches ahead of the pull
+    request's target branch, read from `branches.json` on `main`. A pipeline using this placeholder is
+    dropped entirely when nothing is ahead of the target branch, since an empty matrix dimension is invalid.
 
 [Bun](https://bun.sh/) is used to test and run the TypeScript. It's an alternative JavaScript runtime that natively handles TypeScript.
 
@@ -78,6 +81,15 @@ Exclude the pipeline if all of the changed files in the PR match at least one re
 Only include the pipeline if all of the changed files in the PR match at least one regex. E.g. for the example above, only run the step if all of the changed files are docs changes.
 
 This is particularly useful for having a step that only runs, for example, when all of the other steps get filtered out because of the `excluded-regions` property.
+
+Note that this is "all", not "any". Use `any-included-regions` if you want a step that runs whenever a PR touches certain files, even if it changes other files too.
+
+#### `any-included-regions`
+
+- Type: `string|string[]` - must be JavaScript regexes
+- Example: `["^x-pack/plugin/esql/.*"]`
+
+Only include the pipeline if at least one of the changed files in the PR matches at least one regex. E.g. for the example above, run the step for any PR that touches ES|QL, whether or not it also changes other files.
 
 #### `trigger-phrase`
 

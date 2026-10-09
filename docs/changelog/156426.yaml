@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 156426
+summary: Allow lookup data streams to rollover
+type: bug

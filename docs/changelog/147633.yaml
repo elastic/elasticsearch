@@ -1,5 +1,0 @@
-area: Inference
-issues: []
-pr: 147633
-summary: "[Inference API] Add stack version and production environment to APM attributes"
-type: enhancement

@@ -43,9 +43,13 @@ public class ES93FlatVectorFormat extends KnnVectorsFormat {
         format = new ES93GenericFlatVectorsFormat();
     }
 
-    public ES93FlatVectorFormat(DenseVectorFieldMapper.ElementType elementType) {
+    /**
+     * @param onDiskMerge the field's {@code on_disk_merge} option. Unlike the sibling formats' second argument, this is
+     *                    not {@code useDirectIO}: the flat type has no {@code on_disk_rescore}
+     */
+    public ES93FlatVectorFormat(DenseVectorFieldMapper.ElementType elementType, boolean onDiskMerge) {
         super(NAME);
-        format = new ES93GenericFlatVectorsFormat(elementType, false);
+        format = new ES93GenericFlatVectorsFormat(elementType, false, onDiskMerge);
     }
 
     @Override
@@ -61,6 +65,11 @@ public class ES93FlatVectorFormat extends KnnVectorsFormat {
     @Override
     public int getMaxDimensions(String fieldName) {
         return MAX_DIMS_COUNT;
+    }
+
+    @Override
+    public String toString() {
+        return getName() + "(name=" + getName() + ", innerFormat=" + format + ")";
     }
 
     static class ES93FlatVectorReader extends KnnVectorsReader {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal
 
+import spock.lang.TempDir
 import spock.lang.Unroll
 import com.github.tomakehurst.wiremock.WireMockServer
 
@@ -29,6 +30,9 @@ class JdkDownloadPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = JdkDownloadPlugin
 
+    @TempDir
+    File gradleUserHome
+
     
     private static final String OPENJDK_VERSION_OLD = "1+99"
     private static final String ADOPT_JDK_VERSION = "12.0.2+10"
@@ -41,7 +45,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     private static final Pattern JDK_HOME_LOGLINE = Pattern.compile("JDK HOME: (.*)")
 
     def setup() {
-        configurationCacheCompatible = false // JDK class references configurations which break configuration cache
+        disableConfigurationCache("JDK class references configurations which break configuration cache")
     }
 
     @Unroll

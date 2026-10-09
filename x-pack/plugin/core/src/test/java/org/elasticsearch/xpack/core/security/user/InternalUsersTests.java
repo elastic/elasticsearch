@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.core.security.user;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.TransportCleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
@@ -26,6 +28,7 @@ import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAct
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
@@ -34,14 +37,19 @@ import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.tasks.TaskCancellationService;
@@ -69,6 +77,7 @@ import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
@@ -76,6 +85,7 @@ import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.I
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.SECURITY_TOKENS_ALIAS;
 import static org.elasticsearch.xpack.core.security.user.UsernamesField.CROSS_PROJECT_SEARCH_USER_NAME;
+import static org.elasticsearch.xpack.core.security.user.UsernamesField.ENRICH_NAME;
 import static org.elasticsearch.xpack.core.security.user.UsernamesField.REINDEX_DATA_STREAM_NAME;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -264,7 +274,12 @@ public class InternalUsersTests extends ESTestCase {
         );
         checkClusterAccess(InternalUsers.DATA_STREAM_LIFECYCLE_USER, role, randomFrom(sampleClusterActions), true);
 
-        final List<String> allowedSystemDataStreams = Arrays.asList(".fleet-actions-results", ".fleet-fileds*", ".workflows*");
+        final List<String> allowedSystemDataStreams = Arrays.asList(
+            ".fleet-actions-results",
+            ".fleet-fileds*",
+            ".workflows*",
+            ".kibana_change_history*"
+        );
         for (var group : role.indices().groups()) {
             if (group.allowRestrictedIndices()) {
                 assertThat(group.indices(), arrayContaining(allowedSystemDataStreams.toArray(new String[0])));
@@ -292,7 +307,7 @@ public class InternalUsersTests extends ESTestCase {
         );
         final String dataStream = randomAlphaOfLengthBetween(3, 12);
 
-        checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream, true);
+        checkDataStreamAccess(role, randomFrom(sampleIndexActions), dataStream, false, IndexComponentSelector.DATA, true);
         // Also check backing index access
         checkIndexAccess(
             role,
@@ -301,7 +316,7 @@ public class InternalUsersTests extends ESTestCase {
             true
         );
 
-        checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream + "::failures", true);
+        checkDataStreamAccess(role, randomFrom(sampleIndexActions), dataStream, false, IndexComponentSelector.FAILURES, true);
         // Also check failure index access
         checkIndexAccess(
             role,
@@ -311,7 +326,14 @@ public class InternalUsersTests extends ESTestCase {
         );
 
         allowedSystemDataStreams.forEach(allowedSystemDataStream -> {
-            checkIndexAccess(role, randomFrom(sampleSystemDataStreamActions), allowedSystemDataStream, true);
+            checkDataStreamAccess(
+                role,
+                randomFrom(sampleSystemDataStreamActions),
+                allowedSystemDataStream,
+                true,
+                IndexComponentSelector.DATA,
+                true
+            );
             checkIndexAccess(
                 role,
                 randomFrom(sampleSystemDataStreamActions),
@@ -319,7 +341,14 @@ public class InternalUsersTests extends ESTestCase {
                 true
             );
 
-            checkIndexAccess(role, randomFrom(sampleSystemDataStreamActions), allowedSystemDataStream + "::failures", true);
+            checkDataStreamAccess(
+                role,
+                randomFrom(sampleSystemDataStreamActions),
+                allowedSystemDataStream,
+                true,
+                IndexComponentSelector.FAILURES,
+                true
+            );
             checkIndexAccess(
                 role,
                 randomFrom(sampleSystemDataStreamActions),
@@ -365,7 +394,7 @@ public class InternalUsersTests extends ESTestCase {
         );
 
         final String dataStream = randomAlphaOfLengthBetween(3, 12);
-        checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream, true);
+        checkDataStreamAccess(role, randomFrom(sampleIndexActions), dataStream, false, IndexComponentSelector.DATA, true);
         // Also check backing index access
         checkIndexAccess(
             role,
@@ -373,6 +402,45 @@ public class InternalUsersTests extends ESTestCase {
             DataStream.BACKING_INDEX_PREFIX + dataStream + randomAlphaOfLengthBetween(4, 8),
             true
         );
+    }
+
+    public void testEnrichUser() {
+        assertThat(InternalUsers.getUser(ENRICH_NAME), is(InternalUsers.ENRICH_USER));
+        assertThat(
+            InternalUsers.ENRICH_USER.getLocalClusterRoleDescriptor().get().getMetadata(),
+            equalTo(MetadataUtils.DEFAULT_RESERVED_METADATA)
+        );
+
+        final SimpleRole role = getLocalClusterRole(InternalUsers.ENRICH_USER);
+
+        assertThat(role.runAs(), is(RunAsPermission.NONE));
+        assertThat(role.application(), is(ApplicationPermission.NONE));
+        assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));
+
+        // Cluster: health and task-get are covered by "monitor"; pipeline put by "manage_ingest_pipelines"
+        checkClusterAccess(InternalUsers.ENRICH_USER, role, TransportClusterHealthAction.TYPE.name(), true);
+        checkClusterAccess(InternalUsers.ENRICH_USER, role, TransportGetTaskAction.TYPE.name(), true);
+        checkClusterAccess(InternalUsers.ENRICH_USER, role, PutPipelineTransportAction.TYPE.name(), true);
+        // Security-admin actions must be denied
+        checkClusterAccess(InternalUsers.ENRICH_USER, role, TransportCreateSnapshotAction.TYPE.name(), false);
+
+        final List<String> sampleAllowedActions = List.of(
+            TransportCreateIndexAction.TYPE.name(),
+            TransportBulkAction.NAME,
+            ForceMergeAction.NAME,
+            RefreshAction.NAME,
+            IndicesSegmentsAction.NAME,
+            TransportUpdateSettingsAction.TYPE.name(),
+            TransportSearchAction.NAME,
+            TransportDeleteIndexAction.TYPE.name()
+        );
+        // Allowed on .enrich-* (restricted system indices)
+        checkIndexAccess(role, randomFrom(sampleAllowedActions), ".enrich-my-policy-1234", true);
+        checkIndexAccess(role, randomFrom(sampleAllowedActions), ".enrich-" + randomAlphaOfLengthBetween(3, 8), true);
+        // Denied on regular indices
+        checkIndexAccess(role, randomFrom(sampleAllowedActions), randomAlphaOfLengthBetween(3, 12), false);
+        // Denied on other system indices
+        checkIndexAccess(role, randomFrom(sampleAllowedActions), INTERNAL_SECURITY_MAIN_INDEX_7, false);
     }
 
     public void testRegularUser() {
@@ -463,4 +531,52 @@ public class InternalUsersTests extends ESTestCase {
         );
     }
 
+    private static void checkDataStreamAccess(
+        SimpleRole role,
+        String action,
+        String dataStreamName,
+        boolean isSystem,
+        IndexComponentSelector selector,
+        boolean expectedValue
+    ) {
+        if (expectedValue) {
+            // Can't check this if "expectedValue" is false, because the role might grant the action for a different index
+            assertThat("Role " + role + " should grant " + action, role.indices().check(action), is(true));
+        }
+
+        final String combinedName = new IndexNameExpressionResolver.ResolvedExpression(dataStreamName, selector).combined();
+        final Automaton automaton = role.indices().allowedActionsMatcher(combinedName);
+        assertThat(
+            "Role " + role + ", action " + action + " access to " + combinedName,
+            new CharacterRunAutomaton(automaton).run(action),
+            is(expectedValue)
+        );
+
+        final IndexMetadata metadata = IndexMetadata.builder(".ds-" + dataStreamName)
+            .settings(indexSettings(IndexVersion.current(), 1, 1))
+            .build();
+
+        DataStream dataStream = new DataStream(
+            dataStreamName,
+            List.of(metadata.getIndex()),
+            randomLongBetween(0, 1000),
+            Map.of(),
+            isSystem || randomBoolean(),
+            false,
+            isSystem,
+            false,
+            IndexMode.STANDARD,
+            null,
+            DataStreamOptions.EMPTY,
+            List.of(),
+            false,
+            null
+        );
+
+        assertThat(
+            "Role " + role + ", action " + action + " access to " + combinedName,
+            role.allowedIndicesMatcher(action).test(dataStream, selector),
+            is(expectedValue)
+        );
+    }
 }

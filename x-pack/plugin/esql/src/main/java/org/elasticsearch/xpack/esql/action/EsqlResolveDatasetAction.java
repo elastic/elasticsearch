@@ -85,17 +85,19 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
         // (a) the authorized concrete dataset names — from request.indices(), which on a security-enabled cluster the
         // filter has already narrowed (lenient options, so an unauthorized concrete name is dropped here, not 403'd);
         // without security this is the sole resolution.
-        // (b) whether the relation ALSO targets non-dataset abstractions, plus the explicitly-named-but-unauthorized
-        // datasets — resolved from the ORIGINAL raw patterns under an open predicate. The mixed-FROM rejection and the
-        // Unknown-index (400) for an explicit unauthorized dataset are surfaced downstream by DatasetRewriter#rewriteOne.
+        // (b) the concrete non-dataset names resolved from the same pattern (drives heterogeneous-FROM {@code UnionAll}), plus
+        // the explicitly-named-but-unauthorized datasets — resolved from the ORIGINAL raw patterns under an open
+        // predicate. The Unknown-index (400) for an explicit unauthorized dataset is surfaced downstream by
+        // DatasetRewriter#rewriteOne.
         DatasetResolution resolution = DatasetRewriter.resolve(
             request.indices(),
             request.rawPatterns(),
             project.metadata(),
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            request.wildcardsMatchDatasets()
         );
         listener.onResponse(
-            new Response(resolution.authorizedDatasets(), resolution.hasNonDatasetTargets(), resolution.explicitUnauthorized())
+            new Response(resolution.resolvedExternalDatasets(), resolution.nonDatasetNames(), resolution.explicitUnauthorized())
         );
     }
 
@@ -111,12 +113,35 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
         // un-narrowed patterns to classify whether the relation also targets non-dataset abstractions.
         private final String[] rawPatterns;
         private ResolvedIndexExpressions resolvedIndexExpressions;
+        // The coordinator's resolved wildcards_match_datasets query setting. This is a LocalClusterStateRequest, whose writeTo
+        // is the local-only stub, so carrying it serializes nothing and costs no transport version.
+        private final boolean wildcardsMatchDatasets;
 
-        /** @param rawPatterns one relation's raw FROM patterns (split on comma, not pre-expanded) */
-        public Request(TimeValue masterTimeout, String[] rawPatterns) {
+        /**
+         * With the setting off {@code indices()} carries only the exactly-named parts, which is never empty on the
+         * production path: {@code DatasetResolver} builds a request only for a relation whose pre-check passed, and
+         * that pre-check requires some member of {@code exactNames(patterns)} to be a registered dataset. Both skip on
+         * the same predicate, so a non-empty exact-name set implies a non-empty array here. The coupling matters
+         * because an empty {@code indices()} means {@code _all} to the security resolver, which would expand the
+         * request to the caller's whole authorized set.
+         *
+         * @param rawPatterns one relation's raw FROM patterns (split on comma, not pre-expanded)
+         * @param wildcardsMatchDatasets the coordinator's resolved {@code wildcards_match_datasets} query setting
+         */
+        public Request(TimeValue masterTimeout, String[] rawPatterns, boolean wildcardsMatchDatasets) {
             super(masterTimeout);
-            this.indices = rawPatterns;
+            // With wildcards_match_datasets off a wildcard reaches no dataset, so it must not reach the security filter
+            // either: the filter expands it, and ViewAndDatasetDlsFlsRequestInterceptor then rejects the request over
+            // a DLS/FLS dataset this request will never read. rawPatterns keeps the full user-typed list.
+            this.indices = wildcardsMatchDatasets ? rawPatterns : DatasetRewriter.exactPatterns(rawPatterns);
+            assert this.indices.length > 0
+                : "narrowed to nothing for "
+                    + Arrays.toString(rawPatterns)
+                    + "; an empty indices() means _all to the"
+                    + " security resolver. DatasetResolver dispatches only when an exact name is a registered dataset,"
+                    + " so a caller reaching here with none is a new dispatch site that must narrow differently.";
             this.rawPatterns = rawPatterns;
+            this.wildcardsMatchDatasets = wildcardsMatchDatasets;
         }
 
         @Override
@@ -132,6 +157,11 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
         /** The original raw FROM patterns, unaffected by the security filter's in-flight narrowing of {@link #indices()}. */
         public String[] rawPatterns() {
             return rawPatterns;
+        }
+
+        /** The coordinator's resolved {@code wildcards_match_datasets} query setting; see {@link DatasetRewriter#resolve}. */
+        public boolean wildcardsMatchDatasets() {
+            return wildcardsMatchDatasets;
         }
 
         @Override
@@ -168,12 +198,12 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
 
     public static class Response extends ActionResponse {
         private final Set<String> datasets;
-        private final boolean hasNonDatasetTargets;
+        private final Set<String> nonDatasetNames;
         private final Set<String> explicitUnauthorized;
 
-        public Response(Set<String> datasets, boolean hasNonDatasetTargets, Set<String> explicitUnauthorized) {
+        public Response(Set<String> datasets, Set<String> nonDatasetNames, Set<String> explicitUnauthorized) {
             this.datasets = datasets;
-            this.hasNonDatasetTargets = hasNonDatasetTargets;
+            this.nonDatasetNames = nonDatasetNames;
             this.explicitUnauthorized = explicitUnauthorized;
         }
 
@@ -183,11 +213,12 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
         }
 
         /**
-         * {@code true} when the relation's raw patterns also resolve to at least one non-dataset abstraction (index,
-         * alias, data stream). Drives the mixed-FROM rejection in {@link DatasetRewriter}.
+         * Concrete non-dataset names (indices, aliases, data streams) resolved from the same pattern. Non-empty when
+         * the relation targets a mix of datasets and non-datasets; drives heterogeneous-FROM UnionAll building
+         * in {@link DatasetRewriter}.
          */
-        public boolean hasNonDatasetTargets() {
-            return hasNonDatasetTargets;
+        public Set<String> nonDatasetNames() {
+            return nonDatasetNames;
         }
 
         /** Explicitly-named datasets absent from the authorized set — surfaced as {@code Unknown index} by the rewrite. */

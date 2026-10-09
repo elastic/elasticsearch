@@ -14,6 +14,8 @@ import org.apache.arrow.flight.Location;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -34,6 +36,10 @@ import java.util.Locale;
  * entry (length / mtime) and satisfy the storage SPI contract.
  */
 public final class FlightStorageProvider implements StorageProvider {
+
+    private record FlightIdentity() implements StorageIdentity {}
+
+    private static final FlightIdentity FLIGHT_IDENTITY = new FlightIdentity();
 
     @Override
     public StorageObject newObject(StoragePath path) {
@@ -59,6 +65,11 @@ public final class FlightStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) {
+        return null; // Arrow Flight has no directory listing at all
+    }
+
+    @Override
     public boolean exists(StoragePath path) throws IOException {
         validateScheme(path);
         return flightExists(path);
@@ -67,6 +78,15 @@ public final class FlightStorageProvider implements StorageProvider {
     @Override
     public List<String> supportedSchemes() {
         return List.of("flight", "grpc");
+    }
+
+    @Override
+    public boolean supportsStableMetadata() {
+        // Arrow Flight objects have no last-modified timestamp (FlightStorageObject reports null), so there is
+        // no stable per-file identity to invalidate a schema/stats cache entry on. Bypass caching entirely
+        // rather than cache under an unknowable version. This matters more now that the identity-keyed caches
+        // no longer have a TTL: a null-mtime entry would otherwise be stale forever, not just for the TTL.
+        return false;
     }
 
     @Override
@@ -92,7 +112,7 @@ public final class FlightStorageProvider implements StorageProvider {
     static Location flightLocation(StoragePath path) {
         String host = path.host();
         if (host == null || host.isEmpty()) {
-            throw new IllegalArgumentException("Flight location requires a host: " + path);
+            throw new IllegalArgumentException("Flight location requires a host");
         }
         int port = path.port() > 0 ? path.port() : FlightConnectorFactory.DEFAULT_FLIGHT_PORT;
         return Location.forGrpcInsecure(host, port);
@@ -109,12 +129,12 @@ public final class FlightStorageProvider implements StorageProvider {
             return info != null && info.getEndpoints().isEmpty() == false;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IOException("Interrupted while checking Flight object [" + path + "]", e);
+            throw new IOException("Interrupted while checking Flight object [" + target + "]", e);
         } catch (Exception e) {
             if (e instanceof IOException ioe) {
                 throw ioe;
             }
-            throw new IOException("Failed to check Flight object [" + path + "]: " + e.getMessage(), e);
+            throw new IOException("Failed to check Flight object [" + target + "]", e);
         }
     }
 
@@ -170,6 +190,11 @@ public final class FlightStorageProvider implements StorageProvider {
         @Override
         public StoragePath path() {
             return path;
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return FLIGHT_IDENTITY;
         }
     }
 }

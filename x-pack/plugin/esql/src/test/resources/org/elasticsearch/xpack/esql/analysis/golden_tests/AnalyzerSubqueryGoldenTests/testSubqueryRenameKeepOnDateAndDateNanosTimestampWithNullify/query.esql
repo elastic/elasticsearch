@@ -1,0 +1,6 @@
+SET unmapped_fields="nullify";
+FROM sample_data, (FROM sample_data_ts_nanos)
+| KEEP @timestamp
+| RENAME @timestamp AS x
+| KEEP *
+| SORT x

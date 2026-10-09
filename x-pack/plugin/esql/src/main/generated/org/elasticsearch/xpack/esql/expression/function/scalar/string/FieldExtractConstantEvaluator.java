@@ -66,10 +66,11 @@ public final class FieldExtractConstantEvaluator implements ExpressionEvaluator 
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef flattenedJsonScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (flattenedJsonBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (flattenedJsonBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -117,7 +118,7 @@ public final class FieldExtractConstantEvaluator implements ExpressionEvaluator 
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

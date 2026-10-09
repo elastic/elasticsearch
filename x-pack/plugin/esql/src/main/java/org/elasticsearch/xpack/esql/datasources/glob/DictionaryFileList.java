@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+
+import java.util.List;
 
 /**
  * Segment-dictionary-encoded file listing implementing {@link FileList}.
@@ -34,6 +37,15 @@ final class DictionaryFileList implements FileList {
     @Nullable
     private final PartitionMetadata partitionMetadata;
     private final int fileCount;
+    /**
+     * File-set fingerprint carried over from the raw list this was compacted from — compaction preserves
+     * the file set exactly and the fingerprint is order-independent, so the pass-through value equals what
+     * a recomputation over the compacted representation would produce, without re-materializing paths.
+     */
+    @Nullable
+    private final FileSetFingerprint fileSetFingerprint;
+    private final List<String> listingWarnings;
+    private final long estimatedBytes;
 
     DictionaryFileList(
         String basePath,
@@ -45,8 +57,12 @@ final class DictionaryFileList implements FileList {
         @Nullable String sharedExtension,
         @Nullable String originalPattern,
         @Nullable PartitionMetadata partitionMetadata,
-        int fileCount
+        int fileCount,
+        @Nullable FileSetFingerprint fileSetFingerprint,
+        List<String> listingWarnings
     ) {
+        assert partitionMetadata == null || partitionMetadata.coversFileCount(fileCount)
+            : "partition metadata covers [" + partitionMetadata.fileCount() + "] files but the listing has [" + fileCount + "]";
         this.basePath = basePath;
         this.tokens = tokens;
         this.pathTokens = pathTokens;
@@ -57,6 +73,15 @@ final class DictionaryFileList implements FileList {
         this.originalPattern = originalPattern;
         this.partitionMetadata = partitionMetadata;
         this.fileCount = fileCount;
+        this.fileSetFingerprint = fileSetFingerprint;
+        this.listingWarnings = listingWarnings == null || listingWarnings.isEmpty() ? List.of() : List.copyOf(listingWarnings);
+        this.estimatedBytes = computeEstimatedBytes();
+    }
+
+    @Override
+    @Nullable
+    public FileSetFingerprint fileSetFingerprint() {
+        return fileSetFingerprint;
     }
 
     @Override
@@ -113,8 +138,18 @@ final class DictionaryFileList implements FileList {
         return fileCount == 0;
     }
 
+    /**
+     * Computed once at construction. The shared {@code Cache} runs its weigher twice on every hit that is not
+     * already at the LRU head - {@code Cache.promote} sends an existing entry through {@code relinkAtHead}, whose
+     * {@code unlink} subtracts {@code weigher.applyAsLong} and whose {@code linkAtHead} adds it back - and this
+     * weight is not a constant: it walks the dictionary. A listing is immutable, so one computation is exact.
+     */
     @Override
     public long estimatedBytes() {
+        return estimatedBytes;
+    }
+
+    private long computeEstimatedBytes() {
         // object header + reference fields
         long bytes = 64;
         // basePath String: object header (40B) + char data
@@ -130,7 +165,11 @@ final class DictionaryFileList implements FileList {
         if (sharedExtension != null) {
             bytes += 40 + sharedExtension.length() * (long) Character.BYTES;
         }
-        return bytes;
+        return bytes + listingWarningBytes();
     }
 
+    @Override
+    public List<String> listingWarnings() {
+        return listingWarnings;
+    }
 }

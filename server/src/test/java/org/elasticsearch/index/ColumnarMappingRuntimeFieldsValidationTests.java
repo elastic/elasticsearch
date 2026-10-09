@@ -18,12 +18,6 @@ import static org.hamcrest.Matchers.containsString;
 
 public class ColumnarMappingRuntimeFieldsValidationTests extends MapperServiceTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        assumeTrue("columnar index modes require snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
-
     public void testColumnarRejectsSingleRootRuntimeField() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

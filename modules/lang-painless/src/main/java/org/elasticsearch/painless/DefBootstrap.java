@@ -181,7 +181,11 @@ public final class DefBootstrap {
                     methodHandlesLookup,
                     (String) args[0],
                     receiver,
-                    nameValue
+                    nameValue,
+                    // the script, when pushed, follows the receiver
+                    type().parameterCount() == 2,
+                    // optional trailing int charge flag; absent for ordinary references
+                    args.length > 1 && ((int) args[1]) != 0
                 );
                 case INDEX_NORMALIZE -> Def.lookupIndexNormalize(receiver);
                 default -> throw new AssertionError();
@@ -543,11 +547,15 @@ public final class DefBootstrap {
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
             }
             case REFERENCE -> {
-                if (args.length != 1) {
+                // args[0] is the interface class; args[1], present when the script is pushed, is the int charge flag.
+                if (args.length < 1 || args.length > 2) {
                     throw new BootstrapMethodError("Invalid number of parameters for reference call");
                 }
                 if (args[0] instanceof String == false) {
                     throw new BootstrapMethodError("Illegal parameter for reference call: " + args[0]);
+                }
+                if (args.length == 2 && args[1] instanceof Integer == false) {
+                    throw new BootstrapMethodError("Illegal charge flag for reference call: " + args[1]);
                 }
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
             }

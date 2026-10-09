@@ -9,49 +9,8 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.painless.spi.PainlessTestScript;
-import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.painless.spi.WhitelistLoader;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.test.ESTestCase;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 /** Tests for runtime-sized array allocation pre-checks ({@code new T[n]}, {@code new T[d0][d1]...}). */
-public class AllocationArrayPreCheckTests extends ESTestCase {
-
-    private static final String LIMIT_KEY = "script.painless.max_allocation_bytes.context." + PainlessTestScript.CONTEXT.name + ".limit";
-
-    private static PainlessTestScript compile(String source, String limit) {
-        Settings settings = Settings.builder().put(LIMIT_KEY, limit).build();
-        PainlessScriptEngine engine = new PainlessScriptEngine(settings, scriptContexts());
-        PainlessTestScript.Factory factory = engine.compile("test", source, PainlessTestScript.CONTEXT, Map.of());
-        return factory.newInstance(Map.of());
-    }
-
-    /** Runs {@code source} under a 1mb limit and returns the running allocation total afterwards. */
-    private static long allocatedBytes(String source) {
-        PainlessTestScript script = compile(source, "1mb");
-        script.execute();
-        return ((PainlessScript) script).getAllocBytes();
-    }
-
-    /** Asserts that running {@code source} under a 1b limit trips the allocation limit. */
-    private static void assertTripsLimit(String source) {
-        PainlessTestScript script = compile(source, "1b");
-        ScriptException e = expectThrows(ScriptException.class, script::execute);
-        for (Throwable t = e; t != null; t = t.getCause()) {
-            if (t.getMessage() != null && t.getMessage().contains("allocation limit exceeded")) {
-                return;
-            }
-        }
-        throw new AssertionError("expected an allocation limit error for [" + source + "], but got: " + e, e);
-    }
+public class AllocationArrayPreCheckTests extends AllocationTestCase {
 
     public void testOneDimConstantLengthCharged() {
         // new int[10] => pad8(16 + 4*10) = 56 bytes.
@@ -168,13 +127,5 @@ public class AllocationArrayPreCheckTests extends ESTestCase {
         assertEquals(Long.MAX_VALUE & ~7L, AllocSizes.arrayBytes(Long.MAX_VALUE, 4));
         // Small inputs match the exact formula.
         assertEquals(56L, AllocSizes.arrayBytes(10L, 4)); // pad8(16 + 4*10)
-    }
-
-    private static Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
-        Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        List<Whitelist> whitelists = new ArrayList<>(PainlessPlugin.baseWhiteList());
-        whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.test"));
-        contexts.put(PainlessTestScript.CONTEXT, whitelists);
-        return contexts;
     }
 }

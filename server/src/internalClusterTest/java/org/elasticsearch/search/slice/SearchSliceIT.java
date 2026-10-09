@@ -24,7 +24,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
@@ -297,19 +296,6 @@ public class SearchSliceIT extends ESIntegTestCase {
             prepareSearch().setQuery(matchAllQuery()).slice(new SliceBuilder("invalid_random_int", 0, 10))
         );
         assertThat(exc.getMessage(), containsString("[slice] can only be used with [scroll] or [point-in-time] requests"));
-    }
-
-    public void testSliceValidatedSettingCannotBeSetExplicitly() {
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> indicesAdmin().prepareCreate("test-slice-validated-private")
-                .setSettings(Settings.builder().put(IndexSettings.SLICE_VALIDATED.getKey(), true))
-                .get()
-        );
-        assertThat(
-            exception.getMessage(),
-            containsString("private index setting [" + IndexSettings.SLICE_VALIDATED.getKey() + "] can not be set explicitly")
-        );
     }
 
     private Throwable findRootCause(Exception e) {

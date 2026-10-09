@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +19,9 @@ import java.io.IOException;
 /**
  * Typed {@link FormatReaderStatus} for the NDJSON reader.
  */
-public record NdJsonReaderStatus(long rowsEmitted, long parseErrors, long readNanos) implements FormatReaderStatus {
+public record NdJsonReaderStatus(long rowsEmitted, long parseErrors) implements FormatReaderStatus {
+
+    private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         FormatReaderStatus.class,
@@ -27,14 +30,21 @@ public record NdJsonReaderStatus(long rowsEmitted, long parseErrors, long readNa
     );
 
     public NdJsonReaderStatus(StreamInput in) throws IOException {
-        this(in.readVLong(), in.readVLong(), in.readVLong());
+        this(in.readVLong(), in.readVLong());
+        in.readVLong(); // readNanos: removed field, preserved for wire compatibility
+        if (in.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+            in.readVLong(); // readCpuNanos: removed field, preserved for wire compatibility
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(rowsEmitted);
         out.writeVLong(parseErrors);
-        out.writeVLong(readNanos);
+        out.writeVLong(0L); // readNanos: removed field, preserved for wire compatibility
+        if (out.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+            out.writeVLong(0L); // readCpuNanos: removed field, preserved for wire compatibility
+        }
     }
 
     @Override
@@ -52,7 +62,6 @@ public record NdJsonReaderStatus(long rowsEmitted, long parseErrors, long readNa
         builder.field("format", format());
         builder.field("rows_emitted", rowsEmitted);
         builder.field("parse_errors", parseErrors);
-        builder.field("read_nanos", readNanos);
         return builder;
     }
 }

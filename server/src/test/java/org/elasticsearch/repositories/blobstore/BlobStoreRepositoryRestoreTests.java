@@ -22,6 +22,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -95,13 +96,14 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 Files.delete(shard.shardPath().resolveIndex().resolve(deletedFile));
             }
 
-            // build a new shard using the same store directory as the closed shard
+            // build a new shard using the same store directory as the closed shard, recovering from the snapshot taken above
             ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(
                 shard.routingEntry(),
-                RecoverySource.ExistingStoreRecoverySource.INSTANCE
+                new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, IndexVersion.current(), indexId)
             );
             shard = newShard(
                 shardRouting,
+                null,
                 shard.shardPath(),
                 shard.indexSettings().getIndexMetadata(),
                 null,
@@ -109,7 +111,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 new InternalEngineFactory(),
                 NOOP_GCP_SYNCER,
                 RetentionLeaseSyncer.EMPTY,
-                EMPTY_EVENT_LISTENER
+                IndexEventListener.NOOP
             );
 
             // restore the shard

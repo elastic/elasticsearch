@@ -13,8 +13,8 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -23,7 +23,7 @@ public class BinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSynthe
 
     private final String name;
     private final IndexVersion indexVersion;
-    private SortedBinaryDocValues bytesValues;
+    private SortableBinaryDocValues bytesValues;
     private boolean hasValue;
 
     public BinaryDocValuesSyntheticFieldLoaderLayer(String name, IndexVersion indexVersion) {
@@ -48,8 +48,8 @@ public class BinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSynthe
         // Pre-DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES indices may use the deprecated IntegratedCounts format, which
         // fromMultiValued() handles as a fallback when the .counts field is absent.
         bytesValues = indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)
-            ? MultiValuedSortedBinaryDocValues.from(leafReader, name)
-            : MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, name, docValues);
+            ? MultiValuedSortableBinaryDocValues.from(leafReader, name)
+            : MultiValuedSortableBinaryDocValues.fromMultiValued(leafReader, name, docValues);
 
         return docId -> {
             hasValue = bytesValues.advanceExact(docId);

@@ -20,4 +20,11 @@ public interface AnalyzerProvider<T extends Analyzer> extends Provider<T> {
 
     @Override
     T get();
+
+    /**
+     * See {@link TokenFilterFactory#sharingKey()}.
+     */
+    default Object sharingKey() {
+        return this;
+    }
 }

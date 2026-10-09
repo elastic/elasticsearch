@@ -32,6 +32,7 @@ import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
@@ -41,6 +42,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
@@ -341,7 +343,9 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                UnifiedCompletionRequest.streaming(
+                    UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("hello"), "user", null, null)))
+                ),
                 null,
                 listener
             );
@@ -394,7 +398,9 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                UnifiedCompletionRequest.streaming(
+                    UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("hello"), "user", null, null)))
+                ),
                 null,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
@@ -449,7 +455,9 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                UnifiedCompletionRequest.streaming(
+                    UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("hello"), "user", null, null)))
+                ),
                 null,
                 listener
             );
@@ -936,11 +944,16 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                             "service": "openai",
                             "name": "OpenAI",
                             "task_types": ["text_embedding", "completion", "chat_completion", "embedding"],
+                            "features": {
+                                "non_streaming_chat": {
+                                    "supported": true
+                                }
+                            },
                             "configurations": {
                                 "api_key": {
-                                    "description": "The OpenAI API authentication key. For more details about generating OpenAI API keys, refer to the https://platform.openai.com/account/api-keys.",
+                                    "description": "The OpenAI API authentication key. For more details about generating OpenAI API keys, refer to the https://platform.openai.com/account/api-keys. You must provide exactly one of API key or OAuth2 client secret.",
                                     "label": "API Key",
-                                    "required": true,
+                                    "required": false,
                                     "sensitive": true,
                                     "updatable": true,
                                     "type": "str",
@@ -952,6 +965,15 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                                     "required": false,
                                     "sensitive": false,
                                     "updatable": false,
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion", "embedding"]
+                                },
+                                "token_url": {
+                                    "description": "The absolute URL of the OAuth2 token endpoint.",
+                                    "label": "OAuth2 Token URL",
+                                    "required": false,
+                                    "sensitive": false,
+                                    "updatable": true,
                                     "type": "str",
                                     "supported_task_types": ["text_embedding", "completion", "chat_completion", "embedding"]
                                 },
@@ -1008,12 +1030,40 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                                     "updatable": true,
                                     "type": "str",
                                     "supported_task_types": ["text_embedding", "completion", "chat_completion", "embedding"]
+                                },
+                                "client_id": {
+                                    "description": "ID of application registered with the authorization server.",
+                                    "label": "OAuth2 Client ID",
+                                    "required": false,
+                                    "sensitive": false,
+                                    "updatable": true,
+                                    "type": "str",
+                                    "supported_task_types": [
+                                        "text_embedding",
+                                        "completion",
+                                        "chat_completion",
+                                        "embedding"
+                                    ]
+                                },
+                                "scopes": {
+                                    "description": "The permissions that the application is requesting.",
+                                    "label": "OAuth2 Scopes",
+                                    "required": false,
+                                    "sensitive": false,
+                                    "updatable": true,
+                                    "type": "list",
+                                    "supported_task_types": [
+                                        "text_embedding",
+                                        "completion",
+                                        "chat_completion",
+                                        "embedding"
+                                    ]
                                 }
                             }
                         }
                     """
             );
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
             );

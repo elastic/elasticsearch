@@ -1,5 +1,5 @@
 "Throttle the request":
-  # Throttling happens between each scroll batch so we need to control the size of the batch by using a single shard
+  # Throttling happens between each paginated search batch so we need to control the size of the batch by using a single shard
   # and a small batch size on the request
   - do:
       indices.create:
@@ -76,7 +76,7 @@
 "Rethrottle to -1 which turns off throttling":
   - skip:
       features: warnings
-  # Throttling happens between each scroll batch so we need to control the size of the batch by using a single shard
+  # Throttling happens between each paginated search batch so we need to control the size of the batch by using a single shard
   # and a small batch size on the request
   - do:
       indices.create:
@@ -134,7 +134,7 @@
 
 ---
 "Rethrottle but not unlimited":
-  # Throttling happens between each scroll batch so we need to control the size of the batch by using a single shard
+  # Throttling happens between each paginated search batch so we need to control the size of the batch by using a single shard
   # and a small batch size on the request
   - do:
       indices.create:

@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
+import reactor.netty.resources.ConnectionProvider;
+
 import com.azure.core.credential.TokenCredential;
+import com.azure.core.http.netty.NettyAsyncHttpClientBuilder;
 import com.azure.identity.ClientAssertionCredentialBuilder;
 import com.azure.identity.ManagedIdentityCredentialBuilder;
 import com.azure.identity.WorkloadIdentityCredentialBuilder;
@@ -17,6 +20,7 @@ import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobItem;
 import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.BlobStorageException;
@@ -25,20 +29,29 @@ import com.azure.storage.common.StorageSharedKeyCredential;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.TestConnectionNotSupportedException;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -76,12 +89,13 @@ import java.util.function.Function;
  * The async dependencies ({@code azure-core-http-netty}, Reactor Netty, Netty) are already
  * bundled in this plugin's classloader. Versions are aligned with {@code repository-azure}.
  * <p>
- * Authentication: connection string, account+key, SAS token, {@code auth=none} for public
- * containers, {@code auth=workload_identity} (AKS Workload Identity via the entitled
- * federated-token symlink under {@code ${ES_PATH_CONF}} when configured, falling back to
- * {@code ManagedIdentityCredential} via Azure IMDS), or workload identity federation
- * ({@code tenant_id} + {@code client_id} + {@code jwt_audience}) which mints a JWT via the
- * node's workload-identity issuer and exchanges it through Azure AD as a client assertion.
+ * Authentication (selected by the {@code auth} mode; {@code auto} infers it from the fields present):
+ * {@code auth=static_credentials} (connection string, account+key, or account+SAS token),
+ * {@code auth=federated_identity} ({@code tenant_id} + {@code client_id} + {@code jwt_audience}) which mints a JWT
+ * via the node's workload-identity issuer and exchanges it through Azure AD as a client assertion,
+ * {@code auth=anonymous} for public containers, or {@code auth=managed_identity} (AKS Workload Identity via the
+ * entitled federated-token symlink under {@code ${ES_PATH_CONF}} when configured, falling back to
+ * {@code ManagedIdentityCredential} via Azure IMDS).
  * {@code DefaultAzureCredential} is excluded entirely: it bundles file-reading and process-spawning
  * credential sources blocked by entitlements.
  */
@@ -89,6 +103,7 @@ public final class AzureStorageProvider implements StorageProvider {
 
     /** Operator-managed AKS Workload Identity token symlink, relative to {@code ${ES_PATH_CONF}}. */
     public static final String AKS_FEDERATED_TOKEN_FILE_LOCATION = "esql-datasource-azure/azure-federated-token";
+    private static final String DEFAULT_JWT_AUDIENCE = "api://AzureADTokenExchange";
 
     /**
      * Test-only system property that disables Microsoft Entra instance discovery on the Azure SDK
@@ -102,23 +117,74 @@ public final class AzureStorageProvider implements StorageProvider {
         System.getProperty("tests.azure.credentials.disable_instance_discovery", "false")
     );
 
+    /**
+     * Generous acquisition timeout so brief pool contention QUEUES rather than fails a read, mirroring the S3
+     * client's {@code connectionAcquisitionTimeout}.
+     */
+    private static final Duration CONNECTION_ACQUISITION_TIMEOUT = Duration.ofSeconds(60);
+
     private record Clients(BlobServiceClient sync, BlobServiceAsyncClient async) {}
 
     private volatile Clients clients;
+
+    /**
+     * The reactor-netty connection pool backing both clients' HTTP transport, sized by {@link #maxConnections}.
+     * Owned by this provider and disposed in {@link #close()}. Null on the pre-built-client test constructor and
+     * until the (eager or lazy) client build runs.
+     */
+    private volatile ConnectionProvider connectionProvider;
     private final AzureConfiguration config;
+    private final StorageIdentity storageIdentity;
     private final Environment environment;
 
     /**
-     * Data-source pool used by the keyless-auth credential (see {@link #buildClientAssertionCredential}). Non-null
-     * only on keyless code paths.
+     * Data-source pool used by the federated-auth (keyless) credential (see {@link #buildClientAssertionCredential}).
+     * Non-null only on federated code paths.
      */
     private final ExecutorService executor;
 
+    /**
+     * Sizes the reactor-netty connection pool shared by the sync and async clients (see {@link #buildSizedHttpClient}).
+     * The value of the {@code esql.external.max_concurrent_requests} node setting.
+     */
+    private final int maxConnections;
+
+    /**
+     * Convenience constructor that sizes the connection pool at the {@code esql.external.max_concurrent_requests}
+     * default. Used by tests; production uses the four-argument form with the node-setting value.
+     */
     public AzureStorageProvider(AzureConfiguration config, Environment environment, ExecutorService executor) {
+        this(config, environment, executor, ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY));
+    }
+
+    /**
+     * Production constructor. {@code maxConnections} sizes the reactor-netty connection pool and is the value of the
+     * {@code esql.external.max_concurrent_requests} node setting, read at the plugin's construction path (which holds
+     * node {@link Settings}).
+     */
+    public AzureStorageProvider(AzureConfiguration config, Environment environment, ExecutorService executor, int maxConnections) {
         this.config = config;
+        this.storageIdentity = config == null ? StorageIdentity.unique() : AzureCredentialIdentity.of(config);
         this.environment = environment;
         this.executor = executor;
-        if (config != null && (config.hasCredentials() || config.hasKeylessAuth() || config.isAnonymous())) {
+        this.maxConnections = maxConnections;
+        // Build the client eagerly so misconfigurations are caught early — with three exceptions that defer
+        // to first use via clients(accountFromPath):
+        //
+        // auth=managed_identity and auth=federated_identity: the account endpoint is derived from the
+        // per-query wasbs://<account>... path (unavailable at construction), so the client cannot be built
+        // without it when neither account nor endpoint appears in the settings.
+        //
+        // auth=anonymous: the account endpoint is similarly path-derived. Additionally, anonymous is always
+        // untestable at the data-source level (testConnection() short-circuits before calling clients()),
+        // so eager construction would throw ISE needlessly. Prior to this deferral, anonymous datasources
+        // with no endpoint/account in settings threw at construction, breaking all queries through them.
+        //
+        // null config: defer so the plugin can load even without a configuration present.
+        if (config != null
+            && config.resolveAuthMode() != FileDataSourceConfiguration.AuthMode.MANAGED_IDENTITY
+            && config.resolveAuthMode() != FileDataSourceConfiguration.AuthMode.FEDERATED_IDENTITY
+            && config.resolveAuthMode() != FileDataSourceConfiguration.AuthMode.ANONYMOUS) {
             BlobServiceClientBuilder builder = configureBlobServiceClientBuilder(config, null);
             this.clients = new Clients(builder.buildClient(), builder.buildAsyncClient());
         }
@@ -129,8 +195,10 @@ public final class AzureStorageProvider implements StorageProvider {
      */
     public AzureStorageProvider(BlobServiceClient blobServiceClient) {
         this.config = null;
+        this.storageIdentity = StorageIdentity.unique();
         this.environment = null;
         this.executor = null;
+        this.maxConnections = ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY);
         this.clients = new Clients(blobServiceClient, null);
     }
 
@@ -146,6 +214,79 @@ public final class AzureStorageProvider implements StorageProvider {
             }
         }
         return clients;
+    }
+
+    /**
+     * Tests connectivity by fetching account information from the configured account.
+     * Uses {@code Get Account Information} ({@code ?restype=account&comp=properties}), a data-plane
+     * operation that succeeds with any data-plane credential (account key, SAS token, or
+     * {@code Storage Blob Data Reader} RBAC at the account scope). Unlike {@code getProperties()}
+     * (which is a management-plane call requiring {@code Storage Account Contributor}), this probe
+     * works with account-scoped read permissions. No container name is required.
+     * Called from the factory's {@code testConnection} on a GENERIC thread — blocking I/O is expected.
+     *
+     * <p>{@code auth=managed_identity} and {@code auth=federated_identity} without an account or endpoint
+     * in the data source settings are detected up front and reported as {@code untestable}: the account is
+     * only resolvable from the per-query {@code wasbs://account…} URI, which is unavailable at data-source
+     * registration time. Any other {@link IllegalStateException} from client construction (e.g. incomplete
+     * static credentials, workload-identity disabled on the node) propagates and is surfaced by
+     * {@code DataSourceModule} as {@code {status: "failure"}}.
+     *
+     * <p>A 403 from {@code Get Account Information} is treated as {@code untestable}: the principal
+     * may have {@code Storage Blob Data Reader} at the container scope rather than the account scope,
+     * which is a valid configuration for reading blobs but insufficient for this account-level probe.
+     * Reporting failure in that case would be a false negative.
+     */
+    public void testConnection() {
+        if (config != null && config.isAnonymous()) {
+            throw new TestConnectionNotSupportedException(
+                "Azure anonymous access cannot be verified at the data source level",
+                "Anonymous access targets public containers; create a dataset to validate read access."
+            );
+        }
+        if (config != null) {
+            FileDataSourceConfiguration.AuthMode mode = config.resolveAuthMode();
+            // managed_identity and federated_identity derive the account from the dataset URI
+            // (wasbs://account.blob.core.windows.net/...). Without an account or endpoint in the
+            // settings there is nothing to probe; any other ISE (e.g. workload-identity disabled)
+            // propagates as failure so the operator sees the actionable error message.
+            if ((mode == FileDataSourceConfiguration.AuthMode.MANAGED_IDENTITY
+                || mode == FileDataSourceConfiguration.AuthMode.FEDERATED_IDENTITY)
+                && Strings.hasText(config.account()) == false
+                && Strings.hasText(config.endpoint()) == false) {
+                throw new TestConnectionNotSupportedException(
+                    "auth="
+                        + mode.name().toLowerCase(Locale.ROOT)
+                        + " without account or endpoint cannot be verified at the data source level",
+                    "The account or endpoint could not be resolved from the data source settings alone; "
+                        + "create a dataset to validate access."
+                );
+            }
+        }
+        try {
+            clients(null).sync().getAccountInfo();
+        } catch (BlobStorageException e) {
+            if (e.getStatusCode() == 403 && isContainerScoped403(e)) {
+                throw new TestConnectionNotSupportedException(
+                    "Azure returned 403 on Get Account Information; credentials may be container-scoped",
+                    "Container-scoped credentials cannot be verified at the data source level; create a dataset to validate access."
+                );
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Returns {@code true} when a 403 from Get Account Information indicates container-scoped credentials
+     * (which are valid for the actual container but lack the account-wide listing privilege), and {@code false}
+     * when the credentials are definitively wrong (e.g. {@link BlobErrorCode#AUTHENTICATION_FAILED}).
+     * <p>
+     * A null error code is treated conservatively as container-scoped: the header may be absent on older
+     * API versions or on proxies that strip Azure-specific headers.
+     */
+    static boolean isContainerScoped403(BlobStorageException e) {
+        BlobErrorCode errorCode = e.getErrorCode();
+        return errorCode == null || errorCode == BlobErrorCode.AUTHORIZATION_PERMISSION_MISMATCH;
     }
 
     /**
@@ -224,113 +365,139 @@ public final class AzureStorageProvider implements StorageProvider {
     }
 
     private BlobServiceClientBuilder configureBlobServiceClientBuilder(AzureConfiguration config, String accountFromPath) {
-        BlobServiceClientBuilder builder = new BlobServiceClientBuilder();
+        if (config == null) {
+            // The datasource layer always builds a provider from a validated configuration.
+            throw new IllegalArgumentException("Azure data source requires a configuration");
+        }
+        BlobServiceClientBuilder builder = new BlobServiceClientBuilder().httpClient(buildSizedHttpClient());
 
-        if (config != null && config.isAnonymous()) {
-            String account = accountFromPath;
-            if (account == null && config.account() != null) {
-                account = config.account();
-            }
-            if (config.endpoint() != null && config.endpoint().isEmpty() == false) {
-                builder.endpoint(config.endpoint());
-            } else if (account != null) {
-                builder.endpoint(blobEndpoint(account));
-            } else {
-                throw new IllegalStateException(
-                    "Anonymous Azure access requires an endpoint or account from the path "
-                        + "(wasbs://account.blob.core.windows.net/...) or WITH {\"endpoint\": \"...\"}"
-                );
-            }
-        } else if (config != null && config.hasCredentials()) {
-            if (Strings.hasText(config.connectionString())) {
-                builder.connectionString(config.connectionString());
+        // Field inference happens only inside resolveAuthMode()'s auto branch; every explicit mode maps straight to
+        // its case here. Within STATIC_CREDENTIALS the specific static form (connection_string / account+key /
+        // account+sas) is assembled from whichever fields are present — that is form selection, not mode inference.
+        // A switch expression yielding the configured builder keeps this exhaustive: a new AuthMode fails to compile.
+        return switch (config.resolveAuthMode()) {
+            case ANONYMOUS -> {
+                String account = accountFromPath;
+                if (account == null && config.account() != null) {
+                    account = config.account();
+                }
                 if (config.endpoint() != null && config.endpoint().isEmpty() == false) {
                     builder.endpoint(config.endpoint());
-                }
-            } else if (Strings.hasText(config.account()) && Strings.hasText(config.key())) {
-                StorageSharedKeyCredential credential = new StorageSharedKeyCredential(config.account(), config.key());
-                String endpoint = config.endpoint();
-                if (endpoint == null || endpoint.isEmpty()) {
-                    endpoint = blobEndpoint(config.account());
-                }
-                builder.endpoint(endpoint).credential(credential);
-            } else if (Strings.hasText(config.sasToken()) && Strings.hasText(config.account())) {
-                String endpoint = config.endpoint();
-                if (endpoint == null || endpoint.isEmpty()) {
-                    endpoint = blobEndpoint(config.account());
-                }
-                builder.endpoint(endpoint).sasToken(config.sasToken());
-            } else {
-                throw new IllegalStateException("Azure credentials require connection_string, (account + key), or (account + sas_token)");
-            }
-        } else if (config != null && config.isWorkloadIdentity()) {
-            // Workload-identity selection (NOT a chain: only one of these makes sense at a time).
-            //
-            // 1. If the AKS Workload Identity env triple is present, use WorkloadIdentityCredential
-            // pinned to the entitled symlink (maybeBuildAksWorkloadIdentityCredential hard-fails if
-            // the env triple is set but the symlink is missing/unreadable). We deliberately ignore
-            // AZURE_FEDERATED_TOKEN_FILE so the K8s-injected path stays out of the entitlement
-            // allowlist.
-            //
-            // Crucially we do NOT also add ManagedIdentityCredential here:
-            // ManagedIdentityCredentialBuilder auto-detects AZURE_FEDERATED_TOKEN_FILE itself
-            // and would re-enter the K8s path through its IdentityClient, hitting the
-            // entitlement and surfacing as a misleading "Managed Identity authentication is
-            // not available" error. WorkloadIdentityCredential already covers the AKS case.
-            //
-            // 2. Otherwise (no AKS env triple at all) fall back to ManagedIdentityCredential —
-            // covers Azure IMDS, the v1 surface.
-            //
-            // EnvironmentCredential is intentionally excluded: it reads AZURE_CLIENT_* env vars,
-            // which are a dev/CI convention and open a JVM-global-state override on production
-            // nodes. DefaultAzureCredential is also excluded — it bundles file-reading and
-            // process-spawning sources blocked by entitlements.
-            TokenCredential workloadIdentity = maybeBuildAksWorkloadIdentityCredential();
-            TokenCredential credential = workloadIdentity != null ? workloadIdentity : new ManagedIdentityCredentialBuilder().build();
-            String endpoint = Strings.hasText(config.endpoint())
-                ? config.endpoint()
-                : (accountFromPath != null ? blobEndpoint(accountFromPath) : null);
-            if (endpoint == null && Strings.hasText(config.account())) {
-                endpoint = blobEndpoint(config.account());
-            }
-            if (endpoint == null) {
-                throw new IllegalStateException(
-                    "auth=workload_identity requires an account from the path (wasbs://account.blob.core.windows.net/...) "
-                        + "or WITH {\"endpoint\": \"...\"}"
-                );
-            }
-            builder.endpoint(endpoint).credential(credential);
-        } else if (config != null && config.hasKeylessAuth()) {
-            String account = accountFromPath;
-            if (account == null && config.account() != null) {
-                account = config.account();
-            }
-            String endpoint = config.endpoint();
-            if (endpoint == null || endpoint.isEmpty()) {
-                if (account == null) {
+                } else if (account != null) {
+                    builder.endpoint(blobEndpoint(account));
+                } else {
                     throw new IllegalStateException(
-                        "Azure keyless authentication requires an account from the path "
-                            + "(wasbs://account.blob.core.windows.net/...) or WITH {\"account\": \"...\"}"
+                        "Anonymous Azure access requires an endpoint or account from the path "
+                            + "(wasbs://account.blob.core.windows.net/...) or the endpoint setting"
                     );
                 }
-                endpoint = blobEndpoint(account);
+                yield builder;
             }
-            builder.endpoint(endpoint).credential(buildClientAssertionCredential(config, executor));
-        } else {
-            throw new IllegalArgumentException(
-                "Azure data source requires credentials: provide WITH {\"connection_string\": \"...\"}, "
-                    + "WITH {\"account\": \"...\", \"key\": \"...\"}, WITH {\"account\": \"...\", \"sas_token\": \"...\"}, "
-                    + "WITH {\"auth\": \"none\"} for public containers, "
-                    + "WITH {\"auth\": \"workload_identity\"} to use the node's managed identity (requires cluster setting), "
-                    + "or configure keyless authentication settings (tenant_id, client_id, jwt_audience)"
-            );
-        }
-
-        return builder;
+            case STATIC_CREDENTIALS -> {
+                if (Strings.hasText(config.connectionString())) {
+                    builder.connectionString(config.connectionString());
+                    if (config.endpoint() != null && config.endpoint().isEmpty() == false) {
+                        builder.endpoint(config.endpoint());
+                    }
+                } else if (Strings.hasText(config.account()) && Strings.hasText(config.key())) {
+                    StorageSharedKeyCredential credential = new StorageSharedKeyCredential(config.account(), config.key());
+                    String endpoint = config.endpoint();
+                    if (endpoint == null || endpoint.isEmpty()) {
+                        endpoint = blobEndpoint(config.account());
+                    }
+                    builder.endpoint(endpoint).credential(credential);
+                } else if (Strings.hasText(config.sasToken()) && Strings.hasText(config.account())) {
+                    String endpoint = config.endpoint();
+                    if (endpoint == null || endpoint.isEmpty()) {
+                        endpoint = blobEndpoint(config.account());
+                    }
+                    builder.endpoint(endpoint).sasToken(config.sasToken());
+                } else {
+                    throw new IllegalStateException(
+                        "Azure credentials require connection_string, (account + key), or (account + sas_token)"
+                    );
+                }
+                yield builder;
+            }
+            case FEDERATED_IDENTITY -> {
+                String account = accountFromPath;
+                if (account == null && config.account() != null) {
+                    account = config.account();
+                }
+                String endpoint = config.endpoint();
+                if (endpoint == null || endpoint.isEmpty()) {
+                    if (account == null) {
+                        throw new IllegalStateException(
+                            "Azure federated authentication requires an account from the path "
+                                + "(wasbs://account.blob.core.windows.net/...) or the account setting"
+                        );
+                    }
+                    endpoint = blobEndpoint(account);
+                }
+                builder.endpoint(endpoint).credential(buildClientAssertionCredential(config, executor));
+                yield builder;
+            }
+            case MANAGED_IDENTITY -> {
+                // Workload-identity selection (NOT a chain: only one of these makes sense at a time).
+                //
+                // 1. If the AKS Workload Identity env triple is present, use WorkloadIdentityCredential
+                // pinned to the entitled symlink (maybeBuildAksWorkloadIdentityCredential hard-fails if
+                // the env triple is set but the symlink is missing/unreadable). We deliberately ignore
+                // AZURE_FEDERATED_TOKEN_FILE so the K8s-injected path stays out of the entitlement
+                // allowlist.
+                //
+                // Crucially we do NOT also add ManagedIdentityCredential here:
+                // ManagedIdentityCredentialBuilder auto-detects AZURE_FEDERATED_TOKEN_FILE itself
+                // and would re-enter the K8s path through its IdentityClient, hitting the
+                // entitlement and surfacing as a misleading "Managed Identity authentication is
+                // not available" error. WorkloadIdentityCredential already covers the AKS case.
+                //
+                // 2. Otherwise (no AKS env triple at all) fall back to ManagedIdentityCredential —
+                // covers Azure IMDS, the v1 surface.
+                //
+                // EnvironmentCredential is intentionally excluded: it reads AZURE_CLIENT_* env vars,
+                // which are a dev/CI convention and open a JVM-global-state override on production
+                // nodes. DefaultAzureCredential is also excluded — it bundles file-reading and
+                // process-spawning sources blocked by entitlements.
+                TokenCredential workloadIdentity = maybeBuildAksWorkloadIdentityCredential();
+                TokenCredential credential = workloadIdentity != null ? workloadIdentity : new ManagedIdentityCredentialBuilder().build();
+                String endpoint = Strings.hasText(config.endpoint())
+                    ? config.endpoint()
+                    : (accountFromPath != null ? blobEndpoint(accountFromPath) : null);
+                if (endpoint == null && Strings.hasText(config.account())) {
+                    endpoint = blobEndpoint(config.account());
+                }
+                if (endpoint == null) {
+                    throw new IllegalStateException(
+                        "auth=managed_identity requires an account from the path (wasbs://account.blob.core.windows.net/...) "
+                            + "or the endpoint setting"
+                    );
+                }
+                builder.endpoint(endpoint).credential(credential);
+                yield builder;
+            }
+        };
     }
 
     /**
-     * Builds a {@link FederatedAssertionCredential} for keyless authentication: it presents a workload-identity JWT,
+     * Builds the HTTP client shared by the sync and async Blob clients, backed by a reactor-netty connection pool
+     * sized to {@link #maxConnections}. Records the pool in {@link #connectionProvider} so {@link #close()} disposes
+     * it. The single {@code esql.external.max_concurrent_requests} knob sizes this pool; the circuit breaker bounds memory
+     * and reactive 503 backoff handles throttling. The Azure SDK's reactor-netty default of 50 connections would cap
+     * read parallelism far below what Azure Blob serves, so we size it explicitly here.
+     */
+    private com.azure.core.http.HttpClient buildSizedHttpClient() {
+        ConnectionProvider provider = ConnectionProvider.builder("esql-datasource-azure")
+            .maxConnections(maxConnections)
+            .pendingAcquireMaxCount(-1)
+            .pendingAcquireTimeout(CONNECTION_ACQUISITION_TIMEOUT)
+            .build();
+        this.connectionProvider = provider;
+        return new NettyAsyncHttpClientBuilder(reactor.netty.http.client.HttpClient.create(provider)).build();
+    }
+
+    /**
+     * Builds a {@link FederatedAssertionCredential} for federated (keyless) authentication: it presents a workload-identity JWT,
      * minted by the node's {@link WorkloadIdentityIssuerClient}, as the client assertion in the Azure AD
      * {@code client_credentials} grant. See {@link FederatedAssertionCredential} for how the asynchronous assertion
      * is bridged to the credential's synchronous supplier.
@@ -342,15 +509,15 @@ public final class AzureStorageProvider implements StorageProvider {
         WorkloadIdentityIssuerClient issuerClient = WorkloadIdentityRegistry.getSharedIssuerClient();
         if (issuerClient.isEnabled() == false) {
             throw new IllegalStateException(
-                "Azure keyless authentication requires the workload-identity feature to be enabled on this node"
+                "Azure federated authentication requires the workload-identity feature to be enabled on this node"
             );
         }
         if (executor == null) {
-            // The keyless path always runs with the injected data-source executor; a null pool would let MSAL fall
+            // The federated (keyless) path always runs with the injected data-source executor; a null pool would let MSAL fall
             // back to ForkJoinPool.commonPool, which we deliberately keep token acquisition off of.
-            throw new IllegalStateException("Azure keyless authentication requires a non-null executor for token acquisition");
+            throw new IllegalStateException("Azure federated authentication requires a non-null executor for token acquisition");
         }
-        String jwtAudience = config.jwtAudience();
+        String jwtAudience = Strings.hasText(config.jwtAudience()) ? config.jwtAudience() : DEFAULT_JWT_AUDIENCE;
         // The synchronous clientAssertion supplier the delegate reads is wired by FederatedAssertionCredential itself;
         // we only configure the identity and the MSAL executor here.
         ClientAssertionCredentialBuilder delegateBuilder = new ClientAssertionCredentialBuilder().tenantId(config.tenantId())
@@ -380,7 +547,7 @@ public final class AzureStorageProvider implements StorageProvider {
         Clients c = clients(account);
         BlobClient blobClient = c.sync().getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
         BlobAsyncClient blobAsyncClient = resolveAsyncClient(c, parsed);
-        return new AzureStorageObject(blobClient, blobAsyncClient, parsed.container, parsed.blobName, path);
+        return new AzureStorageObject(storageIdentity, blobClient, blobAsyncClient, parsed.container, parsed.blobName, path);
     }
 
     @Override
@@ -391,7 +558,7 @@ public final class AzureStorageProvider implements StorageProvider {
         Clients c = clients(account);
         BlobClient blobClient = c.sync().getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
         BlobAsyncClient blobAsyncClient = resolveAsyncClient(c, parsed);
-        return new AzureStorageObject(blobClient, blobAsyncClient, parsed.container, parsed.blobName, path, length);
+        return new AzureStorageObject(storageIdentity, blobClient, blobAsyncClient, parsed.container, parsed.blobName, path, length);
     }
 
     @Override
@@ -402,7 +569,16 @@ public final class AzureStorageProvider implements StorageProvider {
         Clients c = clients(account);
         BlobClient blobClient = c.sync().getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
         BlobAsyncClient blobAsyncClient = resolveAsyncClient(c, parsed);
-        return new AzureStorageObject(blobClient, blobAsyncClient, parsed.container, parsed.blobName, path, length, lastModified);
+        return new AzureStorageObject(
+            storageIdentity,
+            blobClient,
+            blobAsyncClient,
+            parsed.container,
+            parsed.blobName,
+            path,
+            length,
+            lastModified
+        );
     }
 
     private static BlobAsyncClient resolveAsyncClient(Clients c, ParsedPath parsed) {
@@ -427,6 +603,80 @@ public final class AzureStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+        validateAzureScheme(prefix);
+        ParsedPath parsed = parsePathForListing(prefix);
+        String account = extractAccountFromHost(parsed.host);
+        BlobContainerClient containerClient = clients(account).sync().getBlobContainerClient(parsed.container);
+        ListBlobsOptions options = new ListBlobsOptions().setPrefix(parsed.blobName);
+
+        try {
+            ExternalPlanningIo.addMetadataGet(0);
+            return collectChildren(
+                containerClient.listBlobsByHierarchy("/", options, null),
+                blobPathPrefix(prefix, parsed.container),
+                limit
+            );
+        } catch (Exception e) {
+            throw new IOException("Failed to list children in the configured path" + credentialHint(), e);
+        }
+    }
+
+    /**
+     * Splits one hierarchy-listing level into files and subdirectories ({@code isPrefix} items), or {@code null}
+     * past {@code limit}. Package-private so tests can drive it from a synthetic {@code Iterable<BlobItem>}, like
+     * {@link AzureStorageIterator}.
+     */
+    static StorageChildren collectChildren(Iterable<BlobItem> items, String pathPrefix, int limit) {
+        List<StorageEntry> files = new ArrayList<>();
+        List<StoragePath> directories = new ArrayList<>();
+        for (BlobItem item : items) {
+            if (files.size() + directories.size() >= limit) {
+                return null; // too wide to buffer; the caller falls back to listObjects, which pages lazily
+            }
+            String name = item.getName();
+            if (name == null) {
+                continue;
+            }
+            if (Boolean.TRUE.equals(item.isPrefix())) {
+                String dirName = name.endsWith(StoragePath.PATH_SEPARATOR) ? name.substring(0, name.length() - 1) : name;
+                directories.add(StoragePath.of(pathPrefix + dirName));
+            } else if (name.endsWith(StoragePath.PATH_SEPARATOR) == false) {
+                files.add(toStorageEntry(item, pathPrefix));
+            }
+        }
+        return new StorageChildren(files, directories);
+    }
+
+    /**
+     * The prefix full blob paths are built from, preserving the input URI form: Hadoop form (container@host) emits
+     * {@code scheme://container@host/blob}; path-style emits {@code scheme://host/container/blob}. Shared with
+     * {@link AzureStorageIterator} so both listing shapes name a blob identically.
+     */
+    static String blobPathPrefix(StoragePath basePath, String container) {
+        StringBuilder base = new StringBuilder().append(basePath.scheme()).append(StoragePath.SCHEME_SEPARATOR);
+        if (basePath.userInfo() != null) {
+            base.append(basePath.userInfo()).append('@').append(basePath.host()).append(StoragePath.PATH_SEPARATOR);
+        } else {
+            base.append(basePath.host()).append(StoragePath.PATH_SEPARATOR).append(container).append(StoragePath.PATH_SEPARATOR);
+        }
+        return base.toString();
+    }
+
+    /** One conversion from an SDK blob item to a {@link StorageEntry}, shared by both listing shapes. */
+    static StorageEntry toStorageEntry(BlobItem item, String pathPrefix) {
+        var props = item.getProperties();
+        Instant lastModified = props != null && props.getLastModified() != null ? props.getLastModified().toInstant() : null;
+        long size = props != null && props.getContentLength() != null ? props.getContentLength() : 0L;
+        return new StorageEntry(StoragePath.of(pathPrefix + item.getName()), size, lastModified);
+    }
+
+    @Override
+    public boolean listsInKeyOrder() {
+        return true;
+    }
+
+    @Override
     public boolean exists(StoragePath path) throws IOException {
         validateAzureScheme(path);
         ParsedPath parsed = parsePath(path);
@@ -438,7 +688,7 @@ public final class AzureStorageProvider implements StorageProvider {
             if (e instanceof BlobStorageException bse && bse.getStatusCode() == 403) {
                 return existsViaRangeGet(blobClient, path);
             }
-            throw new IOException("Failed to check existence of " + path + credentialHint(), e);
+            throw new IOException("Failed to check existence of external object" + credentialHint(), e);
         }
     }
 
@@ -449,19 +699,18 @@ public final class AzureStorageProvider implements StorageProvider {
             if (e instanceof BlobStorageException bse && bse.getStatusCode() == 404) {
                 return false;
             }
-            throw new IOException("Failed to check existence of " + path + " (properties denied, range GET also failed)", e);
+            throw new IOException(
+                "Failed to check existence of external object (properties denied, range GET also failed)" + credentialHint(),
+                e
+            );
         }
     }
 
     private String credentialHint() {
-        if (config == null
-            || (config.isAnonymous() == false
-                && config.hasCredentials() == false
-                && config.hasKeylessAuth() == false
-                && config.isWorkloadIdentity() == false)) {
-            return ". If accessing a public container, use WITH {\"auth\": \"none\"}. "
-                + "Otherwise, provide credentials via WITH {\"account\": \"...\", \"key\": \"...\"}, configure keyless "
-                + "authentication settings, or set Azure environment variables";
+        if (config == null || config.resolveAuthModeOrNull() == null) {
+            return ". If accessing a public container, set auth=anonymous. "
+                + "Otherwise, provide credentials via account and key, "
+                + "or configure federated authentication with tenant_id and client_id";
         }
         return "";
     }
@@ -475,8 +724,10 @@ public final class AzureStorageProvider implements StorageProvider {
     public void close() throws IOException {
         Clients c = clients;
         clients = null;
+        ConnectionProvider cp = connectionProvider;
+        connectionProvider = null;
+        IOException primaryException = null;
         if (c != null) {
-            IOException primaryException = null;
             try {
                 closeHttpClient(c.sync().getHttpPipeline().getHttpClient());
             } catch (Exception e) {
@@ -494,19 +745,30 @@ public final class AzureStorageProvider implements StorageProvider {
                     }
                 }
             }
-            if (primaryException != null) {
-                throw primaryException;
+        }
+        // Dispose the connection pool last, after both clients have released their borrowed connections.
+        if (cp != null) {
+            try {
+                cp.disposeLater().block(Duration.ofSeconds(5));
+            } catch (Exception e) {
+                IOException disposeException = new IOException("Failed to dispose Azure connection pool", e);
+                if (primaryException != null) {
+                    primaryException.addSuppressed(disposeException);
+                } else {
+                    primaryException = disposeException;
+                }
             }
+        }
+        if (primaryException != null) {
+            throw primaryException;
         }
     }
 
     /**
-     * Close the underlying HttpClient if it implements AutoCloseable.
-     * BlobServiceClient does not implement Closeable; the default NettyAsyncHttpClient
-     * does not either, so this is typically a no-op. We attempt close when possible so
-     * that custom HttpClient implementations or future SDK versions that support close
-     * will be properly cleaned up. For full resource cleanup (like repository-azure),
-     * the client would need to be built with a custom ConnectionProvider.
+     * Close the underlying HttpClient if it implements AutoCloseable. The {@code NettyAsyncHttpClient} the SDK
+     * builds is not {@code Closeable}, so this is typically a no-op — the pool it borrows from is the
+     * {@link #connectionProvider}, which {@link #close()} disposes explicitly. We still attempt close so a custom
+     * or future {@code AutoCloseable} HttpClient is cleaned up.
      */
     private static void closeHttpClient(com.azure.core.http.HttpClient httpClient) throws Exception {
         if (httpClient instanceof AutoCloseable closeable) {
@@ -555,7 +817,7 @@ public final class AzureStorageProvider implements StorageProvider {
             return new ParsedPath(host, userInfo, pathStr);
         }
         if (pathStr.isEmpty()) {
-            throw new IllegalArgumentException("Invalid Azure path: container and blob name required: " + path);
+            throw new IllegalArgumentException("Invalid Azure path: container and blob name required");
         }
         int firstSlash = pathStr.indexOf(StoragePath.PATH_SEPARATOR);
         String container;
@@ -568,7 +830,7 @@ public final class AzureStorageProvider implements StorageProvider {
             blobName = pathStr.substring(firstSlash + 1);
         }
         if (container.isEmpty()) {
-            throw new IllegalArgumentException("Invalid Azure path: container is required: " + path);
+            throw new IllegalArgumentException("Invalid Azure path: container is required");
         }
         return new ParsedPath(host, container, blobName);
     }
@@ -594,8 +856,6 @@ public final class AzureStorageProvider implements StorageProvider {
         private final Iterable<BlobItem> blobItems;
         private final StoragePath basePath;
         private final String container;
-        private final String scheme;
-        private final String userInfo;
 
         private Iterator<BlobItem> iterator;
         private BlobItem current;
@@ -604,14 +864,13 @@ public final class AzureStorageProvider implements StorageProvider {
             this.blobItems = blobItems;
             this.basePath = basePath;
             this.container = container;
-            this.scheme = basePath.scheme();
-            this.userInfo = basePath.userInfo();
         }
 
         @Override
         public boolean hasNext() {
             try {
                 if (iterator == null) {
+                    ExternalPlanningIo.addMetadataGet(0);
                     iterator = blobItems.iterator();
                 }
                 if (current != null) {
@@ -631,12 +890,10 @@ public final class AzureStorageProvider implements StorageProvider {
                 return false;
             } catch (Exception e) {
                 String msg = (e instanceof BlobStorageException bse && bse.getStatusCode() == 403)
-                    ? "Access denied listing blobs in container ["
-                        + container
-                        + "]. "
+                    ? "Access denied listing blobs in the configured container. "
                         + "Verify that the configured credentials have listing permission on this container, "
                         + "or use exact file paths instead of glob patterns."
-                    : "Failed to list blobs in container [" + container + "]";
+                    : "Failed to list blobs in the configured container";
                 throw new RuntimeException(msg, e);
             }
         }
@@ -648,21 +905,7 @@ public final class AzureStorageProvider implements StorageProvider {
             }
             BlobItem item = current;
             current = null;
-            // Preserve the input URI form: Hadoop form (container@host) emits
-            // scheme://container@host/blob; path-style emits scheme://host/container/blob.
-            String name = item.getName();
-            StringBuilder fullPath = new StringBuilder().append(scheme).append(StoragePath.SCHEME_SEPARATOR);
-            if (userInfo != null) {
-                fullPath.append(userInfo).append('@').append(basePath.host()).append(StoragePath.PATH_SEPARATOR);
-            } else {
-                fullPath.append(basePath.host()).append(StoragePath.PATH_SEPARATOR).append(container).append(StoragePath.PATH_SEPARATOR);
-            }
-            fullPath.append(name);
-            StoragePath objectPath = StoragePath.of(fullPath.toString());
-            var props = item.getProperties();
-            Instant lastModified = props != null && props.getLastModified() != null ? props.getLastModified().toInstant() : null;
-            long size = props != null && props.getContentLength() != null ? props.getContentLength() : 0L;
-            return new StorageEntry(objectPath, size, lastModified);
+            return toStorageEntry(item, blobPathPrefix(basePath, container));
         }
 
         @Override

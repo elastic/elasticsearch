@@ -11,7 +11,7 @@ package org.elasticsearch.action.support.single.shard;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-public abstract class SingleShardRequest<Request extends SingleShardRequest<Request>> extends LegacyActionRequest
+public abstract class SingleShardRequest<Request extends SingleShardRequest<Request>> extends UntypedActionRequest
     implements
         IndicesRequest.RemoteClusterShardRequest {
 

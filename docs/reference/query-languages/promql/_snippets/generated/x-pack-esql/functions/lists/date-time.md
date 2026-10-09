@@ -24,5 +24,8 @@
 :::{include} ../time.md
 :::
 
+:::{include} ../timestamp.md
+:::
+
 :::{include} ../year.md
 :::

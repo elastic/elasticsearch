@@ -16,9 +16,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.TopologyException;
 import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.operation.union.UnaryUnionOp;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -29,6 +32,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialBinaryGeometryBlockProcessor.flattenIfHeterogeneousCollection;
 
 /**
  * Abstract base for spatial functions that combine two geometry arguments and return a new geometry
@@ -124,6 +128,12 @@ public abstract class BinarySpatialGeometryFunction extends EsqlScalarFunction {
             return UNSPECIFIED.jtsGeometryToWkb(jtsOperation(leftJts, rightJts));
         } catch (ParseException e) {
             throw new IllegalArgumentException("could not parse the geometry expression: " + e.getMessage(), e);
+        } catch (TopologyException e) {
+            // JTS overlay operations (union, intersection, difference, symDifference) can fail with a
+            // TopologyException for numerically degenerate geometries (e.g. extreme coordinate values),
+            // even though the geometries themselves are valid. Surface this as a normal user-facing error
+            // rather than letting the JTS internal exception propagate.
+            throw new IllegalArgumentException("could not compute the geometry operation: " + e.getMessage(), e);
         }
     }
 
@@ -179,17 +189,17 @@ public abstract class BinarySpatialGeometryFunction extends EsqlScalarFunction {
 
     private static Geometry toJts(Object value) throws ParseException {
         return switch (value) {
-            case BytesRef wkb -> UNSPECIFIED.wkbToJtsGeometry(wkb);
+            case BytesRef wkb -> flattenIfHeterogeneousCollection(UNSPECIFIED.wkbToJtsGeometry(wkb));
             case List<?> list -> {
-                Geometry[] geometries = new Geometry[list.size()];
-                for (int i = 0; i < list.size(); i++) {
-                    if (list.get(i) instanceof BytesRef wkb) {
-                        geometries[i] = UNSPECIFIED.wkbToJtsGeometry(wkb);
+                List<Geometry> geometries = new ArrayList<>(list.size());
+                for (Object item : list) {
+                    if (item instanceof BytesRef wkb) {
+                        geometries.add(UNSPECIFIED.wkbToJtsGeometry(wkb));
                     } else {
-                        throw new IllegalArgumentException("unsupported list element type: " + list.get(i).getClass().getSimpleName());
+                        throw new IllegalArgumentException("unsupported list element type: " + item.getClass().getSimpleName());
                     }
                 }
-                yield GEOMETRY_FACTORY.createGeometryCollection(geometries);
+                yield UnaryUnionOp.union(geometries);
             }
             default -> throw new IllegalArgumentException("unsupported geometry type: " + value.getClass().getSimpleName());
         };

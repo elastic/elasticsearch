@@ -1,0 +1,4 @@
+FROM employees
+| WHERE CASE(COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)
+             AND (languages IN (FROM employees | KEEP languages)) IS NOT NULL,
+             true, false)

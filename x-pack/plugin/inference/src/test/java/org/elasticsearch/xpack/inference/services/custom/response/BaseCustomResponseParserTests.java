@@ -41,7 +41,7 @@ public class BaseCustomResponseParserTests extends ESTestCase {
     public void testConvertToListOfFloats_ThrowsException_WhenAnItemInTheListIsNotANumber() {
         var list = List.of(1, "hello");
 
-        var exception = expectThrows(IllegalStateException.class, () -> convertToListOfFloats(list, "field"));
+        var exception = expectThrows(IllegalArgumentException.class, () -> convertToListOfFloats(list, "field"));
         assertThat(
             exception.getMessage(),
             is("Failed to parse list entry [1], error: Unable to convert field [field] of type [String] to Number")
@@ -63,7 +63,7 @@ public class BaseCustomResponseParserTests extends ESTestCase {
     public void testCastList_ThrowsException() {
         var list = List.of("abc");
 
-        var exception = expectThrows(IllegalStateException.class, () -> castList(list, (obj, fieldName) -> {
+        var exception = expectThrows(IllegalArgumentException.class, () -> castList(list, (obj, fieldName) -> {
             throw new IllegalArgumentException("failed");
         }, "field"));
 
@@ -80,7 +80,7 @@ public class BaseCustomResponseParserTests extends ESTestCase {
     }
 
     public void testValidateMap_ThrowsException_WhenKeysAreNotStrings() {
-        var exception = expectThrows(IllegalStateException.class, () -> validateMap(Map.of("key", "value", 1, "abc"), "field"));
+        var exception = expectThrows(IllegalArgumentException.class, () -> validateMap(Map.of("key", "value", 1, "abc"), "field"));
         assertThat(
             exception.getMessage(),
             is("Extracted field [field] map has an invalid key type. Expected a string but received [Integer]")

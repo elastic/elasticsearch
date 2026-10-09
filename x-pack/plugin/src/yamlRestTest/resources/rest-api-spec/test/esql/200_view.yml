@@ -87,6 +87,43 @@ setup:
   - length: { views: 0 }
 
 ---
+"optional-description":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/view/{name}
+          capabilities: [view_description]
+      test_runner_features: capabilities
+      reason: "View description field introduced"
+
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+          description: "All dogs"
+
+  - do:
+      esql.get_view:
+        name: dogs
+
+  - match: { views.0.name: "dogs" }
+  - match: { views.0.description: "All dogs" }
+
+  - do:
+      esql.put_view:
+        name: cats
+        body:
+          query: 'FROM test | WHERE animal == "cat"'
+
+  - do:
+      esql.get_view:
+        name: cats
+
+  - match: { views.0.name: "cats" }
+  - not_exists: views.0.description
+
+---
 "delete-multiple-views":
   - do:
       esql.put_view:
@@ -600,9 +637,15 @@ setup:
           query: 'FROM bad_view | LIMIT 10'
 
 ---
-"view-with-wildcard-matching-view":
-  - skip:
-      features: warnings
+"query-with-wildcard-matching-view":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [views_match_wildcards]
+      test_runner_features: [capabilities, warnings]
+      reason: "wildcards_match_views query setting introduced"
 
   - do:
       esql.put_view:
@@ -622,7 +665,7 @@ setup:
         - "No limit defined, adding default limit of [1000]"
       esql.query:
         body:
-          query: 'FROM v_* | STATS count = COUNT() BY animal | SORT animal'
+          query: 'SET wildcards_match_views=true; FROM v_* | STATS count = COUNT() BY animal | SORT animal'
 
   - length: { values: 2 }
   - match: { values.0: [1, "cat"] }

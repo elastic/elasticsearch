@@ -49,6 +49,8 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -140,6 +142,9 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             repoName
         ).setType("s3").setSettings(settings).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        assertWarnings("""
+            [unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed in a future \
+            release. See the breaking changes documentation for the next major version.""");
     }
 
     @Override
@@ -175,6 +180,9 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 SnapshotMetrics.NOOP
             )
         ) {
+            assertWarnings("""
+                [unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed in a future \
+                release. See the breaking changes documentation for the next major version.""");
             repository.start();
 
             final var blobStore = (S3BlobStore) repository.blobStore();
@@ -265,7 +273,8 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 sourceBlobContainer,
                 sourceBlobName,
                 destinationBlobName,
-                blobBytes.length()
+                blobBytes.length(),
+                null
             );
 
             return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();
@@ -287,13 +296,21 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
 
             final S3BlobContainer destinationBlobContainer = (S3BlobContainer) repository.blobStore()
                 .blobContainer(repository.basePath().add("target"));
-            destinationBlobContainer.executeMultipartCopy(
-                randomPurpose(),
-                (S3BlobContainer) sourceBlobContainer,
-                sourceBlobName,
-                destinationBlobName,
-                blobBytes.length()
-            );
+            final ExecutorService executorService = randomBoolean() ? null : Executors.newFixedThreadPool(randomIntBetween(1, 4));
+            try {
+                destinationBlobContainer.executeMultipartCopy(
+                    randomPurpose(),
+                    (S3BlobContainer) sourceBlobContainer,
+                    sourceBlobName,
+                    destinationBlobName,
+                    blobBytes.length(),
+                    executorService
+                );
+            } finally {
+                if (executorService != null) {
+                    executorService.shutdownNow();
+                }
+            }
 
             return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();
         });
@@ -381,7 +398,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
 
                     // single-object server-side copy (source is small, so it stays below the multipart-copy threshold)
                     final var copyName = randomIdentifier();
-                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length());
+                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length(), null);
                     assertStorageClass(blobStore, blobContainer, copyName, expectedStorageClass, "server-side copy", purpose);
                 }
             } finally {

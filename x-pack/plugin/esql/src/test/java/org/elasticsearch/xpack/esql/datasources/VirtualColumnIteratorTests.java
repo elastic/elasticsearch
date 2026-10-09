@@ -25,13 +25,14 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -45,7 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class VirtualColumnIteratorTests extends ESTestCase {
 
     private final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testTwoDataTwoPartitionColumns() {
@@ -213,25 +214,57 @@ public class VirtualColumnIteratorTests extends ESTestCase {
     }
 
     /**
-     * Regression: when the reader does not emit a {@code _rowPosition} column (CSV / NDJSON / ORC),
-     * the iterator must synthesize {@code _id} from a per-file running counter rather than reading a
-     * (non-existent) {@code _rowPosition} data block. The counter continues across pages of the
-     * same file.
+     * {@code _file.record_ref} is composed from the reader-emitted {@code _rowPosition} channel, which the
+     * optimizer injects whenever it is requested. When the slot is present but the channel is missing, the
+     * iterator fails loud rather than emitting wrong tokens.
      */
-    public void testIdRequiresRowPositionChannel() {
-        // The split-local counter fallback was removed: every file reader now emits the _rowPosition
-        // channel (the optimizer injects it for _id / _file.record_ref), and a split-local counter
-        // would break _id repeatability across split layouts. When _id is requested but the reader
-        // did not emit the channel, the iterator fails loud rather than synthesizing wrong ids.
-        List<Attribute> fullOutput = List.of(attr("data", DataType.INTEGER), partAttr(ExternalMetadataColumns.ID, DataType.KEYWORD));
-        Set<String> partitionCols = new LinkedHashSet<>(List.of(ExternalMetadataColumns.ID));
-        BytesRef idPrefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"), 1700000000000L);
+    public void testRecordRefRequiresRowPositionChannel() {
+        List<Attribute> fullOutput = List.of(attr("data", DataType.INTEGER), partAttr(FileMetadataColumns.RECORD_REF, DataType.LONG));
+        Set<String> partitionCols = new LinkedHashSet<>(List.of(FileMetadataColumns.RECORD_REF));
 
         Exception e = expectThrows(
-            org.elasticsearch.xpack.esql.core.QlIllegalArgumentException.class,
-            () -> new VirtualColumnIterator(emptyDelegate(), fullOutput, partitionCols, Map.of(), blockFactory, idPrefix)
+            QlIllegalArgumentException.class,
+            () -> new VirtualColumnIterator(emptyDelegate(), fullOutput, partitionCols, Map.of(), blockFactory)
         );
         assertThat(e.getMessage(), containsString("_rowPosition"));
+    }
+
+    /**
+     * Under deferred extraction the {@code _rowPosition} channel packs an extractor id above the file-local position.
+     * {@code _file.record_ref} must answer the position alone, or the token would vary with how many extractors a
+     * driver registered. Only Parquet packs anything there, so no end-to-end case reaches this.
+     */
+    public void testRecordRefStripsExtractorIdFromEncodedPosition() {
+        List<Attribute> fullOutput = List.of(
+            attr(ColumnExtractor.ROW_POSITION_COLUMN, DataType.LONG),
+            partAttr(FileMetadataColumns.RECORD_REF, DataType.LONG)
+        );
+        Set<String> partitionCols = new LinkedHashSet<>(List.of(FileMetadataColumns.RECORD_REF));
+
+        long[] localPositions = { 0L, 7L, SourceExtractors.MAX_LOCAL_POSITION };
+        int extractorId = 3;
+
+        VirtualColumnIterator it = new VirtualColumnIterator(emptyDelegate(), fullOutput, partitionCols, Map.of(), blockFactory);
+
+        Page injected;
+        try (LongBlock.Builder encoded = blockFactory.newLongBlockBuilder(localPositions.length)) {
+            for (long localPosition : localPositions) {
+                encoded.appendLong(SourceExtractors.encode(extractorId, localPosition));
+            }
+            injected = it.inject(new Page(localPositions.length, new Block[] { encoded.build() }));
+        }
+        try {
+            LongBlock refs = injected.getBlock(1);
+            for (int i = 0; i < localPositions.length; i++) {
+                assertEquals(
+                    "record_ref must carry the local position, not the packed value",
+                    localPositions[i],
+                    refs.getLong(refs.getFirstValueIndex(i))
+                );
+            }
+        } finally {
+            injected.releaseBlocks();
+        }
     }
 
     /**

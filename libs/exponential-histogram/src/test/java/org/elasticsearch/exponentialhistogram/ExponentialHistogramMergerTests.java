@@ -44,6 +44,32 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCase {
 
+    public void testZeroBucketDoesNotOverlapBucketsAfterMerge() {
+        try (
+            ReleasableExponentialHistogram input = ExponentialHistogramTestUtils.randomHistogram(ExponentialHistogramCircuitBreaker.noop());
+            ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(randomIntBetween(4, 100), breaker())
+        ) {
+            merger.add(input);
+            ExponentialHistogram result = merger.get();
+
+            for (ExponentialHistogram.Buckets buckets : List.of(result.negativeBuckets(), result.positiveBuckets())) {
+                BucketIterator closestToZero = buckets.iterator();
+                if (closestToZero.hasNext()) {
+                    assertThat(
+                        "zero bucket overlaps with the closest populated bucket",
+                        ExponentialScaleUtils.compareExponentiallyScaledValues(
+                            result.zeroBucket().index(),
+                            result.zeroBucket().scale(),
+                            closestToZero.peekIndex(),
+                            closestToZero.scale()
+                        ),
+                        lessThanOrEqualTo(0)
+                    );
+                }
+            }
+        }
+    }
+
     public void testZeroThresholdCollapsesOverlappingBuckets() {
         ExponentialHistogram first = createAutoReleasedHistogram(b -> b.zeroBucket(ZeroBucket.create(2.0001, 10)));
 
@@ -381,6 +407,58 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
                 assertThat(diff.max(), equalTo(Double.NaN));
             }
             assertThat(areHistosCumulative, equalTo(true));
+        }
+    }
+
+    public void testDifferenceDoesNotProduceMinGreaterThanMax() {
+        var noopBreaker = ExponentialHistogramCircuitBreaker.noop();
+        // Bucket 0 at scale 0 covers [1, 2), while the exact bounds came from values below that range.
+        // This can occur when an explicit histogram bucket is represented by its centroid in an exponential histogram.
+        ExponentialHistogram previous = ExponentialHistogram.builder(0, noopBreaker)
+            .setPositiveBucket(0, 1)
+            .sum(0.5)
+            .min(0.5)
+            .max(0.5)
+            .build();
+        ExponentialHistogram current = ExponentialHistogram.builder(0, noopBreaker)
+            .setPositiveBucket(0, 2)
+            .sum(1.25)
+            .min(0.5)
+            .max(0.75)
+            .build();
+
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
+            assertThat(merger.setToDifference(current, previous), equalTo(true));
+            ExponentialHistogram difference = merger.get();
+            assertThat(difference.min(), equalTo(0.75));
+            assertThat(difference.max(), equalTo(0.75));
+            assertThat(difference.min(), lessThanOrEqualTo(difference.max()));
+        }
+    }
+
+    public void testDifferenceDoesNotProduceMaxLessThanMin() {
+        var noopBreaker = ExponentialHistogramCircuitBreaker.noop();
+        // Bucket 0 at scale 0 covers [1, 2), while the exact bounds came from values above that range.
+        // This can occur when an explicit histogram bucket is represented by its centroid in an exponential histogram.
+        ExponentialHistogram previous = ExponentialHistogram.builder(0, noopBreaker)
+            .setPositiveBucket(0, 1)
+            .sum(3.0)
+            .min(3.0)
+            .max(3.0)
+            .build();
+        ExponentialHistogram current = ExponentialHistogram.builder(0, noopBreaker)
+            .setPositiveBucket(0, 2)
+            .sum(5.5)
+            .min(2.5)
+            .max(3.0)
+            .build();
+
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(breaker())) {
+            assertThat(merger.setToDifference(current, previous), equalTo(true));
+            ExponentialHistogram difference = merger.get();
+            assertThat(difference.min(), equalTo(2.5));
+            assertThat(difference.max(), equalTo(2.5));
+            assertThat(difference.max(), greaterThanOrEqualTo(difference.min()));
         }
     }
 

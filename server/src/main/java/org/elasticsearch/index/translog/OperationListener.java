@@ -9,15 +9,21 @@
 
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.index.engine.IndexOperationBatch;
+
 @FunctionalInterface
 public interface OperationListener {
 
     /**
-     * This method is called when a new operation is added to the translog.
+     * This method is called when a new {@link Translog.Record} is added to the translog: either a single
+     * {@link Translog.Operation} ({@code minSeqNo == maxSeqNo}) or an {@link IndexOperationBatch.TranslogRecord}
+     * (one sequence number per replayable row). A record's operations always occupy the contiguous range
+     * {@code [minSeqNo, maxSeqNo]}, so the two bounds identify every operation the record carries.
      *
-     * @param operation the serialized operation added to the translog
-     * @param seqNo the sequence number of the operation
+     * @param operation the serialized record added to the translog
+     * @param minSeqNo the lowest sequence number the record carries
+     * @param maxSeqNo the highest sequence number the record carries (inclusive)
      * @param location the location written
      */
-    void operationAdded(Translog.Serialized operation, long seqNo, Translog.Location location);
+    void recordAdded(Translog.Serialized operation, long minSeqNo, long maxSeqNo, Translog.Location location);
 }

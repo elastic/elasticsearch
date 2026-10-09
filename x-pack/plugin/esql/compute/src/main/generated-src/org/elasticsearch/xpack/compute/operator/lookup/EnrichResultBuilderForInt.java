@@ -34,10 +34,10 @@ final class EnrichResultBuilderForInt extends EnrichResultBuilder {
     void addInputPage(IntVector positions, Page page) {
         IntBlock block = page.getBlock(channel);
         for (int i = 0; i < positions.getPositionCount(); i++) {
-            int valueCount = block.getValueCount(i);
-            if (valueCount == 0) {
+            if (block.isNull(i)) {
                 continue;
             }
+            int valueCount = block.getValueCount(i);
             int cellPosition = positions.getInt(i);
             cells = blockFactory.bigArrays().grow(cells, cellPosition + 1);
             final var oldCell = cells.get(cellPosition);
@@ -95,9 +95,12 @@ final class EnrichResultBuilderForInt extends EnrichResultBuilder {
     private Block buildWithSelected(IntBlock selected) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
+                if (selected.isNull(i)) {
+                    builder.appendNull();
+                    continue;
+                }
                 int selectedCount = selected.getValueCount(i);
                 switch (selectedCount) {
-                    case 0 -> builder.appendNull();
                     case 1 -> {
                         int groupId = selected.getInt(selected.getFirstValueIndex(i));
                         appendGroupToBlockBuilder(builder, getCellOrNull(groupId));

@@ -25,10 +25,10 @@ class org.elasticsearch.script.StatsSummary {
 class org.elasticsearch.script.ScriptTermStats {
     int uniqueTermsCount()
     int matchedTermsCount()
-    StatsSummary docFreq()
-    StatsSummary totalTermFreq()
-    StatsSummary termFreq()
-    StatsSummary termPositions()
+    StatsSummary docFreq() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="termStatsSummaryBytes"]
+    StatsSummary totalTermFreq() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="termStatsSummaryBytes"]
+    StatsSummary termFreq() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="termStatsSummaryBytes"]
+    StatsSummary termPositions() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="termStatsSummaryBytes"]
 }
 
 static_import {

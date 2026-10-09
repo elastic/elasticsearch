@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.highlight;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.subphase.highlight.FieldHighlightContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
@@ -36,6 +37,26 @@ public class SemanticTextHighlighter implements Highlighter {
     @Override
     public boolean canHighlight(MappedFieldType fieldType) {
         return fieldType instanceof SemanticFieldType;
+    }
+
+    @Override
+    public boolean canHighlightWithoutSource(MappedFieldType fieldType, SearchExecutionContext context) {
+        if (canHighlight(fieldType) == false) {
+            return false;
+        }
+        // Highlighting loads each inference source field; it can avoid _source only if every one is retrievable from doc values.
+        // The source field is usually the semantic field itself, but copy_to can add others that still need _source.
+        var inferenceField = context.getMappingLookup().inferenceFields().get(fieldType.name());
+        if (inferenceField == null) {
+            return false;
+        }
+        for (String sourceField : inferenceField.getSourceFields()) {
+            MappedFieldType sourceFieldType = context.getFieldType(sourceField);
+            if (sourceFieldType == null || sourceFieldType.valueFetcher(context, null).storedFieldsSpec().requiresSource()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

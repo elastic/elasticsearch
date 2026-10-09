@@ -1,0 +1,6 @@
+area: Recovery
+issues:
+ - 156228
+pr: 156545
+summary: "Fix recovery metrics race: count bytes before `SparseFileTracker` advances"
+type: bug

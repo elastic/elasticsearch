@@ -9,6 +9,7 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class FloatHierarchicalKMeansTests extends AbstractHierarchicalKMeansTestCase<float[]> {
@@ -21,6 +22,11 @@ public class FloatHierarchicalKMeansTests extends AbstractHierarchicalKMeansTest
     @Override
     protected ClusteringVectorValues<float[]> generateData(int nSamples, int nDims, int nClusters) {
         return KMeansTestData.generateFloatData(nSamples, nDims, nClusters);
+    }
+
+    @Override
+    protected ClusteringVectorValues<float[]> wrapAsView(float[][] centroids, int dim) {
+        return KMeansFloatVectorValues.build(Arrays.asList(centroids), null, dim);
     }
 
     @Override

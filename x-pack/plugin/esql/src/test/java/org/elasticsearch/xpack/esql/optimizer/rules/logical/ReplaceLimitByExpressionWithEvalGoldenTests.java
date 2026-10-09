@@ -7,12 +7,24 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 import org.junit.BeforeClass;
 
 import java.util.EnumSet;
 
 public class ReplaceLimitByExpressionWithEvalGoldenTests extends GoldenTestCase {
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public ReplaceLimitByExpressionWithEvalGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
 

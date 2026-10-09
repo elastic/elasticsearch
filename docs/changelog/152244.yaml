@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 152196
+pr: 152244
+summary: Fix KNN with partially mapped fields in ES|QL
+type: bug

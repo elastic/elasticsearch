@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
@@ -74,20 +75,26 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         ClusterState state,
         ActionListener<GetStatusAction.Response> listener
     ) {
-        if (request.waitForResourcesCreated()) {
-            createAndRegisterListener(listener, request.waitForResourcesCreatedTimeout());
+        // wait_for_resources_created is an ECS-only concept: ECS k/v indices are pre-created by
+        // the profiling plugin and callers may block until they exist. In OTel mode the data streams
+        // are auto-created on first write, so clients always use wait_for_resources_created=false
+        // (the REST default) and take the immediate execute() path.
+        if (request.waitForEcsResourcesCreated()) {
+            waitForEcsResources(listener, request.waitForEcsResourcesCreatedTimeout());
         } else {
             resolver.execute(state, listener);
         }
     }
 
-    private void createAndRegisterListener(ActionListener<GetStatusAction.Response> listener, TimeValue timeout) {
+    // ECS-only: blocks until all ECS k/v indices, ILM policies, and component templates are present
+    // in the cluster state. Never called in OTel-only mode (see masterOperation comment above).
+    private void waitForEcsResources(ActionListener<GetStatusAction.Response> listener, TimeValue timeout) {
         final DiscoveryNode localNode = clusterService.localNode();
         ClusterStateObserver.waitForState(
             clusterService,
             threadPool.getThreadContext(),
             new StatusListener(listener, localNode, clusterService, resolver),
-            resolver::isResourcesCreated,
+            resolver::isEcsResourcesCreated,
             timeout,
             log
         );
@@ -146,15 +153,35 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
             this.templateRegistry = templateRegistry;
         }
 
-        private boolean isResourcesCreated(ClusterState state) {
-            IndexStateResolver indexStateResolver = indexStateResolver(state);
-            boolean templatesCreated = templateRegistry.isAllResourcesCreated(state, clusterService.getSettings());
-            boolean indicesCreated = ProfilingIndexManager.isAllResourcesCreated(state, indexStateResolver);
-            boolean dataStreamsCreated = ProfilingDataStreamManager.isAllResourcesCreated(state, indexStateResolver);
-            return templatesCreated && indicesCreated && dataStreamsCreated;
+        // Reads xpack.profiling.templates.enabled from the cluster state being observed (not from
+        // the registry's cached field, which may lag behind the state snapshot being processed).
+        private boolean isEcsEnabled(ClusterState state) {
+            Settings metadataSettings = state.getMetadata().settings();
+            if (metadataSettings.hasValue(ProfilingPlugin.PROFILING_TEMPLATES_ENABLED.getKey())) {
+                return ProfilingPlugin.PROFILING_TEMPLATES_ENABLED.get(metadataSettings);
+            }
+            return ProfilingPlugin.PROFILING_TEMPLATES_ENABLED.get(clusterService.getSettings());
         }
 
+        // ECS-only: returns true when all ECS k/v indices, data streams, and component templates
+        // exist in the cluster state. Used as both the waitForState predicate (waitForEcsResources)
+        // and the resources.created field in the status response. Always false in OTel-only mode.
+        private boolean isEcsResourcesCreated(ClusterState state) {
+            if (isEcsEnabled(state) == false) {
+                return false;
+            }
+            IndexStateResolver indexStateResolver = indexStateResolver(state);
+            return templateRegistry.isAllResourcesCreated(state, clusterService.getSettings())
+                && ProfilingIndexManager.isAllResourcesCreated(state, indexStateResolver)
+                && ProfilingDataStreamManager.isAllResourcesCreated(state, indexStateResolver);
+        }
+
+        // ECS-only: checks whether any ECS k/v index was created before 8.9.1 and needs migration.
+        // Returns false in OTel-only mode; OTel data streams have no equivalent migration concern.
         private boolean isAnyPre891Data(ClusterState state) {
+            if (isEcsEnabled(state) == false) {
+                return false;
+            }
             IndexStateResolver indexStateResolver = indexStateResolver(state);
             boolean indicesPre891 = ProfilingIndexManager.isAnyResourceTooOld(state, indexStateResolver);
             boolean dataStreamsPre891 = ProfilingDataStreamManager.isAnyResourceTooOld(state, indexStateResolver);
@@ -168,11 +195,13 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         private void execute(ClusterState state, ActionListener<GetStatusAction.Response> listener) {
             boolean pluginEnabled = getValue(state, XPackSettings.PROFILING_ENABLED);
             boolean resourceManagementEnabled = getValue(state, ProfilingPlugin.PROFILING_TEMPLATES_ENABLED);
-            boolean resourcesCreated = isResourcesCreated(state);
+            boolean ecsResourcesCreated = isEcsResourcesCreated(state);
             boolean anyPre891Data = isAnyPre891Data(state);
-            // only issue a search if there is any chance that we have data
-            if (resourcesCreated) {
-                SearchRequest countRequest = new SearchRequest(EventsIndex.FULL_INDEX.getName());
+            if (pluginEnabled) {
+                // Use a wildcard to cover both ECS (profiling-events-all) and OTel
+                // (profiling-events-all.otel-*) in a single search. LENIENT_EXPAND_OPEN
+                // silently treats missing indices as zero hits.
+                SearchRequest countRequest = new SearchRequest(EventsIndex.FULL_INDEX.getName() + "*");
                 countRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
                 countRequest.allowPartialSearchResults(true);
                 // we don't need an exact hit count, just whether there are any data at all
@@ -182,14 +211,20 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
                 nodeClient.search(countRequest, ActionListener.wrap(searchResponse -> {
                     boolean hasData = searchResponse.getHits().getTotalHits().value() > 0;
                     listener.onResponse(
-                        new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data, hasData)
+                        new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, ecsResourcesCreated, anyPre891Data, hasData)
                     );
                 }, (e) -> {
                     // no data yet
                     if (e instanceof SearchPhaseExecutionException) {
                         log.trace("Has data check has failed.", e);
                         listener.onResponse(
-                            new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data, false)
+                            new GetStatusAction.Response(
+                                pluginEnabled,
+                                resourceManagementEnabled,
+                                ecsResourcesCreated,
+                                anyPre891Data,
+                                false
+                            )
                         );
                     } else {
                         listener.onFailure(e);

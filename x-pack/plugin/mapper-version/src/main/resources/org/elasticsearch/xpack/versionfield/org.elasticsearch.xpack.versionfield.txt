@@ -13,7 +13,7 @@ class org.elasticsearch.xpack.versionfield.VersionScriptDocValues {
 }
 
 class org.elasticsearch.xpack.versionfield.Version {
-    (String)
+    (String) @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionBytes"]
 }
 
 class org.elasticsearch.xpack.versionfield.VersionStringDocValuesField @dynamic_type {

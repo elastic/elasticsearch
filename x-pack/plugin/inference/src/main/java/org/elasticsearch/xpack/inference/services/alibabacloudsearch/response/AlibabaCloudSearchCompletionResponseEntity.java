@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.response;
 
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
@@ -79,7 +79,7 @@ public class AlibabaCloudSearchCompletionResponseEntity extends AlibabaCloudSear
      * </pre>
      */
 
-    public static ChatCompletionResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
+    public static CompletionResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
         return fromResponse(outboundRequest, response, jsonParser -> {
             positionParserAtTokenAfterField(jsonParser, "text", FAILED_TO_FIND_FIELD_TEMPLATE);
 
@@ -87,7 +87,7 @@ public class AlibabaCloudSearchCompletionResponseEntity extends AlibabaCloudSear
             ensureExpectedToken(XContentParser.Token.VALUE_STRING, contentToken, jsonParser);
             String content = jsonParser.text();
 
-            return new ChatCompletionResults(List.of(new ChatCompletionResults.Result(content)));
+            return new CompletionResults(List.of(new CompletionResults.Result(content)));
         });
     }
 }

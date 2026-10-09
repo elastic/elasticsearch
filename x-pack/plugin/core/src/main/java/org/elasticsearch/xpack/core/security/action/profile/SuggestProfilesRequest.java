@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security.action.profile;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +30,7 @@ import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class SuggestProfilesRequest extends LegacyActionRequest {
+public class SuggestProfilesRequest extends UntypedActionRequest {
 
     private final Set<String> dataKeys;
     /**

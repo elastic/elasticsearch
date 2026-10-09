@@ -32,7 +32,7 @@ public class SliceIndexingTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> SliceIndexing.validateUserSliceValue(SliceIndexing.SLICE_ALL)
         );
-        assertThat(ex.getMessage(), containsString("invalid [_slice] value"));
+        assertThat(ex.getMessage(), containsString("invalid [slice] value"));
         assertThat(ex.getMessage(), containsString("reserved"));
     }
 
@@ -63,7 +63,7 @@ public class SliceIndexingTests extends ESTestCase {
 
     public void testParseRoutingOrSliceReturnsSliceWhenPresent() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("_slice", "s1")).build();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("slice", "s1")).build();
         SliceIndexing.ParsedRouting parsed = SliceIndexing.parseRoutingOrSliceWithProvenance(request);
         assertThat(parsed.routing(), equalTo("s1"));
         assertThat(parsed.fromSlice(), equalTo(true));
@@ -71,26 +71,39 @@ public class SliceIndexingTests extends ESTestCase {
 
     public void testParseRoutingOrSliceRejectsWhenBothPresent() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("routing", "r1", "_slice", "s1")).build();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("routing", "r1", "slice", "s1")).build();
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> SliceIndexing.parseRoutingOrSliceWithProvenance(request)
         );
-        assertThat(ex.getMessage(), containsString("[routing] is not allowed together with [_slice]"));
+        assertThat(ex.getMessage(), containsString("[routing] is not allowed together with [slice]"));
     }
 
     public void testParseRoutingOrSliceRejectsSliceWhenFeatureDisabled() {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("_slice", "s1")).build();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("slice", "s1")).build();
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> SliceIndexing.parseRoutingOrSliceWithProvenance(request)
         );
-        assertThat(ex.getMessage(), containsString("request does not support [_slice]"));
+        assertThat(ex.getMessage(), containsString("request does not support [slice]"));
+    }
+
+    public void testToSearchSlice() {
+        assertNull(SliceIndexing.toSearchSlice("r1", false));
+        assertNull(SliceIndexing.toSearchSlice(null, false));
+        assertThat(SliceIndexing.toSearchSlice("s1", true), equalTo("s1"));
+        assertThat(SliceIndexing.toSearchSlice(null, true), equalTo(SliceIndexing.SLICE_ALL));
+    }
+
+    public void testSliceToRouting() {
+        assertThat(SliceIndexing.sliceToRouting("s1"), equalTo("s1"));
+        assertThat(SliceIndexing.sliceToRouting("s1,s2"), equalTo("s1,s2"));
+        assertNull(SliceIndexing.sliceToRouting(SliceIndexing.SLICE_ALL));
     }
 
     private static void assertInvalid(String value) {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SliceIndexing.validateUserSliceValue(value));
-        assertThat(ex.getMessage(), containsString("invalid [_slice] value"));
+        assertThat(ex.getMessage(), containsString("invalid [slice] value"));
     }
 }

@@ -24,6 +24,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.search.SearchModule;
@@ -72,7 +74,10 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
     private final ExecutorService executorService = Executors.newFixedThreadPool(1);
 
     NamedWriteableRegistry registry = new NamedWriteableRegistry(
-        new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables()
+        CollectionUtils.appendToCopy(
+            new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables(),
+            new NamedWriteableRegistry.Entry(DirectoryMetrics.PluggableMetrics.class, StoreMetrics.NAME, StoreMetrics::new)
+        )
     );
 
     /**
@@ -194,7 +199,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             keepAliveValue = randomTimeValue(1, 5, TimeUnit.DAYS);
             request.keepAlive(keepAliveValue);
         } else {
-            keepAliveValue = EqlSearchRequest.DEFAULT_KEEP_ALIVE;
+            keepAliveValue = EqlSearchRequest.LEGACY_DEFAULT_KEEP_ALIVE;
         }
 
         List<SearchBlockPlugin> plugins = initBlockFactory(true, false);

@@ -15,8 +15,9 @@ import java.util.Set;
 public class MachineLearningFeatures implements FeatureSpecification {
 
     public static final NodeFeature COMPONENTS_RESET_ACTION = new NodeFeature("ml.components.reset");
+    public static final NodeFeature ML_INFO_MODEL_PLATFORM_VARIANT = new NodeFeature("ml.info.model_platform_variant");
 
     public Set<NodeFeature> getFeatures() {
-        return Set.of(COMPONENTS_RESET_ACTION);
+        return Set.of(COMPONENTS_RESET_ACTION, ML_INFO_MODEL_PLATFORM_VARIANT);
     }
 }

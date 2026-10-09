@@ -25,8 +25,30 @@ public final class SettingsUpdater extends BaseSettingsUpdater {
     final Settings.Builder transientUpdates = Settings.builder();
     final Settings.Builder persistentUpdates = Settings.builder();
 
+    private final boolean ignoreExistingArchivedSettings;
+
     public SettingsUpdater(ClusterSettings scopedSettings) {
+        this(scopedSettings, false);
+    }
+
+    private SettingsUpdater(ClusterSettings scopedSettings, boolean ignoreExistingArchivedSettings) {
         super(scopedSettings);
+        this.ignoreExistingArchivedSettings = ignoreExistingArchivedSettings;
+    }
+
+    /**
+     * Returns an updater for use by reserved cluster state (i.e. file-based settings) handlers. Unlike the updater used
+     * by the cluster update settings API, it tolerates archived settings that are already present in the cluster state
+     * rather than failing the update.
+     * <p>
+     * Archived settings are not validated at the point they are archived, so failing later updates on them is already
+     * inconsistent. More importantly, reserved settings are machine managed: there is no operator in the loop to act on
+     * the "this archived setting must be removed" error, so an archived setting that nothing owns would block every
+     * subsequent file-based settings update indefinitely, leaving the cluster unconfigurable. The cluster update
+     * settings API keeps the strict behaviour, so an operator calling it is still told to clean the setting up.
+     */
+    public static SettingsUpdater forReservedState(ClusterSettings scopedSettings) {
+        return new SettingsUpdater(scopedSettings, true);
     }
 
     public synchronized Settings getTransientUpdates() {
@@ -83,8 +105,8 @@ public final class SettingsUpdater extends BaseSettingsUpdater {
             Settings persistentFinalSettings = persistentSettings.build();
             // both transient and persistent settings must be consistent by itself we can't allow dependencies to be
             // in either of them otherwise a full cluster restart will break the settings validation
-            scopedSettings.validate(transientFinalSettings, true);
-            scopedSettings.validate(persistentFinalSettings, true);
+            scopedSettings.validate(transientFinalSettings, true, false, ignoreExistingArchivedSettings);
+            scopedSettings.validate(persistentFinalSettings, true, false, ignoreExistingArchivedSettings);
 
             Metadata.Builder metadata = Metadata.builder(currentState.metadata())
                 .transientSettings(Settings.builder().put(transientFinalSettings).put(unknownOrInvalidTransientSettings).build())

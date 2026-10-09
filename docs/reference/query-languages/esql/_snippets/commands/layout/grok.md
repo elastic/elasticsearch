@@ -50,6 +50,11 @@ be converted by appending `:type` to the semantics in the pattern. For example
 :::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/grokWithConversionSuffix.md
 :::
 
+If a typed capture matches a value that cannot be converted (for example,
+`%{NUMBER:num:int}` matching `1.5`), the row is treated like a failed match:
+all extracted columns are `null` for that row and a warning is added to the
+response.
+
 ### Convert other types using type conversion functions
 
 For other type conversions, use [Type conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md):

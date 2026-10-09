@@ -83,6 +83,9 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     public abstract Property<Boolean> getHasNativeController();
 
     @Input
+    public abstract ListProperty<String> getNativeControllerEnabledSettings();
+
+    @Input
     public abstract Property<Boolean> getRequiresKeystore();
 
     @Input
@@ -122,6 +125,7 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
         props.put("classname", classname);
         props.put("extendedPlugins", String.join(",", getExtendedPlugins().get()));
         props.put("hasNativeController", getHasNativeController().get());
+        props.put("nativeControllerEnabledSettings", String.join(",", getNativeControllerEnabledSettings().get()));
         props.put("requiresKeystore", getRequiresKeystore().get());
         props.put("licensed", getIsLicensed().get());
         props.put("modulename", findModuleName());

@@ -1,6 +1,0 @@
-pr: 149935
-summary: Guard against null zeroTermsQuery in cross_fields multi_match
-area: Search
-type: bug
-issues:
- - 149934

@@ -1,0 +1,45 @@
+{
+  "_doc": {
+    "properties": {
+      "field": {
+        "type": "text",
+        "copy_to": ["field-semantic", "field-semantic-disk_bbq"]
+      },
+      "field-semantic": {
+        "type": "semantic",
+        "inference_id": ".omni-model-id",
+        "model_settings": {
+          "task_type": "embedding",
+          "dimensions": 384,
+          "similarity": "cosine",
+          "element_type": "float"
+        }
+      },
+      "field-semantic-disk_bbq": {
+        "type": "semantic",
+        "inference_id": ".omni-model-id",
+        "model_settings": {
+          "task_type": "embedding",
+          "dimensions": 384,
+          "similarity": "cosine",
+          "element_type": "float"
+        },
+        "index_options": {
+          "dense_vector": {
+            "type": "bbq_disk"
+          }
+        }
+      },
+      "field-semantic-image": {
+        "type": "semantic",
+        "inference_id": ".omni-model-id",
+        "model_settings": {
+          "task_type": "embedding",
+          "dimensions": 384,
+          "similarity": "cosine",
+          "element_type": "float"
+        }
+      }
+    }
+  }
+}

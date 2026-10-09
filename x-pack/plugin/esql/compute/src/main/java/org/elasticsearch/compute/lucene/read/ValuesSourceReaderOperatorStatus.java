@@ -34,11 +34,18 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
     );
     private static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES = TransportVersion.fromName("esql_split_on_big_values");
     private static final TransportVersion ESQL_LUCENE_OPERATOR_BYTES_READ = TransportVersion.fromName("esql_lucene_operator_bytes_read");
+    private static final TransportVersion ESQL_VSR_SOURCE_LOAD_PROFILE = TransportVersion.fromName("esql_vsr_source_load_profile");
 
     private final Map<String, Integer> readersBuilt;
     private final Map<String, Integer> convertersUsed;
     private final long valuesLoaded;
     private final long bytesRead;
+    /** Number of documents where at least one source-backed field was read. */
+    private final long sourceDocsLoaded;
+    /** Number of source-backed field read attempts (roughly docs x source-backed fields). */
+    private final long sourceFieldReads;
+    /** Sum of last materialized source payload size per row-stride document read. */
+    private final long sourceBytesLoaded;
 
     public ValuesSourceReaderOperatorStatus(
         Map<String, Integer> readersBuilt,
@@ -49,13 +56,19 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         long rowsReceived,
         long rowsEmitted,
         long valuesLoaded,
-        long bytesRead
+        long bytesRead,
+        long sourceDocsLoaded,
+        long sourceFieldReads,
+        long sourceBytesLoaded
     ) {
         super(processNanos, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
         this.readersBuilt = readersBuilt;
         this.convertersUsed = convertersUsed;
         this.valuesLoaded = valuesLoaded;
         this.bytesRead = bytesRead;
+        this.sourceDocsLoaded = sourceDocsLoaded;
+        this.sourceFieldReads = sourceFieldReads;
+        this.sourceBytesLoaded = sourceBytesLoaded;
     }
 
     static ValuesSourceReaderOperatorStatus readFrom(StreamInput in) throws IOException {
@@ -85,6 +98,9 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             : Map.of();
         long valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
         long bytesRead = supportsBytesRead(in.getTransportVersion()) ? in.readVLong() : 0;
+        long sourceDocsLoaded = supportsSourceLoadProfile(in.getTransportVersion()) ? in.readVLong() : 0;
+        long sourceFieldReads = supportsSourceLoadProfile(in.getTransportVersion()) ? in.readVLong() : 0;
+        long sourceBytesLoaded = supportsSourceLoadProfile(in.getTransportVersion()) ? in.readVLong() : 0;
         return new ValuesSourceReaderOperatorStatus(
             readersBuilt,
             convertersUsed,
@@ -94,7 +110,10 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             rowsReceived,
             rowsEmitted,
             valuesLoaded,
-            bytesRead
+            bytesRead,
+            sourceDocsLoaded,
+            sourceFieldReads,
+            sourceBytesLoaded
         );
     }
 
@@ -119,6 +138,11 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         if (supportsBytesRead(out.getTransportVersion())) {
             out.writeVLong(bytesRead);
         }
+        if (supportsSourceLoadProfile(out.getTransportVersion())) {
+            out.writeVLong(sourceDocsLoaded);
+            out.writeVLong(sourceFieldReads);
+            out.writeVLong(sourceBytesLoaded);
+        }
     }
 
     private static boolean supportsBytesRead(TransportVersion version) {
@@ -131,6 +155,10 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
 
     private static boolean supportsValuesLoaded(TransportVersion version) {
         return version.supports(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED);
+    }
+
+    private static boolean supportsSourceLoadProfile(TransportVersion version) {
+        return version.supports(ESQL_VSR_SOURCE_LOAD_PROFILE);
     }
 
     @Override
@@ -156,6 +184,18 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         return bytesRead;
     }
 
+    public long sourceDocsLoaded() {
+        return sourceDocsLoaded;
+    }
+
+    public long sourceFieldReads() {
+        return sourceFieldReads;
+    }
+
+    public long sourceBytesLoaded() {
+        return sourceBytesLoaded;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -173,6 +213,12 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         }
         builder.field("values_loaded", valuesLoaded);
         builder.field("bytes_read", bytesRead);
+        // Breadth: how many docs needed source-backed extraction at least once.
+        builder.field("source_docs_loaded", sourceDocsLoaded);
+        // Frequency: how often source-backed fields were read across docs.
+        builder.field("source_field_reads", sourceFieldReads);
+        // Volume: cumulative source payload bytes materialized while reading.
+        builder.field("source_bytes_loaded", sourceBytesLoaded);
         innerToXContent(builder);
         return builder.endObject();
     }
@@ -184,12 +230,15 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         return readersBuilt.equals(status.readersBuilt)
             && convertersUsed.equals(status.convertersUsed)
             && valuesLoaded == status.valuesLoaded
-            && bytesRead == status.bytesRead;
+            && bytesRead == status.bytesRead
+            && sourceDocsLoaded == status.sourceDocsLoaded
+            && sourceFieldReads == status.sourceFieldReads
+            && sourceBytesLoaded == status.sourceBytesLoaded;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), readersBuilt, valuesLoaded, bytesRead);
+        return Objects.hash(super.hashCode(), readersBuilt, valuesLoaded, bytesRead, sourceDocsLoaded, sourceFieldReads, sourceBytesLoaded);
     }
 
     @Override

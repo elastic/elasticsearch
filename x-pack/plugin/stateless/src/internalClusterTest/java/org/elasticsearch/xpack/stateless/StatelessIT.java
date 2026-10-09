@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
@@ -124,7 +125,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -959,11 +960,13 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
         var forceMergeThread = new Thread(() -> {
             try {
                 indexShard.forceMerge(new ForceMergeRequest().maxNumSegments(1));
-            } catch (UnavailableShardsException | AlreadyClosedException e) {
+            } catch (UnavailableShardsException | AlreadyClosedException | MergePolicy.MergeAbortedException e) {
                 // Force merge checks if the engine is still open at the end, and sometimes it might
                 // throw an AlreadyClosedException even after the commit is already processed by ShardCommitState
             } catch (IOException e) {
-                fail(e);
+                if (e.getCause() instanceof MergePolicy.MergeAbortedException == false) {
+                    fail(e);
+                }
             }
         }, "force-merge-thread");
         forceMergeThread.start();
@@ -1219,12 +1222,12 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
         throws IOException {
         final BlobMetadata latestUploadBccMetadata = blobContainerForCommit.listBlobsByPrefix(
             operationPurpose,
-            StatelessCompoundCommit.PREFIX
+            BatchedCompoundCommit.PREFIX
         )
             .values()
             .stream()
-            .filter(m -> StatelessCompoundCommit.parseGenerationFromBlobName(m.name()) <= maxGeneration)
-            .max(Comparator.comparingLong(m -> StatelessCompoundCommit.parseGenerationFromBlobName(m.name())))
+            .filter(m -> BatchedCompoundCommit.parseGenerationFromBlobName(m.name()) <= maxGeneration)
+            .max(Comparator.comparingLong(m -> BatchedCompoundCommit.parseGenerationFromBlobName(m.name())))
             .orElseThrow(() -> new AssertionError("retry with assertBusy"));
         final var latestUploadedBcc = BatchedCompoundCommit.readFromStore(
             latestUploadBccMetadata.name(),

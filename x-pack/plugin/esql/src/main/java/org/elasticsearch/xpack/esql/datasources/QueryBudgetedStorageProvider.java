@@ -70,6 +70,11 @@ class QueryBudgetedStorageProvider implements StorageProvider {
         return delegate.supportedSchemes();
     }
 
+    @Override
+    public boolean listsInKeyOrder() {
+        return delegate.listsInKeyOrder();
+    }
+
     /**
      * Closes the per-query budget only; the delegate provider is pooled (or registry-owned)
      * and is returned via a sibling {@code onClose} on the operator factory, not here.

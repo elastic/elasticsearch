@@ -7,31 +7,35 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.ExternalIoExecutors;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupScheduler;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ParquetIoWatermarkTests extends ESTestCase {
 
@@ -39,12 +43,6 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         ParquetIoWatermark watermark = ParquetIoWatermark.forHeap();
         long heapBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
         assertEquals(Math.max(1L, heapBytes / ParquetIoWatermark.HEAP_DIVISOR), watermark.limit());
-        assertEquals(ParquetIoWatermark.DEFAULT_ADMIT_WAIT_MS, watermark.admitWaitMs());
-    }
-
-    public void testAdmitWaitMsRejectsNegative() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new ParquetIoWatermark(10, -1));
-        assertThat(e.getMessage(), containsString("-1"));
     }
 
     public void testAdmitUntilLimitThenRejectLookahead() {
@@ -55,6 +53,35 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertFalse("tryReserve must not cross the cap", watermark.tryReserve(30));
         assertEquals(80, watermark.used());
         assertEquals(1, watermark.holders());
+    }
+
+    public void testGrantAgePolicyAndRescuePlainHold() throws Exception {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(100);
+        assertEquals(AdmissionGate.StallPolicy.GRANT_AGE, watermark.stallPolicy());
+        assertTrue(watermark.tryReserve(80));
+        RowGroupIo owner = new RowGroupIo();
+        ParquetIoWatermark.AdmitHold overshoot = awaitAdmit(watermark, 25, owner);
+        overshoot.drop();
+        assertEquals(80, watermark.used());
+        assertSame(owner, watermark.overshootOwner());
+
+        RowGroupIo head = new RowGroupIo();
+        AtomicReference<ParquetIoWatermark.AdmitHold> headHold = new AtomicReference<>();
+        CountDownLatch granted = new CountDownLatch(1);
+        watermark.admitAsync(50, head, () -> false, Runnable::run).addListener(ActionListener.wrap(h -> {
+            headHold.set(h);
+            granted.countDown();
+        }, e -> granted.countDown()));
+        assertEquals(1, watermark.waiterCount());
+        assertEquals(AdmissionGate.RescueResult.OVER_CAP, watermark.rescueHead(null));
+        assertTrue(granted.await(5, TimeUnit.SECONDS));
+        assertNotNull(headHold.get());
+        assertEquals(130, watermark.used());
+        assertSame("rescue must not steal the overshoot slot", owner, watermark.overshootOwner());
+        headHold.get().drop();
+        watermark.release(80);
+        watermark.clearOwner(owner);
+        assertEquals(0, watermark.used());
     }
 
     public void testHoldersCountsOutstandingAdmitHolds() {
@@ -74,16 +101,18 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertEquals(0, watermark.holders());
     }
 
-    public void testOneNodeWideOvershootForGroupLargerThanLimit() {
+    public void testOneNodeWideOvershootForGroupLargerThanLimit() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(50);
         assertFalse("tryReserve refuses a group larger than the cap", watermark.tryReserve(80));
         assertEquals(0, watermark.used());
         RowGroupIo lease = new RowGroupIo();
-        watermark.admitWait(80, lease, 1_000L);
+        ParquetIoWatermark.AdmitHold hold = awaitAdmit(watermark, 80, lease);
         assertEquals(80, watermark.used());
         assertSame(lease, watermark.overshootOwner());
         assertFalse(watermark.tryReserve(80));
         assertFalse(watermark.tryReserve(1));
+        hold.drop();
+        watermark.clearOwner(lease);
     }
 
     public void testReleaseAllowsNextIterator() {
@@ -109,8 +138,8 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         ParquetIoWatermark watermark = new ParquetIoWatermark(1024);
         DirectBufferFactory factory = watermark.accountingFactory(breaker);
         DirectReadBuffer buffer = factory.allocate(64);
-        assertEquals(64, watermark.used());
-        assertEquals(64, breaker.getUsed());
+        assertEquals(HeapFootprint.byteArrayBytes(64), watermark.used());
+        assertEquals(HeapFootprint.byteArrayBytes(64), breaker.getUsed());
         buffer.close();
         assertEquals(0, watermark.used());
         assertEquals(0, breaker.getUsed());
@@ -124,9 +153,9 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertEquals(64, watermark.used());
         DirectBufferFactory factory = watermark.accountingFactory(breaker, hold);
         DirectReadBuffer buffer = factory.allocate(64);
-        assertEquals("alloc swaps the estimate for the retained array", 64, watermark.used());
+        assertEquals("alloc swaps the estimate for the retained array", HeapFootprint.byteArrayBytes(64), watermark.used());
         hold.drop();
-        assertEquals("second drop is a no-op", 64, watermark.used());
+        assertEquals("second drop is a no-op", HeapFootprint.byteArrayBytes(64), watermark.used());
         buffer.close();
         assertEquals(0, watermark.used());
         assertEquals(0, breaker.getUsed());
@@ -143,11 +172,78 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         DirectReadBuffer second = factory.allocate(10);
         assertEquals(152, watermark.used());
         hold.drop();
-        assertEquals("leftover estimate released; retained arrays remain", 20, watermark.used());
+        assertEquals("leftover estimate released; retained arrays remain", 2 * HeapFootprint.byteArrayBytes(10), watermark.used());
         first.close();
         second.close();
         assertEquals(0, watermark.used());
         assertEquals(0, breaker.getUsed());
+    }
+
+    public void testDropIoRemainderKeepsDecodeSliceUntilDrop() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(200);
+        ParquetIoWatermark.AdmitHold hold = watermark.tryAdmit(100);
+        assertNotNull(hold);
+        hold.dropIoRemainder(40);
+        assertEquals("unused I/O estimate released; decode slice stays", 40, watermark.used());
+        hold.drop();
+        assertEquals(0, watermark.used());
+    }
+
+    public void testDropIoRemainderForceAddsWhenIoAteDecodeSlice() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(10);
+        ParquetIoWatermark.AdmitHold hold = watermark.tryAdmit(10);
+        assertNotNull(hold);
+        hold.drop(10);
+        assertEquals(0, watermark.used());
+        hold.dropIoRemainder(20);
+        assertEquals("restore overshoots the cap without waiting", 20, watermark.used());
+        hold.dropIoRemainder(20);
+        assertEquals("second dropIoRemainder must not restore again", 20, watermark.used());
+        hold.drop();
+        assertEquals(0, watermark.used());
+    }
+
+    public void testDecodeBudgetForceAddsShortfallNeverWaits() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(30);
+        ParquetIoWatermark.AdmitHold hold = watermark.tryAdmit(30);
+        assertNotNull(hold);
+        hold.dropIoRemainder(30);
+        ParquetDecodeBudget budget = ParquetDecodeBudget.tracking(watermark, 30);
+        budget.consume(50);
+        assertEquals("shortfall overshoots the cap without waiting", 50, watermark.used());
+        assertEquals(20, budget.extra());
+        budget.close();
+        assertEquals(30, watermark.used());
+        hold.drop();
+        assertEquals(0, watermark.used());
+    }
+
+    public void testDecodeBudgetZeroEstimateForceAddsFullConsume() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(10);
+        ParquetDecodeBudget budget = ParquetDecodeBudget.tracking(watermark, 0L);
+        budget.consume(25);
+        assertEquals("missing footer estimate still forceAdds dest/dict charges over the cap", 25, watermark.used());
+        assertEquals(25, budget.extra());
+        budget.close();
+        assertEquals(0, watermark.used());
+    }
+
+    public void testDecodeBudgetConsumeAfterCloseIsNoop() {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(40);
+        ParquetDecodeBudget leftover = ParquetDecodeBudget.tracking(watermark, 30);
+        leftover.close();
+        leftover.consume(20);
+        assertEquals("leftover estimate must not swallow dest after close", 0, watermark.used());
+        assertEquals(0, leftover.extra());
+
+        ParquetDecodeBudget exhausted = ParquetDecodeBudget.tracking(watermark, 0L);
+        exhausted.consume(15);
+        assertEquals(15, watermark.used());
+        exhausted.close();
+        assertEquals(0, watermark.used());
+        exhausted.consume(10);
+        assertEquals("forceAdd after close must not leak extras", 0, watermark.used());
+        assertEquals(0, exhausted.extra());
     }
 
     public void testTryReserveRetriesWhenReleaseLandsOverLimit() {
@@ -196,446 +292,400 @@ public class ParquetIoWatermarkTests extends ESTestCase {
     }
 
     /**
-     * Concurrent waiters share one overshoot owner and the rest become partial holders via forced
-     * admits.
+     * Hard cap: concurrent tickets share one overshoot owner. Extra waiters stay queued instead of
+     * force-charging. Peak occupancy is cap plus one unit.
      */
-    public void testConcurrentAdmitWaitTakesOneOvershootRestCharged() throws Exception {
+    public void testConcurrentTicketsTakeOneOvershootRestWait() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(200);
-        AtomicInteger admitted = new AtomicInteger();
-        AtomicInteger rejected = new AtomicInteger();
-        CyclicBarrier start = new CyclicBarrier(9);
-        Thread[] threads = new Thread[8];
-        for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread(() -> {
-                try {
-                    start.await(5, TimeUnit.SECONDS);
-                    watermark.admitWait(50, new RowGroupIo(), 100L);
-                    admitted.incrementAndGet();
-                } catch (EsRejectedExecutionException e) {
-                    rejected.incrementAndGet();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
+        CountDownLatch started = new CountDownLatch(5);
+        CountDownLatch done = new CountDownLatch(8);
+        List<ParquetIoWatermark.AdmitHold> holds = new ArrayList<>();
+        for (int i = 0; i < 8; i++) {
+            watermark.admitAsync(50, new RowGroupIo(), () -> false, Runnable::run).addListener(ActionListener.wrap(hold -> {
+                synchronized (holds) {
+                    holds.add(hold);
                 }
-            });
-            threads[i].start();
+                started.countDown();
+                done.countDown();
+            }, e -> done.countDown()));
         }
-        start.await(5, TimeUnit.SECONDS);
-        for (Thread thread : threads) {
-            thread.join();
-        }
-        assertEquals("overshoot is node-wide; the rest charge after the wait budget", 8, admitted.get());
-        assertEquals(0, rejected.get());
-        assertEquals(3, watermark.forcedAdmits());
-        assertEquals(400, watermark.used());
+        assertTrue("cap 200 plus one 50-byte overshoot admits five units", started.await(5, TimeUnit.SECONDS));
+        assertBusy(() -> assertEquals(3, watermark.waiterCount()));
+        assertThat(watermark.used(), lessThanOrEqualTo(250L));
         assertNotNull(watermark.overshootOwner());
-        assertEquals(400, watermark.forceAdmitLimit());
+        for (ParquetIoWatermark.AdmitHold hold : List.copyOf(holds)) {
+            RowGroupIo lease = hold.lease();
+            hold.drop();
+            if (lease != null) {
+                watermark.clearOwner(lease);
+            }
+        }
+        assertTrue(done.await(5, TimeUnit.SECONDS));
     }
 
     public void testNonFavouredWaitsUntilRelease() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(50);
         RowGroupIo favoured = lease(true);
         RowGroupIo other = lease(false);
-        watermark.admitWait(80, favoured, 1_000L);
+        ParquetIoWatermark.AdmitHold ownerHold = awaitAdmit(watermark, 80, favoured);
         assertSame(favoured, watermark.overshootOwner());
-        CountDownLatch entered = new CountDownLatch(1);
-        CountDownLatch done = new CountDownLatch(1);
+        CountDownLatch granted = new CountDownLatch(1);
         AtomicReference<ParquetIoWatermark.AdmitHold> hold = new AtomicReference<>();
-        Thread waiter = new Thread(() -> {
-            entered.countDown();
-            hold.set(watermark.admitWait(10, other, 5_000L));
-            done.countDown();
-        });
-        waiter.start();
-        assertTrue(entered.await(5, TimeUnit.SECONDS));
-        assertFalse("non-favoured must wait while the owner sits above the cap", done.await(50, TimeUnit.MILLISECONDS));
-        watermark.release(80);
-        assertTrue(done.await(5, TimeUnit.SECONDS));
-        waiter.join();
+        watermark.admitAsync(10, other, () -> false, Runnable::run).addListener(ActionListener.wrap(h -> {
+            hold.set(h);
+            granted.countDown();
+        }, e -> granted.countDown()));
+        assertBusy(() -> assertEquals(1, watermark.waiterCount()));
+        assertFalse("non-favoured must wait while the owner sits above the cap", granted.await(50, TimeUnit.MILLISECONDS));
+        ownerHold.drop();
+        watermark.release(0);
+        watermark.clearOwner(favoured);
+        assertTrue(granted.await(5, TimeUnit.SECONDS));
         assertNotNull(hold.get());
         assertEquals(10, watermark.used());
-        assertSame("release under the cap must not hand the owner slot to the waiter", favoured, watermark.overshootOwner());
+        hold.get().drop();
     }
 
     public void testFavouredContinuesPastCap() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(10);
         RowGroupIo favoured = lease(true);
-        RowGroupIo other = lease(false);
-        watermark.admitWait(10, favoured, 1_000L);
-        assertEquals(10, watermark.used());
-        watermark.admitWait(1, favoured, 1_000L);
+        awaitAdmit(watermark, 10, favoured);
+        awaitAdmit(watermark, 1, favoured);
         assertEquals(11, watermark.used());
         assertSame(favoured, watermark.overshootOwner());
-        watermark.admitWait(1, favoured, 1_000L);
+        awaitAdmit(watermark, 1, favoured);
         assertEquals(12, watermark.used());
-        CountDownLatch done = new CountDownLatch(1);
-        AtomicReference<ParquetIoWatermark.AdmitHold> otherHold = new AtomicReference<>();
-        AtomicReference<Throwable> error = new AtomicReference<>();
-        Thread waiter = new Thread(() -> {
-            try {
-                otherHold.set(watermark.admitWait(1, other, 200L));
-            } catch (Throwable t) {
-                error.set(t);
-            } finally {
-                done.countDown();
-            }
-        });
-        waiter.start();
-        assertTrue(done.await(5, TimeUnit.SECONDS));
-        waiter.join();
-        assertNull(error.get());
-        assertNotNull(otherHold.get());
-        assertSame(favoured, watermark.overshootOwner());
-        assertEquals(13, watermark.used());
-        assertEquals(1, watermark.forcedAdmits());
     }
 
     public void testSecondQueryDoesNotTakeSecondOvershoot() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(50);
         RowGroupIo first = lease(true);
         RowGroupIo second = lease(true);
-        watermark.admitWait(80, first, 1_000L);
+        ParquetIoWatermark.AdmitHold ownerHold = awaitAdmit(watermark, 80, first);
         assertSame(first, watermark.overshootOwner());
-        CountDownLatch entered = new CountDownLatch(1);
-        CountDownLatch done = new CountDownLatch(1);
-        Thread waiter = new Thread(() -> {
-            entered.countDown();
-            watermark.admitWait(40, second, 5_000L);
-            done.countDown();
-        });
-        waiter.start();
-        assertTrue(entered.await(5, TimeUnit.SECONDS));
-        assertFalse(done.await(50, TimeUnit.MILLISECONDS));
-        watermark.release(80);
-        assertTrue(done.await(5, TimeUnit.SECONDS));
-        waiter.join();
-        assertEquals(40, watermark.used());
-        assertSame("the second query must not become a second owner", first, watermark.overshootOwner());
+        CountDownLatch granted = new CountDownLatch(1);
+        watermark.admitAsync(40, second, () -> false, Runnable::run).addListener(ActionListener.wrap(hold -> {
+            hold.drop();
+            granted.countDown();
+        }, e -> granted.countDown()));
+        assertBusy(() -> assertEquals(1, watermark.waiterCount()));
+        assertFalse(granted.await(50, TimeUnit.MILLISECONDS));
+        ownerHold.drop();
+        first.finish();
+        watermark.clearOwner(first);
+        assertTrue(granted.await(5, TimeUnit.SECONDS));
     }
 
     public void testNullSchedulerCrossesOnce() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(50);
         RowGroupIo first = new RowGroupIo();
         RowGroupIo second = new RowGroupIo();
-        watermark.admitWait(80, first, 1_000L);
+        ParquetIoWatermark.AdmitHold ownerHold = awaitAdmit(watermark, 80, first);
         assertSame(first, watermark.overshootOwner());
-        CountDownLatch entered = new CountDownLatch(1);
-        CountDownLatch done = new CountDownLatch(1);
-        Thread waiter = new Thread(() -> {
-            entered.countDown();
-            watermark.admitWait(10, second, 5_000L);
-            done.countDown();
-        });
-        waiter.start();
-        assertTrue(entered.await(5, TimeUnit.SECONDS));
-        assertFalse("a second null-scheduler lease must not take another overshoot", done.await(50, TimeUnit.MILLISECONDS));
+        CountDownLatch granted = new CountDownLatch(1);
+        AtomicReference<ParquetIoWatermark.AdmitHold> secondHold = new AtomicReference<>();
+        watermark.admitAsync(80, second, () -> false, Runnable::run).addListener(ActionListener.wrap(hold -> {
+            secondHold.set(hold);
+            granted.countDown();
+        }, e -> granted.countDown()));
+        assertBusy(() -> assertEquals(1, watermark.waiterCount()));
+        assertFalse("a second null-scheduler lease must not take another overshoot", granted.await(50, TimeUnit.MILLISECONDS));
+        ownerHold.drop();
         watermark.clearOwner(first);
-        assertTrue(done.await(5, TimeUnit.SECONDS));
-        waiter.join();
+        assertTrue(granted.await(5, TimeUnit.SECONDS));
         assertSame(second, watermark.overshootOwner());
-        assertEquals(90, watermark.used());
+        secondHold.get().drop();
+        watermark.clearOwner(second);
     }
 
     /**
-     * After the admit wait budget a waiter force-charges instead of failing.
+     * T1: a waiter under a parked overshoot owner does not force-charge after a timeout. The
+     * ticket stays queued ({@code granted.await(50ms)==false}, {@code used} unchanged) until
+     * the owner drops, then grants.
      */
-    public void testAdmitWaitChargesAfterTimeoutInsteadOfRejecting() {
+    public void testWaiterDoesNotForceChargeAfterTimeout() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(100);
         RowGroupIo owner = new RowGroupIo();
-        watermark.admitWait(150, owner, 1_000L);
+        ParquetIoWatermark.AdmitHold ownerHold = awaitAdmit(watermark, 150, owner);
         RowGroupIo waiter = new RowGroupIo();
-        long start = System.nanoTime();
-        ParquetIoWatermark.AdmitHold hold = watermark.admitWait(1, waiter, 50L);
-        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
-        assertNotNull(hold);
-        assertEquals(151, watermark.used());
-        assertTrue("forced admit must honour the 50ms clock, took " + elapsedMs + "ms", elapsedMs >= 25L && elapsedMs < 200L);
-        assertTrue("waitNanos must accrue, was " + watermark.waitNanos(), watermark.waitNanos() >= TimeUnit.MILLISECONDS.toNanos(25));
-        assertSame(owner, watermark.overshootOwner());
-        assertEquals(1, watermark.forcedAdmits());
+        CountDownLatch granted = new CountDownLatch(1);
+        AtomicReference<ParquetIoWatermark.AdmitHold> hold = new AtomicReference<>();
+        watermark.admitAsync(1, waiter, () -> false, Runnable::run).addListener(ActionListener.wrap(h -> {
+            hold.set(h);
+            granted.countDown();
+        }, e -> granted.countDown()));
+        assertBusy(() -> assertEquals(1, watermark.waiterCount()));
+        assertFalse("hard cap must not force-charge after 50ms", granted.await(50, TimeUnit.MILLISECONDS));
+        assertEquals(150, watermark.used());
+        ownerHold.drop();
+        watermark.clearOwner(owner);
+        assertTrue(granted.await(5, TimeUnit.SECONDS));
+        assertNotNull(hold.get());
+        assertEquals(1, watermark.used());
+        hold.get().drop();
     }
 
-    public void testThirteenPartialGroupsUnblockAfterOwnerFinish() throws Exception {
+    public void testThirteenWaitersUnblockAfterOwnerFinish() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(100);
         RowGroupIo owner = new RowGroupIo();
-        watermark.admitWait(150, owner, 1_000L);
+        ParquetIoWatermark.AdmitHold ownerHold = awaitAdmit(watermark, 150, owner);
         int waiters = 12;
-        CyclicBarrier start = new CyclicBarrier(waiters + 1);
         CountDownLatch done = new CountDownLatch(waiters);
         AtomicInteger admitted = new AtomicInteger();
-        Thread[] threads = new Thread[waiters];
         for (int i = 0; i < waiters; i++) {
-            threads[i] = new Thread(() -> {
-                try {
-                    start.await(5, TimeUnit.SECONDS);
-                    watermark.admitWait(5, new RowGroupIo(), 5_000L);
-                    admitted.incrementAndGet();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                } finally {
-                    done.countDown();
-                }
-            });
-            threads[i].start();
+            watermark.admitAsync(5, new RowGroupIo(), () -> false, Runnable::run).addListener(ActionListener.wrap(hold -> {
+                admitted.incrementAndGet();
+                hold.drop();
+                done.countDown();
+            }, e -> done.countDown()));
         }
-        start.await(5, TimeUnit.SECONDS);
+        assertBusy(() -> assertEquals(waiters, watermark.waiterCount()));
         assertFalse("waiters stay blocked while the owner sits above the cap", done.await(50, TimeUnit.MILLISECONDS));
-        watermark.release(150);
+        ownerHold.drop();
         owner.finish();
         watermark.clearOwner(owner);
         assertTrue(done.await(5, TimeUnit.SECONDS));
-        for (Thread thread : threads) {
-            thread.join();
-        }
         assertEquals(waiters, admitted.get());
-        assertEquals(60, watermark.used());
         assertNull("under-cap admits must not keep an owner", watermark.overshootOwner());
     }
 
-    public void testOwnerClearedOnFinishLetsSecondLeaseCross() {
+    public void testOwnerClearedOnFinishLetsSecondLeaseCross() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(50);
         RowGroupIo first = lease(true);
         RowGroupIo second = lease(true);
-        watermark.admitWait(80, first, 1_000L);
+        ParquetIoWatermark.AdmitHold firstHold = awaitAdmit(watermark, 80, first);
         first.finish();
+        firstHold.drop();
         watermark.clearOwner(first);
         assertNull(watermark.overshootOwner());
-        watermark.admitWait(80, second, 1_000L);
+        ParquetIoWatermark.AdmitHold secondHold = awaitAdmit(watermark, 80, second);
         assertSame(second, watermark.overshootOwner());
-        assertEquals(160, watermark.used());
+        assertEquals(80, watermark.used());
+        secondHold.drop();
+        watermark.clearOwner(second);
     }
 
     /**
-     * Waiters on a shared pool force-charge after the admit budget so the owner's release queued
-     * behind them can run.
+     * T5: waiters on a shared pool stay on tickets. The owner's release queued behind them can
+     * run because they do not pin the pool in a blocking wait.
      */
-    public void testWaitersOnSharedPoolBoundedByAdmitBudget() throws Exception {
-        ParquetIoWatermark watermark = new ParquetIoWatermark(100, 200L);
+    public void testWaitersOnSharedPoolStayOnTickets() throws Exception {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(100);
         RowGroupIo owner = new RowGroupIo();
-        watermark.admitWait(150, owner, 2_000L);
+        ParquetIoWatermark.AdmitHold ownerHold = awaitAdmit(watermark, 150, owner);
         assertSame(owner, watermark.overshootOwner());
         final int poolSize = 2;
         ExecutorService pool = Executors.newFixedThreadPool(poolSize);
-        AtomicInteger rejected = new AtomicInteger();
-        CountDownLatch waitersIn = new CountDownLatch(poolSize);
-        CountDownLatch bothForced = new CountDownLatch(poolSize);
-        CountDownLatch allDone = new CountDownLatch(poolSize + 1);
-        AtomicLong releaseStartedAtMs = new AtomicLong(-1);
-        AtomicReference<Throwable> workerError = new AtomicReference<>();
-        long t0 = System.nanoTime();
+        CountDownLatch allDone = new CountDownLatch(poolSize);
+        AtomicInteger granted = new AtomicInteger();
         try {
             for (int i = 0; i < poolSize; i++) {
-                pool.execute(() -> {
-                    waitersIn.countDown();
-                    try {
-                        ParquetIoWatermark.AdmitHold hold = watermark.admitWaitUntil(
-                            10,
-                            new RowGroupIo(),
-                            System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(watermark.admitWaitMs())
-                        );
-                        bothForced.countDown();
-                        assertTrue(bothForced.await(5, TimeUnit.SECONDS));
-                        hold.drop();
-                    } catch (EsRejectedExecutionException e) {
-                        rejected.incrementAndGet();
-                        bothForced.countDown();
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        workerError.compareAndSet(null, e);
-                        bothForced.countDown();
-                    } catch (Throwable t) {
-                        workerError.compareAndSet(null, t);
-                        bothForced.countDown();
-                    } finally {
-                        allDone.countDown();
-                    }
-                });
+                watermark.admitAsync(10, new RowGroupIo(), () -> false, pool).addListener(ActionListener.wrap(hold -> {
+                    granted.incrementAndGet();
+                    hold.drop();
+                    allDone.countDown();
+                }, e -> allDone.countDown()));
             }
-            assertTrue(waitersIn.await(5, TimeUnit.SECONDS));
-            pool.execute(() -> {
-                releaseStartedAtMs.set(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - t0));
-                watermark.release(150);
-                owner.finish();
-                watermark.clearOwner(owner);
-                allDone.countDown();
-            });
+            assertBusy(() -> assertEquals(poolSize, watermark.waiterCount()));
+            ownerHold.drop();
+            owner.finish();
+            watermark.clearOwner(owner);
             assertTrue(allDone.await(30, TimeUnit.SECONDS));
         } finally {
             pool.shutdown();
             assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
         }
-        if (workerError.get() != null) {
-            throw new AssertionError(workerError.get());
-        }
-        assertEquals(0, rejected.get());
-        assertEquals(2, watermark.forcedAdmits());
-        assertTrue(
-            "owner release must run after waiters force-charge, started after " + releaseStartedAtMs.get() + "ms",
-            releaseStartedAtMs.get() < 1_000L
-        );
-    }
-
-    public void testForcedAdmitDoesNotTakeOwnerSlot() {
-        ParquetIoWatermark watermark = new ParquetIoWatermark(50);
-        RowGroupIo owner = lease(true);
-        watermark.admitWait(80, owner, 1_000L);
-        assertSame(owner, watermark.overshootOwner());
-        RowGroupIo second = lease(true);
-        watermark.admitWait(10, second, 50L);
-        assertSame(owner, watermark.overshootOwner());
-        assertEquals(1, watermark.forcedAdmits());
-        owner.finish();
-        watermark.clearOwner(owner);
-        RowGroupIo third = lease(true);
-        watermark.admitWait(80, third, 1_000L);
-        assertSame(third, watermark.overshootOwner());
-    }
-
-    public void testForcedAdmitRefusesPastTwiceLimit() {
-        ParquetIoWatermark watermark = new ParquetIoWatermark(10);
-        RowGroupIo owner = new RowGroupIo();
-        watermark.admitWait(20, owner, 1_000L);
-        assertEquals(20, watermark.forceAdmitLimit());
-        RowGroupIo waiter = new RowGroupIo();
-        EsRejectedExecutionException e = expectThrows(EsRejectedExecutionException.class, () -> watermark.admitWait(1, waiter, 50L));
-        assertThat(e.getMessage(), containsString("twice the node cap"));
-        assertEquals(20, watermark.used());
-        assertEquals(0, watermark.forcedAdmits());
-        assertSame(owner, watermark.overshootOwner());
+        assertEquals(poolSize, granted.get());
     }
 
     /**
-     * {@link RowGroupIo#cancel()} must wake the parked waiter immediately. Ambient
-     * {@link org.elasticsearch.xpack.esql.datasources.StorageRetryCancellation} does not; that
-     * path waits for the admit budget then fails with the same {@link EsRejectedExecutionException}
-     * rather than {@code TaskCancelledException}, matching lease cancel.
+     * T6: a unit larger than the cap takes the single overshoot slot. Later tickets queue.
      */
+    public void testOversizeUnitUsesOvershootOnly() throws Exception {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(50);
+        RowGroupIo lease = new RowGroupIo();
+        ParquetIoWatermark.AdmitHold hold = awaitAdmit(watermark, 80, lease);
+        assertEquals(80, watermark.used());
+        assertSame(lease, watermark.overshootOwner());
+        AtomicBoolean secondGranted = new AtomicBoolean();
+        AtomicReference<ParquetIoWatermark.AdmitHold> second = new AtomicReference<>();
+        AtomicReference<Exception> error = new AtomicReference<>();
+        watermark.admitAsync(80, new RowGroupIo(), () -> false, Runnable::run).addListener(ActionListener.wrap(h -> {
+            second.set(h);
+            secondGranted.set(true);
+        }, e -> error.set(e)));
+        assertBusy(() -> assertEquals(1, watermark.waiterCount()));
+        assertFalse(secondGranted.get());
+        hold.drop();
+        watermark.clearOwner(lease);
+        assertBusy(() -> assertTrue("second oversize unit must grant after owner drop", secondGranted.get()));
+        assertNull(error.get());
+        assertNotNull(second.get());
+        second.get().drop();
+        assertEquals(0, watermark.waiterCount());
+    }
+
+    /**
+     * T7: a cancel storm of queued tickets leaks no bytes and never force-charges.
+     */
+    public void testCancelStormLeaksNoBytes() throws Exception {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(10);
+        RowGroupIo owner = new RowGroupIo();
+        ParquetIoWatermark.AdmitHold ownerHold = awaitAdmit(watermark, 20, owner);
+        int storm = 32;
+        AtomicBoolean cancel = new AtomicBoolean();
+        CountDownLatch failed = new CountDownLatch(storm);
+        for (int i = 0; i < storm; i++) {
+            watermark.admitAsync(10, new RowGroupIo(), cancel::get, Runnable::run)
+                .addListener(ActionListener.wrap(hold -> fail("cancelled waiter must not grant"), e -> failed.countDown()));
+        }
+        assertBusy(() -> assertEquals(storm, watermark.waiterCount()));
+        cancel.set(true);
+        watermark.nodeByteBudget().wakeWaiters();
+        assertTrue(failed.await(5, TimeUnit.SECONDS));
+        assertEquals(20, watermark.used());
+        ownerHold.drop();
+        watermark.clearOwner(owner);
+        assertEquals(0, watermark.used());
+        assertEquals(0, watermark.waiterCount());
+    }
+
+    /**
+     * T10: FORK-shaped cap=1. Two concurrent units serialize through the single overshoot slot
+     * without force-charging.
+     */
+    public void testForkCapOneSerializesOvershoot() throws Exception {
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1);
+        RowGroupIo firstLease = new RowGroupIo();
+        RowGroupIo secondLease = new RowGroupIo();
+        CountDownLatch firstGranted = new CountDownLatch(1);
+        CountDownLatch secondGranted = new CountDownLatch(1);
+        AtomicReference<ParquetIoWatermark.AdmitHold> first = new AtomicReference<>();
+        AtomicReference<ParquetIoWatermark.AdmitHold> second = new AtomicReference<>();
+        watermark.admitAsync(4, firstLease, () -> false, Runnable::run).addListener(ActionListener.wrap(hold -> {
+            first.set(hold);
+            firstGranted.countDown();
+        }, e -> firstGranted.countDown()));
+        watermark.admitAsync(4, secondLease, () -> false, Runnable::run).addListener(ActionListener.wrap(hold -> {
+            second.set(hold);
+            secondGranted.countDown();
+        }, e -> secondGranted.countDown()));
+        assertTrue(firstGranted.await(5, TimeUnit.SECONDS));
+        assertNotNull(first.get());
+        assertFalse("second unit waits on cap=1", secondGranted.await(50, TimeUnit.MILLISECONDS));
+        assertThat(watermark.used(), lessThanOrEqualTo(5L));
+        first.get().drop();
+        watermark.clearOwner(firstLease);
+        assertTrue(secondGranted.await(5, TimeUnit.SECONDS));
+        assertNotNull(second.get());
+        second.get().drop();
+        watermark.clearOwner(secondLease);
+        assertEquals(0, watermark.used());
+    }
+
     public void testLeaseCancelStillWakesWaiterPromptly() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(10);
         RowGroupIo owner = new RowGroupIo();
-        watermark.admitWait(20, owner, 1_000L);
+        ParquetIoWatermark.AdmitHold ownerHold = awaitAdmit(watermark, 20, owner);
         RowGroupIo lease = new RowGroupIo();
-        CountDownLatch entered = new CountDownLatch(1);
         CountDownLatch done = new CountDownLatch(1);
         AtomicReference<Throwable> error = new AtomicReference<>();
         long usedBefore = watermark.used();
-        Thread thread = new Thread(() -> {
-            entered.countDown();
-            try {
-                watermark.admitWait(10, lease, 30_000L);
-            } catch (Throwable t) {
-                error.set(t);
-            } finally {
-                done.countDown();
-            }
-        });
-        thread.start();
-        assertTrue(entered.await(5, TimeUnit.SECONDS));
-        assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, thread.getState()));
+        watermark.admitAsync(10, lease, lease::isCancelled, Runnable::run).addListener(ActionListener.wrap(hold -> {
+            hold.drop();
+            done.countDown();
+        }, e -> {
+            error.set(e);
+            done.countDown();
+        }));
+        assertBusy(() -> assertEquals(1, watermark.waiterCount()));
         long start = System.nanoTime();
         lease.cancel();
+        watermark.nodeByteBudget().wakeWaiters();
         assertTrue(done.await(1, TimeUnit.SECONDS));
-        thread.join();
         long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
         assertThat(error.get(), instanceOf(EsRejectedExecutionException.class));
         assertThat(error.get().getMessage(), containsString("Cancelled"));
         assertTrue("cancel must wake promptly, took " + elapsedMs + "ms", elapsedMs < 1_000L);
         assertEquals(usedBefore, watermark.used());
-        assertEquals(0, watermark.forcedAdmits());
+        ownerHold.drop();
+        watermark.clearOwner(owner);
     }
 
     public void testSmallCapSecondQueryWaitsThenAdmitsWithoutForce() throws Exception {
         ParquetIoWatermark watermark = new ParquetIoWatermark(128);
         RowGroupIo owner = lease(true);
-        watermark.admitWait(150, owner, 1_000L);
+        ParquetIoWatermark.AdmitHold ownerHold = awaitAdmit(watermark, 150, owner);
         RowGroupIo second = lease(true);
-        CountDownLatch entered = new CountDownLatch(1);
-        CountDownLatch done = new CountDownLatch(1);
+        CountDownLatch granted = new CountDownLatch(1);
         AtomicReference<ParquetIoWatermark.AdmitHold> hold = new AtomicReference<>();
         AtomicReference<Throwable> error = new AtomicReference<>();
-        Thread thread = new Thread(() -> {
-            entered.countDown();
-            try {
-                hold.set(watermark.admitWait(100, second, 2_000L));
-            } catch (Throwable t) {
-                error.set(t);
-            } finally {
-                done.countDown();
-            }
-        });
-        thread.start();
-        assertTrue(entered.await(5, TimeUnit.SECONDS));
-        assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, thread.getState()));
-        watermark.release(150);
+        watermark.admitAsync(100, second, () -> false, Runnable::run).addListener(ActionListener.wrap(h -> {
+            hold.set(h);
+            granted.countDown();
+        }, e -> {
+            error.set(e);
+            granted.countDown();
+        }));
+        assertBusy(() -> assertEquals(1, watermark.waiterCount()));
+        ownerHold.drop();
         owner.finish();
         watermark.clearOwner(owner);
-        assertTrue(done.await(5, TimeUnit.SECONDS));
-        thread.join();
+        assertTrue(granted.await(5, TimeUnit.SECONDS));
         assertNull(error.get());
         assertNotNull(hold.get());
-        assertEquals(0, watermark.forcedAdmits());
         assertEquals(100, watermark.used());
+        hold.get().drop();
+        watermark.clearOwner(second);
     }
 
-    /**
-     * Ambient cancel is checked on expiry, not polled, so the waiter stays parked until the
-     * admit budget elapses. Failure is still {@link EsRejectedExecutionException} so callers
-     * do not special-case {@code TaskCancelledException}.
-     */
-    public void testAdmitWaitObservesAmbientCancellation() throws Exception {
-        ParquetIoWatermark watermark = new ParquetIoWatermark(10);
+    public void testCancelledTicketDoesNotTakeOwnerSlot() throws Exception {
         RecordingTracker tracker = new RecordingTracker();
+        ParquetIoWatermark watermark = new ParquetIoWatermark(10);
         watermark.bindTracker(tracker);
-        RowGroupIo owner = new RowGroupIo();
-        watermark.admitWait(20, owner, 1_000L);
-        RowGroupIo waiter = new RowGroupIo();
-        AtomicBoolean cancelled = new AtomicBoolean();
-        CountDownLatch entered = new CountDownLatch(1);
+        AtomicBoolean cancel = new AtomicBoolean(true);
         CountDownLatch done = new CountDownLatch(1);
         AtomicReference<Throwable> error = new AtomicReference<>();
-        long usedBefore = watermark.used();
-        Thread thread = new Thread(() -> {
-            ExternalIoExecutors.restoring(Runnable::run, null, cancelled::get).execute(() -> {
-                entered.countDown();
-                try {
-                    watermark.admitWait(10, waiter, 200L);
-                } catch (Throwable t) {
-                    error.set(t);
-                } finally {
-                    done.countDown();
-                }
-            });
-        });
-        thread.start();
-        assertTrue(entered.await(5, TimeUnit.SECONDS));
-        assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, thread.getState()));
-        cancelled.set(true);
-        assertFalse("ambient cancel must wait for the budget to expire, not abort immediately", done.await(50, TimeUnit.MILLISECONDS));
-        assertTrue(done.await(1, TimeUnit.SECONDS));
-        thread.join();
-        assertThat(error.get(), instanceOf(EsRejectedExecutionException.class));
-        assertThat(error.get().getMessage(), containsString("Cancelled"));
-        assertEquals(0, watermark.forcedAdmits());
-        assertEquals(usedBefore, watermark.used());
-        assertEquals(0, tracker.outstanding.get());
-        assertEquals(1, tracker.finished.get());
-    }
-
-    public void testExpiredAmbientCancelDoesNotTakeOwnerSlot() {
-        ParquetIoWatermark watermark = new ParquetIoWatermark(10, 0L);
-        RowGroupIo waiter = new RowGroupIo();
-        AtomicReference<Throwable> error = new AtomicReference<>();
-        ExternalIoExecutors.restoring(Runnable::run, null, () -> true).execute(() -> {
-            try {
-                watermark.admitWait(20, waiter, 0L);
-            } catch (Throwable t) {
-                error.set(t);
-            }
-        });
+        watermark.admitAsync(20, new RowGroupIo(), cancel::get, Runnable::run).addListener(ActionListener.wrap(hold -> {
+            hold.drop();
+            done.countDown();
+        }, e -> {
+            error.set(e);
+            done.countDown();
+        }));
+        assertTrue(done.await(5, TimeUnit.SECONDS));
         assertThat(error.get(), instanceOf(EsRejectedExecutionException.class));
         assertThat(error.get().getMessage(), containsString("Cancelled"));
         assertNull(watermark.overshootOwner());
         assertEquals(0, watermark.used());
-        assertEquals(0, watermark.forcedAdmits());
+    }
+
+    private static ParquetIoWatermark.AdmitHold awaitAdmit(ParquetIoWatermark watermark, long bytes, RowGroupIo lease) throws Exception {
+        return awaitAdmit(watermark, bytes, lease, () -> false);
+    }
+
+    private static ParquetIoWatermark.AdmitHold awaitAdmit(
+        ParquetIoWatermark watermark,
+        long bytes,
+        RowGroupIo lease,
+        BooleanSupplier cancel
+    ) throws Exception {
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<ParquetIoWatermark.AdmitHold> hold = new AtomicReference<>();
+        AtomicReference<Exception> error = new AtomicReference<>();
+        watermark.admitAsync(bytes, lease, cancel, Runnable::run).addListener(ActionListener.wrap(h -> {
+            hold.set(h);
+            done.countDown();
+        }, e -> {
+            error.set(e);
+            done.countDown();
+        }));
+        assertTrue(done.await(10, TimeUnit.SECONDS));
+        if (error.get() != null) {
+            throw error.get();
+        }
+        assertNotNull(hold.get());
+        return hold.get();
     }
 
     private static RowGroupIo lease(boolean pin) {

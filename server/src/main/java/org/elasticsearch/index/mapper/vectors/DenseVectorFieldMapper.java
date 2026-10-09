@@ -30,6 +30,8 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -40,7 +42,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
@@ -129,7 +131,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HexFormat;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1737,15 +1738,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return onDiskMerge;
         }
 
-        abstract KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers);
+        abstract KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        );
 
         KnnVectorsFormat getVectorsFormat(
             ElementType elementType,
             ExecutorService mergingExecutorService,
             int numMergeWorkers,
+            ExecutorService quantizerExecutorService,
             @Nullable String sliceField
         ) {
-            return getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers);
+            return getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers, quantizerExecutorService);
         }
 
         public boolean validate(ElementType elementType, int dim, boolean throwOnError) {
@@ -2342,7 +2349,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES94ScalarQuantizedVectorsFormat(elementType, 7, false, onDiskMerge);
         }
@@ -2387,7 +2399,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             return new ES93FlatVectorFormat(elementType, onDiskMerge);
         }
 
@@ -2446,7 +2463,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        public KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES94HnswScalarQuantizedVectorsFormat(
                 m,
@@ -2548,7 +2570,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        public KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES94ScalarQuantizedVectorsFormat(elementType, 4, false, onDiskMerge);
         }
@@ -2633,7 +2660,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        public KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES94HnswScalarQuantizedVectorsFormat(
                 m,
@@ -2753,7 +2785,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        public KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             return new ES93HnswVectorsFormat(
                 m,
                 efConstruction,
@@ -2857,7 +2894,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES93HnswBinaryQuantizedVectorsFormat(
                 m,
@@ -2936,7 +2978,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return new ES93BinaryQuantizedVectorsFormat(elementType, false, onDiskMerge);
         }
@@ -3049,8 +3096,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
-            return getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers, null);
+        KnnVectorsFormat getVectorsFormat(
+            ElementType elementType,
+            ExecutorService mergingExecutorService,
+            int numMergeWorkers,
+            ExecutorService quantizerExecutorService
+        ) {
+            return getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers, quantizerExecutorService, null);
         }
 
         @Override
@@ -3058,6 +3110,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             ElementType elementType,
             ExecutorService mergingExecutorService,
             int numMergeWorkers,
+            ExecutorService quantizerExecutorService,
             @Nullable String sliceField
         ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
@@ -3087,6 +3140,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         onDiskRescore,
                         mergingExecutorService,
                         numMergeWorkers,
+                        quantizerExecutorService,
                         flatIndexThreshold,
                         sliceField,
                         IvfFlushConfigSource.empty(),
@@ -3620,6 +3674,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             );
         }
 
+        /**
+         * Creates the approximate nearest neighbour query for this field. On a slice-enabled index the query only visits the
+         * slices the request reads: through the vector format when it partitions the vectors by slice, through {@code filter}
+         * otherwise. It fails when the request selects no slice.
+         *
+         * @param context the search execution context of the request, or {@code null} when the query is built outside a request
+         */
         public Query createKnnQuery(
             VectorData queryVector,
             int k,
@@ -3631,37 +3692,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BitSetProducer parentFilter,
             FilterHeuristic heuristic,
             boolean hnswEarlyTermination,
-            @Nullable String sliceRouting
-        ) {
-            return createKnnQuery(
-                queryVector,
-                k,
-                numCands,
-                visitPercentage,
-                oversample,
-                filter,
-                similarityThreshold,
-                parentFilter,
-                heuristic,
-                hnswEarlyTermination,
-                sliceRouting != null,
-                sliceRouting
-            );
-        }
-
-        public Query createKnnQuery(
-            VectorData queryVector,
-            int k,
-            int numCands,
-            Float visitPercentage,
-            Float oversample,
-            Query filter,
-            Float similarityThreshold,
-            BitSetProducer parentFilter,
-            FilterHeuristic heuristic,
-            boolean hnswEarlyTermination,
-            boolean sliceEnabled,
-            @Nullable String sliceRouting
+            @Nullable SearchExecutionContext context
         ) {
             if (indexType.hasVectors() == false) {
                 throw new IllegalArgumentException(
@@ -3677,6 +3708,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
             // No similarity_function override exists on this path, so isOverridden is always false — matching
             // today's unconditional "normalize when isNormalized() && !isUnitVector" behavior below.
             ResolvedVector resolved = element.resolveAndValidate(resolvedQueryVector, dims, similarity, false, isNormalized());
+            BytesRef[] sliceIds = null;
+            if (context != null && context.getIndexSettings().isSliceEnabled()) {
+                final SliceSelection slices = context.sliceSelection();
+                if (slices.isSpecified() == false) {
+                    throw new IllegalArgumentException(
+                        "to perform knn search on field [" + name() + "], the slices to search must be selected: its index is slice-enabled"
+                    );
+                }
+                if (indexOptions instanceof BBQIVFIndexOptions && resolved instanceof ResolvedVector.Bits == false) {
+                    sliceIds = toSliceIds(slices);
+                } else {
+                    filter = filterBySlice(filter, context.sliceFilter());
+                }
+            }
             return switch (resolved) {
                 case ResolvedVector.Floats(float[] vector, boolean denormalize) -> createKnnFloatQuery(
                     vector,
@@ -3689,8 +3734,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     parentFilter,
                     knnSearchStrategy,
                     hnswEarlyTermination,
-                    sliceEnabled,
-                    sliceRouting
+                    sliceIds
                 );
                 case ResolvedVector.Bits(byte[] vector) -> createKnnBitQuery(
                     vector,
@@ -3713,8 +3757,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     parentFilter,
                     knnSearchStrategy,
                     hnswEarlyTermination,
-                    sliceEnabled,
-                    sliceRouting
+                    sliceIds
                 );
             };
         }
@@ -3792,8 +3835,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BitSetProducer parentFilter,
             KnnSearchStrategy searchStrategy,
             boolean hnswEarlyTermination,
-            boolean sliceEnabled,
-            @Nullable String sliceRouting
+            @Nullable BytesRef[] sliceIds
         ) {
             int adjustedKForRescoring = k;
             int adjustedNumCandsForRescoring = numCands;
@@ -3831,7 +3873,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     mappingOversample,
                     queryOversample
                 );
-                final BytesRef[] sliceIds = extractSliceRouting(sliceRouting, sliceEnabled);
                 if (sliceIds != null) {
                     knnQuery = parentFilter != null
                         ? new DiversifyingChildrenIVFKnnByteSlicedVectorQuery(
@@ -3920,8 +3961,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BitSetProducer parentFilter,
             KnnSearchStrategy knnSearchStrategy,
             boolean hnswEarlyTermination,
-            boolean sliceEnabled,
-            @Nullable String sliceRouting
+            @Nullable BytesRef[] sliceIds
         ) {
             int adjustedKForRescoring = k;
             int adjustedNumCandsForRescoring = numCands;
@@ -3957,7 +3997,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     mappingOversample,
                     queryOversample
                 );
-                final BytesRef[] sliceIds = extractSliceRouting(sliceRouting, sliceEnabled);
                 if (sliceIds != null) {
                     knnQuery = parentFilter != null
                         ? new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
@@ -4035,38 +4074,26 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return knnQuery;
         }
 
-        @Nullable
-        private static BytesRef[] extractSliceRouting(@Nullable String sliceRouting, boolean sliceEnabled) {
-            if (sliceRouting == null) {
-                return sliceEnabled ? new BytesRef[0] : null;
-            }
-            String[] sliceValues = Strings.splitStringByCommaToArray(sliceRouting.trim());
-            if (sliceValues.length == 0) {
-                throw new IllegalArgumentException("[" + SliceIndexing.FIELD_NAME + "] cannot be blank for KNN queries");
-            }
-            final LinkedHashSet<String> uniqueSliceValues = new LinkedHashSet<>();
-            for (String sliceValue : sliceValues) {
-                uniqueSliceValues.add(validateSliceValue(sliceValue));
-            }
-            final BytesRef[] sliceIds = new BytesRef[uniqueSliceValues.size()];
-            int i = 0;
-            for (String sliceValue : uniqueSliceValues) {
-                sliceIds[i++] = new BytesRef(sliceValue);
-            }
-            return sliceIds;
+        /**
+         * The slices a slice-partitioned vector format searches. An empty array searches every slice.
+         */
+        private static BytesRef[] toSliceIds(SliceSelection slices) {
+            return slices.names().stream().map(BytesRef::new).toArray(BytesRef[]::new);
         }
 
-        private static String validateSliceValue(String sliceValue) {
-            final String value = sliceValue.trim();
-            if (value.isEmpty()) {
-                throw new IllegalArgumentException("[" + SliceIndexing.FIELD_NAME + "] cannot be blank for KNN queries");
+        /**
+         * Adds the slice filter to the filter of a query whose vector format does not partition the vectors by slice.
+         * Either may be {@code null}: without a slice filter every slice is searched, without a filter only the slices restrict
+         * the search.
+         */
+        private static Query filterBySlice(@Nullable Query filter, @Nullable Query sliceFilter) {
+            if (sliceFilter == null) {
+                return filter;
             }
-            if (SliceIndexing.SLICE_ALL.equals(value)) {
-                throw new IllegalArgumentException(
-                    "[" + SliceIndexing.FIELD_NAME + "] value [" + SliceIndexing.SLICE_ALL + "] is not supported for KNN"
-                );
+            if (filter == null) {
+                return sliceFilter;
             }
-            return value;
+            return new BooleanQuery.Builder().add(filter, BooleanClause.Occur.FILTER).add(sliceFilter, BooleanClause.Occur.FILTER).build();
         }
 
         public VectorSimilarity getSimilarity() {
@@ -4388,6 +4415,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 mergingExecutorService = threadPool.executor(ThreadPool.Names.MERGE);
             }
         }
+        ExecutorService quantizerExecutorService = null;
+        if (threadPool != null) {
+            // use the MERGE pool as a CPU-bound writing-time threadpool
+            // that scales with the number of cores
+            // FLUSH only has 5 threads, and is targetted at IO operations
+            quantizerExecutorService = threadPool.executor(ThreadPool.Names.MERGE);
+        }
+
         final KnnVectorsFormat format;
         ElementType elementType = fieldType().element.elementType();
         final String sliceField = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && indexSettings.isSliceEnabled()
@@ -4416,7 +4451,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     fieldType().similarity(),
                     elementType,
                     mergingExecutorService,
-                    maxMergingWorkers
+                    maxMergingWorkers,
+                    quantizerExecutorService
                 );
                 if (extraKnnFormat != null) {
                     break;
@@ -4424,7 +4460,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             format = extraKnnFormat != null
                 ? extraKnnFormat
-                : indexOptions.getVectorsFormat(elementType, mergingExecutorService, maxMergingWorkers, sliceField);
+                : indexOptions.getVectorsFormat(
+                    elementType,
+                    mergingExecutorService,
+                    maxMergingWorkers,
+                    quantizerExecutorService,
+                    sliceField
+                );
         }
         // It's legal to reuse the same format name as this is the same on-disk format.
         return new KnnVectorsFormat(format.getName()) {

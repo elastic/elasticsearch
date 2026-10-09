@@ -56,8 +56,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * {@code RowGroupFilter} reads from memory instead of issuing one synchronous range GET per row
  * group.
  *
- * <p>This class is populated once during file open and then read during row group
- * processing. All fields are effectively immutable after construction.
+ * <p>This class is populated once during file open. Parsed column and offset indexes and
+ * the schema are immutable after construction. Raw dictionary and bloom buffers are released
+ * after the row-group filter via {@link #releaseRawBuffers()} so they do not pin untracked
+ * bytes while the driver waits for tickets.
  */
 final class PreloadedRowGroupMetadata implements Releasable {
 
@@ -84,9 +86,9 @@ final class PreloadedRowGroupMetadata implements Releasable {
 
     /**
      * Owns the breaker-accounted buffers holding {@link #preWarmedChunks} (and the
-     * temporary buffers used by the coalesced index fetch). Closed when this metadata is no
-     * longer needed — typically at the end of the iterator's lifecycle. Never null;
-     * {@link #empty()} uses a no-op releasable.
+     * temporary buffers used by the coalesced index fetch). Released by
+     * {@link #releaseRawBuffers()} after the row-group filter, or by {@link #close()} if
+     * that never ran. Never null; {@link #empty()} uses a no-op releasable.
      */
     private final Releasable releasable;
 
@@ -118,17 +120,34 @@ final class PreloadedRowGroupMetadata implements Releasable {
     }
 
     /**
-     * Idempotent and safe to call from multiple threads. The underlying releasable owns
-     * breaker-accounted heap buffers; {@code DirectReadBuffer.close()} is itself CAS-guarded,
+     * Releases the raw dictionary and bloom byte chunks (and leftover coalesced index-page
+     * buffers already copied into parsed objects). Idempotent. Parsed {@link #getOffsetIndex},
+     * {@link #getColumnIndex}, and {@link #schema()} stay valid.
+     * <p>
+     * The row-group filter is the last reader of these buffers. Holding them until iterator
+     * end would pin untracked {@code forceAdd} bytes while the driver waits for tickets
+     * (esql-planning#2270). Refunds the original breaker and node-budget charges; the
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer} close path does
+     * that outside any adapter lock.
+     */
+    void releaseRawBuffers() {
+        if (closed.compareAndSet(false, true) == false) {
+            return;
+        }
+        preWarmedChunks.clear();
+        releasable.close();
+    }
+
+    /**
+     * Idempotent and safe to call from multiple threads. Releases whatever raw buffers remain
+     * ({@link #releaseRawBuffers()} if it has not already run). Parsed indexes stay valid;
+     * getters do not check this flag. {@code DirectReadBuffer.close()} is itself CAS-guarded,
      * and this {@link AtomicBoolean} matches {@link PrefetchedPageReader#close()} so both
      * components have identical close semantics.
      */
     @Override
     public void close() {
-        if (closed.compareAndSet(false, true) == false) {
-            return;
-        }
-        releasable.close();
+        releaseRawBuffers();
     }
 
     /**
@@ -742,8 +761,10 @@ final class PreloadedRowGroupMetadata implements Releasable {
      * {@link ParquetStorageObjectAdapter#installPreWarmedChunks} so subsequent reads issued by
      * parquet-mr's {@code RowGroupFilter} can be served from memory.
      *
-     * <p>The returned map is unmodifiable to protect the adapter's snapshot semantics: streams
-     * that capture the reference must observe a stable structure for their lifetime.
+     * <p>The returned map is an unmodifiable view of the live map. {@link #releaseRawBuffers()}
+     * clears it. Callers (the adapter) must drop the reference via
+     * {@link ParquetStorageObjectAdapter#installPreWarmedChunks}{@code (null)} before that
+     * release; they must not treat the view as an immortal snapshot.
      */
     NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks() {
         return Collections.unmodifiableNavigableMap(preWarmedChunks);

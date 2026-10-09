@@ -24,6 +24,7 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.internal.column.columnindex.ColumnIndex;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
@@ -36,7 +37,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -220,6 +223,81 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             // Without the idempotency guard this second close throws on ArrowBuf double-decrement.
             metadata.close();
         }
+    }
+
+    /**
+     * {@link PreloadedRowGroupMetadata#releaseRawBuffers()} drops the coalesced dictionary/bloom
+     * (and leftover index-page) DirectReadBuffers so their forceAdd charges return, while parsed
+     * column/offset indexes stay usable. A later {@link PreloadedRowGroupMetadata#close()} must
+     * not refund twice.
+     */
+    public void testReleaseRawBuffersKeepsIndexesAndRefundsOnce() throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("v").named("schema");
+        int rows = 65_536;
+        long[] values = new long[rows];
+        for (int i = 0; i < rows; i++) {
+            values[i] = i % 16;
+        }
+        byte[] parquetData = writeDictionaryEncodedInt64Parquet(schema, values);
+        StorageObject storage = createRangeReadStorageObject(parquetData);
+        CircuitBreaker trackingBreaker = new LimitedBreaker("release-raw", ByteSizeValue.ofMb(32));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(storage, footerByteCache, trackingBreaker),
+                options
+            )
+        ) {
+            try (
+                PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(
+                    reader,
+                    storage,
+                    Set.of("v"),
+                    null,
+                    null,
+                    Integer.MAX_VALUE,
+                    trackingBreaker,
+                    watermark,
+                    footerByteCache
+                )
+            ) {
+                assertFalse("Pre-warm map must be populated", metadata.preWarmedChunks().isEmpty());
+                ColumnIndex columnIndex = metadata.getColumnIndex(0, "v");
+                OffsetIndex offsetIndex = metadata.getOffsetIndex(0, "v");
+                MessageType capturedSchema = metadata.schema();
+                assertNotNull("fixture must expose a parsed column index", columnIndex);
+                assertNotNull("fixture must expose a parsed offset index", offsetIndex);
+                assertNotNull(capturedSchema);
+                long watermarkAfterPreload = watermark.used();
+                long breakerAfterPreload = trackingBreaker.getUsed();
+                assertTrue("preload must forceAdd coalesced buffers, used=" + watermarkAfterPreload, watermarkAfterPreload > 0L);
+
+                metadata.releaseRawBuffers();
+                assertTrue("raw map is cleared after release", metadata.preWarmedChunks().isEmpty());
+                assertSame("parsed column index stays valid", columnIndex, metadata.getColumnIndex(0, "v"));
+                assertSame("parsed offset index stays valid", offsetIndex, metadata.getOffsetIndex(0, "v"));
+                assertSame("schema stays valid", capturedSchema, metadata.schema());
+                assertEquals("watermark refunds the forceAdd", 0L, watermark.used());
+                long breakerAfterRelease = trackingBreaker.getUsed();
+                assertTrue(
+                    "breaker refunds coalesced buffers, leftover is the adapter window; before="
+                        + breakerAfterPreload
+                        + " after="
+                        + breakerAfterRelease,
+                    breakerAfterRelease < breakerAfterPreload
+                );
+                assertTrue("adapter window remains charged until reader close", breakerAfterRelease > 0L);
+
+                metadata.releaseRawBuffers();
+                metadata.close();
+                assertEquals("second release refunds nothing", 0L, watermark.used());
+                assertEquals("close after release refunds nothing twice", breakerAfterRelease, trackingBreaker.getUsed());
+            }
+        }
+        assertEquals("adapter close refunds leftover window charges", 0L, trackingBreaker.getUsed());
+        assertEquals(0L, watermark.used());
     }
 
     /**

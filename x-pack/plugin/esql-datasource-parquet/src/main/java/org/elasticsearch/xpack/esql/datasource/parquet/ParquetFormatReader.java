@@ -2744,10 +2744,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 survivingRowGroups = computeSurvivingRowGroups(reader, blocks, recordFilter, projectedSchema, counters);
             } finally {
                 // Detach the pre-warmed chunks from the adapter so subsequent reads on any
-                // WindowedSeekableInputStream skip the cache lookup. The ByteBuffers themselves remain
-                // reachable via preloadedMetadata for the iterator's lifetime, but the data path uses
-                // the async ColumnChunkPrefetcher rather than the sliding-window stream, so they have
-                // no further reader.
+                // WindowedSeekableInputStream skip the cache lookup. Then release the raw
+                // dictionary/bloom buffers: the data path uses ColumnChunkPrefetcher, not these
+                // chunks, and holding them would pin untracked forceAdd bytes until iterator
+                // end while the driver waits for tickets (esql-planning#2270). Parsed column
+                // and offset indexes stay on preloadedMetadata for the iterator.
                 adapter.installPreWarmedChunks(null);
                 // Optimized path only. Drop the open-time sliding window before ticket admission.
                 // The iterator reads through ColumnChunkPrefetcher, not the reader stream; the
@@ -2756,6 +2757,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // unfiltered LIMIT sequential OffsetIndex reads can allocate the same window.
                 // Do not call this on the row-based reader: it still reads through the stream.
                 adapter.releaseIdleWindows();
+                preloadedMetadata.releaseRawBuffers();
             }
 
             RowRanges[] allRowRanges = null;

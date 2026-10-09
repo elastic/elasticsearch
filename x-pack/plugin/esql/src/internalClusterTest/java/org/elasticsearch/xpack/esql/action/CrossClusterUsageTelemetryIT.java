@@ -33,6 +33,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.deleteAsyncId;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
+import static org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction.STREAMING_FEATURE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CrossClusterUsageTelemetryIT extends AbstractCrossClusterUsageTelemetryIT {
@@ -196,6 +197,28 @@ public class CrossClusterUsageTelemetryIT extends AbstractCrossClusterUsageTelem
             assertPerClusterCount(perCluster.get(clusterAlias), 2L);
         }
         assertPerClusterCount(perCluster.get(LOCAL_CLUSTER), 2L);
+    }
+
+    public void testStreaming() throws Exception {
+        setupClusters();
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest("from logs-*,c*:logs-* | stats sum (v)")
+            .pragmas(AbstractEsqlIntegTestCase.randomPragmas());
+        StreamQueryTestUtils.executeStreamRequest(
+            cluster(LOCAL_CLUSTER).client(queryNode),
+            request,
+            new StreamQueryTestUtils.CountingStreamSubscriber()
+        );
+
+        var telemetry = getTelemetrySnapshot(queryNode);
+        assertThat(telemetry.getTotalCount(), equalTo(1L));
+        assertThat(telemetry.getSuccessCount(), equalTo(1L));
+        assertThat(telemetry.getFailureReasons().size(), equalTo(0));
+        assertThat(telemetry.getFeatureCounts().get(STREAMING_FEATURE), equalTo(1L));
+        assertThat(telemetry.getFeatureCounts().get(ASYNC_FEATURE), equalTo(null));
+
+        telemetry = getTelemetryFromQuery("from logs-*,c*:logs-* | stats sum (v)", null);
+        assertThat(telemetry.getTotalCount(), equalTo(2L));
+        assertThat(telemetry.getFeatureCounts().get(STREAMING_FEATURE), equalTo(1L));
     }
 
     public void testAsyncStop() throws Exception {

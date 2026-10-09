@@ -27,6 +27,9 @@ import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -36,6 +39,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.EsqlStreamTestUtils;
 import org.elasticsearch.xpack.esql.EsqlStreamTestUtils.StreamControl;
 import org.elasticsearch.xpack.esql.EsqlStreamTestUtils.StreamGate;
@@ -43,7 +47,11 @@ import org.elasticsearch.xpack.esql.EsqlStreamTestUtils.StreamOutcome;
 import org.elasticsearch.xpack.esql.EsqlStreamTestUtils.Terminal;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
+import org.elasticsearch.xpack.esql.plugin.EsqlStatsAction;
+import org.elasticsearch.xpack.esql.plugin.EsqlStatsRequest;
+import org.elasticsearch.xpack.esql.plugin.EsqlStatsResponse;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
+import org.elasticsearch.xpack.esql.telemetry.StreamingQueryMetrics;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -119,6 +127,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
         plugins.add(MockTransportService.TestPlugin.class);
         plugins.add(InternalExchangePlugin.class);
         plugins.add(FailingFieldPlugin.class);
+        plugins.add(TestTelemetryPlugin.class);
         return plugins;
     }
 
@@ -394,6 +403,98 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
 
     public void testExchangeFaultAfterStreamStartYieldsErrorAsLastLine() throws Exception {
         assertPostStreamFaultBecomesErrorLine(ExchangeService.EXCHANGE_ACTION_NAME);
+    }
+
+    public void testMetricsRecordSuccess() throws Exception {
+        TestTelemetryPlugin telemetry = coordinatingNodeTelemetry();
+        StreamOutcome outcome = stream(streamBody("FROM " + STREAM_INDEX + " | LIMIT 100"), null, "batch_size=5");
+        assertServerFullyCleanedUp();
+        assertThat("happy path must produce a footer", outcome.terminal(), equalTo(Terminal.FOOTER));
+
+        assertBusy(() -> {
+            assertThat(streamingCount(telemetry, StreamingQueryMetrics.QUERIES_TOTAL, null), equalTo(1L));
+            assertThat(streamingCount(telemetry, StreamingQueryMetrics.QUERIES_TOTAL, StreamingQueryMetrics.OUTCOME_SUCCESS), equalTo(1L));
+            assertThat(streamingCount(telemetry, StreamingQueryMetrics.QUERIES_FAILED_AFTER_HEADER_TOTAL, null), equalTo(0L));
+        });
+    }
+
+    public void testMetricsRecordFailureBeforeHeaderIsNotAFooterError() throws Exception {
+        TestTelemetryPlugin telemetry = coordinatingNodeTelemetry();
+        failActionOnAllNodes(TransportFieldCapabilitiesAction.ACTION_NODE_NAME, "injected field-caps failure for pre-stream metrics test");
+        StreamOutcome outcome = stream(streamBody("FROM " + STREAM_INDEX + " | LIMIT 100"), null, "batch_size=5");
+        assertServerFullyCleanedUp();
+        assertNotEquals("field-caps fault before stream start must produce a non-200 HTTP status", 200, (int) outcome.httpStatus());
+
+        assertBusy(() -> {
+            assertThat(streamingCount(telemetry, StreamingQueryMetrics.QUERIES_TOTAL, null), equalTo(1L));
+            assertThat(streamingCount(telemetry, StreamingQueryMetrics.QUERIES_TOTAL, StreamingQueryMetrics.OUTCOME_FAILURE), equalTo(1L));
+            assertThat(streamingCount(telemetry, StreamingQueryMetrics.QUERIES_FAILED_AFTER_HEADER_TOTAL, null), equalTo(0L));
+        });
+    }
+
+    public void testMetricsRecordFailureAfterHeaderAsFooterError() throws Exception {
+        TestTelemetryPlugin telemetry = coordinatingNodeTelemetry();
+        assertPostStreamFaultBecomesErrorLine(ExchangeService.OPEN_EXCHANGE_ACTION_NAME);
+
+        assertBusy(() -> {
+            assertThat(streamingCount(telemetry, StreamingQueryMetrics.QUERIES_TOTAL, null), equalTo(1L));
+            assertThat(streamingCount(telemetry, StreamingQueryMetrics.QUERIES_TOTAL, StreamingQueryMetrics.OUTCOME_FAILURE), equalTo(1L));
+            assertThat(streamingCount(telemetry, StreamingQueryMetrics.QUERIES_FAILED_AFTER_HEADER_TOTAL, null), equalTo(1L));
+        });
+        assertBusy(() -> {
+            Counters usage = coordinatingNodeUsageCounters();
+            assertThat(usage.get("streaming.queries.by_outcome.failure"), equalTo(1L));
+            assertThat(usage.get("streaming.queries.failed_after_header.total"), equalTo(1L));
+        });
+    }
+
+    public void testMetricsRecordClientAbortAsCancelledNotFooterError() throws Exception {
+        TestTelemetryPlugin telemetry = coordinatingNodeTelemetry();
+        int abortAfterLines = between(2, 6);
+        StreamOutcome outcome = stream(streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000"), (lineIndex, line, control) -> {
+            if (lineIndex == abortAfterLines - 1) {
+                control.abort();
+            }
+        }, "batch_size=2");
+        assertServerFullyCleanedUp();
+        assertTrue("clientAborted flag must be set", outcome.clientAborted());
+
+        assertBusy(() -> {
+            assertThat(streamingCount(telemetry, StreamingQueryMetrics.QUERIES_TOTAL, null), equalTo(1L));
+            assertThat(
+                streamingCount(telemetry, StreamingQueryMetrics.QUERIES_TOTAL, StreamingQueryMetrics.OUTCOME_CANCELLED),
+                equalTo(1L)
+            );
+            assertThat(streamingCount(telemetry, StreamingQueryMetrics.QUERIES_CANCELLED_TOTAL, null), equalTo(1L));
+            assertThat(streamingCount(telemetry, StreamingQueryMetrics.QUERIES_FAILED_AFTER_HEADER_TOTAL, null), equalTo(0L));
+        });
+    }
+
+    private TestTelemetryPlugin coordinatingNodeTelemetry() {
+        List<TestTelemetryPlugin> plugins = internalCluster().getInstance(PluginsService.class, coordinatingNode)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .toList();
+        assertThat(plugins, hasSize(1));
+        return plugins.getFirst();
+    }
+
+    private static long streamingCount(TestTelemetryPlugin telemetry, String counterName, String outcome) {
+        return telemetry.getLongCounterMeasurement(counterName)
+            .stream()
+            .filter(m -> outcome == null || outcome.equals(m.attributes().get(StreamingQueryMetrics.OUTCOME_ATTRIBUTE)))
+            .mapToLong(Measurement::getLong)
+            .sum();
+    }
+
+    private Counters coordinatingNodeUsageCounters() {
+        EsqlStatsResponse response = client(coordinatingNode).execute(EsqlStatsAction.INSTANCE, new EsqlStatsRequest())
+            .actionGet(30, TimeUnit.SECONDS);
+        return response.getNodes()
+            .stream()
+            .filter(node -> coordinatingNode.equals(node.getNode().getName()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no stats returned for node [" + coordinatingNode + "]"))
+            .getStats();
     }
 
     private void assertShardFailureMidStream(boolean allowPartial) throws Exception {

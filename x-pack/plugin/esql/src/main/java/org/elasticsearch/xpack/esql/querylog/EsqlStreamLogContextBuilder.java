@@ -54,6 +54,6 @@ public class EsqlStreamLogContextBuilder extends ActivityLoggerContextBuilder<Es
 
     @Override
     public EsqlLogContext build(Exception e) {
-        return new EsqlLogContext(task, request, elapsed(), e);
+        return new EsqlStreamLogContext(task, request, elapsed(), executionInfo, publisher, e);
     }
 }

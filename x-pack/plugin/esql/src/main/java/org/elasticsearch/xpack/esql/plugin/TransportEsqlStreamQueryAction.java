@@ -414,9 +414,11 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 );
                 planExecutor.metrics().recordTook(tookMillis);
                 transportEsqlQueryAction.collectMetrics(result);
+                planExecutor.streamingQueryMetrics().record(null, executionInfo.isPartial(), true);
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             }, ex -> {
                 transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, ex);
+                planExecutor.streamingQueryMetrics().record(ex, executionInfo.isPartial(), streamStarted.get());
                 if (streamStarted.get()) {
                     publisher.failStream(ex, failureFooter(ex, executionInfo, threadPool.getThreadContext()));
                 }

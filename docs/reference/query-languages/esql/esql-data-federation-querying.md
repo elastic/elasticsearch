@@ -55,7 +55,15 @@ The general query performance advice in [optimize {{esql}} query performance](es
 
 ### Caching
 
-{{es}} caches file metadata (schemas and file listings) so that repeated queries against the same dataset do not re-discover files each time. Cached schemas are invalidated when the underlying files change, so a schema stays cached for as long as it stays correct. There is no schema TTL. Only the file-listing cache uses a TTL (5 minutes by default) configurable through [cluster settings](esql-data-federation-cluster-settings.md).
+{{es}} caches dataset metadata on each node so that repeated queries against the same dataset don't discover files and read file metadata again each time:
+
+- **File listings** are reused for a fixed time before {{es}} lists the storage again. A file added to or removed from the bucket becomes visible once the listing expires.
+- **Inferred schemas** are invalidated when the underlying file changes. {applies_to}`stack: experimental 9.6+` A schema is also reused for at most 20 minutes by default.
+- {applies_to}`stack: experimental 9.6+` **Footers of columnar files**, such as Parquet footers, are reused for 5 minutes by default.
+
+The data in your files is not cached. Every query reads the rows it needs from object storage, so running the same query again or refreshing a dashboard reads the data again.
+
+To change cache sizes and TTLs, refer to [caching settings](esql-data-federation-cluster-settings.md#caching).
 
 ### File discovery limits
 
@@ -180,7 +188,7 @@ Slow queries
 :   {{es}} encrypts credentials before storing them. If the cluster state encryption key is not available, the request returns `503 SERVICE_UNAVAILABLE`. Refer to [credential encryption](esql-data-federation-security.md#credential-encryption) for details.
 
 New files not appearing in query results
-:   {{es}} caches file listings for each dataset. A file added to or removed from the bucket might not show up until the listing cache expires. The default listing cache TTL is 5 minutes. Lower `esql.external.cache.listing.ttl` when new or removed files must be visible sooner. Refer to [cluster settings](esql-data-federation-cluster-settings.md).
+:   {{es}} caches file listings for each dataset. A file added to or removed from the bucket might not show up until the listing cache expires. Lower the listing cache TTL when new or removed files must be visible sooner. Refer to [caching settings](esql-data-federation-cluster-settings.md#caching).
 
 Columns with unexpected types or missing values
 :   When {{es}} infers a dataset's schema from its files, it might infer types differently than you expect. For example, a date column might appear as a keyword if the values do not match the default datetime format. To inspect the inferred field mappings, refer to [check field mappings](esql-data-federation-quickstart.md#check-field-mappings) in the quickstart. [Declare the schema explicitly](esql-data-federation-schema.md#declare-a-schema-explicitly) to control column types, or adjust the `datetime_format` setting for [CSV and TSV](esql-data-federation-dataset-settings.md#csv-datetime-format) or [NDJSON](esql-data-federation-dataset-settings.md#ndjson-datetime-format). If some rows have null values for a column that exists in other files, review [schema inference and resolution](esql-data-federation-schema.md).

@@ -49,26 +49,29 @@ import java.util.function.LongFunction;
  * Coordinator-only, in-memory cache service for external source metadata. Maintains five independent caches, one per kind of fact:
  * <ul>
  *   <li>Per-file schema cache (~20% of budget) — keyed by {@code (dataset identity, path, mtime,
- *       declaredStrict)}. One kind of record: what the file contains. No measurement, and one entry per file.
- *       No time expiry: a changed file has a new mtime, hence a new key.</li>
+ *       answer)}. One kind of record: what the file contains. No measurement, and one entry per file and answer
+ *       (strict-declared, inferred, or inferred from a shared sample of a given depth).
+ *       A changed file has a new mtime, hence a new key; the clock on top of that bounds reuse rather than
+ *       freshness ({@link ExternalSourceCacheSettings#SCHEMA_TTL}).</li>
  *   <li>Statistics cache (~15% of budget) — what ONE read measured about one file, keyed by the file's own
- *       address plus the read that measured it, so one entry per file per read configuration. Its own slice,
+ *       address (less a shared sample's depth) plus the read that measured it, so one entry per file per read
+ *       configuration. Its own slice,
  *       so the measurements cannot evict the schema records they were measured against. Heavier than a schema
  *       record per FILE - a harvested {@code _stats.*} map outweighs the schema it was measured against - but
  *       the smaller SLICE, because schema keeps the fraction it had and this consumer is funded from listing.</li>
  *   <li>Dataset-aggregate cache (~2% of budget) — the memoized whole-dataset row count, keyed by the
- *       file-set fingerprint. No time expiry; kept separate so per-file churn cannot evict it.</li>
+ *       file-set fingerprint, and expiring on the listing clock because that fingerprint is what the listing
+ *       re-validates. Kept separate so per-file churn cannot evict it.</li>
  *   <li>File-metadata cache (count-bounded, listing TTL, five minutes by default) — {@code {length, mtime}}
  *       per path, so a repeated resolve skips the stat. Like listing it is freshness-discovery (it holds the
  *       CURRENT mtime, which gates the identity-keyed caches above), so it keeps that TTL.</li>
  *   <li>Listing cache (~63% of budget, five minutes by default) — the file set under a prefix, isolated by
  *       credential hash. Discovers file identity and has no per-file key to invalidate on, hence the TTL.</li>
  * </ul>
- * The identity-keyed caches (schema, statistics, dataset-aggregate) are bounded by weight + LRU, never by a
- * clock — a timer would only discard still-valid, expensively harvested entries. Each also refuses a single
- * entry heavier than its own per-entry ceiling, so one oversized harvest cannot flush that store's set.
- * The discovery caches (file-metadata, listing) keep a short TTL because they hold current-mtime freshness
- * with no identity key to key on.
+ * The identity-keyed caches are bounded by weight + LRU and by a clock — the schema store from
+ * {@link ExternalSourceCacheSettings#SCHEMA_TTL}, the dataset aggregate from the listing's. The statistics
+ * cache takes none: its measurements are only read beside a schema record. Each store refuses an entry heavier
+ * than its own per-entry ceiling, so one oversized harvest cannot flush its working set.
  */
 public class ExternalSourceCacheService implements Closeable {
 
@@ -84,8 +87,9 @@ public class ExternalSourceCacheService implements Closeable {
     /**
      * The memoized whole-dataset row-count aggregate, keyed by file-set fingerprint. Tiny per entry but
      * expensive to rebuild (a full cold scan), so it gets its OWN cache: sharing the per-file budget let
-     * per-file churn evict it and the warm dataset {@code COUNT} decayed mid-use. No time expiry — the
-     * fingerprint is a correct-or-miss identity key; only weight/LRU reclaims it.
+     * per-file churn evict it and the warm dataset {@code COUNT} decayed mid-use. The fingerprint is a
+     * correct-or-miss identity key, so the clock it carries is not for freshness; it bounds how long the count
+     * stands without the store being asked again.
      */
     private final WeightedStore<DatasetAggregateKey, DatasetAggregate> datasetAggregateStore;
     private final Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache;
@@ -185,6 +189,11 @@ public class ExternalSourceCacheService implements Closeable {
         this.enabled = ExternalSourceCacheSettings.CACHE_ENABLED.get(settings);
 
         TimeValue listingTtl = ExternalSourceCacheSettings.LISTING_TTL.get(settings);
+        // Zero is the documented way to turn the window off, and WeightedStore reads null as "no clock".
+        TimeValue schemaTtlSetting = ExternalSourceCacheSettings.SCHEMA_TTL.get(settings);
+        // Compare nanos, not millis: a sub-millisecond value rounds to zero millis and would silently remove
+        // the clock instead of setting a very short one.
+        TimeValue schemaTtl = schemaTtlSetting.nanos() == 0 ? null : schemaTtlSetting;
 
         // The statistics store is a NEW consumer, not a share of an existing one. Before the split those
         // bytes sat inside the schema record and were charged to the schema slice - but a COLD record never
@@ -209,27 +218,30 @@ public class ExternalSourceCacheService implements Closeable {
         // Each store refuses a single entry heavier than its own per-entry ceiling, so one oversized harvest
         // cannot admit-then-flush that store's working set. See WeightedStore#perEntryCeiling.
 
-        // No setExpireAfterWrite on the schema, statistics or dataset-aggregate stores: identity-keyed (per-file by
-        // mtime, dataset by file-set fingerprint), so a changed input already misses. A timer would only
-        // discard still-valid, expensively harvested entries on a clock. The two discovery caches below
-        // (listing and file-metadata) DO keep the listing TTL — they hold current file identity with no
-        // per-file key to invalidate on, so they must refresh on a clock.
-        this.schemaStore = WeightedStore.of("schema_cache", schemaBudget, SchemaCacheEntry::estimatedBytes, null);
+        // The schema and dataset-aggregate stores expire on write: identity already handles freshness, so the
+        // clock only bounds reuse, and counting from the write means reads cannot postpone it.
+        //
+        // The statistics store takes no clock, and must not: one data source's scan re-puts a record another
+        // one reads, so a clock here would restart on the wrong event.
+        this.schemaStore = WeightedStore.of("schema_cache", schemaBudget, SchemaCacheEntry::estimatedBytes, schemaTtl);
         this.statisticsStore = WeightedStore.of("statistics_cache", statisticsBudget, StatisticsRecord::estimatedBytes, null);
 
         // A constant weigher: the value is one long behind a header, so this store's weight is its entry count
         // times DATASET_AGGREGATE_BYTES and nothing is walked per promote.
+        // The aggregate expires on the LISTING clock, not the schema one. It is keyed by that listing's
+        // file-set fingerprint, so the listing is the only clock the system already re-validates against, and
+        // one row count folded from facts proven across a whole schema window should not then stand for a
+        // second schema window of its own.
         this.datasetAggregateStore = WeightedStore.of(
             "dataset_aggregate_cache",
             datasetAggregateBudget,
             value -> DATASET_AGGREGATE_BYTES,
-            null
+            listingTtl
         );
 
-        // Freshness-discovery, like listing: this holds a file's CURRENT {length, mtime} (the version token
-        // that rebuilds the identity keys), so it must refresh on a clock — it shares the listing TTL. No
-        // byte weigher: entries are tiny and fixed-size, so it is bounded by a generous entry count instead
-        // of the byte budget.
+        // Freshness discovery, like the listing: it holds the CURRENT length and mtime, so it refreshes on the
+        // listing's clock. Keyed by path and storage settings. No byte weigher -- entries are tiny and
+        // fixed-size, so an entry count bounds it.
         this.fileMetadataCache = CacheBuilder.<FileMetadataCacheKey, FileMetadata>builder()
             .setMaximumWeight(FILE_METADATA_CACHE_MAX_ENTRIES)
             .setExpireAfterWrite(listingTtl)
@@ -323,11 +335,9 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
-     * Returns cached {@link FileMetadata} or computes it via the loader. The loader — a single object
-     * probe (mtime + length), on S3 one {@code bytes=-1} GET — is only invoked on a miss. When the cache
-     * is disabled, the loader is called directly (bypassing the cache), so the probe still happens every
-     * query. Mirrors {@link #getOrComputeSchema}: this is the amortization lever that removes the
-     * per-query warm-path metadata probe for single-file sources.
+     * Returns the cached {@code {length, mtime}} for a path, or computes it through the loader on a miss. The
+     * loader asks storage, so an entry's residency here is how long that answer stands in for asking again; see
+     * the clock in the constructor. With the cache disabled the loader runs every time.
      */
     public FileMetadata getOrComputeFileMetadata(FileMetadataCacheKey key, CacheLoader<FileMetadataCacheKey, FileMetadata> loader)
         throws Exception {
@@ -395,8 +405,9 @@ public class ExternalSourceCacheService implements Closeable {
         if (enabled == false || key == null) {
             return null;
         }
-        // Cache.get() already promotes the entry to the LRU head, so a hot dataset stays resident; no re-put
-        // is needed (there is no expireAfterWrite clock to refresh — the dataset cache has no TTL).
+        // Cache.get() promotes the entry to the LRU head, so a hot dataset stays resident against eviction. It
+        // does not touch the write time, so this read does not extend the window the store expires on, which is
+        // the point of counting from the write rather than the access.
         DatasetAggregate aggregate = datasetAggregateStore.get(key);
         return aggregate == null ? null : aggregate.asStatistics();
     }
@@ -910,7 +921,7 @@ public class ExternalSourceCacheService implements Closeable {
         }
         // One whole-cache forEach, filtered to the contribution paths. This cannot be a set of per-path
         // get()s: SchemaCacheKey is a multi-component record (dataset identity, path, mtime,
-        // declaredStrict), so a contribution path alone does not reconstruct a key, and forEach
+        // answer), so a contribution path alone does not reconstruct a key, and forEach
         // is the only path-agnostic enumeration the Cache exposes that is safe against concurrent LRU
         // mutation (keys()/values() walk the lock-free LRU list). The sweep is O(cache) for a multi-path
         // reconcile, but that is the price of capturing each sibling's pre-eviction entry before the first
@@ -1346,6 +1357,9 @@ public class ExternalSourceCacheService implements Closeable {
             delta.fingerprint(),
             fallback
         );
+        // Schema records differing only in their sample depth share one statistics address (see StatisticsKey),
+        // and stripe state accumulates, so each address takes this delta once.
+        Set<StatisticsKey> applied = new HashSet<>();
         for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
             SchemaCacheKey key = match.getKey();
             SchemaCacheEntry schemaRecord = match.getValue();
@@ -1362,6 +1376,9 @@ public class ExternalSourceCacheService implements Closeable {
             // itself for the stripe state, and this comparison keeps a delta off a file whose schema record was
             // resolved under a different read, where the types below would be the wrong ones to coerce against.
             if (Objects.equals(readConfigStampOf(schemaRecord), delta.readConfig()) == false) {
+                continue;
+            }
+            if (applied.add(statsKey) == false) {
                 continue;
             }
             StatisticsRecord priorStats = statisticsStore.get(statsKey);
@@ -1741,6 +1758,12 @@ public class ExternalSourceCacheService implements Closeable {
                 // absence and "" stay indistinguishable to every comparator.
                 Object stamp = mergedStats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
                 String contributionReadConfig = stamp instanceof String str && str.isEmpty() == false ? str : null;
+                // Schema records differing only in their sample depth share one statistics address (see
+                // StatisticsKey), so the writes are collected per address and filed once. Where one record's own
+                // read and another's harvested read land on the same address, the own read wins: it is the same
+                // read, normalised against its own types, and filing the raw harvest over or under it would keep
+                // an extremum the coercion dropped.
+                Map<StatisticsKey, PendingStatistics> pending = new LinkedHashMap<>();
                 for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
                     SchemaCacheKey key = match.getKey();
                     SchemaCacheEntry existing = match.getValue();
@@ -1764,7 +1787,7 @@ public class ExternalSourceCacheService implements Closeable {
                             existing.columnTypes(),
                             true
                         );
-                        fileStatistics(StatisticsKey.of(key, ownRead), statisticsIdentity(existing), coerced);
+                        pending.put(StatisticsKey.of(key, ownRead), new PendingStatistics(statisticsIdentity(existing), coerced));
                     }
 
                     // (2) The read that actually produced this harvest, when it is not the record's own. Stored
@@ -1774,9 +1797,13 @@ public class ExternalSourceCacheService implements Closeable {
                     // dropped, which covers both a refusal and the licensed partial admission that is the
                     // default error mode.
                     if (applicable != mergedStats && Objects.equals(contributionReadConfig, ownRead) == false) {
-                        fileStatistics(StatisticsKey.of(key, contributionReadConfig), statisticsIdentity(existing), mergedStats);
+                        pending.putIfAbsent(
+                            StatisticsKey.of(key, contributionReadConfig),
+                            new PendingStatistics(statisticsIdentity(existing), mergedStats)
+                        );
                     }
                 }
+                pending.forEach((statsKey, write) -> fileStatistics(statsKey, write.identity(), write.measurements()));
             }
         }
     }
@@ -1834,6 +1861,9 @@ public class ExternalSourceCacheService implements Closeable {
      * The identity keys are layered under the measurements and re-taken per write, so accumulation cannot
      * outlive the file version it describes.
      */
+       /** One reconcile write, held until every matching schema record has said what goes to its address. */
+    private record PendingStatistics(Map<String, Object> identity, Map<String, Object> measurements) {}
+
     private void fileStatistics(StatisticsKey key, Map<String, Object> identity, Map<String, Object> measurements) {
         StatisticsRecord prior = statisticsStore.get(key);
         Map<String, Object> merged = new HashMap<>(prior == null ? Map.of() : prior.measurements());
@@ -1933,13 +1963,13 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     // Visible for testing
-    Cache<DatasetAggregateKey, DatasetAggregate> datasetAggregateCache() {
-        return datasetAggregateStore.cache();
+    Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache() {
+        return fileMetadataCache;
     }
 
     // Visible for testing
-    Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache() {
-        return fileMetadataCache;
+    Cache<DatasetAggregateKey, DatasetAggregate> datasetAggregateCache() {
+        return datasetAggregateStore.cache();
     }
 
     // Visible for testing

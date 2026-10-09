@@ -50,9 +50,9 @@ final class WeightedStore<K, V> {
      * @param budgetBytes   this store's slice of the total cache budget
      * @param weigher       the retained size of one value; cheap, because the shared cache calls it twice per
      *                      non-head hit
-     * @param expireAfterWrite a freshness clock, for a store whose contents can go stale without the key
-     *                      changing; {@code null} for an identity-keyed store, where a changed fact derives a
-     *                      different key and the stale entry ages out through the LRU
+     * @param expireAfterWrite how long an entry may be served after it was written, or {@code null} for no
+     *                      clock. Not only a freshness device: an identity-keyed store misses when a fact
+     *                      changes, and a clock on top of that bounds how long a derived record is reused
      */
     static <K, V> WeightedStore<K, V> of(String name, long budgetBytes, ToLongFunction<V> weigher, @Nullable TimeValue expireAfterWrite) {
         CacheBuilder<K, V> builder = CacheBuilder.<K, V>builder().setMaximumWeight(budgetBytes).weigher((k, v) -> weigher.applyAsLong(v));

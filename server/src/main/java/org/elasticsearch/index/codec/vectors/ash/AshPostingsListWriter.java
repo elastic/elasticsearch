@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.vectors.ash;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BitUtil;
@@ -97,6 +98,7 @@ public class AshPostingsListWriter {
         int[] assignments,
         OverspillAssignments overspillAssignments,
         IvfSegmentConfig.AshConfig ashConfig,
+        TaskExecutor quantizerExec,
         VectorSimilarityFunction similarityFunction,
         boolean skipDocIds,
         float[] pretrainedWT,
@@ -126,7 +128,8 @@ public class AshPostingsListWriter {
             AsymmetricHashingQuantizer.Method.LEARNED,
             ashConfig.trainingIterations(),
             effectiveTrainingFactor,
-            42L
+            42L,
+            quantizerExec
         );
 
         int nDims = ashQuantizer.nDims(originalDim);

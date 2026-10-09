@@ -69,7 +69,7 @@ public class CsvErrorPolicyBenchmark {
     @Setup(Level.Trial)
     public void setup() {
         BenchmarkLogging.configure();
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("bench")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         csvData = generateCsv(rowCount, errorFraction);
     }
 

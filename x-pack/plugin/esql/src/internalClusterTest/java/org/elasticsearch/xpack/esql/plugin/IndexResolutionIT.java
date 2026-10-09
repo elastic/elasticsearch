@@ -26,7 +26,10 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -52,7 +55,10 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.concatLists(List.of(MapperExtrasPlugin.class, DataStreamsPlugin.class), super.nodePlugins());
+        return CollectionUtils.concatLists(
+            List.of(MapperExtrasPlugin.class, DataStreamsPlugin.class, TestSystemIndexPlugin.class),
+            super.nodePlugins()
+        );
     }
 
     public void testResolvesConcreteIndex() {
@@ -253,6 +259,30 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testSystemIndices() {
+        assertAcked(client().admin().indices().prepareCreate(TestSystemIndexPlugin.INDEX_NAME));
+        indexRandom(true, TestSystemIndexPlugin.INDEX_NAME, 1);
+        assertAcked(client().admin().indices().prepareCreate("regular-index-1"));
+        indexRandom(true, "regular-index-1", 1);
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + TestSystemIndexPlugin.INDEX_NAME + " METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, TestSystemIndexPlugin.INDEX_NAME);
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM .system-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, TestSystemIndexPlugin.INDEX_NAME); // system matched when prefixed starting with .
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM *-index-1 METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "regular-index-1"); // system indices excluded from wildcard
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM * METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "regular-index-1"); // system indices excluded from wildcard
+        }
+    }
+
     public void testDotPrefixedIndices() {
         assertAcked(client().admin().indices().prepareCreate("regular-index-1"));
         indexRandom(true, "regular-index-1", 1);
@@ -378,5 +408,25 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     private static void assertResultConcreteIndices(EsqlQueryResponse response, Object... indices) {
         assertColumnContainsInAnyOrder(response, MetadataAttribute.INDEX, indices);
+    }
+
+    public static class TestSystemIndexPlugin extends Plugin implements SystemIndexPlugin {
+
+        static final String INDEX_NAME = ".system-index-1";
+
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            return List.of(SystemIndexDescriptorUtils.createUnmanaged(INDEX_NAME + "*", "System index for " + getTestClass().getName()));
+        }
+
+        @Override
+        public String getFeatureName() {
+            return IndexResolutionIT.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "test plugin for system index resolution";
+        }
     }
 }

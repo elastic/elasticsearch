@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
+import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.sampling.SampleListener;
 import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
@@ -33,12 +34,21 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
     private final MultiplicityTracker tracker;
     private final QuerySampler sampler;
     private final List<SampleListener> listeners;
+    private final CostBudget budget;
     private final LongAdder picked = new LongAdder();
 
     public SamplingPipeline(MultiplicityTracker tracker, QuerySampler sampler, List<SampleListener> listeners) {
+        this(tracker, sampler, listeners, new CostBudget(0.0, 0.0));
+    }
+
+    /**
+     * @param budget earns from what the captured searches cost, which is how much exact searching can be afforded
+     */
+    public SamplingPipeline(MultiplicityTracker tracker, QuerySampler sampler, List<SampleListener> listeners, CostBudget budget) {
         this.tracker = tracker;
         this.sampler = sampler;
         this.listeners = List.copyOf(listeners);
+        this.budget = budget;
     }
 
     /**
@@ -50,6 +60,9 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
 
     @Override
     public void accept(CapturedSearch captured) {
+        // a search was captured with the probability it carries, so its time over that probability is an unbiased
+        // estimate of the time of all the searches it stands for, those that were not captured included
+        budget.earn(captured.tookMillis() / captured.captureRate());
         QueryFingerprint fingerprint = QueryFingerprint.of(captured.query());
         TrackedQuery tracked = tracker.record(fingerprint, captured.captureRate());
         if (tracked != null && sampler.offer(tracked)) {

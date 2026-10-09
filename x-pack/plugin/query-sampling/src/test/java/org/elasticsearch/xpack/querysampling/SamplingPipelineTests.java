@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
+import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
 
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -93,6 +95,17 @@ public class SamplingPipelineTests extends ESTestCase {
         assertThat(first.size(), equalTo(1));
         assertThat(last.size(), equalTo(1));
         assertThat(last.get(0), sameInstance(first.get(0)));
+    }
+
+    public void testCapturedSearchesEarnTheTimeOfTheSearchesTheyStandFor() {
+        CostBudget budget = new CostBudget(0.5, 1_000_000);
+        SamplingPipeline pipeline = new SamplingPipeline(tracker, new QuerySampler(1.0, 100, new Random(0L)), List.of(), budget);
+        CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
+
+        // a search of 10 ms captured with a probability of 0.1 stands for ten searches of 10 ms
+        pipeline.accept(new CapturedSearch(query, List.of(), 10, 0.1));
+
+        assertThat(budget.credit(), closeTo(0.5 * 100, 1e-9));
     }
 
     private SamplingPipeline pipeline(Random random) {

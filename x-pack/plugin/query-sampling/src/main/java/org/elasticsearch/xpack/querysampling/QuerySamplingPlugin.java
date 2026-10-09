@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingStatsA
 import org.elasticsearch.xpack.querysampling.capture.CaptureHandoff;
 import org.elasticsearch.xpack.querysampling.capture.QueryCaptureFilter;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
+import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingGroundTruthAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingRecallAction;
 import org.elasticsearch.xpack.querysampling.rest.RestQuerySamplingStatsAction;
@@ -65,6 +66,8 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
     static final String THREAD_POOL_NAME = "query_sampling";
     private static final int QUEUE_SIZE = 1000;
     private static final int MAX_DISTINCT_QUERIES = 100_000;
+    // the most exact searching that can be saved up or owed, in milliseconds of search time
+    private static final double MAX_EXACT_SEARCH_CREDIT_MILLIS = 10_000;
     private static final int WRITE_BATCH_SIZE = 100;
     private static final int MAX_PENDING_WRITES = 1000;
     private static final TimeValue WRITE_INTERVAL = TimeValue.timeValueSeconds(1);
@@ -135,7 +138,9 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         // the values below only stand until the settings are read
         QuerySampler sampler = new QuerySampler(1.0, 100, Randomness.get());
         sampler.watch(clusterSettings);
-        SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of(writer));
+        CostBudget budget = new CostBudget(0.0, MAX_EXACT_SEARCH_CREDIT_MILLIS);
+        budget.watch(clusterSettings);
+        SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of(writer), budget);
         CaptureHandoff handoff = new CaptureHandoff(services.threadPool().executor(THREAD_POOL_NAME), pipeline);
         QueryCaptureFilter filter = new QueryCaptureFilter(clusterSettings, handoff);
         captureFilter.set(filter);

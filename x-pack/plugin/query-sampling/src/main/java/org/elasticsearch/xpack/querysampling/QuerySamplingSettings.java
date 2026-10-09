@@ -77,6 +77,20 @@ public final class QuerySamplingSettings {
     );
 
     /**
+     * The share of the time that live kNN searches take that exact searches may take, which is how much ground truth
+     * a node computes by itself. Exact searches scan the whole index, so this keeps them from competing with the
+     * searches they measure. 0 means that nothing is computed unless it is asked for.
+     */
+    public static final Setting<Double> SAMPLING_COST_RATIO = Setting.doubleSetting(
+        "xpack.query_sampling.sampling_cost_ratio",
+        0.0,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * γ, the scale of the probability with which a query is picked: how likely a query seen for the first time is
      * picked (about 0.69·γ), and how fast that falls as the query is searched more. A bigger value samples more
      * queries, and more of the popular ones.
@@ -122,6 +136,7 @@ public final class QuerySamplingSettings {
             ENABLED,
             CAPTURE_RATE,
             MIN_CAPTURES_PER_HOUR,
+            SAMPLING_COST_RATIO,
             ACCEPTANCE_SCALE,
             HEAD_THRESHOLD,
             MULTIPLICITY_WINDOW,

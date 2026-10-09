@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.querysampling.groundtruth;
 
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
+
 /**
  * How much exact searching a node may do, as a share of what its users' searches cost. Every exact search scans the
  * index, so computing ground truth must not compete with the searches it is meant to measure.
@@ -30,6 +33,13 @@ public final class CostBudget {
     public CostBudget(double ratio, double maxCreditMillis) {
         this.ratio = ratio;
         this.maxCreditMillis = maxCreditMillis;
+    }
+
+    /**
+     * Follows the setting for the ratio, now and when it changes.
+     */
+    public void watch(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(QuerySamplingSettings.SAMPLING_COST_RATIO, this::ratio);
     }
 
     public void ratio(double ratio) {

@@ -7,7 +7,12 @@
 
 package org.elasticsearch.xpack.querysampling.groundtruth;
 
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
+
+import java.util.Set;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -77,6 +82,20 @@ public class CostBudgetTests extends ESTestCase {
         budget.earn(1_000_000);
 
         assertThat(budget.affordable(1, 10), equalTo(0));
+    }
+
+    public void testFollowsTheSettingWhenItChanges() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put(QuerySamplingSettings.SAMPLING_COST_RATIO.getKey(), 0.1).build(),
+            Set.of(QuerySamplingSettings.SAMPLING_COST_RATIO)
+        );
+        CostBudget budget = new CostBudget(0.0, 1000);
+
+        budget.watch(clusterSettings);
+        assertThat("what is set replaces what it was created with", budget.ratio(), equalTo(0.1));
+
+        clusterSettings.applySettings(Settings.builder().put(QuerySamplingSettings.SAMPLING_COST_RATIO.getKey(), 0.4).build());
+        assertThat(budget.ratio(), equalTo(0.4));
     }
 
     public void testTheRatioCanBeChanged() {

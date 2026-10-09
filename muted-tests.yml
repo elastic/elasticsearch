@@ -653,9 +653,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalCountStarUsesShippedSchemaIT
   method: testCountStarAtParallelismOne
   issue: https://github.com/elastic/elasticsearch/issues/161451
-- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
-  method: testPeerRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/161463
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testManyDissectFromRow
   issue: https://github.com/elastic/elasticsearch/issues/161465

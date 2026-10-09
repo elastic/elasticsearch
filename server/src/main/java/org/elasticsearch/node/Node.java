@@ -57,6 +57,7 @@ import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.indices.recovery.BackgroundNetworkQos;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
@@ -258,6 +259,7 @@ public class Node implements Closeable {
         injector.getInstance(AnalyzerMetrics.class).start();
         injector.getInstance(SnapshotMetrics.class).start();
         injector.getInstance(RecoveryMetricsCollector.class).start();
+        injector.getInstance(BackgroundNetworkQos.class).start();
         injector.getInstance(HealthPeriodicLogger.class).start();
         injector.getInstance(PersistentTaskLifecycleManager.class).start();
         nodeService.getMonitorService().start();
@@ -463,6 +465,7 @@ public class Node implements Closeable {
         stopIfStarted(AnalyzerMetrics.class);
         stopIfStarted(SnapshotMetrics.class);
         stopIfStarted(RecoveryMetricsCollector.class);
+        stopIfStarted(BackgroundNetworkQos.class);
 
         pluginLifecycleComponents.forEach(Node::stopIfStarted);
         // we should stop this last since it waits for resources to get released
@@ -517,6 +520,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(IndicesStore.class));
         toClose.add(injector.getInstance(ThrottlingRecoveryService.class));
         toClose.add(injector.getInstance(PeerRecoverySourceService.class));
+        toClose.add(injector.getInstance(BackgroundNetworkQos.class));
         toClose.add(() -> stopWatch.stop().start("cluster"));
         toClose.add(injector.getInstance(ClusterService.class));
         toClose.add(() -> stopWatch.stop().start("node_connections_service"));

@@ -75,7 +75,9 @@ class HardcodedEntitlements {
             FilesEntitlement.FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ).withPlatform(LINUX),
             // // io stats on Linux
             FilesEntitlement.FileData.ofPath(Path.of("/proc/self/mountinfo"), READ).withPlatform(LINUX),
-            FilesEntitlement.FileData.ofPath(Path.of("/proc/diskstats"), READ).withPlatform(LINUX)
+            FilesEntitlement.FileData.ofPath(Path.of("/proc/diskstats"), READ).withPlatform(LINUX),
+            // network stats on Linux
+            FilesEntitlement.FileData.ofPath(Path.of("/proc/net/dev"), READ).withPlatform(LINUX)
         );
         if (pidFile != null) {
             serverModuleFileDatas.add(FilesEntitlement.FileData.ofPath(pidFile, READ_WRITE));

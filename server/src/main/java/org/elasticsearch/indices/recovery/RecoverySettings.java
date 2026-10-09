@@ -433,6 +433,9 @@ public class RecoverySettings {
     private final ByteSizeValue availableDiskReadBandwidth;
     private final ByteSizeValue availableDiskWriteBandwidth;
 
+    @Nullable
+    private volatile BackgroundNetworkQos backgroundNetworkQos;
+
     @SuppressWarnings("this-escape")
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
         this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);
@@ -663,6 +666,26 @@ public class RecoverySettings {
 
     public boolean nodeBandwidthSettingsExist() {
         return nodeBandwidthSettingsExist;
+    }
+
+    /**
+     * The value of {@link #NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING}, or {@link ByteSizeValue#MINUS_ONE} if not set.
+     */
+    public ByteSizeValue getAvailableNetworkBandwidth() {
+        return availableNetworkBandwidth;
+    }
+
+    /**
+     * The node's background network QoS component, or {@code null} if there is none (e.g. in tests). Kept here because every
+     * repository already has the {@link RecoverySettings}.
+     */
+    @Nullable
+    public BackgroundNetworkQos getBackgroundNetworkQos() {
+        return backgroundNetworkQos;
+    }
+
+    public void setBackgroundNetworkQos(BackgroundNetworkQos backgroundNetworkQos) {
+        this.backgroundNetworkQos = backgroundNetworkQos;
     }
 
     public boolean getUseSnapshotsDuringRecovery() {

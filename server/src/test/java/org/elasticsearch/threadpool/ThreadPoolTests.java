@@ -369,6 +369,37 @@ public class ThreadPoolTests extends ESTestCase {
         assertThat(getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofMb(750)), equalTo(10));
         allocatedProcessors = randomIntBetween(1, 16);
         assertThat(getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(4)), equalTo(10));
+        // sized for the upload concurrency ceiling when heap allows
+        allocatedProcessors = randomIntBetween(1, 16);
+        assertThat(
+            getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofMb(749), ByteSizeValue.ofGb(64).getBytes()),
+            equalTo(halfAllocatedProcessorsMaxFive(allocatedProcessors))
+        );
+        assertThat(getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(2), ByteSizeValue.ofGb(8).getBytes()), equalTo(40));
+    }
+
+    public void testSnapshotUploadConcurrencyCeiling() {
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(0L), equalTo(10));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(ByteSizeValue.ofGb(1).getBytes()), equalTo(10));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(ByteSizeValue.ofGb(2).getBytes()), equalTo(10));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(ByteSizeValue.ofGb(4).getBytes()), equalTo(20));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(ByteSizeValue.ofGb(16).getBytes()), equalTo(80));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(ByteSizeValue.ofGb(28).getBytes()), equalTo(140));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(ByteSizeValue.ofGb(64).getBytes()), equalTo(140));
+        assertThat(ThreadPool.getSnapshotUploadConcurrencyCeiling(Long.MAX_VALUE / 100), equalTo(140));
+    }
+
+    public void testDefaultSnapshotConcurrency() {
+        final int snapshotMax = randomIntBetween(1, 200);
+        final ThreadPool threadPool = new TestThreadPool(
+            "test",
+            Settings.builder().put("thread_pool.snapshot.max", snapshotMax).put("thread_pool.snapshot.core", 1).build()
+        );
+        try {
+            assertThat(ThreadPool.getDefaultSnapshotConcurrency(threadPool), equalTo(Math.min(10, snapshotMax)));
+        } finally {
+            terminate(threadPool);
+        }
     }
 
     public void testWriteThreadPoolUsesTaskExecutionTimeTrackingEsThreadPoolExecutor() {

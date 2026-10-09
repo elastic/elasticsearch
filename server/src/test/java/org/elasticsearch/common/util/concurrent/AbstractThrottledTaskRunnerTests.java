@@ -145,6 +145,134 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         assertNoRunningTasks(taskRunner);
     }
 
+    public void testRaisingMaxRunningTasksStartsQueuedTasks() {
+        final int newMax = maxThreads;
+        final int totalTasks = newMax + randomIntBetween(1, 10);
+        final CountDownLatch taskBlocker = new CountDownLatch(1);
+        final CountDownLatch startedCountDown = new CountDownLatch(newMax);
+        final CountDownLatch executedCountDown = new CountDownLatch(totalTasks);
+
+        class TestTask implements ActionListener<Releasable> {
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+
+            @Override
+            public void onResponse(Releasable releasable) {
+                try {
+                    startedCountDown.countDown();
+                    safeAwait(taskBlocker);
+                } finally {
+                    executedCountDown.countDown();
+                    releasable.close();
+                }
+            }
+        }
+
+        final BlockingQueue<TestTask> queue = ConcurrentCollections.newBlockingQueue();
+        final AbstractThrottledTaskRunner<TestTask> taskRunner = new AbstractThrottledTaskRunner<>("test", 1, executor, queue);
+        for (int i = 0; i < totalTasks; i++) {
+            taskRunner.enqueueTask(new TestTask());
+        }
+        assertThat(taskRunner.runningTasks(), equalTo(1));
+        assertThat(queue.size(), equalTo(totalTasks - 1));
+
+        taskRunner.setMaxRunningTasks(newMax);
+        assertThat(taskRunner.getMaxRunningTasks(), equalTo(newMax));
+        // the raise starts queued tasks straight away, without waiting for a running task to finish
+        assertThat(taskRunner.runningTasks(), equalTo(newMax));
+        assertThat(queue.size(), equalTo(totalTasks - newMax));
+        safeAwait(startedCountDown);
+
+        taskBlocker.countDown();
+        safeAwait(executedCountDown);
+        assertTrue(queue.isEmpty());
+        assertNoRunningTasks(taskRunner);
+    }
+
+    public void testLoweringMaxRunningTasksLimitsNewStarts() throws Exception {
+        final int initialMax = maxThreads;
+        final int newMax = randomIntBetween(1, initialMax);
+        final int queuedTasks = newMax + randomIntBetween(1, 10);
+        final CountDownLatch firstBlocker = new CountDownLatch(1);
+        final CountDownLatch secondBlocker = new CountDownLatch(1);
+        final CountDownLatch executedCountDown = new CountDownLatch(initialMax + queuedTasks);
+        final AtomicInteger active = new AtomicInteger();
+        final AtomicInteger maxActive = new AtomicInteger();
+
+        class TestTask implements ActionListener<Releasable> {
+            private final boolean first;
+
+            TestTask(boolean first) {
+                this.first = first;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+
+            @Override
+            public void onResponse(Releasable releasable) {
+                try {
+                    if (first) {
+                        safeAwait(firstBlocker);
+                    } else {
+                        maxActive.accumulateAndGet(active.incrementAndGet(), Math::max);
+                        safeAwait(secondBlocker);
+                        active.decrementAndGet();
+                    }
+                } finally {
+                    executedCountDown.countDown();
+                    releasable.close();
+                }
+            }
+        }
+
+        final BlockingQueue<TestTask> queue = ConcurrentCollections.newBlockingQueue();
+        final AbstractThrottledTaskRunner<TestTask> taskRunner = new AbstractThrottledTaskRunner<>("test", initialMax, executor, queue);
+        for (int i = 0; i < initialMax; i++) {
+            taskRunner.enqueueTask(new TestTask(true));
+        }
+        for (int i = 0; i < queuedTasks; i++) {
+            taskRunner.enqueueTask(new TestTask(false));
+        }
+        assertThat(taskRunner.runningTasks(), equalTo(initialMax));
+        assertThat(queue.size(), equalTo(queuedTasks));
+
+        taskRunner.setMaxRunningTasks(newMax);
+        // running tasks are not interrupted
+        assertThat(taskRunner.runningTasks(), equalTo(initialMax));
+        assertThat(queue.size(), equalTo(queuedTasks));
+
+        firstBlocker.countDown();
+        // as the first tasks finish only newMax of the queued tasks start
+        assertBusy(() -> {
+            assertThat(active.get(), equalTo(newMax));
+            assertThat(taskRunner.runningTasks(), equalTo(newMax));
+            assertThat(queue.size(), equalTo(queuedTasks - newMax));
+        });
+        assertThat(maxActive.get(), equalTo(newMax));
+
+        secondBlocker.countDown();
+        safeAwait(executedCountDown);
+        assertThat(maxActive.get(), lessThanOrEqualTo(newMax));
+        assertTrue(queue.isEmpty());
+        assertNoRunningTasks(taskRunner);
+    }
+
+    public void testSetMaxRunningTasksRejectsNonPositive() {
+        final AbstractThrottledTaskRunner<ActionListener<Releasable>> taskRunner = new AbstractThrottledTaskRunner<>(
+            "test",
+            1,
+            executor,
+            ConcurrentCollections.newBlockingQueue()
+        );
+        expectThrows(IllegalArgumentException.class, () -> taskRunner.setMaxRunningTasks(randomIntBetween(Integer.MIN_VALUE, 0)));
+        assertThat(taskRunner.getMaxRunningTasks(), equalTo(1));
+    }
+
     public void testRunSyncTasksEagerly() {
         final int maxTasks = randomIntBetween(1, maxThreads);
         final int taskCount = between(maxTasks, maxTasks * 2);

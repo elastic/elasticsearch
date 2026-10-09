@@ -34,12 +34,23 @@ public class PrioritizedThrottledTaskRunner<T extends AbstractRunnable & Compara
         runner.enqueueTask(new TaskWrapper<>(task));
     }
 
-    // Only use for testing
+    public int getMaxRunningTasks() {
+        return runner.getMaxRunningTasks();
+    }
+
+    /**
+     * Changes the max number of concurrently running tasks, see {@link AbstractThrottledTaskRunner#setMaxRunningTasks}.
+     */
+    public void setMaxRunningTasks(int maxRunningTasks) {
+        runner.setMaxRunningTasks(maxRunningTasks);
+    }
+
+    // Used by tests and for monitoring
     public int runningTasks() {
         return runner.runningTasks();
     }
 
-    // Only use for testing
+    // Used by tests and for monitoring
     public int queueSize() {
         return runner.queueSize();
     }

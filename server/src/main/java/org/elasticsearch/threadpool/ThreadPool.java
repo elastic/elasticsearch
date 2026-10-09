@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.telemetry.metric.Instrument;
@@ -694,18 +695,54 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         return ((allocatedProcessors * 3) / 2) + 1;
     }
 
+    /**
+     * The SNAPSHOT pool max on nodes with at least 750MB of heap before the upload concurrency controller existed. Every SNAPSHOT pool
+     * user other than the shard snapshot upload runner keeps this concurrency, see {@link #getDefaultSnapshotConcurrency}.
+     */
+    public static final int DEFAULT_SNAPSHOT_CONCURRENCY = 10;
+
+    /**
+     * Upper bound for {@link #getSnapshotUploadConcurrencyCeiling}: stays below the serverless object store client's default
+     * {@code max_connections} of 150 so that uploads do not wait on connections and leave some for other object store traffic.
+     */
+    static final int MAX_SNAPSHOT_UPLOAD_CONCURRENCY = 140;
+
     public static int getMaxSnapshotThreadPoolSize(int allocatedProcessors) {
         final ByteSizeValue maxHeapSize = ByteSizeValue.ofBytes(Runtime.getRuntime().maxMemory());
-        return getMaxSnapshotThreadPoolSize(allocatedProcessors, maxHeapSize);
+        return getMaxSnapshotThreadPoolSize(allocatedProcessors, maxHeapSize, OsProbe.getInstance().getTotalPhysicalMemorySize());
     }
 
     static int getMaxSnapshotThreadPoolSize(int allocatedProcessors, final ByteSizeValue maxHeapSize) {
+        return getMaxSnapshotThreadPoolSize(allocatedProcessors, maxHeapSize, 0L);
+    }
+
+    static int getMaxSnapshotThreadPoolSize(int allocatedProcessors, final ByteSizeValue maxHeapSize, long totalMemoryBytes) {
         // While on larger data nodes, larger snapshot threadpool size improves snapshotting on high latency blob stores,
         // smaller instances can run into OOM issues and need a smaller snapshot threadpool size.
         if (maxHeapSize.compareTo(ByteSizeValue.of(750, ByteSizeUnit.MB)) < 0) {
             return halfAllocatedProcessorsMaxFive(allocatedProcessors);
         }
-        return 10;
+        // Sized so the adaptive shard snapshot upload runner can reach its ceiling. Other users stay at DEFAULT_SNAPSHOT_CONCURRENCY.
+        return getSnapshotUploadConcurrencyCeiling(totalMemoryBytes);
+    }
+
+    /**
+     * The most shard snapshot uploads a node may run at once: 10 for the smallest (2GiB) node, scaled linearly with node memory, capped
+     * at {@link #MAX_SNAPSHOT_UPLOAD_CONCURRENCY}. Never below {@link #DEFAULT_SNAPSHOT_CONCURRENCY}, e.g. when memory is unknown.
+     *
+     * @param totalMemoryBytes total node memory (the container limit when running in a container), or 0 if unknown
+     */
+    public static int getSnapshotUploadConcurrencyCeiling(long totalMemoryBytes) {
+        final long scaled = DEFAULT_SNAPSHOT_CONCURRENCY * Math.max(totalMemoryBytes, 0L) / ByteSizeUnit.GB.toBytes(2);
+        return Math.clamp(scaled, DEFAULT_SNAPSHOT_CONCURRENCY, MAX_SNAPSHOT_UPLOAD_CONCURRENCY);
+    }
+
+    /**
+     * Concurrency for SNAPSHOT pool users other than the shard snapshot upload runner: today's limit of
+     * {@link #DEFAULT_SNAPSHOT_CONCURRENCY}, or less if the pool is smaller.
+     */
+    public static int getDefaultSnapshotConcurrency(ThreadPool threadPool) {
+        return Math.min(DEFAULT_SNAPSHOT_CONCURRENCY, threadPool.info(Names.SNAPSHOT).getMax());
     }
 
     static class ThreadedRunnable implements Runnable {

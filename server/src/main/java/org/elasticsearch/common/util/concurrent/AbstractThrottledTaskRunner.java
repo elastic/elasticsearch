@@ -29,8 +29,9 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     private static final Logger logger = LogManager.getLogger(AbstractThrottledTaskRunner.class);
 
     private final String taskRunnerName;
-    // The max number of tasks that this runner will schedule to concurrently run on the executor.
-    private final int maxRunningTasks;
+    // The max number of tasks that this runner will schedule to concurrently run on the executor. May be changed at runtime, see
+    // setMaxRunningTasks: a decrease takes effect as running tasks finish, so runningTasks may briefly exceed it.
+    private volatile int maxRunningTasks;
     // As we fork off dequeued tasks to the given executor, technically the following counter represents
     // the number of the concurrent pollAndSpawn calls currently checking the queue for a task to run. This
     // doesn't necessarily correspond to currently running tasks, since a pollAndSpawn could return without
@@ -49,6 +50,23 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
 
     public String getTaskRunnerName() {
         return taskRunnerName;
+    }
+
+    public int getMaxRunningTasks() {
+        return maxRunningTasks;
+    }
+
+    /**
+     * Changes the max number of concurrently running tasks. An increase starts queued tasks straight away; a decrease takes effect as
+     * running tasks finish.
+     */
+    public void setMaxRunningTasks(final int maxRunningTasks) {
+        if (maxRunningTasks <= 0) {
+            throw new IllegalArgumentException("maxRunningTasks must be positive but was [" + maxRunningTasks + "]");
+        }
+        this.maxRunningTasks = maxRunningTasks;
+        // Spawn queued tasks into any new free slots. Harmless after a decrease since there are no free slots then.
+        pollAndSpawn();
     }
 
     /**
@@ -160,9 +178,10 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
 
     // Each worker thread that runs a task, first needs to get a "free slot" in order to respect maxRunningTasks.
     private boolean incrementRunningTasks() {
-        int preUpdateValue = runningTasks.getAndAccumulate(maxRunningTasks, (v, maxRunning) -> v < maxRunning ? v + 1 : v);
-        assert preUpdateValue <= maxRunningTasks;
-        return preUpdateValue < maxRunningTasks;
+        // read the volatile once; preUpdateValue may exceed it after setMaxRunningTasks lowered it
+        final int maxRunning = maxRunningTasks;
+        int preUpdateValue = runningTasks.getAndAccumulate(maxRunning, (v, max) -> v < max ? v + 1 : v);
+        return preUpdateValue < maxRunning;
     }
 
     int runningTasks() {

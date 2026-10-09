@@ -134,12 +134,12 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         // Abort notification may release the last store ref, closing the shard, so we do them in the background on a generic thread.
         this.notifyOnAbortTaskRunner = new ThrottledTaskRunner(
             "notify-on-abort",
-            threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
+            ThreadPool.getDefaultSnapshotConcurrency(threadPool),
             threadPool.generic()
         );
         this.startShardSnapshotTaskRunner = new ThrottledTaskRunner(
             "start-shard-snapshots",
-            threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
+            ThreadPool.getDefaultSnapshotConcurrency(threadPool),
             threadPool.executor(ThreadPool.Names.SNAPSHOT)
         );
     }

@@ -313,6 +313,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.monitor;
     exports org.elasticsearch.monitor.fs;
     exports org.elasticsearch.monitor.jvm;
+    exports org.elasticsearch.monitor.network;
     exports org.elasticsearch.monitor.os;
     exports org.elasticsearch.monitor.process;
     exports org.elasticsearch.node;

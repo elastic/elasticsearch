@@ -45,11 +45,13 @@ import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -151,6 +153,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
@@ -2484,12 +2487,33 @@ public class TransportSearchActionTests extends ESTestCase {
             randomIntBetween(1, 3),
             randomIntBetween(0, 2)
         );
-        final ClusterState notReady = ClusterStateCreationUtils.stateWithUnassignedPrimariesAndReplicas(
+        final int notReadyShards = randomIntBetween(2, 3);
+        final ClusterState notReady = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
             projectId,
             new String[] { "not-ready" },
-            randomIntBetween(1, 3),
-            List.of()
+            notReadyShards,
+            randomIntBetween(0, 2)
         );
+        // Leave one shard with no active searchable copy. readyForSearch() requires every shard to have one.
+        final int unreadyShardId = randomIntBetween(0, notReadyShards - 1);
+        final IndexRoutingTable assigned = notReady.routingTable(projectId).index("not-ready");
+        final IndexRoutingTable.Builder notReadyRouting = IndexRoutingTable.builder(assigned.getIndex());
+        for (int shardId = 0; shardId < assigned.size(); shardId++) {
+            IndexShardRoutingTable shardRoutingTable = assigned.shard(shardId);
+            for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = shardRoutingTable.shard(copy);
+                if (shardId == unreadyShardId) {
+                    notReadyRouting.addShard(
+                        shardRouting.moveToUnassigned(
+                            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+                            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                        )
+                    );
+                } else {
+                    notReadyRouting.addShard(shardRouting);
+                }
+            }
+        }
         final ClusterState clusterState = ClusterState.builder(ready)
             .metadata(
                 Metadata.builder(ready.metadata())
@@ -2500,10 +2524,7 @@ public class TransportSearchActionTests extends ESTestCase {
             )
             .routingTable(
                 GlobalRoutingTable.builder(ready.globalRoutingTable())
-                    .put(
-                        projectId,
-                        RoutingTable.builder(ready.routingTable(projectId)).add(notReady.routingTable(projectId).index("not-ready"))
-                    )
+                    .put(projectId, RoutingTable.builder(ready.routingTable(projectId)).add(notReadyRouting.build()))
                     .build()
             )
             .blocks(
@@ -2513,12 +2534,15 @@ public class TransportSearchActionTests extends ESTestCase {
             )
             .build();
 
+        assertThat(clusterState.routingTable(projectId).index("ready").readyForSearch(), equalTo(true));
+        assertThat(clusterState.routingTable(projectId).index("not-ready").readyForSearch(), equalTo(false));
+
         String[] actual = TransportSearchAction.ignoreBlockedIndices(
             clusterState.projectState(projectId),
             new String[] { "ready", "not-ready" }
         );
 
-        assertThat(Arrays.asList(actual), containsInAnyOrder("ready"));
+        assertThat(actual, arrayContaining("ready"));
     }
 
     public void testCcsClusterInfoUpdateInternalCancel_UpdatesStatus() {

@@ -3681,6 +3681,14 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, the cap on the number of fields discovered in {@code _source} is the cluster
+         * setting {@code esql.query.unmapped_fields.load_all_max_fields}. Needed by tests that set it, which older nodes would reject
+         * as an unknown setting.
+         * See https://github.com/elastic/elasticsearch/issues/161340.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,
@@ -3923,6 +3931,12 @@ public class EsqlCapabilities {
          * {@code WHERE _slice ==} / {@code LIKE} / {@code RLIKE} filters.
          */
         METADATA_SLICE(SliceIndexing.SLICE_FEATURE_FLAG),
+
+        /**
+         * A source reads the slices selected by a {@code _slice == <literal>} or {@code _slice IN (<literals>)} condition that
+         * filters it before any {@code LIMIT} or {@code STATS}. A knn function fails on a slice-enabled index without one.
+         */
+        SLICE_SELECTION_FROM_FILTER(SliceIndexing.SLICE_FEATURE_FLAG),
 
         /**
          * Support for the {@code _class} and {@code _name} metadata fields: {@code _class} is the kind

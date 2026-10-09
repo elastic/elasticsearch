@@ -122,12 +122,17 @@ public final class ExternalSourceDrainUtils {
     ) {
         Object token = new Object();
         if (session.run.compareAndSet(null, token) == false) {
-            failDrain(session, listener, new IllegalStateException("overlapping drain run"));
+            recordDrainError(session, new IllegalStateException("overlapping drain run"));
             return;
         }
         try {
             StorageRetryCancellation.runWithCancellation(readCancelled, () -> {
                 while (buffer.noMoreInputs() == false && stop.getAsBoolean() == false) {
+                    Exception overlap = session.error.get();
+                    if (overlap != null) {
+                        failDrain(session, listener, overlap);
+                        return;
+                    }
                     SubscribableListener<Void> ready = pages.waitForReady();
                     if (ready.isDone() == false) {
                         park(ready, null, pages, buffer, executor, readCancelled, stop, pageSink, listener, session, token);
@@ -159,6 +164,12 @@ public final class ExternalSourceDrainUtils {
                         completeDrain(session, listener);
                         return;
                     }
+                    overlap = session.error.get();
+                    if (overlap != null) {
+                        page.releaseBlocks();
+                        failDrain(session, listener, overlap);
+                        return;
+                    }
 
                     SubscribableListener<Void> space = buffer.waitForSpace();
                     if (space.isDone() == false) {
@@ -171,6 +182,11 @@ public final class ExternalSourceDrainUtils {
                         break;
                     }
                     pageSink.accept(page);
+                }
+                Exception overlap = session.error.get();
+                if (overlap != null) {
+                    failDrain(session, listener, overlap);
+                    return;
                 }
                 completeDrain(session, listener);
             });
@@ -275,13 +291,20 @@ public final class ExternalSourceDrainUtils {
         }
     }
 
+    /** Overlap records here; the token holder calls {@link #failDrain} after it drops the page. */
+    static void recordDrainError(DrainSession session, Exception e) {
+        session.error.compareAndSet(null, e);
+    }
+
     /**
      * One drain session: exclusive run plus at-most-once completion. No queued/dirty mailbox;
      * each signal is one force-executed submit. {@code run} holds the current drainBatch token.
+     * {@code error} is a stashed overlap until the holder notifies.
      */
     static final class DrainSession {
         final AtomicReference<Object> run = new AtomicReference<>();
         final AtomicBoolean completed = new AtomicBoolean();
+        final AtomicReference<Exception> error = new AtomicReference<>();
     }
 
 }

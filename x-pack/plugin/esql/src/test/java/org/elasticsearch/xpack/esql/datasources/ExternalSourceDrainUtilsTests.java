@@ -1203,6 +1203,16 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
         assertFalse(failer.isAlive());
     }
 
+    public void testRecordDrainErrorDoesNotNotifyUntilHolderFails() {
+        ExternalSourceDrainUtils.DrainSession session = new ExternalSourceDrainUtils.DrainSession();
+        AtomicInteger failures = new AtomicInteger();
+        ActionListener<Void> listener = ActionListener.wrap(v -> fail("success"), e -> failures.incrementAndGet());
+        ExternalSourceDrainUtils.recordDrainError(session, new IllegalStateException("overlapping drain run"));
+        assertEquals(0, failures.get());
+        ExternalSourceDrainUtils.failDrain(session, listener, session.error.get());
+        assertEquals(1, failures.get());
+    }
+
     // ===== Helpers =====
 
     private static CloseableIterator<Page> trackingClose(CloseableIterator<Page> delegate, AtomicInteger closeCount) {

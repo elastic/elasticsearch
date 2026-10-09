@@ -4231,6 +4231,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         AtomicInteger removeAsync = new AtomicInteger();
         BlockingAdvanceReader reader = new BlockingAdvanceReader(inDrain, resumeDrain, closes);
         AtomicInteger submits = new AtomicInteger();
+        CountDownLatch duplicateRan = new CountDownLatch(1);
         ExecutorService ioExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "u6-overlap-io"));
         ExecutorService producerExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "u6-overlap-prod"));
         try {
@@ -4238,10 +4239,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 reader,
                 new StubMultiFileStorageProvider(),
                 ioExec,
-                duplicateNthSubmit(producerExec, 2, inDrain, submits),
+                duplicateNthSubmit(producerExec, 2, inDrain, duplicateRan, submits),
                 removeAsync
             );
             assertTrue(inDrain.await(10, TimeUnit.SECONDS));
+            assertTrue(duplicateRan.await(10, TimeUnit.SECONDS));
             resumeDrain.countDown();
             finishOperator(operator);
             assertBusy(() -> assertEquals(1, removeAsync.get()));
@@ -4266,6 +4268,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         AtomicInteger removeAsync = new AtomicInteger();
         AtomicInteger submits = new AtomicInteger();
         PermitHoldingReader reader = new PermitHoldingReader(inOpen, resumeOpen, opens);
+        CountDownLatch duplicateRan = new CountDownLatch(1);
         ExecutorService ioExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "u10-io"));
         ExecutorService producerExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "u10-prod"));
         try {
@@ -4273,10 +4276,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 reader,
                 new LeasedTextStorageProvider(limiter, budget, "hello".getBytes(StandardCharsets.UTF_8)),
                 ioExec,
-                duplicateNthSubmit(producerExec, 1, inOpen, submits),
+                duplicateNthSubmit(producerExec, 1, inOpen, duplicateRan, submits),
                 removeAsync
             );
             assertTrue(inOpen.await(10, TimeUnit.SECONDS));
+            assertTrue(duplicateRan.await(10, TimeUnit.SECONDS));
             assertEquals("lost open holds one node permit", max - 1, limiter.availablePermits());
             assertEquals(1, budget.inFlight());
             resumeOpen.countDown();
@@ -4302,6 +4306,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         AtomicInteger removeAsync = new AtomicInteger();
         AtomicInteger submits = new AtomicInteger();
         ThrowingAfterSignalReader reader = new ThrowingAfterSignalReader(inOpen, resumeOpen, opens);
+        CountDownLatch duplicateRan = new CountDownLatch(1);
         ExecutorService ioExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "bug1-io"));
         ExecutorService producerExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "bug1-prod"));
         try {
@@ -4309,10 +4314,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 reader,
                 new StubMultiFileStorageProvider(),
                 ioExec,
-                duplicateNthSubmit(producerExec, 1, inOpen, submits),
+                duplicateNthSubmit(producerExec, 1, inOpen, duplicateRan, submits),
                 removeAsync
             );
             assertTrue(inOpen.await(10, TimeUnit.SECONDS));
+            assertTrue(duplicateRan.await(10, TimeUnit.SECONDS));
             resumeOpen.countDown();
             finishOperator(operator);
             assertEquals(1, opens.get());
@@ -6461,7 +6467,13 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         return factory.get(driverContext);
     }
 
-    private static Executor duplicateNthSubmit(ExecutorService inner, int n, CountDownLatch entered, AtomicInteger submits) {
+    private static Executor duplicateNthSubmit(
+        ExecutorService inner,
+        int n,
+        CountDownLatch entered,
+        CountDownLatch duplicateRan,
+        AtomicInteger submits
+    ) {
         return command -> {
             int i = submits.incrementAndGet();
             inner.execute(command);
@@ -6469,7 +6481,17 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 Thread duplicator = new Thread(() -> {
                     try {
                         if (entered.await(10, TimeUnit.SECONDS)) {
-                            inner.execute(command);
+                            CountDownLatch ran = new CountDownLatch(1);
+                            inner.execute(() -> {
+                                try {
+                                    command.run();
+                                } finally {
+                                    ran.countDown();
+                                }
+                            });
+                            if (ran.await(10, TimeUnit.SECONDS)) {
+                                duplicateRan.countDown();
+                            }
                         }
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();

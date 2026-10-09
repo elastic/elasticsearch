@@ -32,8 +32,6 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 
-import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
-
 /**
  * Builds and writes ASH-encoded posting lists for IVF segments.
  * <p>
@@ -58,6 +56,13 @@ public class AshPostingsListWriter {
      * training, since the inherited matrix is already a good starting basis.
      */
     private static final int WARM_START_REFINE_ITERATIONS = 1;
+
+    /**
+     * Training benefits from a relatively large bulk size, due to the training being represented as a matrix
+     * Performing a single large multiplication at once is generally better than several smaller multiplications,
+     * especially if the matrices are large - then the data needs to be read from RAM less often
+     */
+    private static final int BULK_SIZE = 512;
 
     private AshProjectionMatrix ashProjectionMatrix;
 

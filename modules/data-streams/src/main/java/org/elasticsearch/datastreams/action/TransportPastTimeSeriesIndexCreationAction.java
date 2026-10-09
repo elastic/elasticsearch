@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -107,7 +107,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
         MetadataCreateDataStreamService createDataStreamService,
         ProjectResolver projectResolver,
         TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator,
-        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings
+        DataStreamLifecycleSettings dataStreamLifecycleSettings
     ) {
         super(
             PastTimeSeriesIndexCreationAction.NAME,
@@ -127,7 +127,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             createDataStreamService,
             projectResolver,
             timeSeriesEligibleWriteWindowLocator,
-            dataStreamGlobalRetentionSettings
+            dataStreamLifecycleSettings
         );
         pastTimeSeriesIndexCreationExecutor.init();
         this.taskQueue = clusterService.createTaskQueue(
@@ -211,7 +211,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
         private final MetadataCreateDataStreamService createDataStreamService;
         private final ProjectResolver projectResolver;
         private final TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator;
-        private final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings;
+        private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
         private long indexIntervalMillis;
 
         PastTimeSeriesIndexCreationExecutor(
@@ -221,14 +221,14 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             MetadataCreateDataStreamService createDataStreamService,
             ProjectResolver projectResolver,
             TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator,
-            DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings
+            DataStreamLifecycleSettings dataStreamLifecycleSettings
         ) {
             this.clusterService = clusterService;
             this.allocationService = allocationService;
             this.createDataStreamService = createDataStreamService;
             this.projectResolver = projectResolver;
             this.timeSeriesEligibleWriteWindowLocator = timeSeriesEligibleWriteWindowLocator;
-            this.dataStreamGlobalRetentionSettings = dataStreamGlobalRetentionSettings;
+            this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
             this.indexIntervalMillis = PAST_TSDB_INDEX_INTERVAL.get(settings).millis();
         }
 
@@ -254,7 +254,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                         : timeSeriesEligibleWriteWindowLocator.getEligibleWriteWindowStart(
                             dataStream,
                             projectMetadata,
-                            dataStreamGlobalRetentionSettings.get(),
+                            dataStreamLifecycleSettings.getGlobalRetention(),
                             task.requestStartTimestamp()
                         );
                     state = executeTask(

@@ -561,6 +561,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             null,
             false,
+            false,
             false
         );
 
@@ -605,6 +606,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             null,
             false,
+            false,
             false
         );
 
@@ -648,6 +650,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             null,
             false,
+            false,
             false
         );
 
@@ -681,6 +684,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             null,
             false,
+            false,
             false
         );
 
@@ -711,6 +715,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             true,
             null,
+            false,
             false,
             false
         );
@@ -749,6 +754,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             null,
             false,
+            false,
             false
         );
     }
@@ -770,6 +776,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             true,
             null,
+            false,
             false,
             false
         );

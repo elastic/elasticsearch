@@ -20,17 +20,25 @@ import java.util.Set;
 public enum ResolutionDemand {
 
     /**
-     * No rows are read from this path, so resolution owes it a schema and nothing else. The only state that may
-     * bound a listing; how far the bound goes is the dataset's resolution mode, not the query's.
+     * No rows are read from this path, so resolution owes it a schema and nothing else. It bounds a listing
+     * wherever the dataset's mode allows one, which {@link #ROWS} now does too: what a schema costs is the
+     * dataset's business, and a query that discards every row asks no less of it than one that reads five.
      */
     SCHEMA_DISCOVERY,
 
-    /** Rows are read. Resolution produces the full file set, because split discovery takes it from the plan. */
+    /**
+     * Rows are read. Resolution still lists only as far as the schema needs, and the files this query reads are
+     * discovered by split discovery, which lists the dataset itself when what resolution held was a prefix.
+     */
     ROWS,
 
     /**
-     * An ungrouped aggregate answerable from file metadata: resolution reads every footer up front and split
+     * An ungrouped aggregate answerable from file metadata: resolution reads footers up front and split
      * discovery is skipped. The footers it reads are ones a later phase would have read anyway.
+     * <p>
+     * Elected from the query's shape alone, so it is asked of formats that cannot answer it. The gather
+     * then stops once a read would feed neither the fold nor the schema cache; see
+     * {@code remainingReadsBuyNothing}.
      */
     EAGER_STATS;
 
@@ -50,7 +58,11 @@ public enum ResolutionDemand {
         return this == EAGER_STATS;
     }
 
-    /** Whether resolution may stop listing once it has what the schema needs. */
+    /**
+     * Whether the query discards every row from this path. No longer decides how far a listing runs - the
+     * dataset's mode does that - and its one remaining caller is the declared rail's coercibility check, which a
+     * query reading no rows never performs the cast for.
+     */
     public boolean isSchemaDiscovery() {
         return this == SCHEMA_DISCOVERY;
     }

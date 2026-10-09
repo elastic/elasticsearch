@@ -12,8 +12,9 @@ package org.elasticsearch.lucene.queries;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
+import org.elasticsearch.columnar.ColumnarStringAnyOfQuery;
 import org.elasticsearch.columnar.ColumnarStringAutomatonQuery;
-import org.elasticsearch.columnar.ColumnarStringMatchQuery;
+import org.elasticsearch.columnar.ColumnarStringRangeQuery;
 import org.elasticsearch.columnar.ColumnarStringTermQuery;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
@@ -37,8 +38,8 @@ public class BinaryDocValuesQueriesTests extends ESTestCase {
     private static List<Shape> shapes() {
         return List.of(
             new Shape("term", q -> q.term(FIELD, new BytesRef("a")), ColumnarStringTermQuery.class),
-            new Shape("terms", q -> q.terms(FIELD, List.of(new BytesRef("a"), new BytesRef("b"))), ColumnarStringMatchQuery.class),
-            new Shape("range", q -> q.range(FIELD, new BytesRef("a"), new BytesRef("b"), true, false), ColumnarStringMatchQuery.class),
+            new Shape("terms", q -> q.terms(FIELD, List.of(new BytesRef("a"), new BytesRef("b"))), ColumnarStringAnyOfQuery.class),
+            new Shape("range", q -> q.range(FIELD, new BytesRef("a"), new BytesRef("b"), true, false), ColumnarStringRangeQuery.class),
             // A prefix is a run the column can bisect, so it never becomes an automaton.
             new Shape("prefix", q -> q.prefix(FIELD, "a", false), ColumnarStringTermQuery.class),
             new Shape("prefix ci", q -> q.prefix(FIELD, "a", true), ColumnarStringAutomatonQuery.class),
@@ -57,11 +58,14 @@ public class BinaryDocValuesQueriesTests extends ESTestCase {
 
     private record Shape(String name, Function<BinaryDocValuesQueries, Query> build, Class<? extends Query> columnar) {}
 
+    /** Both framings the column holds, payload and single-valued alike, are answered by it. */
     public void testColumnarFormatReachesTheColumn() {
-        final BinaryDocValuesQueries queries = BinaryDocValuesQueries.forFormat(BinaryDocValuesFormat.COLUMNAR_PAYLOAD);
-        for (Shape shape : shapes()) {
-            final Query query = shape.build().apply(queries);
-            assertEquals(shape.name(), shape.columnar(), query.getClass());
+        for (BinaryDocValuesFormat format : List.of(BinaryDocValuesFormat.COLUMNAR_PAYLOAD, BinaryDocValuesFormat.PLAIN)) {
+            final BinaryDocValuesQueries queries = BinaryDocValuesQueries.forFormat(format);
+            for (Shape shape : shapes()) {
+                final Query query = shape.build().apply(queries);
+                assertEquals(format + " " + shape.name(), shape.columnar(), query.getClass());
+            }
         }
     }
 
@@ -106,6 +110,25 @@ public class BinaryDocValuesQueriesTests extends ESTestCase {
             () -> ScanningBinaryDocValuesQueries.forFormat(BinaryDocValuesFormat.COLUMNAR_PAYLOAD)
         );
         assertThat(e.getMessage(), containsString("not by scanning"));
+    }
+
+    /**
+     * A scanning query built directly for a column is refused where it is built, not where it would first scan, for
+     * every framing the column answers.
+     */
+    public void testAScanningQueryRefusesAColumn() {
+        for (BinaryDocValuesFormat format : List.of(BinaryDocValuesFormat.COLUMNAR_PAYLOAD, BinaryDocValuesFormat.PLAIN)) {
+            final IllegalArgumentException term = expectThrows(
+                IllegalArgumentException.class,
+                () -> new ScanningBinaryDocValuesTermQuery(FIELD, new BytesRef("a"), format)
+            );
+            assertThat(format.toString(), term.getMessage(), containsString("is not answered by scanning"));
+            final IllegalArgumentException length = expectThrows(
+                IllegalArgumentException.class,
+                () -> new BinaryDocValuesLengthQuery(FIELD, 1, format)
+            );
+            assertThat(format.toString(), length.getMessage(), containsString("is not answered by scanning"));
+        }
     }
 
     /** A description stands in for a predicate, so two equal queries share a cache entry. */

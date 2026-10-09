@@ -157,6 +157,14 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("ml/jobs_get_stats/Test get job stats for closed job", "Flush API is deprecated")
     task.skipTest("ml/jobs_get_stats/Test reading v54 data counts and model size stats", "Version 5.4 support removed")
     task.skipTest("ml/inference_crud/Test deprecation of include model definition param", "Query parameter removed")
+    task.skipTest(
+      "ml/datafeeds_crud/Test put and update datafeed with max_consecutive_extraction_failures",
+      "Feature #159554 reverted from 9.6; field no longer supported"
+    )
+    task.skipTest(
+      "ml/datafeeds_crud/Test put datafeed with invalid max_consecutive_extraction_failures",
+      "Feature #159554 reverted from 9.6; field no longer supported"
+    )
     task.skipTest("ml/post_data/Test flush and close job WITHOUT sending any data", "Flush API is deprecated")
     task.skipTest("ml/post_data/Test flush with skip_time", "Flush API is deprecated")
     task.skipTest("ml/post_data/Test POST data job api, flush, close and verify DataCounts doc", "Flush API is deprecated")
@@ -165,6 +173,7 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("esql/90_non_indexed/fetch", "Temporary until backported")
     task.skipTest("esql/63_enrich_int_range/Invalid age as double", "TODO: require disable allow_partial_results")
     task.skipTest("esql/191_lookup_join_on_datastreams/data streams not supported in LOOKUP JOIN", "Added support for aliases in JOINs")
+    task.skipTest("esql/160_union_types/CASE", "CASE now reports the multivalue condition warning the same way other functions do")
     task.skipTest("esql/190_lookup_join/non-lookup index", "Error message changed")
     task.skipTest("esql/190_lookup_join/fails with non-lookup index", "Error message changed")
     task.skipTest("esql/192_lookup_join_on_aliases/alias-pattern-multiple", "Error message changed")
@@ -195,6 +204,7 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("aggregate-metrics/40_avg_agg/Test avg agg with query", "Default metric cannot be defined, so the query is empty")
     task.skipTest("aggregate-metrics/30_sum_agg/Test sum agg with query", "Default metric cannot be defined, so the query is empty")
     task.skipTest("aggregate-metrics/50_value_count_agg/Test value_count agg with query", "Default metric cannot be defined, so the query is empty")
+    task.skipTest("esql/120_profile/documents found", "Skip empty node_reduce driver")
     // Malformed values are now stored in binary doc values (sorted) instead of stored fields (insertion order).
     task.skipTest(
       "analytics/histogram/histogram with synthetic source and ignore_malformed",

@@ -84,6 +84,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -95,6 +96,7 @@ import static org.hamcrest.Matchers.not;
  * Negative tests for subquery analysis in {@code FROM} (and the related {@code ViewUnionAll}/{@code UnionAll} planning), or those don't
  * fit the golden tests. The successful plan-shape (positive) tests over real CSV datasets now live in {@code AnalyzerSubqueryGoldenTests}.
  */
+// @TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
 public class AnalyzerSubqueryTests extends AnalyzerTestCase {
 
     public AnalyzerSubqueryTests(VersionMode versionMode) {
@@ -734,6 +736,60 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         filter.condition().forEachDown(Attribute.class, attribute -> {
             if (attribute.name().contains("converted_to")) {
                 converted.add(attribute);
+            }
+        });
+        assertThat(converted, hasSize(2));
+        assertEquals(converted.get(0).id(), converted.get(1).id());
+    }
+
+    /**
+     * With {@code unmapped_fields="nullify"} the unmapped {@code does_not_exist} only resolves once {@code ResolveUnmapped} has run,
+     * so the {@code EVAL} above the {@code WHERE} resolves one Resolution pass later than the {@code WHERE}'s own conversion.
+     * {@code ResolveUnionTypesInUnionAll} has already pushed {@code TO_STRING(client_ip)} into the branches by then; the later,
+     * equal conversion must be replaced with that same union output attribute instead of pushing another same-named alias.
+     */
+    public void testSameConversionResolvedOnLaterPassOverSubqueryUnionNullify() {
+        requireNullifySupport();
+        assertSameConversionResolvedOnLaterPassOverSubqueryUnion("nullify");
+    }
+
+    /**
+     * Same as {@link #testSameConversionResolvedOnLaterPassOverSubqueryUnionNullify}, with the unmapped field loaded instead.
+     */
+    public void testSameConversionResolvedOnLaterPassOverSubqueryUnionLoad() {
+        assertSameConversionResolvedOnLaterPassOverSubqueryUnion("load");
+    }
+
+    /**
+     * Same trigger as {@link #testSameConversionResolvedOnLaterPassOverSubqueryUnionNullify}, under {@code LOAD_ALL}.
+     * The subquery union is allowed, so analysis has to terminate and reuse the converted attribute.
+     */
+    public void testSameConversionResolvedOnLaterPassOverSubqueryUnionLoadAll() {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        assertSameConversionResolvedOnLaterPassOverSubqueryUnion("LOAD_ALL");
+    }
+
+    private void assertSameConversionResolvedOnLaterPassOverSubqueryUnion(String unmappedFields) {
+        LogicalPlan plan = analyzer().addSampleData().statement(LoggerMessageFormat.format(null, """
+            SET unmapped_fields="{}";
+            FROM (FROM sample_data), (FROM sample_data)
+            | WHERE TO_STRING(client_ip) == "172.21.3.15" OR does_not_exist IS NOT NULL
+            | EVAL ip = TO_STRING(client_ip)
+            | LIMIT 5
+            """, unmappedFields));
+
+        List<Attribute> converted = new ArrayList<>();
+        plan.forEachDown(p -> {
+            if ((p instanceof Filter || p instanceof Eval) && p.anyMatch(UnionAll.class::isInstance)) {
+                p.forEachExpression(
+                    AbstractConvertFunction.class,
+                    convert -> fail("conversion left unreplaced above the subquery union: " + convert)
+                );
+                p.forEachExpression(Attribute.class, attribute -> {
+                    if (attribute.name().contains("converted_to")) {
+                        converted.add(attribute);
+                    }
+                });
             }
         });
         assertThat(converted, hasSize(2));
@@ -1759,21 +1815,6 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             """, containsString("Column [emp_no] has conflicting data types in subqueries: [integer, long]"));
     }
 
-    public void testForkAfterNineSubqueryBranches() {
-        analyzer().addDefaultIndex().error("""
-            FROM test, (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test)
-            | FORK (WHERE true) (WHERE true)
-            """, containsString("FORK after subquery is not supported"));
-    }
-
-    /**
-     * Analyzes a subquery query over two external datasets ({@code salaries_int}/{@code salaries_long}) that share
-     * {@code emp_no}/{@code name} but type {@code salary} differently ({@code integer} vs {@code long}). Mirrors the
-     * production pipeline: {@link DatasetRewriter} turns each {@code FROM <dataset>} into the
-     * {@code UnresolvedExternalRelation} the {@code EXTERNAL} command produces, which the analyzer resolves against the
-     * configured external source schemas — so a dataset branch is backed by an {@link ExternalRelation}, exactly like a
-     * real dataset subquery. The plan is analyzed (not optimized) to match the neighbouring tests.
-     */
     /**
      * The outer {@code METADATA} request must not be applied until the subquery's output is final.
      * A body ending in {@code KEEP *} still exposes an unresolved star when the Initialize batch runs, so
@@ -1881,6 +1922,175 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
                 nullFilledClientIps.contains(converted.id())
             );
         }
+    }
+
+    // consecutive forks are not supported yet
+    public void testConsecutiveForksInMainQuery() {
+        analyzer().addEmployees("test").error("""
+            FROM test
+            | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
+            | FORK (WHERE salary > 100) (WHERE salary <= 100)
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    public void testConsecutiveForksInsideInSubquery() {
+        analyzer().addEmployees("test").error("""
+            FROM test
+            | WHERE emp_no IN (
+                FROM test
+                | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
+                | FORK (WHERE salary > 100) (WHERE salary <= 100)
+                | KEEP emp_no
+            )
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    public void testNestedForksInMainQuery() {
+        analyzer().addEmployees("test").error("""
+                FROM test
+                | FORK (FORK (WHERE emp_no > 10) (WHERE emp_no <= 10))
+                       (WHERE emp_no > 100)
+                | KEEP emp_no
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    public void testNestedForksInsideInSubquery() {
+        analyzer().addEmployees("test").error("""
+            FROM test
+            | WHERE emp_no IN (
+                FROM test
+                | FORK (FORK (WHERE emp_no > 10) (WHERE emp_no <= 10))
+                       (WHERE emp_no > 100)
+                | KEEP emp_no
+            )
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    public void testForkBeforeAndAfterInSubqueryInMainQuery() {
+        analyzer().addEmployees("test").error("""
+            FROM test
+            | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
+            | WHERE emp_no IN (FROM test | KEEP emp_no)
+            | FORK (WHERE salary > 100) (WHERE salary <= 100)
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    public void testForkInsideAndAfterFork() {
+        String message = analyzer().addEmployees("test").error("""
+                FROM test
+                | FORK
+                  (FORK (FORK (WHERE emp_no > 10) (WHERE emp_no <= 10))
+                        (WHERE emp_no > 50))
+                  (WHERE emp_no > 100)
+                | KEEP emp_no
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    // TODO a single subquery is promoted as the main query, so this query behaves similarly as consecutive FORKs in the main query.
+    // once consecutive FORKs are supported, this query will be supported as well, but for now it is rejected. Alternatively find a way to
+    // differentiate this case from the consecutive FORKs.
+    public void testConsecutiveForksWithFromSubquery() {
+        analyzer().addEmployees("test").error("""
+            FROM (
+                FROM test
+                | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
+            )
+            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    // TODO a single subquery is promoted as the main query, so this query behaves similarly as consecutive FORKs in the main query.
+    // once consecutive FORKs are supported, this query will be supported as well, but for now it is rejected. Alternatively find a way to
+    // differentiate this case from the consecutive FORKs.
+    public void testConsecutiveForksWithNestedView() {
+        analyzer().addEmployees("test").addView("fork_view", "FROM test | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)").error("""
+            FROM fork_view
+            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    /**
+     * TODO FORK alignment fills a dropped column with {@code null[T]} using the pre-widen type. After implicit date/date_nanos widening the
+     *  sibling branch is {@code date_nanos} while the filler stays {@code datetime}. {@code alignMergeOutputToChildren} does not update the
+     *  FORK output when children disagree, so {@code checkFork} reports the conflict. The following test can complete successfully if
+     *  filling the dropped column as {@code date_nanos}.
+     */
+
+    public void testForkNullFillsImplicitDateNanosCastColumnInFirstBranch() {
+        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | FORK (KEEP message) (KEEP @timestamp, message)
+            | KEEP @timestamp, _fork
+            """, allOf(containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
+    }
+
+    public void testForkNullFillsImplicitDateNanosCastColumnInSecondBranch() {
+        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | FORK (KEEP @timestamp, message) (KEEP message)
+            | KEEP @timestamp, _fork
+            """, allOf(containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
+    }
+
+    public void testForkNullFillsImplicitDateNanosCastColumnAfterNestedSubquery() {
+        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
+            FROM sample_data, (FROM sample_data_ts_nanos, (FROM sample_data))
+            | FORK (KEEP @timestamp) (KEEP message)
+            | KEEP @timestamp, _fork
+            """, allOf(containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
+    }
+
+    public void testForkNullFillsImplicitDateNanosCastColumnWithEval() {
+        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | FORK (EVAL x = @timestamp) (WHERE true)
+            | KEEP x, _fork
+            """, allOf(containsString("Column [x] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
+    }
+
+    public void testForkNullFillsImplicitDateNanosCastColumnWithStats() {
+        analyzer().addSampleData()
+            .addIndex(sampleDataTsNanosIndex())
+            .error(
+                """
+                    FROM sample_data, (FROM sample_data_ts_nanos)
+                    | FORK (STATS m = MAX(@timestamp)) (WHERE true | KEEP @timestamp)
+                    | KEEP m, @timestamp
+                    """,
+                allOf(
+                    containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]"),
+                    containsString("Column [m] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")
+                )
+            );
+    }
+
+    public void testForkNullFillsAtEveryLevelOfNestedUnionAlls() {
+        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
+            FROM (FROM (FROM sample_data, (FROM sample_data_ts_nanos)
+                        | FORK (KEEP @timestamp, message) (KEEP message)),
+                       (FROM sample_data | KEEP @timestamp, message)
+                  | FORK (EVAL t = @timestamp) (KEEP message)),
+                 (FROM sample_data_ts_nanos | KEEP @timestamp, message)
+            | RENAME t AS u
+            | KEEP @timestamp, u, message, _fork
+            | SORT @timestamp, u
+            """, allOf(containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
+    }
+
+    public void testForkNullFillsInsideAndAfterUnionAllThroughViews() {
+        analyzer().addSampleData()
+            .addIndex(sampleDataTsNanosIndex())
+            .addView(
+                "fork_over_union_view",
+                "FROM sample_data, (FROM sample_data_ts_nanos) | FORK (KEEP @timestamp, message) (KEEP message)"
+            )
+            .error("""
+                FROM (FROM fork_over_union_view, (FROM sample_data | KEEP @timestamp, message)
+                          | FORK (WHERE message IS NOT NULL) (KEEP message)),
+                         (FROM sample_data | KEEP @timestamp, message)
+                    | KEEP @timestamp, message, _fork
+                    | SORT @timestamp
+                """, containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]"));
     }
 
     private LogicalPlan analyzeExternalDatasetSubquery(String query) {
@@ -2032,15 +2242,17 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      * so we reuse {@code mapping-sample_data.json} (as {@link TestAnalyzer#addSampleData()} does) instead of re-declaring the fields.
      */
     private static EsIndex sampleDataTsLongIndex() {
+        return sampleDataIndexWithTimestampType("sample_data_ts_long", LONG);
+    }
+
+    private static EsIndex sampleDataTsNanosIndex() {
+        return sampleDataIndexWithTimestampType("sample_data_ts_nanos", DataType.DATE_NANOS);
+    }
+
+    private static EsIndex sampleDataIndexWithTimestampType(String name, DataType timestampType) {
         Map<String, EsField> mapping = new LinkedHashMap<>(loadMapping("mapping-sample_data.json"));
-        mapping.put("@timestamp", new EsField("@timestamp", LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
-        return new EsIndex(
-            "sample_data_ts_long",
-            mapping,
-            Map.of("sample_data_ts_long", new IndexProperties(IndexMode.STANDARD, 0)),
-            Map.of(),
-            Map.of()
-        );
+        mapping.put("@timestamp", new EsField("@timestamp", timestampType, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        return new EsIndex(name, mapping, Map.of(name, new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of());
     }
 
     /**

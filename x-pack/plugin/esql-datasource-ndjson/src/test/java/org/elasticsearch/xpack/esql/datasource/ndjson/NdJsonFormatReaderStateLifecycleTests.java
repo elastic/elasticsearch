@@ -40,7 +40,7 @@ import java.util.TreeSet;
 public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("noop"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     /**
@@ -53,6 +53,7 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         "settings",
         "resolvedSchema",
         "schemaSampleSize",
+        "schemaMaxFields",
         "segmentSizeBytes",
         "datetimeFormatter",
         "declaredDateFormats",
@@ -93,6 +94,8 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         "withDeclaredTypeColumns",
         WitherLifecycle.IDENTITY_NO_COPY,
         "withDeclaredProvenanceBinding",
+        WitherLifecycle.SHARES_COUNTERS,
+        "withHeaderBindingByProvenance",
         WitherLifecycle.IDENTITY_NO_COPY
     );
 
@@ -247,6 +250,7 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
             case "withPushedFilter" -> new Object[] { new Object() };
             case "withDeclaredTypeColumns" -> new Object[] { Set.of("a") };
             case "withDeclaredProvenanceBinding" -> new Object[] { true };
+            case "withHeaderBindingByProvenance" -> new Object[] { true };
             default -> throw new AssertionError("update sampleArgsFor() for new wither: " + wither);
         };
     }

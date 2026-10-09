@@ -122,8 +122,37 @@ public class DateFunctionComparisonRewriterTests extends ESTestCase {
     public void testDispatchUsesRegisteredClassNotHardcodedName() {
         assertEquals("date_extract", REGISTRY.functionName(DateExtract.class));
         assertEquals("date_trunc", REGISTRY.functionName(DateTrunc.class));
+        assertEquals("year", REGISTRY.functionName(Year.class));
+        assertEquals("month", REGISTRY.functionName(Month.class));
+        assertEquals("day", REGISTRY.functionName(Day.class));
+        assertEquals("hour", REGISTRY.functionName(Hour.class));
         assertEquals(REGISTRY.functionName(DateExtract.class), REGISTRY.resolveAlias("DATE_EXTRACT"));
         assertEquals(REGISTRY.functionName(DateTrunc.class), REGISTRY.resolveAlias("DATE_TRUNC"));
+        assertEquals(REGISTRY.functionName(Year.class), REGISTRY.resolveAlias("YEAR"));
+    }
+
+    public void testYearFoldsDatetimeLiteral() {
+        Literal folded = foldLiteral("YEAR", List.of(datetime(JULY_13_2026_UTC)), utc());
+        assertEquals(DataType.LONG, folded.dataType());
+        assertEquals(2026L, folded.value());
+        assertEquals(SRC, folded.source());
+    }
+
+    public void testYearFoldsKeywordIso() {
+        Literal folded = foldLiteral("year", List.of(keyword("2024-01-01T00:00:00Z")), utc());
+        assertEquals(2024L, folded.value());
+    }
+
+    public void testMonthDayHourFold() {
+        Literal date = datetime(JULY_13_2026_UTC);
+        assertEquals(7L, foldLiteral("MONTH", List.of(date), utc()).value());
+        assertEquals(13L, foldLiteral("DAY", List.of(date), utc()).value());
+        assertEquals(0L, foldLiteral("HOUR", List.of(date), utc()).value());
+        assertEquals(6L, foldLiteral("MONTH", List.of(keyword("2024-06-15")), utc()).value());
+    }
+
+    public void testYearUnresolvedFieldUnchanged() {
+        assertUnchanged("YEAR", List.of(new UnresolvedAttribute(SRC, "start")), utc());
     }
 
     public void testDateExtractDateNanosLiteral() {

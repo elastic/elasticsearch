@@ -12,7 +12,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
@@ -28,6 +27,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.ConcurrentMultipartHelper;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -44,7 +44,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
-import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
@@ -102,7 +101,6 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.function.BiFunction;
@@ -216,7 +214,19 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 Settings.Builder builder = Settings.builder()
                     .put(super.createRepositorySettings(bucket, client, basePath, multiPartThreshold));
                 if (multiPartThreshold != null) {
-                    builder.put(AZURE_MULTIPART_THRESHOLD_SETTING_KEY, multiPartThreshold.getStringRep());
+                    // Azure has both the part size and threshold settings so we update both of them.
+                    // This has the same effect as other repositories.
+                    builder.put(AZURE_MULTIPART_THRESHOLD_SETTING_KEY, multiPartThreshold);
+                    // Azure part size has a maximum value of 100 MB which is substantially different
+                    // from other cloud providers.
+                    // We don't want to hard fail and prevent nodes from starting if it is set to > 100 MB.
+                    // Instead, we will clamp it to 100 MB.
+                    if (multiPartThreshold.getMb() > 100) {
+                        logger.warn("Clamping Azure multipart upload part size to 100 MB instead of requested " + multiPartThreshold);
+                        builder.put(AZURE_MULTIPART_PART_SIZE_SETTING_KEY, ByteSizeValue.ofMb(100));
+                    } else {
+                        builder.put(AZURE_MULTIPART_PART_SIZE_SETTING_KEY, multiPartThreshold);
+                    }
                 }
                 return builder.build();
             }
@@ -363,6 +373,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     static final String S3_MULTIPART_THRESHOLD_SETTING_KEY = "buffer_size";
     static final String GCS_MULTIPART_THRESHOLD_SETTING_KEY = "multipart_upload_chunk_size";
     static final String AZURE_MULTIPART_THRESHOLD_SETTING_KEY = "max_single_part_upload_size";
+    static final String AZURE_MULTIPART_PART_SIZE_SETTING_KEY = "multipart_upload_part_size";
 
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
 
@@ -1258,49 +1269,30 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         assert projectResolver.supportsMultipleProjects() == false || assertShardsAreInSameProject(source, destination);
 
         var sourceShardContainer = getProjectBlobContainer(source);
-
         var blobContainersWithTerms = getContainersToSearch(sourceShardContainer, primaryTerm);
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
+
+        record BlobCopyTask(BlobContainer src, BlobContainer dst, BlobMetadata blob) {}
+        final List<BlobCopyTask> tasks = new ArrayList<>();
+        for (var blobContainerWithTerm : blobContainersWithTerms) {
+            var sourceContainerForTerm = blobContainerWithTerm.v2();
+            Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
+            var destinationContainerForTerm = getProjectBlobContainer(destination, blobContainerWithTerm.v1());
+            for (BlobMetadata blob : blobs.values()) {
+                tasks.add(new BlobCopyTask(sourceContainerForTerm, destinationContainerForTerm, blob));
+            }
+        }
+
         final Executor executor = threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL);
-        try (var listeners = new RefCountingListener(future)) {
-            for (var blobContainerWithTerm : blobContainersWithTerms) {
-                var sourceContainerForTerm = blobContainerWithTerm.v2();
-                Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
-                var destinationContainerForTerm = getProjectBlobContainer(destination, blobContainerWithTerm.v1());
-                for (BlobMetadata blob : blobs.values()) {
-                    executor.execute(ActionRunnable.run(listeners.acquire(), () -> {
-                        try {
-                            task.ensureNotCancelled();
-                            logger.debug(
-                                "CopyShard copying {} from {} to {}",
-                                blob.name(),
-                                sourceContainerForTerm.path(),
-                                destinationContainerForTerm.path()
-                            );
-                            destinationContainerForTerm.copyBlob(
-                                OperationPurpose.RESHARDING,
-                                sourceContainerForTerm,
-                                blob.name(),
-                                blob.name(),
-                                blob.length(),
-                                null
-                            );
-                        } catch (NoSuchFileException e) {
-                            logger.warn("missing blob during copyShard, assuming benign race [{}]", blob.name());
-                        }
-                    }));
-                }
+        ConcurrentMultipartHelper.runConcurrentTasks(tasks.size(), executor, i -> {
+            var t = tasks.get(i);
+            task.ensureNotCancelled();
+            logger.debug("CopyShard copying {} from {} to {}", t.blob().name(), t.src().path(), t.dst().path());
+            try {
+                t.dst().copyBlob(OperationPurpose.RESHARDING, t.src(), t.blob().name(), t.blob().name(), t.blob().length(), null);
+            } catch (NoSuchFileException e) {
+                logger.warn("missing blob during copyShard, assuming benign race [{}]", t.blob().name());
             }
-        }
-        try {
-            future.actionGet();
-        } catch (UncategorizedExecutionException uee) {
-            // FutureUtils.rethrowExecutionException only directly rethrows RuntimeException causes
-            if (uee.getCause() instanceof ExecutionException ee && ee.getCause() instanceof IOException ioe) {
-                throw ioe;
-            }
-            throw uee;
-        }
+        });
     }
 
     /**

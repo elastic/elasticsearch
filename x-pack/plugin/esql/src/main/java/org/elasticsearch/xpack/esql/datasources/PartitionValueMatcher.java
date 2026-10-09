@@ -64,6 +64,19 @@ public final class PartitionValueMatcher {
         return keep;
     }
 
+    /**
+     * Whether one decoded folder value survives {@code hints} when typed alone. {@code null} (the Hive NULL
+     * partition) and an undecidable comparison are kept. Sibling folders are not consulted: the flat listing
+     * decides per file, so a discovery cap counts only files that remain. Level-wide typing stays with
+     * {@link #matchesFolders}, which the walk can afford because it already buffered the directory.
+     */
+    public static boolean keepsIsolated(@Nullable String raw, List<PartitionFilterHint> hints) {
+        if (raw == null || hints.isEmpty()) {
+            return true;
+        }
+        return matchesFolders(List.of(raw), hints)[0];
+    }
+
     /** Whether {@code hint} definitively excludes this typed value; unknown is not exclusion. */
     private static boolean excludes(Object typed, PartitionFilterHint hint) {
         Boolean matches = matches(typed, hint);
@@ -189,6 +202,38 @@ public final class PartitionValueMatcher {
             return compareNumbers(na, nb) == 0;
         }
         return stringOf(a).equals(stringOf(b));
+    }
+
+    /**
+     * Three-valued equality for the split matcher. A kind mismatch or {@link Kind#OTHER} (an
+     * {@link java.time.Instant} from a date column) is unknown — keep — rather than string-comparing
+     * {@code Instant.toString()} to a keyword folder. {@link #compareEquals} stays two-valued;
+     * {@link #matches} kind-guards before calling it.
+     */
+    @Nullable
+    static Boolean equalIfComparable(Object a, Object b) {
+        Kind ka = kindOf(a);
+        Kind kb = kindOf(b);
+        if (ka != kb || ka == Kind.OTHER) {
+            return null;
+        }
+        return compareEquals(a, b);
+    }
+
+    /**
+     * Ordered comparison for the split matcher. A kind mismatch or {@link Kind#OTHER} (an {@link java.time.Instant}
+     * from a date column, for example) is undecidable — keep the file — rather than ordering {@code Instant.toString()}
+     * against a keyword folder. {@link #compareValues} itself still coerces number-vs-text for callers that already
+     * know both sides are comparable.
+     */
+    @Nullable
+    static Integer orderedCompare(Object a, Object b) {
+        Kind ka = kindOf(a);
+        Kind kb = kindOf(b);
+        if (ka != kb || ka == Kind.OTHER) {
+            return null;
+        }
+        return compareValues(a, b);
     }
 
     static int compareValues(Object a, Object b) {

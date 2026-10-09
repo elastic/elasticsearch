@@ -145,6 +145,7 @@ import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAc
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -3914,12 +3915,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // Wait until old source shard is stuck copying
         safeAwait(relocateLatch);
 
-        var targetShardNodeId = new AtomicReference<String>();
-        awaitClusterState(state -> {
-            targetShardNodeId.set(state.routingTable().index(indexName).shard(1).primaryShard().currentNodeId());
-            return targetShardNodeId.get() != null;
-        });
-        var targetShardNode = nodeIdsToNames().get(targetShardNodeId.get());
+        var state = waitForClusterState(s -> s.routingTable().index(indexName).shard(1).primaryShard().currentNodeId() != null).actionGet(
+            SAFE_AWAIT_TIMEOUT
+        );
+        var targetShardNodeId = state.routingTable().index(indexName).shard(1).primaryShard().currentNodeId();
+        var targetShardNode = nodeIdsToNames().get(targetShardNodeId);
         assertNotEquals(sourceShardOldNode, targetShardNode);
         var sourceShardNewNode = indexNodes.stream()
             .filter(node -> node.equals(sourceShardOldNode) == false && node.equals(targetShardNode) == false)
@@ -5608,9 +5608,9 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
     /**
      * Verifies that the search shard for a reshard split target has cache warming triggered during recovery. Before the
      * {@link SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING} feature, the new shard had no prior
-     * active copy, so {@link SharedBlobCacheWarmingService#searchRecoveryTimeout} returned skip() (fire-and-forget). Now it blocks until
-     * warming completes. This test asserts WARMING_COMPLETE is recorded, and that post-reshard searches trigger no blob-store reads due
-     * to cache misses on the SEARCH executor.
+     * active copy, so {@link SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout} returned skip() (fire-and-forget).
+     * Now it blocks until warming completes. This test asserts WARMING_COMPLETE is recorded, and that post-reshard searches trigger no
+     * blob-store reads due to cache misses on the SEARCH executor.
      * <p>
      * After SPLIT, {@code delete-unowned} on the split target creates new {@code .liv} (live-docs) segment files. Those are fetched from
      * the indexing node ({@link CachePopulationSource#Peer}), not from the object store, so they are excluded from the assertion by

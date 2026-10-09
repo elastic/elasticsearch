@@ -22,6 +22,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -663,6 +664,14 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         }
         if (argClass == EsIndex.class) {
             return randomEsIndex();
+        }
+        if (argClass == SliceSelection.class) {
+            // a record, which cannot be mocked
+            return randomFrom(
+                SliceSelection.UNSPECIFIED,
+                SliceSelection.ALL,
+                SliceSelection.of(randomList(1, 3, () -> randomAlphaOfLengthBetween(1, 8)))
+            );
         }
         if (argClass == IndexProperties.class) {
             IndexMode mode = randomFrom(IndexMode.availableModes());

@@ -127,7 +127,7 @@ public final class QueryFailureTelemetry {
             case STORE_THROTTLED -> DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_THROTTLED;
             case STORE_UNAVAILABLE, OBJECT_CHANGED -> DataSourceUsageAccumulator.ERROR_TYPE_STORAGE_UNAVAILABLE;
             case MALFORMED_DATA -> DataSourceUsageAccumulator.ERROR_TYPE_FORMAT;
-            case LOCAL_CAPACITY -> DataSourceUsageAccumulator.ERROR_TYPE_RESOURCE_LIMIT;
+            case LOCAL_CAPACITY, SCHEMA_TOO_WIDE -> DataSourceUsageAccumulator.ERROR_TYPE_RESOURCE_LIMIT;
             case METADATA_UNAVAILABLE, LISTING_FAILED -> DataSourceUsageAccumulator.ERROR_TYPE_DISCOVERY;
             case CLIENT_BUG -> DataSourceUsageAccumulator.ERROR_TYPE_OTHER;
         };

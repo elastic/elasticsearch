@@ -103,6 +103,42 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         assertEquals(2, merged.size());
     }
 
+    /**
+     * Pre-warm coalescing: gap must be at most the useful bytes already merged (and at most
+     * {@link CoalescedRangeReader#DEFAULT_MAX_COALESCE_GAP}). Adjacent small ranges merge;
+     * a gap larger than the useful bytes does not, even when it is under 1 MiB.
+     */
+    public void testPreWarmMergeBoundsWasteToUsefulBytes() {
+        List<ByteRange> adjacent = List.of(new ByteRange(0, 100), new ByteRange(150, 100));
+        List<MergedRange> mergedAdjacent = CoalescedRangeReader.mergeRanges(adjacent, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP, true);
+        assertEquals(1, mergedAdjacent.size());
+        assertEquals(0, mergedAdjacent.get(0).offset());
+        assertEquals(250, mergedAdjacent.get(0).length());
+
+        List<ByteRange> largeGap = List.of(new ByteRange(0, 100), new ByteRange(100 + 200_000, 100));
+        List<MergedRange> mergedLargeGap = CoalescedRangeReader.mergeRanges(largeGap, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP, true);
+        assertEquals(2, mergedLargeGap.size());
+        List<MergedRange> defaultMerge = CoalescedRangeReader.mergeRanges(largeGap, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP);
+        assertEquals("1 MiB gap rule still merges these index-sized ranges", 1, defaultMerge.size());
+
+        List<ByteRange> gapEqualsUseful = List.of(new ByteRange(0, 100), new ByteRange(200, 100));
+        assertEquals(1, CoalescedRangeReader.mergeRanges(gapEqualsUseful, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP, true).size());
+        List<ByteRange> gapJustOverUseful = List.of(new ByteRange(0, 100), new ByteRange(201, 100));
+        assertEquals(2, CoalescedRangeReader.mergeRanges(gapJustOverUseful, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP, true).size());
+
+        // Overlapping constituents cover 150 unique bytes, not 200. A following 151-byte gap
+        // must refuse; a summed-length usefulBytes of 200 would incorrectly admit it.
+        List<ByteRange> overlapThenGap = List.of(new ByteRange(0, 100), new ByteRange(50, 100), new ByteRange(301, 50));
+        List<MergedRange> mergedOverlap = CoalescedRangeReader.mergeRanges(
+            overlapThenGap,
+            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
+            true
+        );
+        assertEquals(2, mergedOverlap.size());
+        assertEquals(150, mergedOverlap.get(0).length());
+        assertEquals(301, mergedOverlap.get(1).offset());
+    }
+
     public void testMergeSingleRange() {
         List<ByteRange> ranges = List.of(new ByteRange(500, 200));
         List<MergedRange> merged = CoalescedRangeReader.mergeRanges(ranges, 1024);

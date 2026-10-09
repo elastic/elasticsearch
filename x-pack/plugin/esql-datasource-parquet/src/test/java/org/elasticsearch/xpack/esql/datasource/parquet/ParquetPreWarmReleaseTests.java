@@ -8,12 +8,17 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.internal.hadoop.metadata.IndexReference;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.io.api.Binary;
@@ -23,6 +28,8 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
@@ -38,6 +45,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.NodeByteBudgetService;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -70,9 +78,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Guards the dictionary pre-warm floor on small row groups (esql-planning#2270).
@@ -145,6 +155,20 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
                 if (used >= window) {
                     overWindow.add(kib + " KiB");
                 }
+                if (kib == 512 || kib == 1024 || kib == 2048) {
+                    long useful = dictionaryBloomAndIndexBytes(file);
+                    long bound = 2 * useful + ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE;
+                    assertThat(
+                        "pre-warm GETs at "
+                            + kib
+                            + " KiB row groups should be <= 2x dict/bloom/index + one footer read; useful="
+                            + useful
+                            + " async="
+                            + storage.asyncBytes.get(),
+                        storage.asyncBytes.get(),
+                        lessThanOrEqualTo(bound)
+                    );
+                }
                 assertEquals(EXPECTED_ROWS, drain(iter));
             }
             assertEquals("watermark returns to the pre-open baseline after close", 0L, watermark.used());
@@ -187,8 +211,9 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
 
     /**
      * Six iterators, each drained by its own thread like a driver, against a node byte cap of three
-     * default windows. Rescue is off: every row must complete without an over-cap grant. This is the
-     * liveness guard and must pass without the two-phase ticket rewrite.
+     * default windows. Rescue is off: every row must complete without an over-cap grant. One group
+     * ticket covers both phases; releasing the pre-warm after the row filter is what keeps untracked
+     * forceAdd off the cap so the FIFO can move.
      */
     public void testConcurrentReadsAgainstSmallCap() throws Exception {
         byte[] small = parquetFile(ROWS, 512 * 1024);
@@ -224,14 +249,7 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
         assertTrue("reads that wedged or needed over-cap rescues: " + problems + table, problems.isEmpty());
     }
 
-    private record RunResult(
-        boolean completed,
-        String outcome,
-        long elapsedMs,
-        int waitersAtEnd,
-        double usedAtEndWindows,
-        String rows
-    ) {}
+    private record RunResult(boolean completed, String outcome, long elapsedMs, int waitersAtEnd, double usedAtEndWindows, String rows) {}
 
     private RunResult runConcurrent(byte[] file, List<String> projection) throws Exception {
         int n = 6;
@@ -415,6 +433,76 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
 
     private static ReferenceAttribute keyword(String name) {
         return new ReferenceAttribute(Source.EMPTY, name, DataType.KEYWORD);
+    }
+
+    /**
+     * Dictionary, bloom, column-index and offset-index bytes for the predicate column. The
+     * pre-warm coalesce bound is 2× this plus one footer window.
+     */
+    private static long dictionaryBloomAndIndexBytes(byte[] file) throws IOException {
+        StorageObject storage = new AbstractTestStorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(file);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                return new ByteArrayInputStream(file, (int) position, (int) Math.min(length, file.length - position));
+            }
+
+            @Override
+            public long length() {
+                return file.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://preload-floor.parquet");
+            }
+        };
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(storage, FooterByteCache.fromSettings(Settings.EMPTY), NoopCircuitBreaker.INSTANCE),
+                options
+            )
+        ) {
+            long bytes = 0L;
+            for (BlockMetaData block : reader.getRowGroups()) {
+                for (ColumnChunkMetaData col : block.getColumns()) {
+                    if ("category".equals(col.getPath().toDotString()) == false) {
+                        continue;
+                    }
+                    if (col.hasDictionaryPage() && col.getDictionaryPageOffset() > 0) {
+                        bytes += col.getFirstDataPageOffset() - col.getDictionaryPageOffset();
+                    }
+                    int bloom = col.getBloomFilterLength();
+                    if (col.getBloomFilterOffset() > 0 && bloom > 0) {
+                        bytes += bloom;
+                    }
+                    IndexReference ci = col.getColumnIndexReference();
+                    if (ci != null && ci.getLength() > 0) {
+                        bytes += ci.getLength();
+                    }
+                    IndexReference oi = col.getOffsetIndexReference();
+                    if (oi != null && oi.getLength() > 0) {
+                        bytes += oi.getLength();
+                    }
+                }
+            }
+            return bytes;
+        }
     }
 
     private static byte[] parquetFile(int rows, long rowGroupSize) throws IOException {

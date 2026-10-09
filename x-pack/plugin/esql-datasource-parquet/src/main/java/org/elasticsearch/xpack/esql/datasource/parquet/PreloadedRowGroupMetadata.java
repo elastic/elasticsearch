@@ -357,18 +357,19 @@ final class PreloadedRowGroupMetadata implements Releasable {
     /**
      * Batched preloading via {@link CoalescedRangeReader}. Collects all column index and
      * offset index byte ranges across all row groups, plus dictionary-page and bloom-filter
-     * ranges for predicate columns when supplied, fetches them in one coalesced batch, then
-     * parses index ranges into typed objects and retains dictionary/bloom ranges as raw byte
-     * chunks for {@link ParquetStorageObjectAdapter} pre-warming.
+     * ranges for predicate columns when supplied, then two coalesced fetches: indexes with
+     * the 1 MiB gap, then dictionary/bloom with waste bounded to useful bytes. Parses index
+     * ranges into typed objects and retains dictionary/bloom ranges as raw byte chunks for
+     * {@link ParquetStorageObjectAdapter} pre-warming.
      *
      * <p><b>Parallelism:</b> {@link CoalescedRangeReader#readCoalesced} dispatches one
      * {@code readBytesAsync} call per merged range back-to-back without waiting between calls.
-     * Dictionary pages from different row groups typically do not coalesce with each other
-     * (they are separated by the row group's data pages), so each row group contributes its own
-     * merged range. For native async storage backends like S3, the SDK runs all those requests
-     * on its own event loop in parallel — turning what was N synchronous TLS handshakes into one
-     * batch of concurrent connections. For local/default storage the dispatch is sequential on
-     * the calling thread, but local reads are microseconds so the lack of parallelism is moot.
+     * Dictionary and bloom ranges merge only when the gap is at most the useful bytes already
+     * in the merged range (and at most 1 MiB), so they do not swallow the data pages between
+     * small row groups. Index ranges keep the 1 MiB gap. For native async storage backends
+     * like S3, the SDK runs those requests on its own event loop in parallel. For local/default
+     * storage the dispatch is sequential on the calling thread, but local reads are microseconds
+     * so the lack of parallelism is moot.
      */
     private static PreloadedRowGroupMetadata preloadCoalesced(
         ParquetFileReader reader,
@@ -428,16 +429,46 @@ final class PreloadedRowGroupMetadata implements Releasable {
 
         logger.debug("Coalesced metadata preload: [{}] ranges across [{}] row groups", ranges.size(), rowGroups.size());
 
-        CoalescedRangeReader.CoalescedRangeResult fetchedResult = awaitCoalescedRead(
+        List<CoalescedRangeReader.ByteRange> indexRanges = new ArrayList<>();
+        List<CoalescedRangeReader.ByteRange> preWarmRanges = new ArrayList<>();
+        for (RangeMeta meta : rangeMetas) {
+            switch (meta.kind()) {
+                case COLUMN_INDEX, OFFSET_INDEX -> indexRanges.add(meta.range());
+                case DICTIONARY_PAGE, BLOOM_FILTER -> preWarmRanges.add(meta.range());
+            }
+        }
+
+        CoalescedRangeReader.CoalescedRangeResult indexFetched = awaitCoalescedRead(
             storageObject,
-            ranges,
+            indexRanges,
             breaker,
             ioWatermark,
             footerBytes,
-            coalescedJoinTimeoutMs
+            coalescedJoinTimeoutMs,
+            false
         );
-        Map<CoalescedRangeReader.ByteRange, ByteBuffer> fetched = fetchedResult.ranges();
-        Releasable readRelease = fetchedResult.release();
+        CoalescedRangeReader.CoalescedRangeResult preWarmFetched;
+        try {
+            preWarmFetched = awaitCoalescedRead(
+                storageObject,
+                preWarmRanges,
+                breaker,
+                ioWatermark,
+                footerBytes,
+                coalescedJoinTimeoutMs,
+                true
+            );
+        } catch (Throwable t) {
+            try {
+                indexFetched.release().close();
+            } catch (Throwable closeFailure) {
+                t.addSuppressed(closeFailure);
+            }
+            throw t;
+        }
+        Map<CoalescedRangeReader.ByteRange, ByteBuffer> fetched = new HashMap<>(indexFetched.ranges());
+        fetched.putAll(preWarmFetched.ranges());
+        Releasable readRelease = Releasables.wrap(indexFetched.release(), preWarmFetched.release());
 
         Map<String, ColumnIndex> columnIndexes = new HashMap<>();
         Map<String, OffsetIndex> offsetIndexes = new HashMap<>();
@@ -633,7 +664,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
             breaker,
             ioWatermark,
             footerBytes,
-            coalescedJoinTimeoutMs
+            coalescedJoinTimeoutMs,
+            true
         );
         try {
             for (CoalescedRangeReader.ByteRange range : ranges) {
@@ -784,8 +816,12 @@ final class PreloadedRowGroupMetadata implements Releasable {
         CircuitBreaker breaker,
         @Nullable ParquetIoWatermark ioWatermark,
         @Nullable FooterByteCache footerBytes,
-        long timeoutMs
+        long timeoutMs,
+        boolean boundWasteToUseful
     ) {
+        if (ranges.isEmpty()) {
+            return new CoalescedRangeReader.CoalescedRangeResult(Map.of(), () -> {});
+        }
         PlainActionFuture<CoalescedRangeReader.CoalescedRangeResult> future = new PlainActionFuture<>();
         Releasable cancel = CoalescedRangeReader.readCoalesced(
             storageObject,
@@ -795,6 +831,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
             ioWatermark,
             null,
             footerBytes,
+            boundWasteToUseful,
             Runnable::run,
             future
         );

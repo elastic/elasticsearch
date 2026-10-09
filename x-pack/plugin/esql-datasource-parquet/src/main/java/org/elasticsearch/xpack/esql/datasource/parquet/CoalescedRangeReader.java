@@ -185,6 +185,40 @@ final class CoalescedRangeReader {
             admitHold,
             footerBytes,
             admitHold != null ? ParquetIoWatermark.ByteGate.GROUP_HOLD : ParquetIoWatermark.ByteGate.UNGATED,
+            false,
+            executor,
+            listener
+        );
+    }
+
+    /**
+     * As {@link #readCoalesced(StorageObject, List, long, CircuitBreaker, ParquetIoWatermark,
+     * ParquetIoWatermark.AdmitHold, FooterByteCache, Executor, ActionListener)}. When
+     * {@code boundWasteToUseful} is true, two ranges merge only if the gap is at most the
+     * unique useful bytes already in the merged range (and at most {@code maxCoalesceGap}).
+     */
+    static Releasable readCoalesced(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable ParquetIoWatermark.AdmitHold admitHold,
+        @Nullable FooterByteCache footerBytes,
+        boolean boundWasteToUseful,
+        Executor executor,
+        ActionListener<CoalescedRangeResult> listener
+    ) {
+        return readCoalesced(
+            storageObject,
+            ranges,
+            maxCoalesceGap,
+            breaker,
+            ioWatermark,
+            admitHold,
+            footerBytes,
+            admitHold != null ? ParquetIoWatermark.ByteGate.GROUP_HOLD : ParquetIoWatermark.ByteGate.UNGATED,
+            boundWasteToUseful,
             executor,
             listener
         );
@@ -202,12 +236,40 @@ final class CoalescedRangeReader {
         Executor executor,
         ActionListener<CoalescedRangeResult> listener
     ) {
+        return readCoalesced(
+            storageObject,
+            ranges,
+            maxCoalesceGap,
+            breaker,
+            ioWatermark,
+            admitHold,
+            footerBytes,
+            byteGate,
+            false,
+            executor,
+            listener
+        );
+    }
+
+    static Releasable readCoalesced(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable ParquetIoWatermark.AdmitHold admitHold,
+        @Nullable FooterByteCache footerBytes,
+        ParquetIoWatermark.ByteGate byteGate,
+        boolean boundWasteToUseful,
+        Executor executor,
+        ActionListener<CoalescedRangeResult> listener
+    ) {
         if (ranges.isEmpty()) {
             listener.onResponse(new CoalescedRangeResult(Map.of(), () -> {}));
             return () -> {};
         }
 
-        List<MergedRange> merged = mergeRanges(ranges, maxCoalesceGap);
+        List<MergedRange> merged = mergeRanges(ranges, maxCoalesceGap, boundWasteToUseful);
 
         Map<ByteRange, ByteBuffer> results = new HashMap<>(ranges.size());
         // One DirectReadBuffer per successful merged-range read. Mutated only under the same
@@ -393,7 +455,7 @@ final class CoalescedRangeReader {
             return new CoalescedRangeResult(Map.of(), () -> {});
         }
 
-        List<MergedRange> merged = mergeRanges(ranges, maxCoalesceGap);
+        List<MergedRange> merged = mergeRanges(ranges, maxCoalesceGap, false);
         for (MergedRange mr : merged) {
             if (mr.length() > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException("merged range length must fit in an int for synchronous reads, got: " + mr.length());
@@ -879,6 +941,16 @@ final class CoalescedRangeReader {
      * Constituents are never split, so one constituent may exceed the cap.
      */
     static List<MergedRange> mergeRanges(List<ByteRange> ranges, long maxCoalesceGap) {
+        return mergeRanges(ranges, maxCoalesceGap, false);
+    }
+
+    /**
+     * As {@link #mergeRanges(List, long)}. When {@code boundWasteToUseful} is true, two ranges
+     * merge only if the gap is at most the unique useful bytes already in the merged range (and
+     * at most {@code maxCoalesceGap}), so wasted bytes stay about the useful bytes. Overlapping
+     * constituents count once.
+     */
+    static List<MergedRange> mergeRanges(List<ByteRange> ranges, long maxCoalesceGap, boolean boundWasteToUseful) {
         if (ranges.size() == 1) {
             return List.of(new MergedRange(ranges.getFirst().offset, ranges.getFirst().length, List.of(ranges.getFirst())));
         }
@@ -889,19 +961,26 @@ final class CoalescedRangeReader {
         List<MergedRange> result = new ArrayList<>();
         long groupStart = sorted.getFirst().offset;
         long groupEnd = sorted.getFirst().end();
+        long usefulBytes = sorted.getFirst().length;
         List<ByteRange> constituents = new ArrayList<>();
         constituents.add(sorted.getFirst());
 
         for (int i = 1; i < sorted.size(); i++) {
             ByteRange current = sorted.get(i);
+            long prevEnd = groupEnd;
             long mergedEnd = Math.max(groupEnd, current.end());
-            if (current.offset - groupEnd <= maxCoalesceGap && mergedEnd - groupStart <= MAX_MERGED_RANGE_BYTES) {
+            long gap = current.offset - groupEnd;
+            long allowedGap = boundWasteToUseful ? Math.min(maxCoalesceGap, usefulBytes) : maxCoalesceGap;
+            if (gap <= allowedGap && mergedEnd - groupStart <= MAX_MERGED_RANGE_BYTES) {
                 groupEnd = mergedEnd;
+                // Overlaps must not inflate usefulBytes: two [0,100)+[50,150) cover 150, not 200.
+                usefulBytes += gap < 0 ? Math.max(0L, current.end() - prevEnd) : current.length;
                 constituents.add(current);
             } else {
                 result.add(new MergedRange(groupStart, groupEnd - groupStart, List.copyOf(constituents)));
                 groupStart = current.offset;
                 groupEnd = current.end();
+                usefulBytes = current.length;
                 constituents.clear();
                 constituents.add(current);
             }

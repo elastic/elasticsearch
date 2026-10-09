@@ -150,7 +150,7 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         assertThat(List.of(indices), contains("my-index"));
     }
 
-    public void testReservedViewCannotBeUpdatedOrDeleted() {
+    public void testReservedViewCannotBeUpdatedOrDeletedByUser() {
         String viewName = "reserved-view";
         assertAcked(createView(viewName, "FROM some-index", null, true));
 

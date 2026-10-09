@@ -14,8 +14,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheTestAccess;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 
@@ -23,7 +25,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -32,6 +36,8 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Multi-FILE warm short-circuit regression test. The sibling fold ITs
@@ -387,7 +393,53 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
                 "64kb"
             )
         );
-        assertWarmCountShortCircuits(dataset, total);
+        ExternalSourceCacheService cacheService = internalCluster().getInstance(PlanExecutor.class, internalCluster().getMasterName())
+            .cacheService();
+        String countQuery = "FROM " + dataset + " | STATS c = COUNT(*)";
+        try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertSingleLong(response, total);
+            assertThat("cold COUNT(*) reads every row", response.documentsFound(), equalTo(total));
+            assertEveryFileArrivedAsStripeFragments(response);
+        }
+        long fallbacksBefore = ExternalSourceCacheTestAccess.datasetAggregateFallbacks(cacheService);
+        try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertSingleLong(response, total);
+            assertThat("warm COUNT(*) must be served from the per-file statistics", response.documentsFound(), equalTo(0L));
+        }
+        assertThat(
+            "the warm count must come from the per-file records, not from the dataset-aggregate fallback",
+            ExternalSourceCacheTestAccess.datasetAggregateFallbacks(cacheService),
+            equalTo(fallbacksBefore)
+        );
+    }
+
+    /**
+     * The geometry this arm exists for, asserted rather than assumed. A read that quietly stops splitting still
+     * short-circuits warm - a whole-file measurement is authoritative - so without this the arm stays green while
+     * guarding nothing, which is what happens if parse parallelism resolves to 1 or a segment floor moves. The
+     * sibling {@code ExternalMultiChunkPerStripeWarmFoldIT} asserts the same property the same way.
+     */
+    private static void assertEveryFileArrivedAsStripeFragments(EsqlQueryResponse response) {
+        assertThat("the query must run with profile(true) to read the scan's contributions", response.profile(), notNullValue());
+        Map<String, List<Map<String, Object>>> byPath = new HashMap<>();
+        for (var driver : response.profile().drivers()) {
+            for (var op : driver.operators()) {
+                if (op.status() instanceof AsyncExternalSourceOperator.Status status) {
+                    for (var e : status.capturedSourceMetadata().entrySet()) {
+                        byPath.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).addAll(e.getValue());
+                    }
+                }
+            }
+        }
+        assertThat("every file must contribute captured stats", byPath.keySet(), hasSize(SEGMENTED_FILE_COUNT));
+        for (Map.Entry<String, List<Map<String, Object>>> file : byPath.entrySet()) {
+            for (Map<String, Object> contribution : file.getValue()) {
+                assertTrue(
+                    "file [" + file.getKey() + "] must be read as byte-range segments, not a whole-file pass: " + contribution,
+                    Boolean.TRUE.equals(contribution.get(ExternalStats.PARTIAL_CHUNK_KEY))
+                );
+            }
+        }
     }
 
     /**

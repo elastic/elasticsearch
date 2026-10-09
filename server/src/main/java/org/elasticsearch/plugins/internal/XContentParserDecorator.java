@@ -9,11 +9,10 @@
 
 package org.elasticsearch.plugins.internal;
 
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.xcontent.XContentParser;
 
 public interface XContentParserDecorator {
-    XContentParserDecorator NOOP = (parser, mapping) -> parser;
+    XContentParserDecorator NOOP = parser -> parser;
 
-    XContentParser decorate(XContentParser xContentParser, Mapping mapping);
+    XContentParser decorate(XContentParser xContentParser);
 }

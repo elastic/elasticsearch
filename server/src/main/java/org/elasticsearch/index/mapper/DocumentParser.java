@@ -1125,9 +1125,9 @@ public final class DocumentParser {
             XContentParserDecorator parserDecorator = source.getMeteringParserDecorator();
             Mapping mapping = mappingLookup.getMapping();
             if (mapping.getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED) {
-                this.parser = parserDecorator.decorate(DotExpandingXContentParser.expandDots(parser, this.path), mapping);
+                this.parser = parserDecorator.decorate(DotExpandingXContentParser.expandDots(parser, this.path));
             } else {
-                this.parser = parserDecorator.decorate(parser, mapping);
+                this.parser = parserDecorator.decorate(parser);
             }
             this.document = new LuceneDocument();
             this.documents.add(document);

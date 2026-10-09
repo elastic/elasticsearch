@@ -102,9 +102,8 @@ public class ViewService {
      */
     public void putView(ProjectId projectId, PutViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         final View view = request.view();
-        final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
         try {
-            validatePutView(metadata, view);
+            validatePutView(clusterService.state().metadata().getProject(projectId), view);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -120,7 +119,7 @@ public class ViewService {
                     return currentState;
                 }
                 // Validate the view again, because it could have become invalid between the pre-task submission and post-task submission.
-                validatePutView(metadata, view);
+                validatePutView(currentState.metadata().getProject(projectId), view);
                 final Map<String, View> updatedViews = new HashMap<>(viewMetadata.views());
                 updatedViews.put(view.name(), view);
                 var metadata = ProjectMetadata.builder(project).views(updatedViews);

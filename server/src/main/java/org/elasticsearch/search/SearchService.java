@@ -667,12 +667,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     @Override
-    public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
-        // Cancel in-flight phases before the shard engine is closed, so they release their searchers.
-        freeAllContextsForShard(shardId);
-    }
-
-    @Override
     public void afterIndexRemoved(Index index, IndexSettings indexSettings, IndexRemovalReason reason) {
         // once an index is removed due to deletion or closing, we can just clean up all the pending search context information
         // if we then close all the contexts we can get some search failures along the way which are not expected.
@@ -2040,6 +2034,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert index != null;
         for (ReaderContext ctx : activeReaders.values()) {
             if (index.equals(ctx.indexShard().shardId().getIndex())) {
+                // A phase blocked in its SearchContext only exits once its task is cancelled. Cancel only
+                // for index removal: freeReaderContext and freeAllContextsForShard must not, or routine
+                // shard closes (BWC, restore, relocation) cancel live searches.
+                ctx.cancelInFlightSearches("index removed: " + index.getName());
                 freeReaderContext(ctx.id(), "index removed: " + index.getName());
             }
         }
@@ -2078,12 +2076,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private boolean freeReaderContext(ShardSearchContextId contextId, String reason) {
-        final ReaderContext context = activeReaders.get(contextId);
-        if (context != null) {
-            context.cancelInFlightSearches(reason);
-        }
-        try (ReaderContext removed = removeReaderContext(contextId, reason)) {
-            return removed != null;
+        try (ReaderContext context = removeReaderContext(contextId, reason)) {
+            return context != null;
         }
     }
 

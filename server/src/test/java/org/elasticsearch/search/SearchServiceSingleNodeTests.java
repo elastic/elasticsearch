@@ -338,8 +338,11 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * A scroll continuation builds its {@link SearchContext} inside {@code executeFetchPhase} and closes it only when
-     * that runnable returns. Index removal must cancel the in-flight task so the runnable exits and closes the context.
+     * Stuck scroll fetch + index removal only. A scroll continuation builds its {@link SearchContext} inside
+     * {@code executeFetchPhase} and closes it only when that runnable returns. {@link SearchService#afterIndexRemoved}
+     * cancels that in-flight task so the context can close. Shard-close / {@code freeReaderContext} paths must not
+     * cancel (they share {@code freeAllContextsForShard} / {@code freeReaderContext} without
+     * {@code cancelInFlightSearches}).
      */
     public void testScrollFetchContextClosedWhenIndexRemoved() throws Exception {
         ParkedScrollQueryBuilder.reset();
@@ -360,8 +363,12 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             assertTrue("scroll fetch did not reach the open SearchContext", ParkedScrollQueryBuilder.parked.await(10, TimeUnit.SECONDS));
 
             SearchService service = getInstanceFromNode(SearchService.class);
+            assertEquals(1, service.getActiveContexts());
+            assertFalse("scroll fetch cancelled before index removal", ParkedScrollQueryBuilder.cancelled.get());
+
             IndicesService indicesService = getInstanceFromNode(IndicesService.class);
             IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+            // Drive only the index-removal listener path — not beforeIndexShardClosed / freeReaderContext.
             remover = new Thread(
                 () -> service.afterIndexRemoved(indexService.index(), indexService.getIndexSettings(), DELETED),
                 "index-removal"
@@ -376,6 +383,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 2,
                 TimeUnit.SECONDS
             );
+            assertBusy(() -> assertEquals("scroll reader context leaked after index removal", 0, service.getActiveContexts()));
         } finally {
             ParkedScrollQueryBuilder.release.set(true);
             if (remover != null) {

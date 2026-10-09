@@ -20,7 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.inference.metadata.EndpointMetadataClusterState;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -91,7 +91,8 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
         }
 
         if (inferenceFeatureService.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD) == false
-            || inferenceFeatureService.hasFeature(InferenceFeatures.INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION) == false) {
+            || inferenceFeatureService.hasFeature(InferenceFeatures.INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION) == false
+            || inferenceFeatureService.hasFeature(InferenceFeatures.DOCUMENT_EXTRACTION_TASK_TYPE) == false) {
             logger.info("Skipping sending authorization request, because the cluster is currently upgrading and missing required features");
             listener.onResponse(ActionResponse.Empty.INSTANCE);
             return;
@@ -167,8 +168,9 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
             return true;
         }
 
-        EndpointMetadata existingMetadata = existingEndpoint.endpointMetadata();
-        if (existingMetadata.fingerprintMatches(newEndpoint.getConfigurations().getEndpointMetadataOrEmpty()) == false) {
+        var existingMetadata = existingEndpoint.endpointMetadata();
+        var updatedMetadata = EndpointMetadataClusterState.from(newEndpoint.getConfigurations().getEndpointMetadataOrEmpty());
+        if (existingMetadata.fingerprintMatches(updatedMetadata) == false) {
             logger.debug(
                 () -> Strings.format(
                     "[%s] selected for persistence, because its fingerprint has changed",
@@ -177,7 +179,7 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
             );
             return true;
         }
-        if (newEndpoint.getConfigurations().getEndpointMetadataOrEmpty().hasNewerVersionThan(existingMetadata)) {
+        if (updatedMetadata.isNewerThan(existingMetadata)) {
             logger.debug(
                 () -> Strings.format("[%s] selected for persistence, because its version is higher", newEndpoint.getInferenceEntityId())
             );

@@ -27,7 +27,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.query.bitmapterms.BitmapBKDQuery;
 import org.elasticsearch.index.query.bitmapterms.BitmapTermsQuery;
 import org.elasticsearch.index.query.bitmapterms.IntBitmap;
@@ -81,14 +80,6 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @SuppressWarnings("unused") // invoked by JMH
 public class IntegerTermsQueryBenchmark {
-
-    static {
-        // IndexWriterConfig below picks up Elasticsearch814Codec via Lucene's codec SPI (since
-        // :server is on the classpath), whose static init reaches Elasticsearch's log4j config.
-        // That config's %node_name converter throws unless a node name was set, which never
-        // happens in a bare JMH JVM. Set a dummy one before anything can trigger that lookup.
-        LogConfigurator.setNodeName("benchmark");
-    }
 
     static final String FIELD = "f";
     static final int N_DOCS = 10_000_000;

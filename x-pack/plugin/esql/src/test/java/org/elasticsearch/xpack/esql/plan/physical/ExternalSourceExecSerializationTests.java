@@ -239,11 +239,11 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
     }
 
     /**
-     * The declared read-instructions (renames + {@code _id.path}) ride the wire on a node that supports the
+     * The declared read-instructions (renames, per-column date formats) ride the wire on a node that supports the
      * {@code dataset_declared_schema} transport version.
      */
     public void testDeclaredReadSpecSurvivesRoundTripWhenSupported() throws IOException {
-        DeclaredReadSpec spec = DeclaredReadSpec.of(Map.of("id", "emp_no"), "id");
+        DeclaredReadSpec spec = DeclaredReadSpec.of(Map.of("id", "emp_no"));
         ExternalSourceExec original = randomExternalSourceExec().withDeclaredReadSpec(spec);
         ExternalSourceExec roundTripped = copyInstance(original, TransportVersion.current());
         assertThat(roundTripped.declaredReadSpec(), equalTo(spec));
@@ -251,10 +251,10 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
 
     /**
      * A NON-empty spec toward a target node predating {@code dataset_declared_schema} is rejected loudly rather than
-     * silently dropped — dropping it would return wrong rows (physical names, synthetic _id, unparsed dates).
+     * silently dropped — dropping it would return wrong rows (physical names, unparsed dates).
      */
     public void testDeclaredReadSpecRejectedForOlderTransportVersion() throws IOException {
-        DeclaredReadSpec spec = DeclaredReadSpec.of(Map.of("id", "emp_no"), "id");
+        DeclaredReadSpec spec = DeclaredReadSpec.of(Map.of("id", "emp_no"));
         TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("dataset_declared_schema"));
         ExternalSourceExec original = randomExternalSourceExec(before).withDeclaredReadSpec(spec);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> copyInstance(original, before));

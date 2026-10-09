@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.generator.command.pipe;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
@@ -64,10 +63,6 @@ public class HighlightGenerator implements CommandGenerator {
         QueryExecutor executor,
         GenerationContext context
     ) {
-        if (EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled() == false) {
-            return EMPTY_DESCRIPTION;
-        }
-
         List<Column> stringColumns = previousOutput.stream()
             .filter(HighlightGenerator::isStringField)
             .filter(HighlightGenerator::canPrefix)

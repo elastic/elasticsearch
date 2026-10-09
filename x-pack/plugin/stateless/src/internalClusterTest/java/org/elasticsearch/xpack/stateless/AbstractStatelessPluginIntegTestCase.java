@@ -81,11 +81,12 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionStrategy;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -251,9 +252,17 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider
+            WarmingRatioProvider warmingRatioProvider,
+            SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
-            super(cacheService, threadPool, TelemetryProvider.NOOP, clusterSettings, warmingRatioProvider);
+            super(
+                cacheService,
+                threadPool,
+                TelemetryProvider.NOOP,
+                clusterSettings,
+                warmingRatioProvider,
+                searchRecoveryTimeoutCalculationService
+            );
         }
 
         @Override
@@ -1226,8 +1235,8 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             var primaryTerm = Long.parseLong(entry.getKey());
             Set<String> statelessCompoundCommits = entry.getValue().listBlobs(operationPurpose).keySet();
             statelessCompoundCommits.forEach(filename -> {
-                if (StatelessCompoundCommit.startsWithBlobPrefix(filename)) {
-                    set.add(new PrimaryTermAndGeneration(primaryTerm, StatelessCompoundCommit.parseGenerationFromBlobName(filename)));
+                if (BatchedCompoundCommit.startsWithBlobPrefix(filename)) {
+                    set.add(new PrimaryTermAndGeneration(primaryTerm, BatchedCompoundCommit.parseGenerationFromBlobName(filename)));
                 }
             });
         }
@@ -1271,6 +1280,11 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
 
     protected static long getLastLongGaugeValue(String name, TestTelemetryPlugin telemetryPlugin) {
         List<Measurement> measurements = telemetryPlugin.getLongGaugeMeasurement(name);
+        return measurements.isEmpty() ? 0L : measurements.get(measurements.size() - 1).getLong();
+    }
+
+    protected static long getLastLongAsyncGaugeValue(String name, TestTelemetryPlugin telemetryPlugin) {
+        List<Measurement> measurements = telemetryPlugin.getLongAsyncGaugeMeasurement(name);
         return measurements.isEmpty() ? 0L : measurements.get(measurements.size() - 1).getLong();
     }
 

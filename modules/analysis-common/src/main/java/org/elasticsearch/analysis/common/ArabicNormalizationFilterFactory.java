@@ -27,4 +27,8 @@ public class ArabicNormalizationFilterFactory extends AbstractTokenFilterFactory
         return new ArabicNormalizationFilter(tokenStream);
     }
 
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

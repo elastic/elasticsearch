@@ -320,6 +320,7 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
 
     private static ElasticInferenceServiceAuthorizationModel authModelWithDeniedEndpoint(String endpointId) {
         var endpointMetadata = new EndpointMetadata(
+            EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
             EndpointMetadata.Heuristics.EMPTY_INSTANCE,
             EndpointMetadata.Internal.EMPTY_INSTANCE,
             EndpointMetadata.Display.EMPTY_INSTANCE,

@@ -9,14 +9,19 @@
 
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -24,9 +29,9 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,17 +62,41 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         refresh();
 
         int numSearches = 10;
-        @SuppressWarnings({ "rawtypes", "unchecked" })
-        Future<SearchResponse>[] responses = new Future[numSearches];
         SearchType searchType = randomFrom(SearchType.DEFAULT, SearchType.QUERY_THEN_FETCH, SearchType.DFS_QUERY_THEN_FETCH);
         logger.info("search type is {}", searchType);
+
+        final CountDownLatch completed = new CountDownLatch(numSearches);
+        final Set<Integer> outstanding = ConcurrentCollections.newConcurrentSet();
         for (int i = 0; i < numSearches; i++) {
-            responses[i] = prepareSearch().setQuery(matchAllQuery()).setSearchType(searchType).execute();
+            final int id = i;
+            outstanding.add(id);
+            prepareSearch("test").setQuery(matchAllQuery())
+                .setSearchType(searchType)
+                .execute(ActionListener.runAfter(ActionListener.noop(), () -> {
+                    outstanding.remove(id);
+                    completed.countDown();
+                }));
         }
-        for (int i = 0; i < numSearches; i++) {
+        if (completed.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS) == false) {
+            logger.info("outstanding searches: {}", outstanding);
+            HotThreads.logLocalHotThreads(logger, Level.INFO, "search did not complete", ReferenceDocs.LOGGING);
             try {
-                responses[i].get().decRef();
-            } catch (Exception t) {}
+                logger.info(
+                    "in-flight tasks: {}",
+                    clusterAdmin().prepareListTasks().setActions("indices:data/read/search*").setDetailed(true).get(SAFE_AWAIT_TIMEOUT)
+                );
+            } catch (Exception e) {
+                logger.warn("could not list tasks", e);
+            }
+            fail(
+                Strings.format(
+                    "%d of [%d] searches with type [%s] did not complete within [%s]",
+                    completed.getCount(),
+                    numSearches,
+                    searchType,
+                    SAFE_AWAIT_TIMEOUT
+                )
+            );
         }
         assertBusyOpenContexts("test", 0L);
     }
@@ -84,10 +113,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         }
         refresh();
 
-        SearchResponse openResponse = prepareSearch("test-scroll").setQuery(matchAllQuery())
-            .setSize(1)
-            .setScroll(TimeValue.timeValueMinutes(5))
-            .get();
+        SearchResponse openResponse = openScrollRetryingRejection("test-scroll");
         String scrollId = openResponse.getScrollId();
         Set<String> seenIds = new HashSet<>();
         try {
@@ -110,6 +136,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
                 assertThat(ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class), notNullValue());
             }
 
+            assertSearchPoolRecovered(primaryThreadPool);
             assertBusyOpenContexts("test-scroll", 1L);
 
             assertBusy(() -> {
@@ -131,7 +158,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
                     if (ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class) != null) {
                         throw new AssertionError("retry scroll after rejection", e);
                     }
-                    throw new AssertionError(e);
+                    throw e;
                 }
                 assertThat(seenIds, equalTo(expectedIds));
             }, 10, TimeUnit.SECONDS);
@@ -139,6 +166,21 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
             openResponse.decRef();
             client().prepareClearScroll().addScrollId(scrollId).get();
         }
+    }
+
+    private SearchResponse openScrollRetryingRejection(String index) throws Exception {
+        AtomicReference<SearchResponse> openHolder = new AtomicReference<>();
+        assertBusy(() -> {
+            try {
+                openHolder.set(prepareSearch(index).setQuery(matchAllQuery()).setSize(1).setScroll(TimeValue.timeValueMinutes(5)).get());
+            } catch (Exception e) {
+                if (ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class) != null) {
+                    throw new AssertionError("retry scroll after rejection", e);
+                }
+                throw e;
+            }
+        }, 10, TimeUnit.SECONDS);
+        return openHolder.get();
     }
 
     /**
@@ -149,42 +191,62 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         final CountDownLatch block = new CountDownLatch(1);
         final int threads = threadPool.info(ThreadPool.Names.SEARCH).getMax();
         final CountDownLatch started = new CountDownLatch(threads);
-        // Stoppable wrapper lets try-with-resources own the ExecutorService without shutting down the
-        // node-owned SEARCH pool (shutdown/close are no-ops). Tasks keep running on the real executor
-        // until the returned releasable counts down {@code block}.
-        try (ExecutorService searchExecutor = new StoppableExecutorServiceWrapper(threadPool.executor(ThreadPool.Names.SEARCH))) {
-            try {
-                AtomicInteger submitted = new AtomicInteger();
-                // Submit one execution per thread, plus enough to block all queue slots
-                int executions = threads + SEARCH_QUEUE_SIZE;
-                assertBusy(() -> {
-                    int toSubmit = executions - submitted.get();
-                    for (int i = 0; i < toSubmit; ++i) {
-                        try {
-                            searchExecutor.execute(() -> {
-                                started.countDown();
-                                awaitQuietly(block);
-                            });
-                            submitted.incrementAndGet();
-                        } catch (EsRejectedExecutionException e) {
-                            // one of the search threads was already in use by some transient thing, we'll try resubmitting
-                        }
+        final ExecutorService searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        try {
+            // Claim the worker threads first, while nothing of ours is queued and a transient occupant can still drain.
+            // Rejection means a foreign task holds worker and queue slot, so retry; claimed keeps the threads already taken.
+            AtomicInteger claimed = new AtomicInteger();
+            assertBusy(() -> {
+                while (claimed.get() < threads) {
+                    try {
+                        searchExecutor.execute(() -> {
+                            started.countDown();
+                            awaitQuietly(block);
+                        });
+                    } catch (EsRejectedExecutionException e) {
+                        throw new AssertionError("claimed " + claimed.get() + " of " + threads + " SEARCH threads", e);
                     }
-                    assertThat("Could not saturate the search thread pool and queue", submitted.get(), equalTo(executions));
-                });
-                safeAwait(started);
-                expectThrows(EsRejectedExecutionException.class, () -> searchExecutor.execute(() -> {}));
-            } catch (Throwable t) {
-                // The cluster is shared by the whole suite, so never leave SEARCH threads blocked on a setup failure.
-                block.countDown();
-                throw new AssertionError("failed to saturate SEARCH pool", t);
-            }
-            return () -> {
-                if (block.getCount() > 0) {
-                    block.countDown();
+                    claimed.incrementAndGet();
                 }
-            };
+            }, 30, TimeUnit.SECONDS);
+            safeAwait(started);
+            // Workers are parked now, so the queue cannot drain: a rejection means it is already full.
+            for (int i = 0; i < SEARCH_QUEUE_SIZE; i++) {
+                try {
+                    searchExecutor.execute(() -> {});
+                } catch (EsRejectedExecutionException e) {
+                    break;
+                }
+            }
+            expectThrows(EsRejectedExecutionException.class, () -> searchExecutor.execute(() -> {}));
+        } catch (Throwable t) {
+            // The cluster is shared by the whole suite, so never leave SEARCH threads blocked on a setup failure.
+            block.countDown();
+            throw new AssertionError("failed to saturate SEARCH pool", t);
         }
+        return () -> {
+            if (block.getCount() > 0) {
+                block.countDown();
+            }
+        };
+    }
+
+    /**
+     * Asserts that the SEARCH pool runs work again. Threads left parked by {@link #blockSearchThreadPool} would not fail
+     * here but stall everything after it, surfacing much later as a suite timeout, so check it while it is still cheap
+     * to attribute.
+     */
+    private void assertSearchPoolRecovered(ThreadPool threadPool) throws Exception {
+        final CountDownLatch ran = new CountDownLatch(1);
+        assertBusy(() -> {
+            try {
+                threadPool.executor(ThreadPool.Names.SEARCH).execute(ran::countDown);
+            } catch (EsRejectedExecutionException e) {
+                // The queue may still hold tasks the freed workers have not drained yet.
+                throw new AssertionError("SEARCH pool still rejecting after unblocking", e);
+            }
+        }, 30, TimeUnit.SECONDS);
+        safeAwait(ran);
     }
 
     private void assertBusyOpenContexts(String index, long expected) throws Exception {

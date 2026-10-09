@@ -76,7 +76,8 @@ class StructSpecParser {
             if (fieldType == null
                 || fieldType == NativeType.VOID
                 || fieldType == NativeType.STRING
-                || fieldType == NativeType.ADDRESSABLE) {
+                || fieldType == NativeType.ADDRESSABLE
+                || fieldType == NativeType.UPCALL) {
                 messager.printMessage(
                     Kind.ERROR,
                     "Unsupported field type '"
@@ -914,7 +915,8 @@ class StructSpecParser {
             if (paramType == null
                 || paramType == NativeType.VOID
                 || paramType == NativeType.STRING
-                || paramType == NativeType.ADDRESSABLE) {
+                || paramType == NativeType.ADDRESSABLE
+                || paramType == NativeType.UPCALL) {
                 messager.printMessage(
                     Kind.ERROR,
                     "Setter method '"
@@ -931,7 +933,10 @@ class StructSpecParser {
             return new ScalarFieldModel(methodName, paramType, false, true);
         }
 
-        if (returnType == null || returnType == NativeType.STRING || returnType == NativeType.ADDRESSABLE) {
+        if (returnType == null
+            || returnType == NativeType.STRING
+            || returnType == NativeType.ADDRESSABLE
+            || returnType == NativeType.UPCALL) {
             messager.printMessage(
                 Kind.ERROR,
                 "Unsupported field type '"
@@ -992,6 +997,7 @@ class StructSpecParser {
                 || valueType == NativeType.VOID
                 || valueType == NativeType.STRING
                 || valueType == NativeType.ADDRESSABLE
+                || valueType == NativeType.UPCALL
                 || valueType == NativeType.ADDRESS) {
                 messager.printMessage(
                     Kind.ERROR,
@@ -1025,6 +1031,7 @@ class StructSpecParser {
                 || elementType == NativeType.VOID
                 || elementType == NativeType.STRING
                 || elementType == NativeType.ADDRESSABLE
+                || elementType == NativeType.UPCALL
                 || elementType == NativeType.ADDRESS) {
                 messager.printMessage(
                     Kind.ERROR,

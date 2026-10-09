@@ -17,6 +17,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class InternalChangePointAggregationTests extends AbstractWireSerializingTestCase<InternalChangePointAggregation> {
 
@@ -60,5 +61,31 @@ public class InternalChangePointAggregationTests extends AbstractWireSerializing
     @Override
     protected InternalChangePointAggregation mutateInstance(InternalChangePointAggregation instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    /**
+     * The single change type and bucket the aggregation surfaces for backwards compatibility must be the most
+     * significant event. Highly significant events have log p-values below -745, where exp underflows to exactly
+     * 0.0, so selecting on the p-value would leave them all tied and pick the first by index instead.
+     */
+    public void testRepresentativeEventIsSelectedOnLogPValueWhenPValuesUnderflow() {
+        List<ChangeType> changeTypes = List.of(
+            new ChangeType.Spike(-2047.0, 0, ""),
+            new ChangeType.Dip(-55873.0, 30, ""),
+            new ChangeType.Spike(-78420.0, 41, ""),
+            new ChangeType.Dip(-8711.0, 60, "")
+        );
+        for (ChangeType changeType : changeTypes) {
+            assertEquals("precondition: p-values must underflow", 0.0, changeType.pValue(), 0.0);
+        }
+        List<ChangePointBucket> buckets = new ArrayList<>();
+        for (int i = 0; i < changeTypes.size(); i++) {
+            buckets.add(new ChangePointBucket("bucket-" + i, i, InternalAggregations.EMPTY));
+        }
+
+        InternalChangePointAggregation agg = new InternalChangePointAggregation("changes", Map.of(), buckets, changeTypes);
+
+        assertEquals(changeTypes.get(2), agg.getChangeType());
+        assertEquals(buckets.get(2), agg.getBucket());
     }
 }

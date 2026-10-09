@@ -11,17 +11,27 @@ import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.subtract;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.union;
 
 /**
  * Represents a PromQL aggregate function call that operates across multiple time series.
@@ -107,23 +117,24 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     }
 
     /**
-     * {@code WITHOUT} over a non-enumerable child (a selector / full series identity) uses a dynamic
+     * {@code WITHOUT} over a child with a packed identity (a selector, a function over one) uses a dynamic
      * {@code _timeseries} output, because the concrete retained labels are not known until lowering time.
-     * {@code WITHOUT} over a concrete-output child (a {@code BY}/{@code NONE} aggregate) instead exposes that child's
-     * concrete labels minus the excluded ones - the {@code WITHOUT} is a plain re-grouping over known columns, so it
-     * must NOT claim a {@code _timeseries} the plan never produces. {@code BY} and {@code NONE} export concrete labels
-     * or nothing.
+     * {@code WITHOUT} over a child that names every label it exposes (a {@code BY}/{@code NONE} aggregate, a binary
+     * operator between two of them) instead exposes those labels minus the excluded ones - the {@code WITHOUT} is a plain
+     * re-grouping over known columns, so it must NOT claim a {@code _timeseries} the plan never produces. {@code BY} and
+     * {@code NONE} export concrete labels or nothing.
      */
     @Override
     public List<Attribute> output() {
         // Output `_timeseries` if grouping is not constant, e.g. `without(...)`
         if (grouping == Grouping.WITHOUT) {
-            if (child() instanceof AcrossSeriesAggregate childAggregate && childAggregate.grouping() != Grouping.WITHOUT) {
+            List<Attribute> childOutput = child().output();
+            if (childOutput.stream().noneMatch(a -> MetadataAttribute.isTimeSeriesAttributeName(a.name()))) {
                 Set<String> excluded = new HashSet<>();
                 for (Attribute label : groupings) {
                     excluded.add(labelKey(label));
                 }
-                return childAggregate.output().stream().filter(a -> excluded.contains(labelKey(a)) == false).toList();
+                return childOutput.stream().filter(a -> excluded.contains(labelKey(a)) == false).toList();
             }
             return List.of(timeseriesAttribute);
         }
@@ -153,5 +164,45 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     @Override
     public FunctionType functionType() {
         return FunctionType.ACROSS_SERIES_AGGREGATION;
+    }
+
+    @Override
+    public boolean isIdentityTransparent() {
+        // Aggregates across series into a grouped result: a relabel below it must be part of this grouping's identity.
+        return false;
+    }
+
+    /**
+     * Translates {@code AcrossSeriesAggregate} to an ESQL {@code Aggregate}. The schema transposed below the
+     * aggregate names every column the subtree must expose, so the child translates once and the aggregate's own
+     * columns are read off the returned schema. Only {@code AcrossSeriesAggregate} creates plan-level aggregation
+     * nodes; within-series aggregates and function calls lower to expressions.
+     */
+    @Override
+    public IntermediateResult translate(TranslationContext context) {
+        List<String> keys = TranslationContext.mapFinite(groupings());
+        TranslationSchema childRequired = switch (grouping()) {
+            case BY -> finite(keys);
+            // without () keeps the child's label set; without (K) declares its own and widens every pending one by K
+            case WITHOUT -> keys.isEmpty() ? context.required() : union(subtract(context.required(), keys), open(keys));
+            case NONE -> TranslationSchema.EMPTY;
+        };
+        TranslationContext childTranslation = context.withRequired(childRequired);
+        IntermediateResult ir = childTranslation.translate(child());
+        if (ir.kind().constant) {
+            return ir;
+        }
+        TranslationSchema schema = switch (grouping()) {
+            case BY -> finite(TranslationContext.mapFinite(output()));
+            case WITHOUT -> context.regroupWithout(ir.schema(), keys);
+            case NONE -> TranslationSchema.EMPTY;
+        };
+
+        var promqlCtx = new PromqlContext(context.time(), AggregateFunction.NO_WINDOW, ir.step(), context.configuration());
+        Expression function = buildEsqlFunction(ir.value(), promqlCtx);
+        // A raw operand collapses once, with the operator's function fused into the per-series aggregate; a table regroups.
+        return ir.kind().afterInitialAggregation
+            ? context.regroup(ir, schema, grouping() == WITHOUT, function)
+            : context.collapse(ir, schema, function);
     }
 }

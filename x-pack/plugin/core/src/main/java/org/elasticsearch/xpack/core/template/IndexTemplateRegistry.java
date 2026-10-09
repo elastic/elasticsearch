@@ -314,10 +314,31 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     /**
      * Retrieves return a list of {@link IndexTemplateConfig} that represents
      * the composable templates that are supported by all nodes of the cluster.
+     * Every template returned by this method is guaranteed to have {@code managed: true} set,
+     * regardless of whether the underlying JSON/YAML resource declares it. This ensures that
+     * {@code IndexSettingProvider} implementations can reliably distinguish registry-owned templates.
+     *
      * @return The configurations for the templates that CAN be installed right now.
      */
     protected Map<String, ComposableIndexTemplate> getComposableTemplatesReadyToInstall(ClusterState clusterState) {
-        return filterBasedOnFeatures(clusterState, getComposableTemplateConfigs(), ComposableIndexTemplate::template);
+        Map<String, ComposableIndexTemplate> filtered = filterBasedOnFeatures(
+            clusterState,
+            getComposableTemplateConfigs(),
+            ComposableIndexTemplate::template
+        );
+        if (filtered.isEmpty()) {
+            return filtered;
+        }
+        return filtered.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> markRegistryInstalled(e.getValue())));
+    }
+
+    private static ComposableIndexTemplate markRegistryInstalled(ComposableIndexTemplate template) {
+        if (template.isRegistryInstalled()) {
+            return template;
+        }
+        return template.toBuilder().registryInstalled(true).build();
     }
 
     /**

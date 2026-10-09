@@ -25,8 +25,6 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -82,8 +80,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     private final String sliceField;
     private final IvfFlushConfigSource flushConfigSource;
     private final IvfMergeConfigResolver mergeConfigResolver;
-    private final int bitsPerDim;
-    private final float projectedDimsFraction;
+    private final IvfSegmentConfig.AshConfig ashConfig;
 
     // Temporary storage for ASH projection matrix between buildAndWritePostingsLists and writePreconditioner
     private AshProjectionMatrix pendingAshMatrix;
@@ -92,6 +89,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         SegmentWriteState state,
         String rawVectorFormatName,
         boolean useDirectIOReads,
+        boolean onDiskMerge,
         FlatVectorsWriter rawVectorDelegate,
         int vectorPerCluster,
         int centroidsPerParentCluster,
@@ -101,8 +99,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         String sliceField,
         IvfFlushConfigSource flushConfigSource,
         IvfMergeConfigResolver mergeConfigResolver,
-        int bitsPerDim,
-        float projectedDimsFraction
+        IvfSegmentConfig.AshConfig ashConfig
     ) throws IOException {
         super(
             state,
@@ -115,7 +112,9 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             ESNextDiskASHVectorsFormat.CENTROID_EXTENSION,
             ESNextDiskASHVectorsFormat.CLUSTER_EXTENSION,
             true,
-            flatVectorThreshold
+            flatVectorThreshold,
+            onDiskMerge,
+            true
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
@@ -124,40 +123,17 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         this.sliceField = sliceField;
         this.flushConfigSource = flushConfigSource != null ? flushConfigSource : IvfFlushConfigSource.empty();
         this.mergeConfigResolver = mergeConfigResolver != null ? mergeConfigResolver : IvfMergeConfigResolver.useCodecDefault();
-        this.bitsPerDim = bitsPerDim;
-        this.projectedDimsFraction = projectedDimsFraction;
-        if (sliceField != null) {
-            Sort sort = state.segmentInfo.getIndexSort();
-            if (sort == null || sort.getSort().length == 0) {
-                throw new IllegalStateException("sliceField requires index sort");
-            }
-            SortField primary = sort.getSort()[0];
-            if (sliceField.equals(primary.getField()) == false) {
-                throw new IllegalStateException("sliceField must be primary index sort");
-            }
-            if (primary.getType() != SortField.Type.STRING) {
-                throw new IllegalStateException("sliceField requires primary index sort");
-            }
-        }
+        this.ashConfig = ashConfig;
     }
 
     @Override
     protected IvfSegmentConfig beginIvfFieldFlush(FieldInfo fieldInfo) throws IOException {
-        return IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, ashConfig(), false);
+        return IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, ashConfig, false);
     }
 
     @Override
     protected IvfSegmentConfig resolveMergeConfig(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        return IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, ashConfig(), false);
-    }
-
-    private IvfSegmentConfig.AshConfig ashConfig() {
-        return new IvfSegmentConfig.AshConfig(
-            projectedDimsFraction,
-            bitsPerDim,
-            IvfSegmentConfig.AshConfig.DEFAULT_TRAINING_ITERATIONS,
-            IvfSegmentConfig.AshConfig.DEFAULT_TRAINING_FACTOR
-        );
+        return IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, ashConfig, false);
     }
 
     @Override
@@ -200,7 +176,9 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             fileOffset,
             assignments,
             overspillAssignments,
-            ivfSegmentConfig
+            ivfSegmentConfig,
+            null,
+            false // flush: vectors are on-heap, train on a reduced sample
         );
     }
 
@@ -216,6 +194,10 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         OverspillAssignments overspillAssignments,
         IvfSegmentConfig ivfSegmentConfig
     ) throws IOException {
+        // Reuse an already-trained projection matrix from one of the segments being merged instead of
+        // re-learning W from scratch. W is a global orthonormal projection of centered/normalized
+        // vectors and is effectively centroid-independent, so it can be carried across a merge.
+        final float[] inheritedWT = inheritProjectionMatrix(fieldInfo, mergeState);
         return buildAndWriteAshPostingsLists(
             fieldInfo,
             centroidSupplier,
@@ -224,8 +206,77 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             fileOffset,
             assignments,
             overspillAssignments,
-            ivfSegmentConfig
+            ivfSegmentConfig,
+            inheritedWT,
+            true // merge: streams vectors off-heap by ordinal and trains on the full sample
         );
+    }
+
+    /**
+     * Finds a trained ASH projection matrix W among the segments being merged, returning its
+     * transposed form W^T (row-major, shape {@code (nDims, originalDim)}) or {@code null} if none is
+     * available. Prefers the input segment with the most vectors so W is seeded from the best-trained
+     * source. Any reader that is not an {@link ESNextDiskASHVectorsReader} (or has no matrix for the
+     * field) is skipped, and a {@code null} result causes the caller to fall back to training W.
+     */
+    private float[] inheritProjectionMatrix(FieldInfo fieldInfo, MergeState mergeState) {
+        List<SizedProjectionMatrix> candidates = new ArrayList<>();
+        for (int i = 0; i < mergeState.knnVectorsReaders.length; i++) {
+            KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
+            if (reader == null) {
+                continue;
+            }
+            if (reader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                reader = fieldsReader.getFieldReader(fieldInfo.name);
+            }
+            if (reader instanceof ESNextDiskASHVectorsReader ashReader && mergeState.fieldInfos[i].fieldInfo(fieldInfo.name) != null) {
+                AshProjectionMatrix matrix = ashReader.getProjectionMatrix(fieldInfo);
+                if (matrix == null) {
+                    continue;
+                }
+                int size = 0;
+                try {
+                    FloatVectorValues values = ashReader.getFloatVectorValues(fieldInfo.name);
+                    if (values != null) {
+                        size = values.size();
+                    }
+                } catch (IOException e) {
+                    // Fall back to using the matrix without a size preference if the count is unavailable.
+                    size = 0;
+                }
+                candidates.add(new SizedProjectionMatrix(matrix, size));
+            }
+        }
+        return selectInheritedProjectionMatrix(fieldInfo.getVectorDimension(), candidates);
+    }
+
+    /**
+     * A candidate projection matrix for merge inheritance together with the number of vectors in the
+     * segment it came from (used to prefer the best-trained source).
+     */
+    record SizedProjectionMatrix(AshProjectionMatrix matrix, int size) {}
+
+    /**
+     * Selects the projection matrix W^T to inherit at merge from the given candidates, or {@code null}
+     * if none is suitable. Prefers the candidate from the segment with the most vectors so W is seeded
+     * from the best-trained source. Skips random (non-learned) projections from transient flush segments
+     * — inheriting a random rotation would carry it into the merged segment — and skips matrices whose
+     * dimensionality does not match {@code expectedDim}.
+     */
+    static float[] selectInheritedProjectionMatrix(int expectedDim, List<SizedProjectionMatrix> candidates) {
+        float[] best = null;
+        int bestSize = -1;
+        for (SizedProjectionMatrix candidate : candidates) {
+            AshProjectionMatrix matrix = candidate.matrix();
+            if (matrix == null || matrix.isLearned() == false || matrix.originalDim() != expectedDim) {
+                continue;
+            }
+            if (candidate.size() > bestSize) {
+                bestSize = candidate.size();
+                best = matrix.wT();
+            }
+        }
+        return best;
     }
 
     private CentroidOffsetAndLength buildAndWriteAshPostingsLists(
@@ -236,11 +287,16 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         long fileOffset,
         int[] assignments,
         OverspillAssignments overspillAssignments,
-        IvfSegmentConfig segmentConfig
+        IvfSegmentConfig segmentConfig,
+        float[] pretrainedWT,
+        boolean trainOnFullSample
     ) throws IOException {
         if (vectorValues instanceof FloatVectorValues == false) {
             throw new IllegalStateException("ASH requires float vectors, got: " + vectorValues.getClass().getSimpleName());
         }
+        // In the sliced flush case (single centroid), skip writing per-block doc IDs.
+        // The reader uses vector ordinal order for doc translation via ordToDoc().
+        boolean skipDocIds = sliceField != null && centroidSupplier.size() == 1;
         var ashWriter = new AshPostingsListWriter();
         var result = ashWriter.buildAndWrite(
             fieldInfo,
@@ -251,7 +307,10 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             assignments,
             overspillAssignments,
             segmentConfig.ashConfig(),
-            fieldInfo.getVectorSimilarityFunction()
+            fieldInfo.getVectorSimilarityFunction(),
+            skipDocIds,
+            pretrainedWT,
+            trainOnFullSample
         );
         pendingAshMatrix = ashWriter.getAshProjectionMatrix();
         return new CentroidOffsetAndLength(result.offsets(), result.lengths());
@@ -284,8 +343,9 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 metaOutput.writeVInt(maxSliceSize);
             }
         }
-        // ASH-specific: bits per dimension
-        metaOutput.writeVInt(ivfSegmentConfig.ashConfig().bitsPerDim());
+        // ASH-specific: bits per dimension — use the writer's own config rather than the segment
+        // config, because the segment config may be IvfSegmentConfig.NONE for unsupported byte fields.
+        metaOutput.writeVInt(ashConfig.bitsPerDim());
     }
 
     @Override

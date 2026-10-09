@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ssl;
 
 import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
+import org.apache.hc.client5.http.ssl.HostnameVerificationPolicy;
 import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
 import org.apache.hc.core5.reactor.ssl.SSLBufferMode;
 
@@ -20,7 +21,16 @@ class TlsStrategyBuilder extends AbstractSslBuilder<TlsStrategy> {
 
     @Override
     TlsStrategy build(SSLContext sslContext, String[] protocols, String[] ciphers, HostnameVerifier verifier) {
-        return new DefaultClientTlsStrategy(sslContext, protocols, ciphers, SSLBufferMode.DYNAMIC, verifier);
-
+        // CLIENT uses only the verifier selected from verification_mode. The 5-arg constructor
+        // defaults to BOTH, which also enables JSSE HTTPS endpoint identification and would
+        // ignore certificate/none.
+        return new DefaultClientTlsStrategy(
+            sslContext,
+            protocols,
+            ciphers,
+            SSLBufferMode.DYNAMIC,
+            HostnameVerificationPolicy.CLIENT,
+            verifier
+        );
     }
 }

@@ -945,3 +945,50 @@ setup:
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._source.dense_field_1: "violins" }
   - match: { hits.hits.1._source.dense_field_1: "pianos" }
+
+---
+"Test exists on a semantic_text field is used as a prefilter to a semantic match on the same field":
+
+  - requires:
+      cluster_features: "semantic.exists_query_auto_prefilter_fix"
+      reason: auto prefiltering tracks the nested level a prefilter was collected at
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  { "match": { "dense_field_2": { "query": "cats" } } },
+                  { "exists": { "field": "dense_field_2" } }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "11" }
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  { "match": { "dense_field_2": { "query": "cats" } } }
+                ],
+                "filter": [
+                  { "exists": { "field": "dense_field_2" } }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "11" }

@@ -30,9 +30,12 @@ import java.util.Arrays;
  * {@link ContextIndexSearcher#searchLeaf}. The charge is applied only when the bitset-allocating
  * points branch runs: always for a bare {@link PointRangeQuery}, and for an
  * {@link org.apache.lucene.search.IndexOrDocValuesQuery} only on the path Lucene routes to points
- * (otherwise doc values run and allocate no bitset).
+ * (otherwise doc values run and allocate no bitset). Charges go through {@link ContextIndexSearcher#chargeLeaf}
+ * rather than a cached accounting reference, so this survives a {@link ContextIndexSearcher#setCircuitBreaker} swap.
  */
 final class PointRangeBreakerWeight extends Weight {
+
+    private static final String BREAKER_LABEL = "pointrange-execution";
 
     private final ContextIndexSearcher searcher;
     private final Weight in;
@@ -74,14 +77,14 @@ final class PointRangeBreakerWeight extends Weight {
             @Override
             public Scorer get(long leadCost) throws IOException {
                 if (indexOrDocValues == false || (cost >>> 3) <= leadCost) {
-                    searcher.chargeLeafExecutionBytes(charge);
+                    searcher.chargeLeaf(context, charge, BREAKER_LABEL);
                 }
                 return inner.get(leadCost);
             }
 
             @Override
             public BulkScorer bulkScorer() throws IOException {
-                searcher.chargeLeafExecutionBytes(charge);
+                searcher.chargeLeaf(context, charge, BREAKER_LABEL);
                 return inner.bulkScorer();
             }
 

@@ -74,11 +74,17 @@ public class NodeTranslogBuffer implements Releasable {
     }
 
     /**
-     * Returns true if the write to the buffer succeeded. Otherwise, this buffer has been closed for writing and the user must try again
+     * Appends a record carrying one or more operations occupying the contiguous seqNo range {@code [minSeqNo, maxSeqNo]}.
+     * Returns true if the write to the buffer succeeded. Otherwise, this buffer has been closed for writing and the caller must try again
      * on the next node buffer.
      */
-    boolean writeToBuffer(ShardSyncState shardSyncState, Translog.Serialized operation, long seqNo, Translog.Location location)
-        throws IOException {
+    boolean writeToBuffer(
+        ShardSyncState shardSyncState,
+        Translog.Serialized operation,
+        long minSeqNo,
+        long maxSeqNo,
+        Translog.Location location
+    ) throws IOException {
         if (semaphore.tryAcquire()) {
             try {
                 Translog.Location newProcessedLocation = new Translog.Location(
@@ -94,7 +100,7 @@ public class NodeTranslogBuffer implements Releasable {
                         new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())
                     )
                 );
-                shardBuffer.append(operation, seqNo, location);
+                shardBuffer.append(operation, minSeqNo, maxSeqNo, location);
                 bufferSize.getAndAdd(operation.length());
             } finally {
                 semaphore.release();
@@ -227,12 +233,19 @@ public class NodeTranslogBuffer implements Releasable {
             this.seqNos = new LongArrayList();
         }
 
-        private void append(Translog.Serialized operation, long seqNo, Translog.Location location) throws IOException {
+        private void append(Translog.Serialized operation, long recordMinSeqNo, long recordMaxSeqNo, Translog.Location location)
+            throws IOException {
             operation.writeToTranslogBuffer(buffer);
-            seqNos.add(seqNo);
-            minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
-            maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
-            totalOps++;
+            // the record's range is contiguous, so expanding it loses nothing; the per-seqNo list
+            // is retained because the post-upload persisted-seqNo notification consumes it. Iterate by
+            // count: an inclusive bound would wrap when recordMaxSeqNo is Long.MAX_VALUE and never terminate.
+            final long recordOps = recordMaxSeqNo - recordMinSeqNo + 1;
+            for (long k = 0; k < recordOps; k++) {
+                this.seqNos.add(recordMinSeqNo + k);
+            }
+            this.minSeqNo = SequenceNumbers.min(this.minSeqNo, recordMinSeqNo);
+            this.maxSeqNo = SequenceNumbers.max(this.maxSeqNo, recordMaxSeqNo);
+            totalOps += recordOps;
             this.location = location;
         }
 

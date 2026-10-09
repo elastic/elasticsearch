@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * probability on data nodes — the corrected value stays in floating point and
  * is only rounded to the target integer type on the coordinator.
  */
-public class CountApproximate extends AggregateFunction implements ToAggregator {
+public class CountApproximate extends UnaryAggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "CountApproximate",
@@ -68,11 +68,6 @@ public class CountApproximate extends AggregateFunction implements ToAggregator 
     @Override
     protected NodeInfo<CountApproximate> info() {
         return NodeInfo.create(this, CountApproximate::new, field(), filter(), window());
-    }
-
-    @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new CountApproximate(source(), field(), filter, window());
     }
 
     @Override

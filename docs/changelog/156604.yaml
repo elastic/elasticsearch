@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 156604
-summary: Fix incorrect results from Parquet predicate pushdown on multi-valued fields
-type: bug

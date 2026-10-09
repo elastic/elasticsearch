@@ -41,7 +41,7 @@ public final class OtlpTracesParser extends OtlpParser {
         for (ResourceSpans resourceSpans : request.getResourceSpansList()) {
             // Resource attributes pass through unchanged: no "otel.attributes." prefix
             // (unlike extractSpanAttributes below, which adds it to mimic the APM intake shape).
-            // AbstractTracesIT.requiredResourceKeys() asserts on the OTel SemConv names directly.
+            // OtelSdkTracesIT.REQUIRED_RESOURCE_KEYS asserts on the OTel SemConv names directly.
             result.add(new ReceivedTelemetry.ReceivedResource(extractRawAttributes(resourceSpans.getResource().getAttributesList())));
             for (ScopeSpans scopeSpans : resourceSpans.getScopeSpansList()) {
                 for (Span span : scopeSpans.getSpansList()) {
@@ -59,8 +59,8 @@ public final class OtlpTracesParser extends OtlpParser {
     }
 
     /**
-     * Test-only normalisation that brings raw OTLP span attributes into the same shape the APM intake
-     * parser produces, so a single contract assertion in {@link AbstractTracesIT} can compare them:
+     * Test-only normalisation of raw OTLP span attributes into the shape the contract assertions in
+     * {@link OtelSdkTracesIT} expect:
      * <ul>
      *   <li>each OTel attribute key is prefixed with {@code otel.attributes.} (e.g. {@code http.method}
      *       becomes {@code otel.attributes.http.method}), matching how the APM agent nests attributes

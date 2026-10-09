@@ -13,14 +13,18 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,8 +37,8 @@ import java.util.Objects;
  * and delegates to the PromqlFunctionRegistry for validation and ESQL function construction.
  */
 public abstract sealed class PromqlFunctionCall extends UnaryPlan implements PromqlPlan permits AcrossSeriesAggregate,
-    AcrossSeriesReduction, HistogramFunctionCall, ScalarConversionFunction, WithinSeriesAggregate, ValueTransformationFunction,
-    VectorConversionFunction {
+    AcrossSeriesReduction, HistogramFunctionCall, MetadataManipulationFunction, ScalarConversionFunction, WithinSeriesAggregate,
+    ValueTransformationFunction, VectorConversionFunction {
     // implements TelemetryAware {
 
     private final List<Expression> parameters;
@@ -105,6 +109,11 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
 
     /**
      * Builds the ES|QL expression that implements this PromQL function call.
+     * <p>
+     * The builder returns an {@link Expression}: a value expression for scalar/aggregate/value-transformation
+     * functions, or an {@code Order} (possibly {@code null} when unordered) for the order-statistic reductions
+     * ({@code topk}, {@code bottomk}, {@code limitk}), consumed by the translator. Functions lowered to plan nodes
+     * instead ({@code limit_ratio}) are translated directly and their builders throw.
      *
      * @param target the primary input expression (child vector or scalar), or {@code null} for zero-argument functions
      * @param ctx    the PromQL evaluation context (timestamp, window, step, configuration)
@@ -130,8 +139,36 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
 
     public abstract FunctionType functionType();
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Re-declared abstract on the {@link PromqlFunctionCall} hierarchy so every PromQL function node classifies itself
+     * explicitly instead of silently inheriting the transparent default: adding a new function node fails to compile until
+     * its relabel-placement semantics are decided.
+     */
+    @Override
+    public abstract boolean isIdentityTransparent();
+
     @Override
     public final PromqlDataType returnType() {
         return functionType().outputType;
+    }
+
+    /**
+     * Translates a generic PromQL function call (rate, ceil, abs, etc.) into an expression over the child's value.
+     * Shared by the function families that need no special lowering; each still declares its own
+     * {@link #translate} so a new family cannot inherit this lowering by accident.
+     */
+    protected final IntermediateResult translateValueFunction(TranslationContext context) {
+        IntermediateResult child = context.translate(child());
+        if (child.kind().constant) {
+            return child;
+        }
+        Expression window = AggregateFunction.NO_WINDOW;
+        if (child() instanceof RangeSelector rangeSelector) {
+            window = context.cmd().resolveRangeWindow(rangeSelector.range());
+        }
+        var promqlCtx = new PromqlContext(context.time(), window, child.step(), context.configuration());
+        return context.eval(child, buildEsqlFunction(child.value(), promqlCtx));
     }
 }

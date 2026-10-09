@@ -107,7 +107,8 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
     @Override
     public void afterFilesRestoredFromRepository(IndexShard indexShard) {
         final var store = indexShard.store();
-        store.incRef();
+        // Store ref is held by IndicesService for the recovery lifetime.
+        assert store.hasReferences();
         try {
             final var userData = store.readLastCommittedSegmentsInfo().getUserData();
             final String startFile = userData.get(TRANSLOG_RECOVERY_START_FILE);
@@ -130,31 +131,21 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
-        } finally {
-            store.decRef();
         }
     }
 
     @Override
     public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
         final Store store = indexShard.store();
+        // Store ref is held by IndicesService for the recovery lifetime.
+        assert store.hasReferences();
         try {
-            store.incRef();
-            boolean success = false;
-            try {
-                final var existingBlobContainer = initializeBlobContainer(indexShard, store);
-                assert indexShard.routingEntry().isSearchable() == false;
-                var releaseAfterListener = ActionListener.releaseAfter(listener, store::decRef);
-                if (IndexReshardingMetadata.isSplitTarget(indexShard.shardId(), indexSettings.getIndexMetadata().getReshardingMetadata())) {
-                    beforeRecoveryOnSplitTarget(indexShard, existingBlobContainer, releaseAfterListener, indexSettings);
-                } else {
-                    beforeRecoveryOnIndexingShard(indexShard, existingBlobContainer, releaseAfterListener);
-                }
-                success = true;
-            } finally {
-                if (success == false) {
-                    store.decRef();
-                }
+            final var existingBlobContainer = initializeBlobContainer(indexShard, store);
+            assert indexShard.routingEntry().isSearchable() == false;
+            if (IndexReshardingMetadata.isSplitTarget(indexShard.shardId(), indexSettings.getIndexMetadata().getReshardingMetadata())) {
+                beforeRecoveryOnSplitTarget(indexShard, existingBlobContainer, listener, indexSettings);
+            } else {
+                beforeRecoveryOnIndexingShard(indexShard, existingBlobContainer, listener);
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -164,7 +155,7 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
     private void beforeRecoveryOnSplitTarget(
         final IndexShard indexShard,
         final BlobContainer existingBlobContainer,
-        final ActionListener<Void> releaseAfterListener,
+        final ActionListener<Void> listener,
         final IndexSettings indexSettings
     ) {
         splitTargetService.startSplitTargetShardRecovery(
@@ -172,8 +163,8 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
             indexSettings.getIndexMetadata(),
             new ThreadedActionListener<>(
                 threadPool.generic(),
-                releaseAfterListener.delegateFailureAndWrap(
-                    (listener1, unused) -> beforeRecoveryOnIndexingShard(indexShard, existingBlobContainer, releaseAfterListener)
+                listener.delegateFailureAndWrap(
+                    (listener1, unused) -> beforeRecoveryOnIndexingShard(indexShard, existingBlobContainer, listener1)
                 )
             )
         );

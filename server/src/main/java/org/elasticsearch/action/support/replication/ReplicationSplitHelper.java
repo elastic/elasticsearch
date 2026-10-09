@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -267,6 +268,12 @@ public class ReplicationSplitHelper<
                     final ClusterState clusterState = clusterStateSupplier.get();
                     final ProjectId projectId = project.id();
                     final ShardRouting target = clusterState.routingTable(projectId).shardRoutingTable(targetShardId).primaryShard();
+                    if (target.assignedToNode() == false) {
+                        // The target primary is transiently unassigned (e.g. its node was lost due to a disruption).
+                        // Treat this as a retriable condition: the allocator will assign it to a new node shortly.
+                        listener.onFailure(new UnavailableShardsException(targetShardId, "target primary shard is not assigned to a node"));
+                        return;
+                    }
                     final IndexMetadata indexMetadata = project.index(targetShardId.getIndex());
                     final DiscoveryNode targetNode = clusterState.nodes().get(target.currentNodeId());
                     final String allocationID = target.allocationId().getId();

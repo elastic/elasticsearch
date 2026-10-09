@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -74,7 +73,6 @@ public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTest
     }
 
     public void testCacheMissWaitTimeHeader() throws InterruptedException {
-        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
         assertCacheMissWaitTimeHeader("cache-miss-header", true);
     }
 
@@ -101,6 +99,8 @@ public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTest
         assertThat(coldCacheMetrics.get(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER), greaterThan(0L));
         if (expectStoreBytesRead) {
             assertThat(coldCacheMetrics, hasKey(StoreMetrics.BYTES_READ_METRIC_KEY));
+            // the blob cache directory accounts its own reads, so this also covers the holder reaching its inputs
+            assertThat(coldCacheMetrics.get(StoreMetrics.BYTES_READ_METRIC_KEY), greaterThan(0L));
         } else {
             assertThat(coldCacheMetrics, not(hasKey(StoreMetrics.BYTES_READ_METRIC_KEY)));
         }

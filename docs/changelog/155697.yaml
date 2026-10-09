@@ -1,6 +1,0 @@
-area: Search
-issues:
- - 90912
-pr: 155697
-summary: Keep scroll contexts on transient search queue rejection
-type: bug

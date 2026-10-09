@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexingPressure;
@@ -35,6 +36,8 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class OTelPlugin extends Plugin implements ActionPlugin {
+
+    public static final FeatureFlag METRIC_EXEMPLARS_FEATURE_FLAG = new FeatureFlag("metric_exemplars");
 
     // OTEL_DATA_REGISTRY_ENABLED controls enabling the index template registry.
     //

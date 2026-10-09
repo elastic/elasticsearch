@@ -70,6 +70,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.inference.metadata.EndpointMetadataClusterState;
 import org.elasticsearch.license.License;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
@@ -1470,25 +1471,26 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             null,
             null,
             null,
-            endpointMetadata
+            EndpointMetadataClusterState.from(endpointMetadata)
         );
 
         // The dynamic update path discards endpoint metadata; only the core model settings are persisted in the mapping
         MapperService mapperService = createSemanticMapperService(semanticMapping(fieldName, inferenceId));
         performDynamicUpdate(mapperService, fieldName, inferenceId, modelSettings);
         SemanticTextFieldMapper mapper = getSemanticFieldMapper(mapperService, fieldName);
-        assertThat(mapper.fieldType().getModelSettings().endpointMetadata(), equalTo(EndpointMetadata.EMPTY_INSTANCE));
+        assertThat(mapper.fieldType().getModelSettings().endpointMetadata(), equalTo(EndpointMetadataClusterState.EMPTY_INSTANCE));
     }
 
     public void testMappingWithEndpointMetadata() throws IOException {
         final EndpointMetadata endpointMetadata = EndpointMetadataTests.randomNonEmptyInstance();
+        final EndpointMetadataClusterState endpointMetadataClusterState = EndpointMetadataClusterState.from(endpointMetadata);
         final EndpointClusterState modelSettingsWithMetadata = new EndpointClusterState(
             "test-service",
             TaskType.SPARSE_EMBEDDING,
             null,
             null,
             null,
-            endpointMetadata
+            endpointMetadataClusterState
         );
 
         MapperService originalMapperService = createSemanticMapperService(
@@ -1497,7 +1499,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             })
         );
         SemanticTextFieldMapper originalMapper = getSemanticFieldMapper(originalMapperService, "field");
-        assertThat(originalMapper.fieldType().getModelSettings().endpointMetadata(), equalTo(endpointMetadata));
+        assertThat(originalMapper.fieldType().getModelSettings().endpointMetadata(), equalTo(endpointMetadataClusterState));
 
         // An XContent serialization cycle should remove the endpoint metadata
         CompressedXContent mappingSource = originalMapperService.documentMapper().mappingSource();
@@ -1505,14 +1507,14 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         parsedMapperService.merge("_doc", mappingSource, MapperService.MergeReason.MAPPING_UPDATE);
 
         SemanticTextFieldMapper parsedMapper = getSemanticFieldMapper(parsedMapperService, "field");
-        assertThat(parsedMapper.fieldType().getModelSettings().endpointMetadata(), equalTo(EndpointMetadata.EMPTY_INSTANCE));
+        assertThat(parsedMapper.fieldType().getModelSettings().endpointMetadata(), equalTo(EndpointMetadataClusterState.EMPTY_INSTANCE));
     }
 
     private static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswDenseVectorIndexOptions() {
         int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
         int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
         DenseVectorFieldMapper.RescoreVector rescoreVector = new DenseVectorFieldMapper.RescoreVector(DEFAULT_RESCORE_OVERSAMPLE);
-        return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, false, rescoreVector, -1);
+        return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, false, rescoreVector, -1, false);
     }
 
     public void testDefaultIndexOptions() throws IOException {
@@ -1544,7 +1546,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         SemanticIndexOptions expectedIndexOptions = new SemanticIndexOptions(
             SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
             new ExtendedDenseVectorIndexOptions(
-                new DenseVectorFieldMapper.Int4HnswIndexOptions(20, 90, false, null, -1),
+                new DenseVectorFieldMapper.Int4HnswIndexOptions(20, 90, false, null, -1, false),
                 DenseVectorFieldMapper.ElementType.FLOAT  // Explicitly override element type to hold it constant
             )
         );
@@ -1575,7 +1577,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             new SemanticIndexOptions(
                 SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
                 new ExtendedDenseVectorIndexOptions(
-                    new DenseVectorFieldMapper.Int4HnswIndexOptions(16, 100, false, null, -1),
+                    new DenseVectorFieldMapper.Int4HnswIndexOptions(16, 100, false, null, -1, false),
                     DenseVectorFieldMapper.ElementType.FLOAT
                 )
             )
@@ -1684,7 +1686,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         SemanticIndexOptions int4HnswWithFloatIndexOptions = new SemanticIndexOptions(
             SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
             new ExtendedDenseVectorIndexOptions(
-                new DenseVectorFieldMapper.Int4HnswIndexOptions(20, 90, false, null, -1),
+                new DenseVectorFieldMapper.Int4HnswIndexOptions(20, 90, false, null, -1, false),
                 DenseVectorFieldMapper.ElementType.FLOAT
             )
         );

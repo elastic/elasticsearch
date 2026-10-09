@@ -73,7 +73,7 @@ public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplie
         // are unpacked straight from the slice, and the corrections are read from its trailing bytes.
         long offset = (long) ord * vectorPitch;
         input.seek(offset);
-        return IndexInputUtils.withSlice(input, vectorPitch, scratch::getScratch, seg -> {
+        return IndexInputUtils.withSlice(input, vectorPitch, scratch, seg -> {
             unpackNibbles(seg);
             // The corrections trailer starts at byte offset packedDims within the record; read the
             // 3 floats + 1 int directly from the slice rather than materializing a short-lived sub-slice.

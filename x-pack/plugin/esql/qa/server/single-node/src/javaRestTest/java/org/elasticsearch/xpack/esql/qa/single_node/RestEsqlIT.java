@@ -90,7 +90,7 @@ import static org.hamcrest.core.Is.is;
 public class RestEsqlIT extends RestEsqlTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(
-        specBuilder -> specBuilder.plugin("mapper-size").plugin("mapper-murmur3")
+        specBuilder -> specBuilder.name("esql-cluster").plugin("mapper-size").plugin("mapper-murmur3")
     );
 
     @Override
@@ -144,6 +144,17 @@ public class RestEsqlIT extends RestEsqlTestCase {
         builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(builder));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("[pragma] only allowed in snapshot builds"));
+    }
+
+    public void testStreamingNotAllowed() throws IOException {
+        assumeFalse("streaming is disabled on release builds", Build.current().isSnapshot());
+        Request request = new Request("POST", "/_query");
+        request.addParameter("streaming", "true");
+        request.addParameter("format", "ndjson");
+        request.setJsonEntity("{\"query\": \"ROW a = 1\"}");
+        ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("contains unrecognized parameter: [streaming]"));
     }
 
     public void testDoNotLogWithInfo() throws IOException {
@@ -381,7 +392,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> plans = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("plans");
         for (Map<String, Object> plan : plans) {
-            assertThat(plan.get("cluster_name"), equalTo("test-cluster"));
+            assertThat(plan.get("cluster_name"), equalTo("esql-cluster"));
             assertThat(plan.get("node_name"), notNullValue());
             assertThat(plan.get("plan"), notNullValue());
             String description = (String) plan.get("description");
@@ -430,10 +441,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
         assertEquals("ns", parsedProfile.get("displayTimeUnit"));
         List<Map<String, Object>> events = (List<Map<String, Object>>) parsedProfile.get("traceEvents");
-        // At least 1 metadata event to declare the node, and 2 events each for the data, node_reduce and final drivers, resp.
-        assertThat(events.size(), greaterThanOrEqualTo(7));
+        // At least 1 metadata event to declare the node, and 2 events each for the data and final drivers, resp.
+        assertThat(events.size(), greaterThanOrEqualTo(5));
 
-        String clusterName = "test-cluster";
+        String clusterName = "esql-cluster";
         Set<String> expectedProcessNames = new HashSet<>();
         for (int i = 0; i < cluster.getNumNodes(); i++) {
             expectedProcessNames.add(clusterName + ":" + cluster.getName(i));
@@ -1269,7 +1280,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("values_loaded", greaterThanOrEqualTo(0))
             .entry("rows_emitted", greaterThanOrEqualTo(0L))
             .entry("bytes_read", greaterThanOrEqualTo(0L))
-            .entry("read_nanos", greaterThanOrEqualTo(0L));
+            .entry("read_nanos", greaterThanOrEqualTo(0L))
+            .entry("read_cpu_nanos", greaterThanOrEqualTo(0L));
     }
 
     public void testProfileConditionalBlockLoader() throws IOException {
@@ -1443,9 +1455,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     String name = signature(o);
                     if (name.equals("LuceneSourceOperator")) {
                         // AUTO routes to DOC (docs_threshold_auto_partitioning=20 is below this
-                        // index's 1000 docs), but the DOC partitioner floors slice size at
-                        // MIN_DOCS_PER_SLICE (50_000), so this 1000-doc index must stay on a
-                        // single slice — the previous behavior over-split tiny indices.
+                        // index's 1000 docs), but the DOC partitioner caps slices at
+                        // totalDocs / MIN_DOCS_PER_SLICE (50_000), so this 1000-doc index —
+                        // even when Lucene flushed multiple segments — must stay on a single
+                        // slice rather than opening one bin per segment.
                         MapMatcher status = matchesMap().entry("total_slices", equalTo(1))
                             .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "DOC"))
                             .extraOk();
@@ -1492,6 +1505,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
         profile.put("rows_emitted", ((Number) profile.get("rows_emitted")).longValue());
         profile.put("bytes_read", ((Number) profile.get("bytes_read")).longValue());
         profile.put("read_nanos", ((Number) profile.get("read_nanos")).longValue());
+        if (profile.containsKey("read_cpu_nanos")) {
+            profile.put("read_cpu_nanos", ((Number) profile.get("read_cpu_nanos")).longValue());
+        }
     }
 
     static String signature(Map<String, Object> o) {
@@ -1514,7 +1530,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("process_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"))
                 .entry("bytes_read", greaterThanOrEqualTo(0))
-                .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
+                .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"))
+                .extraOk();
             case "ValuesSourceReaderOperator" -> basicProfile().entry("pages_received", greaterThan(0))
                 .entry("pages_emitted", greaterThan(0))
                 .entry("values_loaded", greaterThanOrEqualTo(0))

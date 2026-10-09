@@ -82,72 +82,14 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
 
     private void beforeSearchShardRecovery(final IndexShard indexShard, final ActionListener<Void> listener) {
         final Store store = indexShard.store();
+        // Store ref is held by IndicesService for the recovery lifetime.
+        assert store.hasReferences();
         try {
-            store.incRef();
-            boolean success = false;
-            try {
-                final var existingBlobContainer = initializeBlobContainer(indexShard, store);
-                final var releaseAfterListener = ActionListener.releaseAfter(listener, store::decRef);
-                beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, releaseAfterListener);
-                success = true;
-            } finally {
-                if (success == false) {
-                    store.decRef();
-                }
-            }
+            final var existingBlobContainer = initializeBlobContainer(indexShard, store);
+            beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
-    }
-
-    @Override
-    public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
-        assert indexShard.routingEntry().isSearchable();
-        afterSearchShardRecovery(indexShard, listener);
-    }
-
-    private static void afterSearchShardRecovery(final IndexShard indexShard, final ActionListener<Void> listener) {
-        ActionListener.run(listener, l -> indexShard.withEngineException(engine -> {
-            switch (engine) {
-                case SearchEngine searchEngine -> {
-                    /*
-                     * The shard can be closed underneath us, so we assert that we're either
-                     * recovering or closed at this point
-                     */
-                    assert indexShard.state() == IndexShardState.RECOVERING || indexShard.state() == IndexShardState.CLOSED
-                        : "expected index in recovering shard state but is: " + indexShard.state();
-                    assert indexShard.routingEntry().state() == ShardRoutingState.INITIALIZING
-                        : "expected initializing shard routing state but is: " + indexShard.state();
-                    indexShard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "search shard recovery");
-                    searchEngine.afterRecovery();
-                    l.onResponse(null);
-                }
-                case NoOpEngine ignored -> l.onResponse(null);
-                default -> throw new AssertionError("unexpected engine type: " + engine);
-            }
-            return null;
-        }));
-    }
-
-    private static void logBootstrappingFromIndexingShard(
-        IndexShard indexShard,
-        StatelessCompoundCommit latestCommit,
-        PrimaryTermAndGeneration latestUploaded
-    ) {
-        assert indexShard.routingEntry().isPromotableToPrimary() == false;
-        assert latestCommit != null;
-        boolean uploaded = latestCommit.getContainingBccBlobFile().termAndGeneration().onOrBefore(latestUploaded);
-        logger.info(
-            "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} ({}) and latest uploaded {} from indexing shard ({})",
-            indexShard.shardId(),
-            indexShard.shardId().getIndex().getUUID(),
-            indexShard.routingEntry().role(),
-            indexShard.getOperationPrimaryTerm(),
-            latestCommit.toShortDescription(),
-            uploaded ? "uploaded" : "pending upload",
-            latestUploaded,
-            describe(indexShard.recoveryState())
-        );
     }
 
     private void beforeRecoveryOnSearchShard(IndexShard indexShard, BlobContainer blobContainer, ActionListener<Void> listener)
@@ -230,16 +172,14 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                                     )
                                 );
                                 var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
-                                var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
                                 // Aggregate a single warm target per BCC blob: the furthest offset to warm, stamped with the most recent
                                 // representative timestamp among the referenced CCs sharing that blob.
                                 // blobSize is 0 as a sentinel until the bccBlobSizeConsumer fills it in.
-                                long ccTimestamp = searchDirectory.resolveRegionTimestampMillis(
-                                    referencedCompoundCommit.statelessCompoundCommitReference()
-                                        .compoundCommit()
-                                        .getTimestampFieldValueRange()
+                                targetsToWarm.merge(
+                                    bccBlobFile,
+                                    warmingService.computeWarmTarget(referencedCompoundCommit, searchDirectory),
+                                    WarmTarget::merge
                                 );
-                                targetsToWarm.merge(bccBlobFile, new WarmTarget(offset, 0L, ccTimestamp), WarmTarget::merge);
                             },
                             (blobFile, bccSize) -> {
                                 assert targetsToWarm.containsKey(blobFile);
@@ -294,6 +234,56 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                     );
                 }));
             })
+        );
+    }
+
+    @Override
+    public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+        assert indexShard.routingEntry().isSearchable();
+        afterSearchShardRecovery(indexShard, listener);
+    }
+
+    private static void afterSearchShardRecovery(final IndexShard indexShard, final ActionListener<Void> listener) {
+        ActionListener.run(listener, l -> indexShard.withEngineException(engine -> {
+            switch (engine) {
+                case SearchEngine searchEngine -> {
+                    /*
+                     * The shard can be closed underneath us, so we assert that we're either
+                     * recovering or closed at this point
+                     */
+                    assert indexShard.state() == IndexShardState.RECOVERING || indexShard.state() == IndexShardState.CLOSED
+                        : "expected index in recovering shard state but is: " + indexShard.state();
+                    assert indexShard.routingEntry().state() == ShardRoutingState.INITIALIZING
+                        : "expected initializing shard routing state but is: " + indexShard.state();
+                    indexShard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "search shard recovery");
+                    searchEngine.afterRecovery();
+                    l.onResponse(null);
+                }
+                case NoOpEngine ignored -> l.onResponse(null);
+                default -> throw new AssertionError("unexpected engine type: " + engine);
+            }
+            return null;
+        }));
+    }
+
+    private static void logBootstrappingFromIndexingShard(
+        IndexShard indexShard,
+        StatelessCompoundCommit latestCommit,
+        PrimaryTermAndGeneration latestUploaded
+    ) {
+        assert indexShard.routingEntry().isPromotableToPrimary() == false;
+        assert latestCommit != null;
+        boolean uploaded = latestCommit.getContainingBccBlobFile().termAndGeneration().onOrBefore(latestUploaded);
+        logger.info(
+            "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} ({}) and latest uploaded {} from indexing shard ({})",
+            indexShard.shardId(),
+            indexShard.shardId().getIndex().getUUID(),
+            indexShard.routingEntry().role(),
+            indexShard.getOperationPrimaryTerm(),
+            latestCommit.toShortDescription(),
+            uploaded ? "uploaded" : "pending upload",
+            latestUploaded,
+            describe(indexShard.recoveryState())
         );
     }
 

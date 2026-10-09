@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -20,8 +21,10 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -30,6 +33,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.QueryFailureTelemetry;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -54,6 +58,7 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
@@ -72,6 +77,12 @@ public class PlanExecutor {
     private final DataSourceModule dataSourceModule;
     private final ExternalSourceCacheService cacheService;
     private final AnalysisRegistry analysisRegistry;
+    @Nullable
+    private final IntSupplier maxDiscoveredFiles;
+    @Nullable
+    private final IntSupplier maxGlobExpansion;
+    @Nullable
+    private final IntSupplier maxListedObjects;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -87,6 +98,42 @@ public class PlanExecutor {
         ExternalSourceCacheService cacheService,
         AnalysisRegistry analysisRegistry
     ) {
+        this(
+            indexResolver,
+            meterRegistry,
+            licenseState,
+            queryLog,
+            extraCheckers,
+            crossProjectModeDecider,
+            dataSourceModule,
+            functionRegistry,
+            promqlFunctionRegistry,
+            parser,
+            cacheService,
+            analysisRegistry,
+            null,
+            null,
+            null
+        );
+    }
+
+    public PlanExecutor(
+        IndexResolver indexResolver,
+        MeterRegistry meterRegistry,
+        XPackLicenseState licenseState,
+        EsqlQueryLog queryLog,
+        List<BiConsumer<LogicalPlan, Failures>> extraCheckers,
+        CrossProjectModeDecider crossProjectModeDecider,
+        DataSourceModule dataSourceModule,
+        EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
+        EsqlParser parser,
+        ExternalSourceCacheService cacheService,
+        AnalysisRegistry analysisRegistry,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects
+    ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
         this.preAnalyzer = new PreAnalyzer();
@@ -100,6 +147,9 @@ public class PlanExecutor {
         this.dataSourceModule = dataSourceModule;
         this.cacheService = cacheService;
         this.analysisRegistry = analysisRegistry;
+        this.maxDiscoveredFiles = maxDiscoveredFiles;
+        this.maxGlobExpansion = maxGlobExpansion;
+        this.maxListedObjects = maxListedObjects;
     }
 
     /**
@@ -125,6 +175,32 @@ public class PlanExecutor {
         int externalSourceConcurrency,
         @Nullable ThreadContext threadContext
     ) {
+        return createExternalSourceResolver(
+            externalSourceExecutor,
+            dataSourceModule,
+            settings,
+            cacheService,
+            cancellation,
+            externalSourceConcurrency,
+            threadContext,
+            null,
+            null,
+            null
+        );
+    }
+
+    static ExternalSourceResolver createExternalSourceResolver(
+        Executor externalSourceExecutor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        ExternalSourceCacheService cacheService,
+        BooleanSupplier cancellation,
+        int externalSourceConcurrency,
+        @Nullable ThreadContext threadContext,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects
+    ) {
         return new ExternalSourceResolver(
             externalSourceExecutor,
             dataSourceModule,
@@ -132,7 +208,10 @@ public class PlanExecutor {
             cacheService,
             cancellation,
             externalSourceConcurrency,
-            threadContext
+            threadContext,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects
         );
     }
 
@@ -140,7 +219,7 @@ public class PlanExecutor {
      * @param externalSourceExecutor Executor for {@link ExternalSourceResolver} work — glob expansion, footer reads,
      *                               schema reconciliation. Must not be the SEARCH pool: a wildcard external query
      *                               would otherwise starve regular ES searches and other ES|QL queries. Production
-     *                               wiring passes {@code esql_worker}.
+     *                               wiring passes the dedicated {@code esql_external_io} pool.
      * @param externalSourceConcurrency maximum number of in-flight per-file metadata reads during a multi-file
      *                               resolve. Production wiring passes
      *                               {@link ExternalSourceSettings#blobStoreConcurrency(Settings)} (the
@@ -176,9 +255,8 @@ public class PlanExecutor {
         // caps in-flight reads rather than pinning that many threads, so a wide discovery cannot starve execution.
         // NOTE: this release-across-the-read guarantee holds for storage backends with native async
         // reads (e.g. S3). Backends whose readBytesAsync is an executor-backed sync read (local, GCS)
-        // still occupy a worker thread for the duration of each footer read; the bound limits how
-        // many do so at once, and re-homing those blocking reads off esql_worker is handled by the
-        // follow-up concurrency-fairness work rather than here.
+        // still occupy one of that executor's threads for the duration of each footer read; the bound
+        // limits how many do so at once.
         final ExternalSourceResolver externalSourceResolver = createExternalSourceResolver(
             externalSourceExecutor,
             dataSourceModule,
@@ -186,7 +264,10 @@ public class PlanExecutor {
             cacheService,
             cancellation,
             externalSourceConcurrency,
-            services.transportService().getThreadPool().getThreadContext()
+            services.transportService().getThreadPool().getThreadContext(),
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects
         );
         final var session = new EsqlSession(
             sessionId,
@@ -215,13 +296,43 @@ public class PlanExecutor {
         metrics.total(clientId);
 
         var begin = System.nanoTime();
+        ActionListener<Versioned<Result>> releasingListener = bindPlanningReservation(
+            services,
+            executionInfo,
+            externalSourceResolver,
+            listener
+        );
         ActionListener<Versioned<Result>> executeListener = wrap(
-            x -> onQuerySuccess(request, listener, x, planTelemetry, begin),
-            ex -> onQueryFailure(request, listener, ex, clientId, planTelemetry, begin)
+            x -> onQuerySuccess(request, releasingListener, x, planTelemetry, services.usageService(), executionInfo, begin),
+            ex -> onQueryFailure(request, releasingListener, ex, clientId, planTelemetry, begin)
         );
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
         // and all the metrics are properly updated
-        ActionListener.run(executeListener, l -> session.execute(request, executionInfo, planRunner, l));
+        ActionListener.run(executeListener, l -> session.execute(request, executionInfo, planRunner, cancellation, l));
+    }
+
+    /**
+     * Creates the query's external-planning reservation, which charges listings, schema maps and split shells to the
+     * request breaker, and returns {@code listener} wrapped to close it. Creating and closing it here, around the whole
+     * session, releases it for every caller whether the session succeeds, fails, or throws synchronously out of
+     * {@code session.execute}. The release runs after this class's telemetry in {@link #onQuerySuccess} and
+     * {@link #onQueryFailure} and before {@code listener}, so callers must not use the reservation once notified.
+     * Without a breaker there is nothing to charge and {@code listener} is returned as is.
+     */
+    private static ActionListener<Versioned<Result>> bindPlanningReservation(
+        TransportActionServices services,
+        EsqlExecutionInfo executionInfo,
+        ExternalSourceResolver externalSourceResolver,
+        ActionListener<Versioned<Result>> listener
+    ) {
+        BlockFactory blockFactory = services.blockFactoryProvider().blockFactory();
+        if (blockFactory == null || blockFactory.breaker() == null) {
+            return listener;
+        }
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(blockFactory.breaker());
+        executionInfo.externalPlanning(reservation);
+        externalSourceResolver.planning(reservation);
+        return ActionListener.releaseBefore(reservation, listener);
     }
 
     private void onQuerySuccess(
@@ -229,6 +340,8 @@ public class PlanExecutor {
         ActionListener<Versioned<Result>> listener,
         Versioned<Result> x,
         PlanTelemetry planTelemetry,
+        UsageService usageService,
+        EsqlExecutionInfo executionInfo,
         long begin
     ) {
         planTelemetryManager.publish(planTelemetry, true);
@@ -241,6 +354,13 @@ public class PlanExecutor {
             null
         );
         queryLog.onQueryPhase(x, request.queryDescription());
+        // record routing usage telemetry
+        usageService.getProjectRoutingUsageHolder()
+            .recordEsql(
+                executionInfo.getProjectRoutingInfo(),
+                planTelemetry.settings().containsKey("PROJECT_ROUTING"),
+                executionInfo.isHasLinkedProjects()
+            );
         listener.onResponse(x);
     }
 
@@ -270,7 +390,8 @@ public class PlanExecutor {
      * Publishes the per-query external-source coordinator metrics — but only when the query actually scanned an
      * external source ({@code externalSource}: an {@code ExternalRelation} was seen in the analyzed plan, flagged on
      * {@code PlanTelemetry}). The outcome is classified from {@code failure}: {@code null} → success; a
-     * {@link TaskCancelledException} anywhere in the cause chain → cancelled; anything else → failure. A hard failure
+     * {@link TaskCancelledException} anywhere in the cause chain → cancelled; anything else → failure, which is further
+     * classified by {@link QueryFailureTelemetry} into an {@code error_type} and HTTP status. A hard failure
      * that unwraps to a {@link CircuitBreakingException} additionally bumps {@code breaker.tripped}. Best-effort: the
      * {@code recordX} methods self-guard, so an instrumentation failure never affects the query outcome.
      * <p>
@@ -303,7 +424,12 @@ public class PlanExecutor {
         } else {
             outcome = ExternalSourceMetrics.OUTCOME_FAILURE;
         }
-        externalSourceMetrics.recordQuery(outcome, durationMillis, partial);
+        if (ExternalSourceMetrics.OUTCOME_FAILURE.equals(outcome)) {
+            QueryFailureTelemetry.Failure classified = QueryFailureTelemetry.classify(failure);
+            externalSourceMetrics.recordQuery(outcome, durationMillis, partial, classified.errorType(), classified.status());
+        } else {
+            externalSourceMetrics.recordQuery(outcome, durationMillis, partial);
+        }
         // Only hard-failure breaker trips are attributed here: a CB that instead produced is_partial=true reaches the
         // success path with failure==null and is NOT counted (its CircuitBreakingException is not cleanly reachable at
         // this seam — see the javadoc "Known gap"). The partial is still counted via queries.partial.total above.

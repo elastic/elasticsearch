@@ -1,5 +1,0 @@
-area: Transform
-issues: []
-pr: 156191
-summary: Preserve headers when copying a transform configuration
-type: bug

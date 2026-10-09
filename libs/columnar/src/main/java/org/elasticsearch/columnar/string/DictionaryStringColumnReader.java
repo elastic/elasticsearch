@@ -21,6 +21,8 @@ import org.elasticsearch.columnar.substrate.MonotonicReader;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.NavigableSet;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -48,6 +50,15 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     private final LongValues escapeRanks;
     /** Values between entries in {@link #escapeRanks}, as the column recorded it. */
     private final int escapeRankBlockSize;
+
+    /**
+     * Runs of ordinals a window is still worth building for: it costs one vectorized pass per run on every
+     * block read, while the ordinal bitset costs one probe per value whatever the run count.
+     *
+     * <p>Placed with {@code ColumnarDictionaryStringTermsSlicingBenchmark} against a build that never builds
+     * a window: {@code -p data=POD_NAME -p numDocs=1000000 -p probe=PRESENT -p queryTerms=1,2,3,4,8,16}.
+     */
+    private static final int MAX_WINDOW_RUNS = 2;
 
     private final int dictionarySize;
     /** The ordinal marking a value no term names, one past the last term. */
@@ -397,17 +408,18 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         }
         // The approximation is the slots whose ordinal is in the run, and the escaped ones when an escape can
         // carry the target; a block of ordinals is tested at once. When no escape can, the ordinals settle it.
-        final SlotWindow window = escapesCanMatch
-            ? new SlotWindow(SlotBlocks.of(ordinals), lowOrdinal, highOrdinal - 1L, escapeOrdinal, escapeOrdinal)
-            : new SlotWindow(SlotBlocks.of(ordinals), lowOrdinal, highOrdinal - 1L);
+        final SlotWindow window = new SlotWindow(
+            SlotBlocks.of(ordinals),
+            windowRanges(lowOrdinal, highOrdinal, escapeOrdinal, escapesCanMatch)
+        );
         final Slots candidates = slotsHeld(window);
+        if (escapesCanMatch == false) {
+            return settledBy(candidates);
+        }
         final BytesRef value = new BytesRef();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(candidates) {
             @Override
             public boolean matches() throws IOException {
-                if (escapesCanMatch == false) {
-                    return true;
-                }
                 final long first = candidates.firstSlot();
                 final long count = candidates.slotCount();
                 for (long i = 0; i < count; i++) {
@@ -429,27 +441,11 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
 
             @Override
             public float matchCost() {
-                return escapesCanMatch ? 3f : 0f;
-            }
-
-            @Override
-            public int docIDRunEnd() throws IOException {
-                // Settled by the window, so every document of a run it holds matches.
-                return escapesCanMatch == false ? candidates.docIDRunEnd() : super.docIDRunEnd();
-            }
-
-            @Override
-            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
-                if (escapesCanMatch) {
-                    super.intoBitSet(upTo, bitSet, offset);
-                } else {
-                    candidates.intoBitSet(upTo, bitSet, offset);
-                }
+                return 3f;
             }
         });
     }
 
-    /** The first ordinal whose term sorts at or after {@code target}, by bisection over the dictionary. */
     /**
      * The end of the run the target covers, as {@code [from, to)}.
      *
@@ -476,6 +472,103 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         return low;
     }
 
+    /** The first ordinal the range admits, or {@code end} when no term reaches its lower bound. */
+    private int rangeLowOrdinal(BytesRef lower, boolean includeLower, int end) throws IOException {
+        if (lower == null) {
+            return StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+        }
+        final BytesRef scratchTerm = new BytesRef();
+        int lo = firstTermAtLeast(lower, end);
+        if (includeLower == false && lo < end && termAt(lo, scratchTerm).compareTo(lower) == 0) {
+            lo++;
+        }
+        return lo;
+    }
+
+    /** One past the last ordinal the range admits. */
+    private int rangeHighOrdinal(BytesRef upper, boolean includeUpper, int end) throws IOException {
+        if (upper == null) {
+            return end;
+        }
+        if (includeUpper == false) {
+            return firstTermAtLeast(upper, end);
+        }
+        // NOTE: at most one term can equal the bound, since a dictionary holds each term once.
+        final BytesRef scratchTerm = new BytesRef();
+        int lo = firstTermAtLeast(upper, end);
+        if (lo < end && termAt(lo, scratchTerm).compareTo(upper) == 0) {
+            lo++;
+        }
+        return lo;
+    }
+
+    /**
+     * The inclusive ordinal pairs a {@link SlotWindow} takes to hold the terms in {@code [lowOrdinal,
+     * highOrdinal)}, and the escaped slots when an escape can carry the target too.
+     *
+     * <p>An empty run yields the escape pair alone rather than an empty range, so no caller depends on what a
+     * window does with a range whose end sorts below its start.
+     */
+    static long[] windowRanges(int lowOrdinal, int highOrdinal, int escapeOrdinal, boolean escapesCanMatch) {
+        assert lowOrdinal < highOrdinal || escapesCanMatch : "nothing can match, which the caller answers as empty";
+        if (lowOrdinal >= highOrdinal) {
+            return new long[] { escapeOrdinal, escapeOrdinal };
+        }
+        return escapesCanMatch
+            ? new long[] { lowOrdinal, highOrdinal - 1L, escapeOrdinal, escapeOrdinal }
+            : new long[] { lowOrdinal, highOrdinal - 1L };
+    }
+
+    private static DocIdSetIterator settledBy(Slots candidates) {
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(candidates) {
+            @Override
+            public boolean matches() {
+                return true;
+            }
+
+            @Override
+            public float matchCost() {
+                return 0f;
+            }
+
+            @Override
+            public int docIDRunEnd() throws IOException {
+                return candidates.docIDRunEnd();
+            }
+
+            @Override
+            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                candidates.intoBitSet(upTo, bitSet, offset);
+            }
+        });
+    }
+
+    /**
+     * The matched ordinals as the inclusive pairs a {@link SlotWindow} takes, or null past {@code maxRuns} of
+     * them. The dictionary is in term order, so a set drawn from one part of the vocabulary collapses into
+     * few runs however many terms it holds.
+     */
+    private static long[] runsOf(FixedBitSet matching, int end, int maxRuns) {
+        final long[] pairs = new long[2 * maxRuns];
+        int count = 0;
+        int at = matching.nextSetBit(0);
+        while (at != DocIdSetIterator.NO_MORE_DOCS) {
+            if (count == maxRuns) {
+                return null;
+            }
+            int stop = at;
+            while (stop + 1 < end && matching.get(stop + 1)) {
+                stop++;
+            }
+            pairs[2 * count] = at;
+            pairs[2 * count + 1] = stop;
+            count++;
+            at = stop + 1 < end ? matching.nextSetBit(stop + 1) : DocIdSetIterator.NO_MORE_DOCS;
+        }
+        return count == 0 ? null : Arrays.copyOf(pairs, 2 * count);
+    }
+
+    /** The first ordinal whose term sorts at or after {@code target}, by bisection over the dictionary. */
     private int firstTermAtLeast(BytesRef target, int end) throws IOException {
         final BytesRef term = new BytesRef();
         int low = StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
@@ -489,6 +582,148 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             }
         }
         return low;
+    }
+
+    @Override
+    protected DocIdSetIterator unorderedRangeMatches(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper)
+        throws IOException {
+        final int end = dictionarySize + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+        final int lowOrdinal = rangeLowOrdinal(lower, includeLower, end);
+        final int highOrdinal = rangeHighOrdinal(upper, includeUpper, end);
+
+        // NOTE: an escaped value takes an ordinal above every term, but its bytes sort wherever they sort, so
+        // any escape can fall in the range and only reading it settles that.
+        final boolean escapesCanMatch = escapeCount > 0;
+        if (lowOrdinal >= highOrdinal && escapesCanMatch == false) {
+            return DocIdSetIterator.empty();
+        }
+        final SlotWindow window = new SlotWindow(
+            SlotBlocks.of(ordinals),
+            windowRanges(lowOrdinal, highOrdinal, escapeOrdinal, escapesCanMatch)
+        );
+        final Slots candidates = slotsHeld(window);
+        if (escapesCanMatch == false) {
+            return settledBy(candidates);
+        }
+        final BytesRef value = new BytesRef();
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(candidates) {
+            @Override
+            public boolean matches() throws IOException {
+                final long first = candidates.firstSlot();
+                final long count = candidates.slotCount();
+                for (long i = 0; i < count; i++) {
+                    final long address = first + i;
+                    if (window.holds(address) == false) {
+                        continue;
+                    }
+                    if (ordinalAt(address) != escapeOrdinal) {
+                        return true;
+                    }
+                    escapes.get(escapeRankOf(address), value);
+                    if (inRange(value, lower, includeLower, upper, includeUpper)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public float matchCost() {
+                return 3f;
+            }
+        });
+    }
+
+    private boolean sweepIsCheaper(int termCount) {
+        final int reads = Math.max(1, 32 - Integer.numberOfLeadingZeros(dictionarySize));
+        // NOTE: a sweep reads the terms in order and hashes every one, so reading as many terms as the
+        // dictionary holds does not yet favour it. The factor brackets where the two cross, placed with
+        // ColumnarDictionaryStringTermsSlicingBenchmark against a build that never sweeps:
+        // -p data=POD_NAME -p numDocs=1000000 -p probe=PRESENT,ABSENT -p queryTerms=4096,6144,8192
+        return 2L * termCount * reads >= 3L * dictionarySize;
+    }
+
+    private FixedBitSet matchingByBisection(NavigableSet<BytesRef> terms, int end) throws IOException {
+        final FixedBitSet matching = new FixedBitSet(end);
+        final BytesRef scratchTerm = new BytesRef();
+        for (BytesRef term : terms) {
+            final int ordinal = firstTermAtLeast(term, end);
+            if (ordinal < end && termAt(ordinal, scratchTerm).compareTo(term) == 0) {
+                matching.set(ordinal);
+            }
+        }
+        return matching;
+    }
+
+    private FixedBitSet matchingBySweep(Set<BytesRef> wanted, int end) throws IOException {
+        final FixedBitSet matching = new FixedBitSet(end);
+        final BytesRef scratchTerm = new BytesRef();
+        for (int ordinal = StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL; ordinal < end; ordinal++) {
+            if (wanted.contains(termAt(ordinal, scratchTerm))) {
+                matching.set(ordinal);
+            }
+        }
+        return matching;
+    }
+
+    @Override
+    protected DocIdSetIterator unorderedAnyOfMatches(NavigableSet<BytesRef> terms, Set<BytesRef> membership) throws IOException {
+        final int end = dictionarySize + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+        final FixedBitSet matching = sweepIsCheaper(terms.size()) ? matchingBySweep(membership, end) : matchingByBisection(terms, end);
+        // NOTE: an escaped value is one no term names, so a term the dictionary does hold was never escaped.
+        // Only a term that failed to resolve leaves an escape able to carry it.
+        final boolean escapesCanMatch = escapeCount > 0 && matching.cardinality() != terms.size();
+        if (matching.cardinality() == 0 && escapesCanMatch == false) {
+            return DocIdSetIterator.empty();
+        }
+        if (escapesCanMatch == false) {
+            final long[] runs = runsOf(matching, end, MAX_WINDOW_RUNS);
+            if (runs != null) {
+                return settledBy(slotsHeld(new SlotWindow(SlotBlocks.of(ordinals), runs)));
+            }
+        }
+        final ColumnIterator presence = iterator();
+        final BytesRef value = new BytesRef();
+        final OrdinalBlockMask mask = new OrdinalBlockMask(matching, escapesCanMatch);
+        final SlotFold fold = new SlotFold();
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
+            @Override
+            public boolean matches() throws IOException {
+                final int rank = presence.rank();
+                final long first = firstValueAddress(rank);
+                final long count = valueCount(rank);
+                for (long i = 0; i < count; i++) {
+                    final long address = first + i;
+                    if (mask.covers(address) == false) {
+                        mask.load(address);
+                    }
+                    if (mask.matches(address)) {
+                        return true;
+                    }
+                    if (mask.escaped(address)) {
+                        escapes.get(escapeRankOf(address), value);
+                        if (membership.contains(value)) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public float matchCost() {
+                return 3f;
+            }
+
+            @Override
+            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                if (escapeCount > 0) {
+                    super.intoBitSet(upTo, bitSet, offset);
+                    return;
+                }
+                collectFromOrdinals(presence, mask, fold, upTo, bitSet, offset);
+            }
+        });
     }
 
     @Override

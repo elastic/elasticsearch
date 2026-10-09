@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -120,6 +121,122 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
             @Override
             public void close() {}
         };
+    }
+
+    public void testDrainPagesAsyncParksOnWaitForReady() throws Exception {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        Page page = createTestPage(1, 10);
+        SubscribableListener<Void> ready = new SubscribableListener<>();
+        AtomicBoolean hasNextCalled = new AtomicBoolean();
+        CloseableIterator<Page> parked = new CloseableIterator<>() {
+            private boolean emitted;
+
+            @Override
+            public SubscribableListener<Void> waitForReady() {
+                return ready.isDone() ? SubscribableListener.newSucceeded(null) : ready;
+            }
+
+            @Override
+            public Page tryAdvance() {
+                if (ready.isDone() == false || emitted) {
+                    return null;
+                }
+                emitted = true;
+                return page;
+            }
+
+            @Override
+            public boolean hasNext() {
+                hasNextCalled.set(true);
+                return emitted == false && ready.isDone();
+            }
+
+            @Override
+            public Page next() {
+                Page advanced = tryAdvance();
+                if (advanced == null) {
+                    throw new NoSuchElementException();
+                }
+                return advanced;
+            }
+
+            @Override
+            public void close() {}
+        };
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        ExternalSourceDrainUtils.drainPagesAsync(parked, buffer, exec, ActionListener.wrap(v -> latch.countDown(), e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertFalse("drain must not block hasNext while waitForReady is outstanding", hasNextCalled.get());
+        assertEquals(0, buffer.size());
+        ready.onResponse(null);
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        assertNull(error.get());
+        assertEquals(1, buffer.size());
+        buffer.finish(true);
+    }
+
+    public void testDrainPagesAsyncRevokesOvershootWhenBufferIsFull() throws Exception {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1);
+        Page first = createTestPage(1, 10);
+        Page second = createTestPage(1, 10);
+        AtomicInteger revoked = new AtomicInteger();
+        CloseableIterator<Page> pages = new CloseableIterator<>() {
+            private int index;
+
+            @Override
+            public Page tryAdvance() {
+                if (index == 0) {
+                    index++;
+                    return first;
+                }
+                if (index == 1) {
+                    index++;
+                    return second;
+                }
+                return null;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return index < 2;
+            }
+
+            @Override
+            public Page next() {
+                Page page = tryAdvance();
+                if (page == null) {
+                    throw new NoSuchElementException();
+                }
+                return page;
+            }
+
+            @Override
+            public void revokeOvershootOnPark() {
+                revoked.incrementAndGet();
+            }
+
+            @Override
+            public void close() {}
+        };
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        ExternalSourceDrainUtils.drainPagesAsync(pages, buffer, exec, ActionListener.wrap(v -> latch.countDown(), e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertBusy(() -> assertEquals("full buffer must revoke look-ahead before parking", 1, revoked.get()));
+        assertEquals(1, buffer.size());
+        buffer.pollPage().releaseBlocks();
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        assertNull(error.get());
+        buffer.finish(true);
     }
 
     public void testDrainPagesAsyncSimple() throws Exception {

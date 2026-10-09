@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.NodeByteBudgetService;
@@ -18,39 +20,25 @@ import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 /**
  * Node-scoped admission limit on retained Parquet I/O bytes (prefetch buffers and sliding
- * windows). Copied from the ClickHouse parquet high-watermark shape: cap at {@code heap / 8},
- * shared by every query on the node. Crossing the limit does not fail the query; the REQUEST
- * circuit breaker remains the hard stop. Look-ahead is refused once {@code used + next} would
- * exceed the cap. One in-flight group may overshoot when it is larger than the remaining budget,
- * so a scan cannot stall; that overshoot is node-wide, not per iterator, and belongs to one
- * owner lease until {@link #clearOwner}. Look-ahead {@link #tryAdmit} still refuses rather than
- * fail the query. Coalesced PER_GET draws a whole-unit {@link NodeByteBudget} ticket. The
- * parking {@link #admitWaitUntil} path remains for leftover parquet column iterator tests
- * until the hard cap lands. The REQUEST circuit breaker remains the hard stop for allocation.
+ * windows). Cap at {@code heap / 8}, shared by every query on the node. Crossing the limit
+ * does not fail the query; the REQUEST circuit breaker remains the hard stop. Look-ahead is
+ * refused once {@code used + next} would exceed the cap. One in-flight group may overshoot
+ * when it is larger than the remaining budget, so a scan cannot stall; that overshoot is
+ * node-wide, not per iterator, and belongs to one owner lease until {@link #clearOwner}.
+ * Look-ahead {@link #tryAdmit} still refuses rather than fail the query. Coalesced PER_GET
+ * draws a whole-unit {@link NodeByteBudget} ticket. There is no blocking wait and no
+ * charge-on-expiry.
  */
 final class ParquetIoWatermark implements AdmissionGate {
 
     static final int HEAP_DIVISOR = NodeByteBudgetService.HEAP_DIVISOR;
-
-    /**
-     * Waiting longer cannot help when bytes are released only by work queued behind the waiter
-     * on the same compute pool. The REQUEST circuit breaker remains the hard stop. This is a
-     * code constant, not a cluster Setting.
-     */
-    static final long DEFAULT_ADMIT_WAIT_MS = NodeByteBudgetService.DEFAULT_ADMIT_WAIT_MS;
-
-    /**
-     * Forced admits after the wait budget may charge up to this many times {@link #limit}.
-     * The in-flight overshoot owner may already sit above this; waiters then fail instead of
-     * stacking more bytes.
-     */
-    static final int FORCE_ADMIT_LIMIT_MULTIPLIER = NodeByteBudgetService.FORCE_ADMIT_LIMIT_MULTIPLIER;
 
     /**
      * How a coalesced GET batch charges this watermark. {@link #UNGATED} is a null hold's
@@ -73,11 +61,7 @@ final class ParquetIoWatermark implements AdmissionGate {
     }
 
     ParquetIoWatermark(long limit) {
-        this(limit, DEFAULT_ADMIT_WAIT_MS);
-    }
-
-    ParquetIoWatermark(long limit, long admitWaitMs) {
-        this(new NodeByteBudgetService(limit, admitWaitMs));
+        this(new NodeByteBudgetService(limit));
     }
 
     ParquetIoWatermark(NodeByteBudget nodeByteBudget) {
@@ -123,40 +107,20 @@ final class ParquetIoWatermark implements AdmissionGate {
         return hold == null ? null : new AdmitHold(this, hold);
     }
 
+    /**
+     * FIFO ticket for a unit that must proceed. Uncontended grants complete on the caller;
+     * contended grants are forked onto {@code executor}. {@link AdmitHold#drop()} is the
+     * same leftover-estimate swap as {@link #tryAdmit}.
+     */
+    SubscribableListener<AdmitHold> admitAsync(long bytes, RowGroupIo lease, BooleanSupplier cancelSignal, Executor executor) {
+        SubscribableListener<AdmitHold> listener = new SubscribableListener<>();
+        budget.admitAsync(bytes, lease, cancelSignal, executor)
+            .addListener(ActionListener.wrap(hold -> { listener.onResponse(wrap(hold)); }, listener::onFailure));
+        return listener;
+    }
+
     AdmitHold wrap(NodeByteBudget.Hold hold) {
         return new AdmitHold(this, hold);
-    }
-
-    /**
-     * Caller-supplied timeout wrapper around {@link #admitWaitUntil}. Tests use this; production
-     * coalesced PER_GET uses a unit ticket instead.
-     */
-    AdmitHold admitWait(long bytes, RowGroupIo lease, long timeoutMs) {
-        return admitWaitUntil(bytes, lease, System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs));
-    }
-
-    /**
-     * Blocks until {@code bytes} can be charged for {@code lease}, or {@code deadlineNanos} elapses.
-     * Leftover OPCI / characterization tests only; production CRR no longer parks here.
-     */
-    AdmitHold admitWaitUntil(long bytes, RowGroupIo lease, long deadlineNanos) {
-        AdmissionTracker.Wait trackedWait = tracker.waitStarted(AdmissionTracker.GATE_BYTES, Thread.currentThread().getName());
-        boolean success = false;
-        try {
-            AdmitHold hold = new AdmitHold(this, budget.admitWaitUntil(bytes, lease, deadlineNanos));
-            success = true;
-            return hold;
-        } finally {
-            if (success) {
-                trackedWait.granted();
-            } else {
-                trackedWait.finished();
-            }
-        }
-    }
-
-    long forceAdmitLimit() {
-        return budget.forceAdmitLimit();
     }
 
     /**
@@ -217,18 +181,6 @@ final class ParquetIoWatermark implements AdmissionGate {
 
     long limit() {
         return budget.limit();
-    }
-
-    long admitWaitMs() {
-        return budget.admitWaitMs();
-    }
-
-    long forcedAdmits() {
-        return budget.forcedAdmits();
-    }
-
-    long waitNanos() {
-        return budget.waitNanos();
     }
 
     DirectBufferFactory accountingFactory(CircuitBreaker breaker) {
@@ -319,6 +271,11 @@ final class ParquetIoWatermark implements AdmissionGate {
          */
         void drop(long bytes) {
             inner.drop(bytes);
+        }
+
+        @Nullable
+        RowGroupIo lease() {
+            return inner.lease();
         }
 
         void drop() {

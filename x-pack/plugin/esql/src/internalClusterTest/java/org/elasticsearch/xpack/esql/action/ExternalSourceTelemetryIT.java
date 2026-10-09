@@ -56,6 +56,7 @@ import java.util.zip.GZIPOutputStream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -86,6 +87,12 @@ import static org.hamcrest.Matchers.not;
 public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
 
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
+
+    /** What a dataset pointing at a file that does not exist is categorised as. */
+    private static final String EXPECTED_MISSING_FILE_ERROR_TYPE = "discovery";
+    private static final int EXPECTED_MISSING_FILE_ERROR_TYPE_INDEX = DataSourceUsageAccumulator.ERROR_TYPE_NAMES.indexOf(
+        EXPECTED_MISSING_FILE_ERROR_TYPE
+    );
 
     /** Minimal pass-through validator registered for type {@code test}; accepts any resource scheme (mirrors {@link FromDatasetIT}). */
     public static final class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
@@ -159,9 +166,20 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         "emp_crud",
         "emp_dep",
         "emp_iae",
-        "emp_cpu"
+        "emp_cpu",
+        "emp_bad_row",
+        "emp_dup_header"
     );
-    private static final Set<String> CREATED_DATASOURCES = Set.of("ds", "ds_cpu", "ds_crud", "ds_max", "ds_dep", "ds_iae");
+    private static final Set<String> CREATED_DATASOURCES = Set.of(
+        "ds",
+        "ds_cpu",
+        "ds_crud",
+        "ds_max",
+        "ds_dep",
+        "ds_iae",
+        "ds_bad_row",
+        "ds_dup_header"
+    );
 
     @After
     public void cleanup() throws Exception {
@@ -393,6 +411,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
 
         // Snapshot before so delta assertions are order-independent.
         long discoveryFailuresBefore = clusterTotal(DataSourceUsageAccumulator::discoveryFailures);
+        long discoveryFailuresOfTypeBefore = clusterTotal(a -> a.discoveryFailures(EXPECTED_MISSING_FILE_ERROR_TYPE_INDEX));
         long queriesSuccessBefore = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS));
 
         resetAllMeters();
@@ -410,6 +429,14 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             counterTotal(ExternalSourceMetrics.DISCOVERY_FAILURES_TOTAL),
             greaterThanOrEqualTo(1L)
         );
+        // The failure says why, not just that: the missing file is a client error, categorised as such, on the local type.
+        List<Measurement> discoveryFailures = counters(ExternalSourceMetrics.DISCOVERY_FAILURES_TOTAL);
+        assertThat(discoveryFailures, not(empty()));
+        for (Measurement failure : discoveryFailures) {
+            assertThat(failure.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("local"));
+            assertThat(failure.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo(EXPECTED_MISSING_FILE_ERROR_TYPE));
+            assertThat(failure.attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("400"));
+        }
         // The resolution never reached execution with a resolved external source, so the coordinator's
         // per-query success counter must stay untouched.
         assertThat(
@@ -425,11 +452,130 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             greaterThanOrEqualTo(1L)
         );
         assertThat(
+            "phone-home: discovery.failures.by_error_type must increase for the category of the failure",
+            clusterTotal(a -> a.discoveryFailures(EXPECTED_MISSING_FILE_ERROR_TYPE_INDEX)) - discoveryFailuresOfTypeBefore,
+            greaterThanOrEqualTo(1L)
+        );
+        assertThat(
             "phone-home: queries.total (success) must not increase for a resolution failure",
             clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS)) - queriesSuccessBefore,
             equalTo(0L)
         );
     }
+
+    /**
+     * A query that resolves fine but fails while scanning says why it failed: the failure series of
+     * {@code queries.total} / {@code query.duration.histogram} carries {@code error_type} and the HTTP status, and the
+     * phone-home failures-by-error-type counters add up to the failure outcome.
+     */
+    public void testFailingExternalQueryCarriesErrorTypeAndStatus() throws Exception {
+        Path dir = createTempDir();
+        // The header declares an integer column, the second row is not an integer.
+        Files.writeString(dir.resolve("bad.csv"), "emp_no:integer\n1\nnot_a_number\n3\n");
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_bad_row", "test", null, new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_bad_row",
+                    "ds_bad_row",
+                    dir.resolve("bad.csv").toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv"))
+                )
+            )
+        );
+        long failuresBefore = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE));
+        long byTypeBefore = clusterTotal(IT_SUM_OF_QUERY_FAILURES);
+        resetAllMeters();
+
+        expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM emp_bad_row | STATS s = SUM(emp_no)"), TIMEOUT)) {
+                // the scan must fail on the malformed row
+            }
+        });
+        collectAllMeters();
+
+        List<Measurement> failed = counters(ExternalSourceMetrics.QUERIES_TOTAL).stream()
+            .filter(m -> ExternalSourceMetrics.OUTCOME_FAILURE.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE)))
+            .toList();
+        assertThat(failed, hasSize(1));
+        // KNOWN GAP: the CSV reader reports a malformed data row as a plain IllegalArgumentException, which carries no typed
+        // condition, so it is counted as "other" rather than "format" (see testMalformedHeaderIsADiscoveryFailureOfTypeFormat for
+        // a failure that is typed). Pinned on purpose: when the reader starts tagging row failures as malformed data this
+        // assertion has to move to "format".
+        assertThat(failed.get(0).attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("other"));
+        assertThat(failed.get(0).attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("400"));
+        List<Measurement> failedDurations = histograms(ExternalSourceMetrics.QUERY_DURATION).stream()
+            .filter(m -> ExternalSourceMetrics.OUTCOME_FAILURE.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE)))
+            .toList();
+        assertThat(failedDurations, hasSize(1));
+        assertThat(failedDurations.get(0).attributes(), equalTo(failed.get(0).attributes()));
+        long failuresAfter = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE));
+        assertThat(failuresAfter - failuresBefore, equalTo(1L));
+        assertThat(clusterTotal(IT_SUM_OF_QUERY_FAILURES) - byTypeBefore, equalTo(1L));
+    }
+
+    /**
+     * A failure that carries a typed condition keeps its category: a CSV whose header repeats a column name is rejected as
+     * malformed data while the schema is resolved, so it is a discovery failure of type {@code format} (400), on both the
+     * APM counter and the phone-home counters.
+     */
+    public void testMalformedHeaderIsADiscoveryFailureOfTypeFormat() throws Exception {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("dup.csv"), "emp_no:integer,emp_no:integer\n1,2\n");
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_dup_header", "test", null, new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_dup_header",
+                    "ds_dup_header",
+                    dir.resolve("dup.csv").toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv"))
+                )
+            )
+        );
+        int formatIndex = DataSourceUsageAccumulator.ERROR_TYPE_NAMES.indexOf("format");
+        long formatBefore = clusterTotal(a -> a.discoveryFailures(formatIndex));
+        resetAllMeters();
+
+        expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM emp_dup_header | LIMIT 10"), TIMEOUT)) {
+                // the duplicate header must be rejected before any rows are produced
+            }
+        });
+        collectAllMeters();
+
+        List<Measurement> discoveryFailures = counters(ExternalSourceMetrics.DISCOVERY_FAILURES_TOTAL);
+        assertThat(discoveryFailures, hasSize(1));
+        assertThat(discoveryFailures.get(0).attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("format"));
+        assertThat(discoveryFailures.get(0).attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("400"));
+        assertThat(clusterTotal(a -> a.discoveryFailures(formatIndex)) - formatBefore, equalTo(1L));
+    }
+
+    private static final ToLongFunction<DataSourceUsageAccumulator> IT_SUM_OF_QUERY_FAILURES = a -> {
+        long sum = 0;
+        for (int i = 0; i < DataSourceUsageAccumulator.ERROR_TYPE_COUNT; i++) {
+            sum += a.queryFailures(i);
+        }
+        return sum;
+    };
 
     /**
      * A {@code local} dataset whose format is inferred from a compound {@code .csv.gz} extension (no
@@ -526,6 +672,9 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         long setRejectedBefore = clusterTotal(
             a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_REJECTED)
         );
+        int unknownTypeReason = DataSourceUsageAccumulator.REJECT_REASON_NAMES.indexOf("unknown_type");
+        long dsUnknownTypeBefore = clusterTotal(a -> a.configRejected(DataSourceUsageAccumulator.KIND_DATASOURCE, unknownTypeReason));
+        long dsUnknownTypeChangesBefore = clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, Type.UNKNOWN));
 
         resetAllMeters();
 
@@ -666,8 +815,21 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
                     m -> "rejected".equals(m.attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE))
                         && "unknown".equals(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE))
                         && "unknown_type".equals(m.attributes().get(ExternalSourceMetrics.REASON_ATTRIBUTE))
+                        && "400".equals(m.attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE))
                 ),
             equalTo(true)
+        );
+        assertThat(
+            "phone-home: the rejection is counted by reason",
+            clusterTotal(a -> a.configRejected(DataSourceUsageAccumulator.KIND_DATASOURCE, unknownTypeReason)) - dsUnknownTypeBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            // The "test" data source type of this IT is not in the telemetry vocabulary, so every change of it (created,
+            // updated, deleted) and the rejected unknown-type PUT land on the clamped type.
+            "phone-home: the changes are counted on the clamped type",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, Type.UNKNOWN)) - dsUnknownTypeChangesBefore,
+            equalTo(4L)
         );
     }
 

@@ -16,13 +16,14 @@ public class EqlSecurityTestCluster {
         return ElasticsearchCluster.local()
             .nodes(2)
             .distribution(DistributionType.DEFAULT)
-            .setting("xpack.license.self_generated.type", "basic")
+            .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.monitoring.collection.enabled", "true")
             .setting("xpack.security.enabled", "true")
             .rolesFile(Resource.fromClasspath("roles.yml"))
             .user("test-admin", "x-pack-test-password", "test-admin", false)
             .user("user1", "x-pack-test-password", "user1", false)
             .user("user2", "x-pack-test-password", "user2", false)
+            .user("eql_constant_user", "x-pack-test-password", "eql_constant_reader", false)
             .build();
     }
 }

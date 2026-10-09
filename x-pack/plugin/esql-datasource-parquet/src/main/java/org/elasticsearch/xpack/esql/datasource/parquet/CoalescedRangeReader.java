@@ -36,7 +36,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -377,6 +376,19 @@ final class CoalescedRangeReader {
         @Nullable FooterByteCache footerBytes,
         ParquetIoWatermark.ByteGate byteGate
     ) throws IOException {
+        return readCoalescedSync(storageObject, ranges, maxCoalesceGap, breaker, ioWatermark, footerBytes, byteGate, null);
+    }
+
+    static CoalescedRangeResult readCoalescedSync(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes,
+        ParquetIoWatermark.ByteGate byteGate,
+        @Nullable ParquetIoWatermark.AdmitHold admitHold
+    ) throws IOException {
         if (ranges.isEmpty()) {
             return new CoalescedRangeResult(Map.of(), () -> {});
         }
@@ -413,8 +425,13 @@ final class CoalescedRangeReader {
             if (unitBytes > 0L) {
                 unitHold = ioWatermark.wrap(admitUnitSync(ioWatermark, unitBytes, requireLease(scope)));
             }
-            DirectBufferFactory factory = byteGate == ParquetIoWatermark.ByteGate.PER_GET && unitHold != null
-                ? ParquetIoWatermark.bufferFactory(breaker, ioWatermark, unitHold)
+            ParquetIoWatermark.AdmitHold factoryHold = switch (byteGate) {
+                case GROUP_HOLD -> admitHold;
+                case PER_GET -> unitHold;
+                case UNGATED -> null;
+            };
+            DirectBufferFactory factory = factoryHold != null
+                ? ParquetIoWatermark.bufferFactory(breaker, ioWatermark, factoryHold)
                 : ParquetIoWatermark.bufferFactory(breaker, ioWatermark);
             for (int i = 0; i < hitRanges.size(); i++) {
                 DirectReadBuffer copied = copyFooterCacheHit(hits.get(i), cacheFactory);
@@ -470,9 +487,9 @@ final class CoalescedRangeReader {
 
     /**
      * One ticket covering every coalesced GET in this call. Look-ahead {@link NodeByteBudget#tryAdmit}
-     * is attempted first; otherwise the caller waits on {@link NodeByteBudget#admitAsync} with a
-     * bounded {@link PlainActionFuture#actionGet(long, TimeUnit)} and no charge-on-expiry.
-     * Abandoning the wait cancels the ticket so a late grant cannot leak bytes.
+     * is attempted first; otherwise the caller waits on {@link NodeByteBudget#admitAsync} until grant
+     * or cancel. There is no timeout and no charge-on-expiry. Abandoning the wait cancels the
+     * ticket so a late grant cannot leak bytes.
      */
     private static NodeByteBudget.Hold admitUnitSync(ParquetIoWatermark ioWatermark, long unitBytes, RowGroupIo lease) {
         NodeByteBudget budget = ioWatermark.nodeByteBudget();
@@ -502,7 +519,7 @@ final class CoalescedRangeReader {
             future.onFailure(e);
         }));
         try {
-            return future.actionGet(ioWatermark.admitWaitMs(), TimeUnit.MILLISECONDS);
+            return future.actionGet();
         } catch (RuntimeException e) {
             abandoned.set(true);
             budget.wakeWaiters();

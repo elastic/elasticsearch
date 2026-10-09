@@ -39,6 +39,8 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryDeprecationInfo;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.SnapshotMetrics;
@@ -56,6 +58,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -86,6 +89,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     private DisruptableBlobStore blobStore;
+
+    private List<RepositoryDeprecationInfo> deprecationInfos;
 
     @Before
     public void suppressConsistencyChecks() {
@@ -119,9 +124,26 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         );
 
         blobStore = new DisruptableBlobStore();
+        deprecationInfos = new ArrayList<>();
+        if (randomBoolean()) {
+            // WARNING deprecation doesn't block successful analysis
+            deprecationInfos.add(
+                new RepositoryDeprecationInfo(
+                    RepositoryDeprecationInfo.Level.WARNING,
+                    "simulated warning deprecation",
+                    ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS,
+                    null,
+                    false
+                )
+            );
+        }
+
         for (final RepositoriesService repositoriesService : internalCluster().getInstances(RepositoriesService.class)) {
             try {
-                ((DisruptableRepository) repositoriesService.repository("test-repo")).setBlobStore(blobStore);
+                asInstanceOf(DisruptableRepository.class, repositoriesService.repository("test-repo")).configure(
+                    blobStore,
+                    deprecationInfos
+                );
             } catch (RepositoryMissingException e) {
                 // it's only present on voting masters and data nodes
             }
@@ -727,6 +749,49 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         assertThat(ioException.getMessage(), equalTo("simulated"));
     }
 
+    public void testFailsOnCriticalDeprecation() {
+        deprecationInfos.add(
+            new RepositoryDeprecationInfo(
+                RepositoryDeprecationInfo.Level.CRITICAL,
+                "simulated critical deprecation",
+                ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS,
+                "details",
+                false
+            )
+        );
+
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.blobCount(1);
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        request.abortWritePermitted(false);
+
+        final Exception exception = analyseRepositoryExpectFailure(request);
+        assertAnalysisFailureMessage(exception.getMessage());
+        assertThat(asInstanceOf(RepositoryException.class, ExceptionsHelper.unwrapCause(exception.getCause())).getMessage(), equalTo("""
+            [test-repo] This repository uses a critically deprecated feature, which prevents running a complete analysis. \
+            Fix all the logged deprecation warnings and re-run the analysis."""));
+    }
+
+    public void testSkipsCriticalDeprecationCheck() {
+        deprecationInfos.add(
+            new RepositoryDeprecationInfo(
+                RepositoryDeprecationInfo.Level.CRITICAL,
+                "simulated critical deprecation",
+                ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS,
+                "details",
+                false
+            )
+        );
+
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.blobCount(1);
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        request.abortWritePermitted(false);
+        request.checkDeprecations(false);
+
+        safeAwait((ActionListener<RepositoryAnalyzeAction.Response> l) -> analyseRepository(request, l));
+    }
+
     private RepositoryVerificationException analyseRepositoryExpectFailure(RepositoryAnalyzeAction.Request request) {
         return safeAwaitAndUnwrapFailure(
             RepositoryVerificationException.class,
@@ -785,6 +850,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
     static class DisruptableRepository extends BlobStoreRepository {
 
         private final AtomicReference<BlobStore> blobStoreRef = new AtomicReference<>();
+        private final AtomicReference<List<RepositoryDeprecationInfo>> deprecationInfosRef = new AtomicReference<>();
 
         DisruptableRepository(
             ProjectId projectId,
@@ -799,8 +865,9 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath, snapshotMetrics);
         }
 
-        void setBlobStore(BlobStore blobStore) {
+        void configure(BlobStore blobStore, List<RepositoryDeprecationInfo> deprecationInfos) {
             assertTrue(blobStoreRef.compareAndSet(null, blobStore));
+            assertTrue(deprecationInfosRef.compareAndSet(null, deprecationInfos));
         }
 
         @Override
@@ -808,6 +875,13 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             final BlobStore blobStore = blobStoreRef.get();
             assertNotNull(blobStore);
             return blobStore;
+        }
+
+        @Override
+        public Collection<RepositoryDeprecationInfo> getDeprecationInfos() {
+            final List<RepositoryDeprecationInfo> deprecationInfos = deprecationInfosRef.get();
+            assertNotNull(deprecationInfos);
+            return deprecationInfos;
         }
     }
 

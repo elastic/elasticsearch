@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
@@ -165,6 +166,81 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
             assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * The columns read from chunk 0 are handed to every later chunk, so each binds the pinned schema by name. Chunk 0
+     * reads its own header and is handed none.
+     */
+    public void testHeaderColumnsReadFromChunkZeroReachEveryLaterChunk() throws Exception {
+        LineFormatReader reader = new LineFormatReader(512);
+        reader.headerColumns = List.of("line");
+
+        List<FormatReadContext> contexts = readAllPinned(reader);
+
+        assertThat(contexts.size(), Matchers.greaterThan(1));
+        for (FormatReadContext ctx : contexts) {
+            assertEquals(ctx.firstSplit() ? null : List.of("line"), ctx.fileHeaderColumns());
+        }
+    }
+
+    /**
+     * An empty answer means chunk 0 held no header line (a comment or skipped run longer than the chunk), which says
+     * nothing about the file. It must not be stored: later chunks are then handed no columns and fail loudly, rather
+     * than being handed "the file has no columns" and silently reading nothing.
+     */
+    public void testAnEmptyHeaderFromChunkZeroIsNotHandedToLaterChunks() throws Exception {
+        LineFormatReader reader = new LineFormatReader(512);
+        reader.headerColumns = List.of();
+
+        List<FormatReadContext> contexts = readAllPinned(reader);
+
+        assertThat(contexts.size(), Matchers.greaterThan(1));
+        for (FormatReadContext ctx : contexts) {
+            assertNull(ctx.fileHeaderColumns());
+        }
+    }
+
+    private static List<FormatReadContext> readAllPinned(LineFormatReader reader) throws Exception {
+        InputStream stream = new ByteArrayInputStream(buildContent(500).getBytes(StandardCharsets.UTF_8));
+        List<Attribute> pinned = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try (
+            CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                null,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                pinned,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("test"),
+                ExternalReadCounters.NOOP,
+                null,
+                null
+            )
+        ) {
+            while (iter.hasNext()) {
+                iter.next().releaseBlocks();
+            }
+        } finally {
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
+        }
+        synchronized (reader.seenContexts) {
+            return new ArrayList<>(reader.seenContexts);
         }
     }
 
@@ -2847,6 +2923,96 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * A planner-bound read keeps the header names and the schema chunk 0 infers for the rest of the read, and a declared
+     * read is not capped by the file's width, so both stay charged to the breaker until the read closes.
+     */
+    public void testPlannerBoundReadChargesTheSchemaChunkZeroKeepsUntilClose() throws Exception {
+        int columns = 2_000;
+        long retained = WideHeaderLineFormatReader.retainedBytes(columns);
+        byte[] bytes = "a\nb\nc\nd\ne\nf\n".repeat(20).getBytes(StandardCharsets.UTF_8);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(16));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> it = parallelReadBoundWithBreaker(
+                new WideHeaderLineFormatReader(64, columns),
+                bytes,
+                breaker,
+                executor
+            );
+            int lines = 0;
+            try (it) {
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    lines += page.getPositionCount();
+                    page.releaseBlocks();
+                    assertThat(breaker.getUsed(), Matchers.greaterThanOrEqualTo(retained));
+                }
+            }
+            assertEquals(120, lines);
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * A schema too wide to keep under the breaker fails the read as a 429 and leaves nothing charged. The limit is
+     * below what capturing chunk 0's header names alone charges, so the trip happens in the capture, and the 429 the
+     * read fails with must be that one. Binding the schema charges more than the capture, so a swallowed capture trip
+     * would still fail the read with a 429, but for the bind's charge rather than the header names'.
+     */
+    public void testPlannerBoundReadTripsOnTheSchemaChunkZeroKeeps() throws Exception {
+        int columns = 2_000;
+        byte[] bytes = "a\nb\nc\n".repeat(20).getBytes(StandardCharsets.UTF_8);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(WideHeaderLineFormatReader.headerNameBytes(columns) / 2));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> it = parallelReadBoundWithBreaker(
+                new WideHeaderLineFormatReader(64, columns),
+                bytes,
+                breaker,
+                executor
+            );
+            try (it) {
+                CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> collectLines(it));
+                assertEquals(WideHeaderLineFormatReader.headerNameBytes(columns), e.getBytesWanted());
+            }
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private static CloseableIterator<Page> parallelReadBoundWithBreaker(
+        SegmentableFormatReader reader,
+        byte[] bytes,
+        CircuitBreaker breaker,
+        Executor executor
+    ) throws IOException {
+        return StreamingParallelParsingCoordinator.parallelRead(
+            reader,
+            new ByteArrayInputStream(bytes),
+            null,
+            List.of("line"),
+            50,
+            2,
+            executor,
+            ErrorPolicy.STRICT,
+            List.of(new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)),
+            0L,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            null,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            StreamingParallelParsingCoordinator.WarningSinks.NONE,
+            StreamingSegmentatorAdmission.unbounded(),
+            breaker,
+            ExternalReadCounters.NOOP,
+            null
+        );
+    }
+
     public void testEarlyCloseReleasesGrowBuffers() throws Exception {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 50; i++) {
@@ -3826,6 +3992,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         final AtomicInteger boundReadCalls;
         final AtomicInteger unboundReadCalls;
         final List<FormatReadContext> seenContexts;
+        /** What {@link #fileHeaderColumns} answers; {@code null} makes this a reader without a header line. */
+        volatile List<String> headerColumns;
 
         LineFormatReader(long minSegment) {
             this(
@@ -3875,7 +4043,26 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public FormatReader withSchema(List<Attribute> schema) {
-            return new LineFormatReader(minSegment, schema, metadataCalls, boundReadCalls, unboundReadCalls, seenContexts);
+            LineFormatReader bound = new LineFormatReader(
+                minSegment,
+                schema,
+                metadataCalls,
+                boundReadCalls,
+                unboundReadCalls,
+                seenContexts
+            );
+            bound.headerColumns = headerColumns;
+            return bound;
+        }
+
+        @Override
+        public boolean readsHeaderLine() {
+            return headerColumns != null;
+        }
+
+        @Override
+        public List<String> fileHeaderColumns(StorageObject file) {
+            return headerColumns;
         }
 
         @Override
@@ -4031,6 +4218,109 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public SourceMetadata metadata(StorageObject object) {
             return delegate.metadata(object);
+        }
+
+        @Override
+        public String formatName() {
+            return delegate.formatName();
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return delegate.fileExtensions();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+    }
+
+    /**
+     * {@link LineFormatReader} whose inferred schema is {@code columns} wide and which binds a declared schema by name,
+     * the shape of a declared read over a wide headered file: chunk 0 captures the header names and binds the schema.
+     */
+    private static final class WideHeaderLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        private final LineFormatReader delegate;
+        private final int columns;
+
+        WideHeaderLineFormatReader(long minSegment, int columns) {
+            this(new LineFormatReader(minSegment), columns);
+        }
+
+        private WideHeaderLineFormatReader(LineFormatReader delegate, int columns) {
+            this.delegate = delegate;
+            this.columns = columns;
+        }
+
+        private static String name(int column) {
+            return "column_" + column;
+        }
+
+        /** What the coordinator charges for keeping the header names it captures from chunk 0. */
+        static long headerNameBytes(int columns) {
+            long bytes = 0;
+            for (int c = 0; c < columns; c++) {
+                bytes += HeapEstimates.stringBytes(name(c));
+            }
+            return bytes;
+        }
+
+        /** What the coordinator charges for keeping the header names and the bound schema. */
+        static long retainedBytes(int columns) {
+            long bytes = 0;
+            for (int c = 0; c < columns; c++) {
+                bytes += HeapEstimates.stringBytes(name(c)) + HeapEstimates.columnBytes(name(c).length());
+            }
+            return bytes;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            List<Attribute> schema = new ArrayList<>(columns);
+            for (int c = 0; c < columns; c++) {
+                schema.add(new ReferenceAttribute(Source.EMPTY, null, name(c), DataType.KEYWORD, Nullability.TRUE, null, false));
+            }
+            return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
+        }
+
+        @Override
+        public boolean readsHeaderLine() {
+            return true;
+        }
+
+        @Override
+        public List<String> fileHeaderColumns(StorageObject file) {
+            List<String> names = new ArrayList<>(columns);
+            for (int c = 0; c < columns; c++) {
+                names.add(name(c));
+            }
+            return names;
+        }
+
+        @Override
+        public FormatReader withSchema(List<Attribute> schema) {
+            return new WideHeaderLineFormatReader((LineFormatReader) delegate.withSchema(schema), columns);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            return delegate.read(object, context);
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return delegate.rowPositionStrategy();
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return delegate.recordSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return delegate.minimumSegmentSize();
         }
 
         @Override

@@ -573,8 +573,6 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
 
         DenseVectorFieldMapper.FilterHeuristic heuristic = context.getIndexSettings().getHnswFilterHeuristic();
         boolean hnswEarlyTermination = context.getIndexSettings().getHnswEarlyTermination();
-        boolean sliceEnabled = context.getIndexSettings().isSliceEnabled();
-        String sliceRouting = sliceEnabled ? context.getSliceRouting() : null;
         Float oversample = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.oversample();
         // Filter caching now happens inside the mapper so that PostFilterKnnQuery receives the raw filter:
         // it evaluates the filter against a small candidate set and must avoid an eager full-index bitset build.
@@ -589,8 +587,7 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             parentBitSet,
             heuristic,
             hnswEarlyTermination,
-            sliceEnabled,
-            sliceRouting
+            context
         );
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -26,7 +27,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -46,6 +49,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -54,6 +58,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -76,15 +81,15 @@ import java.util.function.Consumer;
  * </ol>
  * <p>
  * Shutdown blocking sites: when the iterator's {@code close()} is invoked the segmentator may
- * be parked on (a) the upstream {@link InputStream#read(byte[], int, int)}, (b) {@code bufferPool.take()},
- * or (c) {@code dispatchPermits.acquire()}. Dispatch no longer {@code put}s into a full chunk queue:
- * a failed {@code offer} inlines the FIFO head on the segmentator thread so a pinned parser pool
- * cannot deadlock the producer. Close CASes {@code closed} to {@code true}, releases one permit on
- * {@code dispatchPermits} (covers (c)), and drains both the chunk queue and page queues (covers (b)
- * by freeing slots so {@code take} completes after the post-acquire {@code closed} re-check). Case
- * (a) is the responsibility of the upstream stream wrapper — most stream-only codecs return on close;
- * if the upstream blocks indefinitely on read, close will time out after the iterator's close-timeout
- * and log a warning.
+ * be parked on (a) the upstream {@link InputStream#read(byte[], int, int)}, (b)
+ * {@code bufferPool.poll} inside {@code waitForRecycledBuffer}, or (c) {@code dispatchPermits.acquire()}.
+ * Dispatch no longer {@code put}s into a full chunk queue: a failed {@code offer} inlines the FIFO
+ * head on the segmentator thread so a pinned parser pool cannot deadlock the producer. Close CASes
+ * {@code closed} to {@code true}, releases one permit on {@code dispatchPermits} (covers (c)), and
+ * drains both the chunk queue and page queues (covers (b) by recycling buffers so {@code poll}
+ * returns after the post-acquire {@code closed} re-check). Case (a) is the responsibility of the
+ * upstream stream wrapper — most stream-only codecs return on close; if the upstream blocks
+ * indefinitely on read, close will time out after the iterator's close-timeout and log a warning.
  */
 public final class StreamingParallelParsingCoordinator {
 
@@ -346,6 +351,59 @@ public final class StreamingParallelParsingCoordinator {
         @Nullable FormatReadCounters formatCounters,
         @Nullable BooleanSupplier stop
     ) throws IOException {
+        return parallelRead(
+            reader,
+            opener,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            readSchema,
+            baseFileOffset,
+            maxRecordBytes,
+            captureSink,
+            statsStripeSize,
+            statsColumnScope,
+            warningSinks,
+            admission,
+            breaker,
+            readCounters,
+            formatCounters,
+            stop,
+            null
+        );
+    }
+
+    /**
+     * Production streaming path with a node-wide {@link NodeByteBudget} for extra chunk buffers.
+     * The first pooled buffer is the ungated floor; later buffers {@link NodeByteBudget#tryAdmit}
+     * and a refuse is treated as pool-full. Codec native footprints stay on the circuit breaker.
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StreamOpener opener,
+        @Nullable StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        @Nullable List<Attribute> readSchema,
+        long baseFileOffset,
+        int maxRecordBytes,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
+        WarningSinks warningSinks,
+        StreamingSegmentatorAdmission admission,
+        CircuitBreaker breaker,
+        ExternalReadCounters readCounters,
+        @Nullable FormatReadCounters formatCounters,
+        @Nullable BooleanSupplier stop,
+        @Nullable NodeByteBudget byteBudget
+    ) throws IOException {
         Objects.requireNonNull(opener, "opener");
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -359,9 +417,6 @@ public final class StreamingParallelParsingCoordinator {
 
         if (parallelism <= 1) {
             // Test/benchmark single-pass fallback: open on this thread, then read the whole stream.
-            // AESOF never takes this path (openWithParallelism returns null at parsingParallelism<=1).
-            // Same thread acquires, reads, closes, and releases, so this is not the permit×pool cycle.
-            // Thread .stats(...) here too — mirrors ParallelParsingCoordinator's single-segment fallback.
             FormatReadContext ctx = FormatReadContext.builder()
                 .projectedColumns(projectedColumns)
                 .batchSize(batchSize)
@@ -397,7 +452,8 @@ public final class StreamingParallelParsingCoordinator {
             breaker,
             readCounters,
             formatCounters,
-            stop
+            stop,
+            byteBudget
         );
     }
 
@@ -520,6 +576,9 @@ public final class StreamingParallelParsingCoordinator {
         private static final String GROW_BUFFER_BREAKER_LABEL = "streaming-parse-grow-buffer";
         /** Value of {@code buffersAllocated} once {@link #close()} has refunded it; a count can never be negative. */
         private static final int POOL_CLOSED_MARKER = -1;
+        private static final String RETAINED_SCHEMA_BREAKER_LABEL = "streaming-parse-retained-schema";
+        /** Value of {@link #retainedSchemaBytes} once {@link #close()} has refunded it; a charge can never be negative. */
+        private static final long RETAINED_SCHEMA_CLOSED_MARKER = -1;
         private static final long CLOSE_TIMEOUT_SECONDS = 60;
 
         /**
@@ -584,7 +643,33 @@ public final class StreamingParallelParsingCoordinator {
          * whatever is still here.
          */
         private final Set<GrowBuffer> growBuffers = ConcurrentHashMap.newKeySet();
+        /**
+         * Heap charged to {@link #breaker} for what chunk 0 leaves held for the rest of the read: the schema
+         * {@link #bindInferredSchema} binds and the {@link #fileHeaderColumns}, when the planner bound a schema. Their
+         * builders release their own charge on return, and a declared read is not capped by the file's width, so without
+         * this the breaker would bound them only while they are built. {@link #RETAINED_SCHEMA_CLOSED_MARKER} once
+         * {@link #close()} has refunded it.
+         */
+        private final AtomicLong retainedSchemaBytes = new AtomicLong();
         private final CircuitBreaker breaker;
+        /**
+         * Node-wide I/O byte tickets. {@code null} in tests. The first pooled buffer is an ungated
+         * {@link NodeByteBudget#add} floor (one per live iterator): it ignores the cap and does not
+         * wake Parquet {@code admitAsync} waiters. Peak floor is one fill per live streaming iterator,
+         * already bounded by {@code maxConcurrentSegmentators}. Extra pooled buffers
+         * {@link NodeByteBudget#tryAdmit}; a refuse is treated as pool-full (inline or poll). Once
+         * admitted, an extra hold lasts until {@link #close()} even while the array sits idle in the
+         * pool (over-reserve vs live arrays; occupancy is per allocated slot, not per in-use buffer).
+         * Grow arrays {@link NodeByteBudget#add} unconditionally. Refunded at {@link #close()} /
+         * {@link GrowBuffer#release()}.
+         */
+        @Nullable
+        private final NodeByteBudget byteBudget;
+        /**
+         * Extra pooled buffers admitted after the floor. Closed at {@link #close()}, not when the
+         * array is recycled into {@link #bufferPool}: a recycled extra stays charged until EOF/close.
+         */
+        private final ConcurrentLinkedQueue<NodeByteBudget.Hold> extraBufferHolds = new ConcurrentLinkedQueue<>();
         private final ArrayBlockingQueue<Chunk> chunkQueue;
         /** Capacity of {@link #bufferPool} (one pooled buffer per possible in-flight chunk-sized slice). */
         private final int bufferPoolSize;
@@ -753,6 +838,7 @@ public final class StreamingParallelParsingCoordinator {
                 new NoopCircuitBreaker("streaming-parse-test"),
                 ExternalReadCounters.NOOP,
                 null,
+                null,
                 null
             );
         }
@@ -779,7 +865,56 @@ public final class StreamingParallelParsingCoordinator {
             @Nullable FormatReadCounters formatCounters,
             @Nullable BooleanSupplier stop
         ) {
+            this(
+                reader,
+                opener,
+                storageObject,
+                projectedColumns,
+                batchSize,
+                parallelism,
+                executor,
+                errorPolicy,
+                readSchema,
+                baseFileOffset,
+                maxRecordBytes,
+                captureSink,
+                statsStripeSize,
+                statsColumnScope,
+                warningSinks,
+                admission,
+                breaker,
+                readCounters,
+                formatCounters,
+                stop,
+                null
+            );
+        }
+
+        StreamingParallelIterator(
+            SegmentableFormatReader reader,
+            StreamOpener opener,
+            @Nullable StorageObject storageObject,
+            List<String> projectedColumns,
+            int batchSize,
+            int parallelism,
+            Executor executor,
+            ErrorPolicy errorPolicy,
+            @Nullable List<Attribute> readSchema,
+            long baseFileOffset,
+            int maxRecordBytes,
+            @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+            long statsStripeSize,
+            StripeColumnScope statsColumnScope,
+            WarningSinks warningSinks,
+            StreamingSegmentatorAdmission admission,
+            CircuitBreaker breaker,
+            ExternalReadCounters readCounters,
+            @Nullable FormatReadCounters formatCounters,
+            @Nullable BooleanSupplier stop,
+            @Nullable NodeByteBudget byteBudget
+        ) {
             this.breaker = breaker;
+            this.byteBudget = byteBudget;
             this.originalReader = reader;
             this.reader = reader;
             this.storageObject = storageObject;
@@ -1186,13 +1321,13 @@ public final class StreamingParallelParsingCoordinator {
          * wins on type, so the inference cannot retype a column — it only contributes columns the projection
          * does not name, which some readers need in order to decode the ones it does.
          * <p>
-         * A header-bearing file whose declared schema binds by name additionally has to tell later chunks what
-         * its columns are called, since only chunk 0 can see the header.
+         * A header-bearing file bound against a pinned schema additionally has to tell later chunks what its
+         * columns are called, since only chunk 0 can see the header.
          */
         private void prepareFromFirstChunk(byte[] buffer, int length) throws IOException {
             // Capture before binding: the header names must come from the reader as the planner configured it,
             // not from one already swapped for a schema inferred from this chunk.
-            if (readSchema != null && readSchema.isEmpty() == false) {
+            if (readSchema != null && readSchema.isEmpty() == false && reader.readsHeaderLine()) {
                 captureFileHeaderColumns(buffer, length);
             }
             bindInferredSchema(buffer, length);
@@ -1215,6 +1350,15 @@ public final class StreamingParallelParsingCoordinator {
                 return;
             }
             if (bound instanceof SegmentableFormatReader segBound) {
+                // Only a planner-bound read can be a declared one, whose inference the file's width does not cap.
+                // Per-file inference is held to schema_max_fields, so what it binds is already bounded.
+                if (readSchema != null) {
+                    long bytes = 0;
+                    for (Attribute attribute : schema) {
+                        bytes += HeapEstimates.columnBytes(attribute.name().length());
+                    }
+                    chargeRetainedSchema(bytes);
+                }
                 this.reader = segBound;
             } else {
                 throw new IllegalStateException(
@@ -1224,26 +1368,53 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         /**
-         * Reads the file's column names from chunk 0 so chunks 1..N can bind a declared schema by name.
+         * Charges {@code bytes} to {@link #breaker} for the rest of the read, refunded by {@link #close()}. A charge that
+         * lands after a close that has already refunded (the segmentator racing a close that stopped waiting early)
+         * undoes itself instead of leaking.
+         */
+        private void chargeRetainedSchema(long bytes) {
+            breaker.addEstimateBytesAndMaybeBreak(bytes, RETAINED_SCHEMA_BREAKER_LABEL);
+            long current;
+            do {
+                current = retainedSchemaBytes.get();
+                if (current == RETAINED_SCHEMA_CLOSED_MARKER) {
+                    breaker.addWithoutBreaking(-bytes);
+                    return;
+                }
+            } while (retainedSchemaBytes.compareAndSet(current, current + bytes) == false);
+        }
+
+        /**
+         * Reads the file's header column names from chunk 0 so chunks 1..N can bind the pinned schema by name.
          * <p>
-         * Only a header-bearing format whose declared schema binds by name needs this, and only when the
-         * planner bound a schema — otherwise the reader either has no names to match or reads its own header.
-         * Chunk 0 always reads its own header and ignores what is captured here.
+         * Only when the planner bound a schema; otherwise the reader reads its own header. Chunk 0 always reads its own
+         * header and ignores what is captured here.
          * <p>
          * Runs on the segmentator thread before any chunk is dispatched, so every parser sees a fully
          * populated value. Failure is not fatal: chunks 1..N then find no names and fail loudly rather than
          * binding by position, which would shift every column silently.
          */
         private void captureFileHeaderColumns(byte[] buffer, int length) {
-            if (fileHeaderColumns != null || reader.declaredNameBindingNeedsFileStart() == false) {
+            if (fileHeaderColumns != null) {
                 return;
             }
             try {
-                SourceMetadata metadata = reader.metadata(chunkStorageObject(0, buffer, 0, length));
-                List<Attribute> schema = metadata == null ? null : metadata.schema();
-                if (schema != null && schema.isEmpty() == false) {
-                    fileHeaderColumns = schema.stream().map(Attribute::name).toList();
+                List<String> columns = reader.fileHeaderColumns(chunkStorageObject(0, buffer, 0, length));
+                // An empty list means chunk 0 holds no whole header line (a skip_rows or comment run longer than the chunk, or
+                // a header the chunk's end cut short), which says nothing about the file: it stays unset so later chunks
+                // fail loudly, as the javadoc above promises.
+                if (columns != null && columns.isEmpty() == false) {
+                    long bytes = 0;
+                    for (String name : columns) {
+                        bytes += HeapEstimates.stringBytes(name);
+                    }
+                    chargeRetainedSchema(bytes);
+                    fileHeaderColumns = columns;
                 }
+            } catch (CircuitBreakingException e) {
+                // A breaker trip is the real answer (429); swallowing it would turn it into every later chunk
+                // failing with "no header columns".
+                throw e;
             } catch (IOException | RuntimeException e) {
                 // Every later chunk will now fail with "no header columns", which says nothing about why they
                 // are missing. Log the real cause at WARN so the two can be connected — this is the only place
@@ -1478,7 +1649,8 @@ public final class StreamingParallelParsingCoordinator {
 
         /**
          * Returns a pooled buffer, or a newly charged one while the pool is below capacity, or {@code null}
-         * once {@link #close()} has begun.
+         * once {@link #close()} has begun. The first buffer is an ungated {@link NodeByteBudget#add} floor.
+         * Later buffers {@link NodeByteBudget#tryAdmit}; a refuse is treated as pool-full (inline or take).
          */
         private PoolBuffer takeOrAllocateBuffer() throws InterruptedException {
             PoolBuffer buf = keepUnlessAborting(bufferPool.poll());
@@ -1499,33 +1671,36 @@ public final class StreamingParallelParsingCoordinator {
                     return null;
                 }
                 if (allocated >= bufferPoolSize) {
-                    while (abortDispatch() == false && chunkQueue.isEmpty() == false) {
-                        if (runOneQueuedInline() == false) {
-                            break;
-                        }
-                        buf = keepUnlessAborting(bufferPool.poll());
-                        if (buf != null) {
-                            return buf;
-                        }
-                    }
-                    if (buffersAllocated.get() == POOL_CLOSED_MARKER || abortDispatch()) {
-                        return null;
-                    }
-                    // Poll rather than take() so firstError/close abort without waiting for a parser
-                    // to return a buffer. Same 50ms cadence as close()'s tasksOutstanding wait.
-                    while (abortDispatch() == false) {
-                        if (buffersAllocated.get() == POOL_CLOSED_MARKER) {
-                            return null;
-                        }
-                        buf = keepUnlessAborting(bufferPool.poll(50, TimeUnit.MILLISECONDS));
-                        if (buf != null) {
-                            return buf;
-                        }
-                    }
-                    return null;
+                    return waitForRecycledBuffer();
                 }
-                breaker.addEstimateBytesAndMaybeBreak(chunkCharge, "streaming-parse-chunk-buffer");
+                NodeByteBudget.Hold extraHold = null;
+                boolean floor = false;
+                if (byteBudget != null) {
+                    if (allocated > 0) {
+                        extraHold = byteBudget.tryAdmit(chunkSize);
+                        if (extraHold == null) {
+                            return waitForRecycledBuffer();
+                        }
+                    } else {
+                        byteBudget.add(chunkSize);
+                        floor = true;
+                    }
+                }
+                try {
+                    breaker.addEstimateBytesAndMaybeBreak(chunkCharge, "streaming-parse-chunk-buffer");
+                } catch (RuntimeException e) {
+                    undoByteBudgetCharge(floor, extraHold);
+                    throw e;
+                }
                 if (buffersAllocated.compareAndSet(allocated, allocated + 1)) {
+                    if (extraHold != null) {
+                        extraBufferHolds.add(extraHold);
+                        // Close already swept an empty queue: refund this hold ourselves.
+                        // Hold.close() is idempotent if close polls it between add and this check.
+                        if (buffersAllocated.get() == POOL_CLOSED_MARKER || closed.get()) {
+                            extraHold.close();
+                        }
+                    }
                     if (abortDispatch()) {
                         new PoolBuffer().release();
                         return null;
@@ -1533,6 +1708,50 @@ public final class StreamingParallelParsingCoordinator {
                     return new PoolBuffer();
                 }
                 breaker.addWithoutBreaking(-chunkCharge);
+                undoByteBudgetCharge(floor, extraHold);
+            }
+        }
+
+        /**
+         * Inline queued chunks so a parser can recycle a buffer, then poll. Used when the pool is at
+         * capacity or {@link NodeByteBudget#tryAdmit} refused an extra buffer.
+         */
+        private PoolBuffer waitForRecycledBuffer() throws InterruptedException {
+            while (abortDispatch() == false && chunkQueue.isEmpty() == false) {
+                if (runOneQueuedInline() == false) {
+                    break;
+                }
+                PoolBuffer buf = keepUnlessAborting(bufferPool.poll());
+                if (buf != null) {
+                    return buf;
+                }
+            }
+            if (buffersAllocated.get() == POOL_CLOSED_MARKER || abortDispatch()) {
+                return null;
+            }
+            // Poll rather than take() so firstError/close abort without waiting for a parser
+            // to return a buffer. Same 50ms cadence as close()'s tasksOutstanding wait.
+            while (abortDispatch() == false) {
+                if (buffersAllocated.get() == POOL_CLOSED_MARKER) {
+                    return null;
+                }
+                PoolBuffer buf = keepUnlessAborting(bufferPool.poll(50, TimeUnit.MILLISECONDS));
+                if (buf != null) {
+                    return buf;
+                }
+            }
+            return null;
+        }
+
+        /** Rolls back a floor {@link NodeByteBudget#add} or an extra {@link NodeByteBudget.Hold} that did not land a pool slot. */
+        private void undoByteBudgetCharge(boolean floor, @Nullable NodeByteBudget.Hold extraHold) {
+            if (byteBudget == null) {
+                return;
+            }
+            if (floor) {
+                byteBudget.release(chunkSize);
+            } else if (extraHold != null) {
+                extraHold.close();
             }
         }
 
@@ -1576,7 +1795,7 @@ public final class StreamingParallelParsingCoordinator {
 
             /**
              * Returns this buffer for reuse, also after close: a release after close (a parser's {@code finally}
-             * or close's drain) is what wakes a segmentator parked in {@code bufferPool.take()}.
+             * or close's drain) is what wakes a segmentator parked in {@code bufferPool.poll}.
              */
             @Override
             public void release() {
@@ -1599,11 +1818,14 @@ public final class StreamingParallelParsingCoordinator {
                 return bytes;
             }
 
-            /** Refunds the charge; a no-op if {@link #close()} or an earlier release already did. */
+            /** Refunds the breaker and byte-budget charge; a no-op if {@link #close()} or an earlier release already did. */
             @Override
             public void release() {
                 if (growBuffers.remove(this)) {
                     breaker.addWithoutBreaking(-charge);
+                    if (byteBudget != null) {
+                        byteBudget.release(bytes.length);
+                    }
                 }
             }
         }
@@ -1620,14 +1842,27 @@ public final class StreamingParallelParsingCoordinator {
             if (closed.get()) {
                 return null;
             }
+            if (byteBudget != null) {
+                byteBudget.add(length);
+            }
             long charge = HeapFootprint.byteArrayBytes(length);
-            breaker.addEstimateBytesAndMaybeBreak(charge, GROW_BUFFER_BREAKER_LABEL);
+            try {
+                breaker.addEstimateBytesAndMaybeBreak(charge, GROW_BUFFER_BREAKER_LABEL);
+            } catch (RuntimeException e) {
+                if (byteBudget != null) {
+                    byteBudget.release(length);
+                }
+                throw e;
+            }
             byte[] bytes;
             try {
                 bytes = new byte[length];
                 System.arraycopy(from, 0, bytes, 0, copyLen);
             } catch (Throwable t) {
                 breaker.addWithoutBreaking(-charge);
+                if (byteBudget != null) {
+                    byteBudget.release(length);
+                }
                 throw t;
             }
             GrowBuffer buf = new GrowBuffer(bytes, charge);
@@ -2225,6 +2460,19 @@ public final class StreamingParallelParsingCoordinator {
             int allocated = buffersAllocated.getAndSet(POOL_CLOSED_MARKER);
             if (allocated > 0) {
                 breaker.addWithoutBreaking(-allocated * chunkCharge);
+            }
+            if (byteBudget != null) {
+                if (allocated > 0) {
+                    byteBudget.release(chunkSize);
+                }
+                NodeByteBudget.Hold extra;
+                while ((extra = extraBufferHolds.poll()) != null) {
+                    extra.close();
+                }
+            }
+            long retained = retainedSchemaBytes.getAndSet(RETAINED_SCHEMA_CLOSED_MARKER);
+            if (retained > 0) {
+                breaker.addWithoutBreaking(-retained);
             }
             // Grow buffers still held by the segmentator or a parser when the wait above ended early (timeout or
             // interrupt); queued chunks were already released by drainAllQueues(). GrowBuffer#release() is

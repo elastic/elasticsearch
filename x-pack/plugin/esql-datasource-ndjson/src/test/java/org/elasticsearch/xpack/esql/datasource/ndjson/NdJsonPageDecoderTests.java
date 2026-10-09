@@ -220,7 +220,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 assertEquals(1, page.getPositionCount());
             }
         }
-        assertEquals(List.of(SkipWarnings.absentDeclaredColumnMessage("spin_id")), warnings);
+        assertEquals(List.of(SkipWarnings.absentColumnMessage("spin_id")), warnings);
     }
 
     /**

@@ -16,6 +16,7 @@ import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.DirectAccessInput;
+import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
@@ -99,6 +100,17 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
         if (in instanceof DirectAccessInput dai) {
             return dai.withMemorySegmentSlice(offset, length, action);
         }
+        // An mmap'd input exposes its bytes as a MemorySegmentAccessInput, not a DirectAccessInput. Returning false for
+        // it here would send IndexInputUtils#withSlice, which only sees this wrapper, down its copy-to-heap fallback.
+        if (in instanceof MemorySegmentAccessInput msai) {
+            MemorySegment slice = msai.segmentSliceOrNull(offset, length);
+            if (slice != null) {
+                // The copying fallback counts these bytes through readBytes, so count them here too.
+                addBytesRead(length);
+                action.accept(slice);
+                return true;
+            }
+        }
         return false;
     }
 
@@ -112,6 +124,9 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
     ) throws IOException {
         if (in instanceof DirectAccessInput dai) {
             return dai.withSliceAddresses(offsets, length, count, addressesScratch, action);
+        }
+        if (in instanceof MemorySegmentAccessInput msai) {
+            return IndexInputUtils.resolveFromMmap(msai, offsets, length, count, addressesScratch, action);
         }
         return false;
     }

@@ -28,7 +28,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOptimizerTests {
 
@@ -122,84 +121,76 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         assertThat(Expressions.names(aggregate.groupings()), contains("mv", "last_name"));
     }
 
-    public void testPrunesDerivedExternalGroupings() {
+    /**
+     * A key derived from another external key with {@code -} looks functionally dependent on it, but only while the
+     * source column is single-valued: on a row holding a list the derived key evaluates to {@code null} and the
+     * aggregate unrolls the list into one group per element. The rule therefore keeps derived keys in the aggregate,
+     * where they are evaluated on the row, and leaves the pre-aggregate {@code EVAL} in place.
+     */
+    public void testDoesNotPruneDerivedExternalGroupings() {
         var plan = externalPlan("""
             FROM ext_ds
             | EVAL ip_m1 = ClientIP - 1, ip_m2 = ClientIP - 2, ip_m3 = ClientIP - 3
             | STATS c = COUNT(*) BY ClientIP, ip_m1, ip_m2, ip_m3
             """);
 
-        var project = rewrittenProject(plan);
-        assertThat(Expressions.names(project.projections()), contains("c", "ClientIP", "ip_m1", "ip_m2", "ip_m3"));
+        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "ip_m1", "ip_m2", "ip_m3"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "ClientIP", "ip_m1", "ip_m2", "ip_m3"));
 
-        var eval = as(project.child(), Eval.class);
+        var eval = as(aggregate.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("ip_m1", "ip_m2", "ip_m3"));
-
-        var aggregate = rewrittenAggregate(eval);
-        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP"));
-        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "ClientIP"));
-        as(aggregate.child(), ExternalRelation.class);
-        assertThat(
-            eval.fields().get(0).child(),
-            instanceOf(org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub.class)
-        );
+        as(eval.child(), ExternalRelation.class);
     }
 
-    public void testPrunesRecursiveDerivedExternalGrouping() {
+    public void testDoesNotPruneRecursiveDerivedExternalGrouping() {
         var plan = externalPlan("""
             FROM ext_ds
             | EVAL ip_m1 = ClientIP - 1, ip_m2 = ip_m1 - 1
             | STATS c = COUNT(*) BY ClientIP, ip_m2
             """);
 
-        var project = rewrittenProject(plan);
-        assertThat(Expressions.names(project.projections()), contains("c", "ClientIP", "ip_m2"));
+        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "ip_m2"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "ClientIP", "ip_m2"));
 
-        var eval = as(project.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("ip_m2"));
-
-        var aggregate = rewrittenAggregate(eval);
-        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP"));
-        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "ClientIP"));
-        as(aggregate.child(), ExternalRelation.class);
-        assertThat(
-            eval.fields().get(0).child(),
-            instanceOf(org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub.class)
-        );
+        var eval = as(aggregate.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("ip_m1", "ip_m2"));
+        as(eval.child(), ExternalRelation.class);
     }
 
-    public void testPartialDerivedExternalPruningKeepsNeededPreAggregateEval() {
+    /**
+     * A constant key next to a derived key: the constant is pruned and rebuilt above the aggregate, the derived key is
+     * kept, and the pre-aggregate {@code EVAL} drops the constant's field while retaining the derived one.
+     */
+    public void testPrunesConstantButKeepsDerivedExternalGrouping() {
         var plan = externalPlan("""
             FROM ext_ds
-            | EVAL ip_m1 = ClientIP - 1, other_m1 = OtherIP - 1
-            | STATS c = COUNT(*) BY ClientIP, ip_m1, other_m1
+            | EVAL const1 = 1, ip_m1 = ClientIP - 1
+            | STATS c = COUNT(*) BY ClientIP, const1, ip_m1
             """);
 
         var project = rewrittenProject(plan);
-        assertThat(Expressions.names(project.projections()), contains("c", "ClientIP", "ip_m1", "other_m1"));
+        assertThat(Expressions.names(project.projections()), contains("c", "ClientIP", "const1", "ip_m1"));
 
         var postAggregateEval = as(project.child(), Eval.class);
-        assertThat(Expressions.names(postAggregateEval.fields()), contains("ip_m1"));
+        assertThat(Expressions.names(postAggregateEval.fields()), contains("const1"));
 
         var aggregate = rewrittenAggregate(postAggregateEval);
-        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "other_m1"));
-        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "ClientIP", "other_m1"));
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "ip_m1"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "ClientIP", "ip_m1"));
 
         var preAggregateEval = as(aggregate.child(), Eval.class);
-        assertThat(Expressions.names(preAggregateEval.fields()), contains("other_m1"));
+        assertThat(Expressions.names(preAggregateEval.fields()), contains("ip_m1"));
         as(preAggregateEval.child(), ExternalRelation.class);
     }
 
     /**
-     * An external grouping column is renamed, a value is derived from the renamed column, then both the
-     * renamed column and the derived value are used as STATS BY keys. The derived key is functionally dependent on the
-     * renamed column, so it is pruned and rebuilt above the aggregate. The rebuilt expression must reference the column
-     * as the aggregate re-exposes it (i.e. the rename alias {@code cip}), not the pre-aggregate external id which the
-     * aggregate no longer surfaces. Otherwise the rebuilt Eval dangles and the plan fails the post-optimization
-     * consistency check. The same query over a native index is unaffected because the rule only prunes external
-     * groupings (see {@link #testDoesNotPruneDerivedOrdinaryIndexGrouping}).
+     * An external grouping column is renamed, a value is derived from the renamed column, then both are used as
+     * STATS BY keys. The derived key stays in the aggregate (see {@link #testDoesNotPruneDerivedExternalGroupings}),
+     * and the aggregate re-exposes the renamed column as {@code ClientIP AS cip}.
      */
-    public void testPrunesRenamedDerivedExternalGrouping() {
+    public void testDoesNotPruneRenamedDerivedExternalGrouping() {
         var plan = externalPlan("""
             FROM ext_ds
             | RENAME ClientIP AS cip
@@ -207,18 +198,13 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
             | STATS count = COUNT(*) BY cip, c
             """);
 
-        var project = rewrittenProject(plan);
-        assertThat(Expressions.names(project.projections()), contains("count", "cip", "c"));
+        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "c"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("count", "cip", "c"));
 
-        var eval = as(project.child(), Eval.class);
+        var eval = as(aggregate.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("c"));
-        // the rebuilt grouping must read the aggregate's renamed output, not the pre-aggregate external attribute
-        assertThat(Expressions.names(eval.fields().get(0).child().references()), contains("cip"));
-
-        var aggregate = rewrittenAggregate(eval);
-        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP"));
-        assertThat(Expressions.names(aggregate.aggregates()), contains("count", "cip"));
-        as(aggregate.child(), ExternalRelation.class);
+        as(eval.child(), ExternalRelation.class);
     }
 
     public void testDoesNotPruneInlineStatsGroupings() {
@@ -259,28 +245,6 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
 
         var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
         assertThat(Expressions.names(aggregate.groupings()), contains("emp_no", "emp_m1"));
-    }
-
-    public void testDoesNotPruneIndependentExternalExpression() {
-        var plan = externalPlan("""
-            FROM ext_ds
-            | EVAL other_m1 = OtherIP - 1
-            | STATS c = COUNT(*) BY ClientIP, other_m1
-            """);
-
-        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
-        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "other_m1"));
-    }
-
-    public void testDoesNotPruneNonWhitelistedExternalExpression() {
-        var plan = externalPlan("""
-            FROM ext_ds
-            | EVAL ip_mul = ClientIP * 2
-            | STATS c = COUNT(*) BY ClientIP, ip_mul
-            """);
-
-        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
-        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "ip_mul"));
     }
 
     private LogicalPlan externalPlan(String query) {

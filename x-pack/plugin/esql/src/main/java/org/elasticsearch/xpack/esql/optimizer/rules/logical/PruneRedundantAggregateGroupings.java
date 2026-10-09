@@ -15,12 +15,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -28,14 +24,23 @@ import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-
-import static org.elasticsearch.xpack.esql.core.type.DataType.isIntegral;
 
 /**
  * Removes {@code STATS BY} keys that do not add grouping cardinality and rebuilds their output above the aggregation.
+ * <p>
+ * Only scalar constants qualify: {@code STATS ... BY 1, x} or {@code EVAL c = 1 | STATS ... BY c, x} group on {@code x}
+ * alone and re-emit the constant in an {@link Eval} above the {@link Aggregate}. A constant is single-valued on every
+ * row, so this is always equivalent.
+ * <p>
+ * A key <em>derived</em> from other keys (e.g. {@code EVAL m = x - 1 | STATS ... BY x, m}) is deliberately kept, even
+ * though it looks functionally dependent on {@code x}. The dependency holds only while {@code x} is single-valued: on a
+ * row where {@code x} is a list, the query as written evaluates {@code x - 1} to {@code null} (with a warning), while
+ * the aggregate unrolls the list into one group per element. Recomputing {@code m} per group would then produce a
+ * number where the query returns {@code null}, and the group set itself can differ (a list row and a scalar row with a
+ * shared element fall into one group after the rewrite but two before it). Nothing in the plan proves a column
+ * single-valued (the data type carries no such flag and the external source statistics are partial and format
+ * dependent), so the rule does not prune derived keys.
  */
 public final class PruneRedundantAggregateGroupings extends OptimizerRules.OptimizerRule<Aggregate>
     implements
@@ -48,24 +53,11 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
         }
 
         AttributeMap<Expression> evalAliases = evalAliases(aggregate.child());
-        AttributeSet retainedGroupingAttributes = retainedGroupingAttributes(aggregate.groupings(), evalAliases);
-        AttributeSet externalAttributes = externalAttributes(aggregate.child());
-        // A grouping key may be re-exposed under a different name in the aggregate output, e.g. a renamed column
-        // `... | RENAME x AS y | STATS ... BY y` surfaces as `x AS y` in the aggregate's output. A pruned grouping is
-        // rebuilt as an Eval above the aggregate, so its expression must read the aggregate's output attribute (`y`),
-        // not the pre-aggregate attribute (`x`) which the aggregate no longer surfaces.
-        AttributeMap<Attribute> groupingOutputAttributes = groupingOutputAttributes(aggregate.aggregates());
         List<Expression> newGroupings = new ArrayList<>(aggregate.groupings().size());
         List<PrunedGrouping> prunedGroupings = new ArrayList<>();
 
         for (Expression grouping : aggregate.groupings()) {
-            Expression replacement = replacementFor(
-                grouping,
-                evalAliases,
-                retainedGroupingAttributes,
-                externalAttributes,
-                groupingOutputAttributes
-            );
+            Expression replacement = replacementFor(grouping, evalAliases);
             if (replacement == null) {
                 newGroupings.add(grouping);
             } else {
@@ -118,45 +110,6 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
         return aliases.build();
     }
 
-    private static AttributeSet retainedGroupingAttributes(List<Expression> groupings, AttributeMap<Expression> evalAliases) {
-        AttributeSet.Builder retained = AttributeSet.builder();
-        for (Expression grouping : groupings) {
-            Attribute attribute = Expressions.attribute(grouping);
-            if (attribute != null && evalAliases.containsKey(attribute) == false) {
-                retained.add(attribute);
-            }
-        }
-        return retained.build();
-    }
-
-    private static AttributeSet externalAttributes(LogicalPlan plan) {
-        AttributeSet.Builder externalAttributes = AttributeSet.builder();
-        plan.forEachDown(ExternalRelation.class, relation -> externalAttributes.addAll(relation.output()));
-        return externalAttributes.build();
-    }
-
-    /**
-     * Maps each attribute that the aggregate's output is built from to the attribute that actually exposes it. A direct
-     * pass-through (e.g. {@code BY x} emitting {@code x}) maps to itself; a rename (e.g. {@code x AS y}) maps the
-     * underlying attribute {@code x} to the output attribute {@code y}. This lets a pruned grouping be rebuilt above the
-     * aggregate while reading the aggregate's output rather than a pre-aggregate attribute the aggregate no longer
-     * surfaces.
-     */
-    private static AttributeMap<Attribute> groupingOutputAttributes(List<? extends NamedExpression> aggregates) {
-        AttributeMap.Builder<Attribute> outputAttributes = AttributeMap.builder();
-        for (NamedExpression aggregate : aggregates) {
-            // A direct pass-through (e.g. `BY x` emitting `x`) takes precedence over a rename of the same underlying
-            // attribute: put() always wins for the identity case, while computeIfAbsent() keeps an alias only when no
-            // pass-through has claimed the key.
-            if (aggregate instanceof Attribute attribute) {
-                outputAttributes.put(attribute, attribute);
-            } else if (aggregate instanceof Alias alias && alias.child() instanceof Attribute attribute) {
-                outputAttributes.computeIfAbsent(attribute, key -> alias.toAttribute());
-            }
-        }
-        return outputAttributes.build();
-    }
-
     private static LogicalPlan pruneUnusedChildEvals(
         LogicalPlan child,
         List<PrunedGrouping> prunedGroupings,
@@ -190,13 +143,11 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
         return remainingFields.isEmpty() ? eval.child() : new Eval(eval.source(), eval.child(), remainingFields);
     }
 
-    private static Expression replacementFor(
-        Expression grouping,
-        AttributeMap<Expression> evalAliases,
-        AttributeSet retainedGroupingAttributes,
-        AttributeSet externalAttributes,
-        AttributeMap<Attribute> groupingOutputAttributes
-    ) {
+    /**
+     * The expression to re-emit above the aggregate in place of {@code grouping}, or {@code null} if the grouping must
+     * stay: only a scalar constant, written inline or through an {@link Eval} alias, can be pruned.
+     */
+    private static Expression replacementFor(Expression grouping, AttributeMap<Expression> evalAliases) {
         Expression unwrapped = Alias.unwrap(grouping);
         if (isScalarFoldable(unwrapped)) {
             return unwrapped;
@@ -208,73 +159,10 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
         }
 
         Expression definition = evalAliases.get(groupingAttribute);
-        if (definition == null) {
-            return null;
-        }
-        if (isScalarFoldable(definition)) {
+        if (definition != null && isScalarFoldable(definition)) {
             return definition;
         }
-
-        Expression expanded = expandAliases(definition, evalAliases, retainedGroupingAttributes, new HashSet<>());
-        if (isSafeDerivedExpression(expanded, retainedGroupingAttributes, externalAttributes, groupingOutputAttributes)) {
-            // The expression references the retained grouping attributes as they exist below the aggregate; rebind them
-            // to the attributes the aggregate exposes so the rebuilt Eval above the aggregate stays consistent.
-            return expanded.transformUp(Attribute.class, attribute -> groupingOutputAttributes.resolve(attribute, attribute));
-        }
         return null;
-    }
-
-    private static Expression expandAliases(
-        Expression expression,
-        AttributeMap<Expression> evalAliases,
-        AttributeSet retainedGroupingAttributes,
-        Set<Attribute> expanding
-    ) {
-        return expression.transformUp(Attribute.class, attribute -> {
-            if (retainedGroupingAttributes.contains(attribute)) {
-                return attribute;
-            }
-            Expression replacement = evalAliases.get(attribute);
-            if (replacement == null || expanding.add(attribute) == false) {
-                return attribute;
-            }
-            try {
-                return expandAliases(replacement, evalAliases, retainedGroupingAttributes, expanding);
-            } finally {
-                expanding.remove(attribute);
-            }
-        });
-    }
-
-    private static boolean isSafeDerivedExpression(
-        Expression expression,
-        AttributeSet retainedGroupingAttributes,
-        AttributeSet externalAttributes,
-        AttributeMap<Attribute> groupingOutputAttributes
-    ) {
-        AttributeSet references = expression.references();
-        // The containsKey check requires every referenced attribute to be exposed by the aggregate output, otherwise the
-        // rebuilt Eval above the aggregate would dangle on an attribute the aggregate no longer surfaces.
-        return references.isEmpty() == false
-            && references.subsetOf(retainedGroupingAttributes)
-            && references.subsetOf(externalAttributes)
-            && references.stream().allMatch(groupingOutputAttributes::containsKey)
-            && references.stream().allMatch(PruneRedundantAggregateGroupings::isSafeIntegralAttribute)
-            && expression.anyMatch(PruneRedundantAggregateGroupings::isUnsafeDerivedExpression) == false;
-    }
-
-    private static boolean isUnsafeDerivedExpression(Expression expression) {
-        if (expression instanceof Attribute) {
-            return false;
-        }
-        if (isScalarFoldable(expression)) {
-            return false;
-        }
-        return expression instanceof Add == false && expression instanceof Sub == false && expression instanceof Neg == false;
-    }
-
-    private static boolean isSafeIntegralAttribute(Attribute attribute) {
-        return isIntegral(attribute.dataType());
     }
 
     private static boolean isScalarFoldable(Expression expression) {

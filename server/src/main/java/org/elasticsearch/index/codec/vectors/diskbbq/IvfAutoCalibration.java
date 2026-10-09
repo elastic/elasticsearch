@@ -195,6 +195,7 @@ public class IvfAutoCalibration {
     /**
      * Returns an {@link IvfMergeConfigResolver} that runs merge-time auto-calibration for the given cluster size.
      */
+
     public static IvfMergeConfigResolver mergeConfigResolver(int vectorsPerCluster, IvfAutoCalibrationProfile profile) {
         return (fieldInfo, mergeState, codecDefault) -> fromProfile(vectorsPerCluster, profile).resolve(
             fieldInfo,
@@ -518,28 +519,25 @@ public class IvfAutoCalibration {
     ) throws IOException {
 
         ManifoldModel.ManifoldParams manifold = ManifoldModel.estimateManifoldParameters(calibrationSource);
-        double alpha = manifold.alpha();
-        double invDim = manifold.invDim();
 
-        if (mode == CalibrationMode.FAST) {
-            return sweepQuantizationCandidatesRealResiduals(
+        return switch (mode) {
+            case FAST -> sweepQuantizationCandidatesRealResiduals(
                 similarityFunction,
                 calibrationSource.numVectors(),
-                alpha,
-                invDim,
+                manifold,
                 calibrationSource
             );
-        } else {
-            ErrorScalingFit scalingFit = ErrorModel.estimateErrorScalingFit(calibrationSource, vectorsPerCluster);
-            return sweepQuantizationCandidates(
-                similarityFunction,
-                calibrationSource.numVectors(),
-                alpha,
-                invDim,
-                scalingFit,
-                calibrationSource
-            );
-        }
+            case FULL -> {
+                ErrorScalingFit scalingFit = ErrorModel.estimateErrorScalingFit(calibrationSource, vectorsPerCluster);
+                yield sweepQuantizationCandidates(
+                    similarityFunction,
+                    calibrationSource.numVectors(),
+                    manifold,
+                    scalingFit,
+                    calibrationSource
+                );
+            }
+        };
     }
 
     /**
@@ -553,13 +551,13 @@ public class IvfAutoCalibration {
     private SweepOutcome sweepQuantizationCandidatesRealResiduals(
         VectorSimilarityFunction similarityFunction,
         int numVectors,
-        double alpha,
-        double invDim,
+        ManifoldModel.ManifoldParams manifold,
         CalibrationSource calibrationSource
     ) throws IOException {
-        ErrorModel.RealResidualState state = ErrorModel.newRealResidualState(calibrationSource);
+        double invDim = manifold.invDim();
+        ErrorModel.RealResidualState state = new ErrorModel.RealResidualState(calibrationSource);
         Map<EncKey, QuantizationErrorStdModel> errorModelCache = new HashMap<>();
-        return sweepCandidates(similarityFunction, numVectors, alpha, invDim, (candidate, precondition) -> {
+        return sweepCandidates(similarityFunction, numVectors, manifold, (candidate, precondition) -> {
             EncKey key = new EncKey(candidate.qbits(), candidate.dbits(), precondition);
             QuantizationErrorStdModel errorModel = errorModelCache.get(key);
             if (errorModel == null) {
@@ -601,14 +599,13 @@ public class IvfAutoCalibration {
     private SweepOutcome sweepQuantizationCandidates(
         VectorSimilarityFunction similarityFunction,
         int numVectors,
-        double alpha,
-        double invDim,
+        ManifoldModel.ManifoldParams manifold,
         ErrorScalingFit scalingFit,
         CalibrationSource calibrationSource
     ) throws IOException {
         // Error models depend only on (qbits, dbits, precondition), not on rerank depth, so cache across the sweep.
         Map<EncKey, QuantizationErrorStdModel> errorModelCache = new HashMap<>();
-        return sweepCandidates(similarityFunction, numVectors, alpha, invDim, (candidate, precondition) -> {
+        return sweepCandidates(similarityFunction, numVectors, manifold, (candidate, precondition) -> {
             EncKey key = new EncKey(candidate.qbits(), candidate.dbits(), precondition);
             QuantizationErrorStdModel errorModel = errorModelCache.computeIfAbsent(
                 key,
@@ -639,10 +636,11 @@ public class IvfAutoCalibration {
     private SweepOutcome sweepCandidates(
         VectorSimilarityFunction similarityFunction,
         int numVectors,
-        double alpha,
-        double invDim,
+        ManifoldModel.ManifoldParams manifold,
         ErrorStdProvider errorStdProvider
     ) throws IOException {
+        double alpha = manifold.alpha();
+        double invDim = manifold.invDim();
         double bestRecall = -1;
         QuantEncoding bestEncoding = QuantEncoding.ONE_BIT_4BIT_QUERY;
         float bestOversample = DEFAULT_CALIBRATED_OVERSAMPLE;

@@ -9,12 +9,16 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -73,6 +77,7 @@ import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -93,6 +98,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.zip.GZIPOutputStream;
@@ -940,7 +946,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             operator.close();
         }
         driverContext.finish();
-        assertThat(driverContext.warnings(), contains(SkipWarnings.absentDeclaredColumnMessage("city")));
+        assertThat(driverContext.warnings(), contains(SkipWarnings.absentColumnMessage("city")));
         Releasables.close(driverContext.getSnapshot());
     }
 
@@ -2271,6 +2277,142 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertEquals(2000, range2.offset());
         assertEquals(500, range2.length());
         assertTrue("Non-first split with offset > 0 should skip first line", capturedSkipFirstLine.get(2));
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    /**
+     * Every split, the first included, is handed the file's header columns, read once per file: the next consecutive
+     * split of the same file takes them from the producer's cache instead of reading the header again.
+     */
+    public void testConsecutiveSplitsOfOneFileReadItsHeaderColumnsOnce() throws Exception {
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        List<Attribute> readSchema = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        List<ExternalSplit> splits = List.of(
+            FileSplit.withReadSchema(
+                "test",
+                path,
+                0,
+                1000,
+                "csv",
+                Map.of(FileSplitProvider.FIRST_SPLIT_KEY, "true", FileSplitProvider.RANGE_SPLIT_KEY, "true"),
+                Map.of(),
+                null,
+                readSchema
+            ),
+            FileSplit.withReadSchema("test", path, 1000, 1000, "csv", Map.of(), Map.of(), null, readSchema),
+            FileSplit.withReadSchema(
+                "test",
+                path,
+                2000,
+                500,
+                "csv",
+                Map.of(FileSplitProvider.LAST_SPLIT_KEY, "true"),
+                Map.of(),
+                null,
+                readSchema
+            )
+        );
+        HeaderCountingFormatReader formatReader = new HeaderCountingFormatReader(List.of("value"));
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new StubMultiFileStorageProvider(),
+            formatReader,
+            path,
+            readSchema,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).sliceQueue(new ExternalSliceQueue(new ArrayList<>(splits))).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(List.of(List.of("value"), List.of("value"), List.of("value")), formatReader.capturedHeaderColumns);
+        assertEquals("the later splits must reuse the header columns the first one was handed", 1, formatReader.headerReads);
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    /**
+     * The only split of a file (both its first and last) has no later split to share the columns with, and the
+     * dispatch modes that stream it read the header from the stream they already have, so none is read ahead of it.
+     */
+    public void testTheOnlySplitOfAFileIsNotHandedHeaderColumnsItsReaderReadsItsOwn() throws Exception {
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        List<Attribute> readSchema = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        List<ExternalSplit> splits = List.of(
+            FileSplit.withReadSchema(
+                "test",
+                path,
+                0,
+                1000,
+                "csv",
+                Map.of(FileSplitProvider.FIRST_SPLIT_KEY, "true", FileSplitProvider.LAST_SPLIT_KEY, "true"),
+                Map.of(),
+                null,
+                readSchema
+            )
+        );
+        HeaderCountingFormatReader formatReader = new HeaderCountingFormatReader(List.of("value"));
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new StubMultiFileStorageProvider(),
+            formatReader,
+            path,
+            readSchema,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).sliceQueue(new ExternalSliceQueue(new ArrayList<>(splits))).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(Collections.singletonList((List<String>) null), formatReader.capturedHeaderColumns);
+        assertEquals("a file with one split has nobody to share the header with: it reads its own", 0, formatReader.headerReads);
 
         for (Page p : pages) {
             p.releaseBlocks();
@@ -3852,6 +3994,398 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
+    /**
+     * A producer parked on {@link CloseableIterator#waitForReady()} must release its
+     * {@code producerExecutor} thread so other work can run.
+     */
+    public void testParkedProducerReleasesExecutorThread() throws Exception {
+        CountDownLatch allowPage = new CountDownLatch(1);
+        ParkingReader reader = new ParkingReader(allowPage);
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(
+            List.of(new FileSplit("test", StoragePath.of("s3://bucket/park.parquet"), 0, 100, "parquet", Map.of(), Map.of()))
+        );
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        ExecutorService ioExec = Executors.newSingleThreadExecutor(EsExecutors.daemonThreadFactory("test", "park-io"));
+        ExecutorService producerExec = Executors.newSingleThreadExecutor(EsExecutors.daemonThreadFactory("test", "park-producer"));
+        try {
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                new StubMultiFileStorageProvider(),
+                reader,
+                StoragePath.of("s3://bucket/park.parquet"),
+                List.of(
+                    new FieldAttribute(
+                        Source.EMPTY,
+                        "value",
+                        new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                    )
+                ),
+                100,
+                10,
+                ioExec
+            ).sliceQueue(sliceQueue).producerExecutor(producerExec).build();
+
+            SourceOperator operator = factory.get(driverContext);
+            assertBusy(() -> assertTrue("producer must park on waitForReady", reader.parked.get()), 5, TimeUnit.SECONDS);
+
+            CountDownLatch otherWork = new CountDownLatch(1);
+            producerExec.execute(otherWork::countDown);
+            assertTrue("parked producer must not pin the consumer thread", otherWork.await(5, TimeUnit.SECONDS));
+
+            allowPage.countDown();
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (operator.isFinished() == false && System.nanoTime() < deadline) {
+                Page p = operator.getOutput();
+                if (p != null) {
+                    p.releaseBlocks();
+                }
+            }
+            assertTrue(operator.isFinished());
+            operator.close();
+        } finally {
+            allowPage.countDown();
+            ioExec.shutdownNow();
+            producerExec.shutdownNow();
+            assertTrue(ioExec.awaitTermination(5, TimeUnit.SECONDS));
+            assertTrue(producerExec.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * T8: park resume only. Saturate a 1-thread {@link EsThreadPoolExecutor} with queue capacity 0
+     * after the producer has parked; the force-execution resume still runs. Does not claim
+     * start-of-producer liveness — the initial submit is not force-execution.
+     */
+    public void testForcedResubmitRunsWhenProducerQueueIsFull() throws Exception {
+        CountDownLatch allowPage = new CountDownLatch(1);
+        ParkingReader reader = new ParkingReader(allowPage);
+        EsThreadPoolExecutor producerExec = EsExecutors.newFixed(
+            "test-t8",
+            1,
+            0,
+            EsExecutors.daemonThreadFactory("test", "t8"),
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(
+            List.of(new FileSplit("test", StoragePath.of("s3://bucket/force.parquet"), 0, 100, "parquet", Map.of(), Map.of()))
+        );
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+        ExecutorService ioExec = Executors.newSingleThreadExecutor(EsExecutors.daemonThreadFactory("test", "force-io"));
+        CountDownLatch occupied = new CountDownLatch(1);
+        CountDownLatch releaseBlocker = new CountDownLatch(1);
+        try {
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                new StubMultiFileStorageProvider(),
+                reader,
+                StoragePath.of("s3://bucket/force.parquet"),
+                List.of(
+                    new FieldAttribute(
+                        Source.EMPTY,
+                        "value",
+                        new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                    )
+                ),
+                100,
+                10,
+                ioExec
+            ).sliceQueue(sliceQueue).producerExecutor(producerExec).build();
+
+            SourceOperator operator = factory.get(driverContext);
+            assertBusy(() -> assertTrue(reader.parked.get()), 5, TimeUnit.SECONDS);
+
+            producerExec.execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() throws Exception {
+                    occupied.countDown();
+                    if (releaseBlocker.await(15, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("blocker not released");
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    occupied.countDown();
+                }
+            });
+            assertTrue("producer thread must be occupied after park", occupied.await(5, TimeUnit.SECONDS));
+
+            allowPage.countDown();
+            assertFalse("force resume must wait behind the occupied thread", operator.isFinished());
+
+            releaseBlocker.countDown();
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (operator.isFinished() == false && System.nanoTime() < deadline) {
+                Page p = operator.getOutput();
+                if (p != null) {
+                    p.releaseBlocks();
+                }
+            }
+            assertTrue(operator.isFinished());
+            operator.close();
+        } finally {
+            allowPage.countDown();
+            releaseBlocker.countDown();
+            ioExec.shutdownNow();
+            producerExec.shutdownNow();
+            assertTrue(ioExec.awaitTermination(5, TimeUnit.SECONDS));
+            assertTrue(producerExec.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testOccupyPagesSlotFailsLoudOnReplacedIterator() {
+        AtomicInteger closed = new AtomicInteger();
+        CloseableIterator<Page> previous = new CloseableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+
+            @Override
+            public Page next() {
+                throw new NoSuchElementException();
+            }
+
+            @Override
+            public void close() {
+                closed.incrementAndGet();
+            }
+        };
+        CloseableIterator<Page> next = new CloseableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+
+            @Override
+            public Page next() {
+                throw new NoSuchElementException();
+            }
+
+            @Override
+            public void close() {}
+        };
+        AssertionError e = expectThrows(AssertionError.class, () -> AsyncExternalSourceOperatorFactory.occupyPagesSlot(previous, next));
+        assertEquals("replaced live iterator", e.getMessage());
+        assertEquals("replaced iterator must be closed", 1, closed.get());
+        assertSame(next, AsyncExternalSourceOperatorFactory.occupyPagesSlot(null, next));
+    }
+
+    /**
+     * U10 / HANG_FIX_PLAN §1.6 (nightly 312): a text iterator lost by Bug A never closes
+     * {@code PermitReleasingInputStream}, so the node S3 permit and per-query budget stay taken
+     * until restart. Closing the replaced iterator is the leak fix, not a defensive extra.
+     */
+    public void testReplacedTextIteratorReleasesNodePermitAndQueryBudget() throws Exception {
+        int max = 24;
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(max, false));
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(max, 60_000L, null);
+        StorageObject inner = new ByteArrayStorageObject(StoragePath.of("s3://bucket/lost.csv"), "hello".getBytes(StandardCharsets.UTF_8));
+        QueryBudgetedStorageObject budgeted = new QueryBudgetedStorageObject(new ConcurrencyLimitedStorageObject(inner, limiter), budget);
+
+        assertEquals(max, limiter.availablePermits());
+        assertEquals(0, budget.inFlight());
+
+        InputStream stream = budgeted.newStream();
+        assertEquals("lost open holds one node permit", max - 1, limiter.availablePermits());
+        assertEquals("lost open holds one query budget lease", 1, budget.inFlight());
+
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> AsyncExternalSourceOperatorFactory.occupyPagesSlot(iteratorClosing(stream), emptyIterator())
+        );
+        assertEquals("replaced live iterator", e.getMessage());
+        assertEquals(max, limiter.availablePermits());
+        assertEquals(0, budget.inFlight());
+    }
+
+    public void testRequirePagesFailsLoudOnNull() {
+        AssertionError e = expectThrows(AssertionError.class, () -> AsyncExternalSourceOperatorFactory.requirePages(null));
+        assertEquals("null pages mid-drain", e.getMessage());
+    }
+
+    public void testClaimProducerRunTripsOnOverlapAndClearsOnRelease() {
+        AtomicReference<Object> run = new AtomicReference<>();
+        Object first = new Object();
+        Object second = new Object();
+        assertTrue(AsyncExternalSourceOperatorFactory.claimProducerRun(run, first));
+        assertFalse("second claim while held must fail", AsyncExternalSourceOperatorFactory.claimProducerRun(run, second));
+        assertTrue(run.compareAndSet(first, null));
+        assertTrue("claim after release must succeed (park handoff)", AsyncExternalSourceOperatorFactory.claimProducerRun(run, second));
+    }
+
+    /**
+     * U6 outcome: a second {@code executeProducer} while {@code doRun} holds the token fails the
+     * query once and the token holder closes the iterator.
+     */
+    public void testOverlappingDrainFailsQueryOnceAndHolderClosesIterator() throws Exception {
+        CountDownLatch inDrain = new CountDownLatch(1);
+        CountDownLatch resumeDrain = new CountDownLatch(1);
+        AtomicInteger closes = new AtomicInteger();
+        AtomicInteger removeAsync = new AtomicInteger();
+        BlockingAdvanceReader reader = new BlockingAdvanceReader(inDrain, resumeDrain, closes);
+        AtomicInteger submits = new AtomicInteger();
+        CountDownLatch duplicateRan = new CountDownLatch(1);
+        ExecutorService ioExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "u6-overlap-io"));
+        ExecutorService producerExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "u6-overlap-prod"));
+        try {
+            SourceOperator operator = startSliceOperator(
+                reader,
+                new StubMultiFileStorageProvider(),
+                ioExec,
+                duplicateNthSubmit(producerExec, 2, inDrain, duplicateRan, submits),
+                removeAsync
+            );
+            assertTrue(inDrain.await(10, TimeUnit.SECONDS));
+            assertTrue(duplicateRan.await(10, TimeUnit.SECONDS));
+            resumeDrain.countDown();
+            finishOperator(operator);
+            assertBusy(() -> assertEquals(1, removeAsync.get()));
+            assertBusy(() -> assertEquals(1, closes.get()));
+        } finally {
+            resumeDrain.countDown();
+            shutdownExecs(ioExec, producerExec);
+        }
+    }
+
+    /**
+     * U10 e2e + Bug 2: duplicate start while open is blocked. One open, query fails once,
+     * text stream close returns the node permit and query budget.
+     */
+    public void testDuplicateOpenDuringBlockedReadReleasesPermitAndBudget() throws Exception {
+        int max = 24;
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(max, false));
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(max, 60_000L, null);
+        CountDownLatch inOpen = new CountDownLatch(1);
+        CountDownLatch resumeOpen = new CountDownLatch(1);
+        AtomicInteger opens = new AtomicInteger();
+        AtomicInteger removeAsync = new AtomicInteger();
+        AtomicInteger submits = new AtomicInteger();
+        PermitHoldingReader reader = new PermitHoldingReader(inOpen, resumeOpen, opens);
+        CountDownLatch duplicateRan = new CountDownLatch(1);
+        ExecutorService ioExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "u10-io"));
+        ExecutorService producerExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "u10-prod"));
+        try {
+            SourceOperator operator = startSliceOperator(
+                reader,
+                new LeasedTextStorageProvider(limiter, budget, "hello".getBytes(StandardCharsets.UTF_8)),
+                ioExec,
+                duplicateNthSubmit(producerExec, 1, inOpen, duplicateRan, submits),
+                removeAsync
+            );
+            assertTrue(inOpen.await(10, TimeUnit.SECONDS));
+            assertTrue(duplicateRan.await(10, TimeUnit.SECONDS));
+            assertEquals("lost open holds one node permit", max - 1, limiter.availablePermits());
+            assertEquals(1, budget.inFlight());
+            resumeOpen.countDown();
+            finishOperator(operator);
+            assertEquals(1, opens.get());
+            assertBusy(() -> assertEquals(1, removeAsync.get()));
+            assertBusy(() -> assertEquals(max, limiter.availablePermits()));
+            assertBusy(() -> assertEquals(0, budget.inFlight()));
+        } finally {
+            resumeOpen.countDown();
+            shutdownExecs(ioExec, producerExec);
+        }
+    }
+
+    /**
+     * Bug 1: open throws after a concurrent failProducer. Failures go through the
+     * {@code producerFinished} guard; {@code removeAsyncAction} fires once.
+     */
+    public void testOpenThrowAfterConcurrentFailCompletesOnce() throws Exception {
+        CountDownLatch inOpen = new CountDownLatch(1);
+        CountDownLatch resumeOpen = new CountDownLatch(1);
+        AtomicInteger opens = new AtomicInteger();
+        AtomicInteger removeAsync = new AtomicInteger();
+        AtomicInteger submits = new AtomicInteger();
+        ThrowingAfterSignalReader reader = new ThrowingAfterSignalReader(inOpen, resumeOpen, opens);
+        CountDownLatch duplicateRan = new CountDownLatch(1);
+        ExecutorService ioExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "bug1-io"));
+        ExecutorService producerExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "bug1-prod"));
+        try {
+            SourceOperator operator = startSliceOperator(
+                reader,
+                new StubMultiFileStorageProvider(),
+                ioExec,
+                duplicateNthSubmit(producerExec, 1, inOpen, duplicateRan, submits),
+                removeAsync
+            );
+            assertTrue(inOpen.await(10, TimeUnit.SECONDS));
+            assertTrue(duplicateRan.await(10, TimeUnit.SECONDS));
+            resumeOpen.countDown();
+            finishOperator(operator);
+            assertEquals(1, opens.get());
+            assertBusy(() -> assertEquals(1, removeAsync.get()));
+        } finally {
+            resumeOpen.countDown();
+            shutdownExecs(ioExec, producerExec);
+        }
+    }
+
+    /**
+     * U6: {@code waitForReady} is not done at the park check; a side thread completes it so
+     * {@code addListener} often runs the resume inline (or on another {@code producerExecutor}
+     * thread before the parking task's {@code finally}). Must not fail as overlapping producer run.
+     * Fully deterministic inline is impossible: {@code isDone} is {@code final} and is checked
+     * before {@code addListener}; a lie would skip park. This loop hits the window.
+     */
+    public void testAlreadyDoneParkDoesNotFailAsOverlap() throws Exception {
+        int iters = 50;
+        ExecutorService ioExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "u6-io"));
+        ExecutorService producerExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "u6-producer"));
+        try {
+            for (int i = 0; i < iters; i++) {
+                InlineCompletingReader reader = new InlineCompletingReader();
+                ExternalSliceQueue sliceQueue = new ExternalSliceQueue(
+                    List.of(
+                        new FileSplit("test", StoragePath.of("s3://bucket/u6-" + i + ".parquet"), 0, 100, "parquet", Map.of(), Map.of())
+                    )
+                );
+                DriverContext driverContext = mock(DriverContext.class);
+                when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+                doAnswer(inv -> null).when(driverContext).addAsyncAction();
+                doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+                AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                    new StubMultiFileStorageProvider(),
+                    reader,
+                    StoragePath.of("s3://bucket/u6-" + i + ".parquet"),
+                    List.of(
+                        new FieldAttribute(
+                            Source.EMPTY,
+                            "value",
+                            new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                        )
+                    ),
+                    100,
+                    10,
+                    ioExec
+                ).sliceQueue(sliceQueue).producerExecutor(producerExec).build();
+                SourceOperator operator = factory.get(driverContext);
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                while (operator.isFinished() == false && System.nanoTime() < deadline) {
+                    Page p = operator.getOutput();
+                    if (p != null) {
+                        p.releaseBlocks();
+                    }
+                }
+                assertTrue("iteration " + i + " did not finish", operator.isFinished());
+                operator.close();
+            }
+        } finally {
+            ioExec.shutdownNow();
+            producerExec.shutdownNow();
+            assertTrue(ioExec.awaitTermination(5, TimeUnit.SECONDS));
+            assertTrue(producerExec.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
     public void testDescribeSplittableCompressedUsesSyncWrapperMode() throws IOException {
         SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
         CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new StubSplittableCodec());
@@ -5384,6 +5918,166 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
+     * Iterator whose {@link CloseableIterator#waitForReady()} stays incomplete until {@code allowPage}
+     * counts down. Used to park the AESOF producer without pinning the consumer thread.
+     */
+    private static final class ParkingReader implements NoConfigFormatReader {
+        private final CountDownLatch allowPage;
+        private final AtomicBoolean parked = new AtomicBoolean();
+
+        private ParkingReader(CountDownLatch allowPage) {
+            this.allowPage = allowPage;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            SubscribableListener<Void> ready = new SubscribableListener<>();
+            Thread releaser = new Thread(() -> {
+                try {
+                    parked.set(true);
+                    allowPage.await();
+                    ready.onResponse(null);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    ready.onFailure(e);
+                }
+            }, "parking-reader-release");
+            releaser.setDaemon(true);
+            releaser.start();
+            return new CloseableIterator<>() {
+                private boolean emitted;
+
+                @Override
+                public SubscribableListener<Void> waitForReady() {
+                    return ready.isDone() ? SubscribableListener.newSucceeded(null) : ready;
+                }
+
+                @Override
+                public Page tryAdvance() {
+                    if (ready.isDone() == false || emitted) {
+                        return null;
+                    }
+                    emitted = true;
+                    return createTestPage();
+                }
+
+                @Override
+                public boolean hasNext() {
+                    throw new AssertionError("AESOF drain must not call hasNext");
+                }
+
+                @Override
+                public Page next() {
+                    Page page = tryAdvance();
+                    if (page == null) {
+                        throw new NoSuchElementException();
+                    }
+                    return page;
+                }
+
+                @Override
+                public void close() {
+                    allowPage.countDown();
+                }
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "parking";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * {@code waitForReady} starts not-done; a daemon thread completes it immediately so
+     * {@code addListener} races with the park check (U6 inline resume).
+     */
+    private static final class InlineCompletingReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            SubscribableListener<Void> ready = new SubscribableListener<>();
+            Thread completer = new Thread(() -> ready.onResponse(null), "u6-inline-complete");
+            completer.setDaemon(true);
+            completer.start();
+            return new CloseableIterator<>() {
+                private boolean emitted;
+
+                @Override
+                public SubscribableListener<Void> waitForReady() {
+                    return ready.isDone() ? SubscribableListener.newSucceeded(null) : ready;
+                }
+
+                @Override
+                public Page tryAdvance() {
+                    if (ready.isDone() == false || emitted) {
+                        return null;
+                    }
+                    emitted = true;
+                    return createTestPage();
+                }
+
+                @Override
+                public boolean hasNext() {
+                    return emitted == false && ready.isDone();
+                }
+
+                @Override
+                public Page next() {
+                    Page page = tryAdvance();
+                    if (page == null) {
+                        throw new NoSuchElementException();
+                    }
+                    return page;
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "inline-completing";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
      * Format reader for the state-machine test. Every {@code read} returns a single-page iterator
      * that increments {@code closeCalls} on {@link CloseableIterator#close()}, so the test can
      * assert that every opened iterator is closed exactly once.
@@ -5449,6 +6143,233 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public void close() {}
     }
 
+    private static final class BlockingAdvanceReader implements NoConfigFormatReader {
+        private final CountDownLatch entered;
+        private final CountDownLatch resume;
+        private final AtomicInteger closes;
+
+        BlockingAdvanceReader(CountDownLatch entered, CountDownLatch resume, AtomicInteger closes) {
+            this.entered = entered;
+            this.resume = resume;
+            this.closes = closes;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            return new CloseableIterator<>() {
+                private boolean emitted;
+
+                @Override
+                public Page tryAdvance() {
+                    entered.countDown();
+                    try {
+                        if (resume.await(10, TimeUnit.SECONDS) == false) {
+                            return null;
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return null;
+                    }
+                    if (emitted) {
+                        return null;
+                    }
+                    emitted = true;
+                    return createTestPage();
+                }
+
+                @Override
+                public boolean hasNext() {
+                    return emitted == false;
+                }
+
+                @Override
+                public Page next() {
+                    Page page = tryAdvance();
+                    if (page == null) {
+                        throw new NoSuchElementException();
+                    }
+                    return page;
+                }
+
+                @Override
+                public void close() {
+                    closes.incrementAndGet();
+                }
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "blocking-advance";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".csv");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static final class PermitHoldingReader implements NoConfigFormatReader {
+        private final CountDownLatch entered;
+        private final CountDownLatch resume;
+        private final AtomicInteger opens;
+
+        PermitHoldingReader(CountDownLatch entered, CountDownLatch resume, AtomicInteger opens) {
+            this.entered = entered;
+            this.resume = resume;
+            this.opens = opens;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            opens.incrementAndGet();
+            InputStream stream;
+            try {
+                stream = object.newStream();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            entered.countDown();
+            try {
+                if (resume.await(10, TimeUnit.SECONDS) == false) {
+                    stream.close();
+                    throw new IllegalStateException("timed out in open");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                try {
+                    stream.close();
+                } catch (IOException closeFailure) {
+                    e.addSuppressed(closeFailure);
+                }
+                throw new IllegalStateException(e);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return iteratorClosing(stream);
+        }
+
+        @Override
+        public String formatName() {
+            return "permit-holding";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".csv");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static final class ThrowingAfterSignalReader implements NoConfigFormatReader {
+        private final CountDownLatch entered;
+        private final CountDownLatch resume;
+        private final AtomicInteger opens;
+
+        ThrowingAfterSignalReader(CountDownLatch entered, CountDownLatch resume, AtomicInteger opens) {
+            this.entered = entered;
+            this.resume = resume;
+            this.opens = opens;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            opens.incrementAndGet();
+            entered.countDown();
+            try {
+                if (resume.await(10, TimeUnit.SECONDS) == false) {
+                    throw new IllegalStateException("timed out in open");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
+            throw new IllegalStateException("open failed");
+        }
+
+        @Override
+        public String formatName() {
+            return "throwing-open";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".csv");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static final class LeasedTextStorageProvider extends StubMultiFileStorageProvider {
+        private final ConcurrencyLimiter limiter;
+        private final QueryConcurrencyBudget budget;
+        private final byte[] payload;
+
+        LeasedTextStorageProvider(ConcurrencyLimiter limiter, QueryConcurrencyBudget budget, byte[] payload) {
+            this.limiter = limiter;
+            this.budget = budget;
+            this.payload = payload;
+        }
+
+        private StorageObject wrap(StoragePath path) {
+            return new QueryBudgetedStorageObject(
+                new ConcurrencyLimitedStorageObject(new ByteArrayStorageObject(path, payload), limiter),
+                budget
+            );
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            return wrap(path);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return wrap(path);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            return wrap(path);
+        }
+    }
+
     // ===== Helpers =====
 
     private static void drainMultiFileOperator(StorageProvider storageProvider, FileList fileList, StoragePath path) {
@@ -5488,6 +6409,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     private static CloseableIterator<Page> emptyIterator() {
+        return iteratorClosing(() -> {});
+    }
+
+    /** Page iterator whose {@code close()} closes {@code resource}. Models a lost text/Parquet iterator. */
+    private static CloseableIterator<Page> iteratorClosing(Closeable resource) {
         return new CloseableIterator<>() {
             @Override
             public boolean hasNext() {
@@ -5500,8 +6426,108 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             }
 
             @Override
-            public void close() {}
+            public void close() throws IOException {
+                resource.close();
+            }
         };
+    }
+
+    private static SourceOperator startSliceOperator(
+        FormatReader reader,
+        StorageProvider storageProvider,
+        Executor ioExec,
+        Executor producerExec,
+        AtomicInteger removeAsync
+    ) {
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(
+            List.of(new FileSplit("test", StoragePath.of("s3://bucket/u10.csv"), 0, 100, "csv", Map.of(), Map.of()))
+        );
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> {
+            removeAsync.incrementAndGet();
+            return null;
+        }).when(driverContext).removeAsyncAction();
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            reader,
+            StoragePath.of("s3://bucket/u10.csv"),
+            List.of(
+                new FieldAttribute(
+                    Source.EMPTY,
+                    "value",
+                    new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                )
+            ),
+            100,
+            10,
+            ioExec
+        ).sliceQueue(sliceQueue).producerExecutor(producerExec).build();
+        return factory.get(driverContext);
+    }
+
+    private static Executor duplicateNthSubmit(
+        ExecutorService inner,
+        int n,
+        CountDownLatch entered,
+        CountDownLatch duplicateRan,
+        AtomicInteger submits
+    ) {
+        return command -> {
+            int i = submits.incrementAndGet();
+            inner.execute(command);
+            if (i == n) {
+                Thread duplicator = new Thread(() -> {
+                    try {
+                        if (entered.await(10, TimeUnit.SECONDS)) {
+                            CountDownLatch ran = new CountDownLatch(1);
+                            inner.execute(() -> {
+                                try {
+                                    command.run();
+                                } finally {
+                                    ran.countDown();
+                                }
+                            });
+                            if (ran.await(10, TimeUnit.SECONDS)) {
+                                duplicateRan.countDown();
+                            }
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }, "duplicate-producer");
+                duplicator.setDaemon(true);
+                duplicator.start();
+            }
+        };
+    }
+
+    private static void finishOperator(SourceOperator operator) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (operator.isFinished() == false && System.nanoTime() < deadline) {
+            try {
+                Page p = operator.getOutput();
+                if (p != null) {
+                    p.releaseBlocks();
+                }
+            } catch (Exception e) {
+                // Query already failed through the producer; stop polling.
+                break;
+            }
+        }
+        try {
+            operator.close();
+        } catch (Exception ignored) {
+            // close after a failed producer
+        }
+    }
+
+    private static void shutdownExecs(ExecutorService ioExec, ExecutorService producerExec) throws Exception {
+        ioExec.shutdownNow();
+        producerExec.shutdownNow();
+        assertTrue(ioExec.awaitTermination(5, TimeUnit.SECONDS));
+        assertTrue(producerExec.awaitTermination(5, TimeUnit.SECONDS));
     }
 
     private static Page createTestPage() {
@@ -6310,6 +7336,35 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /** Counts {@link FormatReader#fileHeaderColumns} reads and records the header columns each split's read is handed. */
+    private static class HeaderCountingFormatReader extends SplitCapturingFormatReader {
+        private final List<String> headerColumns;
+        private final List<List<String>> capturedHeaderColumns = new ArrayList<>();
+        private int headerReads;
+
+        HeaderCountingFormatReader(List<String> headerColumns) {
+            super(new ArrayList<>(), new ArrayList<>());
+            this.headerColumns = headerColumns;
+        }
+
+        @Override
+        public boolean readsHeaderLine() {
+            return true;
+        }
+
+        @Override
+        public List<String> fileHeaderColumns(StorageObject file) {
+            headerReads++;
+            return headerColumns;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            capturedHeaderColumns.add(context.fileHeaderColumns());
+            return super.read(object, context);
+        }
     }
 
     /**

@@ -364,7 +364,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             );
             drivers.add(driver);
         }
-        new TestDriverRunner().run(drivers);
+        new TestDriverRunner().testDriverStatuses(randomBoolean()).run(drivers);
         for (SourceOperator source : sources) {
             logger.info("source status {}", source.status());
         }

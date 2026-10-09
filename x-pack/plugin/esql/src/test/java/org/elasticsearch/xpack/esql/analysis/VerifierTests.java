@@ -5165,6 +5165,11 @@ public class VerifierTests extends AnalyzerTestCase {
         assertInvalidHighlightOptionValue("pre_tags", "123", containsString("Option [pre_tags] must be a string"));
         assertInvalidHighlightOptionValue("post_tags", "true", containsString("Option [post_tags] must be a string"));
         assertInvalidHighlightOptionValue(
+            "pre_tags",
+            "\"" + "x".repeat(257) + "\"",
+            containsString("Option [pre_tags] must be at most [256] characters, found [257]")
+        );
+        assertInvalidHighlightOptionValue(
             "boundary_scanner_locale",
             "123",
             containsString("Option [boundary_scanner_locale] must be a string")

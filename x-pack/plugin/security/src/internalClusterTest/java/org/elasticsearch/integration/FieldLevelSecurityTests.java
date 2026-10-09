@@ -454,7 +454,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertConstantKeywordQueryRespectsFls(termQuery("field1", "value1"));
         assertConstantKeywordQueryRespectsFls(termsQuery("field1", "other", "value1"));
         assertConstantKeywordQueryRespectsFls(prefixQuery("field1", "value"));
-        assertConstantKeywordQueryRespectsFls(wildcardQuery("field1", "value?"));
+        assertConstantKeywordQueryRespectsFls(wildcardQuery("field1", "value*"));
         assertConstantKeywordQueryRespectsFls(existsQuery("field1"));
         assertConstantKeywordQueryRespectsFls(rangeQuery("field1").gte("value1").lte("value1"));
         assertConstantKeywordQueryRespectsFls(fuzzyQuery("field1", "value2"));

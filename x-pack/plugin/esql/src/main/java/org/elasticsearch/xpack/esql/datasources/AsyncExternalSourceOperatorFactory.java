@@ -1673,7 +1673,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /**
      * Producer-loop state. One instance per producer path (slice-queue OR multi-file).
      * Tracks iteration position across splits/leaves/files, the currently active page iterator,
-     * and the shared outputs (buffer + DriverContext). Mutated only from the producer executor.
+     * and the shared outputs (buffer + DriverContext).
+     * <p>
+     * {@code pages} is assigned on {@code esql_external_io} then read on {@code esql_worker}.
+     * The handoff is {@code producerExecutor.execute} after the open (happens-before). Duplicate
+     * signals during an open fail via {@link #opening} rather than racing two assigns.
      */
     private static final class ProducerState {
         @Nullable
@@ -1732,6 +1736,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         final AtomicReference<Object> producerRun = new AtomicReference<>();
         /** Terminal onResponse/onFailure already fired; skip extra completes. */
         final AtomicBoolean producerFinished = new AtomicBoolean();
+        /**
+         * An open is in flight on {@code esql_external_io}. The run token is released for that hop
+         * so the post-open drain can claim; this bit covers the gap so a duplicate signal cannot
+         * start a second {@code advanceToNextUnit}.
+         */
+        final AtomicBoolean opening = new AtomicBoolean();
 
         ProducerState(
             @Nullable ExternalSliceQueue queue,
@@ -1776,6 +1786,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * blocked parser workers can no longer starve the drain that must consume their pages.
      */
     private void runProducerLoop(ProducerState state, ActionListener<Void> completionListener) {
+        if (state.producerFinished.get()) {
+            releaseProducerResources(state);
+            return;
+        }
+        if (state.opening.get()) {
+            // Spurious signal while an open is on esql_external_io. The in-flight open owns
+            // cleanup; this run only fails the query (single producerFinished guard).
+            failProducer(state, completionListener, new IllegalStateException("overlapping producer open"));
+            return;
+        }
         if (state.pages == null) {
             openUnitThenDrain(state, completionListener);
         } else {
@@ -1791,34 +1811,66 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * A {@code false} return from {@link #advanceToNextUnit} means the producer is exhausted (terminal success).
      */
     private void openUnitThenDrain(ProducerState state, ActionListener<Void> completionListener) {
+        if (state.opening.compareAndSet(false, true) == false) {
+            failProducer(state, completionListener, new IllegalStateException("overlapping producer open"));
+            return;
+        }
         // This task is handing off to the I/O pool; release so the post-open drain hop can claim
         // the run without a false overlap if that hop lands before onAfter.
         releaseProducerRun(state);
-        try {
-            executor.execute(ActionRunnable.wrap(completionListener, l -> {
-                // Install the hard-cancel signal as the ambient StorageRetryCancellation scope for the blocking
-                // open probes (length()/computeSegments/reader open) so a parked storage retry/throttle backoff on
-                // the runtime read path aborts on cancel instead of sleeping out its budget. Mirrors the scope the
-                // coordinator installs in ExternalSourceResolver for discovery/resolution footer reads.
-                boolean opened = StorageRetryCancellation.callWithCancellation(state.buffer::readCancelled, () -> advanceToNextUnit(state));
-                if (opened == false) {
-                    state.buffer.commitInFlightBytes();
-                    snapshotFormatReaderStatus(state);
-                    completeProducer(state, l);
-                    return;
-                }
-                // Unit opened (iterator built, segmentator admitted — not necessarily running yet). Drain
-                // on the consumer pool so later parser tasks cannot starve their own consumer.
+        AbstractRunnable openTask = new AbstractRunnable() {
+            @Override
+            protected void doRun() {
                 try {
-                    executeProducer(state, l, () -> drainCurrentUnit(state, l));
+                    // Install the hard-cancel signal as the ambient StorageRetryCancellation scope for the blocking
+                    // open probes (length()/computeSegments/reader open) so a parked storage retry/throttle backoff on
+                    // the runtime read path aborts on cancel instead of sleeping out its budget. Mirrors the scope the
+                    // coordinator installs in ExternalSourceResolver for discovery/resolution footer reads.
+                    boolean opened = StorageRetryCancellation.callWithCancellation(
+                        state.buffer::readCancelled,
+                        () -> advanceToNextUnit(state)
+                    );
+                    if (opened == false) {
+                        state.buffer.commitInFlightBytes();
+                        snapshotFormatReaderStatus(state);
+                        completeProducer(state, completionListener);
+                        return;
+                    }
+                    if (state.producerFinished.get()) {
+                        // Duplicate signal already failed the query; this thread owns the iterator.
+                        releaseProducerResources(state);
+                        return;
+                    }
+                    // Drop the bit before the drain hop: EOF re-enters runProducerLoop to open the
+                    // next unit. Tests (and DIRECT executors) run that hop inline on this stack.
+                    state.opening.set(false);
+                    // Unit opened (iterator built, segmentator admitted — not necessarily running yet). Drain
+                    // on the consumer pool so later parser tasks cannot starve their own consumer.
+                    try {
+                        executeProducer(state, completionListener, () -> drainCurrentUnit(state, completionListener));
+                    } catch (Exception e) {
+                        abortProducer(state, completionListener, e);
+                    }
                 } catch (Exception e) {
-                    clearCurrentIterator(state);
-                    failProducer(state, l, e);
+                    abortProducer(state, completionListener, e);
+                } catch (AssertionError e) {
+                    abortProducer(state, completionListener, new IllegalStateException(e.getMessage(), e));
+                } finally {
+                    state.opening.set(false);
                 }
-            }));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                state.opening.set(false);
+                abortProducer(state, completionListener, e);
+            }
+        };
+        try {
+            executor.execute(openTask);
         } catch (Exception e) {
-            clearCurrentIterator(state);
-            failProducer(state, completionListener, e);
+            state.opening.set(false);
+            abortProducer(state, completionListener, e);
         }
     }
 
@@ -1861,9 +1913,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
             }
         } catch (Exception e) {
-            state.buffer.finishInFlightBytes();
-            clearCurrentIterator(state);
-            failProducer(state, completionListener, e);
+            abortProducer(state, completionListener, e);
+        } catch (AssertionError e) {
+            abortProducer(state, completionListener, new IllegalStateException(e.getMessage(), e));
         }
     }
 
@@ -1892,24 +1944,32 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     /**
      * Install {@code next} as the live iterator. A previous live iterator is a bug (two opens
-     * racing): close it and fail the query rather than leak it or skip a file.
+     * racing): close it and fail the query rather than leak it or skip a file. Closing the
+     * replaced iterator is the leak fix (text S3 permit, Parquet byte hold).
      */
     static CloseableIterator<Page> occupyPagesSlot(CloseableIterator<Page> previous, CloseableIterator<Page> next) {
         if (previous != null) {
             closeQuietly(previous);
+            assert false : "replaced live iterator";
             throw new IllegalStateException("replaced live iterator");
         }
         return next;
     }
 
-    /** {@code pages == null} mid-drain is a bug; fail the query rather than treat it as EOF. */
+    /**
+     * {@code pages == null} mid-drain is a bug; fail the query rather than treat it as EOF.
+     * There is no leftover iterator to close: null is the empty slot (close lives in
+     * {@link #occupyPagesSlot} / {@link #clearCurrentIterator}).
+     */
     static CloseableIterator<Page> requirePages(CloseableIterator<Page> pages) {
         if (pages == null) {
+            assert false : "null pages mid-drain";
             throw new IllegalStateException("null pages mid-drain");
         }
         return pages;
     }
 
+    /** {@link #occupyPagesSlot} into {@code state.pages}; closes {@code pages} if the slot was live. */
     private static void assignPages(ProducerState state, CloseableIterator<Page> pages) {
         CloseableIterator<Page> previous = state.pages;
         state.pages = null;
@@ -1918,9 +1978,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         } catch (IllegalStateException e) {
             closeQuietly(pages);
             throw e;
+        } catch (AssertionError e) {
+            closeQuietly(pages);
+            throw e;
         }
     }
 
+    /**
+     * Exclusive producer-run CAS. {@code true} means this token owns the run until
+     * {@link #releaseProducerRun} or {@code doRun}'s {@code finally}. A failed claim is a
+     * duplicate {@code doRun}; the caller fails the query and does not close the iterator
+     * (the token holder cleans up when it sees {@code producerFinished}).
+     */
     static boolean claimProducerRun(AtomicReference<Object> run, Object token) {
         return run.compareAndSet(null, token);
     }
@@ -1947,6 +2016,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         CloseableIterator<Page> pages = requirePages(state.pages);
         AsyncExternalSourceBuffer buffer = state.buffer;
         while (true) {
+            if (state.producerFinished.get()) {
+                return DrainResult.DONE;
+            }
             if (noFurtherCandidates()) {
                 return DrainResult.DONE;
             }
@@ -2033,6 +2105,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      *               helper, otherwise the producer will be re-submitted immediately.
      */
     private DrainResult parkUntilReady(SubscribableListener<Void> signal, ProducerState state, ActionListener<Void> completionListener) {
+        // Snapshot before unlock: BLOCKED must not mutate after addListener (inline resume).
+        snapshotFormatReaderStatus(state);
         // Unlock before addListener. SubscribableListener completes an already-done signal inline
         // (DIRECT) even when an executor is passed, and addListener(producerExecutor) is not
         // force-execution (T8). Release so an inline resume can claim the run; this task must not
@@ -2063,6 +2137,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ProducerState state,
         ActionListener<Void> completionListener
     ) {
+        snapshotFormatReaderStatus(state);
         releaseProducerRun(state);
         signal.addListener(ActionListener.wrap(v -> {
             boolean consumed = false;
@@ -2113,14 +2188,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             protected void doRun() {
                 Object token = new Object();
                 if (claimProducerRun(state.producerRun, token) == false) {
-                    clearCurrentIterator(state);
-                    IllegalStateException overlapped = new IllegalStateException("overlapping producer run");
-                    failProducer(state, completionListener, overlapped);
-                    throw overlapped;
+                    // Token holder may be mid-tryAdvance; do not close the iterator here.
+                    failProducer(state, completionListener, new IllegalStateException("overlapping producer run"));
+                    return;
                 }
                 Object previousToken = PRODUCER_RUN_TOKEN.get();
                 PRODUCER_RUN_TOKEN.set(token);
                 try {
+                    if (state.producerFinished.get()) {
+                        releaseProducerResources(state);
+                        return;
+                    }
                     work.run();
                 } finally {
                     state.producerRun.compareAndSet(token, null);
@@ -2134,9 +2212,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
             @Override
             public void onFailure(Exception e) {
-                state.buffer.finishInFlightBytes();
-                clearCurrentIterator(state);
-                failProducer(state, completionListener, e);
+                abortProducer(state, completionListener, e);
             }
         };
         producerExecutor.execute(task);
@@ -2154,6 +2230,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return;
         }
         listener.onFailure(e);
+    }
+
+    /** Bytes + iterator. Used when this run owns cleanup (holder, or a terminal failure on this task). */
+    private static void releaseProducerResources(ProducerState state) {
+        state.buffer.finishInFlightBytes();
+        clearCurrentIterator(state);
+    }
+
+    private static void abortProducer(ProducerState state, ActionListener<Void> listener, Exception e) {
+        releaseProducerResources(state);
+        failProducer(state, listener, e);
     }
 
     private void deliverPage(Page page, ProducerState state) {

@@ -263,13 +263,13 @@ public final class ExternalSourceDrainUtils {
         }
     }
 
-    private static void completeDrain(DrainSession session, ActionListener<Void> listener) {
+    static void completeDrain(DrainSession session, ActionListener<Void> listener) {
         if (session.completed.compareAndSet(false, true)) {
             listener.onResponse(null);
         }
     }
 
-    private static void failDrain(DrainSession session, ActionListener<Void> listener, Exception e) {
+    static void failDrain(DrainSession session, ActionListener<Void> listener, Exception e) {
         if (session.completed.compareAndSet(false, true)) {
             listener.onFailure(e);
         }
@@ -279,7 +279,7 @@ public final class ExternalSourceDrainUtils {
      * One drain session: exclusive run plus at-most-once completion. No queued/dirty mailbox;
      * each signal is one force-executed submit. {@code run} holds the current drainBatch token.
      */
-    private static final class DrainSession {
+    static final class DrainSession {
         final AtomicReference<Object> run = new AtomicReference<>();
         final AtomicBoolean completed = new AtomicBoolean();
     }

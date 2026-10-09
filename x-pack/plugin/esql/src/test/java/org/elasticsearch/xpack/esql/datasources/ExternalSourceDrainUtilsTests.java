@@ -1168,6 +1168,41 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
         buffer.finish(true);
     }
 
+    /**
+     * U7: {@code completeDrain}/{@code failDrain} CAS, not a double {@code onResponse} on
+     * {@code SubscribableListener} (that is a no-op and never reaches {@code completeDrain}).
+     */
+    public void testCompleteDrainAndFailDrainOnceFromTwoThreads() throws Exception {
+        ExternalSourceDrainUtils.DrainSession session = new ExternalSourceDrainUtils.DrainSession();
+        AtomicInteger responses = new AtomicInteger();
+        AtomicInteger failures = new AtomicInteger();
+        ActionListener<Void> listener = ActionListener.wrap(v -> responses.incrementAndGet(), e -> failures.incrementAndGet());
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        Thread completer = new Thread(() -> {
+            try {
+                barrier.await(10, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+            ExternalSourceDrainUtils.completeDrain(session, listener);
+        }, "u7-complete");
+        Thread failer = new Thread(() -> {
+            try {
+                barrier.await(10, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+            ExternalSourceDrainUtils.failDrain(session, listener, new IOException("concurrent fail"));
+        }, "u7-fail");
+        completer.start();
+        failer.start();
+        completer.join(TimeUnit.SECONDS.toMillis(10));
+        failer.join(TimeUnit.SECONDS.toMillis(10));
+        assertEquals(1, responses.get() + failures.get());
+        assertFalse(completer.isAlive());
+        assertFalse(failer.isAlive());
+    }
+
     // ===== Helpers =====
 
     private static CloseableIterator<Page> trackingClose(CloseableIterator<Page> delegate, AtomicInteger closeCount) {

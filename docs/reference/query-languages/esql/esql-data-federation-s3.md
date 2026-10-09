@@ -46,7 +46,7 @@ For `anonymous` data sources, the bucket policy must allow public access to the 
 
 To confirm the data source can read a dataset, run a query against the dataset. Creating a dataset doesn't contact S3.
 
-{applies_to}`stack: experimental 9.6+` The [test connection](esql-data-federation-sources.md#test-a-connection) endpoint confirms that the data source's credentials are valid, but not that they can read a particular bucket or path. For `s3` data sources it calls `ListBuckets`, so credentials scoped to specific buckets, like the policy above, return `untestable` rather than `success`. A `failure` result means the request couldn't reach S3 or S3 rejected the credentials, for example because a key was deleted or rotated.
+{applies_to}`stack: experimental 9.6+` The [test connection](esql-data-federation-sources.md#test-a-connection) endpoint confirms that the data source's credentials are valid, but not that they can read a particular bucket or path. For `s3` data sources it calls `ListBuckets`, so credentials scoped to specific buckets, return `untestable` rather than `success`. A `failure` result means the request couldn't reach S3 or S3 rejected the credentials, for example because a key was deleted or rotated.
 
 ### Troubleshoot access errors [s3-access-errors]
 

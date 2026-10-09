@@ -22,14 +22,20 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.ShardGeneration;
+import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -54,6 +60,7 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
@@ -101,7 +108,7 @@ public class SnapshotBacklogTrackerStateTests extends ESTestCase {
         void respond(int request) {
             final Map<ShardId, RepositoryShardGeneration> generations = new HashMap<>();
             for (ShardId shardId : requests.get(request).request().getShardIds()) {
-                generations.put(shardId, new RepositoryShardGeneration(INDEX, generationOf(shardId)));
+                generations.put(shardId, repositoryHoldsShards ? new RepositoryShardGeneration(INDEX, generationOf(shardId)) : null);
             }
             requests.get(request).listener().onResponse(new GetShardGenerationsResponse(repositoryGeneration.get(), generations));
         }
@@ -134,6 +141,8 @@ public class SnapshotBacklogTrackerStateTests extends ESTestCase {
         Set.of(SnapshotBacklogTracker.BACKLOG_TRACKING_ENABLED_SETTING, SnapshotBacklogTracker.EVALUATION_INTERVAL_SETTING)
     );
     private final AtomicLong repositoryGeneration = new AtomicLong(3);
+    // whether the repository has shard-level metadata of the shards, which it only has once they have been snapshotted
+    private boolean repositoryHoldsShards = true;
     private final ProjectRepo projectRepo = new ProjectRepo(ProjectId.DEFAULT, "repo");
     private final FakeMaster master = new FakeMaster(threadPool);
     private final FakeLocalShards localShards = new FakeLocalShards();
@@ -356,5 +365,89 @@ public class SnapshotBacklogTrackerStateTests extends ESTestCase {
         queue.runAllRunnableTasks();
         assertThat(master.requests, hasSize(1));
         assertThat(localShards.reads.get(), equalTo(0));
+    }
+
+    public void testTheBacklogDoesNotJumpBackToEverythingWhileTheRepositoryFilesCatchUpWithASnapshot() {
+        setEnabled(true);
+        repositoryHoldsShards = false;
+        localShards.shards.add(new LocalShard(shard0, ProjectId.DEFAULT, commitFiles("_0.cfs", 100L)));
+        tick();
+        master.respond(0);
+        queue.runAllRunnableTasks();
+        tick();
+        assertThat(tracker.getBacklog().get(projectRepo), equalTo(new RepositoryBacklog(100, 1, 0, 100)));
+
+        // a snapshot uploads the commit, and the backlog goes down to what is left to upload
+        final var snapshot = new Snapshot(ProjectId.DEFAULT, "repo", new SnapshotId("snap", "snap-uuid"));
+        final var status = IndexShardSnapshotStatus.newInitializing(ShardGenerations.NEW_SHARD_GEN, 1);
+        tracker.registerShardSnapshot(snapshot, shard0, status);
+        status.moveToStarted(1, 1, 1, 100, 100);
+        status.addProcessedFile(60);
+        tick();
+        assertThat(tracker.getBacklog().get(projectRepo).bytes(), equalTo(40L));
+        status.addProcessedFile(40);
+        status.moveToFinalize();
+        tick();
+        long lastInProgress = tracker.getBacklog().get(projectRepo).bytes();
+        assertThat(lastInProgress, equalTo(0L));
+
+        // The snapshot is done, and a new commit comes with 40 more bytes. The repository files are not up to date with the snapshot for
+        // a while, because the master answers late, and then the files have to be read. The backlog is never more than it was while
+        // the snapshot was running plus what the new commit has.
+        status.moveToDone(2, new ShardSnapshotResult(generationOf(shard0), ByteSizeValue.ofBytes(100), 1));
+        repositoryGeneration.incrementAndGet();
+        localShards.shards.clear();
+        localShards.shards.add(new LocalShard(shard0, ProjectId.DEFAULT, commitFiles("_0.cfs", 100L, "_1.cfs", 40L)));
+        final long newCommitBytes = 40;
+        for (int i = between(2, 5); i > 0; i--) {
+            tick();
+            assertThat(tracker.getBacklog().get(projectRepo).bytes(), lessThanOrEqualTo(lastInProgress + newCommitBytes));
+        }
+        assertThat(tracker.getBacklog().get(projectRepo), equalTo(new RepositoryBacklog(40, 1, 0, 40)));
+
+        // the master answers with the generation the snapshot made, and the files of the shard are read
+        repositoryHoldsShards = true;
+        master.respond(master.requests.size() - 1);
+        while (queue.hasRunnableTasks()) {
+            queue.runRandomTask();
+            assertThat(tracker.getBacklog().get(projectRepo).bytes(), lessThanOrEqualTo(lastInProgress + newCommitBytes));
+        }
+        for (int i = between(2, 5); i > 0; i--) {
+            tick();
+            assertThat(tracker.getBacklog().get(projectRepo), equalTo(new RepositoryBacklog(40, 1, 0, 40)));
+        }
+    }
+
+    public void testASnapshotThatIsDoneIsForgottenWhenTheRepositoryFilesHaveCaughtUp() {
+        setEnabled(true);
+        repositoryHoldsShards = false;
+        localShards.shards.add(new LocalShard(shard0, ProjectId.DEFAULT, commitFiles("_0.cfs", 100L)));
+        tick();
+        master.respond(0);
+        queue.runAllRunnableTasks();
+
+        final var snapshot = new Snapshot(ProjectId.DEFAULT, "repo", new SnapshotId("snap", "snap-uuid"));
+        final var status = IndexShardSnapshotStatus.newInitializing(ShardGenerations.NEW_SHARD_GEN, 1);
+        tracker.registerShardSnapshot(snapshot, shard0, status);
+        status.moveToStarted(1, 1, 1, 100, 100);
+        status.addProcessedFile(100);
+        status.moveToFinalize();
+        status.moveToDone(2, new ShardSnapshotResult(generationOf(shard0), ByteSizeValue.ofBytes(100), 1));
+        tick();
+        assertThat(tracker.getBacklog().get(projectRepo), equalTo(new RepositoryBacklog(0, 1, 0, 0)));
+
+        repositoryHoldsShards = true;
+        repositoryGeneration.incrementAndGet();
+        tick();
+        master.respond(master.requests.size() - 1);
+        queue.runAllRunnableTasks();
+        tick();
+        assertThat(tracker.getBacklog().get(projectRepo), equalTo(new RepositoryBacklog(0, 1, 0, 0)));
+
+        // the upload of the snapshot is in the repository files now, and is not taken off a second time, when the shard has a new commit
+        localShards.shards.clear();
+        localShards.shards.add(new LocalShard(shard0, ProjectId.DEFAULT, commitFiles("_0.cfs", 100L, "_1.cfs", 40L)));
+        tick();
+        assertThat(tracker.getBacklog().get(projectRepo), equalTo(new RepositoryBacklog(40, 1, 0, 40)));
     }
 }

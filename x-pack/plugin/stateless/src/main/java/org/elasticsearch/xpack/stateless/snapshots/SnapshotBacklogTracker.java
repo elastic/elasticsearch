@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
@@ -36,6 +35,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -50,6 +50,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -173,9 +174,12 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
     // The state of the tracker, only used on the state executor
     private final Map<ProjectRepo, TrackedRepository> trackedRepositories = new HashMap<>();
 
-    // The statuses of the shard snapshots running on this node, to take the progress of an upload into account. Shard snapshots add to
-    // it from their own threads, and the state executor takes the finished ones off.
+    // The statuses of the shard snapshots on this node, to take what they upload into account until the repository files of the shard are
+    // known to include it. Shard snapshots add to it from their own threads, and the state executor takes the ones that are no longer
+    // needed off, see pruneRunningShardSnapshots.
     private final Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> runningShardSnapshots = new ConcurrentHashMap<>();
+    // For a status that is done, the generation of the repository files of its shard when it was first seen as done
+    private final Map<IndexShardSnapshotStatus, ShardGeneration> doneSnapshotsSeenAt = new HashMap<>();
 
     // The result of the latest evaluation, which is all that the metrics and getBacklog() read, or null if there is none
     @Nullable
@@ -254,6 +258,7 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
     private void clear() {
         latestBacklog = null;
         runningShardSnapshots.clear();
+        doneSnapshotsSeenAt.clear();
         trackedRepositories.values().forEach(TrackedRepository::close);
         trackedRepositories.clear();
     }
@@ -290,7 +295,11 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
         if (enabled == false) {
             return;
         }
-        runningShardSnapshots.computeIfAbsent(snapshot, s -> new ConcurrentHashMap<>()).put(shardId, status);
+        runningShardSnapshots.compute(snapshot, (key, shards) -> {
+            final Map<ShardId, IndexShardSnapshotStatus> updated = shards == null ? new ConcurrentHashMap<>() : shards;
+            updated.put(shardId, status);
+            return updated;
+        });
     }
 
     /**
@@ -327,8 +336,6 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
 
     private Map<ProjectRepo, RepositoryBacklog> computeBacklog() {
         final List<LocalShard> shards = localShards.getShards();
-        final var snapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
-        runningShardSnapshots.keySet().removeIf(snapshot -> snapshotsInProgress.snapshot(snapshot) == null);
 
         final Map<ProjectRepo, RepositoryBacklog> backlogs = new HashMap<>();
         trackedRepositories.forEach((projectRepo, tracked) -> {
@@ -340,6 +347,7 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
                 projectRepo,
                 computeRepositoryBacklog(tracked.cache(), shardsOfProject, shardId -> getRunningShardSnapshots(projectRepo, shardId))
             );
+            pruneRunningShardSnapshots(projectRepo, tracked.cache(), shardIdsOfProject);
         });
         return Map.copyOf(backlogs);
     }
@@ -389,6 +397,59 @@ public class SnapshotBacklogTracker implements ClusterStateListener {
             }
         });
         return statuses;
+    }
+
+    /**
+     * Forgets the shard snapshots whose uploads do not have to be taken off the backlog any more. A snapshot that is done has uploaded
+     * files that the repository files of the shard, which come from the master and a read, do not include until they have caught up.
+     * Until then the snapshot stays, so that the backlog goes on being what is new since the snapshot, instead of jumping back to
+     * everything that the shard has until the repository files are known to be up to date. That is when their generation is the one the
+     * snapshot made. They can also move on to a newer one, if another snapshot or a deletion came first, which is just as good.
+     */
+    private void pruneRunningShardSnapshots(ProjectRepo projectRepo, RepositoryFilesCache cache, Set<ShardId> localShards) {
+        for (Snapshot snapshot : List.copyOf(runningShardSnapshots.keySet())) {
+            if (snapshot.getProjectId().equals(projectRepo.projectId()) && snapshot.getRepository().equals(projectRepo.name())) {
+                // atomically with the shard snapshots that are added to it
+                runningShardSnapshots.computeIfPresent(snapshot, (key, shards) -> {
+                    shards.entrySet().removeIf(shard -> isNoLongerNeeded(shard.getKey(), shard.getValue(), cache, localShards));
+                    return shards.isEmpty() ? null : shards;
+                });
+            }
+        }
+    }
+
+    private boolean isNoLongerNeeded(
+        ShardId shardId,
+        IndexShardSnapshotStatus status,
+        RepositoryFilesCache cache,
+        Set<ShardId> localShards
+    ) {
+        if (localShards.contains(shardId) == false) {
+            doneSnapshotsSeenAt.remove(status);
+            return true;
+        }
+        switch (status.getStage()) {
+            case FAILURE, ABORTED -> {
+                // nothing is reused from it
+                return true;
+            }
+            case DONE -> {
+                final RepositoryShardFiles files = cache.getShardFiles(shardId);
+                if (files == null) {
+                    return false;
+                }
+                final ShardGeneration seenAt = doneSnapshotsSeenAt.putIfAbsent(status, files.generation());
+                final boolean caughtUp = Objects.equals(files.generation(), status.generation())
+                    || (seenAt != null && Objects.equals(files.generation(), seenAt) == false);
+                if (caughtUp) {
+                    doneSnapshotsSeenAt.remove(status);
+                }
+                return caughtUp;
+            }
+            default -> {
+                return false;
+            }
+        }
     }
 
     private void updateTrackedRepositories() {

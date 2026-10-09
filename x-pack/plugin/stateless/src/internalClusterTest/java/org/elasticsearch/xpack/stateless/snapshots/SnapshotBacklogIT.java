@@ -43,13 +43,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -125,19 +131,123 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     /**
-     * What a snapshot of a shard with the given commit has to upload to a repository that holds the files of another commit, worked out
-     * without the tracker. Right after a snapshot the tracker can briefly report something else, because it is not up to date yet with
-     * what the repository holds now, so the tests wait for this value instead of for the first one that is positive.
+     * @return the total length of the files of the commit that the other commit does not have
      */
-    private static long expectedBacklog(Map<String, Long> commitFiles, Map<String, Long> repositoryFiles) {
+    private static long newBytes(Map<String, Long> commitFiles, Map<String, Long> otherCommitFiles) {
         long bytes = 0;
         for (var commitFile : commitFiles.entrySet()) {
-            final boolean inRepository = commitFile.getValue().equals(repositoryFiles.get(commitFile.getKey()));
-            if (inRepository == false && Store.MetadataSnapshot.isReadAsHash(commitFile.getKey()) == false) {
+            if (commitFile.getValue().equals(otherCommitFiles.get(commitFile.getKey())) == false) {
                 bytes += commitFile.getValue();
             }
         }
         return bytes;
+    }
+
+    /**
+     * @return the total length of the files of the commit that a snapshot keeps in its shard-level metadata, which the tracker does not
+     *         count as backlog, but may take off a little too much from the progress of a snapshot, see {@link ShardBacklog}
+     */
+    private static long inlinedBytes(Map<String, Long> commitFiles) {
+        return commitFiles.entrySet()
+            .stream()
+            .filter(commitFile -> Store.MetadataSnapshot.isReadAsHash(commitFile.getKey()))
+            .mapToLong(Map.Entry::getValue)
+            .sum();
+    }
+
+    /**
+     * Waits until the backlog of the repository on the node is fully known, i.e. no shard is unknown, and between the given values.
+     */
+    private void awaitKnownBacklogBetween(String node, ProjectRepo repo, long min, long max) throws Exception {
+        assertBusy(() -> {
+            final var backlog = getBacklog(node, repo);
+            assertThat(backlog.unknownShards(), equalTo(0));
+            assertThat(backlog.bytes(), allOf(greaterThanOrEqualTo(min), lessThanOrEqualTo(max)));
+        });
+    }
+
+    /**
+     * Watches the backlog of the repository on the node all the time, to see if it does something that a periodic check does not see
+     * when it only does it for a moment. While a snapshot runs and after it is done the backlog only goes down, from what the shard had
+     * to what it got after the snapshot's commit, and must not jump back to all that the shard has when the snapshot finishes, until the
+     * node has caught up with what the snapshot made in the repository. Then, with a new commit, it must not be more than the files of
+     * that commit.
+     */
+    private class BacklogSampler implements AutoCloseable {
+        private final SnapshotBacklogTracker tracker;
+        private final ProjectRepo repo;
+        private final AtomicReference<String> violation = new AtomicReference<>();
+        private final Thread thread;
+        // the most that the backlog may be: what it was last while it only goes down, and then a given bound
+        private long bound;
+        private boolean onlyGoesDown = true;
+        private volatile boolean running = true;
+
+        BacklogSampler(String node, ProjectRepo repo, long backlog) {
+            this.tracker = internalCluster().getInstance(SnapshotBacklogTracker.class, node);
+            this.repo = repo;
+            this.bound = backlog;
+            this.thread = new Thread(this::sample, "backlog-sampler");
+            thread.start();
+        }
+
+        /**
+         * From now on the backlog may be at most the given bound
+         */
+        synchronized void setBound(long bound) {
+            this.bound = bound;
+            this.onlyGoesDown = false;
+        }
+
+        private void sample() {
+            while (running) {
+                final var backlog = tracker.getBacklog().get(repo);
+                if (backlog != null && backlog.unknownShards() == 0) {
+                    check(backlog);
+                }
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
+            }
+        }
+
+        private synchronized void check(RepositoryBacklog backlog) {
+            if (backlog.bytes() > bound) {
+                violation.compareAndSet(null, "backlog " + backlog + " is above " + bound);
+            } else if (onlyGoesDown) {
+                bound = backlog.bytes();
+            }
+        }
+
+        @Override
+        public void close() throws InterruptedException {
+            running = false;
+            thread.join();
+            assertThat(violation.get(), nullValue());
+        }
+    }
+
+    private record AfterSnapshot(long newBytes, long inlinedBytes, long backlog) {}
+
+    /**
+     * Takes a snapshot of the only shard of the index, which has a backlog of the given size, and then gives it a new commit, and checks
+     * that the backlog goes from what is left to upload while the snapshot runs to what the new commit has, and never to more.
+     */
+    private AfterSnapshot snapshotAndCommit(String node, ProjectRepo repo, String indexName, long backlog, Runnable snapshot)
+        throws Exception {
+        final var firstCommit = getCommitFiles(indexName);
+        try (var sampler = new BacklogSampler(node, repo, backlog)) {
+            snapshot.run();
+            // the snapshot has uploaded everything, and the node may not know yet what the repository holds, but the backlog must not go up
+            awaitKnownBacklog(node, repo, 0);
+
+            sampler.setBound(Long.MAX_VALUE); // until the new commit is there
+            indexAndFlush(indexName);
+            final var secondCommit = getCommitFiles(indexName);
+            final long newBytes = newBytes(secondCommit, firstCommit);
+            sampler.setBound(newBytes);
+            final long newBacklog = awaitPositiveKnownBacklog(node, repo);
+            assertThat(newBacklog, lessThanOrEqualTo(newBytes));
+            return new AfterSnapshot(newBytes, inlinedBytes(secondCommit), newBacklog);
+        }
     }
 
     private RepositoryBacklog getBacklog(String node, ProjectRepo repo) {
@@ -161,35 +271,36 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
         final var repo = new ProjectRepo(ProjectId.DEFAULT, repoName);
 
         // nothing is in the repository: everything has to be uploaded
-        final var firstCommit = getCommitFiles(indexName);
-        final long initialBacklog = expectedBacklog(firstCommit, Map.of());
-        assertThat(initialBacklog, greaterThan(0L));
-        awaitKnownBacklog(node, repo, initialBacklog);
+        final long initialBacklog = awaitPositiveKnownBacklog(node, repo);
         assertThat(getBacklog(node, repo).countedShards(), equalTo(1));
         assertThat(getBacklog(node, repo).largestShardBytes(), equalTo(initialBacklog));
 
-        // after a snapshot there is nothing left to upload, whichever way the shard is read for it. That is the way of serverless: the
-        // commit info comes from the snapshots commit service, which logs it
-        MockLog.assertThatLogger(
-            () -> createSnapshot(repoName, "snap", List.of(indexName), List.of()),
-            StatelessSnapshotShardContextFactory.class,
-            new MockLog.SeenEventExpectation(
-                "the stateless snapshot path",
-                StatelessSnapshotShardContextFactory.class.getCanonicalName(),
-                Level.DEBUG,
-                "*acquiring commit info for snapshot*enabled status [ENABLED*"
+        // After a snapshot there is nothing left to upload, whichever way the shard is read for it. That is the way of serverless: the
+        // commit info comes from the snapshots commit service, which logs it. A new commit is a backlog again, and it is only its files.
+        snapshotAndCommit(
+            node,
+            repo,
+            indexName,
+            initialBacklog,
+            () -> MockLog.assertThatLogger(
+                () -> createSnapshot(repoName, "snap", List.of(indexName), List.of()),
+                StatelessSnapshotShardContextFactory.class,
+                new MockLog.SeenEventExpectation(
+                    "the stateless snapshot path",
+                    StatelessSnapshotShardContextFactory.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*acquiring commit info for snapshot*enabled status [ENABLED*"
+                )
             )
         );
-        awaitKnownBacklog(node, repo, 0);
 
-        // new data in a new commit is a backlog again, and it is only the new files
-        indexAndFlush(indexName);
-        final var secondCommit = getCommitFiles(indexName);
-        awaitKnownBacklog(node, repo, expectedBacklog(secondCommit, firstCommit));
-
-        // without the snapshot, the repository holds nothing again
+        // without the snapshot, the repository holds nothing again, and everything has to be uploaded
         assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").get());
-        awaitKnownBacklog(node, repo, expectedBacklog(secondCommit, Map.of()));
+        assertBusy(() -> {
+            final var backlog = getBacklog(node, repo);
+            assertThat(backlog.unknownShards(), equalTo(0));
+            assertThat(backlog.bytes(), greaterThan(initialBacklog));
+        });
     }
 
     public void testBacklogOfAShardThatMovedIsUnknownUntilItsFilesAreRead() throws Exception {
@@ -206,12 +317,13 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
         createRepository(repoName, "mock");
         final var repo = new ProjectRepo(ProjectId.DEFAULT, repoName);
 
-        final var firstCommit = getCommitFiles(indexName);
-        createSnapshot(repoName, "snap", List.of(indexName), List.of());
-        indexAndFlush(indexName);
-        final long backlog = expectedBacklog(getCommitFiles(indexName), firstCommit);
-        assertThat(backlog, greaterThan(0L));
-        awaitKnownBacklog(sourceNode, repo, backlog);
+        final var afterSnapshot = snapshotAndCommit(
+            sourceNode,
+            repo,
+            indexName,
+            awaitPositiveKnownBacklog(sourceNode, repo),
+            () -> createSnapshot(repoName, "snap", List.of(indexName), List.of())
+        );
 
         // the target node cannot read anything from the repository for now
         final var targetRepository = (MockRepository) internalCluster().getInstance(RepositoriesService.class, targetNode)
@@ -235,8 +347,9 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
             targetRepository.unblock();
         }
 
-        // once the target node has read it, the shard has the backlog it had before it moved
-        awaitKnownBacklog(targetNode, repo, backlog);
+        // Once the target node has read it, the shard has the backlog it had before it moved. That was the new files, plus at most the
+        // small files that the snapshot keeps in its shard-level metadata, while the source node did not have what the snapshot made.
+        awaitKnownBacklogBetween(targetNode, repo, afterSnapshot.backlog() - afterSnapshot.inlinedBytes(), afterSnapshot.backlog());
     }
 
     public void testBacklogIsUnknownWhileTheMasterCannotTellTheShardGenerations() throws Exception {
@@ -287,7 +400,7 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
         final var repo = new ProjectRepo(ProjectId.DEFAULT, repoName);
 
         final var firstCommit = getCommitFiles(indexName);
-        awaitKnownBacklog(node, repo, expectedBacklog(firstCommit, Map.of()));
+        final long initialBacklog = awaitPositiveKnownBacklog(node, repo);
         createSnapshot(repoName, "snap", List.of(indexName), List.of());
 
         // The new master has not loaded the repository data yet. The index node forgets what it knows by restarting, before anything is
@@ -300,10 +413,13 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
         awaitKnownBacklog(node, repo, 0);
 
         indexAndFlush(indexName);
-        final var secondCommit = getCommitFiles(indexName);
-        awaitKnownBacklog(node, repo, expectedBacklog(secondCommit, firstCommit));
+        assertThat(awaitPositiveKnownBacklog(node, repo), lessThanOrEqualTo(newBytes(getCommitFiles(indexName), firstCommit)));
         assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").get());
-        awaitKnownBacklog(node, repo, expectedBacklog(secondCommit, Map.of()));
+        assertBusy(() -> {
+            final var backlog = getBacklog(node, repo);
+            assertThat(backlog.unknownShards(), equalTo(0));
+            assertThat(backlog.bytes(), greaterThan(initialBacklog));
+        });
     }
 
     public void testTheMasterTellsTheShardGenerationsOfAllTheShardsAskedFor() {
@@ -424,17 +540,18 @@ public class SnapshotBacklogIT extends AbstractStatelessPluginIntegTestCase {
         final var repo = new ProjectRepo(ProjectId.DEFAULT, repoName);
 
         // the repository has the first commit, and the shard has a backlog of a second one
-        final var firstCommit = getCommitFiles(indexName);
-        createSnapshot(repoName, "snap", List.of(indexName), List.of());
-        indexAndFlush(indexName);
-        final long backlog = expectedBacklog(getCommitFiles(indexName), firstCommit);
-        assertThat(backlog, greaterThan(0L));
-        awaitKnownBacklog(nodeA, repo, backlog);
+        final var afterSnapshot = snapshotAndCommit(
+            nodeA,
+            repo,
+            indexName,
+            awaitPositiveKnownBacklog(nodeA, repo),
+            () -> createSnapshot(repoName, "snap", List.of(indexName), List.of())
+        );
 
         // the shard moves to the other node, where it is hollow, and has the same backlog as before
         hollowShards(indexName, 1, nodeA, nodeB);
         assertThat(findIndexShard(resolveIndex(indexName), 0).getEngineOrNull(), instanceOf(HollowIndexEngine.class));
-        awaitKnownBacklog(nodeB, repo, backlog);
+        awaitKnownBacklogBetween(nodeB, repo, afterSnapshot.backlog() - afterSnapshot.inlinedBytes(), afterSnapshot.backlog());
         assertThat(getBacklog(nodeB, repo).countedShards(), equalTo(1));
     }
 }

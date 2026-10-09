@@ -524,7 +524,7 @@ public abstract class FullTextFunction extends Function
             if (function.isRuntimeSearch()) {
                 return;
             }
-            // TODO: Can be removed. QCTR and KQL are the only functions with not runtime support, but they do not reach this method.
+            // TODO: Can be removed. QCTR and KQL are the only functions with no runtime support, but they do not reach this method.
             plan.forEachExpression(function.getClass(), m -> {
                 if (function.children().contains(field) && hasSubqueryInChildrenPlans(plan) == false) {
                     String fieldName = field.sourceText().isEmpty() && field instanceof Attribute attr ? attr.name() : field.sourceText();

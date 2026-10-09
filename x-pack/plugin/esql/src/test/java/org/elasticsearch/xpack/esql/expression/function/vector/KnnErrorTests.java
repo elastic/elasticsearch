@@ -56,8 +56,9 @@ public class KnnErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        // The error harness builds every argument as a Literal (see ErrorsForCasesWithoutExamplesTestCase#test), so Knn
-        // treats the field as a runtime search, which only accepts dense_vector (plus null). TEXT (semantic_text) is valid
+        // The error harness builds every argument as a Literal (see ErrorsForCasesWithoutExamplesTestCase#test),
+        // so Knn treats the field as a runtime search, which only accepts dense_vector (plus null).
+        // The field types are based on KnnTests#testCaseSuppliers which includes `TEXT` type, which is valid
         // only for an indexed field - the FieldAttribute path KnnTests exercises - which this literal-based harness cannot
         // build. Drop TEXT from the valid field types so that both the failing-argument detection and the expected type
         // list match what the resolver reports for a runtime (literal) field.

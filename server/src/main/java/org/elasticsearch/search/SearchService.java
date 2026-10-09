@@ -667,6 +667,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     @Override
+    public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+        // Cancel in-flight phases before the shard engine is closed, so they release their searchers.
+        freeAllContextsForShard(shardId);
+    }
+
+    @Override
     public void afterIndexRemoved(Index index, IndexSettings indexSettings, IndexRemovalReason reason) {
         // once an index is removed due to deletion or closing, we can just clean up all the pending search context information
         // if we then close all the contexts we can get some search failures along the way which are not expected.
@@ -1947,6 +1953,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             throw e;
         }
 
+        // Freed readers close only after in-flight phases release them. Cancel first so a phase
+        // blocked inside its SearchContext try-with-resources can exit and close that context.
+        if (task != null) {
+            readerContext.addInFlightSearch(task);
+            context.addReleasable(() -> readerContext.removeInFlightSearch(task));
+        }
+
         return context;
     }
 
@@ -2065,8 +2078,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private boolean freeReaderContext(ShardSearchContextId contextId, String reason) {
-        try (ReaderContext context = removeReaderContext(contextId, reason)) {
-            return context != null;
+        final ReaderContext context = activeReaders.get(contextId);
+        if (context != null) {
+            context.cancelInFlightSearches(reason);
+        }
+        try (ReaderContext removed = removeReaderContext(contextId, reason)) {
+            return removed != null;
         }
     }
 

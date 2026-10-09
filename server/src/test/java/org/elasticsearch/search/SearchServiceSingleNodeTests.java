@@ -24,6 +24,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -338,9 +339,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
     /**
      * A scroll continuation builds its {@link SearchContext} inside {@code executeFetchPhase} and closes it only when
-     * that runnable returns. {@link SearchService#afterIndexRemoved} frees the reader context and leaves the in-flight
-     * phase context open. This parks the scroll fetch after the context exists and requires index removal to finish
-     * the scroll, which happens once that task is cancelled.
+     * that runnable returns. Index removal must cancel the in-flight task so the runnable exits and closes the context.
      */
     public void testScrollFetchContextClosedWhenIndexRemoved() throws Exception {
         ParkedScrollQueryBuilder.reset();
@@ -570,8 +569,10 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                     throw ex;
                 } catch (IllegalStateException ex) {
                     assertEquals(AbstractRefCounted.ALREADY_CLOSED_MESSAGE, ex.getMessage());
-                } catch (SearchContextMissingException ex) {
-                    // that's fine
+                } catch (SearchContextMissingException | TaskCancelledException ex) {
+                    // index removal frees the reader and cancels the in-flight shard task
+                } catch (ElasticsearchException ex) {
+                    assertThat(ExceptionsHelper.unwrapCause(ex), instanceOf(TaskCancelledException.class));
                 }
             }
         } finally {

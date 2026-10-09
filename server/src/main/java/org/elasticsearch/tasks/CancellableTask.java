@@ -41,9 +41,10 @@ public class CancellableTask extends Task {
     }
 
     /**
-     * This method is called by the task manager when this task is cancelled.
+     * Marks this task cancelled so {@link #isCancelled()} and {@link #ensureNotCancelled()} observe {@code reason}.
+     * Does not cancel child tasks; {@link TaskManager} does that when it is the caller.
      */
-    final void cancel(String reason) {
+    public final void cancel(String reason) {
         assert reason != null;
         if (REASON_HANDLE.compareAndSet(this, null, reason) == false) {
             return;

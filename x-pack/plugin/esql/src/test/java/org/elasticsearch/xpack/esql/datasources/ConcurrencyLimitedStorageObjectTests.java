@@ -54,7 +54,7 @@ import static org.mockito.Mockito.when;
  */
 public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     public void testStreamCloseReleasesPermit() throws Exception {
         ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
@@ -362,25 +362,27 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
     public void testCancelAfterGrantFailsListenerWithoutDelegate() throws Exception {
         ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false));
         limiter.acquire();
+        limiter.pauseGrantDelivery();
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
         ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
-        AtomicReference<Runnable> deferred = new AtomicReference<>();
         CountDownLatch failed = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
-        Releasable cancel = obj.startReadBytesAsync(0, 4, FACTORY, r -> {
-            if (deferred.compareAndSet(null, r) == false) {
-                r.run();
-            }
-        }, ActionListener.wrap(buf -> fail("cancelled grant must not succeed"), e -> {
-            error.set(e);
-            failed.countDown();
-        }));
+        Releasable cancel = obj.startReadBytesAsync(
+            0,
+            4,
+            FACTORY,
+            Runnable::run,
+            ActionListener.wrap(buf -> fail("cancelled grant must not succeed"), e -> {
+                error.set(e);
+                failed.countDown();
+            })
+        );
         assertBusy(() -> assertEquals(1, limiter.asyncWaiterCount()));
         limiter.release();
-        assertNotNull(deferred.get());
+        assertEquals(0, limiter.asyncWaiterCount());
         cancel.close();
-        deferred.get().run();
+        limiter.resumeGrantDelivery();
         assertTrue(failed.await(5, TimeUnit.SECONDS));
         assertThat(error.get(), instanceOf(TaskCancelledException.class));
         assertEquals(1, limiter.availablePermits());

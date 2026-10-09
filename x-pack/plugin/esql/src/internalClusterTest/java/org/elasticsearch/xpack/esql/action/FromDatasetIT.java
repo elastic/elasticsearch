@@ -2749,7 +2749,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         List<String> warnings = collectWarningsContaining(
             "FROM employees_absent_warn | SORT emp_no | LIMIT 5",
-            "declared column [department] is not present"
+            "column [department] is not present"
         );
         assertThat("the absent declared column must emit a response Warning header", warnings, not(empty()));
     }
@@ -2781,7 +2781,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         List<String> warnings = collectWarningsContaining(
             "FROM employees_parquet_absent_warn | SORT emp_no | LIMIT 5",
-            "declared column [department] is not present"
+            "column [department] is not present"
         );
         assertThat("the absent declared column must emit a response Warning header on Parquet", warnings, not(empty()));
     }
@@ -2822,7 +2822,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
         List<String> warnings = collectWarningsContaining(
             "FROM employees_parquet_dynamic_absent | STATS c = COUNT(*)",
-            "declared column [department] is not present"
+            "column [department] is not present"
         );
         assertThat("COUNT(*) must carry the absent declared column warning", warnings, not(empty()));
     }
@@ -2861,7 +2861,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
         List<String> warnings = collectWarningsContaining(
             "FROM employees_csv_dynamic_absent | SORT emp_no | LIMIT 5",
-            "declared column [department] is not present"
+            "column [department] is not present"
         );
         assertThat(warnings, not(empty()));
     }
@@ -2896,13 +2896,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // For NdJson with Dynamic.FALSE the reader receives the full declared schema (all 3
         // columns). `department` is absent from every record, so NdJsonPageDecoder emits
-        // absentDeclaredColumnMessage ("is not present") at close() — a column absent from all
+        // absentColumnMessage ("is not present") at close() — a column absent from all
         // records is effectively absent from the file, so the file-level message is accurate.
         List<String> warnings = collectWarningsContaining(
             "FROM employees_ndjson_absent_warn | SORT emp_no | LIMIT 5",
-            "declared column [department] is not present"
+            "column [department] is not present"
         );
-        assertThat("the absent declared column must emit an absentDeclaredColumnMessage Warning header on NDJSON", warnings, not(empty()));
+        assertThat("the absent declared column must emit an absentColumnMessage Warning header on NDJSON", warnings, not(empty()));
     }
 
     /**

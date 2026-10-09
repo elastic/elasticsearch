@@ -48,9 +48,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
 
     static final TransportVersion EXPLAIN_INDEX_FROZEN_TRANSITION = TransportVersion.fromName("explain_index_frozen_transition");
     public static final TransportVersion EXPLAIN_INDEX_UNMANAGED_REASON = TransportVersion.fromName("explain_index_unmanaged_reason");
-    static final TransportVersion EXPLAIN_INDEX_TAIL_MERGE_DATE = TransportVersion.fromName(
-        "explain_index_tail_merge_date"
-    );
+    static final TransportVersion EXPLAIN_INDEX_TAIL_MERGE_DATE = TransportVersion.fromName("explain_index_tail_merge_date");
 
     private final String index;
     private final boolean managedByLifecycle;
@@ -113,9 +111,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
                 ? in.readOptionalEnum(FrozenTransitionStatus.class)
                 : null;
             this.unmanagedReason = null;
-            this.tailMergeDate = in.getTransportVersion().supports(EXPLAIN_INDEX_TAIL_MERGE_DATE)
-                ? in.readOptionalLong()
-                : null;
+            this.tailMergeDate = in.getTransportVersion().supports(EXPLAIN_INDEX_TAIL_MERGE_DATE) ? in.readOptionalLong() : null;
         } else {
             this.indexCreationDate = null;
             this.rolloverDate = null;

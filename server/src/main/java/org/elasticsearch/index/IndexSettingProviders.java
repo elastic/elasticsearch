@@ -152,15 +152,18 @@ public final class IndexSettingProviders {
             Set<String> additionalSettingNames = settings.keySet();
             Set<String> preserveNulls = requestSettingsBuilder == null ? Set.of() : requestSettingsBuilder.keys();
             for (String additionalSetting : additionalSettingNames) {
-                if (settings.get(additionalSetting) == null) {
+                if (additionalSettingNames.contains(additionalSetting) == false) {
                     continue;
                 }
+                boolean nonNullValue = settings.get(additionalSetting) != null;
                 if (overrulingSettings.contains(additionalSetting)) {
-                    resultBuilder.copy(additionalSetting, settings);
+                    if (nonNullValue) {
+                        resultBuilder.copy(additionalSetting, settings);
+                    }
                     if (requestSettingsBuilder != null) {
                         requestSettingsBuilder.remove(additionalSetting);
                     }
-                } else if (userDefinedSettingNames.contains(additionalSetting) == false) {
+                } else if (userDefinedSettingNames.contains(additionalSetting) == false && nonNullValue) {
                     resultBuilder.copy(additionalSetting, settings);
                 }
             }

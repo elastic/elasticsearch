@@ -49,18 +49,25 @@ public class IndexSettingProvidersTests extends ESTestCase {
         );
         assertThat(additionalSettings.overrulingSettings(), equalTo(Set.of("index.a", "overruling_null")));
 
-        Settings effective = applyTo(
-            additionalSettings,
-            Settings.builder()
-                .put("index.a", "configured")
-                .put("index.b", "configured")
-                .put("index.c", "configured")
-                .put("overruling_null", "configured")
-        );
+        Settings.Builder requestSettingsBuilder = Settings.builder()
+            .put("index.a", "configured")
+            .put("index.b", "configured")
+            .put("index.c", "configured")
+            .put("overruling_null", "configured");
+        Settings.Builder effectiveSettingsBuilder = Settings.builder();
+
+        additionalSettings.applyTo(requestSettingsBuilder.build(), effectiveSettingsBuilder, requestSettingsBuilder);
+        Settings effective = effectiveSettingsBuilder.build();
         assertThat(effective.get("index.a"), equalTo("overruled"));
         assertThat(effective.get("overruling_null"), nullValue());
         assertThat(effective.get("index.b"), equalTo("configured"));
         assertThat(effective.get("index.c"), equalTo("configured"));
+
+        Set<String> requestSettingNames = requestSettingsBuilder.keys();
+        assertThat(requestSettingNames.contains("overruling_null"), equalTo(false));
+        assertThat(requestSettingNames.contains("index.a"), equalTo(false));
+        assertThat(requestSettingNames.contains("index.b"), equalTo(true));
+        assertThat(requestSettingNames.contains("index.c"), equalTo(true));
     }
 
     public void testNoProviders() {

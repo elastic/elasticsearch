@@ -137,8 +137,9 @@ msiexec.exe /i esodbc-{{version.stack}}-windows-x86_64.msi /qn <1>
 By default, `msiexec.exe` does not wait for the installation process to complete, since it runs in the Windows subsystem. To wait on the process to finish and ensure that `%ERRORLEVEL%` is set accordingly, it is recommended to use `start /wait` to create a process and wait for it to exit:
 
 ```sh subs=true
-start /wait msiexec.exe /i esodbc-{{version.stack}}-windows-x86_64.msi /qn
+start /wait msiexec.exe /i esodbc-{{version.stack}}-windows-x86_64.msi /qn <1>
 ```
+1. Replace the version with your {{es}} version if it differs.
 
 As with any MSI installation package, a log file for the installation process can be found within the `%TEMP%` directory, with a randomly generated name adhering to the format `MSI<random>.LOG`. The path to a log file can be supplied using the `/l` command line argument:
 
@@ -165,8 +166,9 @@ All settings exposed within the GUI are also available as command line arguments
 To pass a value, simply append the property name and value using the format `<PROPERTYNAME>="<VALUE>"` to the installation command. For example, to use a different installation directory to the default one:
 
 ```sh subs=true
-start /wait msiexec.exe /i esodbc-{{version.stack}}-windows-x86_64.msi /qn INSTALLDIR="c:\CustomDirectory"
+start /wait msiexec.exe /i esodbc-{{version.stack}}-windows-x86_64.msi /qn INSTALLDIR="c:\CustomDirectory" <1>
 ```
+1. Replace the version with your {{es}} version if it differs.
 
 Consult the [Windows Installer SDK Command-Line Options](https://msdn.microsoft.com/en-us/library/windows/desktop/aa367988(v=vs.85).aspx) for additional rules related to values containing quotation marks.
 
@@ -195,11 +197,13 @@ Once opened, find the Elasticsearch ODBC Driver installation within the list of 
 Uninstallation can also be performed from the command line by navigating to the directory containing the `.msi` package and running:
 
 ```sh subs=true
-start /wait msiexec.exe /x esodbc-{{version.stack}}-windows-x86_64.msi /qn
+start /wait msiexec.exe /x esodbc-{{version.stack}}-windows-x86_64.msi /qn <1>
 ```
+1. Replace the version with your {{es}} version if it differs.
 
 Similar to the install process, a path for a log file for the uninstallation process can be passed using the `/l` command line argument
 
 ```sh subs=true
-start /wait msiexec.exe /x esodbc-{{version.stack}}-windows-x86_64.msi /qn /l uninstall.log
+start /wait msiexec.exe /x esodbc-{{version.stack}}-windows-x86_64.msi /qn /l uninstall.log <1>
 ```
+1. Replace the version with your {{es}} version if it differs.

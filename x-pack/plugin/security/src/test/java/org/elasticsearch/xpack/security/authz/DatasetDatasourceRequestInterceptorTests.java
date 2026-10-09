@@ -11,7 +11,13 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -22,18 +28,38 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.DatasourcePrivileges.DatasourcePermissionGroup;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authz.RBACEngine.RBACAuthorizationInfo;
 import org.elasticsearch.xpack.security.authz.interceptor.DatasetDatasourceRequestInterceptor;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DatasetDatasourceRequestInterceptorTests extends ESTestCase {
 
-    private final DatasetDatasourceRequestInterceptor interceptor = new DatasetDatasourceRequestInterceptor();
+    private DatasetDatasourceRequestInterceptor interceptor;
+
+    @Before
+    public void setUpInterceptor() {
+        var licenseState = mock(MockLicenseState.class);
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
+        when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
+
+        var threadContext = new ThreadContext(Settings.EMPTY);
+        var noopAuditClusterService = mock(ClusterService.class);
+        when(noopAuditClusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Set.of(XPackSettings.AUDIT_ENABLED))
+        );
+        var auditTrailService = new AuditTrailService(null, licenseState, noopAuditClusterService);
+
+        interceptor = new DatasetDatasourceRequestInterceptor(threadContext, auditTrailService);
+    }
 
     public void testPutDatasetDatasourceAuthorized() throws Exception {
         Role role = roleWithDatasourceRead("myds");

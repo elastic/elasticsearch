@@ -1158,7 +1158,7 @@ public class Security extends Plugin
         Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
             new ResizeRequestInterceptor(threadPool, auditTrailService, dlsFlsEnabled.get()),
             new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), auditTrailService, dlsFlsEnabled.get()),
-            new DatasetDatasourceRequestInterceptor()
+            new DatasetDatasourceRequestInterceptor(threadPool.getThreadContext(), auditTrailService)
         );
 
         if (dlsFlsEnabled.get()) {

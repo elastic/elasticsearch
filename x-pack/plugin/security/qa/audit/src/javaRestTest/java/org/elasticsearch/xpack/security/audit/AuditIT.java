@@ -27,6 +27,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.junit.ClassRule;
 
@@ -309,6 +310,73 @@ public class AuditIT extends ESRestTestCase {
             assertThat(toJson(event), not(containsString(signature)));
         });
         assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+    }
+
+    public void testDatasetPutWithoutDatasourceReadEmitsAccessDenied() throws Exception {
+        var dataSourceName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        var datasetName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        var roleName = "dataset_admin_" + randomAlphaOfLength(4);
+        var username = "user_" + randomAlphaOfLength(10);
+
+        var putDataSource = new Request("PUT", "/_query/data_source/" + dataSourceName);
+        putDataSource.setJsonEntity("""
+            {
+              "type": "s3",
+              "settings": { "auth": "anonymous" }
+            }""");
+        assertOK(client().performRequest(putDataSource));
+
+        var putRole = new Request("PUT", "/_security/role/" + roleName);
+        putRole.setJsonEntity(Strings.format("""
+            {
+              "indices": [ { "names": ["%s"], "privileges": ["manage_dataset"] } ]
+            }""", datasetName));
+        assertOK(client().performRequest(putRole));
+
+        var putUser = new Request("PUT", "/_security/user/" + username);
+        putUser.setJsonEntity(Strings.format("""
+            { "password": "password", "roles": ["%s"] }""", roleName));
+        assertOK(client().performRequest(putUser));
+
+        var putDataset = new Request("PUT", "/_query/dataset/" + datasetName);
+        putDataset.setJsonEntity(Strings.format("""
+            { "data_source": "%s", "resource": "s3://example-bucket/cloudtrail/*.parquet" }""", dataSourceName));
+        putDataset.addParameter("ignore", "403");
+        putDataset.setOptions(
+            putDataset.getOptions()
+                .toBuilder()
+                .addHeader("Authorization", basicAuthHeaderValue(username, new SecureString("password".toCharArray())))
+        );
+
+        var start = Instant.now();
+        var response = executeRequest(putDataset);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(403));
+        var error = asMap(responseAsMap(response).get("error"));
+        var reason = (String) error.get("reason");
+        assertThat(reason, containsString(EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME));
+
+        assertBusy(() -> {
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<String> lines = Streams.readAllLines(auditLog);
+                final List<Map<String, Object>> events = findEvents(lines, AuditLevel.ACCESS_DENIED, e -> {
+                    if (username.equals(e.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)) == false) {
+                        return false;
+                    }
+                    var tstamp = ZonedDateTime.parse(String.valueOf(e.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
+                    if (tstamp.isBefore(start)) {
+                        return false;
+                    }
+                    return EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME.equals(e.get(LoggingAuditTrail.ACTION_FIELD_NAME));
+                });
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                assertThat(event, hasEntry("type", "audit"));
+                assertThat(event, hasKey(LoggingAuditTrail.NODE_ID_FIELD_NAME));
+                assertThat(event, hasKey(LoggingAuditTrail.REQUEST_ID_FIELD_NAME));
+                assertThat(event, hasEntry(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "transport"));
+                assertThat(event, hasEntry(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, "rest"));
+            }
+        }, 5, TimeUnit.SECONDS);
     }
 
     public void testAuditAuthenticationSuccessForStreamingRequest() throws Exception {

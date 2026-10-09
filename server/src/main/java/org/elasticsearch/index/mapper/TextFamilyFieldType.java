@@ -16,8 +16,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.intervals.IntervalsSource;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
@@ -25,6 +23,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
@@ -37,7 +36,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.queries.BinaryDocValuesQueries;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -216,11 +217,13 @@ public abstract class TextFamilyFieldType extends StringFieldType {
         if (answersTextQueryFromValues(context) == false) {
             return null;
         }
-        final BooleanQuery.Builder terms = new BooleanQuery.Builder();
+        final List<BytesRef> terms = new ArrayList<>(values.size());
         for (Object value : values) {
-            terms.add(new TermQuery(new Term(name(), indexedValueForSearch(value))), BooleanClause.Occur.SHOULD);
+            terms.add(indexedValueForSearch(value));
         }
-        return toReanalyzingQuery(terms.build(), context);
+        // One clause holding every term, as an index answers a terms query with. A clause each would be as many
+        // boolean clauses as there are terms, which a list within the terms query's own limit can exceed.
+        return toReanalyzingQuery(new TermInSetQuery(name(), terms), context);
     }
 
     /** A prefix query over the tokens of this field's values, or null where its index answers it. */

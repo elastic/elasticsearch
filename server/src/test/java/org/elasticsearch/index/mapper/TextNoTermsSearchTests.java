@@ -171,6 +171,52 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
         }
     }
 
+    /**
+     * A terms query holds as many terms as its own limit allows, which is far more than the clauses a boolean query
+     * takes, so the terms are asked for in one clause rather than one each.
+     */
+    public void testATermsQueryHoldsMoreTermsThanABooleanQueryTakes() throws IOException {
+        final List<String> terms = new ArrayList<>();
+        for (int i = 0; i < IndexSearcher.getMaxClauseCount() + 1; i++) {
+            terms.add("term" + i);
+        }
+        terms.add("quick");
+        final QueryBuilder query = new TermsQueryBuilder("body", terms);
+        assertEquals(query.toString(), matching(true, List.of(query)), matching(false, List.of(query)));
+        assertEquals("the documents holding the one term they share", List.of(0, 1, 2), matching(false, List.of(query)).get(0));
+    }
+
+    /** How many of a query's terms a document has to answer, which a field reading its values asks as an index does. */
+    public void testMinimumShouldMatchIsAsked() throws IOException {
+        final List<QueryBuilder> queries = List.of(
+            new MatchQueryBuilder("body", "quick brown nothing").minimumShouldMatch("3"),
+            new MatchQueryBuilder("body", "quick brown nothing").minimumShouldMatch("2"),
+            new MatchQueryBuilder("body", "quick brown nothing").minimumShouldMatch("1"),
+            new MatchQueryBuilder("body", "quick brown nothing").minimumShouldMatch("67%"),
+            new MultiMatchQueryBuilder("quick brown nothing", "body").minimumShouldMatch("3")
+        );
+        final List<List<Integer>> indexed = matching(true, queries);
+        final List<List<Integer>> notIndexed = matching(false, queries);
+        for (int q = 0; q < queries.size(); q++) {
+            assertEquals(queries.get(q).toString(), indexed.get(q), notIndexed.get(q));
+        }
+        assertEquals("no document holds all three", List.of(), notIndexed.get(0));
+    }
+
+    /** Every multi match type answers from the values, including the one that blends a term across fields. */
+    public void testEveryMultiMatchTypeAnswers() throws IOException {
+        final List<QueryBuilder> queries = new ArrayList<>();
+        for (MultiMatchQueryBuilder.Type type : MultiMatchQueryBuilder.Type.values()) {
+            queries.add(new MultiMatchQueryBuilder("quick", "body").type(type));
+            queries.add(new MultiMatchQueryBuilder("quick brown", "body").type(type));
+        }
+        final List<List<Integer>> indexed = matching(true, queries);
+        final List<List<Integer>> notIndexed = matching(false, queries);
+        for (int q = 0; q < queries.size(); q++) {
+            assertEquals(queries.get(q).toString(), indexed.get(q), notIndexed.get(q));
+        }
+    }
+
     private MapperService mapper(boolean indexed) throws IOException {
         return mapper(indexed, null);
     }

@@ -170,8 +170,15 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         if (columns.size() < 2 || STEP_PARAM.equals(columns.get(stepColIdx).name()) == false) {
             throw new IllegalStateException("PROMQL response is missing required 'step' column at last index " + stepColIdx);
         }
-        // Column 1 is either _timeseries (a JSON blob) or the first of the individual dimension columns
-        final boolean useSeriesCol = columns.size() > 2 && MetadataAttribute.TIMESERIES.equals(columns.get(DIMENSION_COL_START_IDX).name());
+        // The dimension columns between value and step are label columns, one of which may be the packed `_timeseries`
+        // identity (a JSON blob); a union of a closed and an open branch carries both, each row filling one side.
+        int seriesColIdx = -1;
+        for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
+            if (MetadataAttribute.TIMESERIES.equals(columns.get(i).name())) {
+                seriesColIdx = i;
+            }
+        }
+        final int seriesCol = seriesColIdx;
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
@@ -184,7 +191,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
             truncated = false;
         } else {
             builder.startArray("result");
-            truncated = writeResultArray(builder, pages, mode, limit, columns, zoneId, stepColIdx, useSeriesCol);
+            truncated = writeResultArray(builder, pages, mode, limit, columns, zoneId, stepColIdx, seriesCol);
             builder.endArray(); // result
         }
         builder.endObject(); // data
@@ -225,7 +232,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         List<ColumnInfoImpl> columns,
         ZoneId zoneId,
         int stepColIdx,
-        boolean useSeriesCol
+        int seriesColIdx
     ) throws IOException {
         int seriesCount = 0;
         BytesRef scratch = new BytesRef();
@@ -265,7 +272,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
                 assert timestampsAreAscending(stepBlock, stepStart, count) : "PROMQL response step timestamps must be ascending";
 
                 builder.startObject();
-                buildMetricLabels(builder, useSeriesCol, page, position, stepColIdx, columns, zoneId, scratch);
+                buildMetricLabels(builder, seriesColIdx, page, position, stepColIdx, columns, zoneId, scratch);
                 buildMetricValues(mode, builder, valueBuffer, valueBlock, stepBlock, valueStart, stepStart, count);
                 builder.endObject(); // result entry
             }
@@ -273,9 +280,14 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         return false;
     }
 
+    /**
+     * Writes the series' labels: the ones packed into {@code _timeseries} (a JSON object, when the column is present and
+     * non-null for this row) and the individual label columns that are non-null. A row carries one or the other, or both
+     * when a union combined a closed branch with an open one.
+     */
     private static void buildMetricLabels(
         XContentBuilder builder,
-        boolean useSeriesCol,
+        int seriesColIdx,
         Page page,
         int position,
         int stepColIdx,
@@ -285,36 +297,36 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     ) throws IOException {
         // metric labels
         builder.startObject("metric");
-        if (useSeriesCol) {
-            Block seriesBlock = page.getBlock(DIMENSION_COL_START_IDX);
-            String seriesJson = "{}";
+        if (seriesColIdx >= 0) {
+            Block seriesBlock = page.getBlock(seriesColIdx);
             if (seriesBlock.isNull(position) == false) {
                 BytesRef val = ((BytesRefBlock) seriesBlock).getBytesRef(seriesBlock.getFirstValueIndex(position), scratch);
-                seriesJson = val.utf8ToString();
+                writeMetricFromSeriesJson(builder, val.utf8ToString());
             }
-            writeMetricFromSeriesJson(builder, seriesJson);
-        } else {
-            for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
-                Block labelBlock = page.getBlock(i);
-                // Omit null labels (e.g. a null-filled missing BY label) and empty ones (a label function that emptied a
-                // label): Prometheus treats a label with an empty value as absent. This mirrors writeMetricFields on the
-                // _timeseries path.
-                if (labelBlock.isNull(position)) {
-                    continue;
-                }
-                DataType type = columns.get(i).type();
-                if (type == DataType.KEYWORD || type == DataType.TEXT) {
-                    BytesRef val = ((BytesRefBlock) labelBlock).getBytesRef(labelBlock.getFirstValueIndex(position), scratch);
-                    if (val.length == 0) {
-                        continue;
-                    }
-                    builder.field(columns.get(i).name());
-                    builder.utf8Value(val.bytes, val.offset, val.length);
+        }
+        for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
+            if (i == seriesColIdx) {
+                continue;
+            }
+            Block labelBlock = page.getBlock(i);
+            // Omit null labels (e.g. a null-filled missing BY label) and empty ones (a label function that emptied a
+            // label): Prometheus treats a label with an empty value as absent. This mirrors writeMetricFields on the
+            // _timeseries path.
+            if (labelBlock.isNull(position)) {
+                continue;
+            }
+            DataType type = columns.get(i).type();
+            if (type == DataType.KEYWORD || type == DataType.TEXT) {
+                BytesRef val = ((BytesRefBlock) labelBlock).getBytesRef(labelBlock.getFirstValueIndex(position), scratch);
+                if (val.length == 0) {
                     continue;
                 }
                 builder.field(columns.get(i).name());
-                writeLabelValue(builder, labelBlock, type, position, zoneId, scratch);
+                builder.utf8Value(val.bytes, val.offset, val.length);
+                continue;
             }
+            builder.field(columns.get(i).name());
+            writeLabelValue(builder, labelBlock, type, position, zoneId, scratch);
         }
         builder.endObject(); // metric
     }

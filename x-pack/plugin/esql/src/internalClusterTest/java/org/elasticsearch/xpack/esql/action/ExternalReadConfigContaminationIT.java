@@ -183,20 +183,32 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
     }
 
     /**
-     * The other direction, so the fix cannot be an over-restriction. Under the default FAIL_FAST policy the physical
-     * record count is the same number for every declaration, and the producers stamp a licence saying so. That
-     * licence must survive the multi-file fold as an AND, and the declared read must still be served the count
-     * without re-reading. This one is NOT red on the parent -- it passes there through the unstamped pass-through --
-     * so read it as a guard against the fix taking too much, not as evidence the fix works.
+     * The other direction, so the fix cannot be an over-restriction: under the default FAIL_FAST policy the physical
+     * record count is the same number for every declaration, the producers stamp a licence saying so, and that
+     * licence survives the multi-file fold as an AND.
+     * <p>
+     * What the licence does NOT do is carry one dataset's memoized fold to another dataset. A dataset-level fold is
+     * addressed by the definition it belongs to, so these two - same files, same settings, different mapping - hold
+     * separate folds, and the second pays one cold scan to measure its own. The licence governs which READS a count
+     * may answer for within a definition; it is not a licence to answer for a different definition. The cost is
+     * bounded and asserted here rather than left implied: one scan per definition, not one per query.
+     * <p>
+     * This arm previously asserted that the declared dataset is served without reading at all, which it was - a
+     * fold carrying no read configuration and no definition was served to everybody, which is the sharing the
+     * dataset tier's addressing exists to stop.
      */
-    public void testLicensedCountStillCrossesTheMultiFileFold() throws Exception {
+    public void testLicensedCountCrossesReadsWithinADatasetButNotBetweenDatasets() throws Exception {
         String uris = writeTwoFileFixture(false);
         String inferred = register("lic_inferred", uris, null, false);
         String declared = register("lic_declared", uris, mappingTsWithDialect(), false);
 
         assertScanRows(inferred, 2L * ROWS);
         assertScanRows(inferred, 0L);
-        assertScanRows(declared, 0L); // the licensed count crosses; only the extrema are configuration-bound
+        // A different definition: its own fold has not been measured yet, so this scan measures it.
+        assertScanRows(declared, 2L * ROWS);
+        // And having measured it, the declared read warms - which is what shows the licence still works across the
+        // reads of one definition, since the extrema remain configuration-bound either way.
+        assertScanRows(declared, 0L);
     }
 
     /**

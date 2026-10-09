@@ -205,6 +205,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         int failures = 0;
         int failedBulkItems = 0;
         int duplicates = 0;
+        boolean hasPrimaryTelemetryDuplicate = false;
         String duplicateMessageSample = null;
         BulkItemResponse[] bulkItems = bulkResponse.getItems();
         for (int i = 0; i < bulkItems.length; i++) {
@@ -218,6 +219,9 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
                     // e.g. after a timeout. We don't count these as rejected items,
                     // as clients would otherwise report the data as dropped even though it's stored.
                     duplicates++;
+                    if (context.isPrimaryTelemetryDoc(i)) {
+                        hasPrimaryTelemetryDuplicate = true;
+                    }
                     if (duplicateMessageSample == null) {
                         duplicateMessageSample = failure.getMessage();
                     }
@@ -243,8 +247,8 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
                 }
             }
         }
-        if (bulkItems.length == failedBulkItems && duplicates == 0) {
-            // all items failed, so we report total items as failures
+        if (bulkItems.length == failedBulkItems && hasPrimaryTelemetryDuplicate == false) {
+            // All primary telemetry failed, so we report total items as failures even if exemplars were duplicates.
             failures = context.totalItems();
         }
         StringBuilder failureMessageBuilder = new StringBuilder();

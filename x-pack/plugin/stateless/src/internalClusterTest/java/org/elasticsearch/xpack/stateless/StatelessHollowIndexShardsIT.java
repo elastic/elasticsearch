@@ -79,6 +79,7 @@ import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TestProcessor;
@@ -823,6 +824,37 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         final int moreDocs = randomIntBetween(clusterInfo.numDocs * 2, clusterInfo.numDocs * 4);
         indexDocsAndRefresh(clusterInfo.indexName, moreDocs);
         assertHitCount(client().prepareSearch(clusterInfo.indexName).setSize(0).setTrackTotalHits(true), clusterInfo.numDocs + moreDocs);
+    }
+
+    public void testCloseHollowShardsServiceBeforeShardEnginesClose() throws Exception {
+        final var clusterInfo = startNodesAndHollowShards();
+        final var indicesService = internalCluster().getInstance(IndicesService.class, clusterInfo.indexNodeB);
+        final var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, clusterInfo.indexNodeB);
+        final var telemetryPlugin = getTelemetryPlugin(clusterInfo.indexNodeB);
+        final List<Runnable> pendingCloses = new ArrayList<>();
+        final var shardsClosed = new PlainActionFuture<Void>();
+
+        // Relocation removes the index from IndicesService before its engines close asynchronously. Hold those
+        // closes so that the hollow shards service closes first, as it can during node shutdown.
+        indicesService.removeIndex(
+            clusterInfo.index,
+            IndexRemovalReason.NO_LONGER_ASSIGNED,
+            "test delayed engine close",
+            pendingCloses::add,
+            shardsClosed
+        );
+        try {
+            assertNull(indicesService.indexService(clusterInfo.index));
+            assertEquals(clusterInfo.numberOfShards, pendingCloses.size());
+            assertFalse(shardsClosed.isDone());
+            hollowShardsService.close();
+            assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPlugin), equalTo(0L));
+        } finally {
+            pendingCloses.forEach(Runnable::run);
+            safeGet(shardsClosed);
+        }
+        assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPlugin), equalTo(0L));
+        assertAcked(indicesAdmin().prepareDelete(clusterInfo.indexName));
     }
 
     public void testCloseWhileShardsAreHollowed() throws Exception {
@@ -1640,7 +1672,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         final var indexShardRelocated = findIndexShard(indexName);
         var engine = indexShardRelocated.getEngineOrNull();
         assertThat(engine, instanceOf(HollowIndexEngine.class));
-        // Removed via afterIndexShardClosed callback
+        // Removed via afterIndexShardClosing callback
         assertBusy(() -> hollowShardsServiceA.ensureHollowShard(indexShardRelocated.shardId(), false));
         hollowShardsServiceB.ensureHollowShard(indexShardRelocated.shardId(), true);
 

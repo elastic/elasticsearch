@@ -360,8 +360,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             assertTrue("scroll fetch did not reach the open SearchContext", ParkedScrollQueryBuilder.parked.await(10, TimeUnit.SECONDS));
 
             SearchService service = getInstanceFromNode(SearchService.class);
-            ShardSearchContextId contextId = new SearchScrollRequest(opened.getScrollId()).parseScrollId()
-                .getContext()[0].getSearchContextId();
+            ShardSearchContextId contextId = new SearchScrollRequest(opened.getScrollId()).parseScrollId().getContext()[0]
+                .getSearchContextId();
             assertTrue(service.freeReaderContext(contextId));
             assertFalse("freeReaderContext cancelled an in-flight scroll fetch", ParkedScrollQueryBuilder.cancelled.get());
         } finally {

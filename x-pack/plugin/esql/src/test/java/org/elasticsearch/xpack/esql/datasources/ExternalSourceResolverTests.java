@@ -7472,8 +7472,19 @@ public class ExternalSourceResolverTests extends ESTestCase {
         FormatReader.SchemaResolution.UNION_BY_NAME
     );
 
+    /**
+     * A resolve config as a query over a stored DATASET carries one: with the dataset-tier definition version
+     * {@code DatasetRewriter} publishes. The version is what addresses a dataset-level fold, so a config without
+     * it is a bare {@code FROM} over a URI and skips that tier entirely - which is a different query shape from
+     * the one most cases here are about, and the cases that ARE about it build their config without this helper.
+     */
     private static Map<String, Object> configFor(FormatReader.SchemaResolution strategy) {
-        return Map.of("schema_resolution", strategy.name().toLowerCase(Locale.ROOT));
+        return Map.of(
+            "schema_resolution",
+            strategy.name().toLowerCase(Locale.ROOT),
+            DefinitionVersion.DATASET_CONFIG_KEY,
+            "0123456789abcdef0123456789abcdef"
+        );
     }
 
     private ExternalSourceResolution resolveSingleFile(String path, Map<String, List<Attribute>> schemasByPath) throws Exception {

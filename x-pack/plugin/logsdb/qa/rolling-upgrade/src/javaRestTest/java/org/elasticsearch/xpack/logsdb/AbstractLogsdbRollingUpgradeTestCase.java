@@ -23,11 +23,13 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.rules.ExternalResource;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +81,8 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
     // assertions on which mode was actually selected for the run.
     protected static boolean columnarEnabled;
 
-    private static final ExternalResource columnarRandomizer = new ExternalResource() {
+    @ClassRule
+    public static final ExternalResource columnarRandomizer = new ExternalResource() {
         @Override
         protected void before() {
             String oldVersionProp = System.getProperty("tests.old_cluster_version");
@@ -97,10 +100,41 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         }
     };
 
-    public static final ElasticsearchCluster cluster = Clusters.oldVersionCluster(USER, PASS, () -> columnarEnabled);
+    private final ElasticsearchCluster cluster;
 
-    @ClassRule
-    public static final TestRule ruleChain = RuleChain.outerRule(columnarRandomizer).around(cluster);
+    @Rule
+    public final TestRule clusterRule;
+
+    protected AbstractLogsdbRollingUpgradeTestCase() {
+        this(Clusters.oldVersionCluster(USER, PASS, () -> columnarEnabled));
+    }
+
+    /**
+     * @param cluster a new, unstarted cluster for this test instance. Each test method performs its own rolling upgrade, so it
+     *                needs its own cluster starting on the old version.
+     */
+    protected AbstractLogsdbRollingUpgradeTestCase(ElasticsearchCluster cluster) {
+        this.cluster = cluster;
+        this.clusterRule = RuleChain.outerRule(cluster).around(resetStaticClusterState());
+    }
+
+    /**
+     * The REST clients and old-cluster features are static; drop them after each test so the next test connects to its own
+     * cluster.
+     */
+    private static TestRule resetStaticClusterState() {
+        return new ExternalResource() {
+            @Override
+            protected void after() {
+                try {
+                    closeClients();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                oldClusterTestFeatureService = null;
+            }
+        };
+    }
 
     @Override
     protected String getTestRestCluster() {

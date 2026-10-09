@@ -511,7 +511,7 @@ $$$ndjson-schema-sample-size$$$
 
     The sample determines whether sparse or late-appearing fields get a column. To learn how schemas are inferred, refer to [schema inference](esql-data-federation-schema.md).
 
-    {applies_to}`stack: experimental 9.6+` When [`schema_resolution`](#schema-resolution) is `union_by_name` or `strict` and the schema is inferred, every file a query reads is sampled, so the files share the sample. Each file is sampled for `schema_sample_size` divided by the number of files, with that number rounded up to a power of two, and for no fewer than `100` lines unless `schema_sample_size` is lower. For example, with the default `schema_sample_size`, a query over 3 files samples `5000` lines from each, and a query over 3000 files samples `100` lines from each, `300000` lines in total. A field or type that first appears later in a file is handled as if it appeared past `schema_sample_size`.
+    {applies_to}`stack: experimental 9.6+` With `union_by_name` or `strict`, the sample is split across the files a query reads. For details, refer to [How the sample is shared across files](esql-data-federation-schema.md#shared-schema-sample).
 
     {applies_to}`stack: experimental 9.6+` NDJSON inference skips malformed lines, including lines that repeat a key in the same object, for example `{"a":1,"a":2}`. A malformed line contributes no columns, even for fields it names before parsing fails, and doesn't count toward `schema_sample_size` or `schema_max_fields`. A column that appears only on malformed lines is absent from the schema. When the file is read, those lines are handled according to the dataset's [`error_mode`](#error-mode).
 

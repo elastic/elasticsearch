@@ -336,6 +336,15 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     }
 
     /**
+     * Whether reading this source may convert a value and fail, read from the resolution-time stamp. Delegates
+     * to the one canonical stamp reader, like the {@code conversionMayNarrow()} accessor on
+     * {@code ExternalSourceExec}.
+     */
+    public boolean conversionMayNarrow() {
+        return SourceStatisticsSerializer.conversionMayNarrow(metadata.sourceMetadata());
+    }
+
+    /**
      * Returns the pre-enrichment Unified schema — the data-only view that {@link SchemaReconciliation}
      * built the per-file {@link org.elasticsearch.xpack.esql.datasources.ColumnMapping}s against. The
      * post-enrichment {@code metadata.schema()} includes partition attributes appended by

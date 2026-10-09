@@ -71,6 +71,17 @@ public final class SourceStatisticsSerializer {
      * {@code _stats.} prefix so the FirstFileWins / union-by-name stat merges preserve it. Value: {@code List<String>}.
      */
     public static final String PARTITION_COLUMNS_KEY = "_partition.columns";
+    /**
+     * Whether reading this source may convert a value and fail, stamped here at resolution because only the
+     * coordinator has seen the files. The data node decides three things that must agree for one read - whether
+     * the filter is pushed, whether field extraction is deferred, and whether the operator factory enables
+     * deferred extraction - and each of them moves the page away from the point where the reader drops a row.
+     * <p>
+     * Absent means no, so a plan from a coordinator that predates this key reads as "cannot fail", which is what
+     * that coordinator's own data nodes already assumed. Like {@link #PARTITION_COLUMNS_KEY}, deliberately not
+     * under the {@code _stats.} prefix, so the statistics merges preserve it. Value: {@code Boolean}.
+     */
+    public static final String CONVERSION_MAY_NARROW_KEY = "_read.conversion_may_narrow";
     // Package-private: consumed by the *Key helpers here and by SplitStats.of/toMap (the round-trip between the
     // flat keys and the compact model), all within this package.
     static final String NULL_COUNT_SUFFIX = ".null_count";
@@ -105,6 +116,14 @@ public final class SourceStatisticsSerializer {
      * nondeterministic and divergent across nodes. Ordering a handful of strings once per plan costs nothing and
      * removes the failure mode.
      */
+    /**
+     * Whether reading this source may convert a value and fail, read from the {@link #CONVERSION_MAY_NARROW_KEY}
+     * stamp. False when the stamp is absent: see the key for why that is the safe reading of an older plan.
+     */
+    public static boolean conversionMayNarrow(Map<String, Object> sourceMetadata) {
+        return sourceMetadata != null && Boolean.TRUE.equals(sourceMetadata.get(CONVERSION_MAY_NARROW_KEY));
+    }
+
     @SuppressWarnings("unchecked")
     public static Set<String> partitionColumnNames(Map<String, Object> sourceMetadata) {
         if (sourceMetadata == null) {

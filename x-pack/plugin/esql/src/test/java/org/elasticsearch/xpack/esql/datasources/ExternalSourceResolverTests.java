@@ -4781,6 +4781,121 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("FieldAttribute"));
     }
 
+    /**
+     * The stamp the data node reads to decide filter pushdown, deferred extraction and the operator factory's
+     * extraction mode. It is written when reading any file may convert a value and fail, which is decided by the
+     * file's own type against the type it is read as. Every row here holds the schema fixed and varies only the
+     * file's native type, so nothing but that comparison can be producing the answer.
+     */
+    public void testConversionMayNarrowStampFollowsTheFilesOwnTypes() {
+        ExternalSchema readAsLong = new ExternalSchema(List.of(attr("x", DataType.LONG)));
+
+        // INTEGER -> LONG is lossless, so no value can fail and the stamp stays off.
+        assertFalse(stampedMayNarrow(readAsLong, Map.of("x", DataType.INTEGER)));
+        // The file already holds the read type.
+        assertFalse(stampedMayNarrow(readAsLong, Map.of("x", DataType.LONG)));
+        // DOUBLE -> LONG is a narrowing, so a value can fail.
+        assertTrue(stampedMayNarrow(readAsLong, Map.of("x", DataType.DOUBLE)));
+        // KEYWORD -> LONG parses per value and can fail.
+        assertTrue(stampedMayNarrow(readAsLong, Map.of("x", DataType.KEYWORD)));
+    }
+
+    /**
+     * A file nobody examined is stamped as able to narrow: it may hold anything. This is the arm that used to be
+     * answered from provenance, where a declared read asserted the types rather than having read them
+     * (esql-planning#2076).
+     */
+    public void testConversionMayNarrowStampIsOnForAFileWhoseTypesWereNotRead() {
+        ExternalSchema readAsLong = new ExternalSchema(List.of(attr("x", DataType.LONG)));
+        StoragePath path = StoragePath.of("s3://bucket/part-a.parquet");
+
+        for (SchemaProvenance provenance : List.of(SchemaProvenance.DECLARED, SchemaProvenance.INFERRED)) {
+            ExternalSourceResolution.ResolvedSource unread = new ExternalSourceResolution.ResolvedSource(
+                createStubMetadata(path.toString(), readAsLong.attributes()),
+                GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), path.toString()),
+                Map.of(path, new SchemaReconciliation.FileSchemaInfo(readAsLong, null, null)),
+                DeclaredReadSpec.of(Map.of(), Map.of(), Set.of("x"), provenance)
+            );
+            assertTrue(
+                provenance + ": a file whose types were never read may hold anything",
+                SourceStatisticsSerializer.conversionMayNarrow(
+                    ExternalSourceResolver.stampConversionMayNarrow(unread).metadata().sourceMetadata()
+                )
+            );
+        }
+    }
+
+    /** An empty schema map means nothing was examined at all, so nothing rules out a value that fails. */
+    public void testConversionMayNarrowStampIsOnWhenNoFileWasExamined() {
+        ExternalSchema readAsLong = new ExternalSchema(List.of(attr("x", DataType.LONG)));
+        ExternalSourceResolution.ResolvedSource nothingSeen = new ExternalSourceResolution.ResolvedSource(
+            createStubMetadata("s3://bucket/*.parquet", readAsLong.attributes()),
+            GlobExpander.fileListOf(List.of(), "s3://bucket/*.parquet"),
+            Map.of()
+        );
+        assertTrue(
+            SourceStatisticsSerializer.conversionMayNarrow(
+                ExternalSourceResolver.stampConversionMayNarrow(nothingSeen).metadata().sourceMetadata()
+            )
+        );
+    }
+
+    /** One narrowing file in a multi-file source stamps the whole source: the read is one read. */
+    public void testConversionMayNarrowStampIsOnWhenAnySingleFileNarrows() {
+        ExternalSchema readAsLong = new ExternalSchema(List.of(attr("x", DataType.LONG)));
+        StoragePath clean = StoragePath.of("s3://bucket/part-a.parquet");
+        StoragePath narrowing = StoragePath.of("s3://bucket/part-b.parquet");
+        ExternalSourceResolution.ResolvedSource mixed = new ExternalSourceResolution.ResolvedSource(
+            createStubMetadata("s3://bucket/*.parquet", readAsLong.attributes()),
+            GlobExpander.fileListOf(
+                List.of(new StorageEntry(clean, 100, Instant.EPOCH), new StorageEntry(narrowing, 100, Instant.EPOCH)),
+                "s3://bucket/*.parquet"
+            ),
+            Map.of(
+                clean,
+                new SchemaReconciliation.FileSchemaInfo(readAsLong, null, null, Map.of("x", DataType.INTEGER)),
+                narrowing,
+                new SchemaReconciliation.FileSchemaInfo(readAsLong, null, null, Map.of("x", DataType.DOUBLE))
+            ),
+            DeclaredReadSpec.NONE
+        );
+        assertTrue(
+            SourceStatisticsSerializer.conversionMayNarrow(
+                ExternalSourceResolver.stampConversionMayNarrow(mixed).metadata().sourceMetadata()
+            )
+        );
+    }
+
+    /** The stamp is absent rather than false when nothing narrows, which is how an older plan arrives. */
+    public void testConversionMayNarrowStampIsAbsentRatherThanFalse() {
+        ExternalSchema readAsLong = new ExternalSchema(List.of(attr("x", DataType.LONG)));
+        StoragePath path = StoragePath.of("s3://bucket/part-a.parquet");
+        ExternalSourceResolution.ResolvedSource clean = new ExternalSourceResolution.ResolvedSource(
+            createStubMetadata(path.toString(), readAsLong.attributes()),
+            GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), path.toString()),
+            Map.of(path, new SchemaReconciliation.FileSchemaInfo(readAsLong, null, null, Map.of("x", DataType.INTEGER))),
+            DeclaredReadSpec.NONE
+        );
+        ExternalSourceResolution.ResolvedSource stamped = ExternalSourceResolver.stampConversionMayNarrow(clean);
+        assertSame("nothing to say, so the source is handed back untouched", clean, stamped);
+        Map<String, Object> metadata = stamped.metadata().sourceMetadata();
+        assertFalse(metadata != null && metadata.containsKey(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY));
+    }
+
+    /** Stamps one file read as {@code readSchema} whose own types are {@code nativeTypes}, and reads the stamp back. */
+    private boolean stampedMayNarrow(ExternalSchema readSchema, Map<String, DataType> nativeTypes) {
+        StoragePath path = StoragePath.of("s3://bucket/part-a.parquet");
+        ExternalSourceResolution.ResolvedSource source = new ExternalSourceResolution.ResolvedSource(
+            createStubMetadata(path.toString(), readSchema.attributes()),
+            GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), path.toString()),
+            Map.of(path, new SchemaReconciliation.FileSchemaInfo(readSchema, null, null, nativeTypes)),
+            DeclaredReadSpec.NONE
+        );
+        return SourceStatisticsSerializer.conversionMayNarrow(
+            ExternalSourceResolver.stampConversionMayNarrow(source).metadata().sourceMetadata()
+        );
+    }
+
     private ExternalSourceMetadata createStubMetadata(String location, List<Attribute> schema) {
         return new ExternalSourceMetadata() {
             @Override

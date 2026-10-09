@@ -183,6 +183,26 @@ public final class DeclaredTypeCoercions {
      * never narrows — see {@code ParquetFormatReader.validatePlannerTypesAgainstFile}), so a lossy
      * narrowing is admitted exactly where a declaration licenses it.
      */
+    /**
+     * Whether a value of {@code from} reads as {@code to} with nothing lost, so the read needs no
+     * per-value conversion that can fail. The four pairs this admits are the lossless numeric and
+     * temporal widenings; everything else either narrows, changes representation, or cannot convert.
+     * <p>
+     * One predicate for all three readers and for the planner: a read's filter pushdown, its deferred
+     * extraction and its column decode must agree about whether a value can fail, and they agreed only
+     * by coincidence while each asked its own question.
+     */
+    public static boolean readsLossless(DataType from, DataType to) {
+        if (from == null || to == null) {
+            return false;
+        }
+        if (from == to) {
+            return true;
+        }
+        DataType unified = EsqlDataTypeConverter.commonType(to, from);
+        return unified != null && unified.equals(to);
+    }
+
     public static boolean supports(DataType from, DataType to) {
         if (from == to) {
             return true;

@@ -837,7 +837,7 @@ public class ExternalSourceResolver {
                 finalSource = resolvedSource;
                 effectiveReadSpec = declaredReadSpec;
             }
-            resolved.put(path, finalSource.withDeclaredReadSpec(effectiveReadSpec));
+            resolved.put(path, stampConversionMayNarrow(finalSource).withDeclaredReadSpec(effectiveReadSpec));
             LOGGER.debug("Successfully resolved external source: {}", path);
             // Dispatch to the executor rather than calling directly: on a cache-hit the callback fires
             // synchronously, so a direct recursive call would stack one frame per path and overflow the
@@ -1677,6 +1677,54 @@ public class ExternalSourceResolver {
         // Do NOT add STATS_PARTIAL — stats are now complete across all files.
         merged.remove(SourceStatisticsSerializer.STATS_PARTIAL);
         return replaceSourceMetadata(base, Map.copyOf(merged));
+    }
+
+    /**
+     * Stamps {@link SourceStatisticsSerializer#CONVERSION_MAY_NARROW_KEY} when reading any file of this source
+     * may convert a value and fail. Only the coordinator has seen the files, so the data node cannot work this
+     * out for itself; it decides filter pushdown, deferred extraction and the operator factory's extraction mode
+     * from this one fact, and those three must agree.
+     * <p>
+     * Narrowing is possible when the read type of a column is not reachable losslessly from the type the file
+     * holds it as, and also whenever a file's own types were never read - an unexamined file may hold anything.
+     * Every rail passes through here, so no rail can be left answering from provenance (esql-planning#2076).
+     * The stamp is written only when true: absent reads as false, which is how an older coordinator's plan
+     * arrives.
+     */
+    static ExternalSourceResolution.ResolvedSource stampConversionMayNarrow(ExternalSourceResolution.ResolvedSource source) {
+        if (conversionMayNarrow(source) == false) {
+            return source;
+        }
+        Map<String, Object> current = source.metadata().sourceMetadata();
+        Map<String, Object> stamped = current == null ? new HashMap<>() : new HashMap<>(current);
+        stamped.put(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, Boolean.TRUE);
+        return new ExternalSourceResolution.ResolvedSource(
+            replaceSourceMetadata(source.metadata(), Map.copyOf(stamped)),
+            source.fileList(),
+            source.schemaMap(),
+            source.declaredReadSpec()
+        );
+    }
+
+    private static boolean conversionMayNarrow(ExternalSourceResolution.ResolvedSource source) {
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = source.schemaMap();
+        if (schemaMap == null || schemaMap.isEmpty()) {
+            // Nothing was examined, so nothing rules out a value that fails to convert.
+            return true;
+        }
+        for (SchemaReconciliation.FileSchemaInfo info : schemaMap.values()) {
+            if (nativeTypesUnknown(info)) {
+                return true;
+            }
+            Map<String, DataType> nativeTypes = info.inferredTypes();
+            for (Attribute attr : info.fileSchema().attributes()) {
+                DataType nativeType = nativeTypes == null ? null : nativeTypes.get(attr.name());
+                if (nativeType != null && DeclaredTypeCoercions.readsLossless(nativeType, attr.dataType()) == false) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** Returns a wrapper that delegates to {@code base} but replaces {@code sourceMetadata()} with {@code replacement}. */

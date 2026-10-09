@@ -663,12 +663,15 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     partitionValues = fileSplit.partitionValues();
                 }
 
-                // Whether this read drops whole rows on a coercion failure. The plan already accounted for it:
-                // PushFiltersToSource withheld the pushdown for readers that cannot drop rows once filtered, and
-                // InsertExternalFieldExtraction skipped the extract exec. Recomputed here (rather than trusted from
-                // the plan) so the factory's own deferred-extraction decision cannot drift from the rule's — both
-                // resolve the policy against the same reader default via ErrorPolicy.forReader.
-                boolean dropsRowsOnCoercionFailure = context.declaredReadSpec().dropsRowsOnCoercionFailure(errorPolicy);
+                // Whether this read drops whole rows when a value fails to convert. The plan already accounted for
+                // it: PushFiltersToSource withheld the pushdown for readers that cannot drop rows once filtered, and
+                // InsertExternalFieldExtraction skipped the extract exec. The two halves are resolved the same way
+                // here as there, so the factory's own deferred-extraction decision cannot drift from the rules':
+                // the error mode against the reader's default via ErrorPolicy.forReader, and whether a value can
+                // fail at all from the resolution-time stamp the plan carries. Reading that stamp rather than the
+                // schema map is what makes the answer the same on a data node, where the map can be empty.
+                boolean dropsRowsOnCoercionFailure = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
+                    && SourceStatisticsSerializer.conversionMayNarrow(context.sourceMetadata());
 
                 List<Expression> pushedExpressions = context.pushedExpressions();
                 // Note: this only controls the per-file re-mint in AsyncExternalSourceOperatorFactory#readerForFile

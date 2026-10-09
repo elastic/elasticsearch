@@ -500,6 +500,16 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     /**
+     * Whether reading this source may convert a value and fail, read from the resolution-time stamp in
+     * {@link #sourceMetadata()}. The coordinator is the only node that has seen the files, so this is how the
+     * fact reaches a data node. False when the stamp is absent, which is also how a plan from a coordinator
+     * that predates the stamp arrives.
+     */
+    public boolean conversionMayNarrow() {
+        return SourceStatisticsSerializer.conversionMayNarrow(sourceMetadata);
+    }
+
+    /**
      * The effective per-source statistics for this exec, resolved from the typed per-split
      * {@link org.elasticsearch.xpack.esql.datasources.spi.SplitStats} carried on {@link #splits()} when
      * available, falling back to the whole-file / anchor-file stats embedded in {@link #sourceMetadata()}

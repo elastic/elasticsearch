@@ -435,9 +435,9 @@ public interface FormatReader extends Closeable {
      * Overriding to {@code true} is a promise about a specific decode path and has to be demonstrated —
      * see {@code OrcFormatReaderTests#testDropsRowsUnderPushedFilter}.
      * <p>
-     * Only consulted when the read actually combines {@code skip_row} with declared-type columns — see
-     * {@code DeclaredReadSpec#dropsRowsOnCoercionFailure}. With no declared types there is nothing to
-     * coerce, hence no row to drop, and pushdown is always allowed.
+     * Only consulted when the read actually combines {@code skip_row} with files whose values the scan may
+     * have to convert — see {@code SourceStatisticsSerializer#CONVERSION_MAY_NARROW_KEY}. When every column
+     * reads losslessly there is nothing that can fail, hence no row to drop, and pushdown is always allowed.
      */
     default boolean dropsRowsUnderPushedFilter() {
         return false;

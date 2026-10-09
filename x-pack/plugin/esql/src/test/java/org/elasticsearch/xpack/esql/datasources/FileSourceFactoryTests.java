@@ -190,36 +190,53 @@ public class FileSourceFactoryTests extends ESTestCase {
     }
 
     /**
-     * Pins CURRENT behaviour for esql-planning#2076: the factory turns deferred extraction off only where
-     * {@link DeclaredReadSpec#dropsRowsOnCoercionFailure} says a read can drop rows, which today is {@code skip_row}
-     * over a declared-type column and nothing else. An inferred read keeps deferred extraction under every
-     * {@code error_mode}, because its coercion failures null-fill a column rather than drop rows. Once inferred
-     * columns get per-value coercion under {@code error_mode} too, the {@code skip_row}-inferred cell is expected to
-     * flip to {@code false}.
+     * Deferred extraction is off exactly when the read can drop a row: {@code skip_row} over files whose values
+     * the scan may have to convert. Both halves are read the same way the two planner rules read them, so the
+     * plan and the factory cannot reach different verdicts for one read.
+     * <p>
+     * The second half used to be "does the dataset declare any column types", which is why a declared read lost
+     * deferred extraction and an inferred read over the same files kept it (esql-planning#2076). The declared
+     * spec is now passed on both axes to show it no longer moves the answer.
      */
-    public void testDeferredExtractionFollowsDropsRowsOnCoercionFailure() {
+    public void testDeferredExtractionFollowsWhetherAValueCanFailToConvert() {
         FileSourceFactory factory = newFileSourceFactory(new ExtractorAwareStubFormatReader("test-parquet", ".parquet"));
         DeclaredReadSpec declared = DeclaredReadSpec.of(Map.of(), Map.of(), Set.of("x"));
         DeclaredReadSpec inferred = DeclaredReadSpec.NONE;
 
-        for (String errorMode : List.of("fail_fast", "null_field", "skip_row")) {
-            assertTrue("inferred read under " + errorMode, deferredExtraction(factory, errorMode, inferred));
+        for (DeclaredReadSpec spec : List.of(declared, inferred)) {
+            String who = spec.declaredTypeColumns().isEmpty() ? "an inferred" : "a declared";
+            for (String errorMode : List.of("fail_fast", "null_field", "skip_row")) {
+                assertTrue(
+                    who + " read of files that convert nothing keeps deferred extraction under " + errorMode,
+                    deferredExtraction(factory, errorMode, spec, false)
+                );
+            }
+            assertTrue(who + " read under fail_fast", deferredExtraction(factory, "fail_fast", spec, true));
+            assertTrue(who + " read under null_field", deferredExtraction(factory, "null_field", spec, true));
+            assertFalse(
+                who + " read under skip_row can drop a row, so no deferred extraction",
+                deferredExtraction(factory, "skip_row", spec, true)
+            );
         }
-        assertTrue("declared read under fail_fast", deferredExtraction(factory, "fail_fast", declared));
-        assertTrue("declared read under null_field", deferredExtraction(factory, "null_field", declared));
-        assertFalse(
-            "declared read under skip_row drops rows, so no deferred extraction",
-            deferredExtraction(factory, "skip_row", declared)
-        );
     }
 
-    /** Builds the operator factory for one ({@code error_mode}, read spec) cell and returns its deferred-extraction decision. */
-    private static boolean deferredExtraction(FileSourceFactory factory, String errorMode, DeclaredReadSpec declaredReadSpec) {
+    /**
+     * Builds the operator factory for one ({@code error_mode}, read spec, may-narrow) cell and returns its
+     * deferred-extraction decision. The last argument is stamped into {@code sourceMetadata} the way resolution
+     * stamps it.
+     */
+    private static boolean deferredExtraction(
+        FileSourceFactory factory,
+        String errorMode,
+        DeclaredReadSpec declaredReadSpec,
+        boolean conversionMayNarrow
+    ) {
         SourceOperatorContext context = SourceOperatorContext.builder()
             .path(StoragePath.of("s3://bucket/data.parquet"))
             .attributes(List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG)))
             .executor(EsExecutors.DIRECT_EXECUTOR_SERVICE)
             .config(Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode))
+            .sourceMetadata(conversionMayNarrow ? Map.of(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, Boolean.TRUE) : Map.of())
             .deferredExtraction(true)
             .declaredReadSpec(declaredReadSpec)
             .build();

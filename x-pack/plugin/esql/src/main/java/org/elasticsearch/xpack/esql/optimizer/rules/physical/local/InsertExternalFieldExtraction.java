@@ -50,9 +50,10 @@ import java.util.Set;
  *     <li>No {@link ExternalSourceExec} reachable below the TopN through a {@link UnaryExec} spine.</li>
  *     <li>{@link #resolveReader(String, ExternalOptimizerContext)} yields no reader for the source's format, or
  *         one that does not implement {@link ColumnExtractorAware}.</li>
- *     <li>The read drops rows on a coercion failure ({@code error_mode: skip_row} over declared column types):
- *         the extract operator runs after the page shape is fixed and cannot drop rows, so the columnar iterator
- *         has to do the filtering itself — see {@code DeclaredReadSpec#dropsRowsOnCoercionFailure}.</li>
+ *     <li>The read drops rows when a value fails to convert ({@code error_mode: skip_row} over files whose
+ *         values the scan may have to convert): the extract operator runs after the page shape is fixed and
+ *         cannot drop rows, so the columnar iterator has to do the filtering itself — see
+ *         {@code SourceStatisticsSerializer#CONVERSION_MAY_NARROW_KEY}.</li>
  *     <li>The TopN's limit is unknown or exceeds {@link #TOPN_EXTRACT_LIMIT_MAX}.</li>
  *     <li>Fewer than {@link #DEFERRED_COLUMN_MIN} columns would actually be deferred.</li>
  *     <li>One of the source's columns is already named {@value #ROW_POSITION_NAME} — we refuse to
@@ -117,7 +118,10 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
         // the plan already carries an ExternalFieldExtractExec — surfacing as "extractor id [0] is
         // out of range [0, 0)". Resolve the policy against the reader's own default, exactly as the
         // factory does, so the two cannot reach different verdicts for the same read.
-        if (externalSource.declaredReadSpec().dropsRowsOnCoercionFailure(ErrorPolicy.forReader(externalSource.config(), reader))) {
+        // Whether a value can fail to convert is a fact about the files, stamped at resolution; asking instead
+        // whether any column was declared gave two reads of the same files different plans (esql-planning#2076).
+        ErrorPolicy errorPolicy = ErrorPolicy.forReader(externalSource.config(), reader);
+        if (errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW && externalSource.conversionMayNarrow()) {
             return topN;
         }
 

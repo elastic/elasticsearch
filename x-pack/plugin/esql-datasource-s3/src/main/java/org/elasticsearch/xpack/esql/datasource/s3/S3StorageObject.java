@@ -37,6 +37,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -749,6 +750,36 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             }
         } catch (Exception e) {
             ExternalPlanningIo.addMetadataGet(0);
+            throw throwReadFailure("Failed to read object metadata for", e);
+        }
+    }
+
+    /**
+     * The object's length and modification time from a single {@code HeadObject}, for a caller that will not read
+     * the object — {@link org.elasticsearch.xpack.esql.datasources.spi.StorageProvider#objectMetadata}.
+     * <p>
+     * Deliberately not {@link #probeObject}, which this leaves untouched: that path serves callers who go on to
+     * read, so it uses a range GET and latches the generation in {@code pinnedEtag} for later ranged reads to
+     * validate against. This one establishes no pin, because its caller has nothing to validate.
+     * <p>
+     * No range-GET fallback on a refusal either. {@code HeadObject} and {@code GetObject} are both authorized by
+     * {@code s3:GetObject}, so a 403 here means a GET would be refused too, and retrying only spends a second
+     * request to be told the same thing.
+     */
+    StorageEntry headObjectMetadata() throws IOException {
+        try {
+            HeadObjectResponse response = s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());
+            ExternalPlanningIo.addMetadataGet(0);
+            return new StorageEntry(path, response.contentLength(), response.lastModified());
+        } catch (NoSuchKeyException e) {
+            ExternalPlanningIo.addMetadataGet(0);
+            throw new ExternalClientException(ExternalClientException.Condition.OBJECT_NOT_FOUND, path, "", "");
+        } catch (Exception e) {
+            ExternalPlanningIo.addMetadataGet(0);
+            Exception mapped = mapReadFailure("Failed to read object metadata for", e);
+            if (mapped instanceof ExternalCredentialsExpiredException expired) {
+                throw expired;
+            }
             throw throwReadFailure("Failed to read object metadata for", e);
         }
     }

@@ -860,6 +860,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
         }
 
         @Override
+        public StorageEntry objectMetadata(StoragePath path) throws IOException {
+            return inner().objectMetadata(path);
+        }
+
+        @Override
         public StorageObject newObject(StoragePath path) {
             return inner().newObject(path);
         }

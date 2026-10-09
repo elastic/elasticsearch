@@ -21,6 +21,7 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
@@ -73,6 +74,39 @@ public class S3RequestCountingTests extends ESTestCase {
     /**
      * length() is answered by a first-byte range GET, not a HEAD.
      */
+    /**
+     * The metadata lookup a resolve makes is one HeadObject and nothing else. No range GET: the caller is not going
+     * to read the object, so it has no use for the generation pin a GET would establish, and HeadObject needs the
+     * same s3:GetObject so it costs no more.
+     */
+    public void testObjectMetadataIsOneHeadAndNoGet() throws IOException {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
+            HeadObjectResponse.builder().contentLength(FILE_SIZE).lastModified(LAST_MODIFIED).build()
+        );
+
+        StorageEntry metadata = new S3StorageObject(mockS3, BUCKET, KEY, PATH).headObjectMetadata();
+
+        assertEquals(FILE_SIZE, metadata.length());
+        assertEquals(LAST_MODIFIED, metadata.lastModified());
+        verify(mockS3, times(1)).headObject(any(HeadObjectRequest.class));
+        verify(mockS3, never()).getObject(any(GetObjectRequest.class));
+    }
+
+    /**
+     * A refusal is final and costs one request. HeadObject and GetObject are both authorized by s3:GetObject, so a
+     * range GET after a 403 could only be refused as well.
+     */
+    public void testObjectMetadataDenialCostsOneRequestAndNoGet() {
+        when(mockS3.headObject(any(HeadObjectRequest.class))).thenThrow(
+            S3Exception.builder().statusCode(403).message("Access Denied").build()
+        );
+
+        expectThrows(Exception.class, () -> new S3StorageObject(mockS3, BUCKET, KEY, PATH).headObjectMetadata());
+
+        verify(mockS3, times(1)).headObject(any(HeadObjectRequest.class));
+        verify(mockS3, never()).getObject(any(GetObjectRequest.class));
+    }
+
     public void testLengthTriggersOneRangeGet() throws IOException {
         stubFirstByteResponse();
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);

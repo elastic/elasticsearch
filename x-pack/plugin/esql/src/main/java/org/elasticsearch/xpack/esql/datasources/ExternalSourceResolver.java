@@ -2204,12 +2204,12 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Asks storage for the object's length and modification time. The modification time is never null here:
+     * Asks storage for the object's length and modification time, through {@link StorageProvider#objectMetadata}:
+     * a HEAD or stat that reads nothing of the object. The modification time is never null here:
      * {@link StorageEntry} substitutes EPOCH, which keeps a key derived from it stable.
      */
     private static FileMetadata readFileMetadata(StoragePath storagePath, StorageProvider provider) throws Exception {
-        StorageObject object = provider.newObject(storagePath);
-        StorageEntry probed = new StorageEntry(storagePath, object.length(), object.lastModified());
+        StorageEntry probed = provider.objectMetadata(storagePath);
         return new FileMetadata(probed.length(), probed.lastModified().toEpochMilli());
     }
 

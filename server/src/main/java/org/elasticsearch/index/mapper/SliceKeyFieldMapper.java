@@ -99,8 +99,11 @@ public class SliceKeyFieldMapper extends MetadataFieldMapper {
     public void postParse(DocumentParserContext context) {
         final String slice = context.routing();
         if (slice == null) {
-            // Coordinating-node validation rejects this on slice-enabled indices; tombstones legitimately have no slice.
-            return;
+            // Coordinating-node validation and SliceIdFieldMapper#preParse both reject unrouted documents before this
+            // runs, so reaching here is a bug. Throw rather than skip, matching preColumnarParse: a document without a
+            // key sorts last and is invisible to every slice query. Tombstones are built directly by ParsedDocument and
+            // never pass through the parser, so none can arrive here.
+            throw new IllegalArgumentException("unable to create [" + NAME + "] as slice is enabled but slice is null");
         }
         final BytesRef key = SliceIndexing.encodeSliceKey(slice);
         final long hash = SliceIndexing.sliceHashFromKey(key);

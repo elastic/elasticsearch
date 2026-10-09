@@ -73,6 +73,20 @@ public class SliceKeyFieldMapperTests extends MapperServiceTestCase {
         }
     }
 
+    /**
+     * An unrouted document on a slice-enabled index would get no key, sort last, and silently vanish from every slice
+     * query. Parsing must fail instead. The {@code _id} mapper rejects it first in {@code preParse}; this mapper throws
+     * the same way should that guard ever be bypassed, so only the shared message tail is asserted here.
+     */
+    public void testUnroutedDocumentIsRejected() throws Exception {
+        MapperService mapperService = sliceEnabledMapperService();
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper().parse(source("1", b -> b.field("f", "v"), null))
+        );
+        assertThat(e.getCause().getMessage(), containsString("as slice is enabled but slice is null"));
+    }
+
     public void testAbsentWhenSliceDisabled() throws Exception {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         assertNull(mapperService.fieldType(SliceKeyFieldMapper.NAME));

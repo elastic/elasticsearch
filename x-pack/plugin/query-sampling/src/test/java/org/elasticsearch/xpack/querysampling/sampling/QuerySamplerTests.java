@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
+import org.elasticsearch.xpack.querysampling.dedup.Hardness;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
@@ -73,7 +74,8 @@ public class QuerySamplerTests extends ESTestCase {
                 QuerySamplingSettings.HEAD_THRESHOLD,
                 QuerySamplingSettings.MAX_PICKS_PER_HOUR,
                 QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
-                QuerySamplingSettings.SPATIAL_BALANCE
+                QuerySamplingSettings.SPATIAL_BALANCE,
+                QuerySamplingSettings.HARDNESS_TILT
             )
         );
         QuerySampler sampler = new QuerySampler(1.0, 100, seededRandom());
@@ -138,7 +140,8 @@ public class QuerySamplerTests extends ESTestCase {
                 QuerySamplingSettings.HEAD_THRESHOLD,
                 QuerySamplingSettings.MAX_PICKS_PER_HOUR,
                 QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
-                QuerySamplingSettings.SPATIAL_BALANCE
+                QuerySamplingSettings.SPATIAL_BALANCE,
+                QuerySamplingSettings.HARDNESS_TILT
             )
         );
         QuerySampler sampler = new QuerySampler(1.0, 1000, alwaysDrawing(0.0), budget);
@@ -160,7 +163,8 @@ public class QuerySamplerTests extends ESTestCase {
                 QuerySamplingSettings.HEAD_THRESHOLD,
                 QuerySamplingSettings.MAX_PICKS_PER_HOUR,
                 QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
-                QuerySamplingSettings.SPATIAL_BALANCE
+                QuerySamplingSettings.SPATIAL_BALANCE,
+                QuerySamplingSettings.HARDNESS_TILT
             )
         );
         QuerySampler sampler = new QuerySampler(0.5, 1000, alwaysDrawing(0.0));
@@ -194,7 +198,8 @@ public class QuerySamplerTests extends ESTestCase {
                     QuerySamplingSettings.HEAD_THRESHOLD,
                     QuerySamplingSettings.MAX_PICKS_PER_HOUR,
                     QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
-                    QuerySamplingSettings.SPATIAL_BALANCE
+                    QuerySamplingSettings.SPATIAL_BALANCE,
+                    QuerySamplingSettings.HARDNESS_TILT
                 )
             )
         );
@@ -218,7 +223,8 @@ public class QuerySamplerTests extends ESTestCase {
                 QuerySamplingSettings.HEAD_THRESHOLD,
                 QuerySamplingSettings.MAX_PICKS_PER_HOUR,
                 QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
-                QuerySamplingSettings.SPATIAL_BALANCE
+                QuerySamplingSettings.SPATIAL_BALANCE,
+                QuerySamplingSettings.HARDNESS_TILT
             )
         );
         QuerySampler sampler = new QuerySampler(0.1, 1000, alwaysDrawing(0.999999), new PickBudget(System::nanoTime), new SpatialStrata(2));
@@ -243,6 +249,41 @@ public class QuerySamplerTests extends ESTestCase {
         assertThat(dense.inclusionProbability(), lessThan(plain));
         assertThat("the factor is recorded in what the draw had", sparse.inclusionProbability(), greaterThan(plain));
         assertThat(dense.inclusionProbability() / sparse.inclusionProbability(), lessThan(0.2));
+    }
+
+    public void testHardQueriesAreFavouredAndEasyOnesAreNotWhenTilting() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder()
+                .put(QuerySamplingSettings.HARDNESS_TILT.getKey(), 1.0)
+                .put(QuerySamplingSettings.ACCEPTANCE_SCALE.getKey(), 0.1) // small enough for no probability to be capped at one
+                .build(),
+            Set.of(
+                QuerySamplingSettings.ACCEPTANCE_SCALE,
+                QuerySamplingSettings.HEAD_THRESHOLD,
+                QuerySamplingSettings.MAX_PICKS_PER_HOUR,
+                QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
+                QuerySamplingSettings.SPATIAL_BALANCE,
+                QuerySamplingSettings.HARDNESS_TILT
+            )
+        );
+        QuerySampler sampler = new QuerySampler(1.0, 1000, alwaysDrawing(0.999999));
+        sampler.watch(clusterSettings);
+        MultiplicityTracker tracker = new MultiplicityTracker(10);
+        TrackedQuery hard = tracker.record(new QueryFingerprint(1, 1));
+        hard.hardness(Hardness.HARD);
+        TrackedQuery easy = tracker.record(new QueryFingerprint(2, 2));
+        easy.hardness(Hardness.EASY);
+        TrackedQuery unknown = tracker.record(new QueryFingerprint(3, 3));
+
+        sampler.offer(hard);
+        sampler.offer(easy);
+        sampler.offer(unknown);
+
+        double plain = sampler.acceptanceProbability(1);
+        assertThat("nothing is known of it", unknown.inclusionProbability(), closeTo(plain, 1e-12));
+        assertThat("the factor is recorded in what the draw had", hard.inclusionProbability(), greaterThan(plain));
+        assertThat(easy.inclusionProbability(), lessThan(plain));
+        assertThat(hard.inclusionProbability() / easy.inclusionProbability(), closeTo(Math.exp(2.0), 1e-9));
     }
 
     public void testProbabilityIsCappedAtOne() {

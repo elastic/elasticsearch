@@ -27,6 +27,7 @@ public class QuerySamplingSettingsTests extends ESTestCase {
         assertThat("the scale is not steered unless asked", QuerySamplingSettings.TARGET_PICKS_PER_HOUR.get(Settings.EMPTY), equalTo(0L));
         assertThat("the vector space is not divided unless asked", QuerySamplingSettings.SPATIAL_CLUSTERS.get(Settings.EMPTY), equalTo(0));
         assertThat("and does not change the sample", QuerySamplingSettings.SPATIAL_BALANCE.get(Settings.EMPTY), equalTo(0.0));
+        assertThat("the sample is not tilted unless asked", QuerySamplingSettings.HARDNESS_TILT.get(Settings.EMPTY), equalTo(0.0));
         assertThat("the worker is off unless asked for", QuerySamplingSettings.SAMPLING_COST_RATIO.get(Settings.EMPTY), equalTo(0.0));
         assertThat(QuerySamplingSettings.MULTIPLICITY_WINDOW.get(Settings.EMPTY), equalTo(TimeValue.timeValueHours(1)));
     }
@@ -39,6 +40,7 @@ public class QuerySamplingSettingsTests extends ESTestCase {
             QuerySamplingSettings.MAX_PICKS_PER_HOUR,
             QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
             QuerySamplingSettings.SPATIAL_BALANCE,
+            QuerySamplingSettings.HARDNESS_TILT,
             QuerySamplingSettings.MULTIPLICITY_WINDOW }) {
             assertTrue(setting.getKey() + " is dynamic", setting.isDynamic());
         }
@@ -68,6 +70,8 @@ public class QuerySamplingSettingsTests extends ESTestCase {
         expectInvalid(QuerySamplingSettings.SPATIAL_CLUSTERS, "-1");
         expectInvalid(QuerySamplingSettings.SPATIAL_CLUSTERS, "1025");
         expectInvalid(QuerySamplingSettings.SPATIAL_BALANCE, "1.5");
+        expectInvalid(QuerySamplingSettings.HARDNESS_TILT, "-0.5");
+        expectInvalid(QuerySamplingSettings.HARDNESS_TILT, "11");
         expectInvalid(QuerySamplingSettings.SAMPLING_COST_RATIO, "-0.1");
         expectInvalid(QuerySamplingSettings.SAMPLING_COST_RATIO, "1.5");
         expectInvalid(QuerySamplingSettings.MULTIPLICITY_WINDOW, "500ms");

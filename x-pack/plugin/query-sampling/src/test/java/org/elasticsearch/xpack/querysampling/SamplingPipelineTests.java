@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.querysampling;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
+import org.elasticsearch.xpack.querysampling.dedup.Hardness;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
+import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
+import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
 import org.elasticsearch.xpack.querysampling.sampling.PickBudget;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
@@ -23,6 +26,7 @@ import java.util.Random;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class SamplingPipelineTests extends ESTestCase {
@@ -129,6 +133,25 @@ public class SamplingPipelineTests extends ESTestCase {
         pipeline.accept(search(new float[] { 9f, 9f }));
 
         assertThat("the repeat is not counted again", spatial.counts("vec/2"), equalTo(new long[] { 1, 1 }));
+    }
+
+    public void testAQueryIsToldHowHardItIsWhenItIsSeenForTheFirstTimeOnly() {
+        SamplingPipeline pipeline = pipeline(new Random(0L));
+        float[] vector = { 1f, 2f };
+        CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", vector, 10, 100, null, null, List.of(), null);
+        List<CapturedSearch.Hit> hits = List.of(
+            new CapturedSearch.Hit("idx", "1", 1f),
+            new CapturedSearch.Hit("idx", "2", 0.9f),
+            new CapturedSearch.Hit("idx", "3", 0.8f)
+        );
+
+        pipeline.accept(new CapturedSearch(query, hits, 1, 1.0));
+
+        TrackedQuery tracked = tracker.record(QueryFingerprint.of(query));
+        assertThat("there are no others to tell it from yet", tracked.hardness(), equalTo(Hardness.MEDIUM));
+
+        pipeline.accept(search(new float[] { 5f, 5f })); // no hits, so nothing to tell it by
+        assertThat(tracker.record(QueryFingerprint.of(search(new float[] { 5f, 5f }).query())).hardness(), nullValue());
     }
 
     private SamplingPipeline pipeline(Random random) {

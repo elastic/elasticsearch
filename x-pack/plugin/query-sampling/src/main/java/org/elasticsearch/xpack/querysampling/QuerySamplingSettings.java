@@ -143,6 +143,22 @@ public final class QuerySamplingSettings {
     );
 
     /**
+     * How much the sample is tilted towards the queries that are hard to answer, those whose hits are all about as good
+     * as the first one. The probability of picking a query is multiplied with a factor that is above one for the hardest
+     * third of the queries of a field and below one for the easiest third, by {@code e^η} and {@code e^-η} over their
+     * average. 0 does not tilt. It is not local intrinsic dimensionality, but a measure taken from the scores of
+     * the hits.
+     */
+    public static final Setting<Double> HARDNESS_TILT = Setting.doubleSetting(
+        "xpack.query_sampling.hardness_tilt",
+        0.0,
+        0.0,
+        10.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * γ, the scale of the probability with which a query is picked: how likely a query seen for the first time is
      * picked (about 0.69·γ), and how fast that falls as the query is searched more. A bigger value samples more
      * queries, and more of the popular ones.
@@ -193,6 +209,7 @@ public final class QuerySamplingSettings {
             TARGET_PICKS_PER_HOUR,
             SPATIAL_CLUSTERS,
             SPATIAL_BALANCE,
+            HARDNESS_TILT,
             ACCEPTANCE_SCALE,
             HEAD_THRESHOLD,
             MULTIPLICITY_WINDOW,

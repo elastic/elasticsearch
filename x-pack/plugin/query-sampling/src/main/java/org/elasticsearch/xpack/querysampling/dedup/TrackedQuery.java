@@ -25,6 +25,7 @@ public final class TrackedQuery {
     private double logSurvival;
     private boolean sampled;
     private Stratum stratum;
+    private Hardness hardness;
 
     /**
      * @param weight how many arrivals of the query this captured one stands for: the inverse of the
@@ -122,6 +123,18 @@ public final class TrackedQuery {
 
     public synchronized void stratum(@Nullable Stratum stratum) {
         this.stratum = stratum;
+    }
+
+    /**
+     * How hard the query is for the index to answer, null if that is not known.
+     */
+    @Nullable
+    public synchronized Hardness hardness() {
+        return hardness;
+    }
+
+    public synchronized void hardness(@Nullable Hardness hardness) {
+        this.hardness = hardness;
     }
 
     public synchronized boolean isSampled() {

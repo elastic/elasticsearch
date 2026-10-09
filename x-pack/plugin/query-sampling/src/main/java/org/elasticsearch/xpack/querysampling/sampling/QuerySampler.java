@@ -12,8 +12,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
+import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Executor;
 
@@ -34,7 +36,7 @@ import java.util.concurrent.Executor;
  * fraction of it was captured.
  * <p>
  * Queries of the sparse parts of the vector space are picked more often, and those of the dense parts less, see
- * {@link SpatialStrata}.
+ * {@link SpatialStrata}, and so are those that are hard to answer, see {@link HardnessStrata}.
  * <p>
  * With a target for the pick rate, γ is multiplied with an adjustment that follows the traffic, see {@link ScaleRegulator}.
  */
@@ -45,6 +47,7 @@ public final class QuerySampler {
     private final Random random;
     private final PickBudget budget;
     private final SpatialStrata spatial;
+    private final HardnessStrata hardness;
     private final ScaleRegulator regulator = new ScaleRegulator();
 
     /**
@@ -62,11 +65,24 @@ public final class QuerySampler {
         this(scale, headThreshold, random, budget, new SpatialStrata(0));
     }
 
-    /**
-     * @param spatial balances the picks over the vector space
-     */
     public QuerySampler(double scale, long headThreshold, Random random, PickBudget budget, SpatialStrata spatial) {
+        this(scale, headThreshold, random, budget, spatial, new HardnessStrata());
+    }
+
+    /**
+     * @param spatial  balances the picks over the vector space
+     * @param hardness tilts the picks towards the queries that are hard to answer
+     */
+    public QuerySampler(
+        double scale,
+        long headThreshold,
+        Random random,
+        PickBudget budget,
+        SpatialStrata spatial,
+        HardnessStrata hardness
+    ) {
         this.spatial = spatial;
+        this.hardness = hardness;
         this.scale = scale;
         this.headThreshold = headThreshold;
         this.random = random;
@@ -82,6 +98,7 @@ public final class QuerySampler {
         clusterSettings.initializeAndWatch(QuerySamplingSettings.MAX_PICKS_PER_HOUR, budget::perHour);
         clusterSettings.initializeAndWatch(QuerySamplingSettings.TARGET_PICKS_PER_HOUR, regulator::targetPerHour);
         spatial.watch(clusterSettings);
+        hardness.watch(clusterSettings);
     }
 
     /**
@@ -139,6 +156,14 @@ public final class QuerySampler {
     }
 
     /**
+     * Tells how hard a query that has just been seen for the first time is, from the hits that it got, which the
+     * sampler needs to tilt the picks towards the hard queries.
+     */
+    public void assignHardness(TrackedQuery query, String field, int dims, List<CapturedSearch.Hit> hits) {
+        query.hardness(hardness.assign(field, dims, hits));
+    }
+
+    /**
      * Handles one arrival of a query, after it has been counted.
      *
      * @return whether the query was picked by this arrival, which happens at most once per query
@@ -148,7 +173,7 @@ public final class QuerySampler {
         boolean head = multiplicity >= headThreshold;
         double probability = acceptanceProbability(multiplicity, query.lastArrivalWeight());
         if (head == false) {
-            probability = Math.min(1.0, probability * spatial.factor(query.stratum()));
+            probability = Math.min(1.0, probability * spatial.factor(query.stratum()) * hardness.factor(query.hardness()));
         }
         if (head == false && budget.available() == false) {
             // the limit on the picks is reached: the query has no chance now, and that is what is recorded for it, as for

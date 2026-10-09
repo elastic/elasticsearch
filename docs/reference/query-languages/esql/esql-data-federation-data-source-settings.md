@@ -78,7 +78,7 @@ $$$region$$$
 `region`
 :   The AWS region used for the S3 client.
 
-    {applies_to}`stack: experimental 9.6+` The `region` setting on a data source is deprecated and has no effect. Set `region` in the [dataset settings](esql-data-federation-dataset-settings.md#amazon-s3-region) instead, or omit it to let {{es}} detect the region automatically. When no `endpoint` is set, the SDK redirects transparently. When one is set, {{es}} issues a `HeadBucket` probe on the first request and caches the discovered region for the lifetime of the data source.
+    {applies_to}`stack: experimental 9.6+` The `region` setting on a data source is deprecated and has no effect. Set `region` in the [dataset settings](esql-data-federation-dataset-settings.md#amazon-s3-region) instead, or omit it to let {{es}} detect the region automatically. When no `endpoint` is set, the SDK redirects transparently. When one is set, {{es}} issues a `HeadBucket` probe on the first request and caches the discovered region. The cache is cleared after a few minutes without requests, and the next request discovers the region again.
 
     {applies_to}`stack: experimental =9.5` Set `region` on the data source. Datasets don't accept a `region` setting.
 
@@ -91,8 +91,15 @@ $$$auth$$$
 `auth`
 :   The authentication model the data source uses.
 
-    - **Default:** None. Required.
-    - **Valid values:** `anonymous`, `static_credentials`, `managed_identity`, `federated_identity`
+    - **Default:** `auto`
+    - **Valid values:**
+      - `auto`: Infers the model from the other settings. Federated identity settings such as `role_arn` select `federated_identity`. Otherwise, `access_key` and `secret_key` select `static_credentials`. A data source with neither is rejected. `auto` never selects `anonymous` or `managed_identity`, so set those explicitly.
+      - `anonymous`
+      - `static_credentials`
+      - `managed_identity`
+      - `federated_identity`
+
+    The **Requires** line on each of the following settings names the model the setting belongs to. When `auth` is `auto` or omitted, it refers to the model {{es}} infers.
 
 $$$access-key$$$
 
@@ -167,6 +174,8 @@ $$$sts-region$$$
 `sts_region`
 :   The AWS region of the STS endpoint.
 
-    - **Default:** The `region` setting, or `us-east-1` if no region is set
+    - **Default:** The dataset's `region` setting, or `us-east-1` if the dataset has no region
     - **Requires:** `auth` set to `federated_identity`
-    - **Related:** `sts_endpoint`, `region`
+    - **Related:** `sts_endpoint`, and `region` in the [dataset settings](esql-data-federation-dataset-settings.md#amazon-s3-region)
+
+    {applies_to}`stack: experimental 9.6+` A `region` set on the data source no longer applies to STS. If a `federated_identity` data source relied on it, set `sts_region` on the data source, or `region` on each dataset, to keep calling STS in that region.

@@ -753,6 +753,7 @@ redirects:
   # ES|QL Data Federation: S3 data source settings split out of the data sources page
   'reference/query-languages/esql/esql-data-federation-sources.md':
     to: 'reference/query-languages/esql/esql-data-federation-sources.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
     many:
       - to: 'reference/query-languages/esql/esql-data-federation-data-source-settings.md'
         anchors:

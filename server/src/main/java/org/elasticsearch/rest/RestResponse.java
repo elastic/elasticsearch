@@ -11,13 +11,17 @@ package org.elasticsearch.rest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -28,8 +32,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -145,13 +150,7 @@ public final class RestResponse implements Releasable {
         this.status = status;
         ToXContent.Params params = channel.request();
         if (e != null) {
-            Supplier<?> messageSupplier = () -> String.format(
-                Locale.ROOT,
-                "path: %s, params: %s, status: %d",
-                channel.request().rawPath(),
-                channel.request().params(),
-                status.getStatus()
-            );
+            Supplier<?> messageSupplier = () -> suppressedErrorMessage(channel, status, e);
             if (status.getStatus() < 500) {
                 SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
             } else {
@@ -276,5 +275,99 @@ public final class RestResponse implements Releasable {
     @Override
     public void close() {
         Releasables.closeExpectNoException(releasable);
+    }
+
+    /**
+     * The result of walking a cause chain: the throwable that ended it, and the deepest throwable on it that is scoped to an
+     * index. These are usually different, because the failure that ended the chain is typically a plain exception carrying no
+     * index while the shard it happened on is recorded further up.
+     */
+    record CauseChain(Throwable deepest, @Nullable ElasticsearchException indexScoped) {}
+
+    /**
+     * Walks the cause chain of the given throwable once and summarises it. Unlike
+     * {@link ExceptionsHelper#unwrapCause} this does not stop at the first throwable that is not an
+     * {@code ElasticsearchWrapperException}, and unlike {@link ElasticsearchException#guessRootCauses} it reports the original
+     * throwable rather than an {@link ElasticsearchException} standing in for it. Suppressed throwables are not visited, so the
+     * walk is bounded by the depth of the chain.
+     */
+    static CauseChain walkCauseChain(Throwable t) {
+        // NOTE: a cause chain can be cyclic, since initCause accepts any throwable other than the one it is called on
+        final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        Throwable current = t;
+        ElasticsearchException indexScoped = null;
+        seen.add(current);
+        while (true) {
+            if (current instanceof ElasticsearchException elasticsearchException && elasticsearchException.getIndex() != null) {
+                indexScoped = elasticsearchException;
+            }
+            final Throwable cause = current.getCause();
+            if (cause == null || seen.add(cause) == false) {
+                return new CauseChain(current, indexScoped);
+            }
+            current = cause;
+        }
+    }
+
+    private static ESLogMessage suppressedErrorMessage(RestChannel channel, RestStatus status, Exception e) {
+        final CauseChain causes = walkCauseChain(e);
+        final Throwable rootCause = causes.deepest();
+        final ESLogMessage message = new SuppressedErrorMessage(channel.request().rawPath(), channel.request().params(), status.getStatus())
+            .field("elasticsearch.rest.handler", channel.handlerName())
+            .field("url.path", channel.request().rawPath())
+            .field("http.response.status_code", status.getStatus())
+            .field("elasticsearch.error.root_cause.type", rootCause.getClass().getName())
+            .field("elasticsearch.error.root_cause.message", rootCause.getMessage());
+        addFailureLocation(message, e, causes);
+        return message;
+    }
+
+    private static void addFailureLocation(ESLogMessage message, Exception e, CauseChain causes) {
+        if (causes.indexScoped() != null) {
+            message.field("elasticsearch.error.index", causes.indexScoped().getIndex().getName());
+            if (causes.indexScoped().getShardId() != null) {
+                message.field("elasticsearch.error.shard", causes.indexScoped().getShardId().getId());
+            }
+        } else if (ExceptionsHelper.unwrap(e, SearchPhaseExecutionException.class) instanceof SearchPhaseExecutionException search) {
+            // NOTE: a shard failure records where it happened on the ShardSearchFailure rather than on the exception it wraps, so
+            // the cause chain carries no index. The search failure is looked up on the chain because cross cluster search wraps it
+            // NOTE: a coordinator failure is passed to the exception explicitly and then wins over the guessed shard cause, so the
+            // shard is attached only when the recorded cause is the one that shard failed with. Identity is required because two
+            // unrelated failures can share a class and a message, which means the fallback is skipped once transport
+            // serialization has rebuilt the cause and the shard failures as separate objects
+            final ShardSearchFailure[] shardFailures = search.shardFailures();
+            if (shardFailures.length > 0
+                && shardFailures[0].index() != null
+                && walkCauseChain(shardFailures[0].getCause()).deepest() == causes.deepest()) {
+                message.field("elasticsearch.error.index", shardFailures[0].index());
+                message.field("elasticsearch.error.shard", shardFailures[0].shardId());
+            }
+        }
+    }
+
+    /**
+     * Carries the {@code rest.suppressed} fields as a map so that the JSON layouts write them as top level fields, while still
+     * rendering as the plain message for appenders that write {@code %m}.
+     */
+    private static final class SuppressedErrorMessage extends ESLogMessage {
+
+        SuppressedErrorMessage(String path, Map<String, String> params, int status) {
+            // NOTE: the arguments are spelled out rather than forwarded as a varargs array so that the logger usage check can
+            // determine their count statically
+            super("path: {}, params: {}, status: {}", path, params, status);
+        }
+
+        @Override
+        public String getFormattedMessage() {
+            // NOTE: MapMessage renders every field here, which would change the console log line for every REST error
+            return ParameterizedMessage.format(getMessagePattern(), getArguments());
+        }
+
+        @Override
+        public void formatTo(StringBuilder buffer) {
+            // NOTE: PatternLayout renders %m through this overload rather than getFormattedMessage, so both have to be restricted
+            // to the message for the plain text appenders to stay unchanged
+            buffer.append(getFormattedMessage());
+        }
     }
 }

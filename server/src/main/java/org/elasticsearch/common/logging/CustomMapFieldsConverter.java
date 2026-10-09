@@ -16,6 +16,10 @@ import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
 
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 /**
  * Pattern converter to populate CustomMapFields in a pattern.
  * This is to be used with custom ElasticSearch log messages
@@ -25,21 +29,33 @@ import org.apache.logging.log4j.core.pattern.PatternConverter;
 @ConverterKeys({ "CustomMapFields" })
 public final class CustomMapFieldsConverter extends LogEventPatternConverter {
 
-    public CustomMapFieldsConverter() {
+    private final Set<String> excludedFields;
+
+    public CustomMapFieldsConverter(Set<String> excludedFields) {
         super("CustomMapFields", "CustomMapFields");
+        this.excludedFields = excludedFields;
     }
 
     /**
      * Called by log4j2 to initialize this converter.
      */
     public static CustomMapFieldsConverter newInstance(final Configuration config, final String[] options) {
-        return new CustomMapFieldsConverter();
+        // NOTE: the options carry the fields the layout writes itself, which this converter must not emit again. They are split
+        // here because a pattern parser may hand them over either as one comma separated option or as several
+        final Set<String> excludedFields = options == null
+            ? Set.of()
+            : Arrays.stream(options)
+                .flatMap(option -> Arrays.stream(option.split(",")))
+                .map(String::trim)
+                .filter(field -> field.isEmpty() == false)
+                .collect(Collectors.toUnmodifiableSet());
+        return new CustomMapFieldsConverter(excludedFields);
     }
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
         if (event.getMessage() instanceof ESLogMessage logMessage) {
-            logMessage.addJsonNoBrackets(toAppendTo);
+            logMessage.addJsonNoBrackets(toAppendTo, excludedFields);
         }
     }
 }

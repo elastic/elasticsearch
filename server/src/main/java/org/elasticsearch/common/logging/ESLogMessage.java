@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A base class for custom log4j logger messages. Carries additional fields which will populate JSON fields in logs.
@@ -71,10 +72,23 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
      * @param sb a string builder where JSON fields will be attached
      */
     protected void addJsonNoBrackets(StringBuilder sb) {
+        addJsonNoBrackets(sb, Set.of());
+    }
+
+    /**
+     * As {@link #addJsonNoBrackets(StringBuilder)}, skipping fields the layout has already written itself so that they are not
+     * emitted twice.
+     */
+    protected void addJsonNoBrackets(StringBuilder sb, Set<String> excludedFields) {
+        boolean first = true;
         for (int i = 0; i < getIndexedReadOnlyStringMap().size(); i++) {
-            if (i > 0) {
+            if (excludedFields.contains(getIndexedReadOnlyStringMap().getKeyAt(i))) {
+                continue;
+            }
+            if (first == false) {
                 sb.append(", ");
             }
+            first = false;
             sb.append(Chars.DQUOTE);
             int start = sb.length();
             sb.append(getIndexedReadOnlyStringMap().getKeyAt(i));

@@ -49,6 +49,14 @@ public interface RestChannel {
     RestRequest request();
 
     /**
+     * The name of the {@link RestHandler} serving this request, or {@code null} when the request was not routed to one, for
+     * instance because no handler matched the path.
+     */
+    default String handlerName() {
+        return null;
+    }
+
+    /**
      * @return true iff an error response should contain additional details like exception traces.
      */
     boolean detailedErrorsEnabled();

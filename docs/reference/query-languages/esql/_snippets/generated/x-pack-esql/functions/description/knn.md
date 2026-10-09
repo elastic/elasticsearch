@@ -2,5 +2,24 @@
 
 ## Description
 
-Finds the k nearest vectors to a query vector, as measured by a similarity metric. knn function finds nearest vectors through approximate search on indexed dense_vectors or semantic_text fields.
+Finds the k nearest vectors to a query vector, as measured by a similarity metric. knn function finds nearest vectors through approximate search on indexed dense_vectors or semantic_text fields. On dense_vector expressions that are not backed by an index, it performs exact, brute-force search over every row.
+
+`KNN` function in ES|QL performs [approximate kNN search](docs-content://solutions/search/vector/knn/approximate-knn.md)
+on dense_vector and semantic_text fields with indexing enabled. This function
+delegates search to the underlying vector search index such as [`disk_bbq`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk).
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+`KNN` also works with dense_vector expressions that are not backed by an index. When the `field` parameter is a dense_vector expression rather than an indexed field, the semantics of the function change in
+the following ways:
+
+1. The function performs exact, brute-force scoring over every row. There is no pre-generated vector search index, nor is one generated at runtime.
+2. Only `similarity` and `boost` options are supported. Other options such as `k`, `min_candidates`, and `visit_percentage` are ignored.
+3. The function filters rows by the similarity threshold (if specified) and generates a relevance score in `[0, 1]` (when `METADATA _score` is requested).
+4. To retrieve the k-nearest vectors, apply an explicit sort and limit: `SORT _score DESC | LIMIT 10`
+5. `similarity_function` option can be used to override the default similarity metric of `cosine`. Other supported
+   values are `dot_product`, `l2_norm`, and `max_inner_product`.
+
+:::{tip}
+Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+:::
 

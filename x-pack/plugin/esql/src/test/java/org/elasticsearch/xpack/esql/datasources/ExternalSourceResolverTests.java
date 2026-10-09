@@ -51,6 +51,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
+import org.elasticsearch.xpack.esql.datasources.cache.DatasetAggregateKey;
+import org.elasticsearch.xpack.esql.datasources.cache.DatasetIdentity;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.FileMetadataCacheKey;
@@ -58,6 +60,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.cache.TestDatasetIdentities;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
@@ -67,6 +70,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
@@ -107,6 +111,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -117,6 +122,7 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -130,8 +136,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -140,6 +148,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
@@ -166,7 +175,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -250,6 +259,26 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Exception e = ex;
         assertThat(e.getMessage(), containsString("cannot be read from the file's type [boolean]"));
         assertThat("the type check fires first, not the format check", e.getMessage(), not(containsString("[format] on column")));
+    }
+
+    /**
+     * Under {@code dynamic: true} a declared column a complete (columnar) schema lacks is kept at its declared type
+     * instead of rejecting the dataset, and resolution warns with the physical name, as the readers do, so a query
+     * that never reads the column still carries the warning.
+     */
+    public void testNonStrictOverlayKeepsDeclaredColumnAbsentFromCompleteSchemaAndWarns() throws Exception {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("dept", new DatasetFieldMapping("keyword", "department"));
+        ExternalSourceResolution resolution = resolveWithDeclaredMapping(
+            List.of(attr("id", DataType.LONG)),
+            props,
+            DatasetMapping.Dynamic.TRUE
+        );
+
+        List<Attribute> schema = resolution.resolvedSource(DECLARED_GLOB).metadata().schema();
+        assertEquals(List.of("id", "dept"), schema.stream().map(Attribute::name).toList());
+        assertEquals(DataType.KEYWORD, schema.get(1).dataType());
+        assertThat(resolution.warnings(), hasItem(SkipWarnings.absentColumnMessage("department")));
     }
 
     private static final String DECLARED_GLOB = "s3://bucket/data/*.parquet";
@@ -491,6 +520,148 @@ public class ExternalSourceResolverTests extends ESTestCase {
             future
         );
         return future.actionGet();
+    }
+
+    // ===== schema_max_fields on the resolver's declared and union rails =====
+
+    /**
+     * A declaration wider than the dataset's {@code schema_max_fields} is refused on both glob rails: strict
+     * ({@code dynamic: false}) and the non-strict overlay ({@code dynamic: true}). Each rail runs its own
+     * {@code checkDeclaredWidth}, so dropping either one fails its half. At the cap both rails resolve.
+     */
+    public void testDeclaredWidthOverCapIsRefusedOnGlobStrictAndOverlay() throws Exception {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("a", new DatasetFieldMapping("long", null));
+        props.put("b", new DatasetFieldMapping("long", null));
+        List<Attribute> fileSchema = List.of(attr("a", DataType.LONG), attr("b", DataType.LONG));
+        for (DatasetMapping.Dynamic dynamic : List.of(DatasetMapping.Dynamic.FALSE, DatasetMapping.Dynamic.TRUE)) {
+            Exception e = expectThrows(
+                Exception.class,
+                () -> resolveDeclaredWithConfig(fileSchema, props, dynamic, Map.of("schema_max_fields", 1), null)
+            );
+            assertThat("dynamic=" + dynamic, e.getMessage(), containsString("declares [2] columns, more than the [1] allowed"));
+            assertEquals("dynamic=" + dynamic, RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+            assertNotNull(
+                "dynamic=" + dynamic,
+                resolveDeclaredWithConfig(fileSchema, props, dynamic, Map.of("schema_max_fields", 2), null).resolvedSource(DECLARED_GLOB)
+            );
+        }
+    }
+
+    /**
+     * The strict rail's coercibility probe reads the anchor's footer with the cap raised to its ceiling: a declared
+     * dataset is not capped by how many columns its files have. The inferred rail keeps the dataset's cap. The stub
+     * reader enforces {@code schema_max_fields} from its config, as Parquet does.
+     */
+    public void testStrictDeclaredProbeLiftsTheReaderCap() throws Exception {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("a", new DatasetFieldMapping("long", null));
+        List<Attribute> fileSchema = List.of(attr("a", DataType.LONG), attr("b", DataType.LONG), attr("c", DataType.LONG));
+        List<Object> capsSeen = new CopyOnWriteArrayList<>();
+        Map<String, Object> config = Map.of("schema_max_fields", 2);
+
+        ExternalSourceResolution strict = resolveDeclaredWithConfig(fileSchema, props, DatasetMapping.Dynamic.FALSE, config, capsSeen);
+        assertNotNull(strict.resolvedSource(DECLARED_GLOB));
+        assertThat("the probe read the footer at the ceiling", capsSeen, hasItem(ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS));
+
+        List<Object> inferredCaps = new CopyOnWriteArrayList<>();
+        Exception e = expectThrows(
+            Exception.class,
+            () -> resolveDeclaredWithConfig(fileSchema, props, DatasetMapping.Dynamic.TRUE, config, inferredCaps)
+        );
+        assertThat(e.getMessage(), containsString("more than [2] columns"));
+    }
+
+    /** The merged schema under {@code union_by_name} is held to the dataset's cap, though each file is under it. */
+    public void testUnionByNameMergedWidthOverDatasetCapIsRefused() throws Exception {
+        Map<String, List<Attribute>> schemasByPath = Map.of(
+            "s3://bucket/data/file1.parquet",
+            List.of(attr("a", DataType.LONG), attr("b", DataType.LONG)),
+            "s3://bucket/data/file2.parquet",
+            List.of(attr("c", DataType.LONG), attr("d", DataType.LONG))
+        );
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/file1.parquet", 100), entry("s3://bucket/data/file2.parquet", 100));
+        Map<String, Object> capped = new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
+        capped.put("schema_max_fields", 3);
+        Exception e = expectThrows(Exception.class, () -> resolveMultiFileWithConfig(DECLARED_GLOB, schemasByPath, listing, capped));
+        assertThat(e.getMessage(), containsString("the union of the files' columns has more than [3] columns"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+
+        capped.put("schema_max_fields", 4);
+        ExternalSourceResolution atCap = resolveMultiFileWithConfig(DECLARED_GLOB, schemasByPath, listing, capped);
+        assertEquals(4, atCap.resolvedSource(DECLARED_GLOB).metadata().schema().size());
+    }
+
+    /**
+     * Resolves a one-file parquet glob under a declared mapping with the given dataset config. When {@code capsSeen} is
+     * non-null the reader enforces {@code schema_max_fields} from its config (default 1000) and records each cap it
+     * was configured with.
+     */
+    private ExternalSourceResolution resolveDeclaredWithConfig(
+        List<Attribute> fileSchema,
+        Map<String, DatasetFieldMapping> properties,
+        DatasetMapping.Dynamic dynamic,
+        Map<String, Object> config,
+        @Nullable List<Object> capsSeen
+    ) throws Exception {
+        String file = "s3://bucket/data/file1.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(file, fileSchema);
+        Map<String, List<StorageEntry>> listingsByPrefix = Map.of(
+            StoragePath.of(DECLARED_GLOB).patternPrefix().toString(),
+            List.of(entry(file, 100))
+        );
+        ExternalSourceResolver resolver = capsSeen == null
+            ? createResolver(schemasByPath, listingsByPrefix)
+            : createResolverWithReader(
+                new StubStorageProvider(listingsByPrefix, schemasByPath),
+                new CapEnforcingStubReader(schemasByPath, ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS, capsSeen),
+                null
+            );
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties));
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of(DECLARED_GLOB),
+            Map.of(DECLARED_GLOB, new HashMap<>(config)),
+            null,
+            Map.of(DECLARED_GLOB, mapping),
+            null,
+            future
+        );
+        return future.actionGet();
+    }
+
+    /** A stub reader that refuses a file wider than its configured {@code schema_max_fields}, the way Parquet does. */
+    private static class CapEnforcingStubReader extends StubFormatReader {
+        private final Map<String, List<Attribute>> schemas;
+        private final int cap;
+        private final List<Object> capsSeen;
+
+        CapEnforcingStubReader(Map<String, List<Attribute>> schemas, int cap, List<Object> capsSeen) {
+            super(schemas);
+            this.schemas = schemas;
+            this.cap = cap;
+            this.capsSeen = capsSeen;
+        }
+
+        @Override
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            Object configured = config == null ? null : config.get("schema_max_fields");
+            if (configured == null) {
+                return Configured.empty(this);
+            }
+            capsSeen.add(configured);
+            int newCap = ((Number) configured).intValue();
+            return Configured.fromKnownSubset(new CapEnforcingStubReader(schemas, newCap, capsSeen), config, Set.of("schema_max_fields"));
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            SourceMetadata metadata = super.metadata(object);
+            if (metadata.schema().size() > cap) {
+                throw ExternalClientException.schemaTooWide("file has more than [" + cap + "] columns");
+            }
+            return metadata;
+        }
     }
 
     /**
@@ -1730,6 +1901,71 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * No row counts (the text shape) kills the fold on the first file, and a non-cacheable provider leaves
+     * nothing to warm, so the gather drains. {@link #testFirstFileWinsEagerlyReadsFootersWhenStatsRequired}
+     * is the footer control at 4 reads on the same listing. The direct executor makes this serial, so it pins
+     * the one-extra-read case; production dispatches up to DEFAULT_METADATA_READ_CONCURRENCY before the
+     * first result lands.
+     */
+    public void testStatsGatherStopsOnceTheFoldIsDeadAndNothingWillBeCached() throws Exception {
+        AtomicInteger metadataReads = new AtomicInteger();
+        ThreeFileStats withoutRowCounts = new ThreeFileStats(threeFileSchemas(), Map.of());
+        ExternalSourceResolution resolution = resolveFfwWithRequirement(withoutRowCounts, metadataReads, Set.of(GLOB), null);
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(GLOB);
+        assertNotNull(resolved);
+        assertEquals("anchor footer plus the single read that kills the fold", 2, metadataReads.get());
+        Map<String, Object> meta = resolved.metadata().sourceMetadata();
+        assertEquals("an unfinished fold leaves stats partial", Boolean.TRUE, meta.get(SourceStatisticsSerializer.STATS_PARTIAL));
+        assertEquals("file count still comes from the listing, not the gather", 3L, meta.get(SourceStatisticsSerializer.STATS_FILE_COUNT));
+    }
+
+    /**
+     * Same dead fold, but the entries will be kept, so the gather reads every file: warming the per-file
+     * rail is worth the reads on its own. Differs from
+     * {@link #testStatsGatherStopsOnceTheFoldIsDeadAndNothingWillBeCached} in being cacheable at all; the
+     * budget-only contrast is {@link #testStatsGatherStopsWhenTheSchemaBudgetRefusesTheFanOut}. A rule keyed
+     * on the format would stop here and be wrong.
+     */
+    public void testStatsGatherStillFansOutWhenTheCacheWillKeepTheEntries() throws Exception {
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            AtomicInteger metadataReads = new AtomicInteger();
+            StubStorageProvider provider = new StubStorageProvider(Map.of(PREFIX, threeFileListing()), threeFileSchemas());
+            ThreeFileStats withoutRowCounts = new ThreeFileStats(threeFileSchemas(), Map.of());
+            ExternalSourceResolver resolver = buildStatsResolver(provider, withoutRowCounts, metadataReads, cacheService);
+
+            ExternalSourceResolution resolution = resolveFfw(resolver, Set.of(GLOB));
+            assertNotNull(resolution.resolvedSource(GLOB));
+            // Anchor read (1) plus the two non-anchor files; the anchor itself is served from the schema
+            // cache inside the stats loop, as testFirstFileWinsEagerCacheableColdLoadsAllFiles pins. The
+            // number that matters is that it is not 2: the gather did not stop.
+            assertEquals("an admitted fan-out keeps reading: the entries it writes are the point", 3, metadataReads.get());
+        }
+    }
+
+    /**
+     * Cacheable, but the listing overruns the schema budget so admission refuses after sizing the first entry.
+     * With the fold dead too there is nothing left to buy — the partitioned-tree case.
+     */
+    public void testStatsGatherStopsWhenTheSchemaBudgetRefusesTheFanOut() throws Exception {
+        Settings tinyCache = Settings.builder()
+            .put("esql.external.cache.size", "1kb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(tinyCache)) {
+            AtomicInteger metadataReads = new AtomicInteger();
+            StubStorageProvider provider = new StubStorageProvider(Map.of(PREFIX, threeFileListing()), threeFileSchemas());
+            ThreeFileStats withoutRowCounts = new ThreeFileStats(threeFileSchemas(), Map.of());
+            ExternalSourceResolver resolver = buildStatsResolver(provider, withoutRowCounts, metadataReads, cacheService);
+
+            ExternalSourceResolution resolution = resolveFfw(resolver, Set.of(GLOB));
+            assertNotNull(resolution.resolvedSource(GLOB));
+            assertEquals("a refused fan-out stops at the sizing read", 2, metadataReads.get());
+        }
+    }
+
+    /**
      * Legacy {@code null} overload: a {@code null} {@code pathsRequiringStats} keeps the original
      * eager-for-every-path behavior, so all footers are read regardless of query shape.
      */
@@ -1943,6 +2179,74 @@ public class ExternalSourceResolverTests extends ESTestCase {
         SchemaReconciliation.FileSchemaInfo driftInfo = future.actionGet().resolvedSource(GLOB).schemaMap().get(StoragePath.of(driftPath));
         assertNotNull(driftInfo);
         assertNull(driftInfo.inferredTypes());
+    }
+
+    /**
+     * Under union_by_name a declared column one file stores under a type it cannot be read as (here integer for a
+     * declared boolean, while the unified keyword is readable) is rejected at resolution under fail_fast, with the
+     * message a data node reading that file reports. Under null_field or skip_row resolution leaves it to the readers,
+     * which apply the policy to that file.
+     */
+    public void testNonStrictOverlayPerFileDriftFollowsErrorMode() throws Exception {
+        String readablePath = "s3://bucket/data/a.parquet";
+        String driftPath = "s3://bucket/data/b.parquet";
+        for (String errorMode : List.of("fail_fast", "null_field", "skip_row")) {
+            Map<String, List<Attribute>> schemas = new HashMap<>();
+            schemas.put(readablePath, List.of(attr("x", DataType.BOOLEAN)));
+            schemas.put(driftPath, List.of(attr("x", DataType.INTEGER)));
+            ThreeFileStats stats = new ThreeFileStats(schemas, Map.of(readablePath, 2L, driftPath, 2L));
+            List<StorageEntry> listing = List.of(entry(readablePath, 100), entry(driftPath, 200));
+            CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
+            ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null);
+            DatasetMapping mapping = new DatasetMapping(
+                new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("x", new DatasetFieldMapping("boolean", null)))
+            );
+            Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
+            config.put("error_mode", errorMode);
+
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(GLOB), Map.of(GLOB, config), null, Map.of(GLOB, mapping), Set.of(), future);
+            if (errorMode.equals("fail_fast")) {
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+                assertEquals(
+                    DeclaredTypeCoercions.uncoercibleColumnFailure("x", "b.parquet", DataType.INTEGER, DataType.BOOLEAN),
+                    e.getMessage()
+                );
+            } else {
+                ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(GLOB);
+                assertEquals(DataType.BOOLEAN, resolved.metadata().schema().get(0).dataType());
+            }
+        }
+    }
+
+    /**
+     * Under first_file_wins a later file whose declared column drifts to an uncoercible type is left to the readers
+     * even under fail_fast, also when the eager stats gather has recorded that file's own types: a plan-time check on
+     * them would fail a query only for the shapes (or cache states) that gather, whether or not it reads the column.
+     */
+    public void testFirstFileWinsDriftOfDeclaredColumnIsLeftToTheReaders() throws Exception {
+        String anchorPath = "s3://bucket/data/a.parquet";
+        String driftPath = "s3://bucket/data/b.parquet";
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put(anchorPath, List.of(attr("x", DataType.BOOLEAN)));
+        schemas.put(driftPath, List.of(attr("x", DataType.INTEGER)));
+        ThreeFileStats stats = new ThreeFileStats(schemas, Map.of(anchorPath, 2L, driftPath, 2L));
+        List<StorageEntry> listing = List.of(entry(anchorPath, 100), entry(driftPath, 200));
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
+        ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null);
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("x", new DatasetFieldMapping("boolean", null)))
+        );
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        config.put("error_mode", "fail_fast");
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(GLOB), Map.of(GLOB, config), null, Map.of(GLOB, mapping), Set.of(GLOB), future);
+        ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(GLOB);
+
+        assertEquals(DataType.BOOLEAN, resolved.metadata().schema().get(0).dataType());
+        SchemaReconciliation.FileSchemaInfo driftInfo = resolved.schemaMap().get(StoragePath.of(driftPath));
+        assertEquals("the eager gather recorded the drifted file's own type", Map.of("x", DataType.INTEGER), driftInfo.inferredTypes());
     }
 
     public void testPartitionedNonStrictRenamePreservesMissingFirstFileWinsNativeTypes() throws Exception {
@@ -2649,20 +2953,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNull(
             "an implicit-nulls (footer) format must not carry a row-count-only dataset aggregate",
-            resolver.datasetAggregateKey(parquetListing, "", Map.of())
+            resolver.datasetAggregateKey(parquetListing, "", "", Map.of())
         );
 
         FileList textListing = GlobExpander.fileListOf(
             List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
             "s3://bucket/data/*.ndjson"
         );
-        SchemaCacheKey textKey = resolver.datasetAggregateKey(textListing, "", Map.of());
+        DatasetAggregateKey textKey = resolver.datasetAggregateKey(textListing, "", "", Map.of());
         assertNotNull("a text-format listing must qualify (positive control)", textKey);
-        assertEquals(
-            "formatType is the registry name, not a last-dot suffix",
-            "ndjson" + SchemaCacheKey.DATASET_AGGREGATE_MARKER,
-            textKey.formatType()
-        );
+        // No isDatasetAggregate() to assert any more: datasetAggregateKey returns a DatasetAggregateKey,
+        // so a per-file consumer cannot be handed one and the distinction is the type rather than a flag.
     }
 
     /**
@@ -2679,7 +2980,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNull(
             "an unregistered extension must refuse the aggregate, not throw",
-            resolver.datasetAggregateKey(unknownListing, "", Map.of())
+            resolver.datasetAggregateKey(unknownListing, "", "", Map.of())
         );
     }
 
@@ -2696,13 +2997,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNull(
             "format=parquet must gate .ndjson-named files as parquet (config wins over extension)",
-            resolver.datasetAggregateKey(ndjsonNamed, "", Map.of("format", "parquet"))
+            resolver.datasetAggregateKey(ndjsonNamed, "", "", Map.of("format", "parquet"))
         );
     }
 
     /**
      * Compressed siblings of one format share one aggregate key regardless of listing order.
-     * Last-dot of {@code path(0)} would mint {@code .csv#dataset-agg} vs {@code .gz#dataset-agg}.
+     * Last-dot of {@code path(0)} would resolve the format from {@code .csv} on one ordering and {@code .gz} on
+     * the other, so the two would not share an identity.
      */
     public void testDatasetAggregateKeyStableAcrossCsvGzListingOrder() {
         ExternalSourceResolver resolver = datasetGateResolver(null);
@@ -2714,11 +3016,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("s3://bucket/data/a.csv", csvThenGz.path(0).toString());
         assertEquals("s3://bucket/data/b.csv.gz", gzThenCsv.path(0).toString());
         assertEquals(csvThenGz.fileSetFingerprint(), gzThenCsv.fileSetFingerprint());
-        SchemaCacheKey keyA = resolver.datasetAggregateKey(csvThenGz, "", Map.of());
-        SchemaCacheKey keyB = resolver.datasetAggregateKey(gzThenCsv, "", Map.of());
+        DatasetAggregateKey keyA = resolver.datasetAggregateKey(csvThenGz, "", "", Map.of());
+        DatasetAggregateKey keyB = resolver.datasetAggregateKey(gzThenCsv, "", "", Map.of());
         assertNotNull("csv+csv.gz must qualify for a dataset aggregate key", keyA);
         assertEquals(keyA, keyB);
-        assertEquals("csv" + SchemaCacheKey.DATASET_AGGREGATE_MARKER, keyA.formatType());
     }
 
     /**
@@ -2734,49 +3035,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
         FileList parqThenParquet = GlobExpander.fileListOf(List.of(parq, parquet), pattern);
         assertEquals("s3://bucket/data/a.parquet", parquetThenParq.path(0).toString());
         assertEquals("s3://bucket/data/b.parq", parqThenParquet.path(0).toString());
-        assertEquals("parquet", resolver.detectFormatType(parquetThenParq.path(0), Map.of()));
-        assertEquals("parquet", resolver.detectFormatType(parqThenParquet.path(0), Map.of()));
         assertEquals(parquetThenParq.fileSetFingerprint(), parqThenParquet.fileSetFingerprint());
         assertEquals(
-            resolver.datasetAggregateKey(parquetThenParq, "", Map.of()),
-            resolver.datasetAggregateKey(parqThenParquet, "", Map.of())
+            resolver.datasetAggregateKey(parquetThenParq, "", "", Map.of()),
+            resolver.datasetAggregateKey(parqThenParquet, "", "", Map.of())
         );
         assertNull(
             "parquet (including .parq) still refuses the row-count-only aggregate",
-            resolver.datasetAggregateKey(parquetThenParq, "", Map.of())
+            resolver.datasetAggregateKey(parquetThenParq, "", "", Map.of())
         );
-    }
-
-    /**
-     * Per-file cache keys use the registry format name. Distinct paths stay distinct keys; an
-     * unrecognized extension falls back to {@link FormatNameResolver#extractCleanExtension} without throwing.
-     * A whole-file compression veto must not last-dot to {@code gz}.
-     */
-    public void testDetectFormatTypeUsesRegistryNameNotLastDot() {
-        ExternalSourceResolver resolver = datasetGateResolver(null);
-        assertEquals("parquet", resolver.detectFormatType(StoragePath.of("s3://b/file.parq"), Map.of()));
-        assertEquals("parquet", resolver.detectFormatType(StoragePath.of("s3://b/file.parquet"), Map.of()));
-        assertEquals("parquet", resolver.detectFormatType(StoragePath.of("s3://b/file.parquet.gz"), Map.of()));
-        assertEquals("csv", resolver.detectFormatType(StoragePath.of("s3://b/hits.csv.gz"), Map.of()));
-        assertEquals("csv", resolver.detectFormatType(StoragePath.of("s3://b/file.log"), Map.of("format", "csv")));
-        assertEquals("log", resolver.detectFormatType(StoragePath.of("s3://b/file.log"), Map.of()));
-        SchemaCacheKey parqKey = SchemaCacheKey.build(
-            "s3://b/file.parq",
-            1L,
-            resolver.detectFormatType(StoragePath.of("s3://b/file.parq"), Map.of()),
-            "",
-            Map.of()
-        );
-        SchemaCacheKey parquetKey = SchemaCacheKey.build(
-            "s3://b/file.parquet",
-            1L,
-            resolver.detectFormatType(StoragePath.of("s3://b/file.parquet"), Map.of()),
-            "",
-            Map.of()
-        );
-        assertNotEquals(parqKey, parquetKey);
-        assertEquals("parquet", parqKey.formatType());
-        assertEquals("parquet", parquetKey.formatType());
     }
 
     /**
@@ -2793,7 +3060,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             String path = "s3://bucket/data/a.ndjson";
             FileList duplicated = GlobExpander.fileListOf(List.of(entry(path, 100), entry(path, 100)), path + "," + path);
-            SchemaCacheKey duplicatedKey = resolver.datasetAggregateKey(duplicated, "", Map.of());
+            DatasetAggregateKey duplicatedKey = resolver.datasetAggregateKey(duplicated, "", "", Map.of());
             assertNotNull("the key factory itself does not police duplicates", duplicatedKey);
             Map<String, Object> served = resolver.applyDatasetAggregate(
                 null,
@@ -2810,7 +3077,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
                 "s3://bucket/data/*.ndjson"
             );
-            SchemaCacheKey distinctKey = resolver.datasetAggregateKey(distinct, "", Map.of());
+            DatasetAggregateKey distinctKey = resolver.datasetAggregateKey(distinct, "", "", Map.of());
             resolver.applyDatasetAggregate(
                 null,
                 new ExternalSourceResolver.DatasetAggregatePrefetch(distinctKey, null),
@@ -2839,7 +3106,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
                 "s3://bucket/data/*.ndjson"
             );
-            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, "", Map.of());
+            DatasetAggregateKey key = resolver.datasetAggregateKey(distinct, "", "", Map.of());
 
             // First warm resolve, prefetch missed (null): the successful merge writes through.
             resolver.applyDatasetAggregate(
@@ -2887,7 +3154,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
                 "s3://bucket/data/*.ndjson"
             );
-            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, "", Map.of());
+            DatasetAggregateKey key = resolver.datasetAggregateKey(distinct, "", "", Map.of());
 
             // Needed (per-file merge null) AND present (prefetch hit) -> one hit, no miss.
             resolver.applyDatasetAggregate(
@@ -2912,6 +3179,271 @@ public class ExternalSourceResolverTests extends ESTestCase {
             );
             assertEquals(1L, cacheService.usageStats().get("dataset_aggregate.hits"));
             assertEquals(1L, cacheService.usageStats().get("dataset_aggregate.misses"));
+        }
+    }
+
+    /**
+     * The budget threshold itself, derived rather than hardcoded. Whether the stop fires at all is
+     * {@code fileCount * entry.estimatedBytes() > schemaBudget}, and {@code schemaBudget} is a fifth of
+     * {@code esql.external.cache.size} — so the firing condition is arithmetic on a number no API exposes.
+     * The entry is weighed by resolving once at a generous size and reading the retained weight back, not by
+     * building a bare {@link SchemaCacheEntry} from the fixture's schema: the live record carries its
+     * fingerprints and stamps in {@code safeMetadata} and weighs nearly twice what a metadata-less one does. A
+     * boundary inverted from the bare figure sits far below the real one, so both sides of it admit and a
+     * re-carved schema slice passes unnoticed — which is what this test did when its refusing side was a 44%
+     * undershoot and its admitting side 36x over.
+     */
+    public void testTheStopFiresOnlyOnceTheSchemaBudgetIsExceeded() throws Exception {
+        long[] probe = gatherStatsWithCacheBytes(1024L * 1024L);
+        assertEquals("the probe must retain every file's record, or the weight read back is not the fan-out's", 3L, probe[1]);
+        assertEquals("three files sharing one schema must weigh the same, or there is no single boundary", 0L, probe[2] % probe[1]);
+        long entryBytes = probe[2] / probe[1];
+        assertThat("a real entry must cost something, or the threshold below is meaningless", entryBytes, greaterThan(0L));
+
+        // The schema slice is a fifth of esql.external.cache.size (see ExternalSourceCacheService), so a total
+        // of (3e - 1) * 5 lands the slice one byte under fileCount * entryBytes and 3e * 5 lands it exactly on
+        // it. Inverted from the carve rather than hardcoded, so a reshare moves this boundary with it.
+        long refusingCacheBytes = (3 * entryBytes - 1) * 5;
+        long admittingCacheBytes = (3 * entryBytes) * 5;
+
+        assertEquals(
+            "one byte under the boundary admission refuses, so nothing is retained and the gather stops",
+            2,
+            gatherReadsWithCacheBytes(refusingCacheBytes)
+        );
+        // Three, not four: both resolves here are cacheable, so the anchor is served from the schema cache
+        // inside the stats loop and only the two non-anchor files are read. Four is the non-cacheable shape.
+        assertEquals(
+            "exactly at the boundary admission admits, so the fan-out completes and warms the rail",
+            3,
+            gatherReadsWithCacheBytes(admittingCacheBytes)
+        );
+    }
+
+    /**
+     * The refusal is now counted, so the verdict that forks the read path is observable. Pinned alongside the
+     * threshold test because a counter nobody asserts is a counter that silently stops incrementing.
+     */
+    public void testAdmissionRefusalIsCounted() throws Exception {
+        Settings refusing = Settings.builder()
+            .put("esql.external.cache.size", "1kb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(refusing)) {
+            assertEquals(0L, cacheService.usageStats().get("schema_fan_out.refused"));
+            String glob = "s3://bucket/nd/*.ndjson";
+            String a = "s3://bucket/nd/a.ndjson", b = "s3://bucket/nd/b.ndjson", c = "s3://bucket/nd/c.ndjson";
+            List<Attribute> schema = List.of(attr("x", DataType.LONG));
+            Map<String, List<Attribute>> schemas = Map.of(a, schema, b, schema, c, schema);
+            StubStorageProvider provider = new StubStorageProvider(
+                Map.of("s3://bucket/nd/", List.of(entry(a, 100), entry(b, 200), entry(c, 300))),
+                schemas
+            );
+            ExternalSourceResolver resolver = ndjsonPromiseResolver(provider, schemas, Map.of(), cacheService, null);
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(
+                List.of(glob),
+                Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))),
+                null,
+                null,
+                Set.of(glob),
+                future
+            );
+            assertNotNull(future.actionGet().resolvedSource(glob));
+            assertEquals("the refused fan-out must be counted once", 1L, cacheService.usageStats().get("schema_fan_out.refused"));
+            assertNotNull("the budget it was compared against is reported too", cacheService.usageStats().get("schema_budget_bytes"));
+        }
+    }
+
+    /** Three ndjson files, no row counts (dead fold), strict policy, at the given total cache size. */
+    private int gatherReadsWithCacheBytes(long cacheBytes) throws Exception {
+        return (int) gatherStatsWithCacheBytes(cacheBytes)[0];
+    }
+
+    /**
+     * {@code {reads, schema_cache.count, schema_cache.weight_bytes}} after one resolve of the three-file
+     * fixture at the given cache size. The weight is what lets a caller derive the real boundary instead of
+     * guessing at it; see {@link #testTheStopFiresOnlyOnceTheSchemaBudgetIsExceeded}.
+     */
+    private long[] gatherStatsWithCacheBytes(long cacheBytes) throws Exception {
+        Settings settings = Settings.builder()
+            .put("esql.external.cache.size", cacheBytes + "b")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            String glob = "s3://bucket/nd/*.ndjson";
+            String a = "s3://bucket/nd/a.ndjson", b = "s3://bucket/nd/b.ndjson", c = "s3://bucket/nd/c.ndjson";
+            List<Attribute> schema = List.of(attr("x", DataType.LONG));
+            Map<String, List<Attribute>> schemas = Map.of(a, schema, b, schema, c, schema);
+            List<StorageEntry> listing = List.of(entry(a, 100), entry(b, 200), entry(c, 300));
+            StubStorageProvider provider = new StubStorageProvider(Map.of("s3://bucket/nd/", listing), schemas);
+            AtomicInteger reads = new AtomicInteger();
+            ExternalSourceResolver resolver = ndjsonPromiseResolver(provider, schemas, Map.of(), cacheService, reads);
+
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(
+                List.of(glob),
+                Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))),
+                null,
+                null,
+                Set.of(glob),
+                future
+            );
+            assertNotNull(future.actionGet().resolvedSource(glob));
+            Map<String, Object> stats = cacheService.usageStats();
+            return new long[] {
+                reads.get(),
+                ((Number) stats.get("schema_cache.count")).longValue(),
+                ((Number) stats.get("schema_cache.weight_bytes")).longValue() };
+        }
+    }
+
+    /**
+     * The stop decision across every schema resolution and every error policy — nine cells, because the two axes
+     * that broke this change are the two nobody varied. A refused budget and a dead fold hold throughout, so the
+     * only thing moving is the pair under test.
+     * <p>
+     * {@code UNION_BY_NAME} and {@code STRICT} resolve through the reconciliation rail, which needs every file's
+     * schema whatever the fold is doing, so no error policy can make them stop. On {@code FIRST_FILE_WINS} only
+     * {@code skip_row} forces a full read, because only it strips the unread files' row counts at commit and so
+     * would leave the dataset-aggregate promise unfulfillable.
+     * <p>
+     * Three files, because the three outcomes collide at two. The reconciliation rail reads the N files with no
+     * separate anchor read; first_file_wins reads an anchor and then fans out. So a full reconciliation read is 3,
+     * a full first_file_wins read is 1 + 3 = 4, and a stop is the anchor plus the one read that settles the fold
+     * and the budget = 2. At two files the first and last are both 2 and the assertion proves nothing.
+     */
+    public void testStopDecisionAcrossSchemaResolutionsAndErrorPolicies() throws Exception {
+        for (FormatReader.SchemaResolution resolution : FormatReader.SchemaResolution.values()) {
+            for (String errorMode : List.of("fail_fast", "skip_row", "null_field")) {
+                int reads = gatherReadsFor(resolution, errorMode);
+                String cell = resolution + "/" + errorMode;
+                if (resolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
+                    assertEquals(cell + ": the reconciliation rail reads every file and never stops", 3, reads);
+                } else if (errorMode.equals("skip_row")) {
+                    assertEquals(cell + ": skip_row strips the unread counts, so the fan-out must complete", 4, reads);
+                } else {
+                    assertEquals(cell + ": nothing left to buy, so stop after the anchor and one read", 2, reads);
+                }
+            }
+        }
+    }
+
+    /** One cell of the matrix: three ndjson files, no row counts (dead fold), 1 kb cache (refusing budget). */
+    private int gatherReadsFor(FormatReader.SchemaResolution resolution, String errorMode) throws Exception {
+        Settings tinyCache = Settings.builder()
+            .put("esql.external.cache.size", "1kb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(tinyCache)) {
+            String glob = "s3://bucket/nd/*.ndjson";
+            String pathA = "s3://bucket/nd/a.ndjson";
+            String pathB = "s3://bucket/nd/b.ndjson";
+            String pathC = "s3://bucket/nd/c.ndjson";
+            List<Attribute> schema = List.of(attr("x", DataType.LONG));
+            Map<String, List<Attribute>> schemas = Map.of(pathA, schema, pathB, schema, pathC, schema);
+            List<StorageEntry> listing = List.of(entry(pathA, 100), entry(pathB, 200), entry(pathC, 300));
+            StubStorageProvider provider = new StubStorageProvider(Map.of("s3://bucket/nd/", listing), schemas);
+            AtomicInteger metadataReads = new AtomicInteger();
+            ExternalSourceResolver resolver = ndjsonPromiseResolver(provider, schemas, Map.of(), cacheService, metadataReads);
+
+            Map<String, Object> config = new HashMap<>(configFor(resolution));
+            config.put(ErrorPolicy.CONFIG_ERROR_MODE, errorMode);
+
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), Map.of(glob, config), null, null, Set.of(glob), future);
+            assertNotNull(future.actionGet().resolvedSource(glob));
+            return metadataReads.get();
+        }
+    }
+
+    /**
+     * Under any non-strict error policy a committed row count is a survivor count, so the files a cut-short
+     * gather leaves the dataset-aggregate promise unfulfillable and every warm {@code COUNT(*)} re-scans — worse
+     * than the reads the stop saves. The gather must keep reading wherever a promise is at stake, even though the
+     * fold is dead and the budget refuses. Reported on the PR by a reviewer who reproduced it end to end.
+     */
+    public void testGatherKeepsReadingUnderNonStrictPoliciesWhenAPromiseIsAtStake() throws Exception {
+        // skip_row drops whole rows, so the unread files' counts are stripped and the gather must read them all.
+        assertGatherReadsUnder("skip_row", 3);
+        // null_field nulls the cell and keeps the row, so the count stays trustworthy and the stop is safe. This
+        // is the control: it keeps the guard scoped to the policy that actually strips, rather than to leniency.
+        assertGatherReadsUnder("null_field", 2);
+    }
+
+    private void assertGatherReadsUnder(String errorMode, int expectedReads) throws Exception {
+        Settings tinyCache = Settings.builder()
+            .put("esql.external.cache.size", "1kb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(tinyCache)) {
+            String glob = "s3://bucket/nd/*.ndjson";
+            String pathA = "s3://bucket/nd/a.ndjson";
+            String pathB = "s3://bucket/nd/b.ndjson";
+            List<Attribute> schema = List.of(attr("x", DataType.LONG));
+            Map<String, List<Attribute>> schemas = Map.of(pathA, schema, pathB, schema);
+            List<StorageEntry> listing = List.of(entry(pathA, 100), entry(pathB, 200));
+            StubStorageProvider provider = new StubStorageProvider(Map.of("s3://bucket/nd/", listing), schemas);
+            AtomicInteger metadataReads = new AtomicInteger();
+            // No row counts: the fold dies on the first file. The 1 kb budget refuses every entry. Without the
+            // promise guard both conditions hold and the gather would stop at the sizing read.
+            ExternalSourceResolver resolver = ndjsonPromiseResolver(provider, schemas, Map.of(), cacheService, metadataReads);
+
+            Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+            config.put(ErrorPolicy.CONFIG_ERROR_MODE, errorMode);
+
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), Map.of(glob, config), null, null, Set.of(glob), future);
+            assertNotNull(future.actionGet().resolvedSource(glob));
+
+            assertEquals(errorMode + ": wrong read count for this error policy", expectedReads, metadataReads.get());
+        }
+    }
+
+    /**
+     * A cut-short gather forwards read configs only for the files it reached, and the promise is registered on
+     * that partial map. The map is why: a cacheable text dataset whose schema budget refuses every entry has no
+     * per-file warm rail, so the memoized dataset aggregate is its only metadata-served COUNT(*). An unrecorded
+     * path falls back to the config-level check; suppressing the promise instead would cost every warm query a
+     * re-scan. Reinstating a completeness guard in front of the registration fails here.
+     */
+    public void testPromiseIsRegisteredOnAPartialPerPathMap() {
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = datasetGateResolver(cacheService);
+            String pathA = "s3://bucket/data/a.ndjson";
+            String pathB = "s3://bucket/data/b.ndjson";
+            SourceMetadata referenceMeta = new SimpleSourceMetadata(List.of(), "ndjson", pathA);
+            FileList listing = GlobExpander.fileListOf(List.of(entry(pathA, 100), entry(pathB, 200)), "s3://bucket/data/*.ndjson");
+            DatasetAggregateKey key = resolver.datasetAggregateKey(listing, "", "", Map.of());
+            assertNotNull(key);
+            String promised = ReadConfigFingerprint.of(List.of(attr("x", DataType.LONG)), DeclaredReadSpec.NONE);
+
+            // Only pathA recorded: the shape a gather leaves when it stops after the file that killed the fold.
+            resolver.applyDatasetAggregate(
+                new HashMap<>(Map.of(pathA, promised)),
+                new ExternalSourceResolver.DatasetAggregatePrefetch(key, null),
+                null,
+                listing,
+                referenceMeta,
+                Map.of()
+            );
+
+            String fingerprint = resolver.formatConfigIdentity(listing.path(0).objectName(), Map.of());
+            cacheService.reconcileSourceStatsFromContributions(
+                Map.of(
+                    pathA,
+                    List.of(promiseContribution(fingerprint, promised, 40L)),
+                    pathB,
+                    List.of(promiseContribution(fingerprint, promised, 60L))
+                )
+            );
+            Map<String, Object> aggregate = cacheService.getDatasetAggregate(key);
+            assertNotNull("a partial per-path map must still register the promise", aggregate);
+            assertEquals(100L, ((Number) aggregate.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
         }
     }
 
@@ -2958,7 +3490,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 // the dataset reader. Lookup keys must use that same map.
                 Map<String, Object> effectiveConfig = new HashMap<>(config);
                 effectiveConfig.put(FormatNameResolver.CONFIG_FORMAT, "ndjson");
-                SchemaCacheKey key = resolver.datasetAggregateKey(GlobExpander.fileListOf(listing, glob), "", effectiveConfig);
+                DatasetAggregateKey key = resolver.datasetAggregateKey(GlobExpander.fileListOf(listing, glob), "", "", effectiveConfig);
                 assertNotNull("[" + strategy + "] the resolve must have minted a dataset key", key);
                 // Derived the one way production derives it, by asking the reader. Computing it a second way here
                 // would let the two drift and the test would pass while the warm path was dead.
@@ -3028,7 +3560,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, Long> rowCountsByPath,
         ExternalSourceCacheService cacheService
     ) {
-        StubFormatReaderWithStats reader = new StubFormatReaderWithStats(schemasByPath, rowCountsByPath) {
+        return ndjsonPromiseResolver(storageProvider, schemasByPath, rowCountsByPath, cacheService, null);
+    }
+
+    private ExternalSourceResolver ndjsonPromiseResolver(
+        StorageProvider storageProvider,
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, Long> rowCountsByPath,
+        ExternalSourceCacheService cacheService,
+        AtomicInteger metadataReadCounter
+    ) {
+        StubFormatReaderWithStats reader = new StubFormatReaderWithStats(schemasByPath, rowCountsByPath, metadataReadCounter) {
             @Override
             public String formatName() {
                 return "ndjson";
@@ -3254,6 +3796,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * cancelled mid-flight, and must stop reading further per-file footers rather than scanning the whole
      * glob. The resolver runs on the DIRECT executor here, so footer reads happen sequentially and the
      * cancellation flag (flipped after a couple of reads) deterministically short-circuits the rest.
+     * <p>
+     * Also pins the drain's cancellation raise: the stub publishes no statistics, so the fold dies on the first
+     * file and the gather reaches the drain rather than the per-read check.
      */
     public void testMultiFileResolveCancellationStopsReadingFooters() {
         int fileCount = 5;
@@ -3723,7 +4268,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     // ===== Default schema resolution strategy =====
 
     /**
-     * Query/FROM EXTERNAL omit-key fallback ({@code effectiveSchemaResolution(null/missing)})
+     * Query omit-key fallback ({@code effectiveSchemaResolution(null/missing)})
      * must equal {@link FormatReader#DEFAULT_SCHEMA_RESOLUTION}.
      */
     public void testDefaultSchemaResolutionIsSingleSourceOfTruth() {
@@ -4431,6 +4976,265 @@ public class ExternalSourceResolverTests extends ESTestCase {
             count++;
         }
         return count;
+    }
+
+    /**
+     * The serve composes TWO stores: the file's own facts from the schema record, and the measurements from the
+     * statistics store layered over them.
+     * <p>
+     * Tested directly on the composition, because that is the half a unit test can decide. Both warm-path
+     * regressions in this change were serve-side, and both were caught end to end rather than here — the
+     * resolver's other cases cover the predicate that picks an address and the miss counters, but nothing
+     * asserted what the composition produces.
+     * <p>
+     * The call sites are covered by {@code ExternalCsvAggregatePushdownIT}, which is verified to go red when a
+     * serve path stops asking for measurements: it was 8 of 21 red when the single-file rails were unwired. So
+     * this pins the function and that pins the wiring; neither alone is enough, and saying so is the point.
+     */
+    public void testTheServeComposesFileFactsWithTheReadsMeasurements() {
+        List<Attribute> schema = List.of(attr("id", DataType.LONG));
+        SchemaCacheEntry record = SchemaCacheEntry.from(
+            schema,
+            "csv",
+            "s3://bucket/data/a.csv",
+            Map.of(ExternalStats.MTIME_MILLIS_KEY, 1000L, ExternalStats.CONFIG_FINGERPRINT_KEY, "fp"),
+            Map.of()
+        );
+
+        // With no measurements the file's own facts are served unchanged, and by IDENTITY - which is what
+        // keeps sharesCachedSourceMetadata() meaningful for the wire-accounting path.
+        ExternalSourceMetadata bare = ExternalSourceResolver.buildMetadataFromCache(record, schema, Map.of(), null, null);
+        assertEquals("fp", bare.sourceMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY));
+        assertNull("nothing measured, nothing served", bare.sourceMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+
+        // With measurements they are layered OVER the file facts, and the file facts survive.
+        Map<String, Object> measured = Map.of(
+            SourceStatisticsSerializer.STATS_ROW_COUNT,
+            4321L,
+            ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+            "read-a"
+        );
+        ExternalSourceMetadata composed = ExternalSourceResolver.buildMetadataFromCache(record, schema, Map.of(), measured, null);
+        assertEquals(
+            "the measurement must be served",
+            4321L,
+            ((Number) composed.sourceMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
+        );
+        assertEquals(
+            "and the file's own facts must survive the overlay",
+            "fp",
+            composed.sourceMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY)
+        );
+        assertEquals(
+            "including the read the measurement was taken under",
+            "read-a",
+            composed.sourceMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY)
+        );
+        assertEquals("the schema is the record's, not the measurement's", schema.size(), composed.schema().size());
+    }
+
+    // ===== Dataset identity: what actually separates two formats =====
+
+    /**
+     * Two datasets over ONE object read as different formats must not share an address, and the component that
+     * separates them is not the one a reader would guess. A reader's identity renders only the recognized
+     * settings its config carries, so it holds no format name: over a config carrying no format-specific
+     * setting, the CSV and NDJSON readers vend the identical string. What separates the two addresses is the
+     * coordinator lane, because {@code format} is one of {@code FileSourceFactory#COORDINATOR_KEYS} and is
+     * deliberately not in {@code COORDINATOR_IDENTITY_INERT_KEYS}.
+     * <p>
+     * Both halves are asserted. If the format key is ever moved into the inert set — as
+     * {@code FormatNameResolver#CONFIG_READER} already is, on reasoning that does not hold for the format
+     * itself — this fails, and that is the point: without it, dataset A over an object as csv and dataset B
+     * over the same object as ndjson collapse to one {@code SchemaCacheKey} and B is served A's columns.
+     */
+    public void testDatasetIdentitySeparatesTwoFormatsOverOneObject() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        String object = "s3://bucket/data";
+        Map<String, Object> asCsv = Map.of(FormatNameResolver.CONFIG_FORMAT, "csv");
+        Map<String, Object> asNdjson = Map.of(FormatNameResolver.CONFIG_FORMAT, "ndjson");
+
+        DatasetIdentity csv = resolver.datasetIdentity(object, "s3|eu-west-1", "", asCsv);
+        DatasetIdentity ndjson = resolver.datasetIdentity(object, "s3|eu-west-1", "", asNdjson);
+        assertThat("two formats over one object must not share a dataset identity", csv, not(equalTo(ndjson)));
+
+        // The lane that does the work, named explicitly so a future reader does not have to re-derive it.
+        assertThat(FileSourceFactory.coordinatorIdentity(asCsv), not(equalTo(FileSourceFactory.coordinatorIdentity(asNdjson))));
+        // And the lane that does NOT. Asserted on the real readers rather than through the resolver: this
+        // fixture registers only a parquet reader, so resolver.formatConfigIdentity would return "" for both
+        // formats because neither reader resolves, and comparing "" to "" would prove nothing about either one.
+        String csvLane = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfigTrackingConsumedKeys(asCsv).identity();
+        String ndjsonLane = new NdJsonFormatReader(Settings.EMPTY, blockFactory, null).withConfigTrackingConsumedKeys(asNdjson).identity();
+        assertThat(
+            "neither reader's identity carries a format name, which is why the key cannot lean on this lane",
+            csvLane,
+            equalTo(ndjsonLane)
+        );
+        // Positive control for the assertion above: a reader's identity is non-empty once its config carries a
+        // setting it recognizes, so the equality is about the format name being absent and not about the whole
+        // lane being empty for every input.
+        assertThat(
+            new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfigTrackingConsumedKeys(
+                Map.of(FormatNameResolver.CONFIG_FORMAT, "csv", "separator", ";")
+            ).identity(),
+            not(equalTo(""))
+        );
+    }
+
+    /**
+     * Every arm of {@code schemaRecordAnswersTheRead}, asserted directly. The predicate decides whether the
+     * read-addressed statistics record is consulted at all, so an arm nobody exercises is an unguarded branch on
+     * the warm path — and mutation testing found that the empty-read arm was reached by none of this class's
+     * resolve-level cases.
+     * <p>
+     * The arms, and why each answers:
+     * <ul>
+     *   <li>no bound read — nothing pins what the record must have measured;</li>
+     *   <li>an empty bound read ({@code ReadConfigFingerprint.UNKNOWN}) — {@code StatisticsKey.of} maps it to
+     *       {@code UNSTAMPED}, the address this very record already answers from;</li>
+     *   <li>a columnar record — never stamped, and no statistics record is ever filed for one, so that address
+     *       is a guaranteed miss;</li>
+     *   <li>otherwise the stamp decides, matching and not matching.</li>
+     * </ul>
+     */
+    public void testSchemaRecordAnswersTheReadOnEveryArm() {
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        SchemaCacheEntry textStamped = stampedEntry(schema, "csv", "read-a");
+        SchemaCacheEntry textUnstamped = stampedEntry(schema, "csv", null);
+        SchemaCacheEntry columnarUnstamped = stampedEntry(schema, "parquet", null);
+
+        assertTrue("no bound read is answered by any record", ExternalSourceResolver.schemaRecordAnswersTheRead(textStamped, null));
+        assertTrue(
+            "an empty bound read addresses nothing of its own, so the schema record answers it",
+            ExternalSourceResolver.schemaRecordAnswersTheRead(textUnstamped, "")
+        );
+        assertTrue(
+            "a columnar record is never stamped and can have no statistics record",
+            ExternalSourceResolver.schemaRecordAnswersTheRead(columnarUnstamped, "read-a")
+        );
+        assertTrue(
+            "a matching stamp means this record already holds the read's measurements",
+            ExternalSourceResolver.schemaRecordAnswersTheRead(textStamped, "read-a")
+        );
+        assertFalse(
+            "a differing stamp is the one case that must consult the statistics address",
+            ExternalSourceResolver.schemaRecordAnswersTheRead(textStamped, "read-b")
+        );
+        assertFalse(
+            "and so is an absent stamp on a text record",
+            ExternalSourceResolver.schemaRecordAnswersTheRead(textUnstamped, "read-b")
+        );
+    }
+
+    /** A per-file schema record of the given source type, stamped with {@code readConfig} when non-null. */
+    private static SchemaCacheEntry stampedEntry(List<Attribute> schema, String sourceType, @Nullable String readConfig) {
+        Map<String, Object> metadata = new HashMap<>();
+        if (readConfig != null) {
+            metadata.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
+        }
+        return SchemaCacheEntry.from(schema, sourceType, "s3://bucket/data/f." + sourceType, metadata, Map.of());
+    }
+
+    /**
+     * A warm DEFERRED first-file-wins resolve must keep every per-file footer statistic, so split discovery
+     * does not re-open a footer it has already read.
+     * <p>
+     * The schema record carries statistics of its own: {@code SchemaCacheEntry.from} embeds whatever the reader
+     * reported at mint, and for a columnar file that is the footer metadata - the ONLY statistics such a file
+     * ever has, because nothing on those rails publishes through the capture sink, so no statistics record is
+     * ever written for one. A composition that short-circuits when the statistics store misses therefore
+     * discards them all. That is exactly what it did, and nothing in the tree caught it.
+     * <p>
+     * Inject the defect by returning null from {@code fileStatisticsFromCache} when
+     * {@code cached.statistics() == null}: this goes from 3 to 0.
+     */
+    public void testAWarmDeferredColumnarResolveKeepsItsCachedFooterStatistics() throws Exception {
+        ThreeFileStats stats = threeFileStats();
+        StubStorageProvider storageProvider = new StubStorageProvider(Map.of(PREFIX, threeFileListing()), stats.schemas());
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            AtomicInteger reads = new AtomicInteger();
+            ExternalSourceResolver resolver = buildStatsResolver(storageProvider, stats, reads, cacheService);
+            Map<String, Object> config = configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS);
+            assertNotNull(resolveFfwWithConfig(resolver, Set.of(GLOB), config).resolvedSource(GLOB));
+            int readsAfterCold = reads.get();
+            assertTrue("premise: the cold eager resolve read every footer", readsAfterCold >= 3);
+            ExternalSourceResolution.ResolvedSource warm = resolveFfwWithConfig(resolver, Set.of(), config).resolvedSource(GLOB);
+            assertNotNull(warm);
+            assertEquals("the warm deferred resolve must read no footer", readsAfterCold, reads.get());
+            int withStats = 0;
+            for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : warm.schemaMap().entrySet()) {
+                if (e.getValue().statistics() != null) {
+                    withStats++;
+                }
+            }
+            assertEquals("every per-file entry must carry its cached footer statistics on the warm deferred resolve", 3, withStats);
+        }
+    }
+
+    /**
+     * A warm columnar resolve must book no statistics-store miss.
+     * <p>
+     * A columnar record is never stamped with a read configuration and no statistics record is ever written for
+     * one, so asking for that address is a guaranteed miss on every file. {@code Cache#get} counts an absent
+     * key, so the cost is a per-file distortion of the ratio an operator reads to size the store - on the
+     * format that dominates.
+     * <p>
+     * Asserted on {@code statistics_cache.misses}, which is where the lookup lands. The single-file case below
+     * is the other half: the gate lives inside {@code cachedStatistics}, and a glob and a lone file reach it
+     * by different rails.
+     */
+    public void testAWarmColumnarResolveBooksNoStatisticsStoreMiss() throws Exception {
+        String glob = "s3://bucket/data/*.parquet";
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER), attr("y", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        List<StorageEntry> listing = new ArrayList<>();
+        for (String n : List.of("a", "b", "c")) {
+            schemas.put("s3://bucket/data/" + n + ".parquet", schema);
+            listing.add(entry("s3://bucket/data/" + n + ".parquet", 100));
+        }
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemas);
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
+            assertNotNull(resolveWith(resolver, glob, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS).resolvedSource(glob));
+            long coldMisses = ((Number) cacheService.usageStats().get("statistics_cache.misses")).longValue();
+            assertNotNull(resolveWith(resolver, glob, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS).resolvedSource(glob));
+            long warmMisses = ((Number) cacheService.usageStats().get("statistics_cache.misses")).longValue();
+            assertEquals(
+                "a warm columnar resolve must book no statistics-store miss (cold=" + coldMisses + " warm=" + warmMisses + ")",
+                coldMisses,
+                warmMisses
+            );
+        }
+    }
+
+    /**
+     * The single-file half of the case above, and the one that was unguarded. {@code resolveSingleFileSource}
+     * reaches {@code cachedStatistics} on a path {@code GlobExpander.isMultiFile} calls single, so a lone
+     * {@code .parquet} never passes through the glob rail the sibling exercises. Both sites now consult
+     * {@code publishesScanDerivedStatistics} because the gate moved inside the lookup rather than sitting at
+     * each call site.
+     * <p>
+     * Inject the defect by dropping the {@code publishesScanDerivedStatistics} arm of
+     * {@code cachedStatistics}: the warm resolve then asks for {@code StatisticsKey.UNSTAMPED}, where nothing
+     * is ever filed for a columnar file, and {@code Cache#get} counts the absent key.
+     */
+    public void testAWarmSingleFileColumnarResolveBooksNoStatisticsStoreMiss() throws Exception {
+        String file = "s3://bucket/data/a.parquet";
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER), attr("y", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemas = Map.of(file, schema);
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", List.of(entry(file, 100))), schemas);
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
+            assertNotNull(resolveWith(resolver, file, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS).resolvedSource(file));
+            long coldMisses = ((Number) cacheService.usageStats().get("statistics_cache.misses")).longValue();
+            assertNotNull(resolveWith(resolver, file, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS).resolvedSource(file));
+            long warmMisses = ((Number) cacheService.usageStats().get("statistics_cache.misses")).longValue();
+            assertEquals(
+                "a warm single-file columnar resolve must book no statistics-store miss (cold=" + coldMisses + " warm=" + warmMisses + ")",
+                coldMisses,
+                warmMisses
+            );
+        }
     }
 
     // ===== Empty resolution =====
@@ -5392,9 +6196,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
     public void testOversizedMultiFileListingDoesNotFillSchemaCache() throws Exception {
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
         long entryBytes = SchemaCacheEntry.from(new SimpleSourceMetadata(schema, "parquet", "s3://bucket/data/a.parquet")).estimatedBytes();
-        long schemaBudget = entryBytes * 2;
+        // A total whose SCHEMA slice holds exactly two of these entries. The schema store takes a fifth of the
+        // total, so 10 entry-widths give a 2-entry schema slice. The premise is asserted below rather than
+        // trusted, so a reshare of the slices fails here with a figure instead of as an eviction.
         Settings settings = Settings.builder()
-            .put("esql.external.cache.size", (schemaBudget * 5) + "b")
+            .put("esql.external.cache.size", (entryBytes * 10) + "b")
             .put("esql.external.cache.enabled", true)
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
@@ -5408,8 +6214,18 @@ public class ExternalSourceResolverTests extends ESTestCase {
             schemas.put(path, schema);
         }
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey sentinelKey = SchemaCacheKey.build("s3://other/keep.parquet", 0L, "parquet", "", config);
+            SchemaCacheKey sentinelKey = SchemaCacheKey.build(
+                "s3://other/keep.parquet",
+                0L,
+                TestDatasetIdentities.identity("parquet", "", config),
+                false
+            );
             SchemaCacheEntry sentinel = SchemaCacheEntry.from(new SimpleSourceMetadata(schema, "parquet", "s3://other/keep.parquet"));
+            assertThat(
+                "fixture premise: the schema slice must hold about two of these entries",
+                (Long) cacheService.usageStats().get("schema_budget_bytes"),
+                allOf(greaterThanOrEqualTo(entryBytes * 2), lessThan(entryBytes * 3))
+            );
             cacheService.putSchema(sentinelKey, sentinel);
             ExternalSourceResolver resolver = createResolver(
                 schemas,
@@ -5429,7 +6245,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             );
             for (int i = 0; i < files; i++) {
                 String path = String.format(Locale.ROOT, "s3://bucket/data/part-%02d.parquet", i);
-                SchemaCacheKey key = SchemaCacheKey.build(path, 0L, "parquet", "", config);
+                SchemaCacheKey key = SchemaCacheKey.build(path, 0L, TestDatasetIdentities.identity("parquet", "", config), false);
                 assertNull("oversized fan-out must not retain " + path, cacheService.getSchemaIfPresent(key));
             }
             assertEquals(1, cacheService.usageStats().get("schema_cache.count"));
@@ -8835,11 +9651,27 @@ public class ExternalSourceResolverTests extends ESTestCase {
         private final Map<String, List<StorageEntry>> listingsByPrefix;
         private final StoragePath path;
         private final byte[] payload;
+        private final Map<String, byte[]> payloadsByPath;
 
         MeteredBytesStorageProvider(Map<String, List<StorageEntry>> listingsByPrefix, StoragePath path, byte[] payload) {
+            this(listingsByPrefix, path, payload, Map.of());
+        }
+
+        /** Serves each of {@code payloadsByPath} under its own path, and {@code payload} under any other. */
+        MeteredBytesStorageProvider(
+            Map<String, List<StorageEntry>> listingsByPrefix,
+            StoragePath path,
+            byte[] payload,
+            Map<String, byte[]> payloadsByPath
+        ) {
             this.listingsByPrefix = listingsByPrefix;
             this.path = path;
             this.payload = payload;
+            this.payloadsByPath = payloadsByPath;
+        }
+
+        private byte[] payloadOf(StoragePath requested) {
+            return payloadsByPath.getOrDefault(requested.toString(), payload);
         }
 
         @Override
@@ -8849,17 +9681,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         @Override
         public StorageObject newObject(StoragePath requested) {
-            return new MeteredBytesStorageObject(requested, payload);
+            return new MeteredBytesStorageObject(requested, payloadOf(requested));
         }
 
         @Override
         public StorageObject newObject(StoragePath requested, long length) {
-            return new MeteredBytesStorageObject(requested, payload);
+            return new MeteredBytesStorageObject(requested, payloadOf(requested));
         }
 
         @Override
         public StorageObject newObject(StoragePath requested, long length, Instant lastModified) {
-            return new MeteredBytesStorageObject(requested, payload);
+            return new MeteredBytesStorageObject(requested, payloadOf(requested));
         }
 
         @Override
@@ -8888,7 +9720,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         @Override
         public boolean exists(StoragePath requested) {
-            return path.equals(requested);
+            return path.equals(requested) || payloadsByPath.containsKey(requested.toString());
         }
 
         @Override
@@ -9179,7 +10011,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The resolver is built in {@code PlanExecutor} before {@code EsqlSession.execute} binds the
+     * The resolver is constructed before {@code PlanExecutor.esql} binds the
      * reservation. A ctor-time planning-I/O capture is null; the holder must be resolved when each
      * metadata-read task runs.
      */
@@ -9207,7 +10039,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolver resolver = createMeteredNdjsonResolver(path, payload, executor);
         assertNull("ctor must not see a reservation", ExternalPlanningIo.current());
 
-        ExternalPlanningReservation reservation = new ExternalPlanningReservation(new NoopCircuitBreaker("test"));
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(NoopCircuitBreaker.INSTANCE);
         resolver.planning(reservation);
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
@@ -9259,6 +10091,365 @@ public class ExternalSourceResolverTests extends ESTestCase {
             () -> false
         );
         return new ExternalSourceResolver(executor, module);
+    }
+
+    /** The share only moves when the file count crosses a power of two, so repartitioned listings keep their keys. */
+    public void testSchemaSampleShareIsTheNextPowerOfTwo() {
+        assertEquals(1, ExternalSourceResolver.schemaSampleShare(0));
+        assertEquals(1, ExternalSourceResolver.schemaSampleShare(1));
+        assertEquals(2, ExternalSourceResolver.schemaSampleShare(2));
+        assertEquals(4, ExternalSourceResolver.schemaSampleShare(3));
+        assertEquals(4, ExternalSourceResolver.schemaSampleShare(4));
+        assertEquals(8, ExternalSourceResolver.schemaSampleShare(5));
+        // No overflow clamp is needed: MAX_DISCOVERED_FILES caps a resolved listing at 1,000,000 files.
+        assertEquals(1 << 20, ExternalSourceResolver.schemaSampleShare(1_000_000));
+    }
+
+    /**
+     * esql-planning#2236: reconciling reads every file, so a full sample from each would have planning read the whole
+     * dataset when files are small. Each file contributes its share of {@code schema_sample_size} instead, while
+     * {@code first_file_wins} still reads its one file in full.
+     */
+    public void testReconcilingStrategiesShareTheSchemaSampleAcrossFiles() {
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        for (int i = 0; i < 3; i++) {
+            files.put("s3://bucket/data/f" + i + ".csv", csvRows(1_000, -1));
+        }
+        for (FormatReader.SchemaResolution strategy : FormatReader.SchemaResolution.values()) {
+            ExternalSourceResolution resolution = resolveCsvGlob(createMeteredCsvResolver(files, null), "s3://bucket/data/*.csv", strategy);
+            int expected = strategy == FormatReader.SchemaResolution.FIRST_FILE_WINS ? 800 : 800 / 4;
+            assertEquals("[" + strategy + "]", expected, resolution.resolvedSource("s3://bucket/data/*.csv").metadata().sampleRows());
+        }
+    }
+
+    /**
+     * The share bounds how deep each file is sampled, not which files reconcile: a wider type inside the share still
+     * widens the dataset under {@code union_by_name} and is still refused under {@code strict}, while one past it goes
+     * unseen at planning, as it would under a smaller {@code schema_sample_size}.
+     */
+    public void testReconcilingStrategiesSeeTypeChangesWithinTheSharedSample() {
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        files.put("s3://bucket/data/f0.csv", csvRows(1_000, -1));
+        files.put("s3://bucket/data/f1.csv", csvRows(1_000, 300));
+        files.put("s3://bucket/data/f2.csv", csvRows(1_000, 500));
+        String within = "s3://bucket/data/{f0,f1}.csv";
+        String past = "s3://bucket/data/{f0,f2}.csv";
+        ExternalSourceResolver resolver = createMeteredCsvResolver(files, null);
+
+        FormatReader.SchemaResolution union = FormatReader.SchemaResolution.UNION_BY_NAME;
+        assertEquals(DataType.LONG, columnType(resolveCsvGlob(resolver, within, union), within, "n"));
+        assertEquals(DataType.INTEGER, columnType(resolveCsvGlob(resolver, past, union), past, "n"));
+
+        FormatReader.SchemaResolution strict = FormatReader.SchemaResolution.STRICT;
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> resolveCsvGlob(resolver, within, strict));
+        assertThat(e.getMessage(), containsString("column [n] is [long]"));
+        assertEquals(DataType.INTEGER, columnType(resolveCsvGlob(resolver, past, strict), past, "n"));
+    }
+
+    /**
+     * A schema inferred from a shared sample is keyed by its effective depth: a listing sampling less from each file
+     * must not be served the deeper sample cached for another listing, nor the reverse, though both cover the same
+     * file at the same mtime.
+     */
+    public void testSchemaInferredFromAShareIsCachedPerEffectiveDepth() {
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        for (int i = 0; i < 4; i++) {
+            files.put("s3://bucket/data/f" + i + ".csv", csvRows(1_000, -1));
+        }
+        String pair = "s3://bucket/data/{f0,f1}.csv";
+        String all = "s3://bucket/data/*.csv";
+        FormatReader.SchemaResolution strategy = FormatReader.SchemaResolution.UNION_BY_NAME;
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createMeteredCsvResolver(files, cacheService);
+
+            assertEquals(400, resolveCsvGlob(resolver, pair, strategy).resolvedSource(pair).metadata().sampleRows());
+            assertEquals(200, resolveCsvGlob(resolver, all, strategy).resolvedSource(all).metadata().sampleRows());
+            ExternalPlanningReservation reservation = new ExternalPlanningReservation(NoopCircuitBreaker.INSTANCE);
+            resolver.planning(reservation);
+            assertEquals(400, resolveCsvGlob(resolver, pair, strategy).resolvedSource(pair).metadata().sampleRows());
+            assertEquals("the share-2 entries must still be cached", 0L, reservation.planningIo().bytesRead());
+        }
+    }
+
+    /**
+     * Different file-count shares that produce the same effective sample depth use the same cache key. Once the
+     * 100-row floor is reached, crossing another power-of-two boundary must read only newly listed files.
+     */
+    public void testSchemaSampleCacheKeyStabilizesAtTheFloor() {
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        for (int i = 0; i < 17; i++) {
+            files.put("s3://bucket/data/f" + i + ".csv", csvRows(1_000, -1));
+        }
+        String firstNine = csvBraceGlob(9);
+        String allSeventeen = csvBraceGlob(17);
+        FormatReader.SchemaResolution strategy = FormatReader.SchemaResolution.UNION_BY_NAME;
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createMeteredCsvResolver(files, cacheService);
+
+            long nineFiles = planningBytesRead(resolver, firstNine, strategy, 800);
+            long eightNewFiles = planningBytesRead(resolver, allSeventeen, strategy, 800);
+            assertThat(nineFiles, greaterThan(0L));
+            assertThat("the nine shared files keep their floor-sized cache entries", eightNewFiles, lessThan(nineFiles));
+        }
+    }
+
+    /**
+     * A reader whose configured sample is already within its share samples the same either way, so its entries keep
+     * the unshared key: a listing that grows past a power of two re-reads only the files it added.
+     */
+    public void testAReaderThatDoesNotNarrowKeepsItsEntriesAcrossShares() {
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        for (int i = 0; i < 4; i++) {
+            files.put("s3://bucket/data/f" + i + ".csv", csvRows(1_000, -1));
+        }
+        FormatReader.SchemaResolution strategy = FormatReader.SchemaResolution.UNION_BY_NAME;
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createMeteredCsvResolver(files, cacheService);
+
+            long pair = planningBytesRead(resolver, "s3://bucket/data/{f0,f1}.csv", strategy, 50);
+            long all = planningBytesRead(resolver, "s3://bucket/data/*.csv", strategy, 50);
+            assertThat(pair, greaterThan(0L));
+            assertEquals("only the two files the pair did not cover are read", pair, all);
+        }
+    }
+
+    /**
+     * The cost the share exists for: reconciling many files reads a fraction of each, where it used to read each
+     * up to the whole sample.
+     */
+    public void testReconcilingManyFilesReadsAFractionOfEach() {
+        byte[] payload = csvRows(40_000, -1);
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        for (int i = 0; i < 8; i++) {
+            files.put("s3://bucket/data/f" + i + ".csv", payload);
+        }
+        ExternalSourceResolver resolver = createMeteredCsvResolver(files, null);
+
+        long read = planningBytesRead(resolver, "s3://bucket/data/*.csv", FormatReader.SchemaResolution.UNION_BY_NAME, 40_000);
+        assertThat(read, lessThan(files.size() * (long) payload.length / 2));
+    }
+
+    /**
+     * The listing shape of esql-planning#2236: far more files than the sample has floor-sized shares, each file longer
+     * than the floor but shorter than the sample. Every file is sampled for the floor and no more, so planning reads
+     * {@code files x floor} rows: more than one sample, and a fraction of the dataset, where it used to read all of it.
+     */
+    public void testReconcilingManyFilesSamplesTheFloorFromEachAndNoMore() {
+        int floor = FormatReader.MIN_SHARED_SCHEMA_SAMPLE_SIZE;
+        int sampleSize = 40_000;
+        // Past this many files every share is the floor: the smallest power of two not below it leaves fewer than
+        // 100 rows per file (40,000 / 512 rounds up to 79), as the issue's 3,264 files did.
+        int fileCount = 512;
+        assertThat(Math.ceilDiv(sampleSize, ExternalSourceResolver.schemaSampleShare(fileCount)), lessThan(floor));
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        long rowsInDataset = 0;
+        for (int i = 0; i < fileCount; i++) {
+            int rows = randomIntBetween(floor + 1, 1_000);
+            rowsInDataset += rows;
+            files.put("s3://bucket/data/f" + i + ".csv", csvRows(rows, -1));
+        }
+        List<Integer> sampledRowsPerFile = Collections.synchronizedList(new ArrayList<>());
+        ExternalSourceResolver resolver = createMeteredCsvResolver(
+            files,
+            null,
+            reader -> new SampleRowsRecordingFormatReader(reader, sampledRowsPerFile)
+        );
+
+        resolveCsvGlob(resolver, "s3://bucket/data/*.csv", FormatReader.SchemaResolution.UNION_BY_NAME, sampleSize);
+
+        assertEquals("every file is sampled", fileCount, sampledRowsPerFile.size());
+        long sampledRows = sampledRowsPerFile.stream().mapToLong(Integer::longValue).sum();
+        assertThat(sampledRows, lessThanOrEqualTo((long) fileCount * floor));
+        assertThat("the floor, not the sample, is what bounds a wide listing", sampledRows, greaterThan((long) sampleSize));
+        assertThat(sampledRows, lessThan(rowsInDataset / 2));
+    }
+
+    /**
+     * Forwards to a text reader, recording how many rows each file's schema inference sampled. Only the planning-side
+     * surface the resolver reaches is forwarded: configuring, sharing the sample, and reading the metadata.
+     */
+    private static final class SampleRowsRecordingFormatReader implements FormatReader {
+        private final FormatReader inner;
+        private final List<Integer> sampledRowsPerFile;
+
+        SampleRowsRecordingFormatReader(FormatReader inner, List<Integer> sampledRowsPerFile) {
+            this.inner = inner;
+            this.sampledRowsPerFile = sampledRowsPerFile;
+        }
+
+        private FormatReader rewrap(FormatReader configured) {
+            return configured == inner ? this : new SampleRowsRecordingFormatReader(configured, sampledRowsPerFile);
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) throws IOException {
+            SourceMetadata metadata = inner.metadata(object);
+            sampledRowsPerFile.add(metadata.sampleRows());
+            return metadata;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            return inner.read(object, context);
+        }
+
+        @Override
+        public String formatName() {
+            return inner.formatName();
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return inner.fileExtensions();
+        }
+
+        @Override
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            Configured<FormatReader> configured = inner.withConfigTrackingConsumedKeys(config);
+            return new Configured<>(
+                rewrap(configured.value()),
+                configured.consumedKeys(),
+                configured.identity(),
+                configured.secretIdentity()
+            );
+        }
+
+        @Override
+        public FormatReader withSchemaSampleShare(int files) {
+            return rewrap(inner.withSchemaSampleShare(files));
+        }
+
+        @Override
+        public int schemaSampleSize() {
+            return inner.schemaSampleSize();
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return inner.rowPositionStrategy();
+        }
+
+        @Override
+        public void close() throws IOException {
+            inner.close();
+        }
+    }
+
+    private static long planningBytesRead(
+        ExternalSourceResolver resolver,
+        String glob,
+        FormatReader.SchemaResolution strategy,
+        int schemaSampleSize
+    ) {
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(NoopCircuitBreaker.INSTANCE);
+        resolver.planning(reservation);
+        resolveCsvGlob(resolver, glob, strategy, schemaSampleSize);
+        return reservation.planningIo().bytesRead();
+    }
+
+    private static DataType columnType(ExternalSourceResolution resolution, String path, String column) {
+        return resolution.resolvedSource(path)
+            .metadata()
+            .schema()
+            .stream()
+            .filter(a -> a.name().equals(column))
+            .findFirst()
+            .orElseThrow()
+            .dataType();
+    }
+
+    /** {@code rows} rows of {@code id,n}, all integers but for a long in row {@code longRow} (none if negative). */
+    private static byte[] csvRows(int rows, int longRow) {
+        StringBuilder csv = new StringBuilder("id,n\n");
+        for (int i = 0; i < rows; i++) {
+            csv.append(i).append(',').append(i == longRow ? 3_000_000_000L : i).append('\n');
+        }
+        return csv.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static String csvBraceGlob(int fileCount) {
+        StringBuilder glob = new StringBuilder("s3://bucket/data/{");
+        for (int i = 0; i < fileCount; i++) {
+            if (i > 0) {
+                glob.append(',');
+            }
+            glob.append('f').append(i);
+        }
+        return glob.append("}.csv").toString();
+    }
+
+    private static ExternalSourceResolution resolveCsvGlob(
+        ExternalSourceResolver resolver,
+        String glob,
+        FormatReader.SchemaResolution strategy
+    ) {
+        return resolveCsvGlob(resolver, glob, strategy, 800);
+    }
+
+    private static ExternalSourceResolution resolveCsvGlob(
+        ExternalSourceResolver resolver,
+        String glob,
+        FormatReader.SchemaResolution strategy,
+        int schemaSampleSize
+    ) {
+        Map<String, Object> config = new HashMap<>(configFor(strategy));
+        config.put("schema_sample_size", schemaSampleSize);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(glob), Map.of(glob, config), future);
+        return future.actionGet();
+    }
+
+    /** A resolver over in-memory {@code .csv} objects under {@code s3://bucket/data/}, read by the real CSV reader. */
+    private ExternalSourceResolver createMeteredCsvResolver(Map<String, byte[]> files, @Nullable ExternalSourceCacheService cacheService) {
+        return createMeteredCsvResolver(files, cacheService, UnaryOperator.identity());
+    }
+
+    /** As above, with the registered CSV reader passed through {@code readerWrapper}, so a test can observe its calls. */
+    private ExternalSourceResolver createMeteredCsvResolver(
+        Map<String, byte[]> files,
+        @Nullable ExternalSourceCacheService cacheService,
+        UnaryOperator<FormatReader> readerWrapper
+    ) {
+        List<StorageEntry> listing = new ArrayList<>();
+        files.forEach((path, bytes) -> listing.add(new StorageEntry(StoragePath.of(path), bytes.length, Instant.EPOCH)));
+        StorageProvider storageProvider = new MeteredBytesStorageProvider(
+            Map.of("s3://bucket/data/", listing),
+            StoragePath.of("s3://bucket/data/"),
+            new byte[0],
+            files
+        );
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("csv", ".csv", Set.of("schema_sample_size")));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("csv", (s, bf) -> readerWrapper.apply(new CsvFormatReader(bf, "csv", List.of(".csv"))));
+            }
+        };
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            DataSourceCapabilities.build(plugins),
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, cacheService);
     }
 
     /**
@@ -9587,8 +10778,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertNotEquals("two endpoints must not report one identity", identityA, identityB);
         assertNotEquals(
             "distinct storage identities must address distinct schema entries",
-            SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", identityA, configA),
-            SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", identityB, configB)
+            SchemaCacheKey.build("s3://bucket/file.csv", mtime, TestDatasetIdentities.identity("csv", identityA, configA), false),
+            SchemaCacheKey.build("s3://bucket/file.csv", mtime, TestDatasetIdentities.identity("csv", identityB, configB), false)
         );
 
         Map<String, Object> versionedA = new HashMap<>(configA);
@@ -9597,41 +10788,68 @@ public class ExternalSourceResolverTests extends ESTestCase {
         versionedB.put(DefinitionVersion.CONFIG_KEY, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
         assertNotEquals(
             "two definitions differing in their endpoint must separate even with no provider report",
-            SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", "", versionedA),
-            SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", "", versionedB)
+            SchemaCacheKey.build("s3://bucket/file.csv", mtime, TestDatasetIdentities.identity("csv", "", versionedA), false),
+            SchemaCacheKey.build("s3://bucket/file.csv", mtime, TestDatasetIdentities.identity("csv", "", versionedB), false)
         );
     }
 
-    public void testSchemaCacheKeyIgnoresDatasetCredentials() {
-        // Schema cache is deliberately credential-independent (shared across users). Credentials inside
-        // _datasource must also be ignored whether the config is raw or pre-flattened via storageConfig.
+    /**
+     * Credentials now separate schema addresses, reversing what this case previously asserted - that the schema
+     * cache is shared across users. Driven through {@code Configured.secretIdentityOf}, which is how the digest is
+     * actually derived, rather than by handing a raw config to the key, which reads nothing from it but the
+     * definition version and would make the assertion unfalsifiable.
+     * <p>
+     * It asserts on the FLATTENED config, because {@code secretIdentityOf} tests top-level keys: credentials still
+     * nested under {@code _datasource} yield an empty digest, which the second half pins so that the distinction
+     * is recorded rather than discovered again. The resolver passes {@code storageConfig(config)} at every mint
+     * site, and the digest itself reaches the key from the provider's own {@code Configured}, so production is on
+     * the flattened side of this.
+     */
+    public void testSchemaCacheKeySeparatesDatasetCredentials() {
         Map<String, Object> dsA = new HashMap<>(Map.of("access_key", "key-a", "endpoint", "http://s3.example.com"));
         Map<String, Object> dsB = new HashMap<>(Map.of("access_key", "key-b", "endpoint", "http://s3.example.com"));
         Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
         Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
         long mtime = 1000L;
+        Set<String> secrets = Set.of("access_key");
+        String path = "s3://bucket/file.csv";
 
-        // Raw config: credentials in _datasource are still ignored (schema is user-independent).
-        SchemaCacheKey rawA = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", "", configA);
-        SchemaCacheKey rawB = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", "", configB);
-        assertEquals("schema keys differing only in _datasource credentials must be equal — cache is shared across users", rawA, rawB);
+        Map<String, Object> flatA = ExternalSourceResolver.storageConfig(configA);
+        Map<String, Object> flatB = ExternalSourceResolver.storageConfig(configB);
+        String digestA = Configured.secretIdentityOf(flatA, secrets);
+        String digestB = Configured.secretIdentityOf(flatB, secrets);
+        assertNotEquals("two access keys must digest differently, or the rest proves nothing", digestA, digestB);
+        assertNotEquals(
+            "schema keys differing only in their credentials must not share an address",
+            SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity("csv", "", digestA, flatA), false),
+            SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity("csv", "", digestB, flatB), false)
+        );
+        // The same credential VALUE arriving in a different config object must still share one address. Built
+        // from an independent map rather than reusing flatA: comparing one expression with itself would only
+        // restate that DatasetIdentity.of is deterministic, which DatasetIdentityTests already pins, and would
+        // survive a digest that keyed on anything about the map other than its contents.
+        Map<String, Object> dsAagain = new HashMap<>(Map.of("endpoint", "http://s3.example.com", "access_key", "key-a"));
+        Map<String, Object> flatAagain = ExternalSourceResolver.storageConfig(
+            new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsAagain))
+        );
+        assertNotSame("a genuinely separate config object", flatA, flatAagain);
+        assertEquals(
+            "the same credential value must still share one address, whatever map it arrived in",
+            SchemaCacheKey.build(path, mtime, TestDatasetIdentities.identity("csv", "", digestA, flatA), false),
+            SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity("csv", "", Configured.secretIdentityOf(flatAagain, secrets), flatAagain),
+                false
+            )
+        );
 
-        // Same invariant holds after storageConfig flattening.
-        SchemaCacheKey flatA = SchemaCacheKey.build(
-            "s3://bucket/file.csv",
-            mtime,
-            "csv",
+        assertEquals(
+            "a credential still nested under _datasource digests to nothing, because secretIdentityOf tests "
+                + "top-level keys; the resolver flattens before it mints, so production does not rely on this",
             "",
-            ExternalSourceResolver.storageConfig(configA)
+            Configured.secretIdentityOf(configA, secrets)
         );
-        SchemaCacheKey flatB = SchemaCacheKey.build(
-            "s3://bucket/file.csv",
-            mtime,
-            "csv",
-            "",
-            ExternalSourceResolver.storageConfig(configB)
-        );
-        assertEquals("flattened config: credential-independent schema cache invariant must still hold", flatA, flatB);
     }
 
     public void testFileMetadataCacheKeyDifferentiatesByStorageIdentity() {
@@ -9669,14 +10887,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         // The resolver folds the provider's report into the aggregate key, so give the two resolves the identities
         // two providers over different endpoints would report.
-        SchemaCacheKey keyA = resolver.datasetAggregateKey(
+        DatasetAggregateKey keyA = resolver.datasetAggregateKey(
             listing,
             Configured.identityOf(Map.of("endpoint", "http://endpoint-a.example.com"), Set.of("endpoint")),
+            "",
             configA
         );
-        SchemaCacheKey keyB = resolver.datasetAggregateKey(
+        DatasetAggregateKey keyB = resolver.datasetAggregateKey(
             listing,
             Configured.identityOf(Map.of("endpoint", "http://endpoint-b.example.com"), Set.of("endpoint")),
+            "",
             configB
         );
         assertNotNull("ndjson listing must qualify for a dataset aggregate key", keyA);

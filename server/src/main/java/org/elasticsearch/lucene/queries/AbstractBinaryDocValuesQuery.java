@@ -38,7 +38,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
-abstract class AbstractBinaryDocValuesQuery extends Query {
+abstract class AbstractBinaryDocValuesQuery extends Query implements BinaryDocValuesScanCost {
 
     protected final String fieldName;
     protected final Predicate<BytesRef> matcher;
@@ -48,6 +48,11 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.matcher = Objects.requireNonNull(matcher);
         this.binaryFormat = rejectColumnar(binaryFormat, fieldName);
+    }
+
+    @Override
+    public String field() {
+        return fieldName;
     }
 
     /**

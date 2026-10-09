@@ -328,6 +328,8 @@ public final class ESNextRescoreOversampleTestFixture {
                 IvfSegmentConfig.of(CentroidIndexFormat.FLAT, new IvfSegmentConfig.OsqConfig(QuantEncoding.TWO_BIT_4BIT_QUERY), false, 3f)
             );
         };
+
+        // Use quality profile so that doc bits are uncapped
         Codec codec = createDiskBbqCodec(
             flushConfig,
             IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster, IvfAutoCalibrationProfile.QUALITY)

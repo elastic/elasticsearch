@@ -55,7 +55,7 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
         // listing's toStoragePath, the query's location). On Windows toAbsolutePath() keeps
         // backslashes and yields a two-slash "file://C:\dir\file" form, whereas the factory
         // normalizes to "file:///C:/dir/file"; the mismatch made object.path() (the stats-capture
-        // key) differ from the planning-side SchemaCacheKey canonicalPath, so
+        // key) differ from the planning-side SchemaCacheKey location, so
         // ExternalSourceCacheService.reconcileSourceStats silently dropped every captured
         // contribution and warm queries re-scanned. On POSIX both forms already coincide.
         this.storagePath = StoragePath.ofLocalPath(filePath);
@@ -78,16 +78,14 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
             throw new IOException("Path is not a regular file: " + storagePath.objectName());
         }
         long startNanos = System.nanoTime();
-        long bytes = 0L;
         try {
             InputStream stream = Files.newInputStream(filePath);
             if (cachedLength == null) {
                 cachedLength = Files.size(filePath);
             }
-            bytes = cachedLength;
-            return stream;
+            return metered(stream);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, bytes);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 
@@ -108,9 +106,9 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
         long startNanos = System.nanoTime();
         try {
             // READ_TO_END: read from position to the end of the file (no length() / size() lookup).
-            return new RangeInputStream(filePath, position, length);
+            return metered(new RangeInputStream(filePath, position, length));
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, length < 0 ? 0L : length);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 

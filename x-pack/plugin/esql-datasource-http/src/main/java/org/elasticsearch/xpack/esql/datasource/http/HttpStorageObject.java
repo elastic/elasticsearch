@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.esql.datasource.http;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.HttpStatus;
+import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpStatus;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -23,7 +24,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.LogThrottle;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
@@ -63,6 +66,13 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class HttpStorageObject extends AbstractMeteredStorageObject {
 
     private static final Logger logger = LogManager.getLogger(HttpStorageObject.class);
+
+    /**
+     * Bounds WARN lines for HTTP error-response bodies: the body is withheld from the user-facing message (it often
+     * names the bucket or object), so the node log is the only place it survives. Shared across every HTTP object on
+     * the node — anyone who can query a failing dataset can repeat the failure.
+     */
+    static final LogThrottle ERROR_BODY_WARN = new LogThrottle(TimeValue.timeValueMinutes(1));
 
     private final HttpClient client;
     private final StoragePath path;
@@ -158,7 +168,6 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     @Override
     public InputStream newStream() throws IOException {
         long startNanos = System.nanoTime();
-        long[] bytesHolder = new long[] { 0L };
         try {
             return sendRequest(this::buildGetRequest, HttpResponse.BodyHandlers.ofInputStream(), response -> {
                 int statusCode = response.statusCode();
@@ -168,15 +177,11 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                     );
                     throw throwReadFailure("Failed to read object from", statusCode, readErrorBody(response.body()), retryAfterMs);
                 }
-                OptionalLong contentLength = response.headers().firstValueAsLong(HttpHeaders.CONTENT_LENGTH);
-                if (contentLength.isPresent()) {
-                    bytesHolder[0] = contentLength.getAsLong();
-                }
                 InputStream body = validateHeaders(response.headers(), 0L, false, response.body());
                 return wrapBody(body);
             });
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, bytesHolder[0]);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 
@@ -189,13 +194,17 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * any other status becomes an {@link IOException}, which the external source operator classifies as
      * a client-class 400. {@code detail} is an optional truncated error-response body: a store's error body
      * routinely names the bucket or object in plain text (e.g. a GCS {@code {"error":{"message":"No such object:
-     * bucket/key"}}}), so it is logged here for the admin at DEBUG and never forwarded. {@code retryAfterMs}
-     * is the parsed {@code Retry-After} hint (0 when absent). Returns (never throws) so both the
-     * synchronous and async read paths can route it.
+     * bucket/key"}}}), so it is never forwarded and is logged here for the admin — at WARN at most once a minute
+     * per node ({@link #ERROR_BODY_WARN}), otherwise at DEBUG. {@code retryAfterMs} is the parsed {@code Retry-After}
+     * hint (0 when absent). Returns (never throws) so both the synchronous and async read paths can route it.
      */
     private Exception mapReadFailure(String context, int statusCode, String detail, long retryAfterMs) {
         if (detail != null && detail.isEmpty() == false) {
-            logger.debug("HTTP {} error body reading [{}]: {}", statusCode, path.objectName(), detail);
+            if (ERROR_BODY_WARN.tryAcquire()) {
+                logger.warn("HTTP {} error body reading [{}]: {}", statusCode, path.objectName(), detail);
+            } else {
+                logger.debug("HTTP {} error body reading [{}]: {}", statusCode, path.objectName(), detail);
+            }
         }
         if (ExternalUnavailableException.isRetryableStatus(statusCode)) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(statusCode);
@@ -260,15 +269,9 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         }
 
         long startNanos = System.nanoTime();
-        // Bytes: response Content-Length when known, else fall back to the requested range length.
-        long[] bytesHolder = new long[] { toEnd ? 0L : length };
         try {
             return sendRequest(() -> buildRangeRequest(position, length), HttpResponse.BodyHandlers.ofInputStream(), response -> {
                 int statusCode = response.statusCode();
-                OptionalLong contentLength = response.headers().firstValueAsLong(HttpHeaders.CONTENT_LENGTH);
-                if (contentLength.isPresent()) {
-                    bytesHolder[0] = contentLength.getAsLong();
-                }
                 // 206 = Partial Content (successful range request)
                 // 200 = OK (server doesn't support ranges but returned full content)
                 if (statusCode == HttpStatus.SC_PARTIAL_CONTENT) {
@@ -286,10 +289,15 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                         stream.close();
                         throw new IOException("Failed to skip to position " + position + ", only skipped " + skipped + " bytes");
                     }
+                    // Prefix skip is drain-to-discard on a server that ignored Range. Count it on this
+                    // GET without a second MeteredInputStream (that would double-count later reads).
+                    counters.addBytes(skipped);
+                    counters.publishStreamBytes(skipped);
                     stream = validateHeaders(response.headers(), 0L, false, stream);
                     InputStream typed = new HttpTransientTypingInputStream(stream, path);
                     // READ_TO_END: read to the end (no bound); otherwise cap at the requested length.
-                    return toEnd ? typed : new BoundedInputStream(typed, length);
+                    InputStream bounded = toEnd ? typed : new BoundedInputStream(typed, length);
+                    return metered(bounded);
                 } else if (toEnd && statusCode == HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE) {
                     // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI
                     // contract for an open-ended read past the end is an empty stream.
@@ -302,7 +310,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 }
             });
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, bytesHolder[0]);
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
         }
     }
 
@@ -618,7 +626,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Idle-timeout the body (S3 socket-timeout parity) then type mid-read faults as transient.
      */
     private InputStream wrapBody(InputStream body) {
-        return new HttpTransientTypingInputStream(wrapIdle(body), path);
+        return metered(new HttpTransientTypingInputStream(wrapIdle(body), path));
     }
 
     private InputStream wrapIdle(InputStream body) {
@@ -738,37 +746,43 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Fetches metadata via HEAD request and caches the results.
      */
     private void fetchMetadata() throws IOException {
-        sendRequest(this::buildHeadRequest, HttpResponse.BodyHandlers.discarding(), response -> {
-            int statusCode = response.statusCode();
-            if (statusCode == HttpStatus.SC_OK) {
-                cachedExists = true;
+        try {
+            sendRequest(this::buildHeadRequest, HttpResponse.BodyHandlers.discarding(), response -> {
+                int statusCode = response.statusCode();
+                if (statusCode == HttpStatus.SC_OK) {
+                    cachedExists = true;
 
-                // Extract Content-Length
-                OptionalLong contentLength = response.headers().firstValueAsLong(HttpHeaders.CONTENT_LENGTH);
-                if (contentLength.isPresent() == false) {
-                    throw new IOException("Server did not return " + HttpHeaders.CONTENT_LENGTH + " for " + path.objectName());
-                }
-                // HEAD is not a GET: it reports whatever representation is current, which is not necessarily
-                // the one reads are pinned to. It must neither establish the pin nor overwrite the pinned
-                // representation's size (already set by the GET that pinned it).
-                String etag = pinnedEtag.get();
-                String observedEtag = response.headers().firstValue(HttpHeaders.ETAG).orElse(null);
-                if (etag == null || etag.equals(observedEtag)) {
-                    cachedLength = contentLength.getAsLong();
-                }
+                    // Extract Content-Length
+                    OptionalLong contentLength = response.headers().firstValueAsLong(HttpHeaders.CONTENT_LENGTH);
+                    if (contentLength.isPresent() == false) {
+                        throw new IOException("Server did not return " + HttpHeaders.CONTENT_LENGTH + " for " + path.objectName());
+                    }
+                    // HEAD is not a GET: it reports whatever representation is current, which is not necessarily
+                    // the one reads are pinned to. It must neither establish the pin nor overwrite the pinned
+                    // representation's size (already set by the GET that pinned it).
+                    String etag = pinnedEtag.get();
+                    String observedEtag = response.headers().firstValue(HttpHeaders.ETAG).orElse(null);
+                    if (etag == null || etag.equals(observedEtag)) {
+                        cachedLength = contentLength.getAsLong();
+                    }
 
-                // Extract Last-Modified (optional)
-                java.util.Optional<String> lastModified = response.headers().firstValue(HttpHeaders.LAST_MODIFIED);
-                cachedLastModified = lastModified.isPresent() ? parseHttpDate(lastModified.get()) : null;
-            } else if (statusCode == HttpStatus.SC_NOT_FOUND) {
-                cachedExists = false;
-                cachedLength = 0L;
-                cachedLastModified = null;
-            } else {
-                throw new IOException("HEAD request failed for " + path.objectName() + ", HTTP status: " + statusCode);
-            }
-            return null;  // Void return
-        });
+                    // Extract Last-Modified (optional)
+                    java.util.Optional<String> lastModified = response.headers().firstValue(HttpHeaders.LAST_MODIFIED);
+                    cachedLastModified = lastModified.isPresent() ? parseHttpDate(lastModified.get()) : null;
+                } else if (statusCode == HttpStatus.SC_NOT_FOUND) {
+                    cachedExists = false;
+                    cachedLength = 0L;
+                    cachedLastModified = null;
+                } else {
+                    throw new IOException("HEAD request failed for " + path.objectName() + ", HTTP status: " + statusCode);
+                }
+                return null;  // Void return
+            });
+            ExternalPlanningIo.addMetadataGet(0);
+        } catch (IOException e) {
+            ExternalPlanningIo.addMetadataGet(0);
+            throw e;
+        }
     }
 
     /**

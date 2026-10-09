@@ -126,7 +126,7 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
 
     @Before
     public void initCodec() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         codecFactory = new PlainCompressionCodecFactory();
         // Every test in this class writes to the same in-memory path ("memory://correctness_test.parquet")
         // with a different file body. Footer caches are per reader instance and each test constructs

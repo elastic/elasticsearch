@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
@@ -19,8 +20,12 @@ import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
+import java.io.IOException;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.Callable;
 
 public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
@@ -776,10 +781,12 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result) {
+    public void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor) {
         Arrays.fill(result, 0);
-        multiplyAccumulate(a, k, b, result, m, k, n);
+        multiplyAccumulate(a, k, b, result, m, k, n, executor);
     }
+
+    private static final int MIN_PARALLEL_TASKS = 16;
 
     /**
      * Accumulates {@code C = A @ B}, where element (i, l) of the left operand is
@@ -790,32 +797,59 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * @param inner      inner dimension of the multiplication
      * @param n          columns of C, and of B
      */
-    private void multiplyAccumulate(float[] a, int aRowStride, float[] b, float[] c, int cRows, int inner, int n) {
+    private void multiplyAccumulate(float[] a, int aRowStride, float[] b, float[] c, int cRows, int inner, int n, TaskExecutor executor) {
         // unroll 4x, so 4 values are accumulated into each c cell at once
-        final int innerLimit = inner - inner % 4;
-        for (int i = 0; i < cRows; i++) {
-            int aBase = i * aRowStride;
-            int cBase = i * n;
-            int l = 0;
-            for (; l < innerLimit; l += 4) {
-                int aOffset = aBase + l;
-                int b0 = l * n;
-                int b1 = b0 + n;
-                int b2 = b0 + n * 2;
-                int b3 = b0 + n * 3;
-                for (int j = 0; j < n; j++) {
-                    float acc = c[cBase + j];
-                    acc = fma(a[aOffset], b[b0 + j], acc);
-                    acc = fma(a[aOffset + 1], b[b1 + j], acc);
-                    acc = fma(a[aOffset + 2], b[b2 + j], acc);
-                    acc = fma(a[aOffset + 3], b[b3 + j], acc);
-                    c[cBase + j] = acc;
-                }
+        int innerLimit = inner - inner % 4;
+        int taskNum = cRows / 4;
+
+        if (executor == null || taskNum < MIN_PARALLEL_TASKS) {
+            for (int r = 0; r < cRows; r++) {
+                multiplyRow(a, aRowStride, b, c, inner, n, r, innerLimit);
             }
-            // tail
-            for (; l < inner; l++) {
-                linearCombination(a[aBase + l], b, l * n, c, cBase, n);
+        } else {
+            List<Callable<Void>> ops = new ArrayList<>(taskNum);
+            for (int r = 0; r < cRows; r += 4) {
+                int rowStart = r;
+                int rowEnd = Math.min(r + 4, cRows);
+                ops.add(() -> {
+                    for (int i = rowStart; i < rowEnd; i++) {
+                        multiplyRow(a, aRowStride, b, c, inner, n, i, innerLimit);
+                    }
+                    return null;
+                });
             }
+
+            try {
+                executor.invokeAll(ops);
+            } catch (IOException e) {
+                // can't happen
+                throw new AssertionError(e);
+            }
+        }
+    }
+
+    private void multiplyRow(float[] a, int aRowStride, float[] b, float[] c, int inner, int n, int i, int innerLimit) {
+        int aBase = i * aRowStride;
+        int cBase = i * n;
+        int l = 0;
+        for (; l < innerLimit; l += 4) {
+            int aOffset = aBase + l;
+            int b0 = l * n;
+            int b1 = b0 + n;
+            int b2 = b0 + n * 2;
+            int b3 = b0 + n * 3;
+            for (int j = 0; j < n; j++) {
+                float acc = c[cBase + j];
+                acc = fma(a[aOffset], b[b0 + j], acc);
+                acc = fma(a[aOffset + 1], b[b1 + j], acc);
+                acc = fma(a[aOffset + 2], b[b2 + j], acc);
+                acc = fma(a[aOffset + 3], b[b3 + j], acc);
+                c[cBase + j] = acc;
+            }
+        }
+        // tail
+        for (; l < inner; l++) {
+            linearCombination(a[aBase + l], b, l * n, c, cBase, n);
         }
     }
 

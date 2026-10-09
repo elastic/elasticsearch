@@ -36,6 +36,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingArrayOrderBinaryDocValues;
+import org.elasticsearch.lucene.queries.BinaryDocValuesScanCost;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
@@ -48,7 +49,7 @@ import java.util.function.Supplier;
  * match a provided approximation query which is key to getting good performance).
  */
 
-abstract class BinaryDvConfirmedQuery extends Query {
+abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesScanCost {
 
     protected final String field;
     protected final Query approxQuery;
@@ -276,6 +277,11 @@ abstract class BinaryDvConfirmedQuery extends Query {
     }
 
     @Override
+    public String field() {
+        return field;
+    }
+
+    @Override
     public void visit(QueryVisitor visitor) {
         if (visitor.acceptField(field)) {
             approxQuery.visit(visitor.getSubVisitor(BooleanClause.Occur.MUST, this));
@@ -303,7 +309,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
 
         @Override
         protected BinaryDVMatcher getBinaryDVMatcher() {
-            final ByteRunAutomaton byteRunAutomaton = new ByteRunAutomaton(automatonProvider.getAutomaton(field));
+            final ByteRunAutomaton byteRunAutomaton = automatonProvider.getRunAutomaton(field);
             return (values) -> {
                 int count = values.docValueCount();
                 for (int i = 0; i < count; i++) {
@@ -406,6 +412,10 @@ abstract class BinaryDvConfirmedQuery extends Query {
 
     private interface AutomatonProvider {
         Automaton getAutomaton(String field);
+
+        default ByteRunAutomaton getRunAutomaton(String field) {
+            return new ByteRunAutomaton(getAutomaton(field));
+        }
     }
 
     private record PatternAutomatonProvider(String matchPattern, boolean caseInsensitive) implements AutomatonProvider {
@@ -447,7 +457,12 @@ abstract class BinaryDvConfirmedQuery extends Query {
     private record FuzzyQueryAutomatonProvider(String searchTerm, FuzzyQuery fuzzyQuery) implements AutomatonProvider {
         @Override
         public Automaton getAutomaton(String field) {
-            return fuzzyQuery.getAutomata().automaton;
+            throw new UnsupportedOperationException("Call getRunAutomaton instead");
+        }
+
+        @Override
+        public ByteRunAutomaton getRunAutomaton(String field) {
+            return fuzzyQuery.getAutomata().runAutomaton;
         }
     }
 

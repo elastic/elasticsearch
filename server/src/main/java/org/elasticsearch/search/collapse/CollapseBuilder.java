@@ -8,11 +8,18 @@
  */
 package org.elasticsearch.search.collapse;
 
+import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
+import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -223,6 +230,25 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
             );
         }
 
-        return new CollapseContext(field, fieldType);
+        return new CollapseContext(field, fieldType, binaryValues(fieldType, searchExecutionContext.indexVersionCreated()));
+    }
+
+    /**
+     * Binds the decoder for a field's binary doc values to the framing its mapping chose, or returns {@code null} for a
+     * field that writes no binary blob. Deciding this here keeps the framing out of the grouping collector, which only
+     * needs a document's bytes.
+     */
+    @Nullable
+    private static CheckedFunction<LeafReader, SortableBinaryDocValues, IOException> binaryValues(
+        MappedFieldType fieldType,
+        IndexVersion indexVersion
+    ) {
+        if (fieldType instanceof KeywordFieldType keywordFieldType) {
+            BinaryDocValuesFormat binaryFormat = keywordFieldType.binaryFormat();
+            if (binaryFormat != null) {
+                return reader -> SortableBinaryDocValues.forFormat(reader, fieldType.name(), indexVersion, binaryFormat);
+            }
+        }
+        return null;
     }
 }

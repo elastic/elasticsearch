@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.mapper.vectors.DenseVectorAutoCalibrate;
 
 import java.util.Set;
 
@@ -42,6 +43,7 @@ public class MapperFeatures implements FeatureSpecification {
     );
     public static final NodeFeature SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX = new NodeFeature("mapper.subobjects_false_mapping_update_fix");
     public static final NodeFeature INVALID_DATE_FIX = new NodeFeature("mapper.range.invalid_date_fix");
+    public static final NodeFeature RANGE_DOCVALUE_FIELDS_FIX = new NodeFeature("mapper.range.docvalue_fields_fix");
     public static final NodeFeature ROUTING_AS_DOC_VALUES = new NodeFeature("mapper.routing_as_doc_values");
     public static final NodeFeature ROUTING_AS_DOC_VALUES_BY_DEFAULT = new NodeFeature("mapper.routing_as_doc_values_by_default");
     public static final NodeFeature ID_FIELD_MODE_MAPPING_ATTRIBUTE = new NodeFeature("mapper.id_field.mode_mapping_attribute");
@@ -115,6 +117,9 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature MV_MAX_FUNCTION_FUSE_TO_LOAD = new NodeFeature("mapper.keyword.mv_max_function_fuse_to_load");
     public static final NodeFeature TDIGEST_TYPE = new NodeFeature("mapper.tdigest_type");
     public static final NodeFeature TEXT_FIELD_DOC_VALUES = new NodeFeature("mapper.text.doc_values");
+    public static final NodeFeature TEXT_FIELD_DOC_VALUES_WITHOUT_FEATURE_FLAG = new NodeFeature(
+        "mapper.text.doc_values_without_feature_flag"
+    );
     public static final NodeFeature TEXT_FIELD_DOC_VALUES_PREFIX_WILDCARD_REGEXP = new NodeFeature(
         "mapper.text.doc_values_prefix_wildcard_regexp"
     );
@@ -176,10 +181,13 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature PUT_MAPPING_NO_TYPES_CHECK = new NodeFeature("indices.put_mapping.no_types_check");
     public static final NodeFeature DENSE_VECTOR_ON_DISK_MERGE = new NodeFeature("mapper.vectors.on_disk_merge");
     public static final NodeFeature DENSE_VECTOR_UNIFIED_VALUE_FORMATS = new NodeFeature("mapper.dense_vector.unified_value_formats");
+    public static final NodeFeature FIX_SORTED_NUMERIC_WITH_OFFSETS_EMPTY_ARRAY = new NodeFeature(
+        "mapper.fix_sorted_numeric_with_offsets_empty_array"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(TSDB_METRIC_TEMPORALITY_SUPPORT);
+        return Set.of(TSDB_METRIC_TEMPORALITY_SUPPORT, DenseVectorAutoCalibrate.AUTO_CALIBRATE_PROFILES);
     }
 
     @Override
@@ -282,7 +290,10 @@ public class MapperFeatures implements FeatureSpecification {
             DISK_BBQ_STABLE_FORMAT_SELECTION,
             PUT_MAPPING_NO_TYPES_CHECK,
             MAPPING_LIMIT_CHECKS_AT_PARSE_TIME,
-            DENSE_VECTOR_UNIFIED_VALUE_FORMATS
+            DENSE_VECTOR_UNIFIED_VALUE_FORMATS,
+            FIX_SORTED_NUMERIC_WITH_OFFSETS_EMPTY_ARRAY,
+            RANGE_DOCVALUE_FIELDS_FIX,
+            TEXT_FIELD_DOC_VALUES_WITHOUT_FEATURE_FLAG
         );
     }
 }

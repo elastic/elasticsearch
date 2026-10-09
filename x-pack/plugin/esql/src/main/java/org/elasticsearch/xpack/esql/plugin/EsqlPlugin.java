@@ -105,6 +105,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.DatasetListingService;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.LocalFileAccess;
@@ -556,6 +557,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD,
             formatReaderRegistry::setMaxDecompressionRatioZstd
         );
+        clusterSettings.initializeAndWatchIfRegistered(
+            ExternalSourceSettings.ADMISSION_RESCUE_ENABLED,
+            dataSourceModule::setAdmissionRescueEnabled
+        );
 
         // Build the format metadata the dataset CRUD validator uses to (a) accept format-specific
         // fields (e.g. CSV's "delimiter") so they persist in cluster state and reach the format reader
@@ -671,6 +676,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.crossProjectModeDecider()
             ),
             new ViewService(services.clusterService(), parser),
+            new FederationLicense(this::getLicenseState),
             dataSourceService,
             new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),
             inventoryCounters,

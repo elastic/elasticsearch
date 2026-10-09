@@ -9,11 +9,17 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * Utility for draining pages from a {@link CloseableIterator} into an {@link AsyncExternalSourceBuffer}
@@ -51,6 +57,10 @@ public final class ExternalSourceDrainUtils {
      * boundary. To also abort a page pull ({@code hasNext()}/{@code next()}) parked in storage retry/throttle
      * backoff, {@code readCancelled} is installed as the ambient {@link StorageRetryCancellation} signal around
      * every drain step (initial and executor-resumed) — mirroring the {@code runProducerLoop} read path.
+     * The hot loop parks on {@link CloseableIterator#waitForReady()} rather than blocking
+     * {@code hasNext()}, so an async iterator can yield the executor slot while I/O is in flight.
+     * EOF is {@code tryAdvance() == null} after {@code waitForReady()} is done; the drain never
+     * calls {@code hasNext()}.
      */
     public static void drainPagesAsync(
         CloseableIterator<Page> pages,
@@ -59,7 +69,7 @@ public final class ExternalSourceDrainUtils {
         BooleanSupplier readCancelled,
         ActionListener<Void> listener
     ) {
-        drainBatch(pages, buffer, executor, readCancelled, listener);
+        drainPagesAsync(pages, buffer, executor, readCancelled, () -> false, defaultPageSink(buffer), listener);
     }
 
     /**
@@ -73,7 +83,60 @@ public final class ExternalSourceDrainUtils {
         Executor executor,
         ActionListener<Void> listener
     ) {
-        drainBatch(pages, buffer, executor, () -> false, listener);
+        drainPagesAsync(pages, buffer, executor, () -> false, listener);
+    }
+
+    /**
+     * Like {@link #drainPagesAsync(CloseableIterator, AsyncExternalSourceBuffer, Executor, BooleanSupplier, ActionListener)}
+     * but stops pulling when {@code stop} is true and delivers each page through {@code pageSink}
+     * (typically the factory {@code deliverPage} that charges a pushed limiter). {@code pageSink}
+     * takes ownership of the page; a page pulled after {@code stop} or {@code noMoreInputs} is
+     * released rather than sunk.
+     */
+    public static void drainPagesAsync(
+        CloseableIterator<Page> pages,
+        AsyncExternalSourceBuffer buffer,
+        Executor executor,
+        BooleanSupplier readCancelled,
+        BooleanSupplier stop,
+        Consumer<Page> pageSink,
+        ActionListener<Void> listener
+    ) {
+        drainBatch(pages, buffer, executor, readCancelled, stop, pageSink, listener, new DrainSession());
+    }
+
+    /**
+     * Non-blocking drain probe. Never {@link CloseableIterator#hasNext()}. Returns a page,
+     * {@code null} at EOF, or {@code null} with {@code blockedOn} set when the iterator is
+     * waiting on I/O. Callers must already have a done {@link CloseableIterator#waitForReady()}.
+     * A second {@code tryAdvance} after a done recheck is required because a page can arrive
+     * in that race, and that second call can start the next GET.
+     */
+    static Page tryAdvanceOrPark(CloseableIterator<Page> pages, Holder<SubscribableListener<Void>> blockedOn) {
+        Page tryPage = pages.tryAdvance();
+        if (tryPage == null) {
+            SubscribableListener<Void> recheck = pages.waitForReady();
+            if (recheck.isDone() == false) {
+                blockedOn.set(recheck);
+                return null;
+            }
+            tryPage = pages.tryAdvance();
+            if (tryPage == null) {
+                SubscribableListener<Void> after = pages.waitForReady();
+                if (after.isDone() == false) {
+                    blockedOn.set(after);
+                    return null;
+                }
+            }
+        }
+        return tryPage;
+    }
+
+    private static Consumer<Page> defaultPageSink(AsyncExternalSourceBuffer buffer) {
+        return page -> {
+            page.allowPassingToDifferentDriver();
+            buffer.addPage(page);
+        };
     }
 
     private static void drainBatch(
@@ -81,33 +144,181 @@ public final class ExternalSourceDrainUtils {
         AsyncExternalSourceBuffer buffer,
         Executor executor,
         BooleanSupplier readCancelled,
-        ActionListener<Void> listener
+        BooleanSupplier stop,
+        Consumer<Page> pageSink,
+        ActionListener<Void> listener,
+        DrainSession session
     ) {
+        Object token = new Object();
+        if (session.run.compareAndSet(null, token) == false) {
+            recordDrainError(session, new IllegalStateException("overlapping drain run"));
+            return;
+        }
         try {
             StorageRetryCancellation.runWithCancellation(readCancelled, () -> {
-                while (buffer.noMoreInputs() == false && buffer.readCounters().meteredCpu(pages::hasNext)) {
-                    SubscribableListener<Void> space = buffer.waitForSpace();
-                    if (space.isDone()) {
-                        if (buffer.noMoreInputs()) break;
-                        Page page = buffer.readCounters().meteredCpu(pages::next);
-                        page.allowPassingToDifferentDriver();
-                        buffer.addPage(page);
-                    } else {
-                        space.addListener(ActionListener.wrap(v -> {
-                            try {
-                                executor.execute(() -> drainBatch(pages, buffer, executor, readCancelled, listener));
-                            } catch (Exception e) {
-                                listener.onFailure(e);
-                            }
-                        }, listener::onFailure));
+                while (buffer.noMoreInputs() == false && stop.getAsBoolean() == false) {
+                    Exception overlap = session.error.get();
+                    if (overlap != null) {
+                        failDrain(session, listener, overlap);
                         return;
                     }
+                    SubscribableListener<Void> ready = pages.waitForReady();
+                    if (ready.isDone() == false) {
+                        park(ready, null, pages, buffer, executor, readCancelled, stop, pageSink, listener, session, token);
+                        return;
+                    }
+
+                    Holder<SubscribableListener<Void>> blockedOn = new Holder<>();
+                    Page page = buffer.readCounters().meteredCpu(() -> tryAdvanceOrPark(pages, blockedOn));
+                    if (blockedOn.get() != null) {
+                        park(blockedOn.get(), null, pages, buffer, executor, readCancelled, stop, pageSink, listener, session, token);
+                        return;
+                    }
+                    if (page == null) {
+                        completeDrain(session, listener);
+                        return;
+                    }
+                    overlap = session.error.get();
+                    if (overlap != null) {
+                        page.releaseBlocks();
+                        failDrain(session, listener, overlap);
+                        return;
+                    }
+
+                    SubscribableListener<Void> space = buffer.waitForSpace();
+                    if (space.isDone() == false) {
+                        pages.revokeOvershootOnPark();
+                        park(space, page, pages, buffer, executor, readCancelled, stop, pageSink, listener, session, token);
+                        return;
+                    }
+                    if (buffer.noMoreInputs() || stop.getAsBoolean()) {
+                        page.releaseBlocks();
+                        break;
+                    }
+                    pageSink.accept(page);
                 }
-                listener.onResponse(null);
+                Exception overlap = session.error.get();
+                if (overlap != null) {
+                    failDrain(session, listener, overlap);
+                    return;
+                }
+                completeDrain(session, listener);
             });
         } catch (Exception e) {
+            failDrain(session, listener, e);
+        } finally {
+            session.run.compareAndSet(token, null);
+        }
+    }
+
+    /**
+     * Parks the drain until {@code signal} fires, then force-submits one continuation
+     * on {@code executor}. {@code heldPage} is a page already pulled from the iterator; it is
+     * sunk on resume or released if the drain has stopped.
+     */
+    private static void park(
+        SubscribableListener<Void> signal,
+        @Nullable Page heldPage,
+        CloseableIterator<Page> pages,
+        AsyncExternalSourceBuffer buffer,
+        Executor executor,
+        BooleanSupplier readCancelled,
+        BooleanSupplier stop,
+        Consumer<Page> pageSink,
+        ActionListener<Void> listener,
+        DrainSession session,
+        Object token
+    ) {
+        // Unlock before addListener so an already-done signal (DIRECT inline completion) can
+        // claim the run. This task must not mutate drain state after this point.
+        session.run.compareAndSet(token, null);
+        signal.addListener(ActionListener.wrap(v -> {
+            boolean consumed = heldPage == null;
+            try {
+                if (heldPage != null) {
+                    if (buffer.noMoreInputs() || stop.getAsBoolean()) {
+                        consumed = true;
+                        heldPage.releaseBlocks();
+                        completeDrain(session, listener);
+                        return;
+                    }
+                    consumed = true;
+                    pageSink.accept(heldPage);
+                }
+                submitResume(pages, buffer, executor, readCancelled, stop, pageSink, listener, session);
+            } catch (Exception e) {
+                if (consumed == false) {
+                    heldPage.releaseBlocks();
+                }
+                failDrain(session, listener, e);
+            }
+        }, e -> {
+            if (heldPage != null) {
+                heldPage.releaseBlocks();
+            }
+            failDrain(session, listener, e);
+        }));
+    }
+
+    private static void submitResume(
+        CloseableIterator<Page> pages,
+        AsyncExternalSourceBuffer buffer,
+        Executor executor,
+        BooleanSupplier readCancelled,
+        BooleanSupplier stop,
+        Consumer<Page> pageSink,
+        ActionListener<Void> listener,
+        DrainSession session
+    ) {
+        AbstractRunnable task = new AbstractRunnable() {
+            @Override
+            public boolean isForceExecution() {
+                return true;
+            }
+
+            @Override
+            protected void doRun() {
+                drainBatch(pages, buffer, executor, readCancelled, stop, pageSink, listener, session);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failDrain(session, listener, e);
+            }
+        };
+        try {
+            executor.execute(task);
+        } catch (Exception e) {
+            failDrain(session, listener, e);
+        }
+    }
+
+    static void completeDrain(DrainSession session, ActionListener<Void> listener) {
+        if (session.completed.compareAndSet(false, true)) {
+            listener.onResponse(null);
+        }
+    }
+
+    static void failDrain(DrainSession session, ActionListener<Void> listener, Exception e) {
+        if (session.completed.compareAndSet(false, true)) {
             listener.onFailure(e);
         }
+    }
+
+    /** Overlap records here; the token holder calls {@link #failDrain} after it drops the page. */
+    static void recordDrainError(DrainSession session, Exception e) {
+        session.error.compareAndSet(null, e);
+    }
+
+    /**
+     * One drain session: exclusive run plus at-most-once completion. No queued/dirty mailbox;
+     * each signal is one force-executed submit. {@code run} holds the current drainBatch token.
+     * {@code error} is a stashed overlap until the holder notifies.
+     */
+    static final class DrainSession {
+        final AtomicReference<Object> run = new AtomicReference<>();
+        final AtomicBoolean completed = new AtomicBoolean();
+        final AtomicReference<Exception> error = new AtomicReference<>();
     }
 
 }

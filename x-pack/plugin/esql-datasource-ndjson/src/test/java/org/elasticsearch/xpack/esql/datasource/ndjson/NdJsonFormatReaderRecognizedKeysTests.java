@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.empty;
 public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
 
     private static final BlockFactory NOOP_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("noop"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testRecognizedKeysSetIsExpected() {
@@ -42,6 +42,7 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
         expected.add("schema_sample_size");
         expected.add("segment_size");
         expected.add("datetime_format");
+        expected.add("schema_max_fields");
         assertEquals(expected, new TreeSet<>(NdJsonFormatReader.RECOGNIZED_KEYS));
     }
 
@@ -188,7 +189,7 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
 
     /**
      * {@code schema_sample_size} is a base dataset field: {@code FileDataSourceValidator} bounds it
-     * at PUT time ([1, 20000]) and never forwards it to the format validator, so the validator must
+     * at PUT time ([1, 40000]) and never forwards it to the format validator, so the validator must
      * ignore it rather than duplicate the check with a second message. The reader still rejects a
      * non-positive value on the query path, where the WITH config arrives unfiltered.
      */
@@ -215,6 +216,7 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
             case "schema_sample_size" -> 10;
             case "segment_size" -> "2mb";
             case "datetime_format" -> "dd/MM/yyyy HH:mm:ss";
+            case "schema_max_fields" -> 500;
             default -> throw new AssertionError("update sampleValueFor() for new recognised key: " + key);
         };
     }
@@ -274,6 +276,9 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
         }
         if (NdJsonFormatReader.CONFIG_SEGMENT_SIZE.equals(key)) {
             return "2mb";
+        }
+        if (NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS.equals(key)) {
+            return "500";
         }
         return "dd-MM-yyyy";
     }

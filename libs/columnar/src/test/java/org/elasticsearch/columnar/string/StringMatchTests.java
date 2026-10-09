@@ -166,6 +166,33 @@ public class StringMatchTests extends ColumnarStringTestCase {
         }
     }
 
+    public void testRunEndsAroundDoublingBoundaries() throws IOException {
+        // NOTE: the run end is bracketed by doubling, so the lengths either side of a power of two are where
+        // an off-by-one hides, and the last run reaches the column's end with no value above it to stop on.
+        final int[] lengths = { 1, 2, 3, 7, 8, 9, 15, 16, 17, 31, 32, 33, 1, 64, 65 };
+        final List<BytesRef> values = new ArrayList<>();
+        for (int i = 0; i < lengths.length; i++) {
+            for (int repeat = 0; repeat < lengths[i]; repeat++) {
+                values.add(orderedTerm(i));
+            }
+        }
+        final BytesRef[] docValues = values.toArray(new BytesRef[0]);
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                final String how = "policy=" + policy;
+                for (int i = 0; i < lengths.length; i++) {
+                    assertEquals(how + " run of " + lengths[i], lengths[i], count(reader.matchTerm(orderedTerm(i))));
+                }
+                assertEquals(how + " past the last run", 0, count(reader.matchTerm(orderedTerm(lengths.length))));
+                assertEquals(how + " below the first run", 0, count(reader.matchTerm(new BytesRef("s"))));
+            });
+        }
+    }
+
+    private static BytesRef orderedTerm(int position) {
+        return new BytesRef(position < 10 ? "t0" + position : "t" + position);
+    }
+
     /**
      * A plain column stores a repeat without its length and a null as a code below every length, so the window
      * over lengths has to give a repeat the answer of the value before it and never offer a null, and a column
@@ -594,25 +621,11 @@ public class StringMatchTests extends ColumnarStringTestCase {
                 for (int from = 0; from < docs.length; from += page) {
                     final int count = Math.min(page, docs.length - from);
                     final int at = from;
-                    assertTrue("expected a page", reader.readBlock(docs, from, count, new StringBlockSink() {
+                    assertTrue("expected a page", reader.readBlock(docs, from, count, new ValuesSink() {
                         @Override
-                        public void appendOrdinals(
-                            int[] ordinals,
-                            int n,
-                            int[] valueCounts,
-                            int docCount,
-                            BytesRef[] dictionary,
-                            int dictionarySize
-                        ) {
-                            for (int i = 0; i < n; i++) {
-                                rebuilt.add(dictionary[ordinals[i]].utf8ToString());
-                            }
-                        }
-
-                        @Override
-                        public void appendValues(BytesRef[] values, int n, int[] valueCounts, int docCount) {
-                            for (int i = 0; i < n; i++) {
-                                rebuilt.add(values[i].utf8ToString());
+                        protected void page(List<BytesRef> values, int[] valueCounts, int docCount) {
+                            for (BytesRef value : values) {
+                                rebuilt.add(value.utf8ToString());
                             }
                         }
                     }));
@@ -1254,29 +1267,19 @@ public class StringMatchTests extends ColumnarStringTestCase {
      */
     private static List<List<String>> pageOf(StringColumnReader reader, int[] docs) throws IOException {
         final List<List<String>> rebuilt = new ArrayList<>();
-        final boolean served = reader.readBlock(docs, 0, docs.length, new StringBlockSink() {
+        final boolean served = reader.readBlock(docs, 0, docs.length, new ValuesSink() {
             @Override
-            public void appendOrdinals(int[] ordinals, int count, int[] valueCounts, int docCount, BytesRef[] dictionary, int size) {
-                final BytesRef[] values = new BytesRef[count];
-                for (int i = 0; i < count; i++) {
-                    assertTrue("ordinal in range", ordinals[i] >= 0 && ordinals[i] < size);
-                    values[i] = dictionary[ordinals[i]];
-                }
-                appendValues(values, count, valueCounts, docCount);
-            }
-
-            @Override
-            public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
+            protected void page(List<BytesRef> values, int[] valueCounts, int docCount) {
                 int at = 0;
                 for (int d = 0; d < docCount; d++) {
                     final int held = valueCounts == null ? 1 : valueCounts[d];
                     final List<String> doc = new ArrayList<>();
-                    for (int i = 0; i < held; i++) {
-                        doc.add(values[at++].utf8ToString());
+                    for (int v = 0; v < held; v++) {
+                        doc.add(values.get(at++).utf8ToString());
                     }
                     rebuilt.add(doc);
                 }
-                assertEquals("values accounted for", count, at);
+                assertEquals("values accounted for", values.size(), at);
             }
         });
         assertTrue("expected a page", served);

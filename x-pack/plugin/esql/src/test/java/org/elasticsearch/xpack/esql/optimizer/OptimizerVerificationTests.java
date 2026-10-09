@@ -176,6 +176,48 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         optimize(fullTextAnalyzer().query("from test metadata _score | rename title as name | where match(name, \"cat\") or _score > 1.5"));
     }
 
+    public void testScoreOredWithSearchOnIndexedFieldAliasPushedPastCommandsAccepted() {
+        String prefix = "from test metadata _score | eval t = title | ";
+        String where = " | where match(t, \"cat\") or _score > 1.5";
+        optimize(fullTextAnalyzer().query(prefix + "where match(t, \"dog\")" + where));
+        optimize(fullTextAnalyzer().query("from test metadata _score | rename title as t | where match(t, \"dog\")" + where));
+        optimize(fullTextAnalyzer().query(prefix + "dissect body \"%{part}\"" + where));
+        optimize(fullTextAnalyzer().query(prefix + "grok body \"%{WORD:word}\"" + where));
+        optimize(fullTextAnalyzer().query(prefix + "mv_expand tags" + where));
+        optimize(fullTextAnalyzer().query(prefix + "enrich languages_idx on category" + where));
+        optimize(
+            fullTextAnalyzer().addLanguagesLookup()
+                .query(prefix + "eval language_code = category | lookup join languages_lookup on language_code" + where)
+        );
+    }
+
+    public void testScoreOredWithSearchDependingOnPushableCommandRejected() {
+        String message = "[_score] can't be used with runtime search [MATCH] inside OR, NOT or a comparison";
+        String prefix = "from test metadata _score | eval t = title | ";
+        fullTextAnalyzer().error(prefix + "dissect body \"%{part}\" | where match(part, \"cat\") or _score > 1.5", containsString(message));
+        fullTextAnalyzer().error(
+            prefix + "grok body \"%{WORD:word}\" | where match(word, \"cat\") or _score > 1.5",
+            containsString(message)
+        );
+        fullTextAnalyzer().error(prefix + "mv_expand t | where match(t, \"cat\") or _score > 1.5", containsString(message));
+        fullTextAnalyzer().error(
+            prefix + "enrich languages_idx on category | where match(t, \"cat\") or _score > length(language_name)",
+            containsString(message)
+        );
+        fullTextAnalyzer().addLanguagesLookup()
+            .error(
+                prefix
+                    + "eval language_code = category | lookup join languages_lookup on language_code "
+                    + "| where match(t, \"cat\") or _score > length(language_name)",
+                containsString(message)
+            );
+        // The earlier search stays a runtime one, so the _score predicate can't combine with it.
+        fullTextAnalyzer().error(
+            prefix + "dissect body \"%{part}\" | where match(part, \"dog\") | where match(t, \"cat\") or _score > 1.5",
+            containsString(message)
+        );
+    }
+
     public void testScoreOredWithRuntimeSearchOnDatasetRejected() {
         List<Attribute> schema = List.of(referenceAttribute("emp_no", DataType.LONG), referenceAttribute("first_name", DataType.KEYWORD));
         VerificationException e = expectThrows(

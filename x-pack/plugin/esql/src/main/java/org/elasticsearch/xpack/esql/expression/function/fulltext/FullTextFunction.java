@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -51,12 +50,13 @@ import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFilters;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFilters.UnaryPushDown;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SplitScorePredicatesFromRuntimeSearch;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -320,41 +320,43 @@ public abstract class FullTextFunction extends Function
      * Whether {@code conjunct}, of a filter over {@code child}, still holds a runtime search that adds to {@code _score}
      * once push-down has moved it as far down as it goes. A search on an alias or {@code RENAME} of an indexed field
      * looks like a runtime search when analyzed, but push-down resolves the alias and turns it back into one that scores
-     * at the source. This moves the conjunct the way {@code PushDownAndCombineFilters} would, resolving aliases as it
+     * at the source. This moves the conjunct the way {@link PushDownAndCombineFilters} would, resolving aliases as it
      * goes, and stops wherever that would stop, or at any command it doesn't follow it past.
      */
     private static boolean holdsRuntimeScorerOncePushedDown(Expression conjunct, LogicalPlan child) {
         Expression pushed = conjunct;
         LogicalPlan plan = child;
         while (containsRuntimeScorer(pushed)) {
-            if (plan instanceof Eval eval) {
-                AttributeMap.Builder<Expression> builder = AttributeMap.builder();
-                eval.fields().forEach(alias -> builder.put(alias.toAttribute(), alias.child()));
-                AttributeMap<Expression> evalAliases = builder.build();
-                // Only aliases of attributes from before the Eval are resolved, and a conjunct that still references
-                // what the Eval creates stays above it.
-                Expression resolved = pushed.transformDown(ReferenceAttribute.class, reference -> {
-                    Expression source = evalAliases.resolve(reference, null);
-                    return source instanceof Attribute && eval.inputSet().contains(source) ? source : reference;
-                });
-                if (resolved.anyMatch(evalAliases::containsKey)) {
-                    return true;
+            if (plan instanceof Filter filter) {
+                // A _score predicate doesn't combine into a filter which holds a runtime scorer, unless push-down turns
+                // the searches in that filter into ones that score at the source too.
+                Expression normalized = SplitScorePredicatesFromRuntimeSearch.normalize(filter.condition(), FoldContext.small());
+                for (Expression lower : Predicates.splitAnd(normalized)) {
+                    if (holdsRuntimeScorerOncePushedDown(lower, filter.child())) {
+                        return true;
+                    }
                 }
-                pushed = resolved;
+                plan = filter.child();
             } else if (plan instanceof Project project) {
                 AttributeMap.Builder<Expression> builder = AttributeMap.builder();
                 project.forEachExpression(Alias.class, alias -> builder.put(alias.toAttribute(), alias.child()));
                 AttributeMap<Expression> projectAliases = builder.build();
                 pushed = pushed.transformDown(Attribute.class, attribute -> projectAliases.resolve(attribute, attribute));
-            } else if (plan instanceof Filter filter) {
-                // A _score predicate doesn't combine into a filter holding a runtime scorer.
-                if (containsRuntimeScorer(filter.condition())) {
+                plan = project.child();
+            } else if (plan instanceof OrderBy orderBy) {
+                plan = orderBy.child();
+            } else if (plan instanceof Join join && PushDownAndCombineFilters.pushesIntoLeftSide(pushed, join)) {
+                plan = join.left();
+            } else if (plan instanceof UnaryPlan unary && PushDownAndCombineFilters.pushDownPast(unary) instanceof UnaryPushDown pushDown) {
+                Expression resolved = pushDown.resolveRenames().apply(pushed);
+                if (resolved.anyMatch(pushDown.cannotPush())) {
                     return true;
                 }
-            } else if (plan instanceof OrderBy == false) {
+                pushed = resolved;
+                plan = unary.child();
+            } else {
                 return true;
             }
-            plan = ((UnaryPlan) plan).child();
         }
         return false;
     }

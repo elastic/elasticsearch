@@ -99,7 +99,33 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
                 // combine nodes into a single Filter with updated ANDed condition
                 plan = f.with(Predicates.combineAnd(List.of(f.condition(), condition)));
             }
-        } else if (child instanceof Eval eval) {
+        } else if (child instanceof Project) {
+            return PushDownUtils.pushDownPastProject(filter);
+        } else if (child instanceof OrderBy orderBy) {
+            // swap the filter with its child
+            plan = orderBy.replaceChild(filter.with(orderBy.child(), condition));
+        } else if (child instanceof Join join) {
+            return pushDownPastJoin(filter, join, ctx.foldCtx());
+        } else if (child instanceof UnaryPlan unary && pushDownPast(unary) instanceof UnaryPushDown pushDown) {
+            plan = maybePushDownPastUnary(filter, unary, pushDown.cannotPush(), pushDown.resolveRenames());
+        }
+        // cannot push past a Limit, this could change the tailing result set returned
+        return plan;
+    }
+
+    /**
+     * How this rule pushes a conjunct of a filter past a {@link UnaryPlan} other than a {@link Filter}, {@link Project} or
+     * {@link OrderBy}: it can't push a conjunct that, once its renames are resolved, still references what
+     * {@code cannotPush} matches.
+     */
+    public record UnaryPushDown(Predicate<Expression> cannotPush, Function<Expression, Expression> resolveRenames) {}
+
+    /**
+     * How this rule pushes a conjunct of a filter past {@code unary}, or {@code null} if it doesn't push past it this way.
+     * Shared with the verifier, which needs to know where a filter ends up before optimization moves it there.
+     */
+    public static UnaryPushDown pushDownPast(UnaryPlan unary) {
+        if (unary instanceof Eval eval) {
             // Don't push if Filter (still) contains references to Eval's fields.
             // Account for simple aliases in the Eval, though - these shouldn't stop us.
             AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder();
@@ -118,39 +144,41 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
                 return r;
             });
 
-            plan = maybePushDownPastUnary(filter, eval, evalAliases::containsKey, resolveRenames);
-        } else if (child instanceof RegexExtract re) {
+            return new UnaryPushDown(evalAliases::containsKey, resolveRenames);
+        } else if (unary instanceof RegexExtract re) {
             // Push down filters that do not rely on attributes created by RegexExtract
             var attributes = AttributeSet.of(Expressions.asAttributes(re.extractedFields()));
-            plan = maybePushDownPastUnary(filter, re, attributes::contains, NO_OP);
-        } else if (child instanceof CompoundOutputEval<?> coe) {
+            return new UnaryPushDown(attributes::contains, NO_OP);
+        } else if (unary instanceof CompoundOutputEval<?> coe) {
             // Push down filters that do not rely on attributes created by CompoundOutputEval
             var attributes = AttributeSet.of(Expressions.asAttributes(coe.generatedAttributes()));
-            plan = maybePushDownPastUnary(filter, coe, attributes::contains, NO_OP);
-        } else if (child instanceof InferencePlan<?> inferencePlan) {
+            return new UnaryPushDown(attributes::contains, NO_OP);
+        } else if (unary instanceof InferencePlan<?> inferencePlan) {
             // Push down filters that do not rely on attributes created by Completion
             var attributes = AttributeSet.of(inferencePlan.generatedAttributes());
-            plan = maybePushDownPastUnary(filter, inferencePlan, attributes::contains, NO_OP);
-        } else if (child instanceof Enrich enrich) {
+            return new UnaryPushDown(attributes::contains, NO_OP);
+        } else if (unary instanceof Enrich enrich) {
             // Push down filters that do not rely on attributes created by Enrich
             var attributes = AttributeSet.of(Expressions.asAttributes(enrich.enrichFields()));
-            plan = maybePushDownPastUnary(filter, enrich, attributes::contains, NO_OP);
-        } else if (child instanceof Highlight highlight) {
+            return new UnaryPushDown(attributes::contains, NO_OP);
+        } else if (unary instanceof Highlight highlight) {
             var attributes = AttributeSet.of(highlight.generatedAttributes());
-            plan = maybePushDownPastUnary(filter, highlight, attributes::contains, NO_OP);
-        } else if (child instanceof Project) {
-            return PushDownUtils.pushDownPastProject(filter);
-        } else if (child instanceof OrderBy orderBy) {
-            // swap the filter with its child
-            plan = orderBy.replaceChild(filter.with(orderBy.child(), condition));
-        } else if (child instanceof Join join) {
-            return pushDownPastJoin(filter, join, ctx.foldCtx());
-        } else if (child instanceof MvExpand mvExpand) {
+            return new UnaryPushDown(attributes::contains, NO_OP);
+        } else if (unary instanceof MvExpand mvExpand) {
             Attribute attribute = mvExpand.expanded();
-            return maybePushDownPastUnary(filter, mvExpand, attribute::semanticEquals, NO_OP);
+            return new UnaryPushDown(attribute::semanticEquals, NO_OP);
         }
-        // cannot push past a Limit, this could change the tailing result set returned
-        return plan;
+        return null;
+    }
+
+    /**
+     * Whether this rule pushes {@code conjunct}, of a filter over {@code join}, into the join's left side. Shared with the
+     * verifier, like {@link #pushDownPast}.
+     */
+    public static boolean pushesIntoLeftSide(Expression conjunct, Join join) {
+        return join.config().type() == JoinTypes.LEFT
+            && join instanceof InlineJoin == false
+            && conjunct.references().subsetOf(join.left().outputSet());
     }
 
     private static boolean referencesScore(Expression expression) {
@@ -163,16 +191,15 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
     // 1. filter scoped to the left
     // 2. filter scoped to the right
     // 3. filter that requires both sides to be evaluated
-    private static ScopedFilter scopeFilter(List<Expression> filters, LogicalPlan left, LogicalPlan right) {
+    private static ScopedFilter scopeFilter(List<Expression> filters, Join join) {
         List<Expression> rest = new ArrayList<>(filters);
         List<Expression> leftFilters = new ArrayList<>();
         List<Expression> rightFilters = new ArrayList<>();
 
-        AttributeSet leftOutput = left.outputSet();
-        AttributeSet rightOutput = right.outputSet();
+        AttributeSet rightOutput = join.right().outputSet();
 
         // first remove things that are left scoped only
-        rest.removeIf(f -> f.references().subsetOf(leftOutput) && leftFilters.add(f));
+        rest.removeIf(f -> pushesIntoLeftSide(f, join) && leftFilters.add(f));
         // followed by right scoped only
         rest.removeIf(f -> f.references().subsetOf(rightOutput) && rightFilters.add(f));
         return new ScopedFilter(rest, leftFilters, rightFilters);
@@ -227,7 +254,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             // - filters scoped to the left
             // - filters scoped to the right
             // - filter that requires both sides to be evaluated
-            var scoped = join instanceof InlineJoin ij ? scopeInlineStatsFilter(conjunctions, ij) : scopeFilter(conjunctions, left, right);
+            var scoped = join instanceof InlineJoin ij ? scopeInlineStatsFilter(conjunctions, ij) : scopeFilter(conjunctions, join);
 
             boolean optimizationApplied = false;
             // push the left scoped filter down to the left child

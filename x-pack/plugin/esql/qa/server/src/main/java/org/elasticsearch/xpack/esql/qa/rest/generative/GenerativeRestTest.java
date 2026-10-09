@@ -81,9 +81,9 @@ import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.
 import static org.elasticsearch.xpack.esql.generator.command.source.FromGenerator.SET_UNMAPPED_FIELDS_PREFIX;
 
 // ITERATIONS runs per parameterized case and all cases share one suite, so the default 20 minutes is too short.
-// Keep this below the 120 minute step timeout in .buildkite/pipelines/periodic-esql-generative.yml so the suite
+// Keep this below the 210 minute step timeout in .buildkite/pipelines/periodic-esql-generative.yml so the suite
 // timeout fires first and dumps threads instead of Buildkite killing the job.
-@TimeoutSuite(millis = 90 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 180 * TimeUnits.MINUTE)
 public abstract class GenerativeRestTest extends ESRestTestCase implements QueryExecutor {
 
     @Rule(order = Integer.MIN_VALUE)

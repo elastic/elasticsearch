@@ -43,17 +43,22 @@ public class IndexSettingProvidersTests extends ESTestCase {
     public void testOverrulingSettingsWin() {
         var additionalSettings = collect(
             List.of(
-                provider(Settings.builder().put("index.a", "overruled").build(), true),
+                provider(Settings.builder().put("index.a", "overruled").putNull("overruling_null").build(), true),
                 provider(Settings.builder().put("index.b", "provided").build(), false)
             )
         );
-        assertThat(additionalSettings.overrulingSettings(), equalTo(Set.of("index.a")));
+        assertThat(additionalSettings.overrulingSettings(), equalTo(Set.of("index.a", "overruling_null")));
 
         Settings effective = applyTo(
             additionalSettings,
-            Settings.builder().put("index.a", "configured").put("index.b", "configured").put("index.c", "configured")
+            Settings.builder()
+                .put("index.a", "configured")
+                .put("index.b", "configured")
+                .put("index.c", "configured")
+                .put("overruling_null", "configured")
         );
         assertThat(effective.get("index.a"), equalTo("overruled"));
+        assertThat(effective.get("overruling_null"), nullValue());
         assertThat(effective.get("index.b"), equalTo("configured"));
         assertThat(effective.get("index.c"), equalTo("configured"));
     }

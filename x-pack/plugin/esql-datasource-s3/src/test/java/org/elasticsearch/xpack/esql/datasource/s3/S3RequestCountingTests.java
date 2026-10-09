@@ -71,7 +71,7 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
-     * After optimization: length() uses suffix-range GET instead of HEAD.
+     * length() is answered by a first-byte range GET, not a HEAD.
      */
     public void testLengthTriggersOneRangeGet() throws IOException {
         stubFirstByteResponse();
@@ -115,7 +115,7 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
-     * The fix: using the SAME object for exists() and length() needs only ONE suffix-range GET.
+     * Using the SAME object for exists() and length() needs only ONE range GET.
      */
     public void testSameObjectExistsThenLengthCausesOneRequest() throws IOException {
         stubFirstByteResponse();
@@ -217,7 +217,7 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
-     * When the suffix-range GET fails with a non-403 error, probeObject falls back to HEAD.
+     * When the range GET fails with a non-403 error, probeObject falls back to HEAD.
      */
     public void testRangeGetFailureFallsBackToHead() throws IOException {
         when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(
@@ -234,7 +234,7 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
-     * When the suffix-range GET returns 404 (NoSuchKeyException), the object is marked as not found.
+     * When the range GET returns 404 (NoSuchKeyException), the object is marked as not found.
      */
     public void testRangeGetNotFoundSetsNotFound() throws IOException {
         when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(NoSuchKeyException.builder().message("Not Found").build());
@@ -245,7 +245,8 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
-     * A 403 is answered in one request, not two. The suffix-range retry this replaced is now the same request,
+     * A 403 is answered in one request. This request already is the cheapest read, and a HEAD needs the same
+     * s3:GetObject, so a second request would only be refused again. Spending it is now the same request,
      * and a HEAD requires the same s3:GetObject so would be refused identically. Spending a second request to
      * be told the same thing is pure cost.
      */
@@ -284,7 +285,7 @@ public class S3RequestCountingTests extends ESTestCase {
     }
 
     /**
-     * When suffix-range GET succeeds but Content-Range is absent (unexpected for S3),
+     * When the range GET succeeds but Content-Range is absent (unexpected for S3),
      * falls back to HEAD for the full metadata.
      */
     public void testMissingContentRangeFallsBackToHead() throws IOException {

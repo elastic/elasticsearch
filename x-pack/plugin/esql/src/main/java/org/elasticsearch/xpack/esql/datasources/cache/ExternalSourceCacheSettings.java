@@ -251,8 +251,11 @@ public final class ExternalSourceCacheSettings {
 
     /**
      * Expire-after-write TTL shared by both footer caches. If the bytes are stale, the parse
-     * derived from them is stale too. Must bridge the gaps between resolution, split discovery,
-     * and execution of one query over a large file set, plus dashboard refresh intervals. The
+     * derived from them is stale too. Counting from the write rather than the last access means this does
+     * NOT keep a footer alive for the duration of one query: a query whose phases span more than this
+     * interval re-fetches and re-parses the footer between resolution, split discovery and execution, and
+     * for a file overwritten in place at the same length those phases can see different footers. Size it
+     * above the span of your longest query if that matters, and above dashboard refresh intervals. The
      * trade-off: footer cache keys are {@code (path, fileLength)} without mtime (adding it would
      * cost a HEAD request per range split; see {@link FooterByteCache}), so a file overwritten
      * in place with identical length can be served stale for up to two of these intervals, because a reparse

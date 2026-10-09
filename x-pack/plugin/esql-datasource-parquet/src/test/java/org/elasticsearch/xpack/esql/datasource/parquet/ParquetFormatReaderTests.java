@@ -1014,7 +1014,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
      */
     public void testBytesServedFromTheFooterCacheAreNotStoredAgain() throws Exception {
         byte[] parquetData = createVpcFlowShapedParquet();
-        TimeValue ttl = TimeValue.timeValueMillis(500);
+        TimeValue ttl = TimeValue.timeValueSeconds(2);
         Settings settings = Settings.builder().put(ExternalSourceCacheSettings.FOOTER_CACHE_TTL.getKey(), ttl).build();
         ParquetFormatReader reader = new ParquetFormatReader(settings, blockFactory);
         StorageObject object = createStorageObject(parquetData);

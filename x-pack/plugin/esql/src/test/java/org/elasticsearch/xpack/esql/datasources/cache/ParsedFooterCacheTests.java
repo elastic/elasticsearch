@@ -82,15 +82,15 @@ public class ParsedFooterCacheTests extends ESTestCase {
      * reparse from still-cached bytes is the only thing that can carry one past its own interval.
      */
     public void testReadingAnEntryDoesNotExtendItsLife() {
-        TimeValue ttl = TimeValue.timeValueSeconds(1);
+        TimeValue ttl = TimeValue.timeValueMillis(400);
         ParsedFooterCache<String> shortLived = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
         FooterByteCache.Key k = key("file.parquet", 1000);
 
         shortLived.put(k, "footer");
-        long readUntil = System.nanoTime() + TimeValue.timeValueSeconds(2).nanos();
+        long readUntil = System.nanoTime() + TimeValue.timeValueMillis(1000).nanos();
         while (System.nanoTime() < readUntil) {
             shortLived.get(k);
-            safeSleep(100);
+            safeSleep(50);
         }
 
         assertNull("an entry read continuously still expires one TTL after it was stored", shortLived.get(k));

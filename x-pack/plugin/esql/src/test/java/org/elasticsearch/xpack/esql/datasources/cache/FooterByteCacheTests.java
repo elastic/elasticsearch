@@ -200,16 +200,16 @@ public class FooterByteCacheTests extends ESTestCase {
      * would still hold the entry at the end.
      */
     public void testReadingAnEntryDoesNotExtendItsLife() {
-        TimeValue ttl = TimeValue.timeValueSeconds(1);
+        TimeValue ttl = TimeValue.timeValueMillis(400);
         FooterByteCache shortLived = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
         FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
         byte[] data = randomByteArrayOfLength(64);
 
         shortLived.put(key, data);
-        long readUntil = System.nanoTime() + TimeValue.timeValueSeconds(2).nanos();
+        long readUntil = System.nanoTime() + TimeValue.timeValueMillis(1000).nanos();
         while (System.nanoTime() < readUntil) {
             shortLived.get(key);
-            safeSleep(100);
+            safeSleep(50);
         }
 
         assertNull("an entry read continuously still expires one TTL after it was stored", shortLived.get(key));

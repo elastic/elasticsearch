@@ -653,8 +653,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
     @Override
     public Instant lastModified() throws IOException {
-        if (cachedLastModified == null) {
+        if (cachedLastModified == null && cachedExists == null) {
             probeObject();
+        }
+        if (cachedExists != null && cachedExists == false) {
+            throw new ExternalClientException(ExternalClientException.Condition.OBJECT_NOT_FOUND, path, "", "");
         }
         return cachedLastModified;
     }
@@ -725,7 +728,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             }
             if (mapped instanceof ExternalClientException archived
                 && archived.condition() == ExternalClientException.Condition.OBJECT_ARCHIVED) {
-                // S3 refuses every GET shape on an archived object, so the 403 range-GET fallback below cannot succeed.
+                // S3 refuses every GET shape on an archived object, so no other GET shape would answer either.
                 throw archived;
             }
             if (e.statusCode() == 416) {
@@ -738,9 +741,8 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 // version token for content, and there is none.
                 cachedLastModified = Instant.EPOCH;
             } else if (e.statusCode() == 403) {
-                // Denied, and there is nothing cheaper left to try: the fallback range GET is now the same
-                // request, and a HEAD needs the same s3:GetObject so would be refused too. Surface it rather
-                // than spending a second request to be told the same thing.
+                // Denied, and nothing cheaper is left to try: this request already is the cheapest read, and a
+                // HEAD needs the same s3:GetObject, so a second request would only be refused again.
                 throw throwReadFailure("Failed to read object metadata for", e);
             } else {
                 probeObjectViaHead();

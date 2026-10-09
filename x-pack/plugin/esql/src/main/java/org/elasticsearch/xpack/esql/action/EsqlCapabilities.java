@@ -3047,6 +3047,12 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_DECLARED_SCHEMA_ROW_WIDTH_VALIDATION,
 
         /**
+         * Every headered CSV/TSV file binds its columns by its own header, whether the schema was declared or
+         * inferred. Older nodes bind an inferred schema by position against the first file.
+         */
+        EXTERNAL_TEXT_BINDS_BY_FILE_HEADER,
+
+        /**
          * CompressionDelegatingFormatReader forwards the wrapped reader's typed profile status.
          * Older nodes still execute compressed reads but expose an empty {@code format_reader}
          * object in the external-source operator profile.
@@ -3666,6 +3672,14 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/159972.
          */
         OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, the cap on the number of fields discovered in {@code _source} is the cluster
+         * setting {@code esql.query.unmapped_fields.load_all_max_fields}. Needed by tests that set it, which older nodes would reject
+         * as an unknown setting.
+         * See https://github.com/elastic/elasticsearch/issues/161340.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.

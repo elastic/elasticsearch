@@ -27,6 +27,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -70,6 +71,8 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
     private final Set<RowGroupIo> registry = new LinkedHashSet<>();
     private final Set<Waiter> waiters = new LinkedHashSet<>();
     private final ArrayList<Runnable> pendingCompletions = new ArrayList<>();
+    private final AtomicInteger undelivered = new AtomicInteger();
+    private boolean pauseGrantDelivery;
     private long nextStartSeq;
     private RowGroupIo favoured;
     private RowGroupIo pinnedLease;
@@ -216,8 +219,9 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
 
     /**
      * Async permit ticket. Completes on grant; fails on close, lease finish, or cancel.
-     * Contended grants are forked onto {@code executor}. Uncontended grants complete on the
-     * caller. A wait ends on grant, cancel, or query close.
+     * Grants complete inline on the releaser so delivery cannot queue behind synchronous
+     * {@link #acquire} waiters on {@code esql_external_io}. A wait ends on grant, cancel,
+     * or query close.
      */
     SubscribableListener<Void> acquireAsync(RowGroupIo lease, boolean countGets, BooleanSupplier cancelSignal, Executor executor) {
         SubscribableListener<Void> listener = new SubscribableListener<>();
@@ -250,7 +254,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
             } else if (waiters.isEmpty() && inFlight < maxPermits) {
                 takePermit(lease, countGets);
                 Waiter waiter = new Waiter(lease, countGets, listener, executor, cancel);
-                waiter.completeGrantInline();
+                waiter.completeGrant();
                 completions = takePendingCompletions();
             } else {
                 Waiter waiter = new Waiter(lease, countGets, listener, executor, cancel);
@@ -344,6 +348,43 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         } finally {
             lock.unlock();
         }
+    }
+
+    /**
+     * In-use permits that have been delivered to a waiter. Granted-but-undelivered
+     * tickets stay in {@link #inFlight()} so admission does not over-grant, but they
+     * are invisible here so the stall watchdog can see a stuck delivery.
+     */
+    int holders() {
+        lock.lock();
+        try {
+            return Math.max(0, inFlight - undelivered.get());
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** Test-only: hold {@code deliverGrant} so tests can observe undelivered permits. */
+    void pauseGrantDelivery() {
+        lock.lock();
+        try {
+            pauseGrantDelivery = true;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** Test-only: pair with {@link #pauseGrantDelivery()}. */
+    void resumeGrantDelivery() {
+        List<Runnable> completions;
+        lock.lock();
+        try {
+            pauseGrantDelivery = false;
+            completions = takePendingCompletions();
+        } finally {
+            lock.unlock();
+        }
+        runCompletions(completions);
     }
 
     int maxPermits() {
@@ -538,7 +579,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
     }
 
     private List<Runnable> takePendingCompletions() {
-        if (pendingCompletions.isEmpty()) {
+        if (pauseGrantDelivery || pendingCompletions.isEmpty()) {
             return List.of();
         }
         List<Runnable> batch = new ArrayList<>(pendingCompletions);
@@ -547,9 +588,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
     }
 
     private static void runCompletions(List<Runnable> completions) {
-        for (Runnable completion : completions) {
-            completion.run();
-        }
+        InlineCompletionDrain.run(completions);
     }
 
     /**
@@ -802,16 +841,20 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         }
 
         void completeGrant() {
-            pendingCompletions.add(() -> forkGrant(this::deliverGrant));
-        }
-
-        void completeGrantInline() {
+            undelivered.incrementAndGet();
             pendingCompletions.add(this::deliverGrant);
         }
 
         private void deliverGrant() {
             if (completed.compareAndSet(false, true) == false) {
                 return;
+            }
+            lock.lock();
+            try {
+                int left = undelivered.decrementAndGet();
+                assert left >= 0 : "undelivered=" + left;
+            } finally {
+                lock.unlock();
             }
             if (cancel.getAsBoolean() || (lease != null && lease.isCancelled())) {
                 tracked.finished();
@@ -830,18 +873,6 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
                     async.onFailure(e);
                 }
             }));
-        }
-
-        private void forkGrant(Runnable task) {
-            try {
-                executor.execute(task);
-            } catch (Exception e) {
-                if (completed.compareAndSet(false, true)) {
-                    tracked.finished();
-                    release(lease, countGets);
-                    async.onFailure(e);
-                }
-            }
         }
 
         private void fork(Runnable task) {

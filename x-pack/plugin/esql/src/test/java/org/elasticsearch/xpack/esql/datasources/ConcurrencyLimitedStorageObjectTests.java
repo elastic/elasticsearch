@@ -362,28 +362,77 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
     public void testCancelAfterGrantFailsListenerWithoutDelegate() throws Exception {
         ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false));
         limiter.acquire();
+        limiter.pauseGrantDelivery();
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
         ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
-        AtomicReference<Runnable> deferred = new AtomicReference<>();
         CountDownLatch failed = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
-        Releasable cancel = obj.startReadBytesAsync(0, 4, FACTORY, r -> {
-            if (deferred.compareAndSet(null, r) == false) {
-                r.run();
-            }
-        }, ActionListener.wrap(buf -> fail("cancelled grant must not succeed"), e -> {
-            error.set(e);
-            failed.countDown();
-        }));
+        Releasable cancel = obj.startReadBytesAsync(
+            0,
+            4,
+            FACTORY,
+            Runnable::run,
+            ActionListener.wrap(buf -> fail("cancelled grant must not succeed"), e -> {
+                error.set(e);
+                failed.countDown();
+            })
+        );
         assertBusy(() -> assertEquals(1, limiter.asyncWaiterCount()));
         limiter.release();
-        assertNotNull(deferred.get());
+        assertEquals(0, limiter.asyncWaiterCount());
         cancel.close();
-        deferred.get().run();
+        limiter.resumeGrantDelivery();
         assertTrue(failed.await(5, TimeUnit.SECONDS));
         assertThat(error.get(), instanceOf(TaskCancelledException.class));
         assertEquals(1, limiter.availablePermits());
         verify(delegate, never()).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testStartDelegateReturnsBeforeNativeAsyncGetCompletes() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false));
+        limiter.acquire();
+        CountDownLatch getStarted = new CountDownLatch(1);
+        CountDownLatch allowComplete = new CountDownLatch(1);
+        CountDownLatch listenerDone = new CountDownLatch(1);
+        StorageObject delegate = mock(StorageObject.class);
+        when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
+        AtomicReference<Thread> completer = new AtomicReference<>();
+        doAnswer(inv -> {
+            ActionListener<DirectReadBuffer> listener = inv.getArgument(4);
+            getStarted.countDown();
+            Thread runner = new Thread(() -> {
+                try {
+                    assertTrue(allowComplete.await(5, TimeUnit.SECONDS));
+                    listener.onResponse(new DirectReadBuffer(ByteBuffer.wrap("data".getBytes(StandardCharsets.UTF_8)), () -> {}));
+                } catch (Exception e) {
+                    listener.onFailure(ExceptionsHelper.convertToRuntime(e));
+                }
+            }, "clso-get");
+            completer.set(runner);
+            runner.start();
+            return (Releasable) () -> {};
+        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
+
+        ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
+        obj.startReadBytesAsync(
+            0,
+            4,
+            FACTORY,
+            Runnable::run,
+            ActionListener.wrap(r -> listenerDone.countDown(), e -> listenerDone.countDown())
+        );
+        assertBusy(() -> assertEquals(1, limiter.asyncWaiterCount()));
+        limiter.release();
+        assertTrue("startDelegate must return without waiting for the GET", getStarted.await(5, TimeUnit.SECONDS));
+        assertEquals(1, listenerDone.getCount());
+        allowComplete.countDown();
+        assertTrue(listenerDone.await(5, TimeUnit.SECONDS));
+        assertEquals(1, limiter.availablePermits());
+        Thread runner = completer.get();
+        if (runner != null) {
+            runner.join(5_000);
+        }
     }
 }

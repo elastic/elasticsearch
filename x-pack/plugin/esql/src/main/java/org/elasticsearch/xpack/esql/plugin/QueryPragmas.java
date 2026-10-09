@@ -142,13 +142,24 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> MAX_BRANCH_COUNT = Setting.intSetting("max_branch_count", 20, 1);
 
     /**
-     * Cap on how many direct children one merge may have. Applies to {@code FORK}, dataset rewrite, and a top-level
-     * PromQL {@code or} chain.
+     * Inclusive upper bound of {@link #MAX_BRANCH_COUNT_PER_MERGE} and {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT_PER_MERGE}. Parse-time
+     * checks use this as the hard ceiling.
+     */
+    public static final int MAX_BRANCH_COUNT_PER_MERGE_MAX = 20;
+
+    /**
+     * Cap on how many direct children one merge may have. Applies to {@code FORK}, dataset rewrite, and a top-level PromQL {@code or}
+     * chain.
      * <p>
      * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT_PER_MERGE} supplies the cap. An explicit value overrides the
      * cluster setting for this query only.
      */
-    public static final Setting<Integer> MAX_BRANCH_COUNT_PER_MERGE = Setting.intSetting("max_branch_count_per_merge", 8, 1, 64);
+    public static final Setting<Integer> MAX_BRANCH_COUNT_PER_MERGE = Setting.intSetting(
+        "max_branch_count_per_merge",
+        8,
+        1,
+        MAX_BRANCH_COUNT_PER_MERGE_MAX
+    );
 
     /**
      * The maximum depth of nested {@code UnionAll}s an independently executed query may use. The main query and each {@code IN} subquery

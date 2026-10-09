@@ -87,15 +87,14 @@ public class EsqlFlags {
     );
 
     /**
-     * Cluster-wide cap on how many direct children one merge may have.
-     * Applies to {@code FORK}, dataset rewrite, and a top-level PromQL {@code or} chain.
-     * An explicit {@link QueryPragmas#MAX_BRANCH_COUNT_PER_MERGE} pragma overrides this value for that query.
+     * Cluster-wide cap on how many direct children one merge may have. Applies to {@code FORK}, dataset rewrite, and a top-level PromQL
+     * {@code or} chain. An explicit {@link QueryPragmas#MAX_BRANCH_COUNT_PER_MERGE} pragma overrides this value for that query.
      */
     public static final Setting<Integer> ESQL_MAX_BRANCH_COUNT_PER_MERGE = Setting.intSetting(
         "esql.query.max_branch_count_per_merge",
         QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY),
         1,
-        64,
+        QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE_MAX,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

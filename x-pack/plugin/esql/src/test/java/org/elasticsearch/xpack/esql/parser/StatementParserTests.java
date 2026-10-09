@@ -101,6 +101,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -4011,18 +4012,22 @@ public class StatementParserTests extends AbstractStatementParserTests {
             FROM foo* | FORK ()
             """, "line 1:19: mismatched input ')'");
 
-        var wideFork = query("""
-            FROM foo*
-            | FORK (where true) (where true) (where true) (where true)
-                   (where true) (where true) (where true) (where true)
-                   (where true)
-            """);
-        assertThat(wideFork, instanceOf(Fork.class));
+        int maxBranches = QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE_MAX;
+        assertThat(query(forkWithBranches(maxBranches)), instanceOf(Fork.class));
+        expectError(forkWithBranches(maxBranches + 1), "FORK supports up to " + maxBranches + " branches");
 
         expectError("FROM foo* | FORK ( x+1 ) ( WHERE y>2 )", "line 1:20: mismatched input 'x+1'");
         expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2'");
         expectError("FROM foo* | FORK (where true) ()", "line 1:32: mismatched input ')'");
         expectError("FROM foo* | FORK () (where true)", "line 1:19: mismatched input ')'");
+    }
+
+    private static String forkWithBranches(int n) {
+        StringBuilder query = new StringBuilder("FROM foo* | FORK");
+        for (int i = 0; i < n; i++) {
+            query.append(" (WHERE true)");
+        }
+        return query.toString();
     }
 
     public void testFieldNamesAsCommands() throws Exception {

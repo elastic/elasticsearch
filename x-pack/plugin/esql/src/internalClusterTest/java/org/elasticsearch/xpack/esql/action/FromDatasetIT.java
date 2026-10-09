@@ -2398,13 +2398,12 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testDeclaredNumericNarrowingCoercesWhereInferredClashWouldNull() throws Exception {
-        // The end-to-end contrast to an INFERRED first_file_wins clash (parquet-multifile.parquetFfwAllRows null-fills an
-        // int64-vs-INTEGER divergence). Here the INTEGER target for the same physical int64 column comes from an explicit
-        // DECLARATION: the coordinator marks it a declared-type column, FileSourceFactory physicalizes that to `emp_no`,
-        // and the reader keeps the coercion escape — narrowing int64 -> integer per value instead of null-filling the
-        // whole column. Guards the declared-vs-inferred null-fill gate split through the non-strict overlay. The
-        // Integer-valued (not Long) non-null results prove both the coercion happened AND the target type is INTEGER.
+    public void testDeclaredNumericNarrowingCoercesPerValue() throws Exception {
+        // A declared INTEGER target over a physical int64 column, reached through the non-strict overlay and a `path`
+        // rename: FileSourceFactory physicalizes the target to `emp_no` and the reader narrows int64 -> integer per
+        // value. The Integer-valued (not Long) non-null results prove both that the conversion happened and that the
+        // target type is INTEGER. This used to be the contrast to an inferred first_file_wins clash, which null-filled
+        // the same column whole (parquet-multifile.parquetFfwAllRows); that read now narrows too, so the two agree.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetRenameFixture(); // physical emp_no int64 = 1,2,3 (all fit in integer)
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();

@@ -1,0 +1,5 @@
+pr: 161562
+summary: Read an external dataset's column the same way whoever supplied its type
+area: ES|QL
+type: bug
+issues: []

@@ -62,6 +62,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -76,6 +77,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalIoExecutors;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
@@ -1002,6 +1004,42 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertEquals("readRange over the seeded footer is a cache hit", 1, readRangeCounters.snapshot().footerCacheHits());
         } finally {
             probePool.shutdownNow();
+        }
+    }
+
+    /**
+     * Bytes the cache served are not stored back into it, which would give the entry a fresh write time with
+     * no read behind it. The executor below holds the parse past the entry's expiry, so the absent-key case is
+     * the one under test.
+     */
+    public void testBytesServedFromTheFooterCacheAreNotStoredAgain() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        TimeValue ttl = TimeValue.timeValueMillis(500);
+        Settings settings = Settings.builder().put(ExternalSourceCacheSettings.FOOTER_CACHE_TTL.getKey(), ttl).build();
+        ParquetFormatReader reader = new ParquetFormatReader(settings, blockFactory);
+        StorageObject object = createStorageObject(parquetData);
+        FooterByteCache.Key key = FooterByteCache.Key.keyFor(object, object.length());
+
+        // Seed the byte cache alone: the whole file is a suffix of itself, so the parse reads nothing more.
+        reader.footerByteCacheForTests().put(key, parquetData);
+        assertNotNull("the seeded tail must be live when the resolve reaches it", reader.footerByteCacheForTests().get(key));
+
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try {
+            Executor afterTheSeededEntryExpires = runnable -> pool.execute(() -> {
+                safeSleep(ttl.millis() * 2);
+                runnable.run();
+            });
+            PlainActionFuture<SourceMetadata> future = new PlainActionFuture<>();
+            reader.metadataAsync(object, afterTheSeededEntryExpires, future);
+
+            assertNotNull("the footer must parse from the bytes the cache served", future.actionGet(30, TimeUnit.SECONDS));
+            assertNull(
+                "bytes served from the cache must not be stored again, so the entry stays expired",
+                reader.footerByteCacheForTests().get(key)
+            );
+        } finally {
+            pool.shutdownNow();
         }
     }
 

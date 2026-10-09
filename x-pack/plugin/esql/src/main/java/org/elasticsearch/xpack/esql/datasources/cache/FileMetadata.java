@@ -8,15 +8,14 @@
 package org.elasticsearch.xpack.esql.datasources.cache;
 
 /**
- * A single object's cheap physical metadata: byte {@code length} and last-modified epoch millis.
- * mtime is stored purely as the version token that rebuilds the {@link SchemaCacheKey} and populates
- * the resolved {@code StorageEntry}; staleness is bounded by the file-metadata cache's hard TTL alone,
- * never by mtime acting as a second freshness clock. {@code length} is cached alongside because the
- * warm single-file resolve rebuilds its singleton file list from both, so caching mtime without length
- * would still force the per-query object probe.
+ * A single object's cheap physical metadata: byte {@code length} and last-modified epoch millis, as
+ * observed by the probe that resolved the object on this query.
  * <p>
- * Consequence of caching the version token: a file overwritten in place is not observed until its
- * {@link FileMetadataCacheKey} entry expires (the schema TTL, 5m default) — a warm hit serves the
- * prior length/mtime and its schema/stats. Bounded staleness traded for the removed per-query probe.
+ * mtime is the version token that rebuilds the {@link SchemaCacheKey} and populates the resolved
+ * {@code StorageEntry}; it is not a second freshness clock. {@code length} travels with it because the
+ * single-file resolve rebuilds its singleton file list from both.
+ * <p>
+ * Held in the file-metadata cache under the listing clock, keyed by path and storage identity, so the entry
+ * is shared by every data source reaching the object through the same storage settings.
  */
 public record FileMetadata(long length, long mtimeMillis) {}

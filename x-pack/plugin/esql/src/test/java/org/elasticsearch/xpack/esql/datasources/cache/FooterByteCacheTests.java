@@ -195,15 +195,35 @@ public class FooterByteCacheTests extends ESTestCase {
         assertEquals("simulated I/O failure", ex.getCause().getMessage());
     }
 
+    /**
+     * An entry's life is not extended by reading it. Reads here span twice the TTL, so an access-based cache
+     * would still hold the entry at the end.
+     */
+    public void testReadingAnEntryDoesNotExtendItsLife() {
+        TimeValue ttl = TimeValue.timeValueSeconds(1);
+        FooterByteCache shortLived = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+        byte[] data = randomByteArrayOfLength(64);
+
+        shortLived.put(key, data);
+        long readUntil = System.nanoTime() + TimeValue.timeValueSeconds(2).nanos();
+        while (System.nanoTime() < readUntil) {
+            shortLived.get(key);
+            safeSleep(100);
+        }
+
+        assertNull("an entry read continuously still expires one TTL after it was stored", shortLived.get(key));
+    }
+
     public void testFromSettingsUsesConfiguredTtl() {
         Settings settings = Settings.builder().put("esql.external.cache.footer.ttl", "42s").build();
         FooterByteCache configured = FooterByteCache.fromSettings(settings);
-        assertEquals(TimeValue.timeValueSeconds(42), configured.expireAfterAccess());
+        assertEquals(TimeValue.timeValueSeconds(42), configured.expireAfterWrite());
     }
 
     public void testFromSettingsDefaults() {
         FooterByteCache defaults = FooterByteCache.fromSettings(Settings.EMPTY);
-        assertEquals(TimeValue.timeValueMinutes(5), defaults.expireAfterAccess());
+        assertEquals(TimeValue.timeValueMinutes(5), defaults.expireAfterWrite());
         assertThat(defaults.maxEntryBytes(), lessThanOrEqualTo(FooterByteCache.DEFAULT_MAX_ENTRY_BYTES));
     }
 

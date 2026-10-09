@@ -47,7 +47,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
     private final S3Client mockS3Client = mock(S3Client.class);
 
     /**
-     * When HeadObject returns 403, fetchMetadata should fall back to a range GET
+     * When HeadObject returns 403, probeObject should fall back to a range GET
      * and discover the object length from the Content-Range header.
      */
     public void testHeadFallbackToRangeGet() throws IOException {

@@ -76,6 +76,26 @@ public class ParsedFooterCacheTests extends ESTestCase {
         assertSame(expected, cache.get(k));
     }
 
+    /**
+     * A parsed footer expires one TTL after it was stored, however often it is read in between. This is the
+     * clock the composed bound over a per-file fact rests on: reads cannot push a parsed entry out, so a
+     * reparse from still-cached bytes is the only thing that can carry one past its own interval.
+     */
+    public void testReadingAnEntryDoesNotExtendItsLife() {
+        TimeValue ttl = TimeValue.timeValueSeconds(1);
+        ParsedFooterCache<String> shortLived = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
+        FooterByteCache.Key k = key("file.parquet", 1000);
+
+        shortLived.put(k, "footer");
+        long readUntil = System.nanoTime() + TimeValue.timeValueSeconds(2).nanos();
+        while (System.nanoTime() < readUntil) {
+            shortLived.get(k);
+            safeSleep(100);
+        }
+
+        assertNull("an entry read continuously still expires one TTL after it was stored", shortLived.get(k));
+    }
+
     public void testPutThenGetReturnsSameInstance() {
         FooterByteCache.Key k = key("file.parquet", 1000);
         String footer = "seeded";

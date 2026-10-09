@@ -67,6 +67,151 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             .build();
     }
 
+    private static Settings withSchemaTtl(String ttl) {
+        return Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.schema.ttl", ttl)
+            .build();
+    }
+
+    /** The dataset aggregate expires on the listing clock, not the schema one. */
+    private static Settings withListingTtl(String ttl) {
+        return Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", ttl)
+            .build();
+    }
+
+    /**
+     * Reuse is bounded by the store's write clock, so an entry goes whether or not anything reads it and
+     * reading cannot postpone that.
+     */
+    public void testSchemaIsNotServedPastTheWindow() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(withSchemaTtl("1ms"))) {
+            SchemaCacheKey key = SchemaCacheKey.build(
+                "s3://bucket/data/file.parquet",
+                1000L,
+                TestDatasetIdentities.identity(".parquet", "", Map.of()),
+                false
+            );
+            service.putSchema(key, testSchemaEntry());
+            assertBusy(() -> assertNull("past the window the entry is not served", service.getSchemaIfPresent(key)));
+
+            AtomicInteger loads = new AtomicInteger();
+            service.getOrComputeSchema(key, k -> {
+                loads.incrementAndGet();
+                return testSchemaEntry();
+            });
+            assertEquals("and the loader runs again, so the read is retaken", 1, loads.get());
+        }
+    }
+
+    /**
+     * Zero configures no clock at all, matching the convention the listing TTL uses: an operator who wants the
+     * previous behaviour back sets it, rather than guessing at a very large value.
+     */
+    public void testSchemaTtlOfZeroIsUnbounded() throws Exception {
+        SchemaCacheKey key = SchemaCacheKey.build(
+            "s3://bucket/data/file.parquet",
+            1000L,
+            TestDatasetIdentities.identity(".parquet", "", Map.of()),
+            false
+        );
+        try (
+            ExternalSourceCacheService windowed = new ExternalSourceCacheService(withSchemaTtl("1ms"));
+            ExternalSourceCacheService unbounded = new ExternalSourceCacheService(withSchemaTtl("0"))
+        ) {
+            windowed.putSchema(key, testSchemaEntry());
+            unbounded.putSchema(key, testSchemaEntry());
+
+            // The windowed store losing its entry is what dates the wait. No sleep on its own would show that
+            // the unbounded store keeps its entry; outliving a store that did expire does.
+            assertBusy(() -> assertNull(windowed.getSchemaIfPresent(key)));
+            assertNotNull("with no window configured the entry is still served", unbounded.getSchemaIfPresent(key));
+        }
+    }
+
+    /** The dataset aggregate is the glob read path's warm answer, so the window covers it as well. */
+    public void testDatasetAggregateIsNotServedPastTheWindow() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(withListingTtl("1ms"))) {
+            DatasetAggregateKey key = datasetKey();
+            service.putDatasetAggregate(key, 123L);
+            assertBusy(() -> assertNull("past the window the aggregate is not served", service.getDatasetAggregate(key)));
+        }
+    }
+
+    /**
+     * Expire-after-write, not after access: once the configured TTL passes, the next call re-lists exactly
+     * once and the call after that is a hit again. File metadata shares the same TTL.
+     */
+    public void testListingAndFileMetadataExpireAfterWrite() throws Exception {
+        Settings settings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "200ms")
+            .build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            AtomicInteger listingLoads = new AtomicInteger();
+            AtomicInteger metadataLoads = new AtomicInteger();
+            ListingCacheKey listingKey = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
+            FileMetadataCacheKey metadataKey = new FileMetadataCacheKey("s3://bucket/data/file.parquet", "");
+
+            service.getOrComputeListing(listingKey, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeFileMetadata(metadataKey, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L);
+            });
+            service.getOrComputeListing(listingKey, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeFileMetadata(metadataKey, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L);
+            });
+            assertEquals(1, listingLoads.get());
+            assertEquals(1, metadataLoads.get());
+
+            // Separate waits: the two entries were written a moment apart, so one can expire while the
+            // other is still fresh. A shared attempt would refresh the expired one and then fail the
+            // assertion, leaving a new TTL that the retry would treat as a hit.
+            assertBusy(() -> {
+                int before = listingLoads.get();
+                service.getOrComputeListing(listingKey, k -> {
+                    listingLoads.incrementAndGet();
+                    return testCompactFileList();
+                });
+                assertEquals(before + 1, listingLoads.get());
+            });
+            assertBusy(() -> {
+                int before = metadataLoads.get();
+                service.getOrComputeFileMetadata(metadataKey, k -> {
+                    metadataLoads.incrementAndGet();
+                    return new FileMetadata(1L, 1L);
+                });
+                assertEquals(before + 1, metadataLoads.get());
+            });
+
+            int listingsAfterExpiry = listingLoads.get();
+            int metadataAfterExpiry = metadataLoads.get();
+            service.getOrComputeListing(listingKey, k -> {
+                listingLoads.incrementAndGet();
+                return testCompactFileList();
+            });
+            service.getOrComputeFileMetadata(metadataKey, k -> {
+                metadataLoads.incrementAndGet();
+                return new FileMetadata(1L, 1L);
+            });
+            assertEquals(listingsAfterExpiry, listingLoads.get());
+            assertEquals(metadataAfterExpiry, metadataLoads.get());
+        }
+    }
+
     public void testSchemaHitMiss() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             AtomicInteger loaderCalls = new AtomicInteger();
@@ -363,76 +508,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         } finally {
             exec.shutdownNow();
             service.close();
-        }
-    }
-
-    /**
-     * Expire-after-write, not after access: once the configured TTL passes, the next call re-lists exactly
-     * once and the call after that is a hit again. File metadata shares the same TTL.
-     */
-    public void testListingAndFileMetadataExpireAfterWrite() throws Exception {
-        Settings settings = Settings.builder()
-            .put("esql.external.cache.size", "10mb")
-            .put("esql.external.cache.enabled", true)
-            .put("esql.external.cache.listing.ttl", "200ms")
-            .build();
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            AtomicInteger listingLoads = new AtomicInteger();
-            AtomicInteger metadataLoads = new AtomicInteger();
-            ListingCacheKey listingKey = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
-            FileMetadataCacheKey metadataKey = new FileMetadataCacheKey("s3://bucket/data/file.parquet", "");
-
-            service.getOrComputeListing(listingKey, k -> {
-                listingLoads.incrementAndGet();
-                return testCompactFileList();
-            });
-            service.getOrComputeFileMetadata(metadataKey, k -> {
-                metadataLoads.incrementAndGet();
-                return new FileMetadata(1L, 1L);
-            });
-            service.getOrComputeListing(listingKey, k -> {
-                listingLoads.incrementAndGet();
-                return testCompactFileList();
-            });
-            service.getOrComputeFileMetadata(metadataKey, k -> {
-                metadataLoads.incrementAndGet();
-                return new FileMetadata(1L, 1L);
-            });
-            assertEquals(1, listingLoads.get());
-            assertEquals(1, metadataLoads.get());
-
-            // Separate waits: the two entries were written a moment apart, so one can expire while the
-            // other is still fresh. A shared attempt would refresh the expired one and then fail the
-            // assertion, leaving a new TTL that the retry would treat as a hit.
-            assertBusy(() -> {
-                int before = listingLoads.get();
-                service.getOrComputeListing(listingKey, k -> {
-                    listingLoads.incrementAndGet();
-                    return testCompactFileList();
-                });
-                assertEquals(before + 1, listingLoads.get());
-            });
-            assertBusy(() -> {
-                int before = metadataLoads.get();
-                service.getOrComputeFileMetadata(metadataKey, k -> {
-                    metadataLoads.incrementAndGet();
-                    return new FileMetadata(1L, 1L);
-                });
-                assertEquals(before + 1, metadataLoads.get());
-            });
-
-            int listingsAfterExpiry = listingLoads.get();
-            int metadataAfterExpiry = metadataLoads.get();
-            service.getOrComputeListing(listingKey, k -> {
-                listingLoads.incrementAndGet();
-                return testCompactFileList();
-            });
-            service.getOrComputeFileMetadata(metadataKey, k -> {
-                metadataLoads.incrementAndGet();
-                return new FileMetadata(1L, 1L);
-            });
-            assertEquals(listingsAfterExpiry, listingLoads.get());
-            assertEquals(metadataAfterExpiry, metadataLoads.get());
         }
     }
 
@@ -2892,9 +2967,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     /**
      * B1: {@code esql.source.cache.schema.ttl} shipped in released versions, so it must stay REGISTERED — a
      * node carrying it in {@code elasticsearch.yml} would fail startup on an unregistered setting. It is now
-     * a deprecated no-op: wired to nothing, ignored. Unlike the other pre-rename {@code esql.source.cache.*}
-     * keys (covered by {@link #testRenamedCacheKeysResolveThroughDeprecatedOldKeys}), it has no
-     * {@code esql.external.cache.*} counterpart to fall back to — renaming a no-op would be pointless.
+     * a deprecated no-op: wired to nothing, ignored. It now has an {@code esql.external.cache.*} counterpart,
+     * {@code esql.external.cache.schema.ttl}, which deliberately does NOT inherit this key's value the way the
+     * other pre-rename keys do (see {@link #testRenamedCacheKeysResolveThroughDeprecatedOldKeys}): this one
+     * shipped documented as ignored, so a cluster may carry a value for it that nobody expects to be live.
      */
     public void testDeprecatedSchemaTtlSettingStaysRegisteredAndInert() throws Exception {
         assertTrue(

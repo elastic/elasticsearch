@@ -17,6 +17,9 @@
   - match: { nodes.$node_id.written: 0 }
   - match: { nodes.$node_id.expired: 0 }
   - match: { nodes.$node_id.effective_capture_rate: 0.01 }
+  - match: { nodes.$node_id.ground_truth_computed: 0 }
+  - match: { nodes.$node_id.ground_truth_failed: 0 }
+  - match: { nodes.$node_id.ground_truth_credit_millis: 0.0 }
 
   # nothing has been sampled yet, so there is nothing to compute
   - do:

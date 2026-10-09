@@ -20,6 +20,9 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<QuerySamplingStats> {
 
+    /** How many of the numbers of the stats are counters. */
+    private static final int COUNTERS = 13;
+
     @Override
     protected Writeable.Reader<QuerySamplingStats> instanceReader() {
         return QuerySamplingStats::new;
@@ -27,61 +30,31 @@ public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<Que
 
     @Override
     protected QuerySamplingStats createTestInstance() {
-        return stats(
-            randomDouble(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
-        );
+        long[] counters = new long[COUNTERS];
+        for (int i = 0; i < COUNTERS; i++) {
+            counters[i] = randomNonNegativeLong();
+        }
+        return stats(counters, randomDouble(), randomDouble());
     }
 
     @Override
     protected QuerySamplingStats mutateInstance(QuerySamplingStats instance) {
-        long[] values = {
-            instance.knnSearches(),
-            instance.captured(),
-            instance.dropped(),
-            instance.distinctQueries(),
-            instance.untrackedArrivals(),
-            instance.picked(),
-            instance.written(),
-            instance.writeFailures(),
-            instance.writeDropped(),
-            instance.weightsRefreshed(),
-            instance.expired() };
+        long[] counters = counters(instance);
         double rate = instance.effectiveCaptureRate();
-        int mutated = between(0, values.length);
-        if (mutated == values.length) {
+        double credit = instance.groundTruthCreditMillis();
+        int mutated = between(0, COUNTERS + 1);
+        if (mutated < COUNTERS) {
+            counters[mutated]++;
+        } else if (mutated == COUNTERS) {
             rate += 0.5;
         } else {
-            values[mutated]++;
+            credit += 0.5;
         }
-        return stats(
-            rate,
-            values[0],
-            values[1],
-            values[2],
-            values[3],
-            values[4],
-            values[5],
-            values[6],
-            values[7],
-            values[8],
-            values[9],
-            values[10]
-        );
+        return stats(counters, rate, credit);
     }
 
-    public void testRendersEveryCounter() throws IOException {
-        QuerySamplingStats stats = stats(0.25, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
+    public void testRendersEveryNumber() throws IOException {
+        QuerySamplingStats stats = stats(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 }, 0.25, -7.5);
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
@@ -91,25 +64,47 @@ public class QuerySamplingStatsTests extends AbstractWireSerializingTestCase<Que
             equalTo(
                 "{\"knn_searches\":1,\"captured\":2,\"dropped\":3,\"distinct_queries\":4,\"untracked_arrivals\":5,"
                     + "\"picked\":6,\"written\":7,\"write_failures\":8,\"write_dropped\":9,\"weights_refreshed\":10,"
-                    + "\"expired\":11,\"effective_capture_rate\":0.25}"
+                    + "\"expired\":11,\"ground_truth_computed\":12,\"ground_truth_failed\":13,"
+                    + "\"effective_capture_rate\":0.25,\"ground_truth_credit_millis\":-7.5}"
             )
         );
     }
 
-    private static QuerySamplingStats stats(double effectiveCaptureRate, long... values) {
+    private static long[] counters(QuerySamplingStats stats) {
+        return new long[] {
+            stats.knnSearches(),
+            stats.captured(),
+            stats.dropped(),
+            stats.distinctQueries(),
+            stats.untrackedArrivals(),
+            stats.picked(),
+            stats.written(),
+            stats.writeFailures(),
+            stats.writeDropped(),
+            stats.weightsRefreshed(),
+            stats.expired(),
+            stats.groundTruthComputed(),
+            stats.groundTruthFailed() };
+    }
+
+    private static QuerySamplingStats stats(long[] counters, double effectiveCaptureRate, double groundTruthCreditMillis) {
+        assertThat(counters.length, equalTo(COUNTERS));
         return new QuerySamplingStats(
-            values[0],
-            values[1],
-            values[2],
-            values[3],
-            values[4],
-            values[5],
-            values[6],
-            values[7],
-            values[8],
-            values[9],
-            values[10],
-            effectiveCaptureRate
+            counters[0],
+            counters[1],
+            counters[2],
+            counters[3],
+            counters[4],
+            counters[5],
+            counters[6],
+            counters[7],
+            counters[8],
+            counters[9],
+            counters[10],
+            counters[11],
+            counters[12],
+            effectiveCaptureRate,
+            groundTruthCreditMillis
         );
     }
 }

@@ -30,8 +30,12 @@ import java.io.IOException;
  * @param writeDropped       picked queries turned away because too many were waiting to be written
  * @param weightsRefreshed   updates of the weights of written queries
  * @param expired            sampled queries deleted from the index because they were older than the retention
+ * @param groundTruthComputed  queries whose ground truth this node computed by itself
+ * @param groundTruthFailed    queries whose ground truth this node tried to compute by itself and could not
  * @param effectiveCaptureRate the probability a search is captured with right now: the {@code capture_rate}, or higher
  *                             if the traffic is so low that the floor of captures per hour asks for it
+ * @param groundTruthCreditMillis what this node may still spend on exact searches, in milliseconds of search time,
+ *                             negative if it is in debt
  */
 public record QuerySamplingStats(
     long knnSearches,
@@ -45,7 +49,10 @@ public record QuerySamplingStats(
     long writeDropped,
     long weightsRefreshed,
     long expired,
-    double effectiveCaptureRate
+    long groundTruthComputed,
+    long groundTruthFailed,
+    double effectiveCaptureRate,
+    double groundTruthCreditMillis
 ) implements Writeable, ToXContentFragment {
 
     public QuerySamplingStats(StreamInput in) throws IOException {
@@ -61,6 +68,9 @@ public record QuerySamplingStats(
             in.readVLong(),
             in.readVLong(),
             in.readVLong(),
+            in.readVLong(),
+            in.readVLong(),
+            in.readDouble(),
             in.readDouble()
         );
     }
@@ -78,7 +88,10 @@ public record QuerySamplingStats(
         out.writeVLong(writeDropped);
         out.writeVLong(weightsRefreshed);
         out.writeVLong(expired);
+        out.writeVLong(groundTruthComputed);
+        out.writeVLong(groundTruthFailed);
         out.writeDouble(effectiveCaptureRate);
+        out.writeDouble(groundTruthCreditMillis);
     }
 
     @Override
@@ -94,7 +107,10 @@ public record QuerySamplingStats(
         builder.field("write_dropped", writeDropped);
         builder.field("weights_refreshed", weightsRefreshed);
         builder.field("expired", expired);
+        builder.field("ground_truth_computed", groundTruthComputed);
+        builder.field("ground_truth_failed", groundTruthFailed);
         builder.field("effective_capture_rate", effectiveCaptureRate);
+        builder.field("ground_truth_credit_millis", groundTruthCreditMillis);
         return builder;
     }
 }

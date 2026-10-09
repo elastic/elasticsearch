@@ -26,11 +26,14 @@ import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.querysampling.capture.CaptureHandoff;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.capture.QueryCaptureFilter;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
+import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
+import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruthWorker;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.storage.QuerySamplingIndex;
 import org.elasticsearch.xpack.querysampling.storage.SampleRetention;
@@ -72,6 +75,16 @@ public class QuerySamplingServiceTests extends ESTestCase {
         10,
         TimeValue.timeValueSeconds(30)
     );
+    private final CostBudget budget = new CostBudget(0.0, 1000);
+    private final GroundTruthWorker groundTruthWorker = new GroundTruthWorker(
+        (request, listener) -> {},
+        (request, listener) -> {},
+        (request, listener) -> {},
+        NamedXContentRegistry.EMPTY,
+        budget,
+        "sampler",
+        () -> 42L
+    );
     private final SampleRetention retention = new SampleRetention(
         (request, listener) -> {},
         () -> true,
@@ -81,7 +94,7 @@ public class QuerySamplingServiceTests extends ESTestCase {
 
     public void testNothingHappenedYet() {
         QuerySamplingService service = service(filter(1.0), handoff(Runnable::run, new Random(0L)));
-        assertThat(service.stats(), equalTo(new QuerySamplingStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.0)));
+        assertThat(service.stats(), equalTo(new QuerySamplingStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.0, 0.0)));
     }
 
     public void testGateCountersOnlyCountEligibleKnnSearches() {
@@ -139,7 +152,7 @@ public class QuerySamplingServiceTests extends ESTestCase {
     }
 
     private QuerySamplingService service(QueryCaptureFilter filter, CaptureHandoff handoff) {
-        return new QuerySamplingService(filter, handoff, tracker, pipeline, writer, refresher, retention);
+        return new QuerySamplingService(filter, handoff, tracker, pipeline, writer, refresher, retention, groundTruthWorker, budget);
     }
 
     private static BulkResponse allWritten(int queries) {

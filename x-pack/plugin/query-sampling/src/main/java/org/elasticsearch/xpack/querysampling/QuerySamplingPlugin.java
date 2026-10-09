@@ -161,7 +161,9 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled()) {
             filter.startRateUpdates(services.threadPool(), services.threadPool().generic());
         }
-        return List.of(new QuerySamplingService(filter, handoff, tracker, pipeline, writer, refresher, retention));
+        return List.of(
+            new QuerySamplingService(filter, handoff, tracker, pipeline, writer, refresher, retention, groundTruthWorker, budget)
+        );
     }
 
     @Override

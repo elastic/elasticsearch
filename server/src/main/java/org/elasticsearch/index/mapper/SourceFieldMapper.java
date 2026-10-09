@@ -25,6 +25,10 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.EscfColumnBuilder;
+import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -675,29 +679,36 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return;
         }
         final int docCount = context.docCount();
-        final BytesRef[] blobs = new BytesRef[docCount];
-        final MappedColumns.RowCursor rows = context.rowCursor();
-        for (int d = 0; d < docCount; d++) {
-            rows.advance();
-            // The cursor's field list is only valid until the next advance(), which is fine: the blob is built before then.
-            final LuceneDocument doc = new LuceneDocument(rows.fields());
-            try (var builder = XContentFactory.jsonBuilder()) {
-                columnarSourceWriter.write(context.mappingLookup(), List.of(doc), doc, builder);
-                final BytesRef encodedValue = XContentDataHelper.encodeXContentBuilder(builder);
-                blobs[d] = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
-                    new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, doc)
-                );
+        final EscfColumnBuilder blobs = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, context.recycler());
+        blobs.lockScalar(EscfColumnKind.BINARY);
+        try (blobs) {
+            final MappedColumns.RowCursor rows = context.rowCursor();
+            for (int d = 0; d < docCount; d++) {
+                rows.advance();
+                // The cursor's field list is only valid until the next advance(), which is fine: the blob is built before then.
+                final LuceneDocument doc = new LuceneDocument(rows.fields());
+                try (var builder = XContentFactory.jsonBuilder()) {
+                    columnarSourceWriter.write(context.mappingLookup(), List.of(doc), doc, builder);
+                    final BytesRef encodedValue = XContentDataHelper.encodeXContentBuilder(builder);
+                    blobs.setBinary(
+                        d,
+                        IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
+                            new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, doc)
+                        )
+                    );
+                }
             }
+            // Same pruning as postParse: the blob subsumes the per-field fallback columns, and the leftover _ignored_source columns
+            // would otherwise collide with the blob's.
+            context.removeColumnsIf(SourceFieldMapper::isRedundantInColumnarStoredSource);
+            final EscfColumnData blobData = blobs.finish(docCount);
+            context.addColumn(LuceneBinaryColumn.of(blobData, IgnoredSourceFieldMapper.NAME, CustomDocValuesField.TYPE), blobData);
         }
-        // Same pruning as postParse: the blob subsumes the per-field fallback columns, and the leftover _ignored_source columns
-        // would otherwise collide with the blob's.
-        context.removeColumnsIf(SourceFieldMapper::isRedundantInColumnarStoredSource);
 
         final byte[] counts = new byte[docCount * 8];
         for (int d = 0; d < docCount; d++) {
             ByteUtils.writeLongLE(1, counts, d * 8);
         }
-        context.addColumn(MappedColumns.binaryColumn(blobs, IgnoredSourceFieldMapper.NAME, CustomDocValuesField.TYPE));
         context.addColumn(
             MappedColumns.longColumn(
                 new BytesRef(counts),

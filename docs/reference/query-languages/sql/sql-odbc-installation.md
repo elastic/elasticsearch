@@ -160,7 +160,7 @@ msiexec.exe /help
 All settings exposed within the GUI are also available as command line arguments (referred to as *properties* within Windows Installer documentation) that can be passed to `msiexec.exe`:
 
 `INSTALLDIR`
-:   The installation directory. Defaults to _%ProgramFiles%\Elastic\ODBCDriver\\<version>.
+:   The installation directory. Defaults to `%ProgramFiles%\Elastic\ODBCDriver\<version>`.
 
 To pass a value, simply append the property name and value using the format `<PROPERTYNAME>="<VALUE>"` to the installation command. For example, to use a different installation directory to the default one:
 

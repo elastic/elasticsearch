@@ -455,6 +455,8 @@ FROM employees
 ;
 
 bucketWithUnsignedLong
+required_capability: fn_bucket_from_to_types
+
 FROM ul_logs
 | WHERE @timestamp >= "2017-11-10T20:30:00Z" AND @timestamp < "2017-11-10T20:35:00Z"
 | STATS ts = VALUES(@timestamp) BY bh = bucket(bytes_in, 20, 5480608687137202404, 17764691215469285192)
@@ -464,7 +466,7 @@ FROM ul_logs
            ts:date      |      bh:double
 2017-11-10T20:32:57.000Z|8.0E18
 2017-11-10T20:33:06.000Z|5.0E18
-2017-11-10T20:34:43.000Z|1.75E19
+2017-11-10T20:34:43.000Z|1.7E19
 ;
 
 bucketMultipleAndExpressions
@@ -1111,4 +1113,120 @@ ROW ts = 123::datetime
 
 c:long | b:datetime
 1      | 1970-01-01T00:00:00.120Z
+;
+
+bucketNumericLongCount
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS c = COUNT(*) BY b = BUCKET(salary, 20::long, 25324, 74999)
+| SORT b
+;
+
+ c:long        | b:double
+1              |25000.0
+1              |30000.0
+1              |40000.0
+2              |45000.0
+2              |50000.0
+1              |55000.0
+1              |60000.0
+1              |65000.0
+1              |70000.0
+;
+
+bucketDateNanosBounds
+required_capability: fn_bucket_from_to_types
+
+ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
+| STATS date=VALUES(date) BY bucket=BUCKET(date, 20, TO_DATE_NANOS("1985-01-01T00:00:00Z"), TO_DATE_NANOS("1986-01-01T00:00:00Z"))
+;
+
+           date:datetime | bucket:datetime
+1985-07-09T00:00:00.000Z | 1985-07-01T00:00:00.000Z
+;
+
+bucketDatePeriodWithRange
+required_capability: fn_bucket_from_to_types
+
+ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
+| STATS date=VALUES(date) BY bucket=BUCKET(date, 1 month, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+;
+
+           date:datetime | bucket:datetime
+1985-07-09T00:00:00.000Z | 1985-07-01T00:00:00.000Z
+;
+
+bucketUnsignedLongFieldSpan
+ROW x = 100::unsigned_long
+| STATS c = COUNT(*) BY b = BUCKET(x, 50.)
+;
+
+c:long | b:double
+1      | 100.0
+;
+
+bucketUnsignedLongToBound
+required_capability: fn_bucket_from_to_types
+
+ROW x = 100.0
+| STATS c = COUNT(*) BY b = BUCKET(x, 20, 0, 1000::unsigned_long)
+;
+
+c:long | b:double
+1      | 100.0
+;
+
+bucketUnsignedLongFromBound
+required_capability: fn_bucket_from_to_types
+
+ROW x = 100.0
+| STATS c = COUNT(*) BY b = BUCKET(x, 20, 0::unsigned_long, 1000)
+;
+
+c:long | b:double
+1      | 100.0
+;
+
+bucketUnsignedLongBounds
+required_capability: fn_bucket_from_to_types
+
+ROW x = 100::unsigned_long
+| STATS c = COUNT(*) BY b = BUCKET(x, 20, 0::unsigned_long, 100::unsigned_long)
+;
+
+c:long | b:double
+1      | 100.0
+;
+
+bucketUnsignedLongFullRange20
+required_capability: fn_bucket_from_to_types
+
+FROM ul_logs
+| WHERE id IN (70, 65, 58, 10, 60, 24, 50)
+| STATS c = COUNT(*) BY b = BUCKET(bytes_in, 20, 0::unsigned_long, 18446744073709551615::unsigned_long)
+| SORT b
+;
+
+c:long | b:double
+1      | 0.0
+1      | 5.0E18
+1      | 8.0E18
+2      | 9.0E18
+1      | 1.7E19
+1      | 1.8E19
+;
+
+bucketUnsignedLongFullRange4
+required_capability: fn_bucket_from_to_types
+
+FROM ul_logs
+| WHERE id IN (70, 65, 58, 10, 60, 24, 50)
+| STATS c = COUNT(*) BY b = BUCKET(bytes_in, 4, 0::unsigned_long, 18446744073709551615::unsigned_long)
+| SORT b
+;
+
+c:long | b:double
+1      | 0.0
+4      | 5.0E18
+2      | 1.5E19
 ;

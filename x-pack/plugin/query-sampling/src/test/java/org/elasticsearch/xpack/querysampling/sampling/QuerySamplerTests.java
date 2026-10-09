@@ -17,9 +17,12 @@ import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 public class QuerySamplerTests extends ESTestCase {
@@ -65,7 +68,7 @@ public class QuerySamplerTests extends ESTestCase {
                 .put(QuerySamplingSettings.ACCEPTANCE_SCALE.getKey(), 0.5)
                 .put(QuerySamplingSettings.HEAD_THRESHOLD.getKey(), 5)
                 .build(),
-            Set.of(QuerySamplingSettings.ACCEPTANCE_SCALE, QuerySamplingSettings.HEAD_THRESHOLD)
+            Set.of(QuerySamplingSettings.ACCEPTANCE_SCALE, QuerySamplingSettings.HEAD_THRESHOLD, QuerySamplingSettings.MAX_PICKS_PER_HOUR)
         );
         QuerySampler sampler = new QuerySampler(1.0, 100, seededRandom());
         sampler.watch(clusterSettings);
@@ -83,6 +86,58 @@ public class QuerySamplerTests extends ESTestCase {
 
         assertThat(sampler.acceptanceProbability(1), closeTo(0.25 * Math.log(2), 1e-12));
         assertThat("the head starts earlier", sampler.acceptanceProbability(2), equalTo(1.0));
+    }
+
+    public void testQueriesGetNoChanceOnceThePicksAreUsedUpAndThatIsRecorded() {
+        AtomicLong now = new AtomicLong();
+        PickBudget budget = new PickBudget(now::get);
+        budget.perHour(60); // a bucket of one pick, which comes back after a minute
+        QuerySampler sampler = new QuerySampler(1.0, 1000, alwaysDrawing(0.0), budget);
+        MultiplicityTracker tracker = new MultiplicityTracker(10);
+
+        TrackedQuery first = tracker.record(new QueryFingerprint(1, 1));
+        TrackedQuery second = tracker.record(new QueryFingerprint(2, 2));
+        TrackedQuery third = tracker.record(new QueryFingerprint(3, 3));
+
+        assertTrue("the pick there is", sampler.offer(first));
+        assertFalse(sampler.offer(second));
+        assertFalse(sampler.offer(third));
+        assertThat("no chance, which is what the probability of the query says", second.inclusionProbability(), equalTo(0.0));
+        assertThat(first.inclusionProbability(), greaterThan(0.0));
+
+        now.addAndGet(TimeUnit.MINUTES.toNanos(2));
+        assertTrue("a pick is back", sampler.offer(tracker.record(new QueryFingerprint(4, 4))));
+    }
+
+    public void testHeadQueriesAreNeverHeldBack() {
+        PickBudget budget = new PickBudget(() -> 0L);
+        budget.perHour(60);
+        QuerySampler sampler = new QuerySampler(1.0, 5, alwaysDrawing(0.999999), budget);
+        // the only pick goes to a query that is not a head query, the draw of 0.999999 would leave it
+        QuerySampler lucky = new QuerySampler(1.0, 5, alwaysDrawing(0.0), budget);
+        assertTrue(lucky.offer(tracked(1)));
+
+        TrackedQuery head = tracked(5);
+        assertTrue("the budget is empty, and it is a head query", sampler.offer(head));
+        assertThat(head.inclusionProbability(), equalTo(1.0));
+    }
+
+    public void testTheLimitFollowsTheSetting() {
+        AtomicLong now = new AtomicLong();
+        PickBudget budget = new PickBudget(now::get);
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put(QuerySamplingSettings.MAX_PICKS_PER_HOUR.getKey(), 60).build(),
+            Set.of(QuerySamplingSettings.ACCEPTANCE_SCALE, QuerySamplingSettings.HEAD_THRESHOLD, QuerySamplingSettings.MAX_PICKS_PER_HOUR)
+        );
+        QuerySampler sampler = new QuerySampler(1.0, 1000, alwaysDrawing(0.0), budget);
+        sampler.watch(clusterSettings);
+        MultiplicityTracker tracker = new MultiplicityTracker(10);
+
+        assertTrue(sampler.offer(tracker.record(new QueryFingerprint(1, 1))));
+        assertFalse("the limit is one an hour", sampler.offer(tracker.record(new QueryFingerprint(2, 2))));
+
+        clusterSettings.applySettings(Settings.builder().put(QuerySamplingSettings.MAX_PICKS_PER_HOUR.getKey(), 0).build());
+        assertTrue("and then there is none", sampler.offer(tracker.record(new QueryFingerprint(3, 3))));
     }
 
     public void testProbabilityIsCappedAtOne() {

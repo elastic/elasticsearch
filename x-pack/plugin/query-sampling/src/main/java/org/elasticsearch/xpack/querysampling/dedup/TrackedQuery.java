@@ -85,7 +85,7 @@ public final class TrackedQuery {
      * needed to weight it correctly when estimating over the whole population.
      */
     public synchronized double inclusionProbability() {
-        return -Math.expm1(logSurvival);
+        return 0.0 - Math.expm1(logSurvival); // not negated, so that no chance is 0.0 and not -0.0
     }
 
     /**

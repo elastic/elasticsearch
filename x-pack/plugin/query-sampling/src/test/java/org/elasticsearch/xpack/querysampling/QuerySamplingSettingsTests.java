@@ -23,6 +23,7 @@ public class QuerySamplingSettingsTests extends ESTestCase {
     public void testDefaults() {
         assertThat(QuerySamplingSettings.ACCEPTANCE_SCALE.get(Settings.EMPTY), equalTo(1.0));
         assertThat(QuerySamplingSettings.HEAD_THRESHOLD.get(Settings.EMPTY), equalTo(100L));
+        assertThat("there is no limit unless one is set", QuerySamplingSettings.MAX_PICKS_PER_HOUR.get(Settings.EMPTY), equalTo(0L));
         assertThat("the worker is off unless asked for", QuerySamplingSettings.SAMPLING_COST_RATIO.get(Settings.EMPTY), equalTo(0.0));
         assertThat(QuerySamplingSettings.MULTIPLICITY_WINDOW.get(Settings.EMPTY), equalTo(TimeValue.timeValueHours(1)));
     }
@@ -32,6 +33,7 @@ public class QuerySamplingSettingsTests extends ESTestCase {
             QuerySamplingSettings.ACCEPTANCE_SCALE,
             QuerySamplingSettings.HEAD_THRESHOLD,
             QuerySamplingSettings.SAMPLING_COST_RATIO,
+            QuerySamplingSettings.MAX_PICKS_PER_HOUR,
             QuerySamplingSettings.MULTIPLICITY_WINDOW }) {
             assertTrue(setting.getKey() + " is dynamic", setting.isDynamic());
         }
@@ -56,6 +58,7 @@ public class QuerySamplingSettingsTests extends ESTestCase {
         expectInvalid(QuerySamplingSettings.ACCEPTANCE_SCALE, "-0.1");
         expectInvalid(QuerySamplingSettings.ACCEPTANCE_SCALE, "101");
         expectInvalid(QuerySamplingSettings.HEAD_THRESHOLD, "0");
+        expectInvalid(QuerySamplingSettings.MAX_PICKS_PER_HOUR, "-1");
         expectInvalid(QuerySamplingSettings.SAMPLING_COST_RATIO, "-0.1");
         expectInvalid(QuerySamplingSettings.SAMPLING_COST_RATIO, "1.5");
         expectInvalid(QuerySamplingSettings.MULTIPLICITY_WINDOW, "500ms");

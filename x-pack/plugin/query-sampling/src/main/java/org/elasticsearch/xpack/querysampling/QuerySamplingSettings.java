@@ -91,6 +91,18 @@ public final class QuerySamplingSettings {
     );
 
     /**
+     * The most queries that a node picks per hour, apart from the hottest ones, which are always picked. It keeps the
+     * sample from growing without limit when many different queries are searched. 0 means there is no limit.
+     */
+    public static final Setting<Long> MAX_PICKS_PER_HOUR = Setting.longSetting(
+        "xpack.query_sampling.max_picks_per_hour",
+        0L,
+        0L,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * γ, the scale of the probability with which a query is picked: how likely a query seen for the first time is
      * picked (about 0.69·γ), and how fast that falls as the query is searched more. A bigger value samples more
      * queries, and more of the popular ones.
@@ -137,6 +149,7 @@ public final class QuerySamplingSettings {
             CAPTURE_RATE,
             MIN_CAPTURES_PER_HOUR,
             SAMPLING_COST_RATIO,
+            MAX_PICKS_PER_HOUR,
             ACCEPTANCE_SCALE,
             HEAD_THRESHOLD,
             MULTIPLICITY_WINDOW,

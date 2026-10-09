@@ -34,15 +34,24 @@ public final class QuerySampler {
     private volatile double scale;
     private volatile long headThreshold;
     private final Random random;
+    private final PickBudget budget;
 
     /**
      * @param scale         γ, the probability scale: how likely a never-seen query is picked (about 0.69·γ)
      * @param headThreshold estimated multiplicity from which a query is always picked
      */
     public QuerySampler(double scale, long headThreshold, Random random) {
+        this(scale, headThreshold, random, new PickBudget(System::nanoTime));
+    }
+
+    /**
+     * @param budget limits how many queries are picked, apart from the head queries
+     */
+    public QuerySampler(double scale, long headThreshold, Random random, PickBudget budget) {
         this.scale = scale;
         this.headThreshold = headThreshold;
         this.random = random;
+        this.budget = budget;
     }
 
     /**
@@ -51,6 +60,7 @@ public final class QuerySampler {
     public void watch(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(QuerySamplingSettings.ACCEPTANCE_SCALE, value -> this.scale = value);
         clusterSettings.initializeAndWatch(QuerySamplingSettings.HEAD_THRESHOLD, value -> this.headThreshold = value);
+        clusterSettings.initializeAndWatch(QuerySamplingSettings.MAX_PICKS_PER_HOUR, budget::perHour);
     }
 
     /**
@@ -78,12 +88,22 @@ public final class QuerySampler {
      * @return whether the query was picked by this arrival, which happens at most once per query
      */
     public boolean offer(TrackedQuery query) {
-        double probability = acceptanceProbability(query.weightedMultiplicity(), query.lastArrivalWeight());
+        double multiplicity = query.weightedMultiplicity();
+        boolean head = multiplicity >= headThreshold;
+        double probability = acceptanceProbability(multiplicity, query.lastArrivalWeight());
+        if (head == false && budget.available() == false) {
+            // the limit on the picks is reached: the query has no chance now, and that is what is recorded for it, as for
+            // any other probability, which keeps the estimates right. The head queries are never held back
+            probability = 0.0;
+        }
         query.recordDraw(probability);
         if (query.isSampled() || random.nextDouble() >= probability) {
             return false;
         }
         query.markSampled();
+        if (head == false) {
+            budget.take();
+        }
         return true;
     }
 }

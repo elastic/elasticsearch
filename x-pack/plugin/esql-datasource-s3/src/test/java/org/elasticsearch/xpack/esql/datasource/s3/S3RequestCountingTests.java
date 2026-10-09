@@ -246,9 +246,7 @@ public class S3RequestCountingTests extends ESTestCase {
 
     /**
      * A 403 is answered in one request. This request already is the cheapest read, and a HEAD needs the same
-     * s3:GetObject, so a second request would only be refused again. Spending it is now the same request,
-     * and a HEAD requires the same s3:GetObject so would be refused identically. Spending a second request to
-     * be told the same thing is pure cost.
+     * s3:GetObject, so a second request would only be refused again.
      */
     public void testDenialCostsOneRequestAndNoHead() {
         when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(

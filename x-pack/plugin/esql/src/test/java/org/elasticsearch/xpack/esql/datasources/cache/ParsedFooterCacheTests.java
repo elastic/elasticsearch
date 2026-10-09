@@ -87,6 +87,7 @@ public class ParsedFooterCacheTests extends ESTestCase {
         FooterByteCache.Key k = key("file.parquet", 1000);
 
         shortLived.put(k, "footer");
+        assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", shortLived.get(k));
         long readUntil = System.nanoTime() + TimeValue.timeValueMillis(1000).nanos();
         while (System.nanoTime() < readUntil) {
             shortLived.get(k);

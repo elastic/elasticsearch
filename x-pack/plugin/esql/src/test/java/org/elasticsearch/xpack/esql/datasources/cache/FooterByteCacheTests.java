@@ -206,6 +206,7 @@ public class FooterByteCacheTests extends ESTestCase {
         byte[] data = randomByteArrayOfLength(64);
 
         shortLived.put(key, data);
+        assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", shortLived.get(key));
         long readUntil = System.nanoTime() + TimeValue.timeValueMillis(1000).nanos();
         while (System.nanoTime() < readUntil) {
             shortLived.get(key);

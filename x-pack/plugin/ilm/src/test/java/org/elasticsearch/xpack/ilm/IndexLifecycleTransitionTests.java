@@ -476,7 +476,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         ProjectMetadata project = buildProject(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
         Index index = project.index(indexName).getIndex();
         // Even when a lookup index has lifecycle state, is still not considered managed by ILM
-        assertThat(project.isIndexManagedByILM(project.index(index)), is(false));
+        assertThat(project.isIndexManagedByILM(project.index(index), randomBoolean()), is(false));
         Index[] indices = new Index[] { index };
         List<String> failedIndexes = new ArrayList<>();
 

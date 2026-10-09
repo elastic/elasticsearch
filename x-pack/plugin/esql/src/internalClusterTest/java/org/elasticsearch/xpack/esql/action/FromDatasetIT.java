@@ -2749,7 +2749,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         List<String> warnings = collectWarningsContaining(
             "FROM employees_absent_warn | SORT emp_no | LIMIT 5",
-            "declared column [department] is not present"
+            "column [department] is not present"
         );
         assertThat("the absent declared column must emit a response Warning header", warnings, not(empty()));
     }
@@ -2781,9 +2781,89 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         List<String> warnings = collectWarningsContaining(
             "FROM employees_parquet_absent_warn | SORT emp_no | LIMIT 5",
-            "declared column [department] is not present"
+            "column [department] is not present"
         );
         assertThat("the absent declared column must emit a response Warning header on Parquet", warnings, not(empty()));
+    }
+
+    /**
+     * Under {@code dynamic: true} a declared column the Parquet file does not carry reads null rather than failing
+     * resolution, and the warning is there even for a {@code COUNT(*)} that never reads the column.
+     */
+    public void testDynamicAbsentDeclaredColumnReadsNullWithWarningParquet() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("department", new DatasetFieldMapping("keyword", null)); // absent from the 2-column Parquet fixture
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        Path parquet = createTempDir().resolve("employees.parquet");
+        Files.write(parquet, twoColumnParquetFixtureBytes());
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_parquet_dynamic_absent",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_parquet_dynamic_absent | KEEP department"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, not(empty()));
+            for (List<Object> row : rows) {
+                assertThat(row.get(0), nullValue());
+            }
+        }
+        List<String> warnings = collectWarningsContaining(
+            "FROM employees_parquet_dynamic_absent | STATS c = COUNT(*)",
+            "column [department] is not present"
+        );
+        assertThat("COUNT(*) must carry the absent declared column warning", warnings, not(empty()));
+    }
+
+    /** As {@link #testDynamicAbsentDeclaredColumnReadsNullWithWarningParquet}, on a headered CSV file read by header name. */
+    public void testDynamicAbsentDeclaredColumnReadsNullWithWarningCsv() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("department", new DatasetFieldMapping("keyword", null)); // absent from the 2-column fixture
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_csv_dynamic_absent",
+                    "local_ds",
+                    csvFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_csv_dynamic_absent | SORT emp_no | LIMIT 5"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns.stream().map(ColumnInfo::name).toList(), equalTo(List.of("emp_no", "first_name", "department")));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            for (List<Object> row : rows) {
+                assertThat(row.get(2), nullValue());
+            }
+        }
+        List<String> warnings = collectWarningsContaining(
+            "FROM employees_csv_dynamic_absent | SORT emp_no | LIMIT 5",
+            "column [department] is not present"
+        );
+        assertThat(warnings, not(empty()));
     }
 
     public void testAbsentDeclaredColumnEmitsResponseWarningNdjson() throws Exception {
@@ -2816,22 +2896,21 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // For NdJson with Dynamic.FALSE the reader receives the full declared schema (all 3
         // columns). `department` is absent from every record, so NdJsonPageDecoder emits
-        // absentDeclaredColumnMessage ("is not present") at close() — a column absent from all
+        // absentColumnMessage ("is not present") at close() — a column absent from all
         // records is effectively absent from the file, so the file-level message is accurate.
         List<String> warnings = collectWarningsContaining(
             "FROM employees_ndjson_absent_warn | SORT emp_no | LIMIT 5",
-            "declared column [department] is not present"
+            "column [department] is not present"
         );
-        assertThat("the absent declared column must emit an absentDeclaredColumnMessage Warning header on NDJSON", warnings, not(empty()));
+        assertThat("the absent declared column must emit an absentColumnMessage Warning header on NDJSON", warnings, not(empty()));
     }
 
     /**
      * A declared column that is sparse in the NDJSON file (present in some records but not in the first
      * {@code schema_sample_size} records) must be queryable under {@code dynamic: true}.
      * <p>
-     * Before the fix: the overlay rejected the dataset with "declared columns not found in the source: [spin_id]"
-     * because the sample-derived schema did not list {@code spin_id}. After the fix: the column is accepted and the
-     * reader looks it up by name in each record, returning {@code null} for records that lack it.
+     * The sample-derived schema does not list {@code spin_id}; the column is still accepted and the reader looks it up
+     * by name in each record, returning {@code null} for records that lack it.
      */
     public void testSampledOutDeclaredColumnReadsItsValues() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -2989,10 +3068,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * should be accepted: the per-file schema is widened to 3 columns, the row-width tripwire widens
      * accordingly, and a row that carries a third field delivers its value for {@code col2}.
      * <p>
-     * Before the fix: the overlay rejected the dataset with
-     * {@code "declared columns not found in the source: [col2]"}.
-     * After the fix: the column is accepted; the second row's third field is returned as {@code col2},
-     * while the first row null-fills it.
+     * The second row's third field is returned as {@code col2}, while the first row null-fills it.
      */
     public void testSampledOutSyntheticColumnIsDeclarable() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -3114,6 +3190,26 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 .build()
         ) {
             for (int value : values) {
+                Group g = factory.newGroup();
+                g.add(column, value);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
+    }
+
+    private byte[] int64FixtureBytes(String column, long... values) throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named(column).named("test");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (long value : values) {
                 Group g = factory.newGroup();
                 g.add(column, value);
                 writer.write(g);
@@ -3467,8 +3563,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * {@code TIMESTAMP(MICROS)} infers as {@code date_nanos}. A {@code TO_DATETIME} literal is the other date
-     * type, so reader prune and stats fold decline; {@code FilterExec} still keeps the matching row.
+     * {@code TIMESTAMP(MICROS)} infers as {@code date_nanos}. A {@code TO_DATETIME} literal is converted into the
+     * column domain for reader prune. Footer {@code COUNT(*)} fold classifies the remaining {@code FilterExec}
+     * when every attached push is RECHECK, for matching-type and converted mixed leaves alike. YES-only /
+     * YES+RECHECK / non-RECHECK mixes skip the fold. {@code FilterExec} re-checks the original mixed
+     * predicate. Counts below pin end-to-end correctness; the fold gate itself is pinned by
+     * {@code PushStatsToExternalSourceTests} and
+     * {@code ParquetFilterPushdownSupportTests.testPushFiltersOutputMatchesStatsFoldGateAssumptions}.
      */
     public void testDatetimeLiteralFiltersInferredTimestampMicros() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -3507,8 +3608,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * An inferred {@code integer} compared to a {@code double} or {@code long} literal must stay in
-     * {@code FilterExec}; a column-typed bound would drop the matching row.
+     * An inferred {@code integer} compared to a {@code double} or {@code long} literal converts to a
+     * never-stricter column-typed bound (e.g. {@code i < 5.5} → {@code i <= 5}; out-of-range → domain tautology)
+     * so prune is safe and {@code FilterExec} still returns the matching row. Matching-type filters
+     * ({@code long == 5}) are eligible to fold under RECHECK when a {@code FilterExec} remains.
      */
     public void testNumericLiteralFiltersInferredInteger() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -3532,6 +3635,25 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertQ("integer lt double", "FROM mixed_int_inferred | WHERE i < 5.5 | STATS c = COUNT(*)", 1L);
         assertQ("integer lte long", "FROM mixed_int_inferred | WHERE i <= 3000000000 | STATS c = COUNT(*)", 1L);
         assertQ("integer in int and double", "FROM mixed_int_inferred | WHERE i IN (5, 5.5) | STATS c = COUNT(*)", 1L);
+
+        Path longParquet = createTempDir().resolve("long_id.parquet");
+        Files.write(longParquet, int64FixtureBytes("l", 5L));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mixed_long_inferred",
+                    "local_ds",
+                    longParquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    null
+                )
+            )
+        );
+        assertQ("long equals integer", "FROM mixed_long_inferred | WHERE l == 5 | STATS c = COUNT(*)", 1L);
     }
 
     /** Declares {@code {ts: date, format: <the composite>}} over one dataset and asserts ts recovers EPOCH_SECOND_MILLIS. */

@@ -244,7 +244,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         CircuitBreaker breaker = new NoopCircuitBreaker("test") {
             @Override
             public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-                if (bytes == 0) {
+                if ("binary_doc_values_decode".equals(label)) {
                     checkpointedBytes.set(bytes);
                     throw new CircuitBreakingException("test trip", Durability.TRANSIENT);
                 }

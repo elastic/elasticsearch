@@ -23,10 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
@@ -34,26 +31,29 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.search.internal.BreakerWeightTestUtils.CountingCollector;
+import org.elasticsearch.search.internal.BreakerWeightTestUtils.CountingCollectorManager;
+import org.elasticsearch.search.internal.BreakerWeightTestUtils.TrackingCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import static org.elasticsearch.search.internal.BreakerWeightTestUtils.chargeAgainst;
+import static org.elasticsearch.search.internal.BreakerWeightTestUtils.conjunction;
+import static org.elasticsearch.search.internal.BreakerWeightTestUtils.newContextIndexSearcher;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -125,7 +125,7 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         assertThat("the term query must match documents so the search actually runs", hits, greaterThan(0));
         assertFalse(
             "a search whose query tree contains no PointRangeQuery must not allocate accounting",
-            searcher.hasPointRangeAccounting()
+            searcher.hasLeafExecutionAccounting()
         );
     }
 
@@ -133,9 +133,9 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         ContextIndexSearcher searcher = newContextIndexSearcher(reader);
         searcher.setCircuitBreaker(breaker);
-        assertFalse("accounting must not be allocated before any query has run", searcher.hasPointRangeAccounting());
+        assertFalse("accounting must not be allocated before any query has run", searcher.hasLeafExecutionAccounting());
         searcher.search(denseRangeQuery(), new CountingCollectorManager());
-        assertTrue("wrapping a PointRangeQuery must lazily allocate accounting", searcher.hasPointRangeAccounting());
+        assertTrue("wrapping a PointRangeQuery must lazily allocate accounting", searcher.hasLeafExecutionAccounting());
     }
 
     public void testPlainRangeInConjunctionChargesViaScorerGetPath() throws IOException {
@@ -262,7 +262,7 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
 
             assertThat(
                 "the inner leaf must have matched documents for the accounting to be exercised",
-                innerCollector.count,
+                innerCollector.count(),
                 greaterThan(0)
             );
             assertThat("both leaves must have charged execution RAM at some point", breaker.peak(), greaterThan(0L));
@@ -428,13 +428,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         return vector;
     }
 
-    private static void chargeAgainst(Weight weight, LeafReaderContext ctx) throws IOException {
-        ScorerSupplier scorerSupplier = weight.scorerSupplier(ctx);
-        if (scorerSupplier != null) {
-            scorerSupplier.get(Long.MAX_VALUE);
-        }
-    }
-
     private static Collector blockOnFirstDoc(CountDownLatch entered, CountDownLatch release) {
         return new Collector() {
             @Override
@@ -495,10 +488,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         }
     }
 
-    private static Query conjunction(Query first, Query second) {
-        return new BooleanQuery.Builder().add(first, BooleanClause.Occur.MUST).add(second, BooleanClause.Occur.MUST).build();
-    }
-
     private static Query denseRangeQuery() {
         return LongPoint.newRangeQuery(FIELD, 0L, (long) (NUM_DOCS * 3 / 4));
     }
@@ -512,19 +501,7 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     }
 
     private int runSearch(Query query, CircuitBreaker breaker) throws IOException {
-        ContextIndexSearcher searcher = newContextIndexSearcher(reader);
-        searcher.setCircuitBreaker(breaker);
-        return searcher.search(query, new CountingCollectorManager());
-    }
-
-    private static ContextIndexSearcher newContextIndexSearcher(IndexReader reader) throws IOException {
-        return new ContextIndexSearcher(
-            reader,
-            IndexSearcher.getDefaultSimilarity(),
-            null,
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            false
-        );
+        return BreakerWeightTestUtils.runSearch(reader, query, breaker);
     }
 
     /** A searcher with a breaker installed and a {@link #denseRangeQuery} weight already built, ready to score. */
@@ -535,43 +512,5 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         searcher.setCircuitBreaker(breaker);
         Weight weight = searcher.createWeight(searcher.rewrite(denseRangeQuery()), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         return new DenseSearch(searcher, weight);
-    }
-
-    private static final class CountingCollectorManager implements CollectorManager<CountingCollector, Integer> {
-        @Override
-        public CountingCollector newCollector() {
-            return new CountingCollector();
-        }
-
-        @Override
-        public Integer reduce(Collection<CountingCollector> collectors) {
-            int total = 0;
-            for (CountingCollector collector : collectors) {
-                total += collector.count;
-            }
-            return total;
-        }
-    }
-
-    private static final class CountingCollector implements Collector {
-        private int count;
-
-        @Override
-        public LeafCollector getLeafCollector(LeafReaderContext context) {
-            return new LeafCollector() {
-                @Override
-                public void setScorer(Scorable scorer) {}
-
-                @Override
-                public void collect(int doc) {
-                    count++;
-                }
-            };
-        }
-
-        @Override
-        public ScoreMode scoreMode() {
-            return ScoreMode.COMPLETE_NO_SCORES;
-        }
     }
 }

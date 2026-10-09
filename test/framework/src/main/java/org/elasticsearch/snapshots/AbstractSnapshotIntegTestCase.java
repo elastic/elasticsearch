@@ -654,7 +654,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
             .setIndices(indexName)
             .setWaitForCompletion(false)
-            .execute();
+            .get();
         awaitPrimaryInSnapshotRestore(indexName);
         waitForBlockOnAnyDataNode(repoName);
     }

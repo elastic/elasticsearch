@@ -368,6 +368,28 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * of {@link LeafSlice} will be equal or lower than the max number of slices.
      */
     public static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int maxSliceNum, int minDocsPerSlice) {
+        return computeSlices(leaves, maxSliceNum, minDocsPerSlice, MINIMUM_DOCS_PERCENT_PER_SLICE);
+    }
+
+    /**
+     * Groups whole leaves into at most {@code maxSliceNum} slices. Each slice carries at least
+     * {@code max(minDocsPerSlice, minDocsPercentPerSlice * totalDocs, totalDocs / maxSliceNum)} docs, so the
+     * number of slices is driven by the docs floor rather than by the leaf count.
+     * <p>
+     * {@link #computeSlices(List, int, int)} is the {@code _search} flavour and pins {@code minDocsPercentPerSlice}
+     * to {@link #MINIMUM_DOCS_PERCENT_PER_SLICE}, which caps a request at ten slices regardless of the executor
+     * size (that bounds per-slice aggregator memory and the terms aggregation error margin). Callers that do not
+     * collect through per-slice Lucene collectors, like ES|QL, can pass {@code 0} here and let
+     * {@code maxSliceNum} alone decide the fan-out.
+     *
+     * @param minDocsPercentPerSlice fraction of the total docs each slice must carry, in {@code [0, 1]}
+     */
+    public static LeafSlice[] computeSlices(
+        List<LeafReaderContext> leaves,
+        int maxSliceNum,
+        int minDocsPerSlice,
+        double minDocsPercentPerSlice
+    ) {
         if (maxSliceNum < 1) {
             throw new IllegalArgumentException("maxSliceNum must be >= 1 (got " + maxSliceNum + ")");
         }
@@ -383,8 +405,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
         // total number of documents to be searched
         final int numDocs = leaves.stream().mapToInt(l -> l.reader().maxDoc()).sum();
-        // percentage of documents per slice, minimum 10%
-        final double percentageDocsPerThread = Math.max(MINIMUM_DOCS_PERCENT_PER_SLICE, 1.0 / maxSliceNum);
+        // percentage of documents per slice: the fair share of one slice, or the caller's floor if that is larger
+        final double percentageDocsPerThread = Math.max(minDocsPercentPerSlice, 1.0 / maxSliceNum);
         // compute slices
         return computeSlices(leaves, Math.max(minDocsPerSlice, (int) (percentageDocsPerThread * numDocs)));
     }

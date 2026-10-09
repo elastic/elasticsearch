@@ -87,6 +87,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -1630,7 +1631,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         try {
             // Initial submit is not force-execution: a saturated esql_worker can reject start-of-slice.
             // Park resumes (executeProducer) are force-execution; T8 covers resume only.
-            producerExecutor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
+            executeProducer(state, completionListener, () -> runProducerLoop(state, completionListener), false);
         } catch (Exception e) {
             completionListener.onFailure(e);
         }
@@ -1663,7 +1664,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         state.schemaInfo = schemaMap;
         try {
             // Initial submit is not force-execution. Park resumes are; T8 covers resume only.
-            producerExecutor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
+            executeProducer(state, completionListener, () -> runProducerLoop(state, completionListener), false);
         } catch (Exception e) {
             completionListener.onFailure(e);
         }
@@ -1722,14 +1723,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // 1-based index of the split / file the producer is currently working on (0 = not started).
         int currentSplitIndex;
         /**
-         * At most one force-execution continuation is queued on {@code producerExecutor} for this
-         * producer. Park/resume and the post-open drain hop share this flag so a full
-         * {@code esql_worker} queue cannot pile forced tasks.
+         * Exclusive producer run (non-reentrant). Each {@code doRun} installs a unique token.
+         * Park and the post-open hop release that token before submitting the next task so an
+         * already-done {@code addListener} (DIRECT) or a fast I/O completion cannot trip a false
+         * overlap. The outer {@code finally} CAS uses the same token so it cannot steal a nested
+         * run's slot. A second {@code doRun} that still finds a token is a bug: close and fail.
          */
-        final AtomicBoolean producerQueued = new AtomicBoolean();
-        /** Set when a park/open hop arrives while a continuation is already queued or running. */
-        final AtomicBoolean producerDirty = new AtomicBoolean();
-        /** Terminal onResponse/onFailure already fired; skip dirty resubmit and extra completes. */
+        final AtomicReference<Object> producerRun = new AtomicReference<>();
+        /** Terminal onResponse/onFailure already fired; skip extra completes. */
         final AtomicBoolean producerFinished = new AtomicBoolean();
 
         ProducerState(
@@ -1790,6 +1791,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * A {@code false} return from {@link #advanceToNextUnit} means the producer is exhausted (terminal success).
      */
     private void openUnitThenDrain(ProducerState state, ActionListener<Void> completionListener) {
+        // This task is handing off to the I/O pool; release so the post-open drain hop can claim
+        // the run without a false overlap if that hop lands before onAfter.
+        releaseProducerRun(state);
         try {
             executor.execute(ActionRunnable.wrap(completionListener, l -> {
                 // Install the hard-cancel signal as the ambient StorageRetryCancellation scope for the blocking
@@ -1852,11 +1856,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     runProducerLoop(state, completionListener);
                 }
                 case BLOCKED -> {
-                    // A listener has been registered on waitForSpace that will re-submit the drain.
-                    // Do not write the bytes view here: parkUntilReady may already have submitted
-                    // runProducerLoop on another pool thread, and the live view already includes
-                    // bytes that land while the producer is parked.
-                    snapshotFormatReaderStatus(state);
+                    // A listener has been registered that will re-submit the drain. Do not mutate
+                    // producer state after park: addListener may already have run the resume inline.
                 }
             }
         } catch (Exception e) {
@@ -1880,11 +1881,61 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     /**
      * Closes the current page iterator (if any) so the next {@link #advanceToNextUnit} call starts
-     * cleanly. Safe to call multiple times.
+     * cleanly. Safe to call multiple times. Nulls the slot before close so a concurrent drain
+     * cannot observe a dying iterator.
      */
     private static void clearCurrentIterator(ProducerState state) {
-        closeQuietly(state.pages);
+        CloseableIterator<Page> previous = state.pages;
         state.pages = null;
+        closeQuietly(previous);
+    }
+
+    /**
+     * Install {@code next} as the live iterator. A previous live iterator is a bug (two opens
+     * racing): close it and fail the query rather than leak it or skip a file.
+     */
+    static CloseableIterator<Page> occupyPagesSlot(CloseableIterator<Page> previous, CloseableIterator<Page> next) {
+        if (previous != null) {
+            closeQuietly(previous);
+            throw new IllegalStateException("replaced live iterator");
+        }
+        return next;
+    }
+
+    /** {@code pages == null} mid-drain is a bug; fail the query rather than treat it as EOF. */
+    static CloseableIterator<Page> requirePages(CloseableIterator<Page> pages) {
+        if (pages == null) {
+            throw new IllegalStateException("null pages mid-drain");
+        }
+        return pages;
+    }
+
+    private static void assignPages(ProducerState state, CloseableIterator<Page> pages) {
+        CloseableIterator<Page> previous = state.pages;
+        state.pages = null;
+        try {
+            state.pages = occupyPagesSlot(previous, pages);
+        } catch (IllegalStateException e) {
+            closeQuietly(pages);
+            throw e;
+        }
+    }
+
+    static boolean claimProducerRun(AtomicReference<Object> run, Object token) {
+        return run.compareAndSet(null, token);
+    }
+
+    /**
+     * Per-thread token for the current {@code doRun}, so park/open can release before handoff
+     * without a shared field a nested run on another {@code esql_worker} thread could clobber.
+     */
+    private static final ThreadLocal<Object> PRODUCER_RUN_TOKEN = new ThreadLocal<>();
+
+    private static void releaseProducerRun(ProducerState state) {
+        Object token = PRODUCER_RUN_TOKEN.get();
+        if (token != null) {
+            state.producerRun.compareAndSet(token, null);
+        }
     }
 
     /**
@@ -1893,7 +1944,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * re-submits {@link #runProducerLoop} via the executor and returns {@link DrainResult#BLOCKED}.
      */
     private DrainResult drainHotPath(ProducerState state, ActionListener<Void> completionListener) {
-        CloseableIterator<Page> pages = state.pages;
+        CloseableIterator<Page> pages = requirePages(state.pages);
         AsyncExternalSourceBuffer buffer = state.buffer;
         while (true) {
             if (noFurtherCandidates()) {
@@ -1982,6 +2033,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      *               helper, otherwise the producer will be re-submitted immediately.
      */
     private DrainResult parkUntilReady(SubscribableListener<Void> signal, ProducerState state, ActionListener<Void> completionListener) {
+        // Unlock before addListener. SubscribableListener completes an already-done signal inline
+        // (DIRECT) even when an executor is passed, and addListener(producerExecutor) is not
+        // force-execution (T8). Release so an inline resume can claim the run; this task must not
+        // mutate producer state after this point.
+        releaseProducerRun(state);
         signal.addListener(ActionListener.wrap(v -> {
             try {
                 executeProducer(state, completionListener, () -> runProducerLoop(state, completionListener));
@@ -2007,6 +2063,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ProducerState state,
         ActionListener<Void> completionListener
     ) {
+        releaseProducerRun(state);
         signal.addListener(ActionListener.wrap(v -> {
             boolean consumed = false;
             try {
@@ -2034,53 +2091,55 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * Force-submits at most one producer continuation on {@code producerExecutor}.
-     * {@link AbstractRunnable#isForceExecution()} keeps the hop alive when {@code esql_worker}
-     * is at capacity; the CAS prevents stacking forced tasks for the same producer.
+     * Submits one producer continuation on {@code producerExecutor}. Park/open hops use
+     * force-execution so a full {@code esql_worker} queue cannot drop the resume (T8).
      * Wrapping {@code producerExecutor} itself in a lambda would drop that flag;
      * {@link ExternalIoExecutors#preserving} already forwards it.
-     * Dirty resubmit runs only after {@code work.run()} returns without throwing, and only
-     * if the producer has not already completed.
+     * Each signal is one submit: no queued/dirty mailbox. The run lock asserts one
+     * {@code doRun} at a time; a pile of forced resumes is accepted.
      */
     private void executeProducer(ProducerState state, ActionListener<Void> completionListener, Runnable work) {
-        if (state.producerQueued.compareAndSet(false, true) == false) {
-            state.producerDirty.set(true);
-            if (state.producerQueued.compareAndSet(false, true) == false) {
-                return;
-            }
-            state.producerDirty.set(false);
-        }
+        executeProducer(state, completionListener, work, true);
+    }
+
+    private void executeProducer(ProducerState state, ActionListener<Void> completionListener, Runnable work, boolean forceExecution) {
         AbstractRunnable task = new AbstractRunnable() {
             @Override
             public boolean isForceExecution() {
-                return true;
+                return forceExecution;
             }
 
             @Override
             protected void doRun() {
-                work.run();
-                state.producerQueued.set(false);
-                if (state.producerFinished.get() == false && state.producerDirty.compareAndSet(true, false)) {
-                    executeProducer(state, completionListener, () -> runProducerLoop(state, completionListener));
+                Object token = new Object();
+                if (claimProducerRun(state.producerRun, token) == false) {
+                    clearCurrentIterator(state);
+                    IllegalStateException overlapped = new IllegalStateException("overlapping producer run");
+                    failProducer(state, completionListener, overlapped);
+                    throw overlapped;
+                }
+                Object previousToken = PRODUCER_RUN_TOKEN.get();
+                PRODUCER_RUN_TOKEN.set(token);
+                try {
+                    work.run();
+                } finally {
+                    state.producerRun.compareAndSet(token, null);
+                    if (previousToken != null) {
+                        PRODUCER_RUN_TOKEN.set(previousToken);
+                    } else {
+                        PRODUCER_RUN_TOKEN.remove();
+                    }
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
-                state.producerQueued.set(false);
-                state.producerDirty.set(false);
                 state.buffer.finishInFlightBytes();
                 clearCurrentIterator(state);
                 failProducer(state, completionListener, e);
             }
         };
-        try {
-            producerExecutor.execute(task);
-        } catch (Exception e) {
-            state.producerQueued.set(false);
-            state.producerDirty.set(false);
-            throw e;
-        }
+        producerExecutor.execute(task);
     }
 
     private static void completeProducer(ProducerState state, ActionListener<Void> listener) {
@@ -2389,10 +2448,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, cols, state.driverContext);
             // Per-split virtual-column iterator: each slice-queue leaf has its own _file.* values
             // (different path/name/dir/size/mtime), so the wrapper is bound to *this* iterator's pages.
-            state.pages = wrapWithVirtualColumns(
-                withEncoder,
-                overlayFileLocation(fileSplit.partitionValues(), fileSplit.path()),
-                state.driverContext
+            assignPages(
+                state,
+                wrapWithVirtualColumns(withEncoder, overlayFileLocation(fileSplit.partitionValues(), fileSplit.path()), state.driverContext)
             );
             return true;
         } catch (Exception e) {
@@ -2481,7 +2539,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         try {
             pages = rangeReader.readAll(splitRefs, cols, batchSize);
             pages = applyRowPositionStrategy(rangeReader, pages, cols);
-            state.pages = pages;
+            assignPages(state, pages);
             return true;
         } catch (Exception e) {
             closeQuietly(pages);
@@ -2608,7 +2666,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
             // Per-file virtual-column iterator (built with FileMetadataColumns.extractValues for
             // this file) so {@code _file.*} columns carry the right values for the current file.
-            state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext);
+            assignPages(state, wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext));
             return true;
         } catch (Exception e) {
             closeQuietly(pages);

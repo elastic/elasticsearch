@@ -97,6 +97,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.zip.GZIPOutputStream;
@@ -4137,6 +4138,117 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
+    public void testOccupyPagesSlotFailsLoudOnReplacedIterator() {
+        AtomicInteger closed = new AtomicInteger();
+        CloseableIterator<Page> previous = new CloseableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+
+            @Override
+            public Page next() {
+                throw new NoSuchElementException();
+            }
+
+            @Override
+            public void close() {
+                closed.incrementAndGet();
+            }
+        };
+        CloseableIterator<Page> next = new CloseableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+
+            @Override
+            public Page next() {
+                throw new NoSuchElementException();
+            }
+
+            @Override
+            public void close() {}
+        };
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> AsyncExternalSourceOperatorFactory.occupyPagesSlot(previous, next)
+        );
+        assertEquals("replaced live iterator", e.getMessage());
+        assertEquals("replaced iterator must be closed", 1, closed.get());
+        assertSame(next, AsyncExternalSourceOperatorFactory.occupyPagesSlot(null, next));
+    }
+
+    public void testRequirePagesFailsLoudOnNull() {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> AsyncExternalSourceOperatorFactory.requirePages(null));
+        assertEquals("null pages mid-drain", e.getMessage());
+    }
+
+    public void testClaimProducerRunTripsOnOverlapAndClearsOnRelease() {
+        AtomicReference<Object> run = new AtomicReference<>();
+        Object first = new Object();
+        Object second = new Object();
+        assertTrue(AsyncExternalSourceOperatorFactory.claimProducerRun(run, first));
+        assertFalse("second claim while held must fail", AsyncExternalSourceOperatorFactory.claimProducerRun(run, second));
+        assertTrue(run.compareAndSet(first, null));
+        assertTrue("claim after release must succeed (park handoff)", AsyncExternalSourceOperatorFactory.claimProducerRun(run, second));
+    }
+
+    /**
+     * U6: {@code waitForReady} is not done at the park check; a side thread completes it so
+     * {@code addListener} often runs the resume inline (or on another {@code producerExecutor}
+     * thread before the parking task's {@code finally}). Must not fail as overlapping producer run.
+     */
+    public void testAlreadyDoneParkDoesNotFailAsOverlap() throws Exception {
+        int iters = 50;
+        ExecutorService ioExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "u6-io"));
+        ExecutorService producerExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "u6-producer"));
+        try {
+            for (int i = 0; i < iters; i++) {
+                InlineCompletingReader reader = new InlineCompletingReader();
+                ExternalSliceQueue sliceQueue = new ExternalSliceQueue(
+                    List.of(
+                        new FileSplit("test", StoragePath.of("s3://bucket/u6-" + i + ".parquet"), 0, 100, "parquet", Map.of(), Map.of())
+                    )
+                );
+                DriverContext driverContext = mock(DriverContext.class);
+                when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+                doAnswer(inv -> null).when(driverContext).addAsyncAction();
+                doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+                AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                    new StubMultiFileStorageProvider(),
+                    reader,
+                    StoragePath.of("s3://bucket/u6-" + i + ".parquet"),
+                    List.of(
+                        new FieldAttribute(
+                            Source.EMPTY,
+                            "value",
+                            new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                        )
+                    ),
+                    100,
+                    10,
+                    ioExec
+                ).sliceQueue(sliceQueue).producerExecutor(producerExec).build();
+                SourceOperator operator = factory.get(driverContext);
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                while (operator.isFinished() == false && System.nanoTime() < deadline) {
+                    Page p = operator.getOutput();
+                    if (p != null) {
+                        p.releaseBlocks();
+                    }
+                }
+                assertTrue("iteration " + i + " did not finish", operator.isFinished());
+                operator.close();
+            }
+        } finally {
+            ioExec.shutdownNow();
+            producerExec.shutdownNow();
+            assertTrue(ioExec.awaitTermination(5, TimeUnit.SECONDS));
+            assertTrue(producerExec.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
     public void testDescribeSplittableCompressedUsesSyncWrapperMode() throws IOException {
         SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
         CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new StubSplittableCodec());
@@ -5746,6 +5858,77 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         @Override
         public String formatName() {
             return "parking";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * {@code waitForReady} starts not-done; a daemon thread completes it immediately so
+     * {@code addListener} races with the park check (U6 inline resume).
+     */
+    private static final class InlineCompletingReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            SubscribableListener<Void> ready = new SubscribableListener<>();
+            Thread completer = new Thread(() -> ready.onResponse(null), "u6-inline-complete");
+            completer.setDaemon(true);
+            completer.start();
+            return new CloseableIterator<>() {
+                private boolean emitted;
+
+                @Override
+                public SubscribableListener<Void> waitForReady() {
+                    return ready.isDone() ? SubscribableListener.newSucceeded(null) : ready;
+                }
+
+                @Override
+                public Page tryAdvance() {
+                    if (ready.isDone() == false || emitted) {
+                        return null;
+                    }
+                    emitted = true;
+                    return createTestPage();
+                }
+
+                @Override
+                public boolean hasNext() {
+                    return emitted == false && ready.isDone();
+                }
+
+                @Override
+                public Page next() {
+                    Page page = tryAdvance();
+                    if (page == null) {
+                        throw new NoSuchElementException();
+                    }
+                    return page;
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "inline-completing";
         }
 
         @Override

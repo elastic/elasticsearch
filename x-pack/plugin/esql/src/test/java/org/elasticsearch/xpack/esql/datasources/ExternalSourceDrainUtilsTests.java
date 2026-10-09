@@ -1038,6 +1038,136 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
         buffer.finish(true);
     }
 
+    /**
+     * U6: {@code waitForReady} is not done at the park check; a side thread completes it so
+     * {@code addListener} often runs the resume inline. Must not fail as overlapping drain run.
+     */
+    public void testAlreadyDoneParkDoesNotFailAsOverlap() throws Exception {
+        int iters = 50;
+        for (int i = 0; i < iters; i++) {
+            AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+            Page page = createTestPage(1, 10);
+            SubscribableListener<Void> ready = new SubscribableListener<>();
+            Thread completer = new Thread(() -> ready.onResponse(null), "u6-drain-complete");
+            completer.setDaemon(true);
+            AtomicBoolean completerStarted = new AtomicBoolean();
+            CloseableIterator<Page> parked = new CloseableIterator<>() {
+                private boolean emitted;
+
+                @Override
+                public SubscribableListener<Void> waitForReady() {
+                    if (completerStarted.compareAndSet(false, true)) {
+                        completer.start();
+                    }
+                    return ready.isDone() ? SubscribableListener.newSucceeded(null) : ready;
+                }
+
+                @Override
+                public Page tryAdvance() {
+                    if (ready.isDone() == false || emitted) {
+                        return null;
+                    }
+                    emitted = true;
+                    return page;
+                }
+
+                @Override
+                public boolean hasNext() {
+                    return emitted == false && ready.isDone();
+                }
+
+                @Override
+                public Page next() {
+                    Page advanced = tryAdvance();
+                    if (advanced == null) {
+                        throw new NoSuchElementException();
+                    }
+                    return advanced;
+                }
+
+                @Override
+                public void close() {}
+            };
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicInteger completions = new AtomicInteger();
+            AtomicReference<Exception> error = new AtomicReference<>();
+            ExternalSourceDrainUtils.drainPagesAsync(parked, buffer, exec, ActionListener.wrap(v -> {
+                completions.incrementAndGet();
+                latch.countDown();
+            }, e -> {
+                error.set(e);
+                latch.countDown();
+            }));
+            assertTrue("iteration " + i, latch.await(10, TimeUnit.SECONDS));
+            assertNull("iteration " + i + ": " + error.get(), error.get());
+            assertEquals("completeDrain must fire once", 1, completions.get());
+            assertEquals(1, buffer.size());
+            buffer.pollPage().releaseBlocks();
+            buffer.finish(true);
+        }
+    }
+
+    /**
+     * U7: racing a waitForReady resume with further parks still completes the drain once.
+     */
+    public void testCompleteDrainFiresOnceWithParkResume() throws Exception {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        Page page = createTestPage(1, 10);
+        SubscribableListener<Void> ready = new SubscribableListener<>();
+        CloseableIterator<Page> parked = new CloseableIterator<>() {
+            private boolean emitted;
+
+            @Override
+            public SubscribableListener<Void> waitForReady() {
+                return ready.isDone() ? SubscribableListener.newSucceeded(null) : ready;
+            }
+
+            @Override
+            public Page tryAdvance() {
+                if (ready.isDone() == false || emitted) {
+                    return null;
+                }
+                emitted = true;
+                return page;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return emitted == false && ready.isDone();
+            }
+
+            @Override
+            public Page next() {
+                Page advanced = tryAdvance();
+                if (advanced == null) {
+                    throw new NoSuchElementException();
+                }
+                return advanced;
+            }
+
+            @Override
+            public void close() {}
+        };
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicInteger completions = new AtomicInteger();
+        AtomicReference<Exception> error = new AtomicReference<>();
+        ExternalSourceDrainUtils.drainPagesAsync(parked, buffer, exec, ActionListener.wrap(v -> {
+            completions.incrementAndGet();
+            latch.countDown();
+        }, e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+        ready.onResponse(null);
+        ready.onResponse(null);
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        assertNull(error.get());
+        assertEquals("completeDrain must fire once", 1, completions.get());
+        assertEquals(1, buffer.size());
+        buffer.pollPage().releaseBlocks();
+        buffer.finish(true);
+    }
+
     // ===== Helpers =====
 
     private static CloseableIterator<Page> trackingClose(CloseableIterator<Page> delegate, AtomicInteger closeCount) {

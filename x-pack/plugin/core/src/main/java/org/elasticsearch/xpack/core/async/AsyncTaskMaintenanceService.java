@@ -66,6 +66,9 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
     private final AtomicBoolean isPaused = new AtomicBoolean(false); // allow tests to simulate restarts
     private boolean isCleanupRunning;
     private volatile Scheduler.Cancellable cancellable;
+    // Rounds of delete-by-query that have been submitted and whose listener has not yet run.
+    // pause() waits for this to hit zero; node shutdown does not.
+    private int inFlightCleanups;
 
     public AsyncTaskMaintenanceService(
         ClusterService clusterService,
@@ -99,6 +102,23 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
             synchronized (lifecycle) {
                 assert lifecycle.started();
                 doStop();
+            }
+            // Delete-by-query holds a scroll until it finishes. Callers drain search contexts
+            // immediately after pause(), so wait for the round already submitted. doStop() only
+            // cancels the next scheduled run and must stay non-blocking for node shutdown.
+            awaitInFlightCleanups();
+        }
+    }
+
+    private void awaitInFlightCleanups() {
+        synchronized (this) {
+            while (inFlightCleanups > 0) {
+                try {
+                    wait();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("interrupted while waiting for async search cleanup", e);
+                }
             }
         }
     }
@@ -151,11 +171,29 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
 
     synchronized void executeNextCleanup() {
         if (isCleanupRunning) {
+            inFlightCleanups++;
             long nowInMillis = System.currentTimeMillis();
             DeleteByQueryRequest toDelete = new DeleteByQueryRequest(index).setQuery(
                 QueryBuilders.rangeQuery(EXPIRATION_TIME_FIELD).lte(nowInMillis)
             );
-            clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.running(this::scheduleNextCleanup));
+            try {
+                clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.running(this::finishCleanup));
+            } catch (RuntimeException e) {
+                inFlightCleanups--;
+                notifyAll();
+                throw e;
+            }
+        }
+    }
+
+    private void finishCleanup() {
+        try {
+            scheduleNextCleanup();
+        } finally {
+            synchronized (this) {
+                inFlightCleanups--;
+                notifyAll();
+            }
         }
     }
 

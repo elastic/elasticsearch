@@ -74,6 +74,9 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
     private boolean isCleanupRunning;
     private Collection<ProjectId> projectsToCleanup;
     private volatile Scheduler.Cancellable cancellable;
+    // Rounds of delete-by-query that have been submitted and whose listener has not yet run.
+    // pause() waits for this to hit zero; node shutdown does not.
+    private int inFlightCleanups;
 
     public AsyncTaskMaintenanceService(
         ClusterService clusterService,
@@ -109,6 +112,23 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
             synchronized (lifecycle) {
                 assert lifecycle.started();
                 doStop();
+            }
+            // Delete-by-query holds a scroll until it finishes. Callers drain search contexts
+            // immediately after pause(), so wait for the round already submitted. doStop() only
+            // cancels the next scheduled run and must stay non-blocking for node shutdown.
+            awaitInFlightCleanups();
+        }
+    }
+
+    private void awaitInFlightCleanups() {
+        synchronized (this) {
+            while (inFlightCleanups > 0) {
+                try {
+                    wait();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("interrupted while waiting for async search cleanup", e);
+                }
             }
         }
     }
@@ -175,12 +195,30 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
 
     synchronized void executeNextCleanup() {
         if (isCleanupRunning) {
-            ActionListener<Void> listener = new CountDownActionListener(
-                this.projectsToCleanup.size(),
-                ActionListener.running(this::scheduleNextCleanup)
-            );
-            for (ProjectId project : this.projectsToCleanup) {
-                cleanupIndex(project, listener);
+            inFlightCleanups++;
+            try {
+                ActionListener<Void> listener = new CountDownActionListener(
+                    this.projectsToCleanup.size(),
+                    ActionListener.running(this::finishCleanup)
+                );
+                for (ProjectId project : this.projectsToCleanup) {
+                    cleanupIndex(project, listener);
+                }
+            } catch (RuntimeException e) {
+                inFlightCleanups--;
+                notifyAll();
+                throw e;
+            }
+        }
+    }
+
+    private void finishCleanup() {
+        try {
+            scheduleNextCleanup();
+        } finally {
+            synchronized (this) {
+                inFlightCleanups--;
+                notifyAll();
             }
         }
     }

@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 /**
  * The plan traversal that gives a query its storage-type and format labels, and the path from those labels to the
- * external-source query metrics. A union over two sources stands in for a multi-source query such as a join or a fork: both
+ * by-source external-source query metrics. A union over two sources stands in for a multi-source query such as a join or a fork: both
  * relations must reach the telemetry, so a query that reads them is labelled {@code mixed}.
  */
 public class ExternalRelationTelemetryTests extends ESTestCase {
@@ -91,10 +91,10 @@ public class ExternalRelationTelemetryTests extends ESTestCase {
             null
         );
 
-        Measurement total = single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        Measurement total = single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_BY_SOURCE_TOTAL);
         assertThat(total.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("mixed"));
         assertThat(total.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("mixed"));
-        Measurement duration = single(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.QUERY_DURATION);
+        Measurement duration = single(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.QUERY_BY_SOURCE_DURATION);
         assertThat(duration.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("mixed"));
         assertThat(duration.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("mixed"));
     }

@@ -393,12 +393,20 @@ public class ExternalSourceMetricsTests extends ESTestCase {
             null
         );
 
-        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_BY_SOURCE_TOTAL);
         assertThat(total.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
         assertThat(total.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("parquet"));
-        Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.QUERY_DURATION);
+        Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.QUERY_BY_SOURCE_DURATION);
         assertThat(duration.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
         assertThat(duration.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("parquet"));
+
+        // The client and failure instruments stay free of the storage dimensions, which keeps their cardinality bounded.
+        Measurement clientTotal = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        assertThat(clientTotal.attributes().containsKey(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo(false));
+        assertThat(clientTotal.attributes().containsKey(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo(false));
+        Measurement clientDuration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.QUERY_DURATION);
+        assertThat(clientDuration.attributes().containsKey(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo(false));
+        assertThat(clientDuration.attributes().containsKey(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo(false));
     }
 
     /** The cancelled and partial counters carry the client only; type and format are on the query instruments. */
@@ -431,7 +439,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
             null
         );
 
-        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_BY_SOURCE_TOTAL);
         assertThat(total.attributes().containsKey(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo(false));
         assertThat(total.attributes().containsKey(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo(false));
     }
@@ -446,7 +454,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
             null
         );
 
-        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_BY_SOURCE_TOTAL);
         assertThat(total.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("unknown"));
         assertThat(total.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("other"));
     }
@@ -465,7 +473,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
             null
         );
 
-        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_BY_SOURCE_TOTAL);
         assertThat(total.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("mixed"));
         assertThat(total.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("mixed"));
     }

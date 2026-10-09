@@ -121,9 +121,11 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
             // A permit timeout (LOCAL_CAPACITY) is this node's own admission limit, not a store fault, so it stays out of
             // storage.errors / storage.throttled, which describe the store. Its backoff is still a real read stall.
             if (isStorageFault(failure)) {
-                // Classified like a failed query, so a give-up and the query failure it causes carry the same category and status.
+                // The category is classified like a failed query's, so the give-up and the query failure it causes agree on it. The
+                // status is the store's own HTTP status, which is what on-call needs to see; it is omitted for a fault that was not an
+                // HTTP response.
                 QueryFailureTelemetry.Failure classified = QueryFailureTelemetry.classify(failure);
-                retryCounters.addError(classified.errorType(), classified.status());
+                retryCounters.addError(classified.errorType(), QueryFailureTelemetry.storeStatus(failure));
                 if (RetryPolicy.isThrottlingError(failure)) {
                     retryCounters.addThrottled();
                 }

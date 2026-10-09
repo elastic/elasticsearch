@@ -536,8 +536,9 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
 
     /**
      * A query is labelled with the storage type and format of the external sources it read: a CSV dataset gives {@code local} and
-     * {@code csv}, and a query over a CSV and an NDJSON dataset gives {@code mixed} on the format. The same labels reach the
-     * phone-home {@code queries.by_type} and {@code queries.by_format} counters.
+     * {@code csv}, and a query over a CSV and an NDJSON dataset gives {@code mixed} on the format. The labels are on the
+     * by-source instruments ({@code queries.by_source.total} and {@code query.by_source.duration.histogram}), and the same
+     * labels reach the phone-home {@code queries.by_type} and {@code queries.by_format} counters.
      */
     public void testQueryStorageTypeAndFormatLabels() throws Exception {
         Path dir = createTempDir();
@@ -596,7 +597,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
 
         collectAllMeters();
 
-        List<Measurement> totals = counters(ExternalSourceMetrics.QUERIES_TOTAL);
+        List<Measurement> totals = counters(ExternalSourceMetrics.QUERIES_BY_SOURCE_TOTAL);
         List<Measurement> csvQueries = totals.stream()
             .filter(m -> "csv".equals(m.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE)))
             .toList();
@@ -607,7 +608,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             .toList();
         assertThat("one query read a csv and an ndjson dataset, so its format is mixed", mixedQueries, hasSize(1));
         assertThat(mixedQueries.get(0).attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("local"));
-        List<Measurement> mixedDurations = histograms(ExternalSourceMetrics.QUERY_DURATION).stream()
+        List<Measurement> mixedDurations = histograms(ExternalSourceMetrics.QUERY_BY_SOURCE_DURATION).stream()
             .filter(m -> ExternalSourceMetrics.MIXED.equals(m.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE)))
             .toList();
         assertThat(mixedDurations, hasSize(1));
@@ -1414,7 +1415,9 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL,
             ExternalSourceMetrics.STORAGE_READ_STALL_DURATION,
             ExternalSourceMetrics.QUERIES_TOTAL,
-            ExternalSourceMetrics.QUERY_DURATION
+            ExternalSourceMetrics.QUERY_DURATION,
+            ExternalSourceMetrics.QUERIES_BY_SOURCE_TOTAL,
+            ExternalSourceMetrics.QUERY_BY_SOURCE_DURATION
         )) {
             for (Measurement m : counters(name)) {
                 assertThat(

@@ -65,8 +65,9 @@ public final class ExternalSourceMetrics {
     public static final String STORAGE_READ_STALL_DURATION = "es.esql.datasources.storage.read_stall.duration.histogram";
 
     /**
-     * One completed external-source query at the coordinator, dimensioned by {@link #OUTCOME_ATTRIBUTE},
-     * {@link #CLIENT_ATTRIBUTE}, and, when known, {@link #TYPE_ATTRIBUTE} and {@link #FORMAT_ATTRIBUTE}. Counts
+     * One completed external-source query at the coordinator, dimensioned by {@link #OUTCOME_ATTRIBUTE} and
+     * {@link #CLIENT_ATTRIBUTE}, and on failure by {@link #ERROR_TYPE_ATTRIBUTE} and {@link #STATUS_ATTRIBUTE}. Storage type and
+     * format are on {@link #QUERIES_BY_SOURCE_TOTAL} instead, to keep this instrument's cardinality bounded. Counts
      * queries whose ANALYZED plan contained an external source; a query that fails DURING analysis (before the
      * external-source flag is set) is not attributed here — its discovery failure is captured by
      * {@link #DISCOVERY_FAILURES_TOTAL} instead.
@@ -75,6 +76,19 @@ public final class ExternalSourceMetrics {
 
     /** Wall time of a completed external-source query, in milliseconds. */
     public static final String QUERY_DURATION = "es.esql.datasources.query.duration.histogram";
+
+    /**
+     * External-source queries split by storage type and format, dimensioned by {@link #OUTCOME_ATTRIBUTE},
+     * {@link #TYPE_ATTRIBUTE} and {@link #FORMAT_ATTRIBUTE}. It is a separate instrument from {@link #QUERIES_TOTAL} so that the
+     * client and failure dimensions do not multiply with the storage type and format.
+     */
+    public static final String QUERIES_BY_SOURCE_TOTAL = "es.esql.datasources.queries.by_source.total";
+
+    /**
+     * Wall time of external-source queries split by storage type and format, dimensioned by {@link #OUTCOME_ATTRIBUTE},
+     * {@link #TYPE_ATTRIBUTE} and {@link #FORMAT_ATTRIBUTE}. The counterpart of {@link #QUERIES_BY_SOURCE_TOTAL}.
+     */
+    public static final String QUERY_BY_SOURCE_DURATION = "es.esql.datasources.query.by_source.duration.histogram";
 
     /** External-source queries that ended in cancellation, dimensioned by {@link #CLIENT_ATTRIBUTE}. */
     public static final String QUERIES_CANCELLED_TOTAL = "es.esql.datasources.queries.cancelled.total";
@@ -145,14 +159,14 @@ public final class ExternalSourceMetrics {
     /**
      * Storage and CRUD type dimension, normalised to {@link DataSourceTelemetryVocabulary.Type} via
      * {@link Type#fromScheme(String)}: {@code s3}, {@code gcs}, {@code azure}, {@code http},
-     * {@code local}, {@code unknown}. On the query instruments it also takes {@link #MIXED}.
+     * {@code local}, {@code unknown}. On the by-source query instruments it also takes {@link #MIXED}.
      */
     public static final String TYPE_ATTRIBUTE = "es_datasource_type";
 
     /**
-     * Scan-format dimension on the four scan-operator instruments and on the query instruments, a closed set:
+     * Scan-format dimension on the four scan-operator instruments and on the by-source query instruments, a closed set:
      * {@code parquet}, {@code csv}, {@code tsv}, {@code ndjson}, {@code orc}, {@code other}, {@code unresolved}. On the
-     * query instruments it also takes {@link #MIXED}.
+     * by-source query instruments it also takes {@link #MIXED}.
      */
     public static final String FORMAT_ATTRIBUTE = "es_datasource_format";
 
@@ -329,6 +343,8 @@ public final class ExternalSourceMetrics {
     private final LongHistogram readStallDuration;
     private final LongCounter queriesTotal;
     private final LongHistogram queryDuration;
+    private final LongCounter queriesBySourceTotal;
+    private final LongHistogram queryBySourceDuration;
     private final LongCounter queriesCancelledTotal;
     private final LongCounter queriesPartialTotal;
     private final LongHistogram queryTimeToFirstRow;
@@ -400,6 +416,16 @@ public final class ExternalSourceMetrics {
         this.queryDuration = meterRegistry.registerLongHistogram(
             QUERY_DURATION,
             "Wall time of an ES|QL query that scanned an external data source",
+            "ms"
+        );
+        this.queriesBySourceTotal = meterRegistry.registerLongCounter(
+            QUERIES_BY_SOURCE_TOTAL,
+            "ES|QL queries that scanned an external data source, dimensioned by outcome, storage type and format",
+            "unit"
+        );
+        this.queryBySourceDuration = meterRegistry.registerLongHistogram(
+            QUERY_BY_SOURCE_DURATION,
+            "Wall time of an ES|QL query that scanned an external data source, dimensioned by outcome, storage type and format",
             "ms"
         );
         this.queriesCancelledTotal = meterRegistry.registerLongCounter(
@@ -548,7 +574,8 @@ public final class ExternalSourceMetrics {
     /**
      * Records one object-store read that exhausted retries and gave up terminally on the given {@code scheme}. The give-up
      * is classified like a failed query: {@code errorType} is folded to {@link DataSourceUsageAccumulator#ERROR_TYPE_NAMES}
-     * (null becomes {@code other}) and {@code status} (the HTTP status) is omitted when null. Best-effort (self-guarded).
+     * (null becomes {@code other}). {@code status} is the HTTP status the object store returned, not the REST status of the
+     * failure, and is omitted when null (a fault that was not an HTTP response has none). Best-effort (self-guarded).
      */
     public void recordError(String scheme, @Nullable String errorType, @Nullable String status) {
         try {
@@ -607,7 +634,8 @@ public final class ExternalSourceMetrics {
      * observes {@link #QUERY_DURATION} carrying the same {@code outcome} (so latency can be split by
      * success/failure/cancelled), and increments {@link #QUERIES_CANCELLED_TOTAL} when the outcome is
      * {@link #OUTCOME_CANCELLED} and {@link #QUERIES_PARTIAL_TOTAL} when {@code partial} is set. The cancelled and partial
-     * counters carry only the {@link #CLIENT_ATTRIBUTE} dimension, so they can be split by client too.
+     * counters carry only the {@link #CLIENT_ATTRIBUTE} dimension, so they can be split by client too. The same outcome, with
+     * the storage type and format, also goes to {@link #QUERIES_BY_SOURCE_TOTAL} and {@link #QUERY_BY_SOURCE_DURATION}.
      * <p>
      * When the outcome is {@link #OUTCOME_FAILURE}, {@code errorType} (one of
      * {@link DataSourceUsageAccumulator#ERROR_TYPE_NAMES}) and {@code status} (the HTTP status code) are added as
@@ -622,7 +650,7 @@ public final class ExternalSourceMetrics {
      * <p>
      * The {@code labels} are the query's client, storage type and format. The client is clamped to {@link #CLIENT_NAMES}, so
      * an unknown value is published as {@link #CLIENT_OTHER}. The storage type and format are published on
-     * {@link #QUERIES_TOTAL} and {@link #QUERY_DURATION} only, and are omitted when null. Use
+     * {@link #QUERIES_BY_SOURCE_TOTAL} and {@link #QUERY_BY_SOURCE_DURATION} only, and are omitted when null. Use
      * {@link #clientFromOrigin(String)} to derive the client from a request.
      */
     public void recordQuery(
@@ -643,10 +671,13 @@ public final class ExternalSourceMetrics {
             Map<String, Object> attributes = OUTCOME_FAILURE.equals(outcome)
                 ? failureAttrs(Map.of(OUTCOME_ATTRIBUTE, OUTCOME_FAILURE), canonicalErrorType, status)
                 : outcomeAttrs(outcome);
-            attributes = queryAttrs(attributes, canonicalClient, canonicalStorageType, canonicalFormat);
+            attributes = clientAttrs(attributes, canonicalClient);
             Map<String, Object> clientOnlyAttrs = clientAttrs(Map.of(), canonicalClient);
+            Map<String, Object> sourceAttrs = sourceAttrs(outcome, canonicalStorageType, canonicalFormat);
             queriesTotal.incrementBy(1, attributes);
             queryDuration.record(Math.max(0L, durationMillis), attributes);
+            queriesBySourceTotal.incrementBy(1, sourceAttrs);
+            queryBySourceDuration.record(Math.max(0L, durationMillis), sourceAttrs);
             if (OUTCOME_CANCELLED.equals(outcome)) {
                 queriesCancelledTotal.incrementBy(1, clientOnlyAttrs);
             }
@@ -1024,17 +1055,11 @@ public final class ExternalSourceMetrics {
     }
 
     /**
-     * Returns {@code base} plus the query dimensions: {@link #CLIENT_ATTRIBUTE}, and {@link #TYPE_ATTRIBUTE} and
-     * {@link #FORMAT_ATTRIBUTE} when known. The arguments must already be canonical.
+     * The attributes of the by-source query instruments: the outcome, plus {@link #TYPE_ATTRIBUTE} and {@link #FORMAT_ATTRIBUTE}
+     * when known. The arguments must already be canonical.
      */
-    private static Map<String, Object> queryAttrs(
-        Map<String, Object> base,
-        String client,
-        @Nullable String storageType,
-        @Nullable String format
-    ) {
-        Map<String, Object> attributes = new HashMap<>(base);
-        attributes.put(CLIENT_ATTRIBUTE, client);
+    private static Map<String, Object> sourceAttrs(String outcome, @Nullable String storageType, @Nullable String format) {
+        Map<String, Object> attributes = new HashMap<>(outcomeAttrs(outcome));
         if (storageType != null) {
             attributes.put(TYPE_ATTRIBUTE, storageType);
         }

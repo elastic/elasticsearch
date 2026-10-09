@@ -194,10 +194,10 @@ public final class StorageObjectMetricsCounters {
     }
 
     /**
-     * Records one object-store read that exhausted retries and gave up terminally, with the failure category and HTTP
-     * status the caller classified it to. Telemetry-only: it does not touch the profile snapshot (only request/retry/bytes
-     * counters surface there). No-op when no sink is attached; the record method self-guards so an instrumentation failure
-     * never breaks the read path.
+     * Records one object-store read that exhausted retries and gave up terminally, with the failure category and the store's
+     * HTTP status (null when the fault was not an HTTP response). Telemetry-only: it does not touch the profile snapshot (only
+     * request/retry/bytes counters surface there). No-op when no sink is attached; the record method self-guards so an
+     * instrumentation failure never breaks the read path.
      */
     public void addError(String errorType, @Nullable String status) {
         Sink s = sink;

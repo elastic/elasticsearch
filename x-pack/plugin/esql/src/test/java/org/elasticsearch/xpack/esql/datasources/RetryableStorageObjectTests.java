@@ -62,7 +62,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -988,14 +987,36 @@ public class RetryableStorageObjectTests extends ESTestCase {
         Measurement error = single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL);
         assertThat(error.getLong(), equalTo(1L));
         assertThat(error.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
-        // The give-up is classified like a failed query: a transient socket fault has no typed condition, so it is "other",
-        // and the status is the one the classifier assigns.
+        // The category is classified like a failed query's: a transient socket fault has no typed condition, so it is "other".
+        // The status is the store's HTTP status, and a socket fault is not an HTTP response, so it is omitted.
         assertThat(error.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("other"));
-        assertThat(error.attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), notNullValue());
+        assertThat(error.attributes().containsKey(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo(false));
         // One retry backoff was spent before giving up, so a read-stall observation is recorded (>0).
         assertThat(measurements(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION), hasSize(1));
         // A non-throttle fault must not touch the throttled counter.
         assertThat(measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL), hasSize(0));
+    }
+
+    /**
+     * A throttle without an HTTP code (the provider recorded no detail) is still a throttle: the category is
+     * {@code storage_throttled}, and the status is omitted rather than guessed from the category.
+     */
+    public void testThrottleWithoutHttpCodeOmitsStatus() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+
+        AlwaysFailingStorageObject delegate = new AlwaysFailingStorageObject(
+            StoragePath.of("gcs://bucket/key"),
+            new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L)
+        );
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, new RetryPolicy(1, 1, 10));
+        obj.attachMetrics(metrics, "gcs");
+
+        expectThrows(ExternalUnavailableException.class, obj::newStream);
+
+        Measurement error = single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL);
+        assertThat(error.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("storage_throttled"));
+        assertThat(error.attributes().containsKey(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo(false));
     }
 
     /**
@@ -1008,7 +1029,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
 
         AlwaysFailingStorageObject delegate = new AlwaysFailingStorageObject(
             StoragePath.of("gcs://bucket/key"),
-            new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L)
+            new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "HTTP 429 SlowDown", "", true, 0L)
         );
         RetryableStorageObject obj = new RetryableStorageObject(delegate, new RetryPolicy(1, 1, 10));
         obj.attachMetrics(metrics, "gcs");
@@ -1022,6 +1043,8 @@ public class RetryableStorageObjectTests extends ESTestCase {
         Measurement error = single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL);
         assertThat(error.getLong(), equalTo(1L));
         assertThat(error.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("storage_throttled"));
+        // The store answered 429, so that is the status on the give-up, not the 503 the REST layer reports for the exception.
+        assertThat(error.attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo("429"));
     }
 
     /**

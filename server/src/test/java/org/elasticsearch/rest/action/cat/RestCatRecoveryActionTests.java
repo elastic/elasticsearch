@@ -205,24 +205,19 @@ public class RestCatRecoveryActionTests extends ESTestCase {
                     : ((SnapshotRecoverySource) state.getRecoverySource()).snapshot().getSnapshotId().getName(),
                 state.getIndex().totalRecoverFiles(),
                 state.getIndex().recoveredFileCount(),
-                percent(state.getIndex().recoveredFilesPercent()),
+                RestTable.FormattedDouble.formatPercent1Decimal(state.getIndex().recoveredFilesPercent()),
                 state.getIndex().totalFileCount(),
                 ByteSizeValue.ofBytes(state.getIndex().totalRecoverBytes()),
                 ByteSizeValue.ofBytes(state.getIndex().recoveredBytes()),
-                percent(state.getIndex().recoveredBytesPercent()),
+                RestTable.FormattedDouble.formatPercent1Decimal(state.getIndex().recoveredBytesPercent()),
                 ByteSizeValue.ofBytes(state.getIndex().totalBytes()),
                 state.getTranslog().totalOperations(),
                 state.getTranslog().recoveredOperations(),
-                percent(state.getTranslog().recoveredPercent())
+                RestTable.FormattedDouble.formatPercent1Decimal(state.getTranslog().recoveredPercent())
             );
 
             List<Object> actualValues = table.getRows().get(i).stream().map(cell -> cell.value).toList();
             assertThat(actualValues, equalTo(expectedValues));
         }
     }
-
-    private static String percent(float percent) {
-        return Strings.format("%1.1f%%", percent);
-    }
-
 }

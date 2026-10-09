@@ -643,7 +643,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     @Override
     public long length() throws IOException {
         if (cachedLength == null) {
-            fetchMetadata();
+            probeObject();
         }
         if (cachedExists != null && cachedExists == false) {
             throw new ExternalClientException(ExternalClientException.Condition.OBJECT_NOT_FOUND, path, "", "");
@@ -653,8 +653,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
     @Override
     public Instant lastModified() throws IOException {
-        if (cachedLastModified == null) {
-            fetchMetadata();
+        if (cachedLastModified == null && cachedExists == null) {
+            probeObject();
+        }
+        if (cachedExists != null && cachedExists == false) {
+            throw new ExternalClientException(ExternalClientException.Condition.OBJECT_NOT_FOUND, path, "", "");
         }
         return cachedLastModified;
     }
@@ -662,7 +665,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     @Override
     public boolean exists() throws IOException {
         if (cachedExists == null) {
-            fetchMetadata();
+            probeObject();
         }
         return cachedExists;
     }
@@ -690,11 +693,16 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         return path;
     }
 
-    private void fetchMetadata() throws IOException {
+    /**
+     * Fills the cached existence, length and modification time from one request, and latches the generation
+     * into {@code pinnedEtag} for later ranged reads to validate against. A range GET rather than
+     * {@code HeadObject} because only the GET can establish that pin.
+     */
+    private void probeObject() throws IOException {
         try {
-            // Suffix range: bytes=-1 returns the last byte + Content-Range with total size.
-            // Avoids a separate HEAD request for file size discovery.
-            GetObjectRequest.Builder request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=-1");
+            // Size discovery for the read path: folding it into a GET lets exists() and length() on one object
+            // cost a single request. bytes=0-0 rather than a suffix range: the Content-Range total is the same.
+            GetObjectRequest.Builder request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=0-0");
             try (var response = getObject(request)) {
                 // Drain the 1-byte body so the HTTP connection returns to the pool
                 // instead of being aborted on close.
@@ -708,7 +716,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 }
             }
             // Content-Range missing (unexpected for S3) — fall back to HEAD for length
-            fetchMetadataViaHead();
+            probeObjectViaHead();
         } catch (NoSuchKeyException e) {
             ExternalPlanningIo.addMetadataGet(0);
             setNotFound();
@@ -720,20 +728,24 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             }
             if (mapped instanceof ExternalClientException archived
                 && archived.condition() == ExternalClientException.Condition.OBJECT_ARCHIVED) {
-                // S3 refuses every GET shape on an archived object, so the 403 range-GET fallback below cannot succeed.
+                // S3 refuses every GET shape on an archived object, so no other GET shape would answer either.
                 throw archived;
             }
             if (e.statusCode() == 416) {
-                // 416 Range Not Satisfiable: object exists but is empty (0 bytes)
+                // 416 Range Not Satisfiable: the object exists and is empty (0 bytes). A 416 is itself an
+                // answer from S3, not a failure to reach it, so this counts as a successful probe.
                 cachedExists = true;
                 cachedLength = 0L;
+                // The 416 carries no timestamp, and lastModified() would otherwise return null for an object
+                // that exists. EPOCH is sound for an empty one: the timestamp is a version token for content,
+                // and there is none.
+                cachedLastModified = Instant.EPOCH;
             } else if (e.statusCode() == 403) {
-                // GET denied — try the existing bytes=0-0 fallback which extracts
-                // size from Content-Range; HEAD uses the same s3:GetObject permission
-                // so would also be denied.
-                fetchMetadataViaRangeGet();
+                // Denied, and nothing cheaper is left to try: this request already is the cheapest read, and a
+                // HEAD needs the same s3:GetObject, so a second request would only be refused again.
+                throw throwReadFailure("Failed to read object metadata for", e);
             } else {
-                fetchMetadataViaHead();
+                probeObjectViaHead();
             }
         } catch (Exception e) {
             ExternalPlanningIo.addMetadataGet(0);
@@ -741,7 +753,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         }
     }
 
-    private void fetchMetadataViaHead() throws IOException {
+    private void probeObjectViaHead() throws IOException {
         try {
             HeadObjectRequest request = HeadObjectRequest.builder().bucket(bucket).key(key).build();
             HeadObjectResponse response = s3Client.headObject(request);
@@ -769,14 +781,14 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 throw archived;
             }
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
-                fetchMetadataViaRangeGet();
+                probeObjectViaRangeGet();
             } else {
                 throw throwReadFailure("HeadObject request failed for", e);
             }
         }
     }
 
-    private void fetchMetadataViaRangeGet() throws IOException {
+    private void probeObjectViaRangeGet() throws IOException {
         try {
             GetObjectRequest.Builder request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=0-0");
             try (var response = getObject(request)) {

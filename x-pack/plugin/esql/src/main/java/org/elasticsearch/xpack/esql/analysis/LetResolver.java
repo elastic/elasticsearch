@@ -58,8 +58,7 @@ import java.util.stream.Collectors;
  * that was evaluated against the partial map (bindings declared before it) is not re-expanded
  * with later bindings when it appears as a replacement. It also prevents infinite re-substitution
  * for self-referential names: {@code LET a = (FROM a | LIMIT 1)} (where {@code FROM a} refers
- * to the ES index {@code a}) would otherwise loop indefinitely. Self-referential and forward
- * references are caught by {@link #checkBindingReferences} after substitution.</p>
+ * to the ES index {@code a}) would otherwise loop indefinitely.
  *
  */
 public final class LetResolver {
@@ -176,33 +175,4 @@ public final class LetResolver {
             nonBindingPatterns.clear();
         }
     }
-
-    private static void checkBindingReferences(LogicalPlan plan, Map<String, LogicalPlan> resolved, String errorMessage) {
-        if (resolved.isEmpty()) {
-            return;
-        }
-
-        plan.forEachDown(p -> {
-            if (p instanceof UnresolvedRelation ur) {
-                String indexPattern = ur.indexPattern().indexPattern();
-                if (resolved.containsKey(indexPattern)) {
-                    throw new VerificationException(errorMessage, indexPattern);
-                }
-                if (indexPattern.contains(",")) {
-                    for (String pattern : indexPattern.split(",", -1)) {
-                        String trimmed = pattern.strip();
-                        if (resolved.containsKey(trimmed)) {
-                            throw new VerificationException(errorMessage, trimmed);
-                        }
-                    }
-                }
-            }
-            p.forEachExpression(InSubquery.class, inSub -> { checkBindingReferences(inSub.subquery(), resolved, errorMessage); });
-            p.forEachExpression(
-                MultiColumnInSubquery.class,
-                mcsub -> { checkBindingReferences(mcsub.subquery(), resolved, errorMessage); }
-            );
-        });
-    }
-
 }

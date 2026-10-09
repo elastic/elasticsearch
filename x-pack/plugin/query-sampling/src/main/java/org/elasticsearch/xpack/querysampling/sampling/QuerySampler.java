@@ -8,10 +8,14 @@
 package org.elasticsearch.xpack.querysampling.sampling;
 
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 
 import java.util.Random;
+import java.util.concurrent.Executor;
 
 /**
  * Decides which distinct queries go into the sample.
@@ -28,6 +32,8 @@ import java.util.Random;
  * {@code γ·ln((1 + w) / (1 + w − weight))}, the part of {@code γ·ln(1 + w)} it adds. That makes the
  * expected number of accepted arrivals of a query depend on its estimated traffic only, not on what
  * fraction of it was captured.
+ * <p>
+ * With a target for the pick rate, γ is multiplied with an adjustment that follows the traffic, see {@link ScaleRegulator}.
  */
 public final class QuerySampler {
 
@@ -35,6 +41,7 @@ public final class QuerySampler {
     private volatile long headThreshold;
     private final Random random;
     private final PickBudget budget;
+    private final ScaleRegulator regulator = new ScaleRegulator();
 
     /**
      * @param scale         γ, the probability scale: how likely a never-seen query is picked (about 0.69·γ)
@@ -61,6 +68,34 @@ public final class QuerySampler {
         clusterSettings.initializeAndWatch(QuerySamplingSettings.ACCEPTANCE_SCALE, value -> this.scale = value);
         clusterSettings.initializeAndWatch(QuerySamplingSettings.HEAD_THRESHOLD, value -> this.headThreshold = value);
         clusterSettings.initializeAndWatch(QuerySamplingSettings.MAX_PICKS_PER_HOUR, budget::perHour);
+        clusterSettings.initializeAndWatch(QuerySamplingSettings.TARGET_PICKS_PER_HOUR, regulator::targetPerHour);
+    }
+
+    /**
+     * Keeps γ in line with the pick rate, every ten seconds until the thread pool shuts down. It has nothing to do
+     * for a node that has no target, but is there for when one is set.
+     */
+    public Scheduler.Cancellable startRegulation(ThreadPool threadPool, Executor executor) {
+        long[] last = { System.nanoTime() };
+        return threadPool.scheduleWithFixedDelay(() -> {
+            long now = System.nanoTime();
+            regulate((now - last[0]) / 1_000_000_000.0);
+            last[0] = now;
+        }, TimeValue.timeValueSeconds(10), executor);
+    }
+
+    /**
+     * Takes note of the picks of the last {@code seconds}, which is what the adjustment of γ is worked out from.
+     */
+    void regulate(double seconds) {
+        regulator.observe(seconds);
+    }
+
+    /**
+     * γ as it is now, the setting multiplied with the adjustment that gets the picks to their target.
+     */
+    public double effectiveScale() {
+        return scale * regulator.adjustment();
     }
 
     /**
@@ -79,7 +114,7 @@ public final class QuerySampler {
         if (multiplicity >= headThreshold) {
             return 1.0;
         }
-        return Math.min(1.0, scale * Math.log1p(weight / (1.0 + multiplicity - weight)));
+        return Math.min(1.0, effectiveScale() * Math.log1p(weight / (1.0 + multiplicity - weight)));
     }
 
     /**
@@ -103,6 +138,7 @@ public final class QuerySampler {
         query.markSampled();
         if (head == false) {
             budget.take();
+            regulator.recordPick();
         }
         return true;
     }

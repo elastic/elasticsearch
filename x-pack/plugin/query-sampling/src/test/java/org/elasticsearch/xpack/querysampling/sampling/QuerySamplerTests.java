@@ -68,7 +68,12 @@ public class QuerySamplerTests extends ESTestCase {
                 .put(QuerySamplingSettings.ACCEPTANCE_SCALE.getKey(), 0.5)
                 .put(QuerySamplingSettings.HEAD_THRESHOLD.getKey(), 5)
                 .build(),
-            Set.of(QuerySamplingSettings.ACCEPTANCE_SCALE, QuerySamplingSettings.HEAD_THRESHOLD, QuerySamplingSettings.MAX_PICKS_PER_HOUR)
+            Set.of(
+                QuerySamplingSettings.ACCEPTANCE_SCALE,
+                QuerySamplingSettings.HEAD_THRESHOLD,
+                QuerySamplingSettings.MAX_PICKS_PER_HOUR,
+                QuerySamplingSettings.TARGET_PICKS_PER_HOUR
+            )
         );
         QuerySampler sampler = new QuerySampler(1.0, 100, seededRandom());
         sampler.watch(clusterSettings);
@@ -127,7 +132,12 @@ public class QuerySamplerTests extends ESTestCase {
         PickBudget budget = new PickBudget(now::get);
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.builder().put(QuerySamplingSettings.MAX_PICKS_PER_HOUR.getKey(), 60).build(),
-            Set.of(QuerySamplingSettings.ACCEPTANCE_SCALE, QuerySamplingSettings.HEAD_THRESHOLD, QuerySamplingSettings.MAX_PICKS_PER_HOUR)
+            Set.of(
+                QuerySamplingSettings.ACCEPTANCE_SCALE,
+                QuerySamplingSettings.HEAD_THRESHOLD,
+                QuerySamplingSettings.MAX_PICKS_PER_HOUR,
+                QuerySamplingSettings.TARGET_PICKS_PER_HOUR
+            )
         );
         QuerySampler sampler = new QuerySampler(1.0, 1000, alwaysDrawing(0.0), budget);
         sampler.watch(clusterSettings);
@@ -138,6 +148,59 @@ public class QuerySamplerTests extends ESTestCase {
 
         clusterSettings.applySettings(Settings.builder().put(QuerySamplingSettings.MAX_PICKS_PER_HOUR.getKey(), 0).build());
         assertTrue("and then there is none", sampler.offer(tracker.record(new QueryFingerprint(3, 3))));
+    }
+
+    public void testTheScaleFollowsTheTargetOfThePicks() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put(QuerySamplingSettings.TARGET_PICKS_PER_HOUR.getKey(), 3600).build(),
+            Set.of(
+                QuerySamplingSettings.ACCEPTANCE_SCALE,
+                QuerySamplingSettings.HEAD_THRESHOLD,
+                QuerySamplingSettings.MAX_PICKS_PER_HOUR,
+                QuerySamplingSettings.TARGET_PICKS_PER_HOUR
+            )
+        );
+        QuerySampler sampler = new QuerySampler(0.5, 1000, alwaysDrawing(0.0));
+        sampler.watch(clusterSettings);
+        MultiplicityTracker tracker = new MultiplicityTracker(1000);
+        assertThat(sampler.effectiveScale(), equalTo(1.0)); // the scale of the setting, which the sampler read
+
+        for (int i = 0; i < 100; i++) {
+            assertTrue(sampler.offer(tracker.record(new QueryFingerprint(i, i))));
+        }
+        sampler.regulate(30); // 100 picks in 30 seconds is 12000 an hour, more than three times the target
+
+        double step = Math.sqrt(3600.0 / 12_000);
+        assertThat("lower, by the square root of how far off it was", sampler.effectiveScale(), closeTo(step, 1e-12));
+        assertThat(sampler.acceptanceProbability(1), closeTo(step * Math.log(2), 1e-12));
+        clusterSettings.applySettings(Settings.builder().put(QuerySamplingSettings.TARGET_PICKS_PER_HOUR.getKey(), 0).build());
+        sampler.regulate(1);
+        assertThat("and back to the setting when there is no target", sampler.effectiveScale(), equalTo(1.0));
+    }
+
+    public void testPicksOfHeadQueriesDoNotCountTowardsTheTarget() {
+        QuerySampler sampler = new QuerySampler(0.5, 5, alwaysDrawing(0.0));
+        sampler.watch(
+            new ClusterSettings(
+                Settings.builder()
+                    .put(QuerySamplingSettings.TARGET_PICKS_PER_HOUR.getKey(), 3600)
+                    .put(QuerySamplingSettings.HEAD_THRESHOLD.getKey(), 5)
+                    .build(),
+                Set.of(
+                    QuerySamplingSettings.ACCEPTANCE_SCALE,
+                    QuerySamplingSettings.HEAD_THRESHOLD,
+                    QuerySamplingSettings.MAX_PICKS_PER_HOUR,
+                    QuerySamplingSettings.TARGET_PICKS_PER_HOUR
+                )
+            )
+        );
+        for (int i = 0; i < 100; i++) {
+            assertTrue(sampler.offer(tracked(5)));
+        }
+
+        sampler.regulate(30);
+
+        assertThat("nothing was picked by chance, so the scale goes up", sampler.effectiveScale(), equalTo(2.0));
     }
 
     public void testProbabilityIsCappedAtOne() {

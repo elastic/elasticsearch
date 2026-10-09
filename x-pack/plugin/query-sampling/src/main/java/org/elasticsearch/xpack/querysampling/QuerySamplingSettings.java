@@ -103,6 +103,19 @@ public final class QuerySamplingSettings {
     );
 
     /**
+     * The rate of picks per hour that the acceptance scale is steered towards, apart from the picks of the hottest queries.
+     * The setting of the scale is what it starts from, and it is multiplied with what is needed to get to this rate. 0
+     * leaves the scale as it is set. Unlike {@link #MAX_PICKS_PER_HOUR} it is not a limit: it only aims for a rate.
+     */
+    public static final Setting<Long> TARGET_PICKS_PER_HOUR = Setting.longSetting(
+        "xpack.query_sampling.target_picks_per_hour",
+        0L,
+        0L,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * γ, the scale of the probability with which a query is picked: how likely a query seen for the first time is
      * picked (about 0.69·γ), and how fast that falls as the query is searched more. A bigger value samples more
      * queries, and more of the popular ones.
@@ -150,6 +163,7 @@ public final class QuerySamplingSettings {
             MIN_CAPTURES_PER_HOUR,
             SAMPLING_COST_RATIO,
             MAX_PICKS_PER_HOUR,
+            TARGET_PICKS_PER_HOUR,
             ACCEPTANCE_SCALE,
             HEAD_THRESHOLD,
             MULTIPLICITY_WINDOW,

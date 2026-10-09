@@ -154,6 +154,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         );
         if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled()) {
             groundTruthWorker.start(services.threadPool(), services.threadPool().generic());
+            sampler.startRegulation(services.threadPool(), services.threadPool().generic());
         }
         CaptureHandoff handoff = new CaptureHandoff(services.threadPool().executor(THREAD_POOL_NAME), pipeline);
         QueryCaptureFilter filter = new QueryCaptureFilter(clusterSettings, handoff);

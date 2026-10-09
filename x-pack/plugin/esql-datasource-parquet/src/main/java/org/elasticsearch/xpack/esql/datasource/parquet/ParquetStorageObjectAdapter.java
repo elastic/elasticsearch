@@ -745,18 +745,16 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
         @Override
         public void close() throws IOException {
-            long charge = 0L;
+            long charge;
             synchronized (openStreams) {
-                if (closed == false) {
-                    closed = true;
-                    windowStart = -1;
-                    windowLength = 0;
-                    if (window != null) {
-                        charge = windowCharge;
-                        window = null;
-                    }
-                    openStreams.remove(this);
+                if (closed) {
+                    return;
                 }
+                closed = true;
+                windowStart = -1;
+                windowLength = 0;
+                charge = takeWindowCharge();
+                openStreams.remove(this);
             }
             refundWindowCharge(charge);
         }

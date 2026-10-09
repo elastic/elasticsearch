@@ -14,6 +14,7 @@ import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.nio.CharBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -432,18 +433,19 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            String hashStr = new String(hash);
-            if (hashStr.startsWith(SSHA256_PREFIX) == false) {
+            if (CharArrays.charsBeginsWith(SSHA256_PREFIX, hash) == false) {
                 return false;
             }
-            hashStr = hashStr.substring(SSHA256_PREFIX.length());
-            char[] saltAndHash = hashStr.toCharArray();
-            MessageDigest md = MessageDigests.sha256();
+            final MessageDigest md = MessageDigests.sha256();
             md.update(CharArrays.toUtf8Bytes(text.getChars()));
-            // Base64 string length : (4*(n/3)) rounded up to the next multiple of 4 because of padding, 12 for 8 bytes
-            md.update(Base64.getDecoder().decode(new String(saltAndHash, 0, 12)));
-            String computedHash = Base64.getEncoder().encodeToString(md.digest());
-            return CharArrays.constantTimeEquals(computedHash, new String(saltAndHash, 12, saltAndHash.length - 12));
+            md.update(Base64.getDecoder().decode(new String(hash, SSHA256_SALT_OFFSET, SSHA256_SALT_BASE64_LENGTH)));
+            final byte[] computedDigest = Base64.getEncoder().encode(md.digest());
+            // Compare the Base64 text rather than decoding the stored digest, so that a malformed digest does not match instead of
+            // failing to decode. ISO-8859-1 maps each char to one byte, like Base64.Decoder#decode(String) does for the salt.
+            final byte[] storedDigest = new String(hash, SSHA256_DIGEST_OFFSET, hash.length - SSHA256_DIGEST_OFFSET).getBytes(
+                StandardCharsets.ISO_8859_1
+            );
+            return MessageDigest.isEqual(computedDigest, storedDigest);
         }
     },
     /*
@@ -481,6 +483,10 @@ public enum Hasher {
     private static final String SHA1_PREFIX = "{SHA}";
     private static final String MD5_PREFIX = "{MD5}";
     private static final String SSHA256_PREFIX = "{SSHA256}";
+    // Base64 string length : (4*(n/3)) rounded up to the next multiple of 4 because of padding, 12 for the 8 byte salt
+    private static final int SSHA256_SALT_BASE64_LENGTH = 12;
+    private static final int SSHA256_SALT_OFFSET = SSHA256_PREFIX.length();
+    private static final int SSHA256_DIGEST_OFFSET = SSHA256_SALT_OFFSET + SSHA256_SALT_BASE64_LENGTH;
     private static final String PBKDF2_PREFIX = "{PBKDF2}";
     private static final String PBKDF2_STRETCH_PREFIX = "{PBKDF2_STRETCH}";
     private static final int PBKDF2_DEFAULT_COST = 10000;

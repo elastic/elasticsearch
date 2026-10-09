@@ -75,6 +75,41 @@ public class HasherTests extends ESTestCase {
         testHasherSelfGenerated(Hasher.SSHA256);
     }
 
+    public void testSSHA256FromExternalSources() {
+        // computed outside of Hasher as "{SSHA256}" + base64(salt) + base64(sha256(utf8(password) + salt))
+        check("{SSHA256}AQIDBAUGBwg=reQle7VIh+fYOXYyp2Cj8r262nxfsKbPlneWlqCWGeg=", "lUBaZoS8RiSt3nN1zZ3lNw", true);
+        check("{SSHA256}AQIDBAUGBwg=reQle7VIh+fYOXYyp2Cj8r262nxfsKbPlneWlqCWGeg=", "lUBaZoS8RiSt3nN1zZ3lNx", false);
+        check("{SSHA256}//4Af4AQIDA=SFgdkNKN0/ogaDiWJrTUVJaPlr8gjtp3mirdil7Ikmg=", "p\u00e4ssw\u00f6rd-\u4f60\u597d-\uD83D\uDD11", true);
+        check("{SSHA256}//4Af4AQIDA=SFgdkNKN0/ogaDiWJrTUVJaPlr8gjtp3mirdil7Ikmg=", "p\u00e4ssw\u00f6rd-\u4f60\u597d", false);
+    }
+
+    public void testSSHA256MalformedHashes() {
+        final SecureString password = new SecureString("lUBaZoS8RiSt3nN1zZ3lNw".toCharArray());
+        final String hash = "{SSHA256}AQIDBAUGBwg=reQle7VIh+fYOXYyp2Cj8r262nxfsKbPlneWlqCWGeg=";
+        assertTrue(Hasher.SSHA256.verify(password, hash.toCharArray()));
+
+        // a digest that is not the expected Base64 text does not match
+        assertFalse(Hasher.SSHA256.verify(password, hash.replace("reQle7", "reQle8").toCharArray()));
+        assertFalse(Hasher.SSHA256.verify(password, hash.replace("reQle7", "reQ*e7").toCharArray()));
+        assertFalse(Hasher.SSHA256.verify(password, hash.replace("reQle7", "reQl\u00e97").toCharArray()));
+        assertFalse(Hasher.SSHA256.verify(password, hash.replace("reQle7", "reQl\u4e2d7").toCharArray()));
+        assertFalse(Hasher.SSHA256.verify(password, hash.substring(0, between(21, hash.length() - 1)).toCharArray()));
+        assertFalse(Hasher.SSHA256.verify(password, (hash + randomAlphaOfLengthBetween(1, 8)).toCharArray()));
+        // a different or incomplete prefix
+        assertFalse(Hasher.SSHA256.verify(password, hash.replace("{SSHA256}", "{SSHA512}").toCharArray()));
+        assertFalse(Hasher.SSHA256.verify(password, hash.substring(0, between(0, 8)).toCharArray()));
+
+        // a missing or malformed salt is an error
+        expectThrows(
+            IndexOutOfBoundsException.class,
+            () -> Hasher.SSHA256.verify(password, hash.substring(0, between(9, 20)).toCharArray())
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Hasher.SSHA256.verify(password, hash.replace("AQIDBAUG", "AQID*AUG").toCharArray())
+        );
+    }
+
     public void testSHA256SelfGenerated() throws Exception {
         testHasherSelfGenerated(Hasher.SHA256);
     }

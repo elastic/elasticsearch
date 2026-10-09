@@ -648,7 +648,7 @@ public class ApiKeyService implements Closeable {
                                         + "])";
                                 assert indexResponse.getResult() == DocWriteResponse.Result.CREATED
                                     : "Index response was [" + indexResponse.getResult() + "]";
-                                if (apiKeyAuthCache != null) {
+                                if (shouldUseAuthCache(hasher)) {
                                     final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
                                     listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
                                     apiKeyAuthCache.put(request.getId(), listenableFuture);
@@ -760,7 +760,7 @@ public class ApiKeyService implements Closeable {
                             TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
                                 assert newId.equals(indexResponse.getId());
                                 assert indexResponse.getResult() == DocWriteResponse.Result.CREATED;
-                                if (apiKeyAuthCache != null) {
+                                if (shouldUseAuthCache(hasher)) {
                                     final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
                                     listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
                                     apiKeyAuthCache.put(newId, listenableFuture);
@@ -1508,7 +1508,9 @@ public class ApiKeyService implements Closeable {
                 throw new IllegalStateException("api key hash is missing");
             }
 
-            if (apiKeyAuthCache != null) {
+            final char[] apiKeyHashChars = apiKeyDoc.hash.toCharArray();
+            final Hasher storedHasher = Hasher.resolveFromHash(apiKeyHashChars);
+            if (shouldUseAuthCache(storedHasher)) {
                 final AtomicBoolean valueAlreadyInCache = new AtomicBoolean(true);
                 final ListenableFuture<CachedApiKeyHashResult> listenableCacheEntry;
                 try {
@@ -1542,7 +1544,7 @@ public class ApiKeyService implements Closeable {
                         }
                     }, listener::onFailure), threadPool.generic(), threadPool.getThreadContext());
                 } else {
-                    verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(verified -> {
+                    verifyKeyAgainstHash(storedHasher, apiKeyHashChars, credentials, ActionListener.wrap(verified -> {
                         listenableCacheEntry.onResponse(new CachedApiKeyHashResult(verified, credentials.getKey()));
                         if (verified) {
                             // move on
@@ -1566,7 +1568,7 @@ public class ApiKeyService implements Closeable {
                     }));
                 }
             } else {
-                verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(verified -> {
+                verifyKeyAgainstHash(storedHasher, apiKeyHashChars, credentials, ActionListener.wrap(verified -> {
                     if (verified) {
                         // move on
                         completeApiKeyAuthentication(apiKeyDoc, credentials, clock, listener);
@@ -1733,15 +1735,17 @@ public class ApiKeyService implements Closeable {
         }
     }
 
-    // Protected instance method so this can be mocked
-    protected void verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials, ActionListener<Boolean> listener) {
-        final Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
+    /**
+     * Verifies the API key secret against its stored hash, which must have been produced by the given hasher. The hash characters
+     * are cleared once verified, so callers must pass a copy that they do not use afterwards.
+     * Protected instance method so this can be mocked.
+     */
+    protected void verifyKeyAgainstHash(Hasher hasher, char[] apiKeyHash, ApiKeyCredentials credentials, ActionListener<Boolean> listener) {
         final CheckedSupplier<Boolean, Exception> hashVerification = () -> {
-            final char[] apiKeyHashChars = apiKeyHash.toCharArray();
             try {
-                return hasher.verify(credentials.getKey(), apiKeyHashChars);
+                return hasher.verify(credentials.getKey(), apiKeyHash);
             } finally {
-                Arrays.fill(apiKeyHashChars, (char) 0);
+                Arrays.fill(apiKeyHash, (char) 0);
             }
         };
         if (isUsingFastHashAlgorithm(hasher)) {
@@ -1758,6 +1762,15 @@ public class ApiKeyService implements Closeable {
      */
     static boolean isUsingFastHashAlgorithm(Hasher hasher) {
         return hasher == Hasher.SSHA256;
+    }
+
+    /**
+     * Returns true if the result of verifying an API key secret against a hash stored with the given hasher should be cached.
+     * Caching only pays off for computationally expensive hashes: verifying a fast stored hash costs as much as verifying the
+     * cached hash, so caching it would only add overhead.
+     */
+    private boolean shouldUseAuthCache(Hasher storedHasher) {
+        return apiKeyAuthCache != null && isUsingFastHashAlgorithm(storedHasher) == false;
     }
 
     private static Instant getApiKeyExpiration(Instant now, @Nullable TimeValue expiration) {

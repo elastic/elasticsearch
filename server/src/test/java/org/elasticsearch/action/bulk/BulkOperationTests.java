@@ -51,17 +51,18 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -75,18 +76,23 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -94,11 +100,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -106,6 +112,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.sameInstance;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -414,85 +421,70 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(redirectedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
     }
 
-    /** A successful batch bulk takes recycler pages and releases all of them. */
-    public void testBatchBulkReleasesItsPages() {
+    /** An inline JSON bulk encodes a batch per shard and releases all of them once every shard accepts. */
+    public void testInlineBatchesReleasedWhenAllShardsAccept() throws IOException {
         assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
-        BatchScenario scenario = new BatchScenario(
-            BatchRegime.MIXED,
-            false,
-            indexName,
-            3,
-            Map.of(
-                new ShardId(indexMetadata.getIndex(), 0),
-                ShardOutcome.ACCEPT,
-                new ShardId(indexMetadata.getIndex(), 1),
-                ShardOutcome.ACCEPT
-            )
-        );
-        AtomicBoolean dispatchedBatch = new AtomicBoolean();
-        NodeClient client = getNodeClient((request, listener) -> {
-            if (request.getBulkShardBatch() != null) {
-                dispatchedBatch.set(true);
-            }
-            acceptAllShardWrites().accept(request, listener);
-        });
-
-        BulkResponse response = safeAwait(l -> newBatchBulkOperation(clusterState, client, xContentBatchRequest(scenario), l).run());
-
-        assertThat(response.hasFailures(), is(false));
-        assertTrue("the bulk ran in batch mode", dispatchedBatch.get());
-        assertThat(obtainedBatchPages.get(), greaterThan(0));
-        assertThat(recycler.activePageCount(), equalTo(0));
+        BatchScenario scenario = batchScenario(false, indexName, ShardOutcome.ACCEPT, ShardOutcome.ACCEPT);
+        BatchResult result = runBatchBulk(scenario, clusterState);
+        assertThat(scenario.toString(), result.batchShards(), equalTo(dispatchedShards(scenario)));
+        assertExpectedBatchItems(scenario, result.response());
     }
 
-    /**
-     * Randomized over x-content and pre-built batches, per-shard acceptance, failure and short-circuit, failure-store redirects and a
-     * blocked cluster: the listener completes once and every batch page is released.
-     */
-    public void testBatchBulkReleasesItsPagesOnEveryPath() throws IOException {
+    /** A pre-built batch is scattered into per-shard batches, and both it and the shard batches are released. */
+    public void testPreBuiltBatchReleasedWhenAllShardsAccept() throws IOException {
         assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
-        BatchScenario scenario = randomBatchScenario();
-        BulkRequest bulkRequest = scenario.providedBatch() ? providedBatchRequest(scenario) : xContentBatchRequest(scenario);
-        Map<ShardId, Exception> shortCircuited = new HashMap<>();
-        scenario.outcomes().forEach((shardId, outcome) -> {
-            if (outcome == ShardOutcome.SHORT_CIRCUIT) {
-                shortCircuited.put(shardId, new MapperException("short-circuited " + shardId));
-            }
-        });
-        bulkRequest.incrementalState(new BulkRequest.IncrementalState(shortCircuited, false));
-        NodeClient client = getNodeClient((request, listener) -> {
-            if (scenario.outcomes().get(request.shardId()) == ShardOutcome.FAIL) {
-                listener.onFailure(new MapperException("failed " + request.shardId()));
-            } else {
-                acceptAllShardWrites().accept(request, listener);
-            }
-        });
-        ClusterState state = scenario.regime() == BatchRegime.BLOCKED
-            ? ClusterState.builder(clusterState).blocks(ClusterBlocks.builder().addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK)).build()
-            : clusterState;
+        BatchScenario scenario = batchScenario(true, indexName, ShardOutcome.ACCEPT, ShardOutcome.ACCEPT);
+        BatchResult result = runBatchBulk(scenario, clusterState);
+        assertThat(scenario.toString(), result.batchShards(), equalTo(dispatchedShards(scenario)));
+        assertExpectedBatchItems(scenario, result.response());
+    }
 
-        AtomicInteger completions = new AtomicInteger();
-        AtomicReference<BulkResponse> response = new AtomicReference<>();
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        CountDownLatch completed = new CountDownLatch(1);
-        newBatchBulkOperation(state, client, bulkRequest, ActionListener.runAfter(ActionListener.wrap(r -> {
-            completions.incrementAndGet();
-            response.set(r);
-        }, e -> {
-            completions.incrementAndGet();
-            failure.set(e);
-        }), completed::countDown)).run();
+    /** A failed shard request releases its batch, and its items fail. */
+    public void testBatchReleasedWhenShardFails() throws IOException {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        BatchScenario scenario = batchScenario(false, indexName, ShardOutcome.FAIL, ShardOutcome.ACCEPT);
+        BatchResult result = runBatchBulk(scenario, clusterState);
+        assertThat(scenario.toString(), result.batchShards(), equalTo(dispatchedShards(scenario)));
+        assertExpectedBatchItems(scenario, result.response());
+    }
 
-        safeAwait(completed);
-        assertThat(scenario.toString(), completions.get(), equalTo(1));
-        assertThat(scenario + " took no batch pages", obtainedBatchPages.get(), greaterThan(0));
-        assertThat(scenario + " still holds batch pages", recycler.activePageCount(), equalTo(0));
-        if (scenario.regime() == BatchRegime.BLOCKED) {
-            assertThat(scenario.toString(), failure.get(), instanceOf(ClusterBlockException.class));
-        } else {
-            assertNull(scenario.toString(), failure.get());
-            assertExpectedBatchItems(scenario, response.get());
-        }
+    /** Items of a failed shard are redirected to the failure store in a second pass, which carries no batches. */
+    public void testBatchReleasedBeforeFailureStoreRedirect() throws IOException {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        BatchScenario scenario = batchScenario(false, fsDataStreamName, ShardOutcome.FAIL, ShardOutcome.ACCEPT);
+        BatchResult result = runBatchBulk(scenario, clusterState);
+        assertThat(scenario.toString(), result.batchShards(), equalTo(dispatchedShards(scenario)));
+        assertExpectedBatchItems(scenario, result.response());
+    }
+
+    /** A short-circuited shard never receives its batch, which is released without being dispatched. */
+    public void testUndispatchedBatchReleasedOnShortCircuit() throws IOException {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        BatchScenario scenario = batchScenario(false, indexName, ShardOutcome.SHORT_CIRCUIT, ShardOutcome.ACCEPT);
+        BatchResult result = runBatchBulk(scenario, clusterState);
+        assertThat(scenario.toString(), result.batchShards(), equalTo(dispatchedShards(scenario)));
+        assertExpectedBatchItems(scenario, result.response());
+    }
+
+    /** With every shard short-circuited nothing is dispatched, and the redirect pass starts from inside the first pass. */
+    public void testBatchesReleasedWhenAllShardsShortCircuit() throws IOException {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        BatchScenario scenario = batchScenario(false, fsDataStreamName, ShardOutcome.SHORT_CIRCUIT, ShardOutcome.SHORT_CIRCUIT);
+        BatchResult result = runBatchBulk(scenario, clusterState);
+        assertThat(scenario.toString(), result.batchShards(), empty());
+        assertExpectedBatchItems(scenario, result.response());
+    }
+
+    /** A blocked cluster fails the bulk before dispatch and releases the pre-built batch. */
+    public void testPreBuiltBatchReleasedOnBlockedCluster() throws IOException {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        BatchScenario scenario = batchScenario(true, indexName, ShardOutcome.ACCEPT, ShardOutcome.ACCEPT);
+        ClusterState blocked = ClusterState.builder(clusterState)
+            .blocks(ClusterBlocks.builder().addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK))
+            .build();
+        BatchResult result = runBatchBulk(scenario, blocked);
+        assertThat(scenario.toString(), result.failure(), instanceOf(ClusterBlockException.class));
+        assertThat(scenario.toString(), result.batchShards(), empty());
     }
 
     /**
@@ -1373,13 +1365,6 @@ public class BulkOperationTests extends ESTestCase {
         return (r, l) -> fail("Should not have executed shard action on blocked cluster");
     }
 
-    /** How the whole batch bulk is set up to end. */
-    private enum BatchRegime {
-        MIXED,
-        ALL_SHORT_CIRCUIT,
-        BLOCKED
-    }
-
     /** What the mock shard action does with a shard request. */
     private enum ShardOutcome {
         ACCEPT,
@@ -1387,27 +1372,89 @@ public class BulkOperationTests extends ESTestCase {
         SHORT_CIRCUIT
     }
 
-    /** One randomized batch bulk: its regime, batch mode, target, size and per-shard outcomes. */
+    /** One batch bulk: its batch mode, target, size, the outcome of each write shard, and the longest {@code message} value. */
     private record BatchScenario(
-        BatchRegime regime,
         boolean providedBatch,
         String target,
         int docCount,
-        Map<ShardId, ShardOutcome> outcomes
+        Map<ShardId, ShardOutcome> outcomes,
+        int maxMessageLength
     ) {}
 
-    /** Draws a random scenario; a blocked cluster always uses a pre-built batch, which the bulk must release before dispatch. */
-    private BatchScenario randomBatchScenario() {
-        BatchRegime regime = randomFrom(BatchRegime.values());
-        boolean providedBatch = regime == BatchRegime.BLOCKED || randomBoolean();
-        String target = regime == BatchRegime.ALL_SHORT_CIRCUIT ? fsDataStreamName : randomFrom(indexName, fsDataStreamName);
-        Index writeIndex = batchWriteIndex(target).getIndex();
-        Map<ShardId, ShardOutcome> outcomes = new HashMap<>();
-        for (int shard = 0; shard < 2; shard++) {
-            ShardOutcome outcome = regime == BatchRegime.ALL_SHORT_CIRCUIT ? ShardOutcome.SHORT_CIRCUIT : randomFrom(ShardOutcome.values());
-            outcomes.put(new ShardId(writeIndex, shard), outcome);
+    /** How a batch bulk completed, and which shards received a batch. */
+    private record BatchResult(BulkResponse response, Exception failure, Set<ShardId> batchShards) {}
+
+    /** A scenario with random documents whose ids route to both write shards of {@code target}. */
+    private BatchScenario batchScenario(boolean providedBatch, String target, ShardOutcome shard0, ShardOutcome shard1) {
+        IndexMetadata writeIndex = batchWriteIndex(target);
+        int docCount = randomIntBetween(10, 40);
+        IndexRouting routing = IndexRouting.fromIndexMetadata(writeIndex);
+        Set<Integer> routedShards = new HashSet<>();
+        for (int i = 0; i < docCount; i++) {
+            routedShards.add(routing.indexShard(new IndexRequest(target).id(Integer.toString(i))));
         }
-        return new BatchScenario(regime, providedBatch, target, randomIntBetween(1, 40), outcomes);
+        assertThat("documents route to both shards", routedShards, equalTo(Set.of(0, 1)));
+        return new BatchScenario(
+            providedBatch,
+            target,
+            docCount,
+            Map.of(new ShardId(writeIndex.getIndex(), 0), shard0, new ShardId(writeIndex.getIndex(), 1), shard1),
+            randomFrom(64, PageCacheRecycler.BYTE_PAGE_SIZE)
+        );
+    }
+
+    /**
+     * Runs the scenario's bulk against shards that behave as its outcomes say, and checks that the listener completes once, the bulk
+     * took batch pages and released all of them, and every dispatched write shard received a batch.
+     */
+    private BatchResult runBatchBulk(BatchScenario scenario, ClusterState state) throws IOException {
+        BulkRequest bulkRequest = scenario.providedBatch() ? providedBatchRequest(scenario) : xContentBatchRequest(scenario);
+        Map<ShardId, Exception> shortCircuited = new HashMap<>();
+        scenario.outcomes().forEach((shardId, outcome) -> {
+            if (outcome == ShardOutcome.SHORT_CIRCUIT) {
+                shortCircuited.put(shardId, new MapperException("short-circuited " + shardId));
+            }
+        });
+        bulkRequest.incrementalState(new BulkRequest.IncrementalState(shortCircuited, false));
+        Set<ShardId> batchShards = ConcurrentCollections.newConcurrentSet();
+        NodeClient client = getNodeClient((request, listener) -> {
+            if (request.getBulkShardBatch() != null) {
+                batchShards.add(request.shardId());
+            }
+            if (scenario.outcomes().get(request.shardId()) == ShardOutcome.FAIL) {
+                listener.onFailure(new MapperException("failed " + request.shardId()));
+            } else {
+                acceptAllShardWrites().accept(request, listener);
+            }
+        });
+
+        AtomicInteger completions = new AtomicInteger();
+        AtomicReference<BulkResponse> response = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        CountDownLatch completed = new CountDownLatch(1);
+        newBatchBulkOperation(state, client, bulkRequest, ActionListener.runAfter(ActionListener.wrap(r -> {
+            completions.incrementAndGet();
+            response.set(r);
+        }, e -> {
+            completions.incrementAndGet();
+            failure.set(e);
+        }), completed::countDown)).run();
+
+        safeAwait(completed);
+        assertThat(scenario.toString(), completions.get(), equalTo(1));
+        assertThat(scenario + " took no batch pages", obtainedBatchPages.get(), greaterThan(0));
+        assertThat(scenario + " still holds batch pages", recycler.activePageCount(), equalTo(0));
+        return new BatchResult(response.get(), failure.get(), batchShards);
+    }
+
+    /** The write shards that the scenario lets the bulk dispatch to. */
+    private static Set<ShardId> dispatchedShards(BatchScenario scenario) {
+        return scenario.outcomes()
+            .entrySet()
+            .stream()
+            .filter(e -> e.getValue() != ShardOutcome.SHORT_CIRCUIT)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
     }
 
     /** The index that receives writes for {@code target}. */
@@ -1415,19 +1462,34 @@ public class BulkOperationTests extends ESTestCase {
         return target.equals(indexName) ? indexMetadata : ds2BackingIndex1;
     }
 
-    /** The JSON source of document {@code i}. */
-    private static String batchDoc(int i) {
-        return "{\"key\":\"val" + i + "\",\"n\":" + i + "}";
+    /**
+     * JSON sources for the scenario: a shared {@code message} column that spans several pages when {@code maxMessageLength} is a page,
+     * and a random nested payload that adds sparse columns.
+     */
+    private static List<BytesReference> batchDocs(BatchScenario scenario) throws IOException {
+        List<BytesReference> docs = new ArrayList<>(scenario.docCount());
+        for (int i = 0; i < scenario.docCount(); i++) {
+            BytesReference payload = RandomObjects.randomSource(random(), XContentType.JSON);
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                builder.startObject();
+                builder.field("message", randomAlphaOfLength(randomIntBetween(0, scenario.maxMessageLength())));
+                builder.rawField("payload", payload.streamInput(), XContentType.JSON);
+                builder.endObject();
+                docs.add(BytesReference.bytes(builder));
+            }
+        }
+        return docs;
     }
 
     /** A bulk of inline JSON documents, which the coordinating node encodes into batches. */
-    private static BulkRequest xContentBatchRequest(BatchScenario scenario) {
+    private static BulkRequest xContentBatchRequest(BatchScenario scenario) throws IOException {
+        List<BytesReference> docs = batchDocs(scenario);
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < scenario.docCount(); i++) {
             bulkRequest.add(
                 new IndexRequest(scenario.target()).id(Integer.toString(i))
                     .opType(DocWriteRequest.OpType.CREATE)
-                    .source(batchDoc(i), XContentType.JSON)
+                    .source(docs.get(i), XContentType.JSON)
             );
         }
         return bulkRequest;
@@ -1435,10 +1497,11 @@ public class BulkOperationTests extends ESTestCase {
 
     /** A bulk whose items reference rows of a pre-built batch on the test recycler. */
     private BulkRequest providedBatchRequest(BatchScenario scenario) throws IOException {
+        List<BytesReference> docs = batchDocs(scenario);
         EscfBatch batch;
         try (EscfEncoder encoder = new EscfEncoder(recycler)) {
-            for (int i = 0; i < scenario.docCount(); i++) {
-                encoder.parseToScratch(new BytesArray(batchDoc(i)), XContentType.JSON);
+            for (BytesReference doc : docs) {
+                encoder.parseToScratch(doc, XContentType.JSON);
                 encoder.commitScratchTo(0);
             }
             batch = encoder.buildPartition(0);

@@ -13,7 +13,6 @@ import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -24,10 +23,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCase {
-
-    static {
-        enableColumnarIndexModeRandomization();
-    }
 
     static String BULK_ITEM_TEMPLATE =
         """
@@ -65,12 +60,25 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
             }
         }""";
 
-    public void testIndexing() throws Exception {
+    public void testIndexingLogsdb() throws Exception {
+        testIndexing("logs-bwc-logsdb-test", "logsdb");
+    }
+
+    public void testIndexingLogsdbColumnar() throws Exception {
+        final String oldVersion = System.getProperty("tests.old_cluster_version");
+        assumeTrue(
+            "logsdb_columnar requires an old cluster on 9.5.0 or later",
+            oldVersion != null && Version.fromString(oldVersion).onOrAfter(Version.fromString("9.5.0"))
+        );
+        testIndexing("logs-bwc-logsdb-columnar-test", "logsdb_columnar");
+    }
+
+    private void testIndexing(String dataStreamName, String indexMode) throws Exception {
+        final boolean columnarEnabled = indexMode.equals("logsdb_columnar");
         for (Map.Entry<Object, Object> entry : System.getProperties().entrySet()) {
             logger.info("system_property: {} / {}", entry.getKey(), entry.getValue());
         }
 
-        String dataStreamName = "logs-bwc-test";
         Instant time;
         {
             maybeEnableLogsdbByDefault();
@@ -85,12 +93,14 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
             // Disable the TSDB doc-values format so both old and new nodes use stored fields,
             // eliminating the conflict while still exercising _ignored_source via synthetic_source_keep.
             final boolean ignoredSourceFormatIsStable = oldVersion.before("9.4.0") || oldVersion.onOrAfter(Version.fromString("9.5.0"));
+            // Set the index mode explicitly rather than relying on cluster.logsdb_columnar.enabled to pick the
+            // default mode for logs-*-* data streams.
             final String settingsJson = ignoredSourceFormatIsStable
-                ? ""
-                : "\"settings\": {\"index.use_time_series_doc_values_format\": false},";
+                ? "\"settings\": {\"index.mode\": \"" + indexMode + "\"},"
+                : "\"settings\": {\"index.mode\": \"" + indexMode + "\", \"index.use_time_series_doc_values_format\": false},";
             template = template.replace("%%settings%%", settingsJson);
 
-            String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT);
+            String templateId = dataStreamName;
             createTemplate(dataStreamName, templateId, template);
 
             time = Instant.now().minusSeconds(60 * 60);
@@ -98,7 +108,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
 
             String firstBackingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
             var settings = (Map<?, ?>) getIndexSettings(firstBackingIndex, true).get(firstBackingIndex);
-            assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo(columnarEnabled ? "logsdb_columnar" : "logsdb"));
+            assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo(indexMode));
             assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
 
             // check prior to rollover
@@ -124,6 +134,37 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
             assertOK(client().performRequest(forceMergeRequest));
 
             ensureGreen(dataStreamName);
+            search(dataStreamName);
+            searchWithSource(dataStreamName);
+            query(dataStreamName);
+        }
+        {
+            // roll over so the post-upgrade checks also cover a backing index created by the fully upgraded cluster
+            assertOK(client().performRequest(new Request("POST", "/" + dataStreamName + "/_rollover")));
+            var backingIndices = getDataStreamBackingIndexNames(dataStreamName);
+            assertThat(backingIndices, hasSize(2));
+            String newBackingIndex = backingIndices.getLast();
+            var newIndexSettings = (Map<?, ?>) getIndexSettings(newBackingIndex, true).get(newBackingIndex);
+            assertThat(((Map<?, ?>) newIndexSettings.get("settings")).get("index.mode"), equalTo(indexMode));
+
+            String indexedInto = bulkIndex(
+                dataStreamName,
+                4,
+                1024,
+                timeRef.get().plusSeconds(60),
+                LogsdbIndexingRollingUpgradeIT::docSupplier
+            );
+            assertThat(indexedInto, equalTo(newBackingIndex));
+
+            ensureGreen(dataStreamName);
+            search(dataStreamName);
+            searchWithSource(dataStreamName);
+            query(dataStreamName);
+
+            var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
+            forceMergeRequest.addParameter("max_num_segments", "1");
+            assertOK(client().performRequest(forceMergeRequest));
+
             search(dataStreamName);
             searchWithSource(dataStreamName);
             query(dataStreamName);

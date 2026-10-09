@@ -370,7 +370,8 @@ The response has the following format:
       "details": {
       "my_query_id1": {                           <2>
         "metric_score": 0.6,                      <3>
-        "unrated_docs": [                         <4>
+        "took": 37,                               <4>
+        "unrated_docs": [                         <5>
           {
             "_index": "my-index-000001",
             "_id": "1960795"
@@ -378,7 +379,7 @@ The response has the following format:
         ],
         "hits": [
           {
-            "hit": {                              <5>
+            "hit": {                              <6>
               "_index": "my-index-000001",
               "_type": "page",
               "_id": "1528558",
@@ -387,7 +388,7 @@ The response has the following format:
             "rating": 1
           }, ...
         ],
-        "metric_details": {                       <6>
+        "metric_details": {                       <7>
           "precision": {
             "relevant_docs_retrieved": 6,
             "docs_retrieved": 10
@@ -405,6 +406,7 @@ The response has the following format:
 1. The overall evaluation quality calculated by the defined metric.
 2. The `details` section contains one entry for every query in the original `requests` section, keyed by the search request ID.
 3. The `metric_score` in the `details` section shows the contribution of this query to the global quality metric score.
-4. The `unrated_docs` section contains an `_index` and `_id` entry for each document in the search result for this query that didn't have a ratings value. This can be used to ask the user to supply ratings for these documents
-5. The `hits` section shows a grouping of the search results with their supplied ratings.
-6. The `metric_details` give additional information about the calculated quality metric. For example, how many of the retrieved documents were relevant. The content varies for each metric but allows for better interpretation of the results.
+4. The `took` field shows how long, in milliseconds, the underlying search request for this query took to execute.
+5. The `unrated_docs` section contains an `_index` and `_id` entry for each document in the search result for this query that didn't have a ratings value. This can be used to ask the user to supply ratings for these documents
+6. The `hits` section shows a grouping of the search results with their supplied ratings.
+7. The `metric_details` give additional information about the calculated quality metric. For example, how many of the retrieved documents were relevant. The content varies for each metric but allows for better interpretation of the results.

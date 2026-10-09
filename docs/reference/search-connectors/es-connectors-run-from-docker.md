@@ -83,7 +83,11 @@ docker.elastic.co/integrations/elastic-connectors:<VERSION> \
 ::::
 
 ::::{tip}
-For unreleased versions, append the `-SNAPSHOT` suffix to the version number. For example, `docker.elastic.co/integrations/elastic-connectors:{{version.stack}}-SNAPSHOT`.
+For unreleased versions, append the `-SNAPSHOT` suffix to the version number. For example:
+
+```sh subs=true
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}}-SNAPSHOT
+```
 
 ::::
 

@@ -42,7 +42,7 @@ letChainedBindings
 required_capability: named_subquery_let
 
 LET filtered = (FROM languages | WHERE language_code > 1)\;
-    LET top2 = (FROM filtered | SORT language_code | LIMIT 2)\;
+LET top2 = (FROM filtered | SORT language_code | LIMIT 2)\;
 FROM top2
 | KEEP language_code, language_name
 | SORT language_code
@@ -102,7 +102,7 @@ required_capability: named_subquery_let
 required_capability: where_in_subquery_without_view
 
 LET sources = (FROM languages | WHERE language_code > 1 | KEEP language_code, language_name)\;
-    LET filter_codes = (FROM languages | WHERE language_code <= 3 | KEEP language_code)\;
+LET filter_codes = (FROM languages | WHERE language_code <= 3 | KEEP language_code)\;
 FROM sources
 | WHERE language_code IN (FROM filter_codes)
 | KEEP language_code, language_name

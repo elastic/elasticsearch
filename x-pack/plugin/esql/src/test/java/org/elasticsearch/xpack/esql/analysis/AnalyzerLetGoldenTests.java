@@ -61,7 +61,7 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
         requireLetSupport();
         runGoldenTest("""
             LET a = (FROM employees | WHERE emp_no > 10010 | KEEP emp_no, languages);
-                LET b = (FROM languages | WHERE language_code > 2 | KEEP language_name, language_code);
+            LET b = (FROM languages | WHERE language_code > 2 | KEEP language_name, language_code);
             FROM b
             | SORT language_code
             """, STAGES);
@@ -73,7 +73,7 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
         requireLetSupport();
         runGoldenTest("""
             LET base = (FROM employees | WHERE emp_no > 10010 | KEEP emp_no, languages);
-                LET top5 = (FROM base | LIMIT 5);
+            LET top5 = (FROM base | LIMIT 5);
             FROM top5
             | SORT emp_no
             """, STAGES);
@@ -129,8 +129,7 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
     // LetResolver runs on statement.plan() before ViewResolver expands view bodies.
     // A view body that references a LET binding name treats it as an ES index, not
     // as the binding, and fails with an index-not-found error.
-
-    public void testViewBodyCannotReferenceLetBinding() {
+    public void testViewCannotReferenceLetBindingOutsideItsScope() {
         requireLetSupport();
         var query = """
             LET subquery = (FROM languages | WHERE language_code > 1 | KEEP language_code, language_name);
@@ -144,7 +143,6 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
             .addLanguages()
             .addIndex("subquery", IndexResolution.notFound("subquery"));
         var parsedPlan = ta.resolveViewsAndInSubqueries(planAfterLet);
-        var e = expectThrows(VerificationException.class, () -> ta.buildAnalyzer().analyze(parsedPlan));
-        assertThat(e.getMessage(), containsString("Unknown index [subquery]"));
+        expectThrows(VerificationException.class, containsString("Unknown index [subquery]"), () -> ta.buildAnalyzer().analyze(parsedPlan));
     }
 }

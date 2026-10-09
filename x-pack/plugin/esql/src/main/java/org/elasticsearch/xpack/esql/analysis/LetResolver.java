@@ -113,63 +113,39 @@ public final class LetResolver {
         // bindings when it appears as a replacement in the main query or an outer binding body.
         return plan.transformDownSkipBranch((p, skipBranch) -> {
             if (p instanceof UnresolvedRelation ur) {
-                String pattern = ur.indexPattern().indexPattern();
-                LogicalPlan bound = resolved.get(pattern);
+                String indexPattern = ur.indexPattern().indexPattern();
+                LogicalPlan bound = resolved.get(indexPattern);
                 if (bound != null) {
                     skipBranch.set(true);
                     return bound;
                 }
                 // Handle comma-joined patterns that contain one or more binding names as individual
                 // tokens, e.g. "FROM top3, real_index" where top3 is a binding.
-                // Split the pattern, substitute each token that matches a binding, and union the parts.
-                if (pattern.contains(",")) {
-                    String[] tokens = pattern.split(",", -1);
+                // Split the indexPattern, substitute each token that matches a binding, and union the parts.
+                if (indexPattern.contains(",")) {
+                    String[] patterns = indexPattern.split(",", -1);
                     boolean anyMatch = false;
-                    for (String tok : tokens) {
-                        if (resolved.containsKey(tok.strip())) {
+                    for (String pattern : patterns) {
+                        if (resolved.containsKey(pattern.strip())) {
                             anyMatch = true;
                             break;
                         }
                     }
                     if (anyMatch) {
-                        List<LogicalPlan> parts = new ArrayList<>();
-                        List<String> nonBindingTokens = new ArrayList<>();
-                        for (String tok : tokens) {
-                            String trimmed = tok.strip();
+                        List<LogicalPlan> result = new ArrayList<>();
+                        List<String> nonBindingPatterns = new ArrayList<>();
+                        for (String pattern : patterns) {
+                            String trimmed = pattern.strip();
                             LogicalPlan bindingPlan = resolved.get(trimmed);
                             if (bindingPlan != null) {
-                                if (nonBindingTokens.isEmpty() == false) {
-                                    parts.add(
-                                        new UnresolvedRelation(
-                                            ur.source(),
-                                            new IndexPattern(ur.source(), String.join(",", nonBindingTokens)),
-                                            ur.frozen(),
-                                            ur.metadataFields(),
-                                            ur.indexMode(),
-                                            null
-                                        )
-                                    );
-                                    nonBindingTokens.clear();
-                                }
-                                parts.add(bindingPlan);
+                                flushNonBindingPatterns(result, nonBindingPatterns, ur);
                             } else {
-                                nonBindingTokens.add(trimmed);
+                                nonBindingPatterns.add(trimmed);
                             }
                         }
-                        if (nonBindingTokens.isEmpty() == false) {
-                            parts.add(
-                                new UnresolvedRelation(
-                                    ur.source(),
-                                    new IndexPattern(ur.source(), String.join(",", nonBindingTokens)),
-                                    ur.frozen(),
-                                    ur.metadataFields(),
-                                    ur.indexMode(),
-                                    null
-                                )
-                            );
-                        }
+                        flushNonBindingPatterns(result, nonBindingPatterns, ur);
                         skipBranch.set(true);
-                        return parts.size() == 1 ? parts.get(0) : new UnionAll(ur.source(), parts, List.of());
+                        return result.size() == 1 ? result.get(0) : new UnionAll(ur.source(), result, List.of());
                     }
                 }
                 return ur;
@@ -188,6 +164,22 @@ public final class LetResolver {
         });
     }
 
+    private static void flushNonBindingPatterns(List<LogicalPlan> result, List<String> nonBindingPatterns, UnresolvedRelation ur) {
+        if (nonBindingPatterns.isEmpty() != false) {
+            result.add(
+                new UnresolvedRelation(
+                    ur.source(),
+                    new IndexPattern(ur.source(), String.join(",", nonBindingPatterns)),
+                    ur.frozen(),
+                    ur.metadataFields(),
+                    ur.indexMode(),
+                    null
+                )
+            );
+            nonBindingPatterns.clear();
+        }
+    }
+
     private static void checkBindingReferences(LogicalPlan plan, Map<String, LogicalPlan> resolved, String errorMessage) {
         if (resolved.isEmpty()) {
             return;
@@ -195,13 +187,13 @@ public final class LetResolver {
 
         plan.forEachDown(p -> {
             if (p instanceof UnresolvedRelation ur) {
-                String pattern = ur.indexPattern().indexPattern();
-                if (resolved.containsKey(pattern)) {
-                    throw new VerificationException(errorMessage, pattern);
+                String indexPattern = ur.indexPattern().indexPattern();
+                if (resolved.containsKey(indexPattern)) {
+                    throw new VerificationException(errorMessage, indexPattern);
                 }
-                if (pattern.contains(",")) {
-                    for (String tok : pattern.split(",", -1)) {
-                        String trimmed = tok.strip();
+                if (indexPattern.contains(",")) {
+                    for (String pattern : indexPattern.split(",", -1)) {
+                        String trimmed = pattern.strip();
                         if (resolved.containsKey(trimmed)) {
                             throw new VerificationException(errorMessage, trimmed);
                         }

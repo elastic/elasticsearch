@@ -78,6 +78,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -364,6 +365,41 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             ),
             instanceOf(RepositoryException.class)
         );
+    }
+
+    public void testReadRepositoryDataOfAGeneration() throws Exception {
+        final BlobStoreRepository repository = setupRepo();
+        final RepositoryData repositoryData = generateRandomRepoData();
+        writeIndexGen(repository, repositoryData, RepositoryData.EMPTY_REPO_GEN);
+        final long generation = repository.latestIndexBlobId();
+
+        // reads what the master loads, without being the master or touching the repository's caches
+        assertThat(repository.readRepositoryData(generation), equalTo(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository)));
+        assertThat(repository.readRepositoryData(RepositoryData.EMPTY_REPO_GEN), equalTo(RepositoryData.EMPTY));
+        // a generation that is not there is left to the caller to handle
+        expectThrows(NoSuchFileException.class, () -> repository.readRepositoryData(generation + 1));
+    }
+
+    public void testCompletionTarget() {
+        assertThat(setupRepo().getCompletionTarget(), equalTo(TimeValue.timeValueMinutes(30)));
+        removeRepo();
+
+        final Path location = ESIntegTestCase.randomRepoPath(node().settings());
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
+                .setType(REPO_TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(node().settings())
+                        .put("location", location)
+                        .put(BlobStoreRepository.COMPLETION_TARGET_SETTING.getKey(), "5m")
+                )
+                .setVerify(false)
+        );
+        final var repository = (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository(TEST_REPO_NAME);
+        assertThat(repository.getCompletionTarget(), equalTo(TimeValue.timeValueMinutes(5)));
     }
 
     public void testBadChunksize() {

@@ -455,6 +455,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     );
 
     /**
+     * How long a snapshot into this repository should take at most, from start to finish. Index nodes compare it with the bytes still to
+     * be uploaded to work out the upload rate the repository needs. The default is a conservative guess for a backup that runs often.
+     */
+    public static final Setting<TimeValue> COMPLETION_TARGET_SETTING = Setting.positiveTimeSetting(
+        "completion_target",
+        TimeValue.timeValueMinutes(30),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Defines the max size of the ShardBlobsToDelete.shard_delete_results stream as a percentage of available heap memory
      * This is a cluster level setting
      */
@@ -471,10 +482,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private static final Set<String> DYNAMIC_SETTING_NAMES = Set.of(
         MAX_SNAPSHOT_BYTES_PER_SEC.getKey(),
-        MAX_RESTORE_BYTES_PER_SEC.getKey()
+        MAX_RESTORE_BYTES_PER_SEC.getKey(),
+        COMPLETION_TARGET_SETTING.getKey()
     );
 
     private final boolean readOnly;
+
+    private volatile TimeValue completionTarget;
 
     private final Object lock = new Object();
 
@@ -558,6 +572,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         snapshotRateLimiter = getSnapshotRateLimiter();
         restoreRateLimiter = getRestoreRateLimiter();
         readOnly = metadata.settings().getAsBoolean(READONLY_SETTING_KEY, false);
+        completionTarget = COMPLETION_TARGET_SETTING.get(metadata.settings());
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
         this.namedXContentRegistry = namedXContentRegistry;
@@ -812,6 +827,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (updatedSettings.equals(previousSettings) == false) {
             snapshotRateLimiter = getSnapshotRateLimiter();
             restoreRateLimiter = getRestoreRateLimiter();
+            completionTarget = COMPLETION_TARGET_SETTING.get(updatedSettings);
         }
 
         uncleanStart = uncleanStart && metadata.generation() != metadata.pendingGeneration();
@@ -2913,20 +2929,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryData getRepositoryData(long indexGen) {
-        if (indexGen == RepositoryData.EMPTY_REPO_GEN) {
-            return RepositoryData.EMPTY;
-        }
         try {
-            final var repositoryDataBlobName = getRepositoryDataBlobName(indexGen);
-
-            // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
-            try (
-                InputStream blob = blobContainer().readBlob(OperationPurpose.SNAPSHOT_METADATA, repositoryDataBlobName);
-                XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, blob)
-            ) {
-                return RepositoryData.snapshotsFromXContent(parser, indexGen, true);
-            }
+            return readRepositoryData(indexGen);
         } catch (IOException ioe) {
             if (bestEffortConsistency) {
                 // If we fail to load the generation we tracked in latestKnownRepoGen we reset it.
@@ -2940,6 +2944,30 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    /**
+     * Reads the {@link RepositoryData} of the given generation straight from the repository's root {@code index-N} blob. Unlike
+     * {@link #getRepositoryData(Executor, ActionListener)} this may run on any node (it does not need to be master-eligible), uses and
+     * updates none of the repository's caches or generation tracking, and leaves failures to the caller, e.g. a
+     * {@link java.nio.file.NoSuchFileException} when a newer generation has already replaced the requested one. It is meant for
+     * read-only observers such as data nodes that want to know which shard generations the repository currently holds, in which case
+     * {@code indexGen} should be {@link RepositoryMetadata#generation()}. Must run on a thread pool that may do repository I/O.
+     */
+    public RepositoryData readRepositoryData(long indexGen) throws IOException {
+        if (indexGen == RepositoryData.EMPTY_REPO_GEN) {
+            return RepositoryData.EMPTY;
+        }
+        final var repositoryDataBlobName = getRepositoryDataBlobName(indexGen);
+
+        // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
+        try (
+            InputStream blob = blobContainer().readBlob(OperationPurpose.SNAPSHOT_METADATA, repositoryDataBlobName);
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, blob)
+        ) {
+            return RepositoryData.snapshotsFromXContent(parser, indexGen, true);
+        }
+    }
+
     private static String testBlobPrefix(String seed) {
         return TESTS_FILE + seed;
     }
@@ -2947,6 +2975,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public boolean isReadOnly() {
         return readOnly;
+    }
+
+    /**
+     * @return the {@link #COMPLETION_TARGET_SETTING} of this repository
+     */
+    public TimeValue getCompletionTarget() {
+        return completionTarget;
     }
 
     /**

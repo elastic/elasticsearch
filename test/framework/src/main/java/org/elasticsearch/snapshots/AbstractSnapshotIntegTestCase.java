@@ -789,8 +789,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     protected static ShardRestoringException reportableRestoreExceptionOnMaster(Function<ClusterState, Index> indexIn) {
         final ClusterState state = masterClusterState();
         final Index index = indexIn.apply(state);
-        final ShardRestoringException byIndex = RestoreService.reportableRestoreException(index, state);
-        final ShardRestoringException byShard = RestoreService.reportableRestoreException(new ShardId(index, 0), state);
+        final ShardRestoringException byIndex = RestoreService.reportableRestoreException(ProjectId.DEFAULT, index, state);
+        final ShardRestoringException byShard = RestoreService.reportableRestoreException(ProjectId.DEFAULT, new ShardId(index, 0), state);
         assertEquals("the index and shard lookups must agree", byIndex == null, byShard == null);
         if (byIndex != null) {
             assertEquals(byIndex.recoveryId(), byShard.recoveryId());

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -457,8 +458,8 @@ public class RestoreServiceTests extends ESTestCase {
         var state = clusterStateOf(s);
         String restoreUuid = ((SnapshotRecoverySource) s.primary().recoverySource()).restoreUUID();
 
-        assertReportsRestore(RestoreService.reportableRestoreException(s.primary().shardId(), state), s, restoreUuid);
-        assertReportsRestore(RestoreService.reportableRestoreException(s.primary().index(), state), s, restoreUuid);
+        assertReportsRestore(RestoreService.reportableRestoreException(ProjectId.DEFAULT, s.primary().shardId(), state), s, restoreUuid);
+        assertReportsRestore(RestoreService.reportableRestoreException(ProjectId.DEFAULT, s.primary().index(), state), s, restoreUuid);
     }
 
     /**
@@ -470,8 +471,8 @@ public class RestoreServiceTests extends ESTestCase {
         var state = clusterStateOf(s);
         assertTrue(RestoreService.isRestoringShardFromSnapshot(s.restoreInProgress(), s.primary()));
 
-        assertNull(RestoreService.reportableRestoreException(s.primary().shardId(), state));
-        assertNull(RestoreService.reportableRestoreException(s.primary().index(), state));
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, s.primary().shardId(), state));
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, s.primary().index(), state));
     }
 
     /**
@@ -491,8 +492,16 @@ public class RestoreServiceTests extends ESTestCase {
         var state = clusterStateOf(unassigned);
         String restoreUuid = ((SnapshotRecoverySource) unassigned.primary().recoverySource()).restoreUUID();
 
-        assertReportsRestore(RestoreService.reportableRestoreException(unassigned.primary().shardId(), state), unassigned, restoreUuid);
-        assertReportsRestore(RestoreService.reportableRestoreException(unassigned.primary().index(), state), unassigned, restoreUuid);
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(ProjectId.DEFAULT, unassigned.primary().shardId(), state),
+            unassigned,
+            restoreUuid
+        );
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(ProjectId.DEFAULT, unassigned.primary().index(), state),
+            unassigned,
+            restoreUuid
+        );
     }
 
     /**
@@ -504,8 +513,8 @@ public class RestoreServiceTests extends ESTestCase {
         var state = clusterStateOf(s);
         var recreated = new Index(s.primary().index().getName(), randomUUID());
 
-        assertNull(RestoreService.reportableRestoreException(new ShardId(recreated, 0), state));
-        assertNull(RestoreService.reportableRestoreException(recreated, state));
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, new ShardId(recreated, 0), state));
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, recreated, state));
     }
 
     /**
@@ -515,7 +524,9 @@ public class RestoreServiceTests extends ESTestCase {
         var s = buildRestoreTestState(true);
         var state = clusterStateOf(s);
 
-        assertNull(RestoreService.reportableRestoreException(new ShardId(s.primary().index(), randomIntBetween(1, 10)), state));
+        assertNull(
+            RestoreService.reportableRestoreException(ProjectId.DEFAULT, new ShardId(s.primary().index(), randomIntBetween(1, 10)), state)
+        );
     }
 
     /**
@@ -573,11 +584,11 @@ public class RestoreServiceTests extends ESTestCase {
                 .addShard(unrelatedPrimary)
         );
 
-        assertNull(RestoreService.reportableRestoreException(failedShard, state));
-        assertReportsRestore(RestoreService.reportableRestoreException(restoringShard, state), s, restoreUuid);
-        assertNull(RestoreService.reportableRestoreException(startedShard, state));
-        assertNull(RestoreService.reportableRestoreException(unrelatedShard, state));
-        assertReportsRestore(RestoreService.reportableRestoreException(index, state), s, restoreUuid);
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, failedShard, state));
+        assertReportsRestore(RestoreService.reportableRestoreException(ProjectId.DEFAULT, restoringShard, state), s, restoreUuid);
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, startedShard, state));
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, unrelatedShard, state));
+        assertReportsRestore(RestoreService.reportableRestoreException(ProjectId.DEFAULT, index, state), s, restoreUuid);
     }
 
     /**
@@ -595,15 +606,15 @@ public class RestoreServiceTests extends ESTestCase {
             IndexRoutingTable.builder(reporting.primary().index()).addShard(reporting.primary())
         );
 
-        assertNull(RestoreService.reportableRestoreException(notReporting.primary().shardId(), state));
-        assertNull(RestoreService.reportableRestoreException(notReporting.primary().index(), state));
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, notReporting.primary().shardId(), state));
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, notReporting.primary().index(), state));
         assertReportsRestore(
-            RestoreService.reportableRestoreException(reporting.primary().shardId(), state),
+            RestoreService.reportableRestoreException(ProjectId.DEFAULT, reporting.primary().shardId(), state),
             reporting,
             ((SnapshotRecoverySource) reporting.primary().recoverySource()).restoreUUID()
         );
         assertReportsRestore(
-            RestoreService.reportableRestoreException(reporting.primary().index(), state),
+            RestoreService.reportableRestoreException(ProjectId.DEFAULT, reporting.primary().index(), state),
             reporting,
             ((SnapshotRecoverySource) reporting.primary().recoverySource()).restoreUUID()
         );
@@ -668,15 +679,19 @@ public class RestoreServiceTests extends ESTestCase {
             var restartedUuid = ((SnapshotRecoverySource) restarted.primary().recoverySource()).restoreUUID();
 
             if (restartedRestoreReports) {
-                assertReportsRestore(RestoreService.reportableRestoreException(shardId, state), restarted, restartedUuid);
                 assertReportsRestore(
-                    RestoreService.reportableRestoreException(restarted.primary().index(), state),
+                    RestoreService.reportableRestoreException(ProjectId.DEFAULT, shardId, state),
+                    restarted,
+                    restartedUuid
+                );
+                assertReportsRestore(
+                    RestoreService.reportableRestoreException(ProjectId.DEFAULT, restarted.primary().index(), state),
                     restarted,
                     restartedUuid
                 );
             } else {
-                assertNull(RestoreService.reportableRestoreException(shardId, state));
-                assertNull(RestoreService.reportableRestoreException(restarted.primary().index(), state));
+                assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, shardId, state));
+                assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, restarted.primary().index(), state));
             }
         }
     }
@@ -691,7 +706,7 @@ public class RestoreServiceTests extends ESTestCase {
             .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(s.primary().index()).addShard(s.primary())).build())
             .build();
 
-        assertNull(RestoreService.reportableRestoreException(s.primary().shardId(), state));
+        assertNull(RestoreService.reportableRestoreException(ProjectId.DEFAULT, s.primary().shardId(), state));
     }
 
     /**
@@ -711,10 +726,90 @@ public class RestoreServiceTests extends ESTestCase {
         var secondUuid = ((SnapshotRecoverySource) second.primary().recoverySource()).restoreUUID();
         assertThat(firstUuid, not(equalTo(secondUuid)));
 
-        assertReportsRestore(RestoreService.reportableRestoreException(first.primary().shardId(), state), first, firstUuid);
-        assertReportsRestore(RestoreService.reportableRestoreException(first.primary().index(), state), first, firstUuid);
-        assertReportsRestore(RestoreService.reportableRestoreException(second.primary().shardId(), state), second, secondUuid);
-        assertReportsRestore(RestoreService.reportableRestoreException(second.primary().index(), state), second, secondUuid);
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(ProjectId.DEFAULT, first.primary().shardId(), state),
+            first,
+            firstUuid
+        );
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(ProjectId.DEFAULT, first.primary().index(), state),
+            first,
+            firstUuid
+        );
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(ProjectId.DEFAULT, second.primary().shardId(), state),
+            second,
+            secondUuid
+        );
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(ProjectId.DEFAULT, second.primary().index(), state),
+            second,
+            secondUuid
+        );
+    }
+
+    /**
+     * With several projects in the cluster state, each lookup reads only the routing table of the project it is given, so a shard is
+     * reported under its own project and is not seen from another one. The deprecated {@code ClusterState#routingTable()} would throw here.
+     */
+    public void testReportableRestoreException_multipleProjects_readsOnlyTheRequestedProjectsRoutingTable() {
+        var inFirstProject = buildRestoreTestState(true);
+        var inSecondProject = buildRestoreTestState(true);
+        var firstProject = randomUniqueProjectId();
+        var secondProject = randomUniqueProjectId();
+        var restoreInProgressBuilder = new RestoreInProgress.Builder(inFirstProject.restoreInProgress());
+        inSecondProject.restoreInProgress().forEach(restoreInProgressBuilder::add);
+        // a cluster state needs metadata for exactly the projects that have a routing table
+        var metadata = Metadata.builder()
+            .removeProject(ProjectId.DEFAULT)
+            .put(ProjectMetadata.builder(firstProject))
+            .put(ProjectMetadata.builder(secondProject))
+            .build();
+        var state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .putRoutingTable(
+                firstProject,
+                RoutingTable.builder()
+                    .add(IndexRoutingTable.builder(inFirstProject.primary().index()).addShard(inFirstProject.primary()))
+                    .build()
+            )
+            .putRoutingTable(
+                secondProject,
+                RoutingTable.builder()
+                    .add(IndexRoutingTable.builder(inSecondProject.primary().index()).addShard(inSecondProject.primary()))
+                    .build()
+            )
+            .putCustom(RestoreInProgress.TYPE, restoreInProgressBuilder.build())
+            .build();
+        var firstUuid = ((SnapshotRecoverySource) inFirstProject.primary().recoverySource()).restoreUUID();
+        var secondUuid = ((SnapshotRecoverySource) inSecondProject.primary().recoverySource()).restoreUUID();
+
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(firstProject, inFirstProject.primary().shardId(), state),
+            inFirstProject,
+            firstUuid
+        );
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(firstProject, inFirstProject.primary().index(), state),
+            inFirstProject,
+            firstUuid
+        );
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(secondProject, inSecondProject.primary().shardId(), state),
+            inSecondProject,
+            secondUuid
+        );
+        assertReportsRestore(
+            RestoreService.reportableRestoreException(secondProject, inSecondProject.primary().index(), state),
+            inSecondProject,
+            secondUuid
+        );
+
+        // the other project's shards are not in this project's routing table
+        assertNull(RestoreService.reportableRestoreException(firstProject, inSecondProject.primary().shardId(), state));
+        assertNull(RestoreService.reportableRestoreException(firstProject, inSecondProject.primary().index(), state));
+        assertNull(RestoreService.reportableRestoreException(secondProject, inFirstProject.primary().shardId(), state));
+        assertNull(RestoreService.reportableRestoreException(secondProject, inFirstProject.primary().index(), state));
     }
 
     /**

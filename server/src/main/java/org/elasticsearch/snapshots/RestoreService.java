@@ -1837,13 +1837,15 @@ public final class RestoreService implements ClusterStateApplier {
      * really still being restored. There is then no entry to say the restore asked for its shards to be reported, so {@code null} is
      * returned.
      *
-     * @param shardId the shard to query
-     * @param state   the cluster state to read from
+     * @param projectId the project that contains the shard's index. Only that project's routing table is read, and the lookup fails if the
+     *                  cluster state has no routing table for it
+     * @param shardId   the shard to query
+     * @param state     the cluster state to read from
      * @return the exception to fail with, or {@code null} if the shard is not being restored by a restore that reports its shards
      */
     @Nullable
-    public static ShardRestoringException reportableRestoreException(ShardId shardId, ClusterState state) {
-        IndexRoutingTable indexRouting = state.routingTable().index(shardId.getIndex());
+    public static ShardRestoringException reportableRestoreException(ProjectId projectId, ShardId shardId, ClusterState state) {
+        IndexRoutingTable indexRouting = state.routingTable(projectId).index(shardId.getIndex());
         if (indexRouting == null) {
             return null;
         }
@@ -1856,16 +1858,17 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * As {@link #reportableRestoreException(ShardId, ClusterState)}, for index-level callers that do not have a concrete {@link ShardId}
-     * available at the point of failure. The exception is returned if any primary of the index qualifies.
+     * As {@link #reportableRestoreException(ProjectId, ShardId, ClusterState)}, for index-level callers that do not have a concrete
+     * {@link ShardId} available at the point of failure. The exception is returned if any primary of the index qualifies.
      *
-     * @param index the index to query
-     * @param state the cluster state to read from
+     * @param projectId the project that contains the index
+     * @param index     the index to query
+     * @param state     the cluster state to read from
      * @return the exception to fail with, or {@code null} if no primary of the index is being restored by a restore that reports its shards
      */
     @Nullable
-    public static ShardRestoringException reportableRestoreException(Index index, ClusterState state) {
-        IndexRoutingTable indexRouting = state.routingTable().index(index);
+    public static ShardRestoringException reportableRestoreException(ProjectId projectId, Index index, ClusterState state) {
+        IndexRoutingTable indexRouting = state.routingTable(projectId).index(index);
         if (indexRouting == null) {
             return null;
         }

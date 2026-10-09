@@ -35,7 +35,7 @@ public class FromLoadGenerator extends FromGenerator {
     public static final FromLoadGenerator INSTANCE = new FromLoadGenerator(SET_LOAD_PREFIX, () -> true);
     public static final FromLoadGenerator LOAD_ALL_INSTANCE = new FromLoadGenerator(
         SET_LOAD_ALL_PREFIX,
-        EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL::isEnabled
+        EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2::isEnabled
     );
 
     private final String setPrefix;

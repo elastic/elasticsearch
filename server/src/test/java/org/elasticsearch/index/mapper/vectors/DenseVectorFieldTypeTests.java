@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
@@ -1157,6 +1158,9 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
      * covered by the tests of the context itself.
      */
     private static SearchExecutionContext sliceContext(boolean sliceEnabled, SliceSelection slices) {
+        if (sliceEnabled) {
+            assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        }
         SearchExecutionContext context = mock(SearchExecutionContext.class);
         Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), sliceEnabled).build();
         when(context.getIndexSettings()).thenReturn(IndexSettingsModule.newIndexSettings("test", settings));

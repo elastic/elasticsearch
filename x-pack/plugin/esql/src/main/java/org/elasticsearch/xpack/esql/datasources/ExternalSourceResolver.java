@@ -3301,7 +3301,7 @@ public class ExternalSourceResolver {
         @Nullable Function<SchemaCacheEntry, String> boundReadOf,
         ActionListener<SourceMetadata> listener
     ) {
-        cachedResolveSingleSourceAsync(filePath, hint, storageIdentity, secretIdentity, config, admission, boundReadConfig, null, listener);
+        cachedResolveSingleSourceAsync(filePath, hint, storageIdentity, secretIdentity, config, admission, boundReadOf, null, listener);
     }
 
     /**
@@ -3318,7 +3318,7 @@ public class ExternalSourceResolver {
         String secretIdentity,
         Map<String, Object> config,
         @Nullable SchemaFanOutAdmission admission,
-        @Nullable String boundReadConfig,
+        @Nullable Function<SchemaCacheEntry, String> boundReadOf,
         @Nullable Map<String, Integer> sharedSampleSizeByFormat,
         ActionListener<SourceMetadata> listener
     ) {

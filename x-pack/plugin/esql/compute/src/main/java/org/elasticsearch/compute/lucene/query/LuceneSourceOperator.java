@@ -14,6 +14,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -429,6 +430,17 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
     }
 
+    /**
+     * Collects doc ids into {@link #docIds} until the limit is exhausted. The unchecked {@code docIds} writes (in all three
+     * collection methods) are safe because {@link LuceneScorer#scoreNextRange} clamps every scored window to
+     * {@code maxPageSize - currentPagePos} docs and bulk scorers only deliver docs within the requested window.
+     *
+     * <p>{@link #collectRange} and {@link #collect(DocIdStream)} do <em>not</em> delegate to {@link #collect(int)}: the bulk
+     * scorer's dense-run shortcut only pays off if these write the run in a counted loop instead of one virtual call per
+     * document (whose inlining depends on how polluted the shared {@code LeafCollector#collect(int)} call site's profile is).
+     * Subclasses that override {@link #collect(int)} to do per-document work must override the bulk methods too, as
+     * {@link ScoringCollector} does.
+     */
     class LimitingCollector implements LeafCollector {
         @Override
         public void setScorer(Scorable scorer) {}
@@ -441,6 +453,33 @@ public class LuceneSourceOperator extends LuceneOperator {
             } else {
                 throw new CollectionTerminatedException();
             }
+        }
+
+        @Override
+        public void collectRange(int min, int max) throws IOException {
+            // Only the limit can cut the range short; the window is already clamped to the docIds capacity.
+            final int len = Math.min(max - min, remainingDocs);
+            final int pos = currentPagePos;
+            for (int i = 0; i < len; i++) {
+                docIds[pos + i] = min + i;
+            }
+            currentPagePos = pos + len;
+            remainingDocs -= len;
+            if (len < max - min) {
+                throw new CollectionTerminatedException();
+            }
+        }
+
+        @Override
+        public void collect(DocIdStream stream) throws IOException {
+            stream.forEach(doc -> {
+                if (remainingDocs > 0) {
+                    --remainingDocs;
+                    docIds[currentPagePos++] = doc;
+                } else {
+                    throw new CollectionTerminatedException();
+                }
+            });
         }
 
         @Override
@@ -461,6 +500,22 @@ public class LuceneSourceOperator extends LuceneOperator {
         public void collect(int doc) throws IOException {
             super.collect(doc);
             scoreBuilder.appendDouble(scorable.score());
+        }
+
+        // The bulk methods must collect per document so that scoreBuilder stays in sync with docIds. Bulk scorers normally
+        // only use them when scores aren't needed, but restoring the per-document loop here keeps this collector correct if
+        // one ever does.
+
+        @Override
+        public void collectRange(int min, int max) throws IOException {
+            for (int doc = min; doc < max; doc++) {
+                collect(doc);
+            }
+        }
+
+        @Override
+        public void collect(DocIdStream stream) throws IOException {
+            stream.forEach(this::collect);
         }
     }
 

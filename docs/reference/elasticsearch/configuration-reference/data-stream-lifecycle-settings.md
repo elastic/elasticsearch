@@ -71,6 +71,11 @@ $$$data-streams-lifecycle-downsampling-max-indices-in-progress$$$
 `data_streams.lifecycle.downsampling.max_indices_in_progress` {applies_to}`serverless: ga` {applies_to}`stack: ga 9.5`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) The maximum number of indices per data stream that can be submitted for downsampling by data stream lifecycle. Defaults to `10`.
 
+$$$data-streams-lifecycle-prefer-by-default-metrics-enabled$$$
+
+`data_streams.lifecycle.prefer_by_default.metrics_enabled` {applies_to}`stack: ga 9.6`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), Boolean) Whether new backing indices of time series data streams that use the unmodified, pre-installed `metrics` policy default `index.lifecycle.prefer_ilm` to `false`, so that they are managed by the data stream lifecycle instead of {{ilm}}. An explicit `index.lifecycle.prefer_ilm` value in the index template or create index request always takes precedence. Changing this setting does not affect existing indices. Defaults to `true`.
+
 ## Frozen tier transition settings [_frozen_tier_transition_settings]
 ```{applies_to}
 stack: ga 9.5

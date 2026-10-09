@@ -1,0 +1,6 @@
+area: Data streams
+issues:
+ - 125685
+pr: 161250
+summary: Apply index setting providers to get data streams
+type: bug

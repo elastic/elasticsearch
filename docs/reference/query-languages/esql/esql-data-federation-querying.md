@@ -58,7 +58,8 @@ The general query performance advice in [optimize {{esql}} query performance](es
 {{es}} caches dataset metadata on each node so that repeated queries against the same dataset don't discover files and read file metadata again each time:
 
 - **File listings** are reused for a fixed time before {{es}} lists the storage again. A file added to or removed from the bucket becomes visible once the listing expires.
-- **Inferred schemas** are invalidated when the underlying file changes. {applies_to}`stack: experimental 9.6+` A schema is also reused for at most 20 minutes by default.
+- **Inferred schemas** are invalidated when the underlying file changes. 
+  - {applies_to}`stack: experimental 9.6+` Additionally, a schema is reused for at most 20 minutes by default.
 - {applies_to}`stack: experimental 9.6+` **Footers of columnar files**, such as Parquet footers, are reused for 5 minutes by default.
 
 The data in your files is not cached. Every query reads the rows it needs from object storage, so running the same query again or refreshing a dashboard reads the data again.

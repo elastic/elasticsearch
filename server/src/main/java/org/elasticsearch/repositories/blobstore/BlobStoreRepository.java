@@ -78,6 +78,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -569,21 +570,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 .execute(ActionRunnable.wrap(listener, this::doGetRepositoryData))
         );
         final BackgroundNetworkQos backgroundNetworkQos = recoverySettings.getBackgroundNetworkQos();
-        if (backgroundNetworkQos != null) {
-            // one node-level upload runner shared by all repositories, whose concurrency the node adjusts
-            shardSnapshotTaskRunner = new ShardSnapshotTaskRunner(
-                backgroundNetworkQos.getUploadTaskRunner(),
-                this::doSnapshotShard,
-                this::snapshotFile
-            );
-        } else {
-            shardSnapshotTaskRunner = new ShardSnapshotTaskRunner(
+        // each repository has its own runner, as it always had, except that tasks go to the node's shared runner while the node adapts
+        // its upload concurrency, which then sets the concurrency of all repositories together
+        final PrioritizedThrottledTaskRunner<ShardSnapshotTaskRunner.SnapshotTask> ownShardSnapshotTaskRunner =
+            new PrioritizedThrottledTaskRunner<>(
+                ShardSnapshotTaskRunner.TASK_RUNNER_NAME,
                 threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
-                threadPool.executor(ThreadPool.Names.SNAPSHOT),
-                this::doSnapshotShard,
-                this::snapshotFile
+                threadPool.executor(ThreadPool.Names.SNAPSHOT)
             );
-        }
+        shardSnapshotTaskRunner = new ShardSnapshotTaskRunner(
+            () -> backgroundNetworkQos == null
+                ? ownShardSnapshotTaskRunner
+                : backgroundNetworkQos.selectUploadTaskRunner(ownShardSnapshotTaskRunner),
+            this::doSnapshotShard,
+            this::snapshotFile
+        );
         staleBlobDeleteRunner = new ThrottledTaskRunner(
             "cleanupStaleBlobs",
             threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
@@ -4027,18 +4028,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public InputStream maybeRateLimitSnapshots(InputStream stream, RateLimitingInputStream.Listener throttleListener) {
         final BackgroundNetworkQos backgroundNetworkQos = recoverySettings.getBackgroundNetworkQos();
-        final RateLimitingInputStream.Listener listener = backgroundNetworkQos == null
-            ? throttleListener
-            : backgroundNetworkQos.wrapUploadThrottleListener(throttleListener);
+        if (backgroundNetworkQos == null || backgroundNetworkQos.isActive() == false) {
+            InputStream rateLimitStream = maybeRateLimit(stream, () -> snapshotRateLimiter, throttleListener);
+            if (recoverySettings.nodeBandwidthSettingsExist()) {
+                rateLimitStream = maybeRateLimit(rateLimitStream, recoverySettings::rateLimiter, throttleListener);
+            }
+            return rateLimitStream;
+        }
+        final RateLimitingInputStream.Listener listener = backgroundNetworkQos.wrapUploadThrottleListener(throttleListener);
         InputStream rateLimitStream = maybeRateLimit(stream, () -> snapshotRateLimiter, listener);
-        if (backgroundNetworkQos != null && backgroundNetworkQos.isBackgroundQosEnabled()) {
+        if (backgroundNetworkQos.isBackgroundQosEnabled()) {
             // the snapshot reads each byte from the object store and uploads it, so it uses both background directions
             rateLimitStream = maybeRateLimit(rateLimitStream, backgroundNetworkQos::getIngressLimiter, listener);
             rateLimitStream = maybeRateLimit(rateLimitStream, backgroundNetworkQos::getEgressLimiter, listener);
         } else if (recoverySettings.nodeBandwidthSettingsExist()) {
             rateLimitStream = maybeRateLimit(rateLimitStream, recoverySettings::rateLimiter, listener);
         }
-        return backgroundNetworkQos == null ? rateLimitStream : backgroundNetworkQos.countUploadBytes(rateLimitStream);
+        return backgroundNetworkQos.countUploadBytes(rateLimitStream);
     }
 
     @Override
@@ -4360,6 +4366,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 AtomicLong totalTimeSpendReadingInNanos = new AtomicLong();
 
                 // Make reads abortable by mutating the snapshotStatus object
+                stage = UploadStage.OPEN_SOURCE;
                 final InputStream inputStream = new FilterInputStream(maybeRateLimitSnapshots(fileReader.openInput(partBytes))) {
                     @Override
                     public int read() throws IOException {

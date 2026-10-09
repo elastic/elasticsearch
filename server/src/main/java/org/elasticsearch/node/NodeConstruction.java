@@ -810,7 +810,8 @@ class NodeConstruction {
         final BackgroundNetworkQos backgroundNetworkQos = new BackgroundNetworkQos(
             settingsModule.getClusterSettings(),
             threadPool,
-            recoverySettings
+            recoverySettings,
+            DiscoveryNode.isStateless(settings)
         );
         recoverySettings.setBackgroundNetworkQos(backgroundNetworkQos);
         RepositoriesModule repositoriesModule = new RepositoriesModule(

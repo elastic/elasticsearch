@@ -435,6 +435,7 @@ public class RecoverySettings {
 
     @Nullable
     private volatile BackgroundNetworkQos backgroundNetworkQos;
+    private volatile ByteSizeValue explicitMaxBytesPerSec = ByteSizeValue.MINUS_ONE;
 
     @SuppressWarnings("this-escape")
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
@@ -509,6 +510,9 @@ public class RecoverySettings {
     }
 
     private void computeMaxBytesPerSec(Settings settings) {
+        explicitMaxBytesPerSec = INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.exists(settings)
+            ? INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings)
+            : ByteSizeValue.MINUS_ONE;
         // limit as computed before 8.1.0
         final long defaultBytesPerSec = Math.max(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings).getBytes(), 0L);
 
@@ -673,6 +677,14 @@ public class RecoverySettings {
      */
     public ByteSizeValue getAvailableNetworkBandwidth() {
         return availableNetworkBandwidth;
+    }
+
+    /**
+     * The value of {@link #INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING} if an operator set it, otherwise {@link ByteSizeValue#MINUS_ONE}.
+     * Zero means no limit.
+     */
+    public ByteSizeValue getExplicitMaxBytesPerSec() {
+        return explicitMaxBytesPerSec;
     }
 
     /**

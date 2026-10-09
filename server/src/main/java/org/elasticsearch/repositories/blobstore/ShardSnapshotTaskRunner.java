@@ -36,7 +36,7 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
 public class ShardSnapshotTaskRunner {
     private static final Logger logger = LogManager.getLogger(ShardSnapshotTaskRunner.class);
     public static final String TASK_RUNNER_NAME = "ShardSnapshotTaskRunner";
-    private final PrioritizedThrottledTaskRunner<SnapshotTask> taskRunner;
+    private final Supplier<PrioritizedThrottledTaskRunner<SnapshotTask>> taskRunnerSupplier;
     private final Consumer<SnapshotShardContext> shardSnapshotter;
     private final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter;
 
@@ -149,22 +149,30 @@ public class ShardSnapshotTaskRunner {
         this(new PrioritizedThrottledTaskRunner<>(TASK_RUNNER_NAME, maxRunningTasks, executor), shardSnapshotter, fileSnapshotter);
     }
 
-    /**
-     * Creates a runner that enqueues its tasks into the given (possibly shared) task runner.
-     */
     public ShardSnapshotTaskRunner(
         final PrioritizedThrottledTaskRunner<SnapshotTask> taskRunner,
         final Consumer<SnapshotShardContext> shardSnapshotter,
         final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter
     ) {
-        this.taskRunner = taskRunner;
+        this(() -> taskRunner, shardSnapshotter, fileSnapshotter);
+    }
+
+    /**
+     * Creates a runner that asks for the task runner to enqueue each task into, so that it can choose between runners as it goes.
+     */
+    public ShardSnapshotTaskRunner(
+        final Supplier<PrioritizedThrottledTaskRunner<SnapshotTask>> taskRunnerSupplier,
+        final Consumer<SnapshotShardContext> shardSnapshotter,
+        final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter
+    ) {
+        this.taskRunnerSupplier = taskRunnerSupplier;
         this.shardSnapshotter = shardSnapshotter;
         this.fileSnapshotter = fileSnapshotter;
     }
 
     public void enqueueShardSnapshot(final SnapshotShardContext context) {
         ShardSnapshotTask task = new ShardSnapshotTask(context);
-        taskRunner.enqueueTask(task);
+        taskRunnerSupplier.get().enqueueTask(task);
     }
 
     public void enqueueFileSnapshot(
@@ -173,16 +181,16 @@ public class ShardSnapshotTaskRunner {
         final ActionListener<Void> listener
     ) {
         final FileSnapshotTask task = new FileSnapshotTask(context, fileInfos, listener);
-        taskRunner.enqueueTask(task);
+        taskRunnerSupplier.get().enqueueTask(task);
     }
 
     // visible for testing
     int runningTasks() {
-        return taskRunner.runningTasks();
+        return taskRunnerSupplier.get().runningTasks();
     }
 
     // visible for testing
     int queueSize() {
-        return taskRunner.queueSize();
+        return taskRunnerSupplier.get().queueSize();
     }
 }

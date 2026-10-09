@@ -70,9 +70,7 @@ public class AsyncTaskMaintenanceServiceTests extends ESTestCase {
                 RoutingTable.builder()
                     .add(
                         IndexRoutingTable.builder(index)
-                            .addShard(
-                                TestShardRouting.newShardRouting(new ShardId(index, 0), localNodeId, true, ShardRoutingState.STARTED)
-                            )
+                            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), localNodeId, true, ShardRoutingState.STARTED))
                             .build()
                     )
                     .build()

@@ -220,11 +220,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<Boolean> UPDATABLE_AUTO_CALIBRATE = Setting.boolSetting("index.dense_vector.update_auto_calibrate", s -> {
-        IndexVersion version = SETTING_INDEX_VERSION_CREATED.get(s);
-        return String.valueOf(version.onOrAfter(IndexVersions.UPDATABLE_AUTO_CALIBRATE));
-    }, Setting.Property.IndexScope, Setting.Property.ServerlessPublic, Setting.Property.Dynamic);
-
     /**
      * Selectivity threshold above which a filtered knn query is routed through the post-filter
      * pipeline: the vector search runs unfiltered, the filter is applied to the raw candidate set, and a

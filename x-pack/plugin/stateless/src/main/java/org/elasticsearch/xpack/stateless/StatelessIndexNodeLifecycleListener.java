@@ -149,6 +149,15 @@ class StatelessIndexNodeLifecycleListener implements IndexEventListener {
     }
 
     @Override
+    public void afterIndexShardClosing(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+        if (indexShard != null) {
+            // Remove the blocker as soon as the shard is marked closed. Engine closure can run asynchronously
+            // after the index has left IndicesService, and may finish after HollowShardsService is closed.
+            hollowShardsService.removeHollowShard(indexShard, "index shard closing");
+        }
+    }
+
+    @Override
     public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
             statelessCommitService.unregisterCommitNotificationSuccessListener(shardId);

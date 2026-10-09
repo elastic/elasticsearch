@@ -287,6 +287,42 @@ public class QuerySamplerTests extends ESTestCase {
         assertThat(hard.inclusionProbability() / easy.inclusionProbability(), closeTo(Math.exp(2.0), 1e-9));
     }
 
+    /**
+     * A γ that is raised to reach a target has to be able to make up for the strata: the probability is capped after
+     * the factors are applied, not before.
+     */
+    public void testAHighScaleMakesUpForTheFactorOfACrowdedCluster() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder()
+                .put(QuerySamplingSettings.SPATIAL_BALANCE.getKey(), 1.0)
+                .put(QuerySamplingSettings.ACCEPTANCE_SCALE.getKey(), 10.0)
+                .build(),
+            Set.of(
+                QuerySamplingSettings.ACCEPTANCE_SCALE,
+                QuerySamplingSettings.HEAD_THRESHOLD,
+                QuerySamplingSettings.MAX_PICKS_PER_HOUR,
+                QuerySamplingSettings.TARGET_PICKS_PER_HOUR,
+                QuerySamplingSettings.SPATIAL_BALANCE,
+                QuerySamplingSettings.HARDNESS_TILT
+            )
+        );
+        QuerySampler sampler = new QuerySampler(1.0, 1000, alwaysDrawing(0.999999), new PickBudget(System::nanoTime), new SpatialStrata(2));
+        sampler.watch(clusterSettings);
+        MultiplicityTracker tracker = new MultiplicityTracker(1000);
+        TrackedQuery dense = tracker.record(new QueryFingerprint(0, 0));
+        sampler.assignStratum(dense, "vector", new float[] { 0, 0 });
+        sampler.assignStratum(tracker.record(new QueryFingerprint(100, 100)), "vector", new float[] { 10, 10 });
+        for (int i = 1; i < 9; i++) {
+            dense = tracker.record(new QueryFingerprint(i, i));
+            sampler.assignStratum(dense, "vector", new float[] { 0.01f * i, 0 });
+        }
+
+        sampler.offer(dense);
+
+        // 9 of the 10 queries are in its cluster: a factor of 5/9, and 10 · ln 2 · 5/9 is more than one
+        assertThat(dense.inclusionProbability(), equalTo(1.0));
+    }
+
     public void testProbabilityIsCappedAtOne() {
         assertThat(new QuerySampler(10, 100, seededRandom()).acceptanceProbability(1), equalTo(1.0));
     }

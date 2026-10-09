@@ -153,7 +153,16 @@ public final class QuerySampler {
         if (multiplicity >= headThreshold) {
             return 1.0;
         }
-        return Math.min(1.0, effectiveScale() * Math.log1p(weight / (1.0 + multiplicity - weight)));
+        return Math.min(1.0, uncappedAcceptance(multiplicity, weight));
+    }
+
+    /**
+     * The acceptance of a query that is not a head query, before it is capped at one. The factors of the strata are
+     * applied to this and the result is capped: capping first would leave a query of a crowded cluster with a probability
+     * of the factor, however high γ is, and a γ that is raised to reach a target could not get there.
+     */
+    private double uncappedAcceptance(double multiplicity, double weight) {
+        return effectiveScale() * Math.log1p(weight / (1.0 + multiplicity - weight));
     }
 
     /**
@@ -180,9 +189,10 @@ public final class QuerySampler {
     public boolean offer(TrackedQuery query) {
         double multiplicity = query.weightedMultiplicity();
         boolean head = multiplicity >= headThreshold;
-        double probability = acceptanceProbability(multiplicity, query.lastArrivalWeight());
+        double probability = 1.0;
         if (head == false) {
-            probability = Math.min(1.0, probability * spatial.factor(query.stratum()) * hardness.factor(query.hardness()));
+            double strata = spatial.factor(query.stratum()) * hardness.factor(query.hardness());
+            probability = Math.min(1.0, uncappedAcceptance(multiplicity, query.lastArrivalWeight()) * strata);
         }
         if (head == false && budget.available() == false) {
             // the limit on the picks is reached: the query has no chance now, and that is what is recorded for it, as for

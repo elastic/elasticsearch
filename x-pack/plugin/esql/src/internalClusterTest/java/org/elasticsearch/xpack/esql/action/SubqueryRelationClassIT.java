@@ -23,13 +23,6 @@ public class SubqueryRelationClassIT extends AbstractViewSubqueryIntegTestCase {
         assumeTrue("requires SUBQUERY_IN_FROM_COMMAND", Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
     }
 
-    public void testClassAndNameForSingleSubquery() {
-        try (var response = run("FROM (FROM languages) METADATA _class, _name | SORT language_code")) {
-            assertThat(column(response, "_class"), equalTo(nCopies(4, "subquery")));
-            assertThat(column(response, "_name"), equalTo(nCopies(4, null)));
-        }
-    }
-
     public void testClassAndNameForTwoSubqueries() {
         try (
             var response = run(

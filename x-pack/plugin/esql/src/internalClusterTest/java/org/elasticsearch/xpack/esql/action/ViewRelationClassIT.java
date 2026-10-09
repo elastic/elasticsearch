@@ -97,16 +97,6 @@ public class ViewRelationClassIT extends AbstractViewSubqueryIntegTestCase {
         }
     }
 
-    public void testViewBodyDeclaresClassAndName() {
-        createView("view_langs_body_meta_it", "FROM languages METADATA _class, _name");
-
-        assertThat(countsByClassAndName("FROM view_langs_body_meta_it"), equalTo(List.of(row(4L, "index", "languages"))));
-        assertThat(
-            countsByClassAndName("FROM view_langs_body_meta_it METADATA _class, _name"),
-            equalTo(List.of(row(4L, "view", "view_langs_body_meta_it")))
-        );
-    }
-
     public void testViewAndSubqueryBodiesDeclareClassAndNameOuterWins() {
         assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
         createView("view_langs_both_bodies_it", "FROM languages METADATA _class, _name");

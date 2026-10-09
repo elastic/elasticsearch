@@ -57,7 +57,7 @@ public final class RowGroupIo {
 
     /**
      * Drops {@code n} GETs that were counted in {@link #addUnissued} but will never start
-     * (for example after {@code admitWait} fails and remaining misses are not issued).
+     * (for example after a ticket is cancelled and remaining misses are not issued).
      * Does not change in-flight; those GETs never called {@link #onGetStart}.
      */
     public void forgetUnissued(int n) {

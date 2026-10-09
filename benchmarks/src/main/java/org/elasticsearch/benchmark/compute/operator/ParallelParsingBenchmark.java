@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -77,7 +78,7 @@ public class ParallelParsingBenchmark {
     }
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("bench"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     private static final List<Attribute> SCHEMA = List.of(
@@ -309,6 +310,11 @@ public class ParallelParsingBenchmark {
     }
 
     private static class InMemoryStorageObject implements StorageObject {
+        /** One identity for all in-memory fixtures, so footer-cache entries stay keyed by URI alone as before. */
+        private record BenchIdentity() implements StorageIdentity {}
+
+        private static final BenchIdentity BENCH_IDENTITY = new BenchIdentity();
+
         private final byte[] data;
 
         InMemoryStorageObject(byte[] data) {
@@ -349,6 +355,11 @@ public class ParallelParsingBenchmark {
         @Override
         public boolean exists() {
             return true;
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return BENCH_IDENTITY;
         }
 
         @Override

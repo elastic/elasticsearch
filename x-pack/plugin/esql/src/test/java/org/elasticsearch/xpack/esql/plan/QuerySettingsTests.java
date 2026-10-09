@@ -18,6 +18,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -66,13 +67,13 @@ import static org.mockito.Mockito.verify;
 
 public class QuerySettingsTests extends ESTestCase {
 
-    private static SettingsValidationContext NON_SNAPSHOT_CTX_WITH_CPS_ENABLED = new SettingsValidationContext(true, false);
+    private static final SettingsValidationContext NON_SNAPSHOT_CTX_WITH_CPS_ENABLED = new SettingsValidationContext(true, false);
 
-    private static SettingsValidationContext SNAPSHOT_CTX_WITH_CPS_ENABLED = new SettingsValidationContext(true, true);
+    private static final SettingsValidationContext SNAPSHOT_CTX_WITH_CPS_ENABLED = new SettingsValidationContext(true, true);
 
-    private static SettingsValidationContext SNAPSHOT_CTX_WITH_CPS_DISABLED = new SettingsValidationContext(false, true);
+    private static final SettingsValidationContext SNAPSHOT_CTX_WITH_CPS_DISABLED = new SettingsValidationContext(false, true);
 
-    private static List<SettingsValidationContext> allSettingsValidationContexts = List.of(
+    private static final List<SettingsValidationContext> allSettingsValidationContexts = List.of(
         NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
         SNAPSHOT_CTX_WITH_CPS_ENABLED,
         SNAPSHOT_CTX_WITH_CPS_DISABLED
@@ -644,6 +645,11 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(QuerySettings.COLUMN_METADATA.aliases().isEmpty(), is(true));
     }
 
+    public void testExemplarsIsRequestBodyExposedWithoutAlias() {
+        assertThat(QuerySettings.EXEMPLARS.requestBody(), is(true));
+        assertThat(QuerySettings.EXEMPLARS.aliases().isEmpty(), is(true));
+    }
+
     public void testResolveColumnMetadataDefault() {
         // Nothing supplied it anywhere (no body, no SET) — the registered default applies.
         ResolvedSettings resolved = QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
@@ -739,7 +745,8 @@ public class QuerySettingsTests extends ESTestCase {
                     "esql.query.settings.unmapped_fields",
                     "esql.query.settings.column_metadata",
                     "esql.query.settings.approximation",
-                    "esql.query.settings.wildcards_match_datasets"
+                    "esql.query.settings.wildcards_match_datasets",
+                    "esql.query.settings.wildcards_match_views"
                 )
             )
         );
@@ -1004,6 +1011,58 @@ public class QuerySettingsTests extends ESTestCase {
             SNAPSHOT_CTX_WITH_CPS_ENABLED
         );
         assertThat(resolved.get(QuerySettings.WILDCARDS_MATCH_DATASETS), equalTo(Boolean.TRUE));
+    }
+
+    public void testWildcardsMatchViewsDefaultsToFalse() {
+        // Nothing supplied it anywhere — a wildcard matches no view, which is the opt-in behavior.
+        ResolvedSettings resolved = QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(QuerySettings.WILDCARDS_MATCH_VIEWS), equalTo(Boolean.FALSE));
+    }
+
+    public void testWildcardsMatchViewsClusterDefaultApplies() {
+        // The operator's cluster-wide default supplies the value when the query says nothing.
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterSetting(QuerySettings.WILDCARDS_MATCH_VIEWS, "true"),
+            Settings.EMPTY,
+            Map.of(),
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(resolved.get(QuerySettings.WILDCARDS_MATCH_VIEWS), equalTo(Boolean.TRUE));
+    }
+
+    public void testWildcardsMatchViewsRequestBodyOverridesClusterDefault() {
+        // The operator turned it on cluster-wide; this calling application wants the index-only meaning back.
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.WILDCARDS_MATCH_VIEWS, Boolean.FALSE);
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterSetting(QuerySettings.WILDCARDS_MATCH_VIEWS, "true"),
+            Settings.EMPTY,
+            requestParams,
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(resolved.get(QuerySettings.WILDCARDS_MATCH_VIEWS), equalTo(Boolean.FALSE));
+    }
+
+    public void testWildcardsMatchViewsQuerySetOverridesClusterDefaultAndBody() {
+        // The full chain: the operator leaves it off, the calling application leaves it off, and the query author
+        // opts this one query into wildcard discovery. The narrowest scope of authority wins.
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.WILDCARDS_MATCH_VIEWS, Boolean.FALSE);
+        QuerySetting set = new QuerySetting(
+            Source.EMPTY,
+            new Alias(Source.EMPTY, "wildcards_match_views", new Literal(Source.EMPTY, true, DataType.BOOLEAN))
+        );
+        EsqlStatement statement = new EsqlStatement(null, List.of(set));
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterSetting(QuerySettings.WILDCARDS_MATCH_VIEWS, "false"),
+            Settings.EMPTY,
+            requestParams,
+            statement,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(resolved.get(QuerySettings.WILDCARDS_MATCH_VIEWS), equalTo(Boolean.TRUE));
     }
 
     public void testDerivedClusterSettingIsDynamicAndNodeScoped() {
@@ -1324,6 +1383,46 @@ public class QuerySettingsTests extends ESTestCase {
             SNAPSHOT_CTX_WITH_CPS_ENABLED
         );
         assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.NULLIFY));
+    }
+
+    /**
+     * A limit of 0 on the fields {@code LOAD_ALL} discovers makes it behave like {@code LOAD}, which is settled when the query
+     * settings are resolved, so that every phase of the query sees {@code LOAD}.
+     */
+    public void testLoadAllResolvesToLoadWhenTheLoadAllFieldLimitIsZero() {
+        assumeTrue("requires the LOAD_ALL field limit", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled());
+
+        ResolvedSettings resolved = resolveWithLoadAllFieldLimit(clusterSetting(QuerySettings.UNMAPPED_FIELDS, "LOAD_ALL"), 0);
+
+        assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.LOAD));
+    }
+
+    public void testLoadAllStaysLoadAllWhenTheLoadAllFieldLimitIsPositive() {
+        assumeTrue("requires the LOAD_ALL field limit", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled());
+
+        ResolvedSettings resolved = resolveWithLoadAllFieldLimit(
+            clusterSetting(QuerySettings.UNMAPPED_FIELDS, "LOAD_ALL"),
+            between(1, 100_000)
+        );
+
+        assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(UnmappedResolution.LOAD_ALL));
+    }
+
+    public void testOtherUnmappedFieldsResolutionsAreLeftAloneByAZeroLoadAllFieldLimit() {
+        assumeTrue("requires the LOAD_ALL field limit", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled());
+        for (UnmappedResolution resolution : new UnmappedResolution[] {
+            UnmappedResolution.DEFAULT,
+            UnmappedResolution.NULLIFY,
+            UnmappedResolution.LOAD }) {
+            ResolvedSettings resolved = resolveWithLoadAllFieldLimit(clusterSetting(QuerySettings.UNMAPPED_FIELDS, resolution.name()), 0);
+
+            assertThat(resolved.get(QuerySettings.UNMAPPED_FIELDS), equalTo(resolution));
+        }
+    }
+
+    private static ResolvedSettings resolveWithLoadAllFieldLimit(Settings clusterState, int loadAllMaxFields) {
+        // No approximation is in play, so the license is never asked.
+        return QuerySettings.resolve(clusterState, Settings.EMPTY, Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED, null, loadAllMaxFields);
     }
 
     public void testDerivedClusterSettingRejectsMalformedValueAtWriteTime() {

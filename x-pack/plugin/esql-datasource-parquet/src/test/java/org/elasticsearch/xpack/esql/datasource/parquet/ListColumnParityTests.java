@@ -33,7 +33,9 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -95,7 +97,7 @@ public class ListColumnParityTests extends ESTestCase {
     }
 
     public void testBaselineAndOptimizedProduceSameListsForAllCodecs() throws Exception {
-        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         // Mixed schema with both an int list and a string list, plus a flat scalar to exercise
         // the maxRepLevel == 0 + maxRepLevel > 0 mixed-projection path in the iterator.
@@ -265,6 +267,11 @@ public class ListColumnParityTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);

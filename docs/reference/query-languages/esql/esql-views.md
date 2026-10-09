@@ -71,6 +71,16 @@ Use the REST API to create, update, delete, and list views:
 * [Delete a view](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-delete-view)
 * [Get or list views](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-get-view)
 
+### Reserved views [esql-views-reserved]
+Some views are reserved. {{es}} or its components create them, not users. A reserved view is marked with `"reserved": true` in the [get view](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-get-view) response.
+
+You cannot modify or delete a reserved view through the REST API:
+
+* `PUT /_query/view/<name>` fails if a reserved view with that name exists. You also cannot set `reserved` in a request.
+* `DELETE /_query/view/<name>` fails with `cannot delete reserved view [<name>]`.
+
+You can query and read a reserved view like any other view, subject to the same [privileges](#esql-views-privileges).
+
 ## Query a view
 
 Use views as if they were ordinary indices:
@@ -81,6 +91,18 @@ FROM index_pattern
 
 Where `index_pattern` is a comma-separated list of index or view names, including
 wildcards and date-math.
+
+### Wildcard patterns and views [esql-views-wildcards]
+By default, a wildcard pattern in `FROM` does not match views. `FROM my_view` reads the view by exact name, while `FROM my-view-*` resolves to indices, data streams, and aliases only — registered views are excluded.
+
+To include views in wildcard resolution, enable the `wildcards_match_views` setting:
+
+```esql
+SET wildcards_match_views = true;
+FROM my-view-*
+```
+
+You can also send it in the `_query` request body as `"settings": {"wildcards_match_views": true}`, or change the cluster-wide default by setting `esql.query.settings.wildcards_match_views` in `elasticsearch.yml` or via the cluster settings API. A value set in the query overrides the request body, which overrides the cluster default.
 
 ## Privileges [esql-views-privileges]
 
@@ -146,6 +168,10 @@ The same country might appear in multiple views, producing multiple rows.
 We could combine these with a `STATS` command, using `SUM(count) BY country`.
 
 ### Use wildcards
+
+:::{note}
+This example requires `wildcards_match_views = true`. By default, wildcards do not match views. Refer to [wildcard patterns and views](#esql-views-wildcards).
+:::
 
 :::{include} _snippets/commands/examples/views.csv-spec/views_country_wildcard_sum.md
 :::
@@ -287,6 +313,6 @@ For a detailed comparison of views, subqueries, and `FORK`, refer to [Combine an
 
 ## Related pages
 
-* [ES|QL subqueries](/reference/query-languages/esql/esql-subquery.md): nest queries inside other queries, either in `FROM` or `WHERE`.
+* [ES|QL subqueries](/reference/query-languages/esql/esql-subquery.md): nest queries inside other queries, in `FROM` or with `IN` / `NOT IN`.
 * [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions, where view names are used.
 * [Query multiple indices](/reference/query-languages/esql/esql-multi-index.md): how index patterns, wildcards, and date math combine sources in a single `FROM`.

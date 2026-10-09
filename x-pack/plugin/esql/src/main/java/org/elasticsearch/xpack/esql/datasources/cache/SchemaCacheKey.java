@@ -7,237 +7,87 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
-
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.TreeMap;
-
 /**
  * Cache key for schema inference results. Includes mtime-in-key for invalidation.
- * Endpoint and region are included because the same canonical path on different
- * endpoints resolves to different objects.
  * <p>
- * {@code fileSetFingerprint} carries the 128-bit fingerprint of the resolved file set for a
- * dataset-level aggregate key (see {@link #forDatasetAggregate}); it is {@code null} for every
- * per-file key. A named component rather than smuggling the fingerprint into the mtime/path slots —
- * record equality/hashCode pick it up automatically.
+ * {@code dataset} is which dataset, read through which data source, this record belongs to - see
+ * {@link DatasetIdentity}. One reference in place of the dataset's share of the address. It is NOT shared
+ * one instance per resolve: the resolver derives it per mint site, because the participant fold resolves a
+ * reader per object name.
+ * <p>
+ * This key addresses a per-file record and nothing else. A dataset-level fold is a
+ * {@link DatasetAggregateKey} in its own store, so no component here distinguishes the two kinds and no
+ * consumer has to test for it.
+ * <p>
+ * {@code answer} separates the records that are different answers about the same bytes:
+ * <ul>
+ *   <li>{@link #DECLARED_STRICT}: the strict-declared warm rail's record, which holds the declared schema;</li>
+ *   <li>{@link #INFERRED}: the schema inferred from the whole sample;</li>
+ *   <li>a positive count: the schema inferred from a share of the sample ({@code FormatReader#withSchemaSampleShare}),
+ *       that many rows (lines) of this file. The effective per-file sample rather than the number of files sharing
+ *       it, so shares that all reach the per-file floor reuse one record.</li>
+ * </ul>
+ * One compared component, rather than anything encoded inside another field, because the reconcile's contribution
+ * matching must still reach every one of these records: they are reads of the same object, and none of this may
+ * enter {@code dataset}, whose participants the enrich refusal compares. One {@code int} rather than a flag and a
+ * count because both describe how the answer was reached, and a fifth component would grow every key by 8 bytes.
+ * <p>
+ * The key carries no format name, and what separates two reads of one object as different formats is not
+ * a component of its own. A
+ * reader's identity renders the recognized settings its config carries and nothing else, so it holds no
+ * format name and two readers over a config carrying no format-specific setting vend the same string.
+ * The discriminator is the coordinator lane: {@code format} is one of
+ * {@code FileSourceFactory#COORDINATOR_KEYS} and deliberately not inert, so an explicit format separates
+ * the addresses there, and an implied one is separated by the path's own extension.
  */
-public record SchemaCacheKey(
-    String canonicalPath,
-    long lastModifiedEpochMillis,
-    String formatType,
-    String formatConfig,
-    String endpoint,
-    String region,
-    @Nullable FileSetFingerprint fileSetFingerprint
-) {
-    // Keep this set in sync with every option keyed off the WITH map by a FormatReader's
-    // parseOptionsFromConfig / withConfig. The intent is broader than "changes the inferred
-    // schema": any option that changes either the schema or whether schema inference fails on
-    // the same input must appear here, or two queries with different formatting will collide on
-    // the same cache entry.
-    //
-    // Notes on the less-obvious entries:
-    // - max_field_size: a runtime parsing limit; doesn't change inferred types but can flip
-    // schema inference between success and failure on the same bytes.
-    // - schema_sample_size: bounds how many rows feed type inference; smaller samples can
-    // widen/narrow the inferred type for borderline columns.
-    // - column_prefix: only changes column NAMES (when header_row=false), but names are part
-    // of the schema.
-    // - skip_rows: drops leading content records on the first split, so the inferred header and
-    // sampled rows change (and a leftover preamble would leak into later splits if the cap were
-    // raised past the first-split window).
-    // - error_mode / max_errors / max_error_ratio: change which rows survive and which cells are
-    // null-filled, so captured row and column null counts must not be shared across policies.
-    // - schema_resolution: changes multi-file schema merge (FFW vs UNION_BY_NAME) and therefore
-    // which per-file stats are aggregated for aggregate pushdown.
-    // - file_sort_by / file_order: FFW donor is listing.path(0). The dataset-aggregate COUNT key
-    // uses the file-set fingerprint (order-blind) plus formatConfig, so two FFW queries over the
-    // same files with different donors must not share one memoized COUNT. file_exclusions stays
-    // out: it changes the fingerprint.
-    // - mode: quoted/escaped/plain changes record boundaries (row counts), null-ness (\N) and
-    // values on the same bytes, so neither schemas nor captured stats may cross modes.
-    // - multi_value_syntax: brackets selects the bracket-aware record scanner (newlines inside
-    // [..] are not record ends) and, on a no-quote baseline, bare brackets resolves the mode
-    // to quoted — so two configs differing only in this key can interpret the same bytes with
-    // different record boundaries and must not share schemas or stats.
-    private static final Set<String> FORMAT_AFFECTING_PARAMS = Set.of(
-        "delimiter",
-        "quote",
-        "escape",
-        "mode",
-        "multi_value_syntax",
-        "encoding",
-        "datetime_format",
-        "partition_detection",
-        "partition_path",
-        "format",
-        "null_value",
-        "header",
-        "header_row",
-        "column_prefix",
-        "comment",
-        "max_field_size",
-        "schema_sample_size",
-        "skip_rows",
-        // trim_spaces changes stored string values and the null-ness of whitespace-only cells on the
-        // same bytes, so neither captured stats nor schemas may cross it.
-        "trim_spaces",
-        "error_mode",
-        "max_errors",
-        "max_error_ratio",
-        "schema_resolution",
-        "file_sort_by",
-        "file_order"
-    );
+public record SchemaCacheKey(DatasetIdentity dataset, String location, long lastModifiedEpochMillis, int answer) {
 
-    private static final Set<String> CREDENTIAL_PARAMS = Set.of(
-        "access_key",
-        "secret_key",
-        "connection_string",
-        "key",
-        "sas_token",
-        "credentials",
-        "token"
-    );
+    /** {@link #answer()} of the strict-declared warm rail's record. */
+    public static final int DECLARED_STRICT = -1;
+    /** {@link #answer()} of a record inferred from the whole schema sample. */
+    public static final int INFERRED = 0;
 
-    public static SchemaCacheKey build(String canonicalPath, long mtime, String formatType, Map<String, Object> config) {
-        EndpointRegion location = EndpointRegion.of(config);
-        String formatConfig = buildFormatConfig(config);
-        return new SchemaCacheKey(
-            canonicalPath,
-            mtime,
-            formatType != null ? formatType : "",
-            formatConfig,
-            location.endpoint(),
-            location.region(),
-            null
-        );
+    public SchemaCacheKey {
+        if (answer < DECLARED_STRICT) {
+            throw new IllegalArgumentException(
+                "a schema record is strict-declared, inferred or inferred from a shared sample of rows, got answer [" + answer + "]"
+            );
+        }
     }
 
     /**
-     * Reserved {@code formatType} suffix namespace: the happy path is the registry format name
-     * ({@code parquet}, {@code csv}), which never contains {@code '#'}. Resolve failure still
-     * last-dot-falls-back, so a {@code '#'}-suffixed formatType is normally minted only by an
-     * explicit factory. A fallback suffix that {@code endsWith} {@link #DATASET_AGGREGATE_MARKER}
-     * would make {@link #isDatasetAggregate()} true on a per-file key, but a per-file key carries a
-     * null {@code fileSetFingerprint} so it can never equal a dataset key - the only cost is that
-     * one file losing its warm enrichment, a miss, never a wrong answer. Two members exist:
-     * {@link #STRICT_DECLARED_SCHEMA_MARKER} (per-file entries on the strict-declared warm rail, which
-     * the reconcile's contribution matching MUST still reach) and {@link #DATASET_AGGREGATE_MARKER}
-     * (dataset-level aggregate entries, which contribution matching must NEVER reach - enforced in
-     * {@code ExternalSourceCacheService#matchesContribution}). Co-located here so their distinctness is
-     * visible at the declaration site.
+     * Key for a per-file record.
+     *
+     * @param declaredStrict true for the strict-declared warm rail, whose record is a different answer about the
+     *                       same file than the inferred one and must not share its address
      */
-    public static final String STRICT_DECLARED_SCHEMA_MARKER = "#strict-declared";
-    public static final String DATASET_AGGREGATE_MARKER = "#dataset-agg";
-
-    /**
-     * Key for a dataset-level aggregate entry: the memoized multi-file stats fold for one resolved file
-     * SET under one format config. Identity is the listing's 128-bit file-set fingerprint (a commutative
-     * fold of every file's path + mtime + size, plus the file count - see
-     * {@code FileList#fileSetFingerprint}), which makes the key correct-or-miss by construction: any file
-     * added, removed, or modified derives a different key, and the stale entry simply ages out via
-     * LRU/TTL - no invalidation protocol. The fingerprint rides the dedicated {@code fileSetFingerprint}
-     * record component; {@code canonicalPath} is the glob pattern (diagnostics-friendly) and the
-     * marker-suffixed {@code formatType} keeps these entries out of the per-file contribution-matching
-     * paths.
-     * <p>
-     * Under a lenient error policy ({@code skip_row}/{@code null_field}) a harvested row count IS
-     * declaration-dependent, which is why the resolved read configuration now participates in the stats identity
-     * ({@link ReadConfigFingerprint}): a harvest may only enrich, and an entry may only serve, a read of the
-     * same read configuration. What still crosses read configurations is the physical record count under
-     * {@code FAIL_FAST}, licensed by the producer because there the count is the same number for every
-     * declaration.
-     * <p>
-     * <b>The dataset aggregate does NOT inherit that gate</b>, and an earlier revision of this javadoc claimed it
-     * did. The aggregate entry stores a bare row count with no read-configuration stamp and no licence, so the
-     * serve path's unstamped pass-through — which exists for the columnar readers, that harvest without stamping —
-     * fires on it. Nothing compares the configuration that produced the aggregate against the one consuming it.
-     * <p>
-     * It is not a wrong answer today, and each reason is an accident rather than a guard. The strict multi-file
-     * rail never reaches the aggregate at all. A non-strict overlay only retypes and renames in place, never
-     * appends, so a projection-less {@code COUNT(*)} sees the same survivor set under every read configuration
-     * this rail can reach. And a projection-decided drop suppresses its publish at the producer, so a
-     * survivor-count-dependent aggregate is never built. Change any one of those and this becomes a silent wrong
-     * count with no failing test. The fix, if it is ever worth doing, is to stamp the aggregate with the fold's
-     * read configuration and licence and gate the serve, exactly as the per-file rail does.
-     */
-    public static SchemaCacheKey forDatasetAggregate(
-        String pattern,
-        FileSetFingerprint fingerprint,
-        String sourceType,
-        Map<String, Object> config
-    ) {
-        // A dataset key is identified two ways — the marker suffix on formatType and a non-null
-        // fileSetFingerprint (isDatasetAggregate() vs the collision defense). Require the fingerprint here
-        // so a marker-suffixed key with a null fingerprint is never representable and the two agree.
-        Objects.requireNonNull(fingerprint, "dataset aggregate key requires a non-null file-set fingerprint");
-        EndpointRegion location = EndpointRegion.of(config);
-        String formatType = (sourceType == null ? "" : sourceType) + DATASET_AGGREGATE_MARKER;
-        return new SchemaCacheKey(
-            pattern == null ? "" : pattern,
-            0L,
-            formatType,
-            buildFormatConfig(config),
-            location.endpoint(),
-            location.region(),
-            fingerprint
-        );
+    public static SchemaCacheKey build(String location, long mtime, DatasetIdentity dataset, boolean declaredStrict) {
+        return new SchemaCacheKey(dataset, location, mtime, declaredStrict ? DECLARED_STRICT : INFERRED);
     }
 
     /**
-     * True when this key addresses a dataset-level aggregate entry (minted by {@link #forDatasetAggregate})
-     * rather than a per-file schema entry. Centralizes the {@link #DATASET_AGGREGATE_MARKER} check so the
-     * taxonomy lives with the key instead of being re-derived at each call site.
+     * Key for a per-file record inferred from a shared schema sample of {@code sharedSchemaSampleSize} rows (lines)
+     * of this file. Only inference samples, so there is no strict-declared variant.
      */
-    public boolean isDatasetAggregate() {
-        return formatType().endsWith(DATASET_AGGREGATE_MARKER);
+    public static SchemaCacheKey buildShared(String location, long mtime, DatasetIdentity dataset, int sharedSchemaSampleSize) {
+        if (sharedSchemaSampleSize < 1) {
+            throw new IllegalArgumentException("a shared schema sample takes at least one row, got [" + sharedSchemaSampleSize + "]");
+        }
+        return new SchemaCacheKey(dataset, location, mtime, sharedSchemaSampleSize);
+    }
+
+    /** Whether this addresses the strict-declared warm rail's record. */
+    public boolean declaredStrict() {
+        return answer == DECLARED_STRICT;
     }
 
     /**
-     * Whether {@code key} participates in the cache identity: it changes how rows are interpreted (or whether
-     * inference fails on the same bytes) and is not a credential. The single predicate behind
-     * {@link #buildFormatConfig}, exposed so each format module can assert that every key its reader consumes is
-     * either identity-affecting here or explicitly declared inert on that module's side. Without that assertion a
-     * newly added reader option defaults to "does not affect identity" silently, and two queries that read the same
-     * bytes differently collide on one cache entry.
+     * This address with a shared sample's depth dropped: the whole-sample {@link #INFERRED} record's address for a
+     * shared-sample key, and this key otherwise. How deep inference sampled decides which schema a record holds,
+     * not what a read of the file measures, so the statistics address is built from this (see
+     * {@link StatisticsKey}).
      */
-    public static boolean affectsIdentity(String key) {
-        return FORMAT_AFFECTING_PARAMS.contains(key) && CREDENTIAL_PARAMS.contains(key) == false;
-    }
-
-    /**
-     * Canonical, node-stable identity of the row-interpretation-affecting config: the format-affecting
-     * params (credentials and non-format keys excluded), sorted and rendered {@code key=value,...}.
-     * Deterministic across JVMs and independent of column projection, so a coordinator and a data node
-     * derive the same string for the same logical query config — the basis for the cross-node stats
-     * cache fingerprint.
-     */
-    public static String buildFormatConfig(Map<String, Object> config) {
-        if (config == null || config.isEmpty()) {
-            return "";
-        }
-        TreeMap<String, String> sorted = new TreeMap<>();
-        for (Map.Entry<String, Object> entry : config.entrySet()) {
-            String key = entry.getKey();
-            if (affectsIdentity(key)) {
-                sorted.put(key, String.valueOf(entry.getValue()));
-            }
-        }
-        if (sorted.isEmpty()) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String, String> entry : sorted.entrySet()) {
-            if (sb.length() > 0) {
-                sb.append(',');
-            }
-            sb.append(entry.getKey()).append('=').append(entry.getValue());
-        }
-        return sb.toString();
+    public SchemaCacheKey withoutSampleDepth() {
+        return answer > INFERRED ? new SchemaCacheKey(dataset, location, lastModifiedEpochMillis, INFERRED) : this;
     }
 }

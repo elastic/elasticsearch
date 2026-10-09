@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -25,8 +24,6 @@ import static org.hamcrest.Matchers.containsString;
 public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
 
     public void testResolveConcreteView() {
-        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());
-
         indexRandom(true, false, prepareIndex("view-index").setSource(Map.of("id", randomIdentifier(), "source", "view-index")));
         try (var view = createView("test-view", "FROM view-index")) {
             try (var response = run(syncEsqlQueryRequest("FROM test-view"))) {
@@ -37,8 +34,6 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testResolvePattern() {
-        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());
-
         indexRandom(
             true,
             false,
@@ -48,7 +43,110 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
         try (var view = createView("test-view", "FROM view-index")) {
             try (var response = run(syncEsqlQueryRequest("FROM test-*"))) {
                 assertOk(response);
-                assertResultConcreteIndices(response, "view-index", "test-index");
+                assertResultConcreteIndices(response, "test-index"); // no views by default
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=false; FROM test-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index"); // views are opt-out
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index"); // views are opt in
+            }
+        }
+    }
+
+    public void testWildcardsMatchViewsWithMixedViewIndexResolution() {
+        indexRandom(
+            true,
+            false,
+            prepareIndex("view-index").setSource(Map.of("id", randomIdentifier(), "source", "view-index")),
+            prepareIndex("test-index").setSource(Map.of("id", randomIdentifier(), "source", "test-index"))
+        );
+        try (var view = createView("test-view", "FROM view-index")) {
+            // concrete index and view
+            try (var response = run(syncEsqlQueryRequest("FROM test-view,test-index"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index");
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-view,test-index"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index");
+            }
+            // concrete index and view and common pattern
+            try (var response = run(syncEsqlQueryRequest("FROM test-view,test-index,test-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index");
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-view,test-index,test-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index");
+            }
+            // concrete view and index pattern
+            try (var response = run(syncEsqlQueryRequest("FROM test-view,test-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index");
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-view,test-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index");
+            }
+            // concrete index and view pattern
+            try (var response = run(syncEsqlQueryRequest("FROM test-index,test-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index");
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-index,test-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index");
+            }
+        }
+    }
+
+    public void testWildcardsMatchViewsIsAppliedToAllNestedViews() {
+        try (
+            var outer = createView("outer", "FROM middle");
+            var middle = createView("middle", "FROM inner*");
+            var inner = createView("inner", "ROW source=\"inner\"");
+        ) {
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM outer"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "inner");
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=false; FROM outer"))) {
+                assertOk(response);
+                assertEmpty(response);
+            }
+        }
+    }
+
+    public void testReservedViews() {
+        indexRandom(
+            true,
+            false,
+            prepareIndex("reserved-index").setSource(Map.of("id", randomIdentifier(), "source", "reserved-index")),
+            prepareIndex("regular-index").setSource(Map.of("id", randomIdentifier(), "source", "regular-index"))
+        );
+        try (
+            var regularView = createView("regular-view", "FROM regular-index");
+            var systemView = createView(".reserved-view", "FROM reserved-index", null, true)
+        ) {
+            try (var response = run(syncEsqlQueryRequest("FROM .reserved-view"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "reserved-index"); // concrete name resolves system view
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *-view"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "reserved-index", "regular-index"); // wildcard resolves reserved
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM .reserved-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "reserved-index");
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *"))) {
+                assertOk(response);
+                // system-index & regular-index are matched both directly and via views
+                assertResultConcreteIndices(response, "reserved-index", "reserved-index", "regular-index", "regular-index");
             }
         }
     }
@@ -62,15 +160,15 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 assertOk(response);
                 assertResultConcreteIndices(response, "regular-index-1");
             }
-            try (var response = run(syncEsqlQueryRequest("FROM *-view"))) {
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *-view"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "regular-index-1");
             }
-            try (var response = run(syncEsqlQueryRequest("FROM .non-hidden-*"))) {
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM .non-hidden-*"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "regular-index-1");
             }
-            try (var response = run(syncEsqlQueryRequest("FROM *"))) {
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "regular-index-1", "regular-index-1");// matched index and view
             }
@@ -78,9 +176,6 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testViewWithIndexComponentSelectors() {
-        assumeTrue("Requires index component selectors", EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled());
-        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());
-
         indexRandom(true, false, prepareIndex("view-index").setSource(Map.of("id", randomIdentifier(), "source", "view-index")));
         try (var view = createView("test-view", "FROM view-index")) {
             // view::data is equivalent to the plain view name
@@ -98,16 +193,20 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
     }
 
     private Releasable createView(String name, String query) {
+        return createView(name, query, null, false);
+    }
+
+    private Releasable createView(String name, String query, String description, boolean reserved) {
         assertAcked(
             client().execute(
                 PutViewAction.INSTANCE,
-                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query))
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query, description, reserved))
             )
         );
         return () -> assertAcked(
             client().execute(
                 DeleteViewAction.INSTANCE,
-                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name }, reserved)
             )
         );
     }

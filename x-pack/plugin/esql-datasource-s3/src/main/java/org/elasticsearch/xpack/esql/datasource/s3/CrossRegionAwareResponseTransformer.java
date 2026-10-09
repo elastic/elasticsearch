@@ -75,6 +75,9 @@ final class CrossRegionAwareResponseTransformer<R extends SdkResponse> implement
 
     private final AtomicInteger prepareCallCount = new AtomicInteger();
     private final AtomicReference<KnownLengthAsyncResponseTransformer<R>> currentInner = new AtomicReference<>();
+    // Set by discard() before the current inner is released. prepare() re-reads it after publishing
+    // a new inner so a cross-region prepare() that races discard() cannot keep a new charge.
+    private volatile boolean discarded;
 
     // Tracks the last Throwable forwarded via exceptionOccurred. Netty may re-deliver the redirect
     // exception with the same reference after prepare() has been called a second time. The identity
@@ -140,7 +143,27 @@ final class CrossRegionAwareResponseTransformer<R extends SdkResponse> implement
             // no-op because KnownLengthAsyncResponseTransformer.exceptionOccurred is idempotent.
             old.exceptionOccurred(new CancellationException("cross-region redirect: superseded by new attempt"));
         }
+        if (discarded) {
+            // discard() won the race, or ran before this prepare(): the new inner must not keep a
+            // charge. Checked after publication so a concurrent discard() that already observed
+            // newInner also reaches it; discard() on the inner is idempotent.
+            newInner.discard();
+        }
         return future;
+    }
+
+    /**
+     * Releases the current inner transformer and any inner a later {@link #prepare()} creates.
+     * A cross-region redirect can call {@code prepare()} again while a read is being cancelled;
+     * the new inner is discarded before {@link #prepare()} returns its future, so it cannot keep
+     * a charge. Idempotent if {@code prepare()} and {@code discard()} race.
+     */
+    void discard() {
+        discarded = true;
+        KnownLengthAsyncResponseTransformer<R> inner = currentInner.get();
+        if (inner != null) {
+            inner.discard();
+        }
     }
 
     @Override

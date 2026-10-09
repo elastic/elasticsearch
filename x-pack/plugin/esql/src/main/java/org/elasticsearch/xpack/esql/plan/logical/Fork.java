@@ -15,15 +15,18 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -82,30 +85,19 @@ public final class Fork extends MergePlan implements TelemetryAware {
     }
 
     private static void checkFork(LogicalPlan plan, Failures failures) {
-        checkBranchCount(plan, failures);
+        checkNonEmpty(plan, failures);
         if (plan instanceof Fork == false) {
             return;
         }
         Fork fork = (Fork) plan;
+        checkMaxBranches(fork, failures);
 
-        forEachMergePlanSkippingSubqueries(fork, other -> {
-            if (other == fork) {
-                return;
-            }
-
-            failures.add(
-                Failure.fail(
-                    other,
-                    other instanceof UnionAll
-                        ? "FORK after subquery is not supported"
-                        : "Only a single FORK command is supported, but found multiple"
-                )
-            );
-        });
+        checkForUnseparatedFork(fork, false, failures);
 
         Map<String, Attribute> mergedOutput = fork.output().stream().collect(Collectors.toMap(Attribute::name, attr -> attr));
 
         fork.children().forEach(subPlan -> {
+            Predicate<Attribute> onlyNull = producesOnlyNull(subPlan);
             for (Attribute attr : subPlan.output()) {
                 var merged = mergedOutput.get(attr.name());
 
@@ -115,7 +107,11 @@ public final class Fork extends MergePlan implements TelemetryAware {
                 //
                 // Likewise, a branch that does not produce the column at all had it filled with nulls to line the branches up.
                 // Those rows carry no values, so there is nothing for a sibling's declarations to disagree with.
-                if (merged == null || merged.dataType() == DataType.UNSUPPORTED || producesOnlyNull(subPlan, attr)) {
+                //
+                // Union-type resolution can also introduce synthetic conversion attributes after this FORK's output was
+                // resolved. They are carried through the branch projections so the conversion can be extracted, but are
+                // intentionally absent from the user-visible FORK output and removed by the union-types cleanup rule.
+                if (merged == null || merged.dataType() == DataType.UNSUPPORTED || onlyNull.test(attr)) {
                     continue;
                 }
 
@@ -134,6 +130,48 @@ public final class Fork extends MergePlan implements TelemetryAware {
                 }
             }
         });
+    }
+
+    /**
+     * The {@code FORK} command's per-node branch cap. Lives at post-analysis verification rather than
+     * the constructor so that compaction passes get a chance to reduce the count first. {@link UnionAll}
+     * and {@link ViewUnionAll} are not subject to this cap; they are bounded by the query-wide
+     * {@code max_branch_count} / {@code max_branch_level} pragmas.
+     */
+    private static void checkMaxBranches(Fork fork, Failures failures) {
+        int branches = fork.children().size();
+        if (exceedsMaxBranches(branches)) {
+            failures.add(Failure.fail(fork, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, branches));
+        }
+    }
+
+    /**
+     * Rejects two user-written FORKs on the same uninterrupted pipeline path. A {@link UnionAll} is a real merge boundary, whether it
+     * came from user subqueries, a view, an external dataset, or federation, so each of its branches starts a new FORK segment. The right
+     * side of an {@link AbstractSubqueryJoin} is an independently executed query scope and is verified by its own FORK node.
+     */
+    private static void checkForUnseparatedFork(LogicalPlan plan, boolean forkSeen, Failures failures) {
+        if (plan instanceof UnionAll unionAll) {
+            for (LogicalPlan child : unionAll.children()) {
+                checkForUnseparatedFork(child, false, failures);
+            }
+            return;
+        }
+        if (plan instanceof AbstractSubqueryJoin join) {
+            checkForUnseparatedFork(join.left(), forkSeen, failures);
+            return;
+        }
+        boolean seen = forkSeen;
+        if (plan.getClass() == Fork.class) {
+            if (forkSeen) {
+                failures.add(Failure.fail(plan, "Only a single FORK command is supported, but found multiple"));
+                return;
+            }
+            seen = true;
+        }
+        for (LogicalPlan child : plan.children()) {
+            checkForUnseparatedFork(child, seen, failures);
+        }
     }
 
     /**
@@ -176,23 +214,23 @@ public final class Fork extends MergePlan implements TelemetryAware {
     }
 
     /**
-     * Whether {@code attr}, a column of {@code branch}'s output, holds nothing but nulls. Branch alignment fills a
-     * column a branch lacks this way, so that every branch outputs the same names; a column written as an explicit
+     * Whether a column of {@code branch}'s output holds nothing but nulls. Branch alignment fills a column a branch
+     * lacks this way, so that every branch outputs the same names; a column written as an explicit
      * {@code EVAL x = null} is indistinguishable and equally empty, so both are treated alike.
      * <p>
      * Matched on the attribute's id rather than its name: a branch may assign the name more than once, and only the
      * assignment this attribute came from decides what the branch outputs. Matching by name would let an assignment
      * a later one shadows answer for the column.
+     * <p>
+     * Walks {@code branch} once, so build one predicate per branch and test every column of a wide branch against it.
      */
-    private static boolean producesOnlyNull(LogicalPlan branch, Attribute attr) {
-        Holder<Boolean> onlyNull = new Holder<>(false);
+    public static Predicate<Attribute> producesOnlyNull(LogicalPlan branch) {
+        Map<NameId, Boolean> onlyNull = new HashMap<>();
         branch.forEachDown(Eval.class, eval -> {
             for (Alias field : eval.fields()) {
-                if (field.id().equals(attr.id())) {
-                    onlyNull.set(Expressions.isGuaranteedNull(field.child()));
-                }
+                onlyNull.put(field.id(), Expressions.isGuaranteedNull(field.child()));
             }
         });
-        return onlyNull.get();
+        return attr -> onlyNull.getOrDefault(attr.id(), false);
     }
 }

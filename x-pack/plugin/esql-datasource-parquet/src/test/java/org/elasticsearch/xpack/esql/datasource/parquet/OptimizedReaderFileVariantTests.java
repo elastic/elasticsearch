@@ -34,9 +34,11 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -129,7 +131,7 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
         // Test variants reuse the same StorageObject path with different file contents; footer
         // caches are per reader instance and each variant constructs fresh readers below, so no
         // stale footer can leak across variants.
-        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         MessageType schema;
         if (nullable) {
@@ -289,6 +291,11 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);

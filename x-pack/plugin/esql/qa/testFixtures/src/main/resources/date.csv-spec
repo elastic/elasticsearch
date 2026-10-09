@@ -2152,3 +2152,257 @@ emp_no:integer | hire_date:date
 10090          | 1986-03-14T00:00:00.000Z
 10095          | 1986-07-15T00:00:00.000Z
 ;
+
+docsYear
+required_capability: fn_year
+// tag::docsYear[]
+ROW dt = to_datetime("1996-03-21T00:00:00.000Z")
+| EVAL year = YEAR(dt)
+// end::docsYear[]
+;
+
+dt:date                      | year:long
+1996-03-21T00:00:00.000Z     | 1996
+;
+
+docsMonth
+required_capability: fn_month
+// tag::docsMonth[]
+ROW dt = to_datetime("1996-03-21T00:00:00.000Z")
+| EVAL month = MONTH(dt)
+// end::docsMonth[]
+;
+
+dt:date                      | month:long
+1996-03-21T00:00:00.000Z     | 3
+;
+
+docsDay
+required_capability: fn_day
+// tag::docsDay[]
+ROW dt = to_datetime("1996-03-21T00:00:00.000Z")
+| EVAL day = DAY(dt)
+// end::docsDay[]
+;
+
+dt:date                      | day:long
+1996-03-21T00:00:00.000Z     | 21
+;
+
+docsHour
+required_capability: fn_hour
+// tag::docsHour[]
+ROW dt = to_datetime("1996-03-21T00:00:00.000Z")
+| EVAL hour = HOUR(dt)
+// end::docsHour[]
+;
+
+dt:date                      | hour:long
+1996-03-21T00:00:00.000Z     | 0
+;
+
+yearFromEmployees
+required_capability: fn_year
+FROM employees
+| SORT emp_no
+| KEEP emp_no, hire_date
+| EVAL y = YEAR(hire_date)
+| LIMIT 1
+;
+
+emp_no:integer | hire_date:date             | y:long
+10001          | 1986-06-26T00:00:00.000Z   | 1986
+;
+
+monthDayHourFromEmployees
+required_capability: fn_month
+required_capability: fn_day
+required_capability: fn_hour
+FROM employees
+| SORT emp_no
+| KEEP emp_no, hire_date
+| EVAL month = MONTH(hire_date), day = DAY(hire_date), hour = HOUR(hire_date)
+| LIMIT 1
+;
+
+emp_no:integer | hire_date:date             | month:long | day:long | hour:long
+10001          | 1986-06-26T00:00:00.000Z   | 6          | 26       | 0
+;
+
+yearEquals1986
+required_capability: fn_year
+FROM employees
+| WHERE YEAR(hire_date) == 1986
+| KEEP emp_no, hire_date
+| SORT emp_no
+;
+
+emp_no:integer | hire_date:date
+10001          | 1986-06-26T00:00:00.000Z
+10003          | 1986-08-28T00:00:00.000Z
+10004          | 1986-12-01T00:00:00.000Z
+10053          | 1986-02-04T00:00:00.000Z
+10066          | 1986-02-26T00:00:00.000Z
+10079          | 1986-03-27T00:00:00.000Z
+10081          | 1986-10-30T00:00:00.000Z
+10087          | 1986-09-08T00:00:00.000Z
+10089          | 1986-08-12T00:00:00.000Z
+10090          | 1986-03-14T00:00:00.000Z
+10095          | 1986-07-15T00:00:00.000Z
+;
+
+yearFromString
+required_capability: fn_year
+required_capability: string_literal_auto_casting
+ROW y = YEAR("2022-05-06")
+;
+
+y:long
+2022
+;
+
+yearSetTimezone
+required_capability: fn_year
+required_capability: global_timezone_parameter_with_output
+set time_zone="+07:00"\;
+ROW hire_date = "2019-12-31T23:00:00.000Z"::date
+| EVAL y = YEAR(hire_date)
+| KEEP y
+;
+
+y:long
+2020
+;
+
+datePartsUtc
+required_capability: fn_year
+required_capability: fn_month
+required_capability: fn_day
+required_capability: fn_hour
+ROW dt = "2019-12-31T23:00:00.000Z"::date
+| EVAL y = YEAR(dt), m = MONTH(dt), d = DAY(dt), h = HOUR(dt)
+| KEEP y, m, d, h
+;
+
+y:long | m:long | d:long | h:long
+2019   | 12     | 31     | 23
+;
+
+datePartsPlusSeven
+required_capability: fn_year
+required_capability: fn_month
+required_capability: fn_day
+required_capability: fn_hour
+required_capability: global_timezone_parameter_with_output
+set time_zone="+07:00"\;
+ROW dt = "2019-12-31T23:00:00.000Z"::date
+| EVAL y = YEAR(dt), m = MONTH(dt), d = DAY(dt), h = HOUR(dt)
+| KEEP y, m, d, h
+;
+
+y:long | m:long | d:long | h:long
+2020   | 1      | 1      | 6
+;
+
+datePartsNewYork
+required_capability: fn_year
+required_capability: fn_month
+required_capability: fn_day
+required_capability: fn_hour
+required_capability: global_timezone_parameter_with_output
+set time_zone="America/New_York"\;
+ROW dt = "2019-12-31T23:00:00.000Z"::date
+| EVAL y = YEAR(dt), m = MONTH(dt), d = DAY(dt), h = HOUR(dt)
+| KEEP y, m, d, h
+;
+
+y:long | m:long | d:long | h:long
+2019   | 12     | 31     | 18
+;
+
+datePartsNanos
+required_capability: fn_year
+required_capability: fn_month
+required_capability: fn_day
+required_capability: fn_hour
+ROW dt = "1996-03-21T15:04:05.123456789Z"::date_nanos
+| EVAL y = YEAR(dt), m = MONTH(dt), d = DAY(dt), h = HOUR(dt)
+| KEEP y, m, d, h
+;
+
+y:long | m:long | d:long | h:long
+1996   | 3      | 21     | 15
+;
+
+yearNullBirthDate
+required_capability: fn_year
+required_capability: fn_month
+required_capability: fn_day
+required_capability: fn_hour
+FROM employees
+| WHERE emp_no == 10040
+| EVAL y = YEAR(birth_date), m = MONTH(birth_date), d = DAY(birth_date), h = HOUR(birth_date)
+| KEEP emp_no, birth_date, y, m, d, h
+;
+
+emp_no:integer | birth_date:date | y:long | m:long | d:long | h:long
+10040          | null            | null   | null   | null   | null
+;
+
+yearOnMultivalue
+required_capability: fn_year
+required_capability: fn_month
+required_capability: fn_day
+required_capability: fn_hour
+required_capability: fn_mv_append
+FROM employees
+| WHERE emp_no == 10039
+| EVAL dates = MV_APPEND(birth_date, hire_date)
+| EVAL y = YEAR(dates), m = MONTH(dates), d = DAY(dates), h = HOUR(dates)
+| KEEP y, m, d, h
+;
+warning:Line 4:12: evaluation of [YEAR(dates)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:12: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 4:29: evaluation of [MONTH(dates)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:29: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 4:47: evaluation of [DAY(dates)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:47: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 4:63: evaluation of [HOUR(dates)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:63: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+y:long | m:long | d:long | h:long
+null   | null   | null   | null
+;
+
+monthEqualsJune
+required_capability: fn_month
+FROM employees
+| WHERE emp_no == 10001 AND MONTH(hire_date) == 6
+| KEEP emp_no, hire_date
+;
+
+emp_no:integer | hire_date:date
+10001          | 1986-06-26T00:00:00.000Z
+;
+
+dayEquals26
+required_capability: fn_day
+FROM employees
+| WHERE emp_no == 10001 AND DAY(hire_date) == 26
+| KEEP emp_no, hire_date
+;
+
+emp_no:integer | hire_date:date
+10001          | 1986-06-26T00:00:00.000Z
+;
+
+hourEquals0
+required_capability: fn_hour
+FROM employees
+| WHERE emp_no == 10001 AND HOUR(hire_date) == 0
+| KEEP emp_no, hire_date
+;
+
+emp_no:integer | hire_date:date
+10001          | 1986-06-26T00:00:00.000Z
+;

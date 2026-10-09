@@ -40,7 +40,7 @@ import java.util.Objects;
  *     single set of operators.</li>
  * </ul>
  */
-class ComputeSearchContext implements Releasable {
+public class ComputeSearchContext implements Releasable {
     private final int index;
     @Nullable
     private final SearchContext searchContext;
@@ -92,7 +92,7 @@ class ComputeSearchContext implements Releasable {
      * This detached mode is a temporary design: it exists to support retained-context remote fetch while the broader lifecycle model is
      * being finalized. Expect it to be replaced or folded into a unified context ownership scheme in a follow-up.
      */
-    ShardContext newDetachedShardContext() {
+    public ShardContext newDetachedShardContext() {
         return createShardContext(() -> {}, QueryWarnings.NOOP);
     }
 

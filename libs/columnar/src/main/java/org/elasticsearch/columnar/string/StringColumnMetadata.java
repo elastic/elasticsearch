@@ -109,18 +109,22 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         return summary() != null;
     }
 
-    /** True when at least one document has more than one slot. */
+    /**
+     * True when a document holds more than one slot. The counts alone do not answer it — a document holding
+     * none cancels out one holding two — so the addressing records it as the documents are written.
+     */
     default boolean multiValued() {
-        return numValues() > numDocsWithField();
+        return addressing().someDocumentHoldsSeveral();
     }
 
     /**
      * Whether a document's value address has to be looked up rather than being its rank. That is any column
      * where the slots and the documents are not in step, which a document holding several slots causes and a
-     * document holding none — an empty array — causes just as much.
+     * document holding none — an empty array — causes just as much. The two cancel out in the counts, so the
+     * column records it rather than deriving it: the addressing is kept exactly where it is needed.
      */
     default boolean hasValueAddresses() {
-        return numValues() != numDocsWithField();
+        return SlotAddressing.NONE.equals(addressing()) == false;
     }
 
     /** True when at least one slot in the column is null. */
@@ -132,7 +136,9 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      * What a column records of the terms it holds most, so a merge can work out a vocabulary from its
      * inputs instead of reading their values again. The counts are the survey's, and so are lower bounds.
      *
-     * <p>A dictionary column's summary terms are its dictionary; only the counts are written beside it.
+     * <p>Where a dictionary column's summary selects exactly the terms its dictionary holds, the terms are
+     * not written twice and only the counts are stored beside it. The two selections answer different
+     * quotas, so a dictionary column may equally carry summary terms of its own.
      *
      * @param terms        the summarised terms in term order, or null when they are the dictionary
      * @param countsOffset where the counts, one vlong per term, begin
@@ -140,7 +146,12 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      * @param numValues    the values a dictionary would have to name, which the counts are a share of, so
      *                     null slots are not among them: a null is named by an ordinal of its own
      */
-    record Summary(ValueStream.Metadata terms, long countsOffset, long countsLength, long numValues) {}
+    record Summary(ValueStream.Metadata terms, long countsOffset, long countsLength, long numValues, BestCoverage bestCoverage) {
+
+        boolean hasTerms() {
+            return countsLength > 0;
+        }
+    }
 
     /**
      * A column that stores its values as they were written.
@@ -381,6 +392,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         // Written ahead of the layout because finding a document's slots is the same question whichever
         // layout follows, and gated on counts already on the wire above. How the nulls among those slots are
         // recorded is not shared, so that goes in the body.
+        out.writeByte((byte) (hasValueAddresses() ? 1 : 0));
         if (hasValueAddresses()) {
             addressing().writeTo(out);
         }
@@ -397,6 +409,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             out.writeVLong(summary.countsOffset());
             out.writeVLong(summary.countsLength());
             out.writeVLong(summary.numValues());
+            out.writeVLong(summary.bestCoverage().cap());
+            out.writeVLong(summary.bestCoverage().namedValues());
         }
     }
 
@@ -424,7 +438,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         int minLength = in.readVInt() - 1;
         int maxLength = in.readVInt() - 1;
         boolean valuesSorted = in.readByte() == SORTED;
-        SlotAddressing addressing = numValues != numDocsWithField ? SlotAddressing.readFrom(in) : SlotAddressing.NONE;
+        SlotAddressing addressing = in.readByte() != 0 ? SlotAddressing.readFrom(in) : SlotAddressing.NONE;
         StringColumnLayout layout = StringColumnLayout.fromId(in.readByte());
         final StringColumnMetadata column = switch (layout) {
             case PLAIN -> {
@@ -474,7 +488,20 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             return column;
         }
         final ValueStream.Metadata summaryTerms = in.readByte() == 0 ? null : ValueStream.Metadata.readFrom(in);
-        return column.withSummary(new Summary(summaryTerms, in.readVLong(), in.readVLong(), in.readVLong()));
+        final long countsOffset = in.readVLong();
+        final long countsLength = in.readVLong();
+        final long summaryValues = in.readVLong();
+        final long bestCoverageCap = in.readVLong();
+        final long bestCoverageValues = in.readVLong();
+        return column.withSummary(
+            new Summary(
+                summaryTerms,
+                countsOffset,
+                countsLength,
+                summaryValues,
+                BestCoverage.of(bestCoverageValues, summaryValues, bestCoverageCap)
+            )
+        );
     }
 
     private static void writeTable(DataOutput out, MonotonicWriter.Table table) throws IOException {

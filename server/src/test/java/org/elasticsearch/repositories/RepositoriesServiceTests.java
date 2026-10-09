@@ -156,8 +156,7 @@ public class RepositoriesServiceTests extends ESTestCase {
             typesRegistry,
             threadPool,
             client,
-            List.of(),
-            SnapshotMetrics.NOOP
+            List.of()
         );
 
         clusterService.start();

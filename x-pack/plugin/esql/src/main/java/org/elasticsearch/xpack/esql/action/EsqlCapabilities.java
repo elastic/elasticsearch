@@ -1338,22 +1338,19 @@ public class EsqlCapabilities {
          */
         COMPLETION,
         /**
-         * Support for the DENSE_VECTOR command. Dev/snapshot-only — the command is gated behind
-         * {@code isDevVersion()} in the grammar.
+         * Support for the DENSE_VECTOR command.
          */
-        DENSE_VECTOR_COMMAND(Build.current().isSnapshot()),
+        DENSE_VECTOR_COMMAND,
         /**
          * Adds the {@code type} option (text|image) and endpoint-driven multimodal routing to the DENSE_VECTOR command.
-         * Dev/snapshot-only, like {@link #DENSE_VECTOR_COMMAND}.
          */
-        DENSE_VECTOR_COMMAND_V2(Build.current().isSnapshot()),
+        DENSE_VECTOR_COMMAND_V2,
         /**
          * Adds custom output naming to the DENSE_VECTOR command: {@code vec = field} names a single generated column, and
          * {@code suffix = "_dv" ON f1, f2} replaces the default {@code _dense_vector} suffix on every listed field. Also covers
          * the warning emitted when an input position holds more than one value, which ships alongside the naming forms.
-         * Dev/snapshot-only, like {@link #DENSE_VECTOR_COMMAND}.
          */
-        DENSE_VECTOR_COMMAND_V3(Build.current().isSnapshot()),
+        DENSE_VECTOR_COMMAND_V3,
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
@@ -1404,6 +1401,11 @@ public class EsqlCapabilities {
          * Enables automatically grouping by all dimension fields in TS mode queries
          */
         METRICS_GROUP_BY_ALL(),
+
+        /**
+         * Support for the {@code exemplars} query setting.
+         */
+        EXEMPLARS_SETTING_DEVELOPMENT_V1(Build.current().isSnapshot()),
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -1523,6 +1525,15 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_FIX_CONVERT_GROUP_KEY,
 
         /**
+         * Fix for a conversion function above a {@code UnionAll} that resolves on a later analyzer pass than an equal one already
+         * pushed down into the branches, e.g. because an unmapped field under {@code unmapped_fields} delays its resolution.
+         * {@code ResolveUnionTypesInUnionAll} must reuse the existing synthetic {@code $$<field>$converted_to$<type>} union output
+         * instead of pushing another same-named alias on every pass, which made the Resolution batch loop until the rule
+         * execution limit.
+         */
+        SUBQUERY_IN_FROM_COMMAND_CONVERSION_RESOLVED_ON_LATER_PASS,
+
+        /**
          * Support nested non-correlated subqueries in the FROM command.
          */
         NESTED_SUBQUERY_IN_FROM_COMMAND,
@@ -1531,6 +1542,11 @@ public class EsqlCapabilities {
          * Planner fix for nested non-correlated subqueries in the FROM command.
          */
         NESTED_SUBQUERY_IN_FROM_COMMAND_PLANNER_FIX,
+
+        /**
+         * Support nested non-correlated subqueries, views with Fork and dataset.
+         */
+        NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET,
 
         /**
          * Support IN non-correlated subqueries in WHERE command.
@@ -1688,6 +1704,12 @@ public class EsqlCapabilities {
         VIEWS_NOT_DISCOVERABLE_ON_REMOTES,
 
         /**
+         * Support for the {@code wildcards_match_views} query setting, which lets wildcard
+         * patterns in {@code FROM} match registered views.
+         */
+        VIEWS_MATCH_WILDCARDS,
+
+        /**
          * If {@code METADATA} is requested on a view/subquery that itself doesn't produce the requested
          * fields - null values are injected instead.
          */
@@ -1748,6 +1770,15 @@ public class EsqlCapabilities {
          * {@code datasources.config.datasets.changes.by_op.*})?
          */
         USAGE_CONTAINS_DATASOURCE_CONFIG_CHANGES,
+
+        /**
+         * Does the usage information for ESQL contain per-component CPU counters for successful
+         * external-source queries ({@code datasources.queries.cpu_nanos.execution},
+         * {@code .read}, {@code .planning}, {@code .split_discovery}, {@code .total})?
+         * Note: the {@code planning} component is currently wall time pending a real planning-CPU
+         * measurement in {@code EsqlQueryProfile}.
+         */
+        USAGE_CONTAINS_DATASOURCES_QUERY_CPU,
 
         /**
          * Support loading of ip fields if they are not indexed.
@@ -3016,6 +3047,12 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_DECLARED_SCHEMA_ROW_WIDTH_VALIDATION,
 
         /**
+         * Every headered CSV/TSV file binds its columns by its own header, whether the schema was declared or
+         * inferred. Older nodes bind an inferred schema by position against the first file.
+         */
+        EXTERNAL_TEXT_BINDS_BY_FILE_HEADER,
+
+        /**
          * CompressionDelegatingFormatReader forwards the wrapped reader's typed profile status.
          * Older nodes still execute compressed reads but expose an empty {@code format_reader}
          * object in the external-source operator profile.
@@ -3086,6 +3123,13 @@ public class EsqlCapabilities {
         PARTITION_DETECTION_ON_READ_PATH,
 
         /**
+         * A concrete (non-glob) Hive or template path binds partition columns on the coordinator
+         * and injects them at read time. Coordinators that predate this skip detection on a single
+         * explicit key, so mixed-cluster schema width disagrees. Gates tests, not production.
+         */
+        PARTITION_DETECTION_ON_A_CONCRETE_FILE,
+
+        /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
          */
         DATASET_IN_FROM_COMMAND,
@@ -3117,10 +3161,14 @@ public class EsqlCapabilities {
         FEDERATION_ENABLED_SETTING,
 
         /**
-         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilt a pruned
          * derived external grouping reading the attribute the aggregate actually exposes (e.g. a rename alias) instead of the
          * pre-aggregate attribute it no longer surfaces, fixing the {@code optimized incorrectly due to missing references}
          * verification failure that old coordinators in a mixed cluster still hit.
+         * <p>
+         * Derived external groupings are no longer pruned at all (see {@link #FIX_DERIVED_EXTERNAL_GROUPING_MULTIVALUE}),
+         * so the rebuilt expression this describes no longer exists; the capability still gates the spec that used to
+         * fail with the verification error above, which older coordinators can still produce.
          */
         FIX_PRUNE_RENAMED_DERIVED_EXTERNAL_GROUPING,
 
@@ -3308,6 +3356,12 @@ public class EsqlCapabilities {
          * Support cumulative exponential histograms in _over_time aggregations.
          */
         TSDB_TEMPORALITY_SUPPORT_V9,
+
+        /**
+         * Cumulative T-Digests (typically from casting cumulative {@code exponential_histogram} fields to {@code tdigest})
+         * are ignored with a warning instead of failing the query.
+         */
+        TSDB_TEMPORALITY_CUMULATIVE_TDIGEST_WARNING,
 
         /**
          * Support the null column type for the CHANGE_POINT command
@@ -3598,6 +3652,40 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_SKIPS_VALUELESS_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Support for {@code FROM} subqueries under {@code unmapped_fields="LOAD_ALL"}.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * {@code WHERE IN} / {@code NOT IN} under {@code unmapped_fields="LOAD_ALL"}.
+         * Separate from {@link #OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES} so nodes that only support FROM subqueries skip these tests.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_WHERE_IN_SUBQUERY(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, a {@code KEEP} or {@code DROP} wildcard with a backquoted text (e.g. {@code `tags`*})
+         * matches unmapped fields like its unquoted spelling, keeping the backquoted characters literal.
+         * See https://github.com/elastic/elasticsearch/issues/158466.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_QUOTED_PATTERNS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, at most 1000 fields discovered in {@code _source} become columns: the
+         * alphabetically first ones, with a warning if there were more.
+         * See https://github.com/elastic/elasticsearch/issues/159972.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, the cap on the number of fields discovered in {@code _source} is the cluster
+         * setting {@code esql.query.unmapped_fields.load_all_max_fields}. Needed by tests that set it, which older nodes would reject
+         * as an unknown setting.
+         * See https://github.com/elastic/elasticsearch/issues/161340.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,
@@ -3746,6 +3834,14 @@ public class EsqlCapabilities {
         FIX_PROMQL_FUSED_BINARY_OP_LABELS,
 
         /**
+         * PromQL math and arithmetic now preserve non-finite IEEE-754 results ({@code NaN}, {@code +Inf},
+         * {@code -Inf}) instead of dropping the series, matching Prometheus. Affects e.g. {@code metric * Inf},
+         * {@code metric * NaN}, {@code metric / 0}, {@code metric % 0}, {@code sqrt(-x)}, {@code ln(-x)},
+         * {@code log2(-x)}, {@code log10(-x)}, and {@code clamp(metric, max, min)} when {@code min > max}.
+         */
+        PROMQL_NON_FINITE_MATH,
+
+        /**
          * Bugfix in query approximation to not rewrite non-approximable FORK branches:
          * <a href="https://github.com/elastic/elasticsearch/issues/149501">#149501</a>
          */
@@ -3775,6 +3871,20 @@ public class EsqlCapabilities {
          * Support for the {@code HIGHLIGHT} command.
          */
         HIGHLIGHT_V6,
+
+        /**
+         * Support for deriving the {@code HIGHLIGHT} query and target fields, including {@code ON *}.
+         */
+        HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS,
+
+        /**
+         * HIGHLIGHT tokenizes each mapped text field with its index analyzer, and each TO_TEXT column with its
+         * declared analyzer. Query leaf analyzers shape only their own query terms, while WITH overrides every field's
+         * values analyzer. When the queried indices disagree on an ON field's analyzer, HIGHLIGHT tokenizes each row
+         * with the analyzer of the index it came from. For rows with no single source index, like those STATS produces,
+         * HIGHLIGHT falls back to {@code standard} and emits a warning.
+         */
+        HIGHLIGHT_MAPPING_ANALYZER,
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
@@ -3818,6 +3928,12 @@ public class EsqlCapabilities {
          * {@code WHERE _slice ==} / {@code LIKE} / {@code RLIKE} filters.
          */
         METADATA_SLICE(SliceIndexing.SLICE_FEATURE_FLAG),
+
+        /**
+         * A source reads the slices selected by a {@code _slice == <literal>} or {@code _slice IN (<literals>)} condition that
+         * filters it before any {@code LIMIT} or {@code STATS}. A knn function fails on a slice-enabled index without one.
+         */
+        SLICE_SELECTION_FROM_FILTER(SliceIndexing.SLICE_FEATURE_FLAG),
 
         /**
          * Support for the {@code _class} and {@code _name} metadata fields: {@code _class} is the kind
@@ -3893,6 +4009,11 @@ public class EsqlCapabilities {
          * Support for the PromQL {@code limitk()} arbitrary-selection function.
          */
         PROMQL_LIMITK,
+
+        /**
+         * Support for the PromQL {@code limit_ratio()} streaming-sampled fraction function.
+         */
+        PROMQL_LIMIT_RATIO,
 
         /**
          * Support for PromQL {@code histogram_fraction()} on native histograms.
@@ -4120,6 +4241,24 @@ public class EsqlCapabilities {
         FIX_AGGS_MULTIPLE_INPUT_FIELDS,
 
         /**
+         * Non-strict ({@code dynamic: true}) declared-schema overlay keeps declared columns absent from the inferred
+         * schema when the schema is sample-derived (NDJSON, headerless CSV/TSV), instead of rejecting them with
+         * "declared columns not found in the source". The reader then looks them up by name and null-fills records that
+         * do not carry the field. Gates tests that exercise this behaviour so they are skipped against old coordinators
+         * that still throw on sparse declared columns.
+         * See <a href="https://github.com/elastic/elasticsearch/pull/159997">#159997</a>.
+         */
+        FIX_NON_STRICT_OVERLAY_SPARSE_COLS,
+
+        /**
+         * Non-strict ({@code dynamic: true}) declared-schema overlay keeps a declared column absent from a
+         * <em>complete</em> inferred schema too (Parquet, ORC, headered CSV/TSV), instead of rejecting the dataset with
+         * "declared columns not found in the source": the column reads null with the absent-column warning, as under
+         * {@code dynamic: false}. Gates tests that exercise this so they are skipped against old coordinators.
+         */
+        FIX_NON_STRICT_OVERLAY_ABSENT_COLS,
+
+        /**
          * {@code KEEP *} retains a {@code _file.*} column named in the {@code METADATA} clause.
          * Older coordinators omit those columns from star expansion, so a later reference fails
          * verification with {@code Unknown column [_file.*]}. Tests that read the column after
@@ -4156,6 +4295,65 @@ public class EsqlCapabilities {
          * Adds a pre-filter below a limited aggregation grouped by a long and other fields.
          */
         TOPN_PREFILTER_LONG,
+
+        /**
+         * A GROK typed capture (eg. {@code %{NUMBER:n:int}}) that matches a value it cannot convert
+         * (eg. "1.5" as int) now treats the row as a failed match (null values plus a warning) instead
+         * of failing the whole query.
+         */
+        GROK_TYPED_CONVERSION_WARNINGS,
+
+        /**
+         * Full-text functions ({@code :}, {@code MATCH}, {@code MATCH_PHRASE}, {@code KNN}) can search fields of a
+         * {@code TS} source. Only fields from the right-hand side of a {@code LOOKUP JOIN} are rejected.
+         */
+        FULL_TEXT_FUNCTIONS_ON_TIME_SERIES_SOURCE,
+
+        /**
+         * {@code SORT _score ASC} pushed down to Lucene sorts ascending. Before this fix the pushed-down sort was always
+         * descending, so with a {@code LIMIT} smaller than the number of matches Lucene kept the highest-scoring documents.
+         */
+        FIX_SCORE_SORT_ASC_PUSHDOWN,
+
+        /**
+         * {@code _score} on an external relation seeds {@code 0.0} instead of {@code null}, so a runtime {@code MATCH},
+         * {@code MATCH_PHRASE} over it adds its per-row score rather than returning {@code null}. Older nodes still
+         * answer {@code null}.
+         */
+        EXTERNAL_SOURCE_SCORE_FIX,
+
+        /**
+         * Does the usage information for ESQL contain the datasource failure-reason counters
+         * ({@code datasources.queries.failures.by_error_type.*}, {@code datasources.discovery.failures.by_error_type.*},
+         * {@code datasources.config.<kind>.changes.rejected.by_reason.*} and
+         * {@code datasources.config.<kind>.changes.by_type.*})?
+         */
+        USAGE_CONTAINS_DATASOURCES_FAILURE_REASONS,
+
+        /**
+         * Fix for {@code DocumentParser#parseArrayDynamic}: with {@code subobjects:false} and {@code dynamic:false},
+         * arrays of objects now correctly walk mapped dotted fields (e.g. {@code "objarr.k"}), consistent
+         * with the plain-object path. Previously the array was silently skipped and the values dropped.
+         * Fixed in <a href="https://github.com/elastic/elasticsearch/issues/160012">#160012</a>.
+         */
+        FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
+
+        /**
+         * A whole number in an external dataset column declared or inferred as {@code date_nanos}, without a
+         * {@code format}, is read as epoch milliseconds widened to nanoseconds, matching {@code date} columns. Parquet
+         * filter pushdown and TopN pruning scale their bounds the same way. Older nodes read such a number as epoch
+         * nanoseconds, so tests that assert the millisecond read require this capability to skip against them.
+         */
+        EXTERNAL_DATASET_DATE_NANOS_BARE_NUMBER_IS_EPOCH_MILLIS,
+
+        /**
+         * A {@code STATS BY} key derived from other external integral keys with {@code +}, {@code -} or unary minus
+         * (e.g. {@code EVAL s = emp_no + salary_change.int | STATS ... BY emp_no, salary_change.int, s}) is kept as a
+         * grouping and evaluated on the row, so it is {@code null} where an input column holds a list. Older nodes
+         * pruned it from the aggregate and recomputed it per group, returning one number per list element. Used to
+         * gate the external csv-spec tests asserting the {@code null}, which such nodes still fail.
+         */
+        FIX_DERIVED_EXTERNAL_GROUPING_MULTIVALUE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

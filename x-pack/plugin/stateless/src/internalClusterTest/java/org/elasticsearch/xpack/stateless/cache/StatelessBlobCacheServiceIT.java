@@ -318,10 +318,18 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider
+            WarmingRatioProvider warmingRatioProvider,
+            SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             // no-op the warming on shard recovery so we can manually fetch ranges into the cache on the search tier
-            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider) {
+            return new SharedBlobCacheWarmingService(
+                cacheService,
+                threadPool,
+                telemetryProvider,
+                clusterSettings,
+                warmingRatioProvider,
+                searchRecoveryTimeoutCalculationService
+            ) {
                 @Override
                 protected void warmCache(
                     Type type,

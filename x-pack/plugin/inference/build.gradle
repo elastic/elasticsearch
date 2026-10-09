@@ -33,8 +33,14 @@ dependencies {
   implementation project(path: ':libs:logging')
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
+  implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  implementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  implementation "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+  implementation "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
+
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
+  internalClusterTestImplementation(testArtifact(project(':server'), 'internalClusterTest'))
   testImplementation(project(':x-pack:plugin:inference:qa:test-service-plugin'))
   testImplementation project(':x-pack:plugin:diskbbq')
   testImplementation project(':modules:reindex')
@@ -154,7 +160,7 @@ dependencies {
   // Reactor
   api "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
   api "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
-  api "io.projectreactor:reactor-core:3.7.19"
+  api "io.projectreactor:reactor-core:3.8.7"
   api "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
 
   runtimeOnly "org.cryptomator:siv-mode:1.5.2"
@@ -164,6 +170,7 @@ dependencies {
 }
 
 tasks.withType(AbstractDependenciesTask).configureEach {
+  mapping from: /httpclient|httpcore.*|httpasyncclient/, to: 'httpclient'
   mapping from: /azure-.*/, to: 'azure'
   mapping from: /google-auth-.*/, to: 'google-auth'
   mapping from: /google-http-.*/, to: 'google-http'

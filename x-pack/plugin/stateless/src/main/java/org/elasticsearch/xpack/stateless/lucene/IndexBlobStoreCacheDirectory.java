@@ -134,6 +134,47 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         };
     }
 
+    /**
+     * Cache misses of the returned directory claim their gaps in a task on the shard read pool instead of on the reading thread, so that
+     * a concurrent region 0 prewarm, which runs on the prewarm pool, can claim and fill the same range first. The read completes from
+     * whichever fill comes first.
+     * <p>
+     * A miss then costs a single task on the shard read pool, and only as long as these three settings line up:
+     * <ul>
+     * <li>the claim executor of the cache file, {@link #claimExecutor()}, is the shard read pool,
+     * <li>the blob reader fetches in-thread ({@code DIRECT}) instead of dispatching to the shard read pool again, and
+     * <li>the cache fills the claimed gaps inline, which holds because the stateless cache service uses a {@code DIRECT} io executor.
+     * </ul>
+     * Nothing enforces this. If any of them changes, a miss silently waits in the shard read queue twice.
+     */
+    @Override
+    public IndexBlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
+        return new IndexBlobStoreCacheDirectory(
+            cacheService,
+            shardId,
+            totalBytesReadFromObjectStore,
+            totalBytesWarmedFromObjectStore,
+            blobContainer.get()
+        ) {
+            @Override
+            protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+                return createCacheBlobReader(
+                    fileName,
+                    getBlobContainer(blobFile.primaryTerm()),
+                    blobFile.blobName(),
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    totalBytesWarmedFromObjectStore,
+                    BlobCacheMetrics.CachePopulationReason.Warming
+                );
+            }
+
+            @Override
+            protected Executor claimExecutor() {
+                return getCacheService().getShardReadThreadPoolExecutor();
+            }
+        };
+    }
+
     public static IndexBlobStoreCacheDirectory unwrapDirectory(final Directory directory) {
         Directory dir = directory;
         while (dir != null) {

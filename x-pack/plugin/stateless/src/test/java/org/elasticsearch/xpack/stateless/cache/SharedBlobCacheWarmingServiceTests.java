@@ -114,6 +114,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -581,47 +582,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 }
             }
         ) {
-            int bccCount = randomIntBetween(2, 3);
-            Map<String, BlobLocation> uploadedBlobLocations = new HashMap<>();
-            BatchedCompoundCommit latestBcc = null;
-            for (int i = 0; i < bccCount; i++) {
-                var indexCommits = fakeNode.generateIndexCommits(
-                    randomIntBetween(1, 2), // Generate at most 6 commits so they don't get merged
-                    false, // no force-merge: old segments stay in earlier VBCC blobs so the last commit spans multiple blobs
-                    randomBoolean(),
-                    generation -> {}
-                );
-                try (
-                    var vbcc = new VirtualBatchedCompoundCommit(
-                        fakeNode.shardId,
-                        "fake-node-id",
-                        primaryTerm,
-                        indexCommits.getFirst().getGeneration(),
-                        uploadedBlobLocations::get,
-                        ESTestCase::randomNonNegativeLong,
-                        fakeNode.sharedCacheService.getRegionSize(),
-                        randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
-                    )
-                ) {
-                    for (StatelessCommitRef ref : indexCommits) {
-                        assertTrue(vbcc.appendCommit(ref, randomBoolean(), null));
-                    }
-                    vbcc.freeze();
-                    var indexBlobContainer = fakeNode.getShardContainer();
-                    try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
-                        indexBlobContainer.writeBlobAtomic(
-                            OperationPurpose.INDICES,
-                            vbcc.getBlobName(),
-                            vbccInputStream,
-                            vbcc.getTotalSizeInBytes(),
-                            true
-                        );
-                    }
-                    uploadedBlobLocations.putAll(vbcc.lastCompoundCommit().commitFiles());
-                    latestBcc = vbcc.getFrozenBatchedCompoundCommit();
-                }
-            }
-            assertThat(latestBcc, is(notNullValue()));
+            BatchedCompoundCommit latestBcc = uploadBccs(fakeNode, primaryTerm, randomIntBetween(2, 3));
 
             var lastCommit = latestBcc.lastCompoundCommit();
             var lastCommitBlobFiles = lastCommit.getBlobFiles();
@@ -3188,6 +3149,236 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             assertThat(warmingTasks, hasSize(regionCount));
             safeGet(mergeWarmFuture);
         }
+    }
+
+    /**
+     * A BCC header read claims its cache gaps on the shard read pool, which is blocked here, so the read cannot make progress by itself.
+     * The region-0 prewarm, running on the prewarm pool, claims and fills the same gaps first and the read completes from its fill.
+     */
+    public void testBccHeaderReadCompletesThroughRegion0PrewarmWhileShardReadIsBlocked() throws Exception {
+        final long primaryTerm = randomLongBetween(10, 42);
+        try (var fakeNode = newBccHeaderReadNode(primaryTerm, true, UnaryOperator.identity())) {
+            final var lastCommit = uploadBccs(fakeNode, primaryTerm, randomIntBetween(1, 2)).lastCompoundCommit();
+            final var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(fakeNode.indexingDirectory);
+
+            final var releaseShardRead = blockShardReadPool(fakeNode);
+            try {
+                final var readFuture = readReferencedCompoundCommitsOnGeneric(fakeNode, lastCommit, directory);
+                assertBusy(() -> assertThat(queuedShardReadTasks(fakeNode.threadPool), greaterThan(0L)));
+                assertThat(readFuture.isDone(), is(false));
+
+                final var warmFuture = new PlainActionFuture<Void>();
+                fakeNode.warmingService.warmCacheForBCCHeadersRead(
+                    mockIndexShard(fakeNode),
+                    directory,
+                    lastCommit.getBlobFiles(),
+                    warmFuture
+                );
+                safeGet(warmFuture);
+                safeGet(readFuture);
+            } finally {
+                releaseShardRead.countDown();
+            }
+        }
+    }
+
+    /**
+     * The header read waits on the range claimed by the region 0 prewarm, so it fails when that fill fails, as any read waiting on a
+     * range filled by someone else would.
+     */
+    public void testBccHeaderReadFailsWhenTheRegion0PrewarmFillingItsRangeFails() throws Exception {
+        final long primaryTerm = randomLongBetween(10, 42);
+        final var failure = new IOException("simulated prewarm failure");
+        final UnaryOperator<BlobContainer> failReadsOnThePrewarmPool = container -> new FilterBlobContainer(container) {
+            @Override
+            protected BlobContainer wrapChild(BlobContainer child) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+                if (StatelessPlugin.PREWARM_THREAD_POOL.equals(EsExecutors.executorName(Thread.currentThread()))) {
+                    throw failure;
+                }
+                return super.readBlob(purpose, blobName, position, length);
+            }
+        };
+        try (var fakeNode = newBccHeaderReadNode(primaryTerm, true, failReadsOnThePrewarmPool)) {
+            // a single blob, otherwise the read goes on to the next blob once the first one fails and waits on the blocked shard read pool
+            final var lastCommit = uploadBccs(fakeNode, primaryTerm, 1).lastCompoundCommit();
+            final var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(fakeNode.indexingDirectory);
+
+            final var releaseShardRead = blockShardReadPool(fakeNode);
+            try {
+                final var readFuture = readReferencedCompoundCommitsOnGeneric(fakeNode, lastCommit, directory);
+                assertBusy(() -> assertThat(queuedShardReadTasks(fakeNode.threadPool), greaterThan(0L)));
+
+                final var warmFuture = new PlainActionFuture<Void>();
+                fakeNode.warmingService.warmCacheForBCCHeadersRead(
+                    mockIndexShard(fakeNode),
+                    directory,
+                    lastCommit.getBlobFiles(),
+                    warmFuture
+                );
+                assertThat(causedBy(expectThrows(AssertionError.class, () -> safeGet(warmFuture)), failure), is(true));
+                assertThat(causedBy(expectThrows(AssertionError.class, () -> safeGet(readFuture)), failure), is(true));
+            } finally {
+                releaseShardRead.countDown();
+            }
+        }
+    }
+
+    private FakeStatelessNode newBccHeaderReadNode(
+        long primaryTerm,
+        boolean singleShardReadThread,
+        UnaryOperator<BlobContainer> blobContainerDecorator
+    ) throws IOException {
+        final long regionSizeInBytes = ByteSizeValue.ofKb(256).getBytes();
+        return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                final var settings = Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(4))
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                    .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes));
+                if (singleShardReadThread) {
+                    settings.put(StatelessPlugin.SHARD_READ_THREAD_POOL_SETTING + ".core", 1)
+                        .put(StatelessPlugin.SHARD_READ_THREAD_POOL_SETTING + ".max", 1);
+                }
+                return settings.build();
+            }
+
+            @Override
+            protected BlobContainer getBlobContainer(ObjectStoreService objectStoreService, ShardId shardId, long term) {
+                return blobContainerDecorator.apply(super.getBlobContainer(objectStoreService, shardId, term));
+            }
+        };
+    }
+
+    /**
+     * Occupies the only thread of the shard read pool until the returned latch is counted down.
+     */
+    private static CountDownLatch blockShardReadPool(FakeStatelessNode fakeNode) {
+        final var shardReadBlocked = new CountDownLatch(1);
+        final var releaseShardRead = new CountDownLatch(1);
+        fakeNode.threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL).execute(() -> {
+            shardReadBlocked.countDown();
+            safeAwait(releaseShardRead);
+        });
+        safeAwait(shardReadBlocked);
+        return releaseShardRead;
+    }
+
+    private static PlainActionFuture<Void> readReferencedCompoundCommitsOnGeneric(
+        FakeStatelessNode fakeNode,
+        StatelessCompoundCommit lastCommit,
+        IndexBlobStoreCacheDirectory directory
+    ) {
+        final var readFuture = new PlainActionFuture<Void>();
+        fakeNode.threadPool.generic()
+            .execute(
+                () -> ObjectStoreService.readReferencedCompoundCommitsUsingCache(
+                    lastCommit.commitFiles(),
+                    null,
+                    directory,
+                    IOContext.DEFAULT,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    referencedCC -> {},
+                    (blobFile, bccSize) -> {},
+                    readFuture
+                )
+            );
+        return readFuture;
+    }
+
+    private static long queuedShardReadTasks(ThreadPool threadPool) {
+        for (var stats : threadPool.stats()) {
+            if (StatelessPlugin.SHARD_READ_THREAD_POOL.equals(stats.name())) {
+                return stats.queue();
+            }
+        }
+        throw new AssertionError("no stats for " + StatelessPlugin.SHARD_READ_THREAD_POOL);
+    }
+
+    private static boolean causedBy(Throwable throwable, Throwable cause) {
+        for (Throwable t = throwable; t != null; t = t.getCause()) {
+            if (t == cause) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A BCC header read that misses the cache claims the gaps on the shard read pool, and the blob is then fetched by that same task:
+     * it must not dispatch the fetch to the shard read pool a second time.
+     */
+    public void testColdBccHeaderReadRunsAsOneShardReadTaskPerBlob() throws Exception {
+        final long primaryTerm = randomLongBetween(10, 42);
+        try (var fakeNode = newBccHeaderReadNode(primaryTerm, false, UnaryOperator.identity())) {
+            final var lastCommit = uploadBccs(fakeNode, primaryTerm, randomIntBetween(1, 2)).lastCompoundCommit();
+            final var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(fakeNode.indexingDirectory);
+            final long completedBefore = completedShardReadTasks(fakeNode.threadPool);
+
+            safeGet(readReferencedCompoundCommitsOnGeneric(fakeNode, lastCommit, directory));
+
+            final long blobs = lastCommit.getBlobFiles().size();
+            assertBusy(() -> assertThat(completedShardReadTasks(fakeNode.threadPool) - completedBefore, equalTo(blobs)));
+        }
+    }
+
+    private static long completedShardReadTasks(ThreadPool threadPool) {
+        for (var stats : threadPool.stats()) {
+            if (StatelessPlugin.SHARD_READ_THREAD_POOL.equals(stats.name())) {
+                return stats.completed();
+            }
+        }
+        throw new AssertionError("no stats for " + StatelessPlugin.SHARD_READ_THREAD_POOL);
+    }
+
+    private static BatchedCompoundCommit uploadBccs(FakeStatelessNode fakeNode, long primaryTerm, int bccCount) throws IOException {
+        Map<String, BlobLocation> uploadedBlobLocations = new HashMap<>();
+        BatchedCompoundCommit latestBcc = null;
+        for (int i = 0; i < bccCount; i++) {
+            var indexCommits = fakeNode.generateIndexCommits(
+                randomIntBetween(1, 2), // Generate at most 6 commits so they don't get merged
+                false, // no force-merge: old segments stay in earlier VBCC blobs so the last commit spans multiple blobs
+                randomBoolean(),
+                generation -> {}
+            );
+            try (
+                var vbcc = new VirtualBatchedCompoundCommit(
+                    fakeNode.shardId,
+                    "fake-node-id",
+                    primaryTerm,
+                    indexCommits.getFirst().getGeneration(),
+                    uploadedBlobLocations::get,
+                    ESTestCase::randomNonNegativeLong,
+                    fakeNode.sharedCacheService.getRegionSize(),
+                    randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+                )
+            ) {
+                for (StatelessCommitRef ref : indexCommits) {
+                    assertTrue(vbcc.appendCommit(ref, randomBoolean(), null));
+                }
+                vbcc.freeze();
+                var indexBlobContainer = fakeNode.getShardContainer();
+                try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
+                    indexBlobContainer.writeBlobAtomic(
+                        OperationPurpose.INDICES,
+                        vbcc.getBlobName(),
+                        vbccInputStream,
+                        vbcc.getTotalSizeInBytes(),
+                        true
+                    );
+                }
+                uploadedBlobLocations.putAll(vbcc.lastCompoundCommit().commitFiles());
+                latestBcc = vbcc.getFrozenBatchedCompoundCommit();
+            }
+        }
+        assertThat(latestBcc, is(notNullValue()));
+        return latestBcc;
     }
 
     public void testMergeWarmingIsInterleavedWithRegion0Warming() throws IOException {

@@ -27,8 +27,10 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
@@ -66,6 +68,8 @@ import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -3770,6 +3774,278 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertThat(future1.get(10L, TimeUnit.SECONDS) && future2.get(10L, TimeUnit.SECONDS), is(false));
             assertThat(bytesWritten.get(), equalTo(regionSize - 1));
         }
+    }
+
+    /**
+     * A read that defers its claim registers its listener and queues a task without claiming, so a populate for the same range queued
+     * afterwards (e.g. a region warming task on another pool) still sees the gaps. Whichever task runs first claims and fills; the other
+     * finds nothing to claim, and the read completes from either fill.
+     */
+    public void testPopulateAndReadDeferredClaimWhenThePopulateRunsFirst() throws Exception {
+        assertDeferredClaimRacesWithPopulate(true);
+    }
+
+    public void testPopulateAndReadDeferredClaimWhenTheClaimTaskRunsFirst() throws Exception {
+        assertDeferredClaimRacesWithPopulate(false);
+    }
+
+    private void assertDeferredClaimRacesWithPopulate(boolean populateRunsFirst) throws Exception {
+        withDeferredClaimCacheService(cacheService -> {
+            final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
+            final ByteRange range = ByteRange.of(0, size(1L));
+            final List<Runnable> readTasks = new ArrayList<>();
+            final List<Runnable> warmTasks = new ArrayList<>();
+            final AtomicInteger fills = new AtomicInteger();
+            final RangeMissingHandler writer = fillingWriter(fills);
+
+            final PlainActionFuture<Integer> readFuture = new PlainActionFuture<>();
+            entry.populateAndRead(range, range, READ_ALL, writer, EsExecutors.DIRECT_EXECUTOR_SERVICE, readTasks::add, readFuture);
+            assertThat(readTasks, hasSize(1));
+            assertThat(readFuture.isDone(), is(false));
+
+            // the range is pending but unclaimed, so the populate still has gaps to claim and queues its own task
+            final PlainActionFuture<Boolean> warmFuture = new PlainActionFuture<>();
+            entry.populate(range, writer, warmTasks::add, warmFuture);
+            assertThat(warmTasks, hasSize(1));
+            assertThat(warmFuture.isDone(), is(false));
+
+            if (populateRunsFirst) {
+                warmTasks.get(0).run();
+                assertThat(safeGet(warmFuture), is(true));
+                assertThat(safeGet(readFuture), equalTo(Math.toIntExact(range.length())));
+                readTasks.get(0).run();
+            } else {
+                readTasks.get(0).run();
+                assertThat(safeGet(readFuture), equalTo(Math.toIntExact(range.length())));
+                warmTasks.get(0).run();
+                assertThat(safeGet(warmFuture), is(false));
+            }
+            assertThat(fills.get(), equalTo(1));
+            assertThat(entry.tracker.checkAvailable(range.end()), is(true));
+            synchronized (cacheService) {
+                assertTrue(tryEvict(entry));
+            }
+        });
+    }
+
+    public void testPopulateAndReadDeferredClaimFailsWhenTheOtherClaimerFails() throws Exception {
+        withDeferredClaimCacheService(cacheService -> {
+            final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
+            final ByteRange range = ByteRange.of(0, size(1L));
+            final List<Runnable> readTasks = new ArrayList<>();
+            final List<Runnable> warmTasks = new ArrayList<>();
+            final IOException failure = new IOException("simulated");
+
+            final PlainActionFuture<Integer> readFuture = new PlainActionFuture<>();
+            entry.populateAndRead(
+                range,
+                range,
+                READ_ALL,
+                fillingWriter(new AtomicInteger()),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                readTasks::add,
+                readFuture
+            );
+            final PlainActionFuture<Boolean> warmFuture = new PlainActionFuture<>();
+            entry.populate(range, failingWriter(failure), warmTasks::add, warmFuture);
+
+            warmTasks.get(0).run();
+            assertThat(warmFuture.isDone(), is(true));
+            assertThat(expectThrows(ExecutionException.class, warmFuture::get).getCause(), sameInstance(failure));
+            // the failure of the claimer propagates through the tracker to the read that was waiting on the same range
+            assertThat(readFuture.isDone(), is(true));
+            assertThat(expectThrows(ExecutionException.class, readFuture::get).getCause(), sameInstance(failure));
+            // the failed range was removed, so the read's task has nothing to claim and a later read can fill the range again
+            readTasks.get(0).run();
+            assertThat(entry.tracker.waitForRangeIfPending(range, ActionListener.noop()), is(false));
+
+            final PlainActionFuture<Integer> retryFuture = new PlainActionFuture<>();
+            entry.populateAndRead(
+                range,
+                range,
+                READ_ALL,
+                fillingWriter(new AtomicInteger()),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                retryFuture
+            );
+            assertThat(safeGet(retryFuture), equalTo(Math.toIntExact(range.length())));
+        });
+    }
+
+    /**
+     * When the executor rejects the claiming task, the read is failed with the rejection. The task never claimed the gaps, so they are left
+     * for whoever reads or warms the range next.
+     */
+    public void testPopulateAndReadDeferredClaimRejected() throws Exception {
+        withDeferredClaimCacheService(cacheService -> {
+            final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
+            final ByteRange range = ByteRange.of(0, size(1L));
+            final EsRejectedExecutionException rejection = new EsRejectedExecutionException("simulated", true);
+            // EsThreadPoolExecutor hands rejections to the AbstractRunnable instead of throwing out of execute()
+            final Executor rejectingExecutor = r -> {
+                final AbstractRunnable task = asInstanceOf(AbstractRunnable.class, r);
+                task.onRejection(rejection);
+                task.onAfter();
+            };
+
+            final PlainActionFuture<Integer> readFuture = new PlainActionFuture<>();
+            entry.populateAndRead(
+                range,
+                range,
+                READ_ALL,
+                unreachableWriter(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                rejectingExecutor,
+                readFuture
+            );
+            assertThat(readFuture.isDone(), is(true));
+            assertThat(expectThrows(ExecutionException.class, readFuture::get).getCause(), sameInstance(rejection));
+        });
+    }
+
+    /**
+     * The claimed gaps are filled through the executor given for the fills: here it runs tasks inline, so the claim task fills them itself.
+     */
+    public void testPopulateAndReadClaimTaskFillsTheGapsInlineWhenTheFillExecutorRunsInline() throws Exception {
+        withDeferredClaimCacheService(cacheService -> {
+            final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
+            final ByteRange range = ByteRange.of(0, size(1L));
+            final AtomicInteger fills = new AtomicInteger();
+            final List<Runnable> claimTasks = new ArrayList<>();
+            final PlainActionFuture<Integer> future = new PlainActionFuture<>();
+            entry.populateAndRead(
+                range,
+                range,
+                READ_ALL,
+                fillingWriter(fills),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                claimTasks::add,
+                future
+            );
+            assertThat(claimTasks, hasSize(1));
+            claimTasks.get(0).run();
+            assertThat(safeGet(future), equalTo(Math.toIntExact(range.length())));
+            assertThat(fills.get(), equalTo(1));
+        });
+    }
+
+    /**
+     * The claimed gaps are filled through the executor given for the fills, as they are for an inline claim, so the claim task dispatches
+     * them to it when it is not the same executor.
+     */
+    public void testPopulateAndReadClaimTaskDispatchesTheGapsToTheFillExecutor() throws Exception {
+        withDeferredClaimCacheService(cacheService -> {
+            final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
+            final ByteRange range = ByteRange.of(0, size(1L));
+            final AtomicInteger fills = new AtomicInteger();
+            final List<Runnable> claimTasks = new ArrayList<>();
+            final List<Runnable> fillTasks = new ArrayList<>();
+            final PlainActionFuture<Integer> future = new PlainActionFuture<>();
+            entry.populateAndRead(range, range, READ_ALL, fillingWriter(fills), fillTasks::add, claimTasks::add, future);
+            assertThat(claimTasks, hasSize(1));
+            assertThat(fillTasks, hasSize(0));
+            claimTasks.get(0).run();
+            assertThat(fillTasks, hasSize(1));
+            assertThat(future.isDone(), is(false));
+            fillTasks.get(0).run();
+            assertThat(safeGet(future), equalTo(Math.toIntExact(range.length())));
+            assertThat(fills.get(), equalTo(1));
+        });
+    }
+
+    /**
+     * Without a claim executor the gaps are claimed by the calling thread, and the fills are dispatched once to the fill executor.
+     */
+    public void testPopulateAndReadWithoutClaimExecutorClaimsOnTheCallingThread() throws Exception {
+        withDeferredClaimCacheService(cacheService -> {
+            final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
+            final ByteRange range = ByteRange.of(0, size(1L));
+            final AtomicInteger fills = new AtomicInteger();
+            final List<Runnable> fillTasks = new ArrayList<>();
+            final PlainActionFuture<Integer> future = new PlainActionFuture<>();
+            entry.populateAndRead(range, range, READ_ALL, fillingWriter(fills), fillTasks::add, future);
+            assertThat(fillTasks, hasSize(1));
+            fillTasks.get(0).run();
+            assertThat(safeGet(future), equalTo(Math.toIntExact(range.length())));
+            assertThat(fillTasks, hasSize(1));
+            assertThat(fills.get(), equalTo(1));
+        });
+    }
+
+    /**
+     * A read spanning several regions claims each region in its own task on the claim executor of the cache file, including on a copy of
+     * the cache file.
+     */
+    public void testCacheFileClaimsEveryRegionOfAReadThroughItsClaimExecutor() throws Exception {
+        withDeferredClaimCacheService(cacheService -> {
+            final List<Runnable> claimTasks = new ArrayList<>();
+            final var original = cacheService.getCacheFile(
+                generateCacheKey(),
+                size(12L),
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp(),
+                claimTasks::add
+            );
+            final var cacheFile = randomBoolean() ? original : original.copy();
+            final ByteRange range = ByteRange.of(0, 2 * size(1L));
+            final AtomicInteger fills = new AtomicInteger();
+            final PlainActionFuture<Integer> future = new PlainActionFuture<>();
+            cacheFile.populate(range, range, READ_ALL, fillingWriter(fills), "test", future);
+            assertThat(claimTasks, hasSize(2));
+            assertThat(future.isDone(), is(false));
+            claimTasks.forEach(Runnable::run);
+            assertThat(safeGet(future), equalTo(Math.toIntExact(range.length())));
+            assertThat(fills.get(), equalTo(2));
+        });
+    }
+
+    private static final SharedBlobCacheService.RangeAvailableHandler READ_ALL = (channel, channelPos, relativePos, length) -> length;
+
+    private void withDeferredClaimCacheService(CheckedConsumer<SharedBlobCacheService<TestCacheKey>, Exception> test) throws Exception {
+        final Settings settings = deferredClaimTestSettings(size(1L));
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                new DeterministicTaskQueue().getThreadPool(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            test.accept(cacheService);
+        }
+    }
+
+    private RangeMissingHandler fillingWriter(AtomicInteger fills) {
+        return (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+            completionListener,
+            () -> {
+                fills.incrementAndGet();
+                progressUpdater.accept(length);
+            }
+        );
+    }
+
+    private static RangeMissingHandler failingWriter(Exception failure) {
+        return (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completionListener
+            .onFailure(failure);
+    }
+
+    private static RangeMissingHandler unreachableWriter() {
+        return (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> {
+            throw new AssertionError("should not fill");
+        };
+    }
+
+    private static Settings deferredClaimTestSettings(long regionSize) {
+        return Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
     }
 
     private void assertThatNonPositiveRecoveryRangeSizeRejected(Setting<ByteSizeValue> setting) {

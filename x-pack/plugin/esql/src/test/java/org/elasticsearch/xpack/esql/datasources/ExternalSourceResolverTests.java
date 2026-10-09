@@ -11085,15 +11085,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver.overlaidBoundReadOf(retyping, "csv").apply(record)
         );
 
-        // No declaration: both must derive exactly what they derived before this existed, or every unmapped dataset
-        // moves address and goes cold once.
+        // No declaration, and the two helpers answer DIFFERENTLY on purpose. First-file-wins reads every file at
+        // the anchor's schema, so it names that read even undeclared - the per-file records of a corpus whose
+        // files differ are addressed by it, and returning null there takes them cold.
         assertEquals(
-            "an undeclared first-file-wins read keeps its derivation",
+            "an undeclared first-file-wins read is still bound to the anchor's own read",
             inferredRead,
             ExternalSourceResolver.ffwBoundRead(anchor, null)
         );
+        // The per-record helper has no listing-wide read to name, so it defers to each record's own stamp.
         assertNull(
-            "an undeclared read has no bound of its own: the record's own stamp is the read",
+            "an undeclared per-record read has no bound of its own: the record's own stamp is the read",
             ExternalSourceResolver.overlaidBoundReadOf(null, "csv")
         );
     }

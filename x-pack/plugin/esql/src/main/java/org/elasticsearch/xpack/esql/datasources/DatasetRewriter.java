@@ -478,6 +478,10 @@ public final class DatasetRewriter {
         // addressed by a version of them. An edit to either takes the derived entries out of reach
         // without anything having to notice the edit and invalidate them.
         merged.put(DefinitionVersion.CONFIG_KEY, DefinitionVersion.of(dataset, parent));
+        // The dataset tier addresses by the whole definition instead, names and mapping included, so an edit to
+        // either moves every dataset-level fact too. Two definitions equal in content share the per-file entries
+        // above and never a dataset-level fold.
+        merged.put(DefinitionVersion.DATASET_CONFIG_KEY, DefinitionVersion.ofDataset(dataset, parent));
         Literal path = Literal.keyword(source, dataset.resource());
         return new UnresolvedExternalRelation(source, path, merged, metadataFields, name, dataset.mapping());
     }
@@ -568,10 +572,6 @@ public final class DatasetRewriter {
             ExternalSourceResolver.DATASET_CONTEXT_KEY,
             Map.of("dataset", dataset.name(), "datasource", parent.name(), "type", parent.type())
         );
-        // The dataset tier's own address: which definition exactly, names and mapping included, so any edit to
-        // this dataset moves every dataset-level fact derived from it. Per-file facts keep the content-derived
-        // CONFIG_KEY that buildDatasetBranch adds, which two definitions equal in content are meant to share.
-        merged.put(DefinitionVersion.DATASET_CONFIG_KEY, DefinitionVersion.ofDataset(dataset, parent));
         return merged;
     }
 

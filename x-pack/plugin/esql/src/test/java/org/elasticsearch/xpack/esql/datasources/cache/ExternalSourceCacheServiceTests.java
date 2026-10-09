@@ -3917,10 +3917,9 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * A stripe delta from a FOREIGN read is committed at its OWN address and NEVER NORMALISED, because there is no
      * record whose types are the right ones to normalise it against.
      * <p>
-     * An earlier revision refused to commit it at all, for that same reason. The refusal cost the measurement
-     * entirely: a non-strict declaration that retypes a column resolves to a read whose stamp never equals the
-     * record's, so a segmented text read of such a dataset filed nothing at any address, forever. The hazard
-     * the refusal was built to stop is the COERCION, not the storage - and its
+     * Refusing it outright keeps them apart too, and costs the measurement: a retyping declaration resolves to a
+     * read whose stamp never equals the record's, so a segmented read of such a dataset files nothing at any
+     * address. The hazard to stop is the COERCION, not the storage - and its
      * whole-file sibling has stored a foreign read as harvested all along.
      * <p>
      * The per-stripe coercion targets the schema record's resolved types, and that is sound only when the

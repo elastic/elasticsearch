@@ -97,12 +97,7 @@ public final class DefinitionVersion {
         append(encoded, "type", parent.type());
         encodeDataSourceSettings(encoded, parent);
 
-        byte[] bytes = encoded.toString().getBytes(StandardCharsets.UTF_8);
-        MurmurHash3.Hash128 hash = MurmurHash3.hash128(bytes, 0, bytes.length, 0, new MurmurHash3.Hash128());
-        // Zero-padded, matching ReadConfigFingerprint: Long.toHexString does not pad, so (0x1, 0x23) and
-        // (0x12, 0x3) would both render "123" — and two definitions rendering to one version share every
-        // cache address, which is the failure this class exists to prevent.
-        return String.format(Locale.ROOT, "%016x%016x", hash.h1, hash.h2);
+        return render(encoded);
     }
 
     /** Key under which the dataset-tier version travels in a query's merged config map. See {@link #ofDataset}. */
@@ -129,7 +124,16 @@ public final class DefinitionVersion {
         append(encoded, "type", parent.type());
         encodeDataSourceSettings(encoded, parent);
         encodeMapping(encoded, dataset.mapping());
+        return render(encoded);
+    }
 
+    /**
+     * The pre-image's fixed-width rendering, shared by both versions so the two cannot drift. Zero-padded,
+     * matching {@code ReadConfigFingerprint}: {@code Long.toHexString} does not pad, so (0x1, 0x23) and
+     * (0x12, 0x3) would both render "123", and two definitions rendering to one version share every cache
+     * address - the failure this class exists to prevent.
+     */
+    private static String render(StringBuilder encoded) {
         byte[] bytes = encoded.toString().getBytes(StandardCharsets.UTF_8);
         MurmurHash3.Hash128 hash = MurmurHash3.hash128(bytes, 0, bytes.length, 0, new MurmurHash3.Hash128());
         return String.format(Locale.ROOT, "%016x%016x", hash.h1, hash.h2);
@@ -147,7 +151,7 @@ public final class DefinitionVersion {
             append(encoded, "map", null);
             return;
         }
-        append(encoded, "dyn", mappings.dynamic() == null ? null : mappings.dynamic().name());
+        append(encoded, "dyn", mappings.dynamic().name());
         for (Map.Entry<String, DatasetFieldMapping> e : new TreeMap<>(mappings.properties()).entrySet()) {
             append(encoded, "col", e.getKey());
             append(encoded, "t", e.getValue().type());

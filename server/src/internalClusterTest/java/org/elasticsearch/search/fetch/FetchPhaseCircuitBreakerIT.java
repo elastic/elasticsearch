@@ -11,6 +11,7 @@ package org.elasticsearch.search.fetch;
 
 import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
@@ -23,8 +24,11 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -33,6 +37,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.FieldBasedRerankerIT;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -44,6 +49,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
@@ -79,7 +87,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(ScriptFieldsTestPlugin.class, FieldBasedRerankerIT.FieldBasedRerankerPlugin.class);
+        return List.of(ScriptFieldsTestPlugin.class, FieldBasedRerankerIT.FieldBasedRerankerPlugin.class, FetchPhaseBlockingPlugin.class);
     }
 
     public static class ScriptFieldsTestPlugin extends MockScriptPlugin {
@@ -108,6 +116,48 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
                 return values;
             });
             return scripts;
+        }
+    }
+
+    /**
+     * Pauses the shard after the fetch phase has charged the request breaker but before the result is released,
+     * so a test can read the breaker mid-flight. Registered on every node for the whole class, so it is a no-op
+     * until {@link #setArmed} enables it: otherwise every fetch phase in every other test in this class would
+     * block for the full await timeout with nothing to release it.
+     */
+    public static class FetchPhaseBlockingPlugin extends Plugin {
+        private final AtomicBoolean armed = new AtomicBoolean(false);
+        private final CountDownLatch fetchPhaseReached = new CountDownLatch(1);
+        private final CountDownLatch release = new CountDownLatch(1);
+
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            indexModule.addSearchOperationListener(new SearchOperationListener() {
+                @Override
+                public void onFetchPhase(SearchContext context, long tookInNanos) {
+                    if (armed.get() == false) {
+                        return;
+                    }
+                    fetchPhaseReached.countDown();
+                    try {
+                        release.await(10, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            });
+        }
+
+        void setArmed(boolean value) {
+            armed.set(value);
+        }
+
+        boolean awaitFetchPhase() throws InterruptedException {
+            return fetchPhaseReached.await(10, TimeUnit.SECONDS);
+        }
+
+        void release() {
+            release.countDown();
         }
     }
 
@@ -919,6 +969,69 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         assertBusy(
             () -> assertThat(
                 "Circuit breaker should be released after a successful highlight fetch",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    /**
+     * Verifies that the highlight charge is actually held on the request breaker while the shard's hits are still
+     * alive, not just that it eventually trips or returns to baseline. {@link FetchPhaseBlockingPlugin} pauses the
+     * shard after the fetch phase has charged the bytes but before the {@code FetchSearchResult} is released, so the
+     * test can read the breaker mid-flight.
+     */
+    public void testHighlightBytesHeldWhileHitsAlive() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String highlightIndex = "highlight_held_idx";
+        // Single shard: the ordering this test relies on (fully charged before release) only holds for the
+        // combined query-and-fetch path; multiple shards would switch to chunked fetch, which can release early.
+        assertAcked(
+            prepareCreate(highlightIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("large_text_1", "type=text,store=false")
+        );
+        populateIndex(highlightIndex, 20, 1000);
+        ensureSearchable(highlightIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        PluginsService pluginsService = internalCluster().getInstance(PluginsService.class, dataNode);
+        // Owned by the node; do not close.
+        FetchPhaseBlockingPlugin blockingPlugin = pluginsService.filterPlugins(FetchPhaseBlockingPlugin.class).findFirst().orElseThrow();
+        blockingPlugin.setArmed(true);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchQuery("large_text_1", "content"))
+            .size(20)
+            .fetchSource(false)
+            .highlighter(new HighlightBuilder().field("large_text_1", 0, 0));
+
+        ActionFuture<SearchResponse> future = client(coordinatorNode).prepareSearch(highlightIndex).setSource(source).execute();
+        try {
+            assertTrue("Fetch phase should have been reached before the shard result is released", blockingPlugin.awaitFetchPhase());
+
+            // 100 KB floor rules out a trivial, unrelated residual; 20 docs of highlighted text clears it easily.
+            assertThat(
+                "Highlight bytes should still be charged while the shard result is held, before it is released",
+                getRequestBreakerUsed(dataNode),
+                greaterThan(breakerBeforeSearch + 100_000)
+            );
+        } finally {
+            blockingPlugin.release();
+            blockingPlugin.setArmed(false);
+        }
+
+        assertNoFailuresAndResponse(future, response -> {
+            assertThat(response.getHits().getHits().length, equalTo(20));
+            assertThat(response.getHits().getHits()[0].getHighlightFields().get("large_text_1"), notNullValue());
+        });
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after the held highlight fetch completes",
                 getRequestBreakerUsed(dataNode),
                 lessThanOrEqualTo(breakerBeforeSearch)
             )

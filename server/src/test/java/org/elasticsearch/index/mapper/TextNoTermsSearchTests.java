@@ -133,6 +133,44 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
         };
     }
 
+    /**
+     * Only a strictly columnar index is taken to keep the values a text query reads. A field indexing no terms in any
+     * other mode answers as it always has, from its doc values and whole, so nothing reads its values for a token.
+     */
+    public void testOutsideAStrictlyColumnarIndexNothingReadsTheValues() throws IOException {
+        // The modes that keep the values a text query reads, and so the only ones this applies to.
+        for (IndexMode mode : IndexMode.values()) {
+            assertEquals(
+                mode.getName(),
+                mode == IndexMode.COLUMNAR || mode == IndexMode.LOGSDB_COLUMNAR || mode == IndexMode.VECTORDB_COLUMNAR,
+                mode.isStrictColumnar()
+            );
+        }
+
+        for (IndexMode mode : List.of(IndexMode.STANDARD)) {
+            final MapperService mapperService = createMapperService(
+                Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build(),
+                mapping(b -> b.startObject("body").field("type", "text").field("index", false).field("doc_values", true).endObject())
+            );
+            withLuceneIndex(mapperService, iw -> {
+                for (String doc : DOCS) {
+                    iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("body", doc))).rootDoc());
+                }
+            }, reader -> {
+                final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+                final TextFamilyFieldType field = (TextFamilyFieldType) context.getFieldType("body");
+                assertFalse(mode.getName(), field.answersTextQueryFromValues(context));
+
+                // The whole value is what it compares against, so a token of a longer value finds nothing, while
+                // the value itself, asked for whole, finds the document holding it.
+                final IndexSearcher searcher = newSearcher(reader);
+                assertEquals(mode.getName(), 0, searcher.count(new MatchQueryBuilder("body", "quick").toQuery(context)));
+                assertEquals(mode.getName(), 0, searcher.count(new MatchQueryBuilder("body", "brown fox").toQuery(context)));
+                assertEquals(mode.getName(), 1, searcher.count(new TermQueryBuilder("body", "quick brown").toQuery(context)));
+            });
+        }
+    }
+
     private MapperService mapper(boolean indexed) throws IOException {
         return mapper(indexed, null);
     }
